@@ -24,3 +24,11 @@ coverage/
 .claude/settings.local.json
 .claude/worktrees/
 .superpowers/
+
+# Internal development material — never published (this repo is public).
+# Agent instructions, design specs, owner rulings and gate catalogue live
+# here untracked; copy AGENTS.md + docs/ into each worktree by hand.
+AGENTS.md
+CLAUDE.md
+/docs/
+/.claude/

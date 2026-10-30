@@ -7,7 +7,7 @@ No-code A/B testing for [Payload CMS](https://payloadcms.com) and Next.js, with 
 | [`@delmaredigital/payload-experiments`](packages/plugin) | pending | The Payload plugin: experiments, layers, metrics, events, Next.js runtime, results, admin views, optional Puck slot |
 | [`@delmaredigital/experiments-stats`](packages/stats) | pending | Pure TypeScript statistics engine (GrowthBook `gbstats` port): assignment hashing, sequential and fixed-horizon tests, Bayesian effects, CUPED, SRM, power |
 
-**Status:** design complete, implementation in progress. Not yet published. Design: [`docs/plans/2026-10-30-payload-experiments-design.md`](docs/plans/2026-10-30-payload-experiments-design.md).
+**Status:** design complete, implementation in progress. Not yet published.
 
 ## Why
 
@@ -21,7 +21,6 @@ pnpm check     # typecheck + tests (including gbstats parity)
 pnpm build
 ```
 
-See `AGENTS.md` for conventions and gates.
 
 ## License
 
