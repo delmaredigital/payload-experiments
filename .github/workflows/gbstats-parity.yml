@@ -1,0 +1,33 @@
+name: gbstats parity drift
+
+# Regenerates the stats fixtures with the pinned Python gbstats and fails if they
+# changed: either upstream moved or a fixture was hand-edited.
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/gbstats-parity/requirements.txt
+      - run: python3 -I scripts/gbstats-parity/generate.py
+      - name: Fail on fixture diff
+        run: |
+          if ! git diff --exit-code -- packages/stats/fixtures; then
+            echo "::error::gbstats fixtures drifted; read the diff before regenerating."
+            exit 1
+          fi
+      - if: failure()
+        run: gh issue create --title "gbstats parity drift $(date -u +%F)" --label gbstats-parity --body "Fixture regeneration produced a diff. See the workflow run." || true
+        env:
+          GH_TOKEN: ${{ github.token }}

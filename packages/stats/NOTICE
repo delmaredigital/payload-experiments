@@ -1,0 +1,5 @@
+@delmaredigital/experiments-stats ports statistical methods from GrowthBook's
+`gbstats` Python package (https://github.com/growthbook/growthbook/tree/main/packages/stats),
+Copyright (c) GrowthBook, Inc., licensed under the MIT License. The MIT notice is
+reproduced in LICENSE at the repository root. Each ported function names its
+source module in its doc comment.

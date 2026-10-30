@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Logs
+*.log
+
+# Agent worktrees live as siblings (../payload-experiments-<task>) and the
+# build log lives in ../payload-experiments-runlogs; neither is in this tree.
+.claude/settings.local.json
+.claude/worktrees/
+.superpowers/

@@ -1,0 +1,53 @@
+name: Publish to npm
+
+# Tags: stats-vX.Y.Z publishes packages/stats; plugin-vX.Y.Z publishes packages/plugin.
+on:
+  push:
+    tags:
+      - 'stats-v*'
+      - 'plugin-v*'
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+      - run: pnpm install --frozen-lockfile
+      - name: Resolve package from tag
+        run: |
+          case "$TAG" in
+            stats-v*)  echo "PKG=packages/stats"  >> "$GITHUB_ENV"; echo "VER=${TAG#stats-v}"  >> "$GITHUB_ENV" ;;
+            plugin-v*) echo "PKG=packages/plugin" >> "$GITHUB_ENV"; echo "VER=${TAG#plugin-v}" >> "$GITHUB_ENV" ;;
+            *) echo "unknown tag $TAG"; exit 1 ;;
+          esac
+        env:
+          TAG: ${{ github.ref_name }}
+      - run: pnpm --filter "./$PKG" build
+      - run: pnpm --filter "./$PKG" publish --access public --no-git-checks
+      - name: Extract release notes from CHANGELOG
+        run: |
+          awk -v ver="$VER" '
+            $0 ~ "^## \\[" ver "\\]" {flag=1; next}
+            flag && /^## \[/ {exit}
+            flag {print}
+          ' CHANGELOG.md > release-notes.md
+          if [ -s release-notes.md ]; then echo "NOTES_ARG=--notes-file release-notes.md" >> "$GITHUB_ENV"; else echo "NOTES_ARG=" >> "$GITHUB_ENV"; fi
+      - run: gh release create "$TAG" $NOTES_ARG --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
