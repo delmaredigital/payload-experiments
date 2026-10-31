@@ -1,0 +1,16 @@
+export const OVERRIDE_ACCESS_ALLOW_LIST: Array<{ file: string; reason: string }> = [
+  { file: "src/endpoints/events.ts", reason: "§7.8: \"events endpoint insert and its assignment lookup\"" },
+  { file: "src/db/events.ts", reason: "§7.8: \"events endpoint insert and its assignment lookup\"" },
+  { file: "src/server/recordExposures.ts", reason: "§7.8: \"`recordExposures`\"" },
+  { file: "src/server/trackConversion.ts", reason: "§7.8: \"server `trackConversion`\"" },
+  { file: "src/server/linkIdentity.ts", reason: "§7.8: \"`linkIdentity`\"" },
+  { file: "src/manifest/compile.ts", reason: "§7.8: \"manifest reads\"" },
+  { file: "src/db/manifest.ts", reason: "§7.8: \"manifest reads\"" },
+  { file: "src/transitions/*", reason: "§7.8: \"transition endpoints' writes to plugin collections and `xp-state`\"" },
+  { file: "src/hooks/contentChanges.ts", reason: "§7.8: \"the `contentChanges` hook and `recordContentChange`\"" },
+  { file: "src/server/recordContentChange.ts", reason: "§7.8: \"the `contentChanges` hook and `recordContentChange`\"" },
+  { file: "src/server/runResults.ts", reason: "§7.8: \"`runResults` writes and sweep\"" },
+  { file: "src/db/snapshots.ts", reason: "§7.8: \"`runResults` writes and sweep\"" },
+  { file: "src/db/sweep.ts", reason: "§7.8: \"`runResults` writes and sweep\"" },
+  { file: "src/server/eraseUser.ts", reason: "§7.8: \"`eraseUser`\"" },
+]
