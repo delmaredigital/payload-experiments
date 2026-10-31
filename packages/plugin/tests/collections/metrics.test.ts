@@ -28,3 +28,18 @@ test('partial updates validate capping against merged source and cap', () => {
 })
 test.each(['binomial', 'count', 'revenue', 'events:signup'])('source accepts registered %s', source => expect(validate(field(config.fields, 'source', 'text').validate, source)).toBe(true))
 test.each(['unknown', 'events:unknown', 'signup', 'toString', undefined])('source rejects unregistered %s', source => expect(validate(field(config.fields, 'source', 'text').validate, source)).not.toBe(true))
+
+test('attribution windows must be at least one hour (a zero window makes every results run throw)', async () => {
+  const { buildCollections } = await import('../../src/collections/index.js')
+  const { sampleOptions } = await import('./fixtures.js')
+  const { collections } = buildCollections(sampleOptions())
+  const fieldMin = (fields: unknown[], name: string): unknown => {
+    for (const field of fields as Array<Record<string, unknown>>) {
+      if (field.name === name) return field.min
+      for (const key of ['fields', 'tabs']) if (Array.isArray(field[key])) { const found = fieldMin(field[key] as unknown[], name); if (found !== undefined) return found }
+    }
+    return undefined
+  }
+  expect(fieldMin(collections.find(c => c.slug === 'xp-metrics')!.fields, 'attributionWindowHours')).toBe(1)
+  expect(fieldMin(collections.find(c => c.slug === 'xp-experiments')!.fields, 'attributionWindowHours')).toBe(1)
+})

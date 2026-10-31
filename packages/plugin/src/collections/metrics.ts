@@ -21,7 +21,7 @@ export function metricsCollection(options: ResolvedOptions): CollectionConfig {
       { name: 'name', type: 'text', required: true }, { name: 'slug', type: 'text', required: true, unique: true },
       { name: 'source', type: 'text', required: true, validate: (value: unknown) => sources.some(source => source.id === value) || 'Choose a registered metric source.', admin: { components: { Field: XP_METRIC_SOURCE_SELECT }, custom: { sources } } },
       { name: 'direction', type: 'select', required: true, defaultValue: 'increase', options: ['increase', 'decrease'] },
-      { name: 'attributionWindowHours', type: 'number', defaultValue: 168, min: 0 },
+      { name: 'attributionWindowHours', type: 'number', defaultValue: 168, min: 1 },
       { name: 'capping', type: 'group', fields: [
         { name: 'type', type: 'select', options: ['percentile', 'absolute'],
           validate: (value: unknown, { data, siblingData }: { data?: { source?: string }; siblingData?: { value?: unknown } }) => {
