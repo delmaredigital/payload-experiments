@@ -31,6 +31,8 @@ function EditorRender(props: RenderProps) {
   const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean }>()
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
   const [creating, setCreating] = useState(false)
+  // A non-empty variant is only overwritten after an explicit second confirmation.
+  const [confirming, setConfirming] = useState<ArmSlot | null>(null)
   const selected = usePuckSelector(state => state.selectedItem?.props.id === props.id)
   const originalEmpty = usePuckSelector(state => {
     const content: unknown = state.selectedItem?.props.control
@@ -67,7 +69,15 @@ function EditorRender(props: RenderProps) {
   const winnerKey = experiment?.decision?.winnerArm
   const winner = tabs.find(tab => tab.slot === winnerKey)?.label
 
+  function requestCopy(variant: ArmSlot) {
+    const { selectedItem: item } = getPuck()
+    const target = item?.props.id === props.id ? item.props[variant] : undefined
+    if (Array.isArray(target) && target.length) setConfirming(variant)
+    else copyTo(variant)
+  }
+
   function copyTo(variant: ArmSlot) {
+    setConfirming(null)
     const { selectedItem: item, dispatch, getSelectorForId } = getPuck()
     if (!item || item.props.id !== props.id || !Array.isArray(item.props.control) || !item.props.control.length) return
     const selector = getSelectorForId(props.id)
@@ -92,8 +102,11 @@ function EditorRender(props: RenderProps) {
     <button type="button" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</button>
     {creating ? <CreateExperimentDrawer onCreate={bind} onClose={() => setCreating(false)} /> : null}
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBlock: 8 }}>
-      {tabs.filter(tab => tab.slot !== 'control').map(tab => <button key={tab.slot} type="button" disabled={originalEmpty} onClick={() => copyTo(tab.slot)}>{editorCopy.copy(tab.label)}</button>)}
+      {tabs.filter(tab => tab.slot !== 'control').map(tab => <button key={tab.slot} type="button" disabled={originalEmpty} onClick={() => requestCopy(tab.slot)}>{editorCopy.copy(tab.label)}</button>)}
     </div>
+    {confirming ? <p role="alert">{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming)}{' '}
+      <button type="button" onClick={() => copyTo(confirming)}>{editorCopy.replace}</button>{' '}
+      <button type="button" onClick={() => setConfirming(null)}>{editorCopy.cancel}</button></p> : null}
     <div role="tablist" aria-label={editorCopy.tabs} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
       {tabs.map((tab, index) => <button key={tab.slot} type="button" role="tab" id={`${tabId}-${tab.slot}`} aria-selected={tab.slot === slot} tabIndex={tab.slot === slot ? 0 : -1} aria-controls={`${tabId}-panel`} onClick={() => setActive({ id: experimentId, slot: tab.slot })} onKeyDown={event => {
         const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : undefined
