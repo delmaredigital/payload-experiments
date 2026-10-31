@@ -355,9 +355,34 @@ test('a Where-filtered miss fails closed: not done, stays decided, and says how 
 })
 test('a page already fixed by hand is done even if it would be refused for a write (review F1)', async () => {
   const f = fixture()
-  Object.assign(f.payload.config.collections[0]!, { fields: [{ name: 'secret', type: 'text', hidden: true }] })
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }, { collection: 'pages', id: 4, ok: false }] } }
+  Object.assign(f.payload.config.collections[0]!, { fields: [{ name: 'puckData', type: 'json' }, { name: 'secret', type: 'text', hidden: true }] })
   f.payload.documents.pages = f.payload.documents.pages!.map(doc => ({ ...doc, puckData: { content: [] } }))
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('archived')
+  expect(result.docs).toEqual([expect.objectContaining({ id: 3, ok: true }), expect.objectContaining({ id: 4, ok: true })])
+  expect(hostUpdates(f)).toEqual([])
+})
+
+test.each([
+  ['unreadable', { name: 'puckData', type: 'json', access: { read: () => false } }],
+  ['hidden', { name: 'puckData', type: 'json', hidden: true }],
+  ['localized', { name: 'puckData', type: 'json', localized: true }],
+])('a %s content field still holding the slot is never reported done (glue check F1)', async (_label, contentField) => {
+  const f = fixture()
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }, { collection: 'pages', id: 4, ok: false }] } }
+  Object.assign(f.payload.config.collections[0]!, { fields: [contentField] })
+  // Localized: the default locale already looks fixed, but other locales may still hold the slot.
+  if (_label === 'localized') f.payload.documents.pages = f.payload.documents.pages!.map(doc => ({ ...doc, puckData: { content: [] } }))
+  const findByID = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    const doc = await findByID(args)
+    if (args.collection !== 'pages' || !doc || _label === 'localized') return doc
+    const { puckData: _stripped, ...rest } = doc as Record<string, unknown>
+    return rest as never
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs.filter(doc => doc.ok)).toEqual([])
   expect(hostUpdates(f)).toEqual([])
 })

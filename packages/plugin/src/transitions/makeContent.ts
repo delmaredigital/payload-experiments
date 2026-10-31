@@ -182,8 +182,13 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           const publishedContent = unwrap(published[field], current.slug, winner.slot!)
           const changedDraft = JSON.stringify(draftContent) !== JSON.stringify(draft[field])
           const changedPublished = JSON.stringify(publishedContent) !== JSON.stringify(published[field])
-          // Nothing left to rewrite (e.g. an editor already did it by hand): done, before any refusal.
-          if (!changedDraft && !changedPublished) return
+          // Nothing left to rewrite (e.g. an editor already did it by hand): done, before any refusal —
+          // but only when the content field was really read (not stripped as hidden/unreadable, not localized).
+          const contentField = topLevelField(config?.fields ?? [], field)
+          // Payload strips hidden and read-denied fields from a read, so presence in both proves readability;
+          // a localized content field compares only one locale, so it never takes the shortcut.
+          const contentReadable = Object.hasOwn(draft, field) && Object.hasOwn(published, field) && !contentField?.localized
+          if (contentReadable && !changedDraft && !changedPublished) return
           for (const doc of [draft, published]) {
             const refusal = await fieldRefusal(config?.fields ?? [], req, doc)
             if (refusal) throw new Error(refusal)
@@ -227,4 +232,19 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
     return { doc, revision: manifest.revision, docs }
   })
   return result
+}
+
+/** The top-level data field with this name, looking through unnamed rows, collapsibles and tabs. */
+function topLevelField(fields: readonly unknown[], name: string): { hidden?: boolean; localized?: boolean; access?: { read?: unknown } } | undefined {
+  for (const raw of fields) {
+    const field = raw as { name?: string; type?: string; fields?: unknown[]; tabs?: Array<{ name?: string; fields?: unknown[] }> }
+    if (field.name === name) return field as never
+    if (!field.name && (field.type === 'row' || field.type === 'collapsible') && field.fields) {
+      const found = topLevelField(field.fields, name); if (found) return found
+    }
+    if (field.type === 'tabs') for (const tab of field.tabs ?? []) if (!tab.name && tab.fields) {
+      const found = topLevelField(tab.fields, name); if (found) return found
+    }
+  }
+  return undefined
 }
