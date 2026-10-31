@@ -59,3 +59,16 @@ test('graph elides type edges, walks re-exports and cycles, and records dynamic 
     expect(new Set(graph.files).size).toBe(graph.files.length)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+test('a relative non-code asset import is a recorded leaf, not a parse error', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'xp-graph-css-'))
+  try {
+    writeFileSync(join(dir, 'styles.css'), '.x { color: red }\n')
+    writeFileSync(join(dir, 'entry.ts'), "import './styles.css'\nexport const a = 1\n")
+    const graph = collectImports(join(dir, 'entry.ts'))
+    expect(graph.files).toContain(join(dir, 'styles.css'))
+    expect(graph.bare).toEqual([])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
