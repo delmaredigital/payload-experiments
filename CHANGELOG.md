@@ -19,7 +19,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Migration impact**
 
 - Since rc.1: new nullable `xp-events.dimensions` JSON column and composite
-  `(experiment_id, ts)` and `(experiment_id, type, ts)` retention indexes. The host runs `payload migrate:create`, then
+  `(experiment_id, type, ts)` retention index. The host runs `payload migrate:create`, then
   `payload migrate` for rc.2.
 
 ## [0.1.0-rc.1] - 2026-10-31

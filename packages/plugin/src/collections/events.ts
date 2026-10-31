@@ -6,7 +6,7 @@ export function eventsCollection(options: ResolvedOptions): CollectionConfig {
   return {
     slug: 'xp-events', graphQL: false, disableDuplicate: true, admin: { hidden: true },
     access: readOnlyAccess(options.access.readIdentities ?? options.access.admin ?? options.access.manage),
-    indexes: [{ fields: ['experiment', 'phase', 'type', 'ts'] }, { fields: ['unitId', 'experiment'] }, { fields: ['type', 'eventName', 'ts'] }, { fields: ['experiment', 'ts'] }, { fields: ['experiment', 'type', 'ts'] }],
+    indexes: [{ fields: ['experiment', 'phase', 'type', 'ts'] }, { fields: ['unitId', 'experiment'] }, { fields: ['type', 'eventName', 'ts'] }, { fields: ['experiment', 'type', 'ts'] }],
     fields: [
       { name: 'type', type: 'select', required: true, options: ['exposure', 'conversion', 'arm-mismatch'] },
       { name: 'experiment', type: 'relationship', relationTo: 'xp-experiments' },

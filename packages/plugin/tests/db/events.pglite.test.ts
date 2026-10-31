@@ -52,7 +52,8 @@ test('dimensions round-trip JSON only on exposures and the sweep index exists af
       { dedupe_key: 'exposure', dimensions }, { dedupe_key: 'mismatch', dimensions: null },
     ])
     const indexes = await exec.query<{ indexdef: string }>("SELECT indexdef FROM pg_indexes WHERE tablename = 'xp_events'")
-    expect(indexes.rows.some(row => /\(experiment_id, ts\)/.test(row.indexdef))).toBe(true)
+    expect(indexes.rows.some(row => /\(experiment_id, type, ts\)/.test(row.indexdef))).toBe(true)
+    expect(indexes.rows.some(row => /\(experiment_id, ts\)/.test(row.indexdef))).toBe(false)
   } finally { await close() }
 }, 60_000)
 

@@ -2,7 +2,7 @@
  * Payload 3.90.2 — generated 2026-10-30, without a database connection.
  * Built directly from src/collections (including its global factory).
  * Regenerate from packages/plugin:
- * PAYLOAD_CONFIG_PATH=tests/_fixtures/schema/config.ts pnpm exec payload generate:db-schema
+ * NODE_OPTIONS=--conditions=@delmaredigital/source PAYLOAD_CONFIG_PATH=tests/_fixtures/schema/config.ts pnpm exec payload generate:db-schema
  * The CLI uses disableDBConnect + disableOnInit. Restore this provenance header afterwards.
  */
 /* tslint:disable */
@@ -798,7 +798,6 @@ export const xp_events = pgTable(
       columns.eventName,
       columns.ts,
     ),
-    index("experiment_ts_idx").on(columns.experiment, columns.ts),
     index("experiment_type_ts_idx").on(
       columns.experiment,
       columns.type,

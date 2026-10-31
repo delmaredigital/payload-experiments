@@ -5,7 +5,7 @@ import { qualifiedTable, quoteIdentifier as q } from './sql.js'
 import { ResultsBudgetError } from './pgExecutor.js'
 
 /** §5.5 / §7.8: privileged retention sweep. Deleted experiments' FKs become
- * NULL; their non-conversion rows are handled by the first branch. Global
+ * NULL; their exposure and arm-mismatch rows are handled by the two NULL branches. Global
  * conversions stay while an open/recent experiment could still need them. */
 export async function sweepEvents(exec: Executor, { now, retentionDays = 180, batchSize = 1000, shouldContinue = () => true, logger }: {
   now: Date; retentionDays?: number; batchSize?: number; shouldContinue?: () => boolean
@@ -29,7 +29,6 @@ export async function sweepEvents(exec: Executor, { now, retentionDays = 180, ba
     }
   }
   try {
-    const byExperiment = `v.${q(c.experimentId)}, v.${q(c.ts)}`
     // Keep the leading NULL key in ORDER BY too: PostgreSQL does not infer
     // its ordering equivalence from IS NULL when choosing a bounded index scan.
     const byEventType = `v.${q(c.experimentId)}, v.${q(c.type)}, v.${q(c.ts)}`
@@ -47,7 +46,7 @@ export async function sweepEvents(exec: Executor, { now, retentionDays = 180, ba
       // Recheck in every batch in case a new phase started after the id read.
       await batches(`v.${q(c.experimentId)} = ANY($1) AND NOT EXISTS (
         SELECT 1 FROM ${phases} p WHERE p.${q(p.experimentId)} = v.${q(c.experimentId)}
-          AND (p.${q(p.endedAt)} IS NULL OR p.${q(p.endedAt)} >= $2))`, byExperiment, [ended.rows.map(row => row.experimentId), cutoff])
+          AND (p.${q(p.endedAt)} IS NULL OR p.${q(p.endedAt)} >= $2))`, byEventType, [ended.rows.map(row => row.experimentId), cutoff])
     }
     if (!shouldContinue()) return swept
     // Every protected window ends at/after cutoff (or is open). For old
