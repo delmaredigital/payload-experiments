@@ -213,6 +213,20 @@ test.each([false, true])('resolved user mismatch recomputes every user-unit arm 
   expect(result.bySlug.hero).toMatchObject({ arm: expected.arm, source: 'recomputed', exposable: trusted })
   expect(result.flagPoints.point).toMatchObject({ arm: expected.arm, exposable: trusted })
 })
+test('resolved user mismatch recomputes exposable too: header exposable, signed-out user → non-exposable', async () => {
+  trustedContext()
+  const m = manifest([experiment({ unitType: 'user', kind: 'flag', flagPoint: 'point', exposurePolicy: 'manual', arms: [
+    { key: 'control', kind: 'control', weight: 50, params: { text: 'original' } },
+    { key: 'variantA', kind: 'variant', weight: 50, params: { text: 'winner' } },
+  ] })])
+  const old = assign(m, { visitorId: 'visitor', userId: 'old' }, {}, { now: 1 })
+  expect(old.bySlug.hero!.exposable).toBe(true)
+  header(old, m)
+  const { rt } = runtime(m, { getUnit: () => ({ userId: 'old', attributes: {} }) })
+  const result = await getAssignments(rt, { user: null })
+  expect(result.bySlug.hero).toMatchObject({ arm: 'control', exposable: false })
+  expect(result.flagPoints.point).toMatchObject({ exposable: false })
+})
 test('unsigned or tampered newer revisions never force a manifest reload', async () => {
   for (const value of ['v1.999999..hero=variantA.bogus', 'v1.999999..hero=variantA.' + 'a'.repeat(43)]) {
     newRequest(); requestState.headers.set('x-xp-assignments', value)
