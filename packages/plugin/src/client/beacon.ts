@@ -19,8 +19,9 @@ export function unregisterApiRoute(token: symbol): void {
   providers.delete(token)
 }
 
-export function conversionApiRoute(): string {
-  return [...providers.values()].at(-1) ?? '/api'
+/** No mounted provider means experiments are not wired on this page: conversions are not sent (spec §13). */
+export function conversionApiRoute(): string | undefined {
+  return [...providers.values()].at(-1)
 }
 
 export function warnOnce(key: string, message: string): void {

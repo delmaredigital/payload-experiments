@@ -70,7 +70,8 @@ test('conversion route follows the latest mounted provider and restores on unmou
   trackConversionBeacon('registration')
   first.unmount()
   trackConversionBeacon('registration')
-  expect(sendBeacon.mock.calls.map(call => call[0])).toEqual(['/api/xp/events', '/first/xp/events', '/second/xp/events', '/first/xp/events', '/api/xp/events'])
+  // Calls with no mounted provider send nothing (spec §13).
+  expect(sendBeacon.mock.calls.map(call => call[0])).toEqual(['/first/xp/events', '/second/xp/events', '/first/xp/events'])
 })
 
 // Review regression: provider registration must precede child passive effects.
@@ -95,5 +96,5 @@ test('updating an older provider preserves mount order and its updated route aft
   trackConversionBeacon('registration')
   first.unmount()
   trackConversionBeacon('registration')
-  expect(sendBeacon.mock.calls.map(call => call[0])).toEqual(['/second/xp/events', '/first-updated/xp/events', '/api/xp/events'])
+  expect(sendBeacon.mock.calls.map(call => call[0])).toEqual(['/second/xp/events', '/first-updated/xp/events'])
 })

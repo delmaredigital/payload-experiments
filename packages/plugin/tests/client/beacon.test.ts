@@ -68,6 +68,7 @@ test.each(['missing', 'false', 'throw'])('sendBeacon %s uses fetch with the API 
 
 test('both transports throwing or missing, and fetch rejections, never escape', async () => {
   const { sendBeacon } = transport()
+  registerApiRoute(Symbol(), '/api')
   sendBeacon.mockImplementation(() => { throw new Error('blocked') })
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('blocked') }))
   expect(() => trackConversionBeacon('registration')).not.toThrow()
@@ -96,4 +97,21 @@ test('dedupe is per slug/phase/arm, pageviews also key on pathname; test reset c
   sendExposure('/api', event)
   sendExposure('/api', page, '/one')
   expect(sendBeacon).toHaveBeenCalledTimes(8)
+})
+
+test('trackConversionBeacon without a provider sends nothing, warns once in development, never throws', () => {
+  const { sendBeacon, fetch } = transport()
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.stubEnv('NODE_ENV', 'development')
+  expect(() => { trackConversionBeacon('registration'); trackConversionBeacon('registration') }).not.toThrow()
+  expect(sendBeacon).not.toHaveBeenCalled()
+  expect(fetch).not.toHaveBeenCalled()
+  expect(error).toHaveBeenCalledTimes(1)
+  __resetBeaconsForTests()
+  error.mockClear()
+  vi.stubEnv('NODE_ENV', 'production')
+  trackConversionBeacon('registration')
+  expect(sendBeacon).not.toHaveBeenCalled()
+  expect(error).not.toHaveBeenCalled()
+  vi.unstubAllEnvs()
 })
