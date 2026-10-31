@@ -4,16 +4,69 @@
   "description": "No-code A/B testing for Payload CMS and Next.js: block, page and flag experiments with holdouts, layers, exposure logging and honest statistics inside the admin — no vendor",
   "type": "module",
   "license": "MIT",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/exports/index.js",
+  "types": "./dist/exports/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js" }
+    ".": {
+      "@delmaredigital/source": "./src/exports/index.ts",
+      "types": "./dist/exports/index.d.ts",
+      "import": "./dist/exports/index.js",
+      "default": "./dist/exports/index.js"
+    },
+    "./runtime/proxy": {
+      "@delmaredigital/source": "./src/exports/runtimeProxy.ts",
+      "types": "./dist/exports/runtimeProxy.d.ts",
+      "import": "./dist/exports/runtimeProxy.js",
+      "default": "./dist/exports/runtimeProxy.js"
+    },
+    "./runtime/server": {
+      "@delmaredigital/source": "./src/exports/runtimeServer.ts",
+      "types": "./dist/exports/runtimeServer.d.ts",
+      "import": "./dist/exports/runtimeServer.js",
+      "default": "./dist/exports/runtimeServer.js"
+    },
+    "./proxy": {
+      "@delmaredigital/source": "./src/exports/proxy.ts",
+      "types": "./dist/exports/proxy.d.ts",
+      "import": "./dist/exports/proxy.js",
+      "default": "./dist/exports/proxy.js"
+    },
+    "./rsc": {
+      "@delmaredigital/source": "./src/exports/rsc.ts",
+      "types": "./dist/exports/rsc.d.ts",
+      "import": "./dist/exports/rsc.js",
+      "default": "./dist/exports/rsc.js"
+    },
+    "./client": {
+      "@delmaredigital/source": "./src/exports/client.ts",
+      "types": "./dist/exports/client.d.ts",
+      "import": "./dist/exports/client.js",
+      "default": "./dist/exports/client.js"
+    },
+    "./admin/client": {
+      "@delmaredigital/source": "./src/exports/adminClient.ts",
+      "types": "./dist/exports/adminClient.d.ts",
+      "import": "./dist/exports/adminClient.js",
+      "default": "./dist/exports/adminClient.js"
+    },
+    "./puck": {
+      "@delmaredigital/source": "./src/exports/puck.ts",
+      "types": "./dist/exports/puck.d.ts",
+      "import": "./dist/exports/puck.js",
+      "default": "./dist/exports/puck.js"
+    },
+    "./puck/editor": {
+      "@delmaredigital/source": "./src/exports/puckEditor.ts",
+      "types": "./dist/exports/puckEditor.d.ts",
+      "import": "./dist/exports/puckEditor.js",
+      "default": "./dist/exports/puckEditor.js"
+    }
   },
   "files": ["dist"],
   "scripts": {
-    "build": "swc ./src -d ./dist --strip-leading-paths --config-file ../../.swcrc && tsc --outDir dist && copyfiles -u 1 \"src/**/*.css\" dist",
+    "build": "swc ./src -d ./dist --strip-leading-paths --config-file ../../.swcrc && tsc -p tsconfig.build.json && copyfiles -u 1 \"src/**/*.css\" dist",
     "dev": "swc ./src -d ./dist --strip-leading-paths --config-file ../../.swcrc --watch",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm build"
   },
@@ -24,7 +77,9 @@
     "next": ">=16.4.1 <17",
     "payload": ">=3.90.0 <4",
     "react": ">=19.2.1 <20",
-    "react-dom": ">=19.2.1 <20"
+    "react-dom": ">=19.2.1 <20",
+    "@payloadcms/db-postgres": ">=3.90.0 <4",
+    "pg": ">=8.13.0 <9"
   },
   "peerDependenciesMeta": {
     "@puckeditor/core": { "optional": true }
@@ -41,5 +96,25 @@
     "directory": "packages/plugin"
   },
   "bugs": { "url": "https://github.com/delmaredigital/payload-experiments/issues" },
-  "homepage": "https://delmaredigital.com/developers"
+  "homepage": "https://delmaredigital.com/developers",
+  "devDependencies": {
+    "payload": "^3.90.2",
+    "@payloadcms/db-postgres": "^3.90.2",
+    "@payloadcms/ui": "^3.90.2",
+    "@payloadcms/next": "^3.90.2",
+    "next": "^16.4.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "pg": "^8.23.1",
+    "@types/pg": "^8.23.1",
+    "jsdom": "^30.1.3",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/dom": "^10.4.2",
+    "@electric-sql/pglite": "^0.5.13",
+    "@puckeditor/core": "^0.24.0",
+    "drizzle-orm": "0.45.2",
+    "drizzle-kit": "0.31.7"
+  }
 }
