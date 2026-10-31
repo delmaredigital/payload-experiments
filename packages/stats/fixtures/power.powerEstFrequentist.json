@@ -1,0 +1,2045 @@
+{
+  "cases": [
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          500,
+          2,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0-n500-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          500,
+          2,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0-n500-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          500,
+          2,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0-n500-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          500,
+          2,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0-n500-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          5000,
+          3,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0-n5000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          5000,
+          3,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0-n5000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          5000,
+          3,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0-n5000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          5000,
+          3,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0-n5000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          100000,
+          4,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0-n100000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          100000,
+          4,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0-n100000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          100000,
+          4,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0-n100000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0,
+            "type": "binomial"
+          },
+          100000,
+          4,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0-n100000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.05010501643026527,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          500,
+          3,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.01-n500-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.10015551046634635,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          500,
+          3,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.01-n500-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.05002175443191978,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          500,
+          3,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.01-n500-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.10002518519828045,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          500,
+          3,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.01-n500-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.050787951418650584,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          5000,
+          4,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.01-n5000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.10116615724959444,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          5000,
+          4,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.01-n5000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.050318246788334714,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          5000,
+          4,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.01-n5000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.10039751799155211,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          5000,
+          4,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.01-n5000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.0820545715076275,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          100000,
+          2,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.01-n100000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.14629506052562768,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          100000,
+          2,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.01-n100000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.060938523808523576,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          100000,
+          2,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.01-n100000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.11322055113264298,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          100000,
+          2,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.01-n100000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.051893944631289254,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          500,
+          4,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.05-n500-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.10280046372089252,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          500,
+          4,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.05-n500-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.050326428744970717,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          500,
+          4,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.05-n500-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.10037333863827122,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          500,
+          4,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.05-n500-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.08861537194515876,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          5000,
+          2,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.05-n5000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.1555020390650391,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          5000,
+          2,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.05-n5000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.06592197144041412,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          5000,
+          2,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.05-n5000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.1197838144947194,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          5000,
+          2,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.05-n5000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.5551375704932405,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          100000,
+          3,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.05-n100000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.6750684712092967,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          100000,
+          3,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.05-n100000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.24066833565716664,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          100000,
+          3,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.05-n100000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.30969210836457195,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          100000,
+          3,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.05-n100000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.10357949178995009,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          500,
+          2,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.2-n500-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.17619271534088352,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          500,
+          2,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.2-n500-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.06359022463624585,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          500,
+          2,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.2-n500-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.11585952023608509,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          500,
+          2,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.2-n500-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.41397614114340714,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          5000,
+          3,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.2-n5000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.5391913879478881,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          5000,
+          3,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.2-n5000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.20127090152594163,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          5000,
+          3,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.2-n5000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.2730944575652706,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          5000,
+          3,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.2-n5000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.9999991584635696,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          100000,
+          4,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.2-n100000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.9999998330939033,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          100000,
+          4,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "binomial-effect0.2-n100000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.9829968481528492,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          100000,
+          4,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.2-n100000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.9809738264838227,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.2,
+            "type": "binomial"
+          },
+          100000,
+          4,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "binomial-effect0.2-n100000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.14227792706280118,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          5000,
+          2,
+          0.05,
+          false,
+          false
+        ]
+      },
+      "name": "binomial-one-tailed-v2-seqFalse"
+    },
+    {
+      "expected": 0.10137829381094354,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          5000,
+          2,
+          0.05,
+          false,
+          5000
+        ]
+      },
+      "name": "binomial-one-tailed-v2-seq5000"
+    },
+    {
+      "expected": 0.11987683438469032,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          5000,
+          3,
+          0.05,
+          false,
+          false
+        ]
+      },
+      "name": "binomial-one-tailed-v3-seqFalse"
+    },
+    {
+      "expected": 0.08956497187193668,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          5000,
+          3,
+          0.05,
+          false,
+          5000
+        ]
+      },
+      "name": "binomial-one-tailed-v3-seq5000"
+    },
+    {
+      "expected": 0.10777084187906172,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          5000,
+          4,
+          0.05,
+          false,
+          false
+        ]
+      },
+      "name": "binomial-one-tailed-v4-seqFalse"
+    },
+    {
+      "expected": 0.08278948556116772,
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          5000,
+          4,
+          0.05,
+          false,
+          5000
+        ]
+      },
+      "name": "binomial-one-tailed-v4-seq5000"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          2,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0-n500-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          2,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0-n500-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          2,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0-n500-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          2,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0-n500-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          3,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0-n5000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          3,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0-n5000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          3,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0-n5000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          3,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0-n5000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          4,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0-n100000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          4,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0-n100000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          4,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0-n100000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          4,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0-n100000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.06056636565514937,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          3,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.01-n500-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.1155147223222756,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          3,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.01-n500-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.052178292329777,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          3,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.01-n500-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.10251760423760506,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          3,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.01-n500-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.13171480960299808,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          4,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.01-n5000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.21402250335886142,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          4,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.01-n5000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.08238070631253946,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          4,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.01-n5000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.13949789882963307,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          4,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.01-n5000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.9994886614115664,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          2,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.01-n100000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.9998404766688862,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          2,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.01-n100000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.8687069611468763,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          2,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.01-n100000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.8748416442514252,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.01,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          2,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.01-n100000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.25046712080731987,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          4,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.05-n500-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.3612094799061853,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          4,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.05-n500-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.08322633994961845,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          4,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.05-n500-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.1371113379400773,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          4,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.05-n500-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.9999238112595674,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          2,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.05-n5000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.9999795444254411,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          2,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.05-n5000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.9600443464042918,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          2,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.05-n5000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.9620786255447918,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          2,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.05-n5000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          3,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.05-n100000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          3,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.05-n100000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          3,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.05-n100000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          3,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.05-n100000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.9999991584635696,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          2,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.2-n500-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 0.9999998330939033,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          2,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.2-n500-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 0.9293386940847675,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          2,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.2-n500-seq5000-alpha0.05"
+    },
+    {
+      "expected": 0.9216744842072565,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          500,
+          2,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.2-n500-seq5000-alpha0.1"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          3,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.2-n5000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          3,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.2-n5000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          3,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.2-n5000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          3,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.2-n5000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          4,
+          0.05,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.2-n100000-seqFalse-alpha0.05"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          4,
+          0.1,
+          true,
+          false
+        ]
+      },
+      "name": "mean-effect0.2-n100000-seqFalse-alpha0.1"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          4,
+          0.05,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.2-n100000-seq5000-alpha0.05"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          100000,
+          4,
+          0.1,
+          true,
+          5000
+        ]
+      },
+      "name": "mean-effect0.2-n100000-seq5000-alpha0.1"
+    },
+    {
+      "expected": 0.9999795444253688,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          2,
+          0.05,
+          false,
+          false
+        ]
+      },
+      "name": "mean-one-tailed-v2-seqFalse"
+    },
+    {
+      "expected": 0.9806004474594666,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          2,
+          0.05,
+          false,
+          5000
+        ]
+      },
+      "name": "mean-one-tailed-v2-seq5000"
+    },
+    {
+      "expected": 0.9988468290206821,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          3,
+          0.05,
+          false,
+          false
+        ]
+      },
+      "name": "mean-one-tailed-v3-seqFalse"
+    },
+    {
+      "expected": 0.9145464685853968,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          3,
+          0.05,
+          false,
+          5000
+        ]
+      },
+      "name": "mean-one-tailed-v3-seq5000"
+    },
+    {
+      "expected": 0.9922179188515627,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          4,
+          0.05,
+          false,
+          false
+        ]
+      },
+      "name": "mean-one-tailed-v4-seqFalse"
+    },
+    {
+      "expected": 0.8259242782317161,
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          5000,
+          4,
+          0.05,
+          false,
+          5000
+        ]
+      },
+      "name": "mean-one-tailed-v4-seq5000"
+    }
+  ],
+  "source": {
+    "module": "packages/shared/src/power/power.ts",
+    "pins": {
+      "stdlib": [
+        "@stdlib/array@0.1.1",
+        "@stdlib/assert@0.1.1",
+        "@stdlib/bigint@0.1.1",
+        "@stdlib/blas@0.1.1",
+        "@stdlib/boolean@0.1.1",
+        "@stdlib/buffer@0.1.1",
+        "@stdlib/cli@0.1.1",
+        "@stdlib/complex@0.1.1",
+        "@stdlib/constants@0.1.1",
+        "@stdlib/fs@0.1.1",
+        "@stdlib/function@0.1.1",
+        "@stdlib/iter@0.1.1",
+        "@stdlib/math@0.1.1",
+        "@stdlib/napi@0.1.1",
+        "@stdlib/ndarray@0.1.1",
+        "@stdlib/nlp@0.1.1",
+        "@stdlib/number@0.1.1",
+        "@stdlib/object@0.1.1",
+        "@stdlib/os@0.1.1",
+        "@stdlib/process@0.1.1",
+        "@stdlib/proxy@0.1.1",
+        "@stdlib/random@0.1.1",
+        "@stdlib/regexp@0.1.1",
+        "@stdlib/slice@0.1.1",
+        "@stdlib/stats@0.1.1",
+        "@stdlib/streams@0.1.1",
+        "@stdlib/strided@0.1.1",
+        "@stdlib/string@0.1.1",
+        "@stdlib/symbol@0.1.1",
+        "@stdlib/time@0.1.1",
+        "@stdlib/types@0.2.0",
+        "@stdlib/utils@0.1.1"
+      ],
+      "stdlibPdf0": 0.3989422804014327
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "powerEstFrequentist"
+  }
+}

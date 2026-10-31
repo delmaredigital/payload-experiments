@@ -1,0 +1,946 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "mde": 0.7612799999999987,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          500,
+          true
+        ]
+      },
+      "name": "binomial-absent-relTrue-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.18424000000000024,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          5000,
+          true
+        ]
+      },
+      "name": "binomial-absent-relTrue-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.0383200000000001,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          100000,
+          true
+        ]
+      },
+      "name": "binomial-absent-relTrue-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0.5315699999999974,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          500,
+          false
+        ]
+      },
+      "name": "binomial-absent-relFalse-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.1681000000000001,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          5000,
+          false
+        ]
+      },
+      "name": "binomial-absent-relFalse-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.03759000000000018,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          100000,
+          false
+        ]
+      },
+      "name": "binomial-absent-relFalse-n100000"
+    },
+    {
+      "expected": {
+        "description": "MDE achieving power = 0.8 does not exist. ",
+        "type": "error"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          500,
+          true
+        ]
+      },
+      "name": "binomial-proper-relTrue-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.18937000000000037,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          5000,
+          true
+        ]
+      },
+      "name": "binomial-proper-relTrue-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.03829000000000009,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          100000,
+          true
+        ]
+      },
+      "name": "binomial-proper-relTrue-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0.6542899999999987,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          500,
+          false
+        ]
+      },
+      "name": "binomial-proper-relFalse-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.1714800000000005,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          5000,
+          false
+        ]
+      },
+      "name": "binomial-proper-relFalse-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.03756000000000017,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          100000,
+          false
+        ]
+      },
+      "name": "binomial-proper-relFalse-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0.7612799999999987,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          500,
+          true
+        ]
+      },
+      "name": "binomial-improper-relTrue-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.18424000000000024,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          5000,
+          true
+        ]
+      },
+      "name": "binomial-improper-relTrue-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.0383200000000001,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          100000,
+          true
+        ]
+      },
+      "name": "binomial-improper-relTrue-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0.5315699999999974,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          500,
+          false
+        ]
+      },
+      "name": "binomial-improper-relFalse-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.1681000000000001,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          5000,
+          false
+        ]
+      },
+      "name": "binomial-improper-relFalse-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.03759000000000018,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          100000,
+          false
+        ]
+      },
+      "name": "binomial-improper-relFalse-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0.05463000000000019,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          500,
+          true
+        ]
+      },
+      "name": "mean-absent-relTrue-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.01695999999999996,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          5000,
+          true
+        ]
+      },
+      "name": "mean-absent-relTrue-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.003770000000000002,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          100000,
+          true
+        ]
+      },
+      "name": "mean-absent-relTrue-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0.05316000000000005,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          500,
+          false
+        ]
+      },
+      "name": "mean-absent-relFalse-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.016809999999999967,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          5000,
+          false
+        ]
+      },
+      "name": "mean-absent-relFalse-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.003760000000000002,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          100000,
+          false
+        ]
+      },
+      "name": "mean-absent-relFalse-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0.05462000000000019,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          500,
+          true
+        ]
+      },
+      "name": "mean-proper-relTrue-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.016939999999999962,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          5000,
+          true
+        ]
+      },
+      "name": "mean-proper-relTrue-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.003770000000000002,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          100000,
+          true
+        ]
+      },
+      "name": "mean-proper-relTrue-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0.053150000000000044,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          500,
+          false
+        ]
+      },
+      "name": "mean-proper-relFalse-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.016799999999999968,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          5000,
+          false
+        ]
+      },
+      "name": "mean-proper-relFalse-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.003760000000000002,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": 0.02,
+              "proper": true,
+              "variance": 0.04
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          100000,
+          false
+        ]
+      },
+      "name": "mean-proper-relFalse-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0.05463000000000019,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          500,
+          true
+        ]
+      },
+      "name": "mean-improper-relTrue-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.01695999999999996,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          5000,
+          true
+        ]
+      },
+      "name": "mean-improper-relTrue-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.003770000000000002,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          100000,
+          true
+        ]
+      },
+      "name": "mean-improper-relTrue-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0.05316000000000005,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          500,
+          false
+        ]
+      },
+      "name": "mean-improper-relFalse-n500"
+    },
+    {
+      "expected": {
+        "mde": 0.016809999999999967,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          5000,
+          false
+        ]
+      },
+      "name": "mean-improper-relFalse-n5000"
+    },
+    {
+      "expected": {
+        "mde": 0.003760000000000002,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "prior": {
+              "mean": -0.05,
+              "proper": false,
+              "variance": 0.09
+            },
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.05,
+          0.8,
+          100000,
+          false
+        ]
+      },
+      "name": "mean-improper-relFalse-n100000"
+    },
+    {
+      "expected": {
+        "mde": 0,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.2,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.1,
+          0.01,
+          500,
+          true
+        ]
+      },
+      "name": "zero-mde-low-target"
+    },
+    {
+      "expected": {
+        "description": "MDE achieving power = 0.8 does not exist. ",
+        "type": "error"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.000001,
+            "effectSize": 0.01,
+            "type": "binomial"
+          },
+          0.05,
+          0.8,
+          500,
+          true
+        ]
+      },
+      "name": "no-mde-in-bounded-grid"
+    }
+  ],
+  "source": {
+    "module": "packages/shared/src/power/power.ts",
+    "pins": {
+      "stdlib": [
+        "@stdlib/array@0.1.1",
+        "@stdlib/assert@0.1.1",
+        "@stdlib/bigint@0.1.1",
+        "@stdlib/blas@0.1.1",
+        "@stdlib/boolean@0.1.1",
+        "@stdlib/buffer@0.1.1",
+        "@stdlib/cli@0.1.1",
+        "@stdlib/complex@0.1.1",
+        "@stdlib/constants@0.1.1",
+        "@stdlib/fs@0.1.1",
+        "@stdlib/function@0.1.1",
+        "@stdlib/iter@0.1.1",
+        "@stdlib/math@0.1.1",
+        "@stdlib/napi@0.1.1",
+        "@stdlib/ndarray@0.1.1",
+        "@stdlib/nlp@0.1.1",
+        "@stdlib/number@0.1.1",
+        "@stdlib/object@0.1.1",
+        "@stdlib/os@0.1.1",
+        "@stdlib/process@0.1.1",
+        "@stdlib/proxy@0.1.1",
+        "@stdlib/random@0.1.1",
+        "@stdlib/regexp@0.1.1",
+        "@stdlib/slice@0.1.1",
+        "@stdlib/stats@0.1.1",
+        "@stdlib/streams@0.1.1",
+        "@stdlib/strided@0.1.1",
+        "@stdlib/string@0.1.1",
+        "@stdlib/symbol@0.1.1",
+        "@stdlib/time@0.1.1",
+        "@stdlib/types@0.2.0",
+        "@stdlib/utils@0.1.1"
+      ],
+      "stdlibPdf0": 0.3989422804014327
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "findMdeBayesian"
+  }
+}

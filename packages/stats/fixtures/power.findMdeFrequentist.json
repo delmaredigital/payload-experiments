@@ -1,0 +1,389 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "mde": 1.3648237958831744,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.8,
+          500,
+          2,
+          0.05,
+          false
+        ]
+      },
+      "name": "binomial-n500-seqFalse"
+    },
+    {
+      "expected": {
+        "description": "need to increase number of users or reduce number of variations.",
+        "type": "error"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.8,
+          500,
+          2,
+          0.05,
+          5000
+        ]
+      },
+      "name": "binomial-n500-seq5000"
+    },
+    {
+      "expected": {
+        "mde": 0.27197811804190036,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.8,
+          5000,
+          2,
+          0.05,
+          false
+        ]
+      },
+      "name": "binomial-n5000-seqFalse"
+    },
+    {
+      "expected": {
+        "mde": 0.4608381512049059,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.8,
+          5000,
+          2,
+          0.05,
+          5000
+        ]
+      },
+      "name": "binomial-n5000-seq5000"
+    },
+    {
+      "expected": {
+        "mde": 0.054627540025570104,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.8,
+          100000,
+          2,
+          0.05,
+          false
+        ]
+      },
+      "name": "binomial-n100000-seqFalse"
+    },
+    {
+      "expected": {
+        "mde": 0.09489011747491172,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.8,
+          100000,
+          2,
+          0.05,
+          5000
+        ]
+      },
+      "name": "binomial-n100000-seq5000"
+    },
+    {
+      "expected": {
+        "mde": 0.07816776527627,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.8,
+          500,
+          2,
+          0.05,
+          false
+        ]
+      },
+      "name": "mean-n500-seqFalse"
+    },
+    {
+      "expected": {
+        "mde": 0.16013789955290364,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.8,
+          500,
+          2,
+          0.05,
+          5000
+        ]
+      },
+      "name": "mean-n500-seq5000"
+    },
+    {
+      "expected": {
+        "mde": 0.024059917574101065,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.8,
+          5000,
+          2,
+          0.05,
+          false
+        ]
+      },
+      "name": "mean-n5000-seqFalse"
+    },
+    {
+      "expected": {
+        "mde": 0.037510604362746704,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.8,
+          5000,
+          2,
+          0.05,
+          5000
+        ]
+      },
+      "name": "mean-n5000-seq5000"
+    },
+    {
+      "expected": {
+        "mde": 0.005329818717248855,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.8,
+          100000,
+          2,
+          0.05,
+          false
+        ]
+      },
+      "name": "mean-n100000-seqFalse"
+    },
+    {
+      "expected": {
+        "mde": 0.00909114851252653,
+        "type": "success"
+      },
+      "input": {
+        "args": [
+          {
+            "effectSize": 0.05,
+            "mean": 100,
+            "standardDeviation": 30,
+            "type": "mean"
+          },
+          0.8,
+          100000,
+          2,
+          0.05,
+          5000
+        ]
+      },
+      "name": "mean-n100000-seq5000"
+    },
+    {
+      "expected": {
+        "description": "power must be greater than alpha.",
+        "type": "error"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.01,
+          5000,
+          2,
+          0.05,
+          false
+        ]
+      },
+      "name": "power-at-or-below-alpha-0.01"
+    },
+    {
+      "expected": {
+        "description": "power must be greater than alpha.",
+        "type": "error"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.1,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.05,
+          5000,
+          2,
+          0.05,
+          false
+        ]
+      },
+      "name": "power-at-or-below-alpha-0.05"
+    },
+    {
+      "expected": {
+        "description": "need to increase number of users or reduce number of variations.",
+        "type": "error"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.0001,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.8,
+          500,
+          4,
+          0.1,
+          false
+        ]
+      },
+      "name": "insufficient-users-seqFalse"
+    },
+    {
+      "expected": {
+        "description": "need to increase number of users or reduce number of variations.",
+        "type": "error"
+      },
+      "input": {
+        "args": [
+          {
+            "conversionRate": 0.0001,
+            "effectSize": 0.05,
+            "type": "binomial"
+          },
+          0.8,
+          500,
+          4,
+          0.1,
+          5000
+        ]
+      },
+      "name": "insufficient-users-seq5000"
+    }
+  ],
+  "source": {
+    "module": "packages/shared/src/power/power.ts",
+    "pins": {
+      "stdlib": [
+        "@stdlib/array@0.1.1",
+        "@stdlib/assert@0.1.1",
+        "@stdlib/bigint@0.1.1",
+        "@stdlib/blas@0.1.1",
+        "@stdlib/boolean@0.1.1",
+        "@stdlib/buffer@0.1.1",
+        "@stdlib/cli@0.1.1",
+        "@stdlib/complex@0.1.1",
+        "@stdlib/constants@0.1.1",
+        "@stdlib/fs@0.1.1",
+        "@stdlib/function@0.1.1",
+        "@stdlib/iter@0.1.1",
+        "@stdlib/math@0.1.1",
+        "@stdlib/napi@0.1.1",
+        "@stdlib/ndarray@0.1.1",
+        "@stdlib/nlp@0.1.1",
+        "@stdlib/number@0.1.1",
+        "@stdlib/object@0.1.1",
+        "@stdlib/os@0.1.1",
+        "@stdlib/process@0.1.1",
+        "@stdlib/proxy@0.1.1",
+        "@stdlib/random@0.1.1",
+        "@stdlib/regexp@0.1.1",
+        "@stdlib/slice@0.1.1",
+        "@stdlib/stats@0.1.1",
+        "@stdlib/streams@0.1.1",
+        "@stdlib/strided@0.1.1",
+        "@stdlib/string@0.1.1",
+        "@stdlib/symbol@0.1.1",
+        "@stdlib/time@0.1.1",
+        "@stdlib/types@0.2.0",
+        "@stdlib/utils@0.1.1"
+      ],
+      "stdlibPdf0": 0.3989422804014327
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "findMdeFrequentist"
+  }
+}

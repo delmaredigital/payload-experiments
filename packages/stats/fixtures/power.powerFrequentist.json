@@ -1,0 +1,527 @@
+{
+  "cases": [
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          0,
+          0.01,
+          0.05,
+          true
+        ]
+      },
+      "name": "effect0-se0.01-alpha0.05-twoTrue"
+    },
+    {
+      "expected": 0.050000000000000044,
+      "input": {
+        "args": [
+          0,
+          0.01,
+          0.05,
+          false
+        ]
+      },
+      "name": "effect0-se0.01-alpha0.05-twoFalse"
+    },
+    {
+      "expected": 0.05000000000000006,
+      "input": {
+        "args": [
+          0,
+          0.1,
+          0.05,
+          true
+        ]
+      },
+      "name": "effect0-se0.1-alpha0.05-twoTrue"
+    },
+    {
+      "expected": 0.050000000000000044,
+      "input": {
+        "args": [
+          0,
+          0.1,
+          0.05,
+          false
+        ]
+      },
+      "name": "effect0-se0.1-alpha0.05-twoFalse"
+    },
+    {
+      "expected": 0.17007504575308752,
+      "input": {
+        "args": [
+          0.01,
+          0.01,
+          0.05,
+          true
+        ]
+      },
+      "name": "effect0.01-se0.01-alpha0.05-twoTrue"
+    },
+    {
+      "expected": 0.2595110228414442,
+      "input": {
+        "args": [
+          0.01,
+          0.01,
+          0.05,
+          false
+        ]
+      },
+      "name": "effect0.01-se0.01-alpha0.05-twoFalse"
+    },
+    {
+      "expected": 0.0511463028108107,
+      "input": {
+        "args": [
+          0.01,
+          0.1,
+          0.05,
+          true
+        ]
+      },
+      "name": "effect0.01-se0.1-alpha0.05-twoTrue"
+    },
+    {
+      "expected": 0.061190836213344424,
+      "input": {
+        "args": [
+          0.01,
+          0.1,
+          0.05,
+          false
+        ]
+      },
+      "name": "effect0.01-se0.1-alpha0.05-twoFalse"
+    },
+    {
+      "expected": 0.9988172507035044,
+      "input": {
+        "args": [
+          0.05,
+          0.01,
+          0.05,
+          true
+        ]
+      },
+      "name": "effect0.05-se0.01-alpha0.05-twoTrue"
+    },
+    {
+      "expected": 0.9996033849954737,
+      "input": {
+        "args": [
+          0.05,
+          0.01,
+          0.05,
+          false
+        ]
+      },
+      "name": "effect0.05-se0.01-alpha0.05-twoFalse"
+    },
+    {
+      "expected": 0.07909753416059657,
+      "input": {
+        "args": [
+          0.05,
+          0.1,
+          0.05,
+          true
+        ]
+      },
+      "name": "effect0.05-se0.1-alpha0.05-twoTrue"
+    },
+    {
+      "expected": 0.12613489819343038,
+      "input": {
+        "args": [
+          0.05,
+          0.1,
+          0.05,
+          false
+        ]
+      },
+      "name": "effect0.05-se0.1-alpha0.05-twoFalse"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          0.2,
+          0.01,
+          0.05,
+          true
+        ]
+      },
+      "name": "effect0.2-se0.01-alpha0.05-twoTrue"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          0.2,
+          0.01,
+          0.05,
+          false
+        ]
+      },
+      "name": "effect0.2-se0.01-alpha0.05-twoFalse"
+    },
+    {
+      "expected": 0.5160052739761749,
+      "input": {
+        "args": [
+          0.2,
+          0.1,
+          0.05,
+          true
+        ]
+      },
+      "name": "effect0.2-se0.1-alpha0.05-twoTrue"
+    },
+    {
+      "expected": 0.6387600313123352,
+      "input": {
+        "args": [
+          0.2,
+          0.1,
+          0.05,
+          false
+        ]
+      },
+      "name": "effect0.2-se0.1-alpha0.05-twoFalse"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          -0.2,
+          0.01,
+          0.05,
+          true
+        ]
+      },
+      "name": "effect-0.2-se0.01-alpha0.05-twoTrue"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          -0.2,
+          0.01,
+          0.05,
+          false
+        ]
+      },
+      "name": "effect-0.2-se0.01-alpha0.05-twoFalse"
+    },
+    {
+      "expected": 0.5160052739761749,
+      "input": {
+        "args": [
+          -0.2,
+          0.1,
+          0.05,
+          true
+        ]
+      },
+      "name": "effect-0.2-se0.1-alpha0.05-twoTrue"
+    },
+    {
+      "expected": 0.0001337720145987431,
+      "input": {
+        "args": [
+          -0.2,
+          0.1,
+          0.05,
+          false
+        ]
+      },
+      "name": "effect-0.2-se0.1-alpha0.05-twoFalse"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          0,
+          0.01,
+          0.1,
+          true
+        ]
+      },
+      "name": "effect0-se0.01-alpha0.1-twoTrue"
+    },
+    {
+      "expected": 0.09999999999999998,
+      "input": {
+        "args": [
+          0,
+          0.01,
+          0.1,
+          false
+        ]
+      },
+      "name": "effect0-se0.01-alpha0.1-twoFalse"
+    },
+    {
+      "expected": 0.10000000000000009,
+      "input": {
+        "args": [
+          0,
+          0.1,
+          0.1,
+          true
+        ]
+      },
+      "name": "effect0-se0.1-alpha0.1-twoTrue"
+    },
+    {
+      "expected": 0.09999999999999998,
+      "input": {
+        "args": [
+          0,
+          0.1,
+          0.1,
+          false
+        ]
+      },
+      "name": "effect0-se0.1-alpha0.1-twoFalse"
+    },
+    {
+      "expected": 0.2635973359014775,
+      "input": {
+        "args": [
+          0.01,
+          0.01,
+          0.1,
+          true
+        ]
+      },
+      "name": "effect0.01-se0.01-alpha0.1-twoTrue"
+    },
+    {
+      "expected": 0.3891436916453609,
+      "input": {
+        "args": [
+          0.01,
+          0.01,
+          0.1,
+          false
+        ]
+      },
+      "name": "effect0.01-se0.01-alpha0.1-twoFalse"
+    },
+    {
+      "expected": 0.1016960118228493,
+      "input": {
+        "args": [
+          0.01,
+          0.1,
+          0.1,
+          true
+        ]
+      },
+      "name": "effect0.01-se0.1-alpha0.1-twoTrue"
+    },
+    {
+      "expected": 0.1186918406956069,
+      "input": {
+        "args": [
+          0.01,
+          0.1,
+          0.1,
+          false
+        ]
+      },
+      "name": "effect0.01-se0.1-alpha0.1-twoFalse"
+    },
+    {
+      "expected": 0.9996033850106497,
+      "input": {
+        "args": [
+          0.05,
+          0.01,
+          0.1,
+          true
+        ]
+      },
+      "name": "effect0.05-se0.01-alpha0.1-twoTrue"
+    },
+    {
+      "expected": 0.9998997749004908,
+      "input": {
+        "args": [
+          0.05,
+          0.01,
+          0.1,
+          false
+        ]
+      },
+      "name": "effect0.05-se0.01-alpha0.1-twoFalse"
+    },
+    {
+      "expected": 0.1421171741620088,
+      "input": {
+        "args": [
+          0.05,
+          0.1,
+          0.1,
+          true
+        ]
+      },
+      "name": "effect0.05-se0.1-alpha0.1-twoTrue"
+    },
+    {
+      "expected": 0.21723908042730522,
+      "input": {
+        "args": [
+          0.05,
+          0.1,
+          0.1,
+          false
+        ]
+      },
+      "name": "effect0.05-se0.1-alpha0.1-twoFalse"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          0.2,
+          0.01,
+          0.1,
+          true
+        ]
+      },
+      "name": "effect0.2-se0.01-alpha0.1-twoTrue"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          0.2,
+          0.01,
+          0.1,
+          false
+        ]
+      },
+      "name": "effect0.2-se0.01-alpha0.1-twoFalse"
+    },
+    {
+      "expected": 0.6388938033269339,
+      "input": {
+        "args": [
+          0.2,
+          0.1,
+          0.1,
+          true
+        ]
+      },
+      "name": "effect0.2-se0.1-alpha0.1-twoTrue"
+    },
+    {
+      "expected": 0.7637595841058831,
+      "input": {
+        "args": [
+          0.2,
+          0.1,
+          0.1,
+          false
+        ]
+      },
+      "name": "effect0.2-se0.1-alpha0.1-twoFalse"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          -0.2,
+          0.01,
+          0.1,
+          true
+        ]
+      },
+      "name": "effect-0.2-se0.01-alpha0.1-twoTrue"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          -0.2,
+          0.01,
+          0.1,
+          false
+        ]
+      },
+      "name": "effect-0.2-se0.01-alpha0.1-twoFalse"
+    },
+    {
+      "expected": 0.6388938033269339,
+      "input": {
+        "args": [
+          -0.2,
+          0.1,
+          0.1,
+          true
+        ]
+      },
+      "name": "effect-0.2-se0.1-alpha0.1-twoTrue"
+    },
+    {
+      "expected": 0.0005161882296438325,
+      "input": {
+        "args": [
+          -0.2,
+          0.1,
+          0.1,
+          false
+        ]
+      },
+      "name": "effect-0.2-se0.1-alpha0.1-twoFalse"
+    }
+  ],
+  "source": {
+    "module": "packages/shared/src/power/power.ts",
+    "pins": {
+      "stdlib": [
+        "@stdlib/array@0.1.1",
+        "@stdlib/assert@0.1.1",
+        "@stdlib/bigint@0.1.1",
+        "@stdlib/blas@0.1.1",
+        "@stdlib/boolean@0.1.1",
+        "@stdlib/buffer@0.1.1",
+        "@stdlib/cli@0.1.1",
+        "@stdlib/complex@0.1.1",
+        "@stdlib/constants@0.1.1",
+        "@stdlib/fs@0.1.1",
+        "@stdlib/function@0.1.1",
+        "@stdlib/iter@0.1.1",
+        "@stdlib/math@0.1.1",
+        "@stdlib/napi@0.1.1",
+        "@stdlib/ndarray@0.1.1",
+        "@stdlib/nlp@0.1.1",
+        "@stdlib/number@0.1.1",
+        "@stdlib/object@0.1.1",
+        "@stdlib/os@0.1.1",
+        "@stdlib/process@0.1.1",
+        "@stdlib/proxy@0.1.1",
+        "@stdlib/random@0.1.1",
+        "@stdlib/regexp@0.1.1",
+        "@stdlib/slice@0.1.1",
+        "@stdlib/stats@0.1.1",
+        "@stdlib/streams@0.1.1",
+        "@stdlib/strided@0.1.1",
+        "@stdlib/string@0.1.1",
+        "@stdlib/symbol@0.1.1",
+        "@stdlib/time@0.1.1",
+        "@stdlib/types@0.2.0",
+        "@stdlib/utils@0.1.1"
+      ],
+      "stdlibPdf0": 0.3989422804014327
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "powerFrequentist"
+  }
+}
