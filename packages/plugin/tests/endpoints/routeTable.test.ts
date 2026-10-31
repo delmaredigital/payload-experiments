@@ -94,7 +94,7 @@ test('a validly signed cookie reaches the events handler', async () => {
 })
 
 test('transition stubs identify their owning lanes', async () => {
-  const lanes = { start: 'CORE-10b', allocate: 'CORE-10b', 'add-metric': 'CORE-10b', stop: 'CORE-10b', decide: 'CORE-11', 'release-holdout': 'CORE-11', 'make-content': 'CORE-12', archive: 'CORE-11' }
+  const lanes = { decide: 'CORE-11', 'release-holdout': 'CORE-11', 'make-content': 'CORE-12', archive: 'CORE-11' }
   for (const [action, lane] of Object.entries(lanes)) {
     const response = await invoke(`/xp/experiments/:id/${action}`, options(), request())
     expect(response.status).toBe(501)
