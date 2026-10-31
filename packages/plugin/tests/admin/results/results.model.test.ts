@@ -149,10 +149,10 @@ test('only the newest rollout borrows the current decision winner, regardless of
   const newer = { ...older, phase: older.phase + 2 }
   const testPhase = { ...phaseFor(fixture('T7')), phase: newer.phase + 1 }
   const phases = [newer, testPhase, older]
-  expect(rolloutLine(snapshot, older, phases, { winnerArm: 'variantB' })).toBe('Since shipping the shipped group')
+  expect(rolloutLine(snapshot, older, phases, { winnerArm: 'variantB' })).toBe('Since shipping the winner')
   expect(rolloutLine({ ...snapshot, phase: newer.phase }, newer, phases, { winnerArm: 'variantA' })).toBe('Since shipping Shorter form')
   expect(rolloutLine({ ...snapshot, winnerArm: 'variantA' }, older, phases, { winnerArm: 'variantB' })).toBe('Since shipping Shorter form')
-  expect(rolloutLine(snapshot, older, [])).toBe('Since shipping the shipped group')
+  expect(rolloutLine(snapshot, older, [])).toBe('Since shipping the winner')
   expect(rolloutLine(fixture('T7'), testPhase, phases)).toBeNull()
 })
 test('a shipped Original carries its rollout comparison against holdout', () => {

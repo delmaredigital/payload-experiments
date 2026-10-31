@@ -3,7 +3,7 @@ export const RESULTS_COPY = {
   lift: 'Lift', ci: 'Confidence interval', adjustedCI: 'Adjusted confidence interval',
   pValue: 'p-value', adjustedPValue: 'Adjusted p-value', chanceToWin: 'Chance to win', risk: 'Risk',
   comparison: 'Comparison', original: 'Original', holdout: 'Measured, not compared',
-  holdoutBaseline: 'Holdout · baseline', shippedGroup: 'the shipped group',
+  holdoutBaseline: 'Holdout · baseline', shippedGroup: 'the winner',
   significance: { better: 'Better', worse: 'Worse', none: 'No clear difference' },
   guardrails: { failing: 'Failing', ok: 'OK', warning: 'Watch', insufficient: 'Too little data' },
   plannedEnd: 'Keep running to the planned end date.',
