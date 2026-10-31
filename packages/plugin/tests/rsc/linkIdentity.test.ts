@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { NextRequest } from 'next/server'
 import { expect, test, vi } from 'vitest'
 import { linkIdentity } from '../../src/server/linkIdentity.js'
 import { encodeUnitCookie } from '../../src/runtime/cookie.js'
@@ -35,8 +36,40 @@ test('uses a separate pool checkout and releases it, supporting rotating secrets
 
 test('insert failure resolves, logs and releases the checkout', async () => {
   const { runtime, query, release, error } = fixture()
-  query.mockRejectedValue(new Error('down'))
+  const queryError = new Error('down')
+  query.mockRejectedValue(queryError)
   await expect(linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['new'])}` }), userId: 'user' })).resolves.toBeUndefined()
   expect(error).toHaveBeenCalledOnce()
   expect(release).toHaveBeenCalledOnce()
+  expect(release).toHaveBeenCalledWith(queryError)
+})
+
+test.each(['false', 'throw'])('consent %s makes linking a valid cookie to a user a no-op', async outcome => {
+  const { runtime, query, connect } = fixture()
+  const consent = vi.fn(() => {
+    if (outcome === 'throw') throw new Error('consent unavailable')
+    return false
+  })
+  Object.assign(runtime.proxyRuntime.cookie, { consent })
+  await expect(linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['new'])}` }), userId: 'user' })).resolves.toBeUndefined()
+  expect(consent).toHaveBeenCalledOnce()
+  expect(runtime.getPayload).not.toHaveBeenCalled()
+  expect(connect).not.toHaveBeenCalled()
+  expect(query).not.toHaveBeenCalled()
+})
+
+test('consent true receives cookies and headers on a placeholder request and allows linking', async () => {
+  const { runtime, query } = fixture()
+  const consent = vi.fn((request: NextRequest) => {
+    expect(request).toBeInstanceOf(NextRequest)
+    expect(request.url).toBe('http://consent.invalid/')
+    expect(request.cookies.get('permission')?.value).toBe('yes')
+    expect(request.headers.get('x-consent')).toBe('allowed')
+    return true
+  })
+  Object.assign(runtime.proxyRuntime.cookie, { consent })
+  await linkIdentity(runtime, { headers: new Headers({ cookie: `permission=yes; custom_xp=${encodeUnitCookie('visitor', ['new'])}`, 'x-consent': 'allowed' }), userId: 'user' })
+  expect(consent).toHaveBeenCalledOnce()
+  expect(query).toHaveBeenCalledOnce()
+  expect(query.mock.calls[0]![0]).toMatchObject({ values: ['visitor', 'user'] })
 })

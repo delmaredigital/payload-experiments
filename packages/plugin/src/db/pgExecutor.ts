@@ -119,7 +119,18 @@ export function pgPoolExecutor(pool: Pool | PoolClient): Executor {
 /** The caller must release in finally; this connection never joins a Payload transaction. */
 export async function ownConnection(pool: Pool): Promise<Executor & { release(error?: Error): void }> {
   const client = await pool.connect()
-  return { ...pgPoolExecutor(client), release: error => client.release(error) }
+  const exec = pgPoolExecutor(client)
+  let queryError: Error | undefined
+  return {
+    async query<R>(text: string, params?: unknown[]) {
+      try { return await exec.query<R>(text, params) }
+      catch (error) {
+        queryError = error instanceof Error ? error : new Error('Query failed', { cause: error })
+        throw error
+      }
+    },
+    release: error => client.release(error ?? queryError),
+  }
 }
 
 export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec: Executor) => Promise<T>): Promise<T> {
