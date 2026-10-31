@@ -51,7 +51,8 @@ test('attributesOf may be absent when staff is not declared', async () => {
 test.each([
   null, 'country', {}, [1], [''], ['1name'], ['has-dash'], ['has space'], ['a.b'], ['__proto__'],
   ['a'.repeat(41)], Array.from({ length: 9 }, (_, i) => `dim${i}`), ['country', 'country'],
-  ...['userId', 'email', 'id', 'unitId', 'visitorId', 'EMAIL', 'UserId'].map(name => [name]),
+  ...['userid', 'visitorid', 'unitid', 'id', 'email', 'emailaddress', 'sessionid', 'session', 'ip', 'ipaddress', 'phone', 'name',
+    'user_id', 'UserID', 'visitor-id', 'unit_id', 'visitor_id', 'sessionId', 'IP', 'email_address', 'ip_address'].map(name => [name]),
 ].map(dimensions => ({ dimensions })))('onInit rejects invalid events.dimensions %j', async ({ dimensions }) => {
   const options = resolveOptions({ ...sampleOptions(), events: { dimensions: dimensions as string[] } })
   const payload = fakePayload()
@@ -66,4 +67,10 @@ test.each([undefined, [], ['a'.repeat(40)], ['registrationSource', 'loggedIn', '
   Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
   await expect(createOnInit(options)(payload)).resolves.toBeUndefined()
   expect(payload.db.sessions).toEqual({})
+})
+
+
+test.each(['user_id', 'UserID', 'visitor-id', 'sessionId', 'IP'])('identifying dimension variant %s is refused as identifying', async name => {
+  const options = resolveOptions({ ...sampleOptions(), events: { dimensions: [name] } })
+  await expect(createOnInit(options)(fakePayload())).rejects.toThrow(`forbids identifying key: ${name}`)
 })

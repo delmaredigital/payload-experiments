@@ -1,3 +1,4 @@
+import { exposureDimensions } from '../events/dimensions.js'
 import type { DocId, UnitType } from '../types/contracts.js'
 import type { Executor } from './executor.js'
 import { COLUMNS, TABLES } from './names.js'
@@ -38,6 +39,16 @@ function foreignKeyViolation(error: unknown): boolean {
   return false
 }
 
+/** Dimensions are optional: malformed host values (including custom toJSON or
+ * cyclic objects from JavaScript callers) must not abort any row in the batch. */
+function serialiseDimensions(row: EventRow): string | null {
+  if (row.type !== 'exposure' || !row.dimensions) return null
+  try {
+    const dimensions = exposureDimensions(row.dimensions, Object.keys(row.dimensions))
+    return dimensions ? JSON.stringify(dimensions) : null
+  } catch { return null }
+}
+
 /** Pooled/autocommit executor required: an FK failure must not poison a caller's transaction. */
 export async function insertEvents(exec: Executor, rows: EventRow[], log: (message: string) => void = console.error): Promise<number> {
   const valid = rows.filter(row => {
@@ -53,7 +64,7 @@ export async function insertEvents(exec: Executor, rows: EventRow[], log: (messa
     const values = batch.map(row => {
       const fields = [row.type, row.experimentId ?? null, row.phase ?? null, row.arm ?? null, row.unitId, row.unitType,
         row.userId ?? null, row.eventName ?? null, row.value ?? null, row.ts,
-        row.type === 'exposure' && row.dimensions ? JSON.stringify(row.dimensions) : null,
+        serialiseDimensions(row),
         row.attributes === undefined ? null : JSON.stringify(row.attributes), row.dedupeKey]
       return `(${fields.map(value => { params.push(value); return `$${params.length}` }).join(', ')}, now(), now())`
     })
