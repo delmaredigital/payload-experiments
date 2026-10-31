@@ -21,7 +21,7 @@ export function newRequest() {
   const roots = new Map<unknown, unknown>()
   const internals = (React as unknown as { __SERVER_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE: { A: unknown } }).__SERVER_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE
   internals.A = { getCacheForType(factory: () => unknown) { if (!roots.has(factory)) roots.set(factory, factory()); return roots.get(factory) } }
-  requestState.headers = new Headers({ 'x-url': 'https://example.com/', 'x-invoke-method': 'GET', cookie: `xp_id=${encodeUnitCookie('visitor', secrets)}` })
+  requestState.headers = new Headers({ cookie: `xp_id=${encodeUnitCookie('visitor', secrets)}` })
   requestState.cookie = encodeUnitCookie('visitor', secrets)
   requestState.headersRead.mockClear()
   requestState.cookiesRead.mockClear()

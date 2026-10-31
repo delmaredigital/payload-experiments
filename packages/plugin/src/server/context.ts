@@ -45,4 +45,4 @@ export function rememberManifest(assignments: Assignments, manifest: Manifest): 
   return assignments
 }
 export const manifestOf = (assignments: Assignments): Manifest | undefined => manifests.get(assignments)
-export const suppressExposure = (a: Assignments): boolean => a.staff || a.bot || a.preview || a.method.toUpperCase() === 'HEAD'
+export const suppressExposure = (a: Assignments): boolean => a.staff || a.bot || a.preview || ['HEAD', 'UNKNOWN'].includes(a.method.toUpperCase())

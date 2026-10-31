@@ -5,23 +5,29 @@ import { getAssignments } from '../../src/server/getAssignments.js'
 import { encodeAssignmentsHeader } from '../../src/runtime/header.js'
 import { signPreviewToken } from '../../src/runtime/previewToken.js'
 import { resolveExperimentData } from '../../src/server/resolveExperimentData.js'
+import { NextRequest } from 'next/server'
+import * as requestReader from '../../src/server/request.js'
+import { assign } from '../../src/runtime/assign.js'
+import { toClientAssignments } from '../../src/server/toClientAssignments.js'
 
 afterEach(() => vi.restoreAllMocks())
 const header = (a = assignments(), m = manifest()) => requestState.headers.set('x-xp-assignments', encodeAssignmentsHeader(a, { secrets, manifest: m }))
+// Explicit seam for future verified CORE-06c context; the default request has none.
+const trustedContext = (path = '/', method = 'GET') => vi.spyOn(requestReader, 'serverRequest').mockImplementation(headers => ({ request: new NextRequest(`https://example.com${path}`, { headers, method }), hasContext: true }))
 
-test('verified header is used and archived winners and method are copied', async () => {
+test('verified header is used but missing context keeps method unknown and non-exposable', async () => {
   const a = assignments(); a.userId = undefined; a.bySlug.hero!.arm = 'control'
   header(a)
   requestState.headers.set('x-invoke-method', 'HEAD')
   const result = await getAssignments(runtime().rt)
   expect(result.bySlug.hero).toMatchObject({ arm: 'control', source: 'header', exposable: false })
   expect(result.archivedWinners).toEqual({ archived: 'variantB' })
-  expect(result.method).toBe('HEAD')
+  expect(result.method).toBe('UNKNOWN')
 })
-test('tampered header recomputes exactly like shared assign', async () => {
+test('tampered header falls back to non-exposable control without context', async () => {
   requestState.headers.set('x-xp-assignments', 'v1.3..hero=control.invalid')
   const result = await getAssignments(runtime().rt)
-  expect(result.bySlug).toEqual(assignments().bySlug)
+  expect(result.bySlug.hero).toMatchObject({ arm: 'control', exposable: false, source: 'fallback' })
 })
 test.each(['unsigned', 'missing'])('%s cookie gives control, non-exposable even for a known user', async mode => {
   requestState.cookie = mode === 'unsigned' ? 'visitor' : ''
@@ -45,16 +51,17 @@ test('newer header reloads manifest once then verifies against the new phase', a
   expect(result.bySlug.hero).toMatchObject({ phase: 2, source: 'header' })
   expect(loadManifest).toHaveBeenCalledTimes(2)
 })
-test('still-newer header reloads once then recomputes; older header recomputes without reload', async () => {
+test('still-newer header reloads once; older header does not reload; both fail closed without context', async () => {
   for (const revision of [2, 4]) {
     newRequest()
     const m = { ...manifest(), revision }, a = assignments(m); a.userId = undefined; header(a, m)
     const { rt, loadManifest } = runtime()
-    expect((await getAssignments(rt)).bySlug.hero!.source).toBe('recomputed')
+    expect((await getAssignments(rt)).bySlug.hero).toMatchObject({ source: 'fallback', exposable: false })
     expect(loadManifest).toHaveBeenCalledTimes(revision === 4 ? 2 : 1)
   }
 })
 test('deferred slug resolves getUser/userIdOf and server attributes', async () => {
+  trustedContext()
   const m = manifest([experiment({ unitType: 'user', deferrable: true, targeting: [{ attribute: 'loggedIn', op: 'eq', value: true, type: 'boolean' }] })])
   const a = assignments(m); a.userId = undefined; a.bySlug = {}; a.deferred = ['hero']; a.sessionUnknown = true; header(a, m)
   const getUser = vi.fn(async () => ({ id: 12 })), userIdOf = vi.fn(() => 'host-user')
@@ -89,7 +96,7 @@ test('request cache keys runtime and user id; one headers read and manifest load
 })
 test('draft preview forces arm with authenticated access checked Local API', async () => {
   const token = signPreviewToken({ e: 99, a: 'variantA', p: 0, exp: Math.floor(Date.now() / 1000) + 60 }, secrets)
-  requestState.headers.set('x-url', `https://example.com/?xp_preview=${token}`)
+  trustedContext(`/?xp_preview=${token}`)
   const { rt, payload } = runtime(undefined, {}, { getUser: async () => ({ id: 1 }) })
   vi.mocked(payload.findByID).mockResolvedValue({ id: 99, slug: 'draft', status: 'draft', phase: 0, exposurePolicy: 'render', arms: [{ key: 'variantA', kind: 'variant' }] })
   const result = await getAssignments(rt)
@@ -157,4 +164,81 @@ test('forced reload retains the latest normal refresh, never an older forced sna
     expect((await getAssignments(rt)).revision).toBe(5)
     expect(load).toHaveBeenLastCalledWith({ ifRevision: 5 })
   } finally { vi.useRealTimers() }
+})
+
+test.each(['GET', 'TRACE'])('browser URL/method headers (%s) cannot change assignments or cause errors', async method => {
+  const m = manifest([page({ deferrable: true, targeting: [{ attribute: 'loggedIn', op: 'eq', value: false, type: 'boolean' }] })])
+  const a = assignments(m); a.userId = undefined; a.bySlug = {}; a.deferred = ['hero']; a.sessionUnknown = true
+  const { rt, payload } = runtime(m, {}, { getUser: async () => null })
+  header(a, m)
+  const before = await getAssignments(rt)
+  newRequest(); header(a, m)
+  const token = signPreviewToken({ e: 99, a: 'variantA', p: 0, exp: Math.floor(Date.now() / 1000) + 60 }, secrets)
+  for (const key of ['next-url', 'x-url', 'x-invoke-path']) requestState.headers.set(key, `/variant?xp_preview=${token}`)
+  requestState.headers.set('x-invoke-method', method)
+  requestState.headers.set('x-invoke-query', JSON.stringify({ xp_preview: token }))
+  const after = await getAssignments(rt)
+  expect(after).toStrictEqual(before)
+  expect(after.method).toBe('UNKNOWN')
+  expect(after.bySlug.hero).toMatchObject({ arm: 'control', exposable: false })
+  expect(payload.findByID).not.toHaveBeenCalled()
+  expect(toClientAssignments(after, { pathname: '/variant' }).pageviews).toStrictEqual([])
+})
+test('consent-false verified winners survive without either identity', async () => {
+  const m = manifest([experiment({ kind: 'flag', flagPoint: 'point', status: 'decided', winnerArm: 'variantA', exposurePolicy: 'manual' })])
+  const a = assignments(m); a.visitorId = undefined; a.userId = undefined
+  a.bySlug.hero!.arm = 'variantA'; a.bySlug.hero!.exposable = false
+  header(a, m); requestState.cookie = ''
+  const result = await getAssignments(runtime(m, { getUnit: () => ({ userId: 'must-ignore', attributes: {} }) }, { getUser: async () => ({ id: 'also-ignore' }) }).rt)
+  expect(result).toMatchObject({ visitorId: undefined, userId: undefined, bySlug: { hero: { arm: 'variantA', source: 'header', exposable: false } }, flagPoints: { point: { arm: 'variantA', exposable: false } } })
+})
+test.each([false, true])('resolved user mismatch recomputes every user-unit arm (trusted context %s)', async trusted => {
+  if (trusted) trustedContext()
+  const m = manifest([experiment({ unitType: 'user', kind: 'flag', flagPoint: 'point', exposurePolicy: 'manual', arms: [
+    { key: 'control', kind: 'control', weight: 50, params: { text: 'original' } },
+    { key: 'variantA', kind: 'variant', weight: 50, params: { text: 'winner' } },
+  ] })])
+  const old = assign(m, { visitorId: 'visitor', userId: 'old' }, {}, { now: 1 })
+  let newId = ''
+  for (let i = 0; i < 100; i++) {
+    const id = `new-${i}`
+    if (assign(m, { visitorId: 'visitor', userId: id }, {}, { now: 1 }).bySlug.hero!.arm !== old.bySlug.hero!.arm) { newId = id; break }
+  }
+  expect(newId).not.toBe('')
+  header(old, m)
+  const { rt } = runtime(m, { getUnit: () => ({ userId: 'old', attributes: {} }) })
+  const result = await getAssignments(rt, { user: { id: newId } })
+  const expected = assign(m, { visitorId: 'visitor', userId: newId }, {}, { now: 1 }).bySlug.hero!
+  expect(result.userId).toBe(newId)
+  expect(result.bySlug.hero).toMatchObject({ arm: expected.arm, source: 'recomputed', exposable: trusted })
+  expect(result.flagPoints.point).toMatchObject({ arm: expected.arm, exposable: trusted })
+})
+test('unsigned or tampered newer revisions never force a manifest reload', async () => {
+  for (const value of ['v1.999999..hero=variantA.bogus', 'v1.999999..hero=variantA.' + 'a'.repeat(43)]) {
+    newRequest(); requestState.headers.set('x-xp-assignments', value)
+    const { rt, loadManifest } = runtime()
+    await getAssignments(rt)
+    expect(loadManifest).toHaveBeenCalledTimes(1)
+  }
+})
+test('cold newer header spends only one coldStartMs window', async () => {
+  vi.useFakeTimers()
+  try {
+    const m = { ...manifest(), revision: 4 }, a = assignments(m); a.userId = undefined; header(a, m)
+    const load = vi.fn(() => new Promise<never>(() => {})), { rt } = runtime(undefined, { loadManifest: load })
+    let settled = false
+    const pending = getAssignments(rt).then(result => { settled = true; return result })
+    await vi.advanceTimersByTimeAsync(1499); expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(1); expect(settled).toBe(true)
+    expect(await pending).toMatchObject({ revision: 0, bySlug: {} })
+    expect(load).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(5000)
+  } finally { vi.useRealTimers() }
+})
+test('getPayload failure is logged and degrades a valid variant header to control', async () => {
+  const a = assignments(); a.userId = undefined; header(a)
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const { rt } = runtime(undefined, {}, { getPayload: async () => { throw new Error('unavailable') } })
+  expect(await getAssignments(rt)).toMatchObject({ bySlug: { hero: { arm: 'control', exposable: false, source: 'fallback' } } })
+  expect(log).toHaveBeenCalledTimes(1)
 })

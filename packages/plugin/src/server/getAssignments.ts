@@ -13,6 +13,8 @@ import type { Attributes, ExperimentsPluginOptions } from '../types/contracts.js
 import { emptyManifest, rememberManifest, serverManifest, suppressExposure } from './context.js'
 import { serverRequest } from './request.js'
 import { previewDraft } from './previewDraft.js'
+import { verifiedHeaderRevision } from './headerRevision.js'
+import type { Payload } from 'payload'
 
 // The mutable cell lives in React's request cache, never a process-wide user cache.
 const requestCell = cache((_runtime: object, _userId: string) => ({ value: undefined as Promise<Assignments> | undefined }))
@@ -29,8 +31,13 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
   const { request, hasContext } = serverRequest(requestHeaders)
   const proxy = runtime.proxyRuntime
   const visitorId = verifyUnitCookie(jar.get(proxy.cookie.name)?.value, proxy.secrets) ?? undefined
-  const payload = await runtime.getPayload()
-  const options = payload.config?.custom?.xp as ExperimentsPluginOptions<TUser> | undefined
+  let payload: Payload | undefined
+  let payloadFailed = false
+  try { payload = await runtime.getPayload() } catch {
+    payloadFailed = true
+    console.error('[payload-experiments] getPayload failed; serving non-exposable control')
+  }
+  const options = payload?.config?.custom?.xp as ExperimentsPluginOptions<TUser> | undefined
   let unit: { userId?: string; attributes: Attributes; sessionUnknown?: boolean } = { attributes: {} }
   try { unit = await proxy.getUnit?.(request) ?? unit } catch {
     unit = { attributes: {}, sessionUnknown: true }
@@ -48,27 +55,38 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
     }
     return user
   }
-  let manifest = await serverManifest(proxy) ?? emptyManifest()
   const value = requestHeaders.get(XP_HEADER)
-  if (value && /^v1\.(0|[1-9]\d*)\./.test(value) && Number(value.split('.')[1]) > manifest.revision) {
-    manifest = await serverManifest(proxy, true) ?? manifest
-  }
-  const decode = (userId?: string) => value ? decodeAssignmentsHeader(value, { secrets: proxy.secrets, visitorId, userId, manifest }) : null
-  let decoded = decode(unit.userId)
-  if (!decoded && value && (runtime.getUser || suppliedUser)) {
+  // Consent-false proxy headers are signed without either identity.
+  let headerUserId = visitorId ? unit.userId : undefined
+  const authenticate = (userId?: string) => verifiedHeaderRevision(value, { secrets: proxy.secrets, visitorId, userId })
+  let revision = authenticate(headerUserId)
+  if (revision === null && visitorId && value && (runtime.getUser || suppliedUser)) {
     const resolved = await resolveUser()
-    if (resolved) decoded = decode(runtime.userIdOf(resolved))
+    if (resolved) {
+      const resolvedId = runtime.userIdOf(resolved)
+      revision = authenticate(resolvedId)
+      if (revision !== null) headerUserId = resolvedId
+    }
   }
+  const cached = await serverManifest(proxy)
+  let manifest = cached ?? emptyManifest()
+  // A cold miss has already spent its sole coldStartMs window. Do not wait again.
+  if (cached && revision !== null && revision > manifest.revision) manifest = await serverManifest(proxy, true) ?? manifest
+  const decoded = value && revision !== null ? decodeAssignmentsHeader(value, { secrets: proxy.secrets, visitorId, userId: headerUserId, manifest }) : null
   const mustResolveStaff = Boolean(options?.attributeKeys?.staff && (decoded?.sessionUnknown || unit.sessionUnknown))
   const needsUser = !decoded || decoded.deferred.length > 0 || mustResolveStaff || suppliedUser !== undefined
   if (needsUser && canResolveUser) await resolveUser()
-  let attributes: Attributes = { ...unit.attributes, path: request.nextUrl.pathname }
+  let attributes: Attributes = { ...unit.attributes }
+  if (hasContext) attributes.path = request.nextUrl.pathname
+  else delete attributes.path
   if (needsUser && canResolveUser) {
     try {
-      attributes = { ...attributes, ...runtime.attributesOf(user ?? null), path: request.nextUrl.pathname } as Attributes
+      attributes = { ...attributes, ...runtime.attributesOf(user ?? null) } as Attributes
+      if (hasContext) attributes.path = request.nextUrl.pathname
+      else delete attributes.path
     } catch { userFailed = true }
   }
-  const userId = user ? runtime.userIdOf(user) : unit.userId
+  const userId = visitorId ? (user === undefined ? unit.userId : user ? runtime.userIdOf(user) : undefined) : undefined
   const context = {
     visitorId, userId, staff: decoded?.staff === true || unit.attributes.staff === true || attributes.staff === true,
     bot: decoded?.bot === true || isBot(requestHeaders.get('user-agent')),
@@ -76,18 +94,22 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
     method: request.method,
   }
   let result: AssignmentResult
-  if (!visitorId) result = controlAssignments(manifest, context)
+  if (payloadFailed) result = controlAssignments(manifest, context)
   else if (decoded) {
     result = { ...decoded, ...context, archivedWinners: { ...manifest.archivedWinners } }
-    if (decoded.deferred.length && hasContext && canResolveUser && !userFailed) {
+    const slugs = new Set(hasContext ? decoded.deferred : [])
+    if (visitorId && user !== undefined && userId !== headerUserId) {
+      for (const e of manifest.experiments) if (e.unitType === 'user') slugs.add(e.slug)
+    }
+    if (visitorId && slugs.size && canResolveUser && !userFailed) {
       try {
         const resolved = assign(manifest, { visitorId, userId, sessionUnknown: context.sessionUnknown }, attributes, { ...context, now: Math.floor(Date.now() / 1000) })
-        for (const slug of decoded.deferred) {
-          if (resolved.bySlug[slug]) result.bySlug[slug] = resolved.bySlug[slug]!
+        for (const slug of slugs) {
+          result.bySlug[slug] = resolved.bySlug[slug] ?? controlAssignments(manifest, context).bySlug[slug]!
         }
       } catch { userFailed = true }
     }
-  } else if (!hasContext) result = controlAssignments(manifest, context)
+  } else if (!visitorId || !hasContext) result = controlAssignments(manifest, context)
   else {
     try { result = assign(manifest, { visitorId, userId, sessionUnknown: context.sessionUnknown }, attributes, { ...context, now: Math.floor(Date.now() / 1000) }) } catch {
       console.error('[payload-experiments] assign failed; serving non-exposable control')
@@ -98,7 +120,7 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
   const controls = controlAssignments(manifest, context)
   for (const experiment of manifest.experiments) {
     if (!result.bySlug[experiment.slug]) result.bySlug[experiment.slug] = controls.bySlug[experiment.slug]!
-    if (!value && experiment.kind === 'page' && (!hasContext || experiment.arms.some(arm => arm.pageTarget === request.nextUrl.pathname))) {
+    if (!value && hasContext && experiment.kind === 'page' && experiment.arms.some(arm => arm.pageTarget === request.nextUrl.pathname)) {
       result.bySlug[experiment.slug] = controls.bySlug[experiment.slug]!
     }
   }
@@ -106,8 +128,8 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
   for (const point of options?.flagPoints ?? []) if (!Object.hasOwn(result.flagPoints, point.id)) {
     result.flagPoints[point.id] = { arm: 'control', params: { ...point.defaultParams }, source: 'default', exposable: false }
   }
-  const token = verifyPreviewToken(request.nextUrl.searchParams.get('xp_preview') ?? '', proxy.secrets)
-  if (token && visitorId) {
+  const token = hasContext ? verifyPreviewToken(request.nextUrl.searchParams.get('xp_preview') ?? '', proxy.secrets) : null
+  if (token && visitorId && payload) {
     const live = manifest.experiments.find(e => e.id === token.e && e.phase === token.p && e.arms.some(a => a.key === token.a))
     if (live) {
       result.preview = true
@@ -115,7 +137,7 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
       fillFlagPoints(result, manifest)
     } else await previewDraft(payload, await resolveUser(), token, result, requestHeaders)
   }
-  if (suppressExposure(result) || !visitorId || userFailed || (mustResolveStaff && !runtime.getUser && suppliedUser === undefined)) {
+  if (suppressExposure(result) || !hasContext || !visitorId || payloadFailed || userFailed || (mustResolveStaff && !runtime.getUser && suppliedUser === undefined)) {
     for (const assignment of Object.values(result.bySlug)) assignment.exposable = false
     for (const point of Object.values(result.flagPoints)) point.exposable = false
   }
