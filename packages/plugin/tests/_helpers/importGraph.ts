@@ -27,6 +27,7 @@ export function collectImports(entryFile: string): { bare: string[]; files: stri
       visit(resolved.resolvedFileName)
     }
     function walk(node: ts.Node) {
+      if (file.endsWith('.tsx') && (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node))) bare.add('react/jsx-runtime')
       if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
         const clause = node.importClause
         const bindings = clause?.namedBindings

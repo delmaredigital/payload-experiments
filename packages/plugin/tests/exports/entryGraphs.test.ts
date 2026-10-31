@@ -15,6 +15,18 @@ test.each(['proxy', 'runtimeProxy'])('%s has a proxy-safe value import graph', n
   expect(graph.files).toContain(entry(name))
 })
 
+test('TSX with JSX records the implicit React runtime edge, including through relative imports', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'xp-tsx-graph-'))
+  try {
+    writeFileSync(join(dir, 'entry.ts'), `export { Component } from './component.js'`)
+    writeFileSync(join(dir, 'component.tsx'), 'export const Component = () => <><div /></>')
+    writeFileSync(join(dir, 'no-jsx.tsx'), 'export const value = 1')
+    expect(collectImports(join(dir, 'entry.ts')).bare).toContain('react/jsx-runtime')
+    expect(collectImports(join(dir, 'component.tsx')).bare).toEqual(['react/jsx-runtime'])
+    expect(collectImports(join(dir, 'no-jsx.tsx')).bare).toEqual([])
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
 test('client has no server, Payload, Puck or statistics value imports', () => {
   const graph = collectImports(entry('client'))
   expect([...graph.bare, ...graph.dynamic].filter(name => clientForbidden.test(name))).toEqual([])

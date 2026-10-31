@@ -4,6 +4,7 @@ export interface Assignment {
   source: 'header' | 'recomputed' | 'preview' | 'fallback'
 }
 export interface Assignments {
+  archivedWinners: Record<string, string>
   revision: number; visitorId?: string; userId?: string; bySlug: Record<string, Assignment>
   flagPoints: Record<string, FlagPointResult>; staff: boolean; bot: boolean; preview: boolean; sessionUnknown: boolean; method: string
 }

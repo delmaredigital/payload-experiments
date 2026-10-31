@@ -1,15 +1,65 @@
 import type { Payload } from 'payload'
 import type { DocId } from '../../src/types/contracts.js'
+import { createFakeExecutor } from './executor.js'
+import type { FakeExecutor } from './executor.js'
 
 export type FakeDocument = Record<string, unknown> & { id: DocId }
 export type FakePayloadCall = { method: 'find' | 'findByID' | 'create' | 'update' | 'delete'; args: Record<string, unknown> }
 type Args = { collection: string; id?: DocId; data?: Record<string, unknown>; where?: Record<string, unknown>; limit?: number; page?: number; overrideAccess?: boolean; [key: string]: unknown }
+type TransactionID = DocId | Promise<DocId>
+export interface FakeTransactionOptions {
+  begin?: DocId | null | Error | (() => DocId | null | Promise<DocId | null>)
+  commit?: Error | ((id: DocId) => void | Promise<void>)
+  rollback?: Error | ((id: DocId) => void | Promise<void>)
+}
+export type FakeDatabaseCall = { method: 'beginTransaction' | 'commitTransaction' | 'rollbackTransaction'; args: unknown[] }
+export interface FakePayloadOptions<TOverrides extends Record<string, unknown> = Record<string, never>> {
+  collections?: Record<string, FakeDocument[]>
+  executor?: FakeExecutor
+  transactions?: FakeTransactionOptions
+  config?: { custom?: Record<string, unknown>; [key: string]: unknown }
+  /** Shallow overrides are merged last; a replacement db/logger replaces that entire surface. */
+  overrides?: TOverrides
+}
 
 /** Deliberately small Local API fake: it records access posture, but never authorises it. */
-export function fakePayload({ collections = {} }: { collections?: Record<string, FakeDocument[]> } = {}) {
+export function fakePayload<TOverrides extends Record<string, unknown> = Record<string, never>>({ collections = {}, executor = createFakeExecutor(), transactions = {}, config = {}, overrides }: FakePayloadOptions<TOverrides> = {}) {
   const documents = structuredClone(collections)
   const calls: FakePayloadCall[] = []
   const sessions: Record<string, { db: unknown; resolve: () => Promise<void>; reject: () => Promise<void> }> = {}
+  const dbCalls: FakeDatabaseCall[] = []
+  const logs: Array<{ level: 'info' | 'warn' | 'error' | 'debug'; args: unknown[] }> = []
+  let transactionCounter = 0
+  const logger = {
+    info: (...args: unknown[]) => { logs.push({ level: 'info', args }) },
+    warn: (...args: unknown[]) => { logs.push({ level: 'warn', args }) },
+    error: (...args: unknown[]) => { logs.push({ level: 'error', args }) },
+    debug: (...args: unknown[]) => { logs.push({ level: 'debug', args }) },
+  }
+  async function finish(method: 'commitTransaction' | 'rollbackTransaction', transactionID: TransactionID) {
+    const id = await transactionID
+    dbCalls.push({ method, args: [id] })
+    const behavior = method === 'commitTransaction' ? transactions.commit : transactions.rollback
+    if (behavior instanceof Error) throw behavior
+    await behavior?.(id)
+    delete sessions[id]
+  }
+  const db = {
+    sessions, drizzle: { execute: executor.execute },
+    async beginTransaction(options?: Record<string, unknown>) {
+      dbCalls.push({ method: 'beginTransaction', args: options === undefined ? [] : [options] })
+      if (transactions.begin instanceof Error) throw transactions.begin
+      let defaultID: string
+      do { defaultID = `fake-transaction-${++transactionCounter}` } while (sessions[defaultID])
+      const id = typeof transactions.begin === 'function' ? await transactions.begin() : transactions.begin === undefined ? defaultID : transactions.begin
+      if (id !== null) sessions[id] = {
+        db: executor, resolve: () => finish('commitTransaction', id), reject: () => finish('rollbackTransaction', id),
+      }
+      return id
+    },
+    commitTransaction: (id: TransactionID) => finish('commitTransaction', id),
+    rollbackTransaction: (id: TransactionID) => finish('rollbackTransaction', id),
+  }
   function record(method: FakePayloadCall['method'], args: Args) {
     calls.push({ method, args: { ...args } })
     return documents[args.collection] ??= []
@@ -30,7 +80,7 @@ export function fakePayload({ collections = {} }: { collections?: Record<string,
     })
   }
   const api = {
-    calls, documents, db: { sessions },
+    calls, documents, db, dbCalls, logs, logger, config: { ...config, custom: config.custom ?? {} },
     async find(args: Args) {
       const docs = record('find', args).filter(doc => matches(doc, args.where))
       const page = args.page ?? 1, limit = args.limit ?? 10
@@ -67,5 +117,5 @@ export function fakePayload({ collections = {} }: { collections?: Record<string,
     },
   }
   // The only Payload cast lives here; consumers retain the fake's inspection fields.
-  return api as unknown as Payload & Pick<typeof api, 'calls' | 'documents'> & { db: { sessions: typeof sessions } }
+  return { ...api, ...overrides } as unknown as Payload & typeof api & TOverrides
 }

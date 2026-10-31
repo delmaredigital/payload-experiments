@@ -1,4 +1,11 @@
-import { expect, test } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { expect, expectTypeOf, test } from 'vitest'
+import ts from 'typescript'
+import type { Metadata } from 'next'
+import type { Assignments, ExperimentsProxyRuntimeOptions, ExperimentsServerRuntime, Manifest } from '../src/exports/index.js'
+import type { ManifestLoader } from '../src/runtime/loaders.js'
+import type { ExperimentsProxyResult } from '../src/proxy/resolve.js'
+import type { ArmIssue } from '../src/collections/experiments/armInvariants.js'
 import * as index from '../src/exports/index.js'
 import * as runtimeProxy from '../src/exports/runtimeProxy.js'
 import * as runtimeServer from '../src/exports/runtimeServer.js'
@@ -29,6 +36,26 @@ const exportsByEntry = [
   [puck, ['ExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
   [puckEditor, ['ExperimentSlotEditor']],
 ] as const
+
+test('root barrel keeps public types and excludes internal contracts and the Puck Slot peer type', () => {
+  const filename = new URL('../src/exports/index.ts', import.meta.url)
+  const source = ts.createSourceFile(filename.pathname, readFileSync(filename, 'utf8'), ts.ScriptTarget.Latest, true)
+  const names = source.statements.flatMap(statement => ts.isExportDeclaration(statement) && statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)
+    ? statement.exportClause.elements.map(element => element.name.text) : [])
+  expect(names).toEqual(expect.arrayContaining(['ExperimentsPluginOptions', 'MetricSource', 'FlagPoint', 'ParamField', 'Attributes', 'ExperimentsProxyRuntimeOptions', 'ExperimentsProxyRuntime', 'ExperimentsServerRuntimeOptions', 'ExperimentsServerRuntime', 'Manifest', 'Assignments', 'ClientAssignments', 'Snapshot', 'ResultsResponse', 'DocId']))
+  for (const name of ['ResolvedOptions', 'EndpointContext', 'AccessKind', 'Slot']) expect(names).not.toContain(name)
+})
+
+test('approved signature refinements remain available through the public types and barrels', () => {
+  expectTypeOf<Assignments['archivedWinners']>().toEqualTypeOf<Record<string, string>>()
+  expectTypeOf<ManifestLoader>().toEqualTypeOf<NonNullable<ExperimentsProxyRuntimeOptions['loadManifest']>>()
+  expectTypeOf<Parameters<ManifestLoader>>().toEqualTypeOf<[opts?: { ifRevision?: number }]>()
+  expectTypeOf<ReturnType<ManifestLoader>>().toEqualTypeOf<Promise<Manifest | 'not-modified' | null>>()
+  expectTypeOf<Parameters<typeof rsc.experimentMetadata>>().toEqualTypeOf<[ExperimentsServerRuntime, string]>()
+  expectTypeOf<ReturnType<typeof rsc.experimentMetadata>>().toEqualTypeOf<Promise<Pick<Metadata, 'robots' | 'alternates'>>>()
+  expectTypeOf<ExperimentsProxyResult['responseHeaders']>().toEqualTypeOf<Headers | undefined>()
+  expectTypeOf<ArmIssue>().toEqualTypeOf<{ code: import('../src/types/endpoints.js').ArmIssueCode; armIndex?: number; armKey?: string; message: string }>()
+})
 
 test.each(exportsByEntry)('entry exports every contracted value (%j)', (barrel, names) => {
   expect(Object.keys(barrel).sort()).toEqual([...names].sort())

@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { sql } from '@payloadcms/db-postgres/drizzle'
 import { createFakeExecutor, noSession, withSession } from './_fakes/executor.js'
 import { fakePayload } from './_fakes/payload.js'
@@ -93,4 +93,140 @@ test('Payload fake supports where, bulk operations, pagination and isolated read
   expect(updated.docs).toHaveLength(2)
   expect(await payload.delete({ collection: 'examples', where: { kind: { equals: 'updated' } } })).toMatchObject({ docs: [{ id: 'a' }, { id: 'b' }] })
   expect((await payload.find({ collection: 'examples', limit: 0 })).docs).toEqual([{ id: 'c', kind: 'y' }])
+})
+
+test.each(['23505', '40P01', '57014'])('executor preserves injected pg error %s', async code => {
+  const error = Object.assign(new Error('pg failure'), { code })
+  const executor = createFakeExecutor({ throwOn: { at: 2, match: /fail/g, error } })
+  await executor.query('ok')
+  await expect(executor.query('fail')).rejects.toBe(error)
+  expect(executor.calls.map(call => call.text)).toEqual(['ok', 'fail'])
+  const matching = createFakeExecutor({ throwOn: { match: 'fail', error } })
+  await expect(matching.query('fail')).rejects.toMatchObject({ code })
+  const functional = createFakeExecutor({ throwOn: (_call, n) => n === 2 ? error : undefined })
+  await functional.query('first')
+  await expect(functional.query('second')).rejects.toBe(error)
+})
+
+test('Payload fake routes pool and transaction SQL through the supplied executor', async () => {
+  const executor = createFakeExecutor({ results: [{ rows: [{ value: 1 }] }, { rows: [{ value: 2 }] }] })
+  const payload = fakePayload({ executor })
+  const statement = sql`select ${sql.param('opaque')} as value`
+  expect(await payload.db.drizzle.execute(statement)).toMatchObject({ rows: [{ value: 1 }] })
+  const id = await payload.db.beginTransaction()
+  expect(payload.db.sessions[id!]?.db).toBe(executor)
+  expect(await executor.execute(statement)).toMatchObject({ rows: [{ value: 2 }] })
+  await payload.db.commitTransaction(Promise.resolve(id!))
+  expect(payload.db.sessions[id!]).toBeUndefined()
+  const second = await payload.db.beginTransaction({ isolationLevel: 'serializable' })
+  expect(second).not.toBe(id)
+  await payload.db.rollbackTransaction(second!)
+  expect(payload.db.sessions).toEqual({})
+  expect(payload.dbCalls).toEqual([
+    { method: 'beginTransaction', args: [] }, { method: 'commitTransaction', args: [id] },
+    { method: 'beginTransaction', args: [{ isolationLevel: 'serializable' }] }, { method: 'rollbackTransaction', args: [second] },
+  ])
+  expect(executor.calls).toEqual([
+    { text: 'select $1 as value', params: ['opaque'] }, { text: 'select $1 as value', params: ['opaque'] },
+  ])
+})
+
+test('Payload fake configures transaction ids, disabled transactions, and transaction failures', async () => {
+  const explicit = fakePayload({ transactions: { begin: 42 } })
+  expect(await explicit.db.beginTransaction()).toBe(42)
+  expect(explicit.db.sessions[42]).toBeDefined()
+  await explicit.db.sessions[42]!.reject()
+  expect(explicit.db.sessions).toEqual({})
+  const disabled = fakePayload({ transactions: { begin: null } })
+  expect(await disabled.db.beginTransaction()).toBeNull()
+  expect(disabled.db.sessions).toEqual({})
+  const error = new Error('transaction failure')
+  const begin = fakePayload({ transactions: { begin: error } })
+  await expect(begin.db.beginTransaction()).rejects.toBe(error)
+  expect(begin.dbCalls).toEqual([{ method: 'beginTransaction', args: [] }])
+  for (const operation of ['commit', 'rollback'] as const) {
+    const payload = fakePayload({ transactions: { [operation]: error } })
+    const id = await payload.db.beginTransaction()
+    const method = operation === 'commit' ? 'commitTransaction' : 'rollbackTransaction'
+    await expect(payload.db[method](id!)).rejects.toBe(error)
+    expect(payload.dbCalls.at(-1)).toEqual({ method, args: [id] })
+    expect(payload.db.sessions[id!]).toBeDefined()
+  }
+  const commit = vi.fn(), rollback = vi.fn()
+  const callbacks = fakePayload({ transactions: { begin: async () => 'custom', commit, rollback } })
+  await callbacks.db.beginTransaction()
+  await callbacks.db.commitTransaction('custom')
+  await callbacks.db.beginTransaction()
+  await callbacks.db.rollbackTransaction('custom')
+  expect(commit).toHaveBeenCalledWith('custom')
+  expect(rollback).toHaveBeenCalledWith('custom')
+})
+
+test('Payload fake records logger calls, config custom, and merges overrides last', () => {
+  const custom = { experiments: { enabled: true } }
+  const payload = fakePayload({ config: { custom, routes: { api: '/custom-api' } } })
+  const error = new Error('failed')
+  payload.logger.info('ready')
+  payload.logger.warn({ experiment: 1 }, 'warning')
+  payload.logger.error(error, 'failed')
+  payload.logger.debug('details')
+  expect(payload.logs).toEqual([
+    { level: 'info', args: ['ready'] }, { level: 'warn', args: [{ experiment: 1 }, 'warning'] },
+    { level: 'error', args: [error, 'failed'] }, { level: 'debug', args: ['details'] },
+  ])
+  expect(payload.config.custom).toBe(custom)
+  expect(payload.config.routes).toEqual({ api: '/custom-api' })
+  expect(fakePayload().config.custom).toEqual({})
+  const find = vi.fn(), logger = { error: vi.fn() }
+  const overridden = fakePayload({ overrides: { find, logger, config: { custom: { overridden: true } } } })
+  expect(overridden.find).toBe(find)
+  expect(overridden.logger).toBe(logger)
+  expect(overridden.config.custom).toEqual({ overridden: true })
+})
+
+test('session variants accept a seeded Payload fake', async () => {
+  const payload = fakePayload({ collections: { examples: [{ id: 1, name: 'seeded' }] } })
+  const { executor, req } = withSession({ payload, transactionID: 'seeded-tx' })
+  expect(req.payload).toBe(payload)
+  expect(payload.db.sessions['seeded-tx']?.db).toBe(executor)
+  expect(await req.payload.findByID({ collection: 'examples', id: 1 })).toMatchObject({ name: 'seeded' })
+  const other = createFakeExecutor()
+  expect(other.withSession({ payload, transactionID: 2 }).payload).toBe(payload)
+  expect(payload.db.sessions[2]?.db).toBe(other)
+})
+
+test('fake request supports endpoint headers, params, method, URL and JSON body consumption', async () => {
+  const transactionID = Promise.resolve('promised-tx')
+  const req = fakeReq({
+    headers: { cookie: 'xp_id=signed', 'content-type': 'text/plain' }, routeParams: { id: 'experiment-1' },
+    searchParams: '?phase=2&series=1', method: 'POST', url: 'https://example.test/api/xp/events',
+    body: '{"events":[]}', transactionID,
+  })
+  expect(req.headers).toBeInstanceOf(Headers)
+  expect(req.headers.get('cookie')).toBe('xp_id=signed')
+  expect(req.routeParams).toEqual({ id: 'experiment-1' })
+  expect(req.searchParams?.get('phase')).toBe('2')
+  expect(req).toMatchObject({ method: 'POST', url: 'https://example.test/api/xp/events' })
+  expect(req.transactionID).toBe(transactionID)
+  expect(req.body).toBeInstanceOf(ReadableStream)
+  expect(req.bodyUsed).toBe(false)
+  expect(await req.json()).toEqual({ events: [] })
+  expect(req.bodyUsed).toBe(true)
+  await expect(req.text()).rejects.toThrow()
+})
+
+test('fake request supports text and byte-stream bodies plus supplied Headers and searchParams', async () => {
+  const headers = new Headers({ 'x-xp-manifest-key': 'key' }), searchParams = new URLSearchParams({ arm: 'variantA' })
+  const req = fakeReq({ headers, searchParams, body: 'plain text' })
+  expect(req.headers.get('x-xp-manifest-key')).toBe('key')
+  expect(req.searchParams?.get('arm')).toBe('variantA')
+  expect(await req.text()).toBe('plain text')
+  const bytes = new TextEncoder().encode('{"events":[]}')
+  const streamed = fakeReq({ body: bytes, url: 'https://example.test/api?arm=control' })
+  bytes.fill(0)
+  expect(streamed.searchParams?.get('arm')).toBe('control')
+  const reader = streamed.body!.getReader()
+  expect(new TextDecoder().decode((await reader.read()).value)).toBe('{"events":[]}')
+  expect((await reader.read()).done).toBe(true)
+  expect(fakeReq().body).toBeNull()
 })

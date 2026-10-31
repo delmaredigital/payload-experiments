@@ -27,7 +27,6 @@ export type {
   RateLimiter,
   ExperimentsAccess,
   ExperimentsPluginOptions,
-  ResolvedOptions,
   ArmIssueCode,
   RefusalCode,
   ErrorEnvelope,
@@ -43,8 +42,6 @@ export type {
   ResultsResponse,
   SummaryResponse,
   EventBody,
-  AccessKind,
-  EndpointContext,
   FlagDefault,
   Manifest,
   ManifestExperiment,
@@ -57,5 +54,4 @@ export type {
   ExperimentsServerRuntime,
   VerdictCode,
   Snapshot,
-  Slot,
 } from '../types/index.js'

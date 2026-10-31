@@ -3,6 +3,7 @@ import type { ExperimentsProxyRuntime } from '../types/runtime.js'
 import { XpNotImplemented } from '../errors.js'
 
 export interface ExperimentsProxyResult {
+  responseHeaders?: Headers
   requestHeaders: Headers
   requestCookies: Array<{ name: string; value: string }>
   setCookies: Array<Exclude<Parameters<NextResponse['cookies']['set']>[0], string>>
