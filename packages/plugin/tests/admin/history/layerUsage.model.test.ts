@@ -17,3 +17,12 @@ test('empty layers and missing claims leave all slices free', () => {
   expect(layerUsage([{ name: 'Done', status: 'decided', layerSlices: null }]).used).toBe(0)
   expect(layerUsage([{ name: 'Full', status: 'running', layerSlices: Array.from({ length: 100 }, (_, i) => i) }]).free).toBe(0)
 })
+test('a decided experiment whose slices were freed contributes zero', () => {
+  expect(layerUsage([
+    { name: 'Running', status: 'running', layerSlices: [1, 2] },
+    { name: 'Released', status: 'decided', layerSlices: [] },
+  ])).toEqual({ used: 2, free: 98, rows: [
+    { name: 'Running', status: 'running', slices: 2 },
+    { name: 'Released', status: 'decided', slices: 0 },
+  ] })
+})

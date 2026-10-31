@@ -16,7 +16,7 @@ test('shows per-experiment slice usage and the layer total', async () => {
   render(<LayerUsage path="usage" field={{ name: 'usage', type: 'ui', admin: {} }} />)
   expect(await screen.findByText('3 of 100 slices in use; 97 free.')).toBeTruthy()
   expect(screen.getByText('Header · Running · 2 slices')).toBeTruthy()
-  expect(screen.getByText('Donation · Decided · 1 slices')).toBeTruthy()
+  expect(screen.getByText('Donation · Decided · 1 slice')).toBeTruthy()
 })
 test.each([undefined, null])('nothing on create (%s)', id => {
   setDocumentInfo({ id })

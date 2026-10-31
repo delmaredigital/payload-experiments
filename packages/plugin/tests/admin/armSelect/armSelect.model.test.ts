@@ -33,3 +33,7 @@ test.each(['draft', 'stopped', 'running', 'decided'] as const)('banner only whil
   expect(result.banner).toBe(status === 'running' ? 'Changing this content mid-test mixes two versions in one result' : null)
   expect(result.options.some(option => option.value === 'holdout')).toBe(false)
 })
+test('a stale reference without a known name has no parenthetical placeholder', () => {
+  expect(bindArmSelect({ candidates: [], stored: { experiment: 'deleted', arm: 'variantA' } }).stale)
+    .toBe("This was set for an earlier experiment and won't be used now.")
+})

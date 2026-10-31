@@ -21,7 +21,7 @@ export function bindArmSelect({ live, candidates, stored }: {
     bound, pickable: !live,
     options: (bound?.arms ?? []).filter(arm => arm.kind !== 'holdout').map(arm => ({ label: arm.label, value: arm.key })),
     stale: id != null && (bound == null || String(id) !== String(bound.id))
-      ? staleExperiment(previous?.name ?? oldName ?? ARM_SELECT_COPY.earlier) : null,
+      ? staleExperiment(previous?.name ?? oldName) : null,
     banner: bound?.status === 'running' ? ARM_SELECT_COPY.running : null,
   }
 }

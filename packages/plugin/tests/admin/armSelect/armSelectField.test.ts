@@ -7,10 +7,15 @@ test('factory defaults and hidden storage fields', () => {
     name: 'experimentArm', type: 'group', label: 'Experiment group',
     admin: { components: { Field: XP_ARM_SELECT }, custom: { flagPoint: 'donation' } },
     fields: [
-      { name: 'experiment', type: 'relationship', relationTo: 'xp-experiments', admin: { hidden: true } },
+      { name: 'experiment', type: 'text', admin: { hidden: true } },
       { name: 'arm', type: 'text', required: undefined, admin: { hidden: true } },
     ],
   })
+})
+test('host fields have no relationship or upload to a plugin collection with GraphQL disabled', () => {
+  const field = createArmSelectField({ flagPoint: 'donation' })
+  if (!('fields' in field)) throw new Error('Expected a group')
+  expect(field.fields.filter(child => child.type === 'relationship' || child.type === 'upload')).toEqual([])
 })
 test('preserves the host name, label and required setting on the group choice', () => {
   const field = createArmSelectField({ name: 'group', flagPoint: 'ask', label: 'Version', required: true })

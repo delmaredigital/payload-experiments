@@ -8,7 +8,7 @@ export function createArmSelectField({ name = 'experimentArm', flagPoint, label,
     name, type: 'group', label: label ?? 'Experiment group',
     admin: { components: { Field: XP_ARM_SELECT }, custom: { flagPoint } },
     fields: [
-      { name: 'experiment', type: 'relationship', relationTo: 'xp-experiments', admin: { hidden: true } },
+      { name: 'experiment', type: 'text', admin: { hidden: true } },
       { name: 'arm', type: 'text', required, admin: { hidden: true } },
     ],
   }

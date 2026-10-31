@@ -22,6 +22,7 @@ export function ArmSelectField({ path, field, readOnly }: GroupFieldClientProps)
   useEffect(() => {
     setLoaded(null)
     setError(null)
+    if (!point) return
     const controller = new AbortController()
     async function list(statuses: string): Promise<ArmSelectExperiment[]> {
       const docs: ArmSelectExperiment[] = []
@@ -48,7 +49,7 @@ export function ArmSelectField({ path, field, readOnly }: GroupFieldClientProps)
   const data = loaded?.key === key && error?.key !== key ? loaded : null
   const known = data && storedId != null && [data.live, ...data.candidates].some(doc => doc && String(doc.id) === String(storedId))
   useEffect(() => {
-    if (!data || storedId == null || known) return
+    if (!point || !data || storedId == null || known) return
     const controller = new AbortController()
     void fetch(`${api}/xp-experiments/${encodeURIComponent(storedId)}?depth=0`, { credentials: 'include', signal: controller.signal })
       .then(async response => {
@@ -57,14 +58,15 @@ export function ArmSelectField({ path, field, readOnly }: GroupFieldClientProps)
         if (!controller.signal.aborted) setEarlier({ key, id: String(storedId), name: doc.name })
       }).catch(() => { /* A missing or inaccessible earlier experiment must not hide the current picker. */ })
     return () => controller.abort()
-  }, [api, data, key, known, storedId])
+  }, [api, data, key, known, point, storedId])
+  if (!point) return <p role="status">{ARM_SELECT_COPY.noFlagPoint}</p>
   if (error?.key === key) return <p role="status">{error.message}</p>
   if (!data) return <p role="status">{ARM_SELECT_COPY.loading}</p>
   const reference = earlier?.key === key && earlier.id === String(storedId)
     ? { id: storedId!, name: earlier.name } : experiment.value
   const binding = bindArmSelect({ ...data, stored: { experiment: reference, arm: arm.value } })
-  const write = (id: ExperimentReference | null, value: string | null) => {
-    if (!locked) { experiment.setValue(id); arm.setValue(value) }
+  const write = (id: ArmSelectExperiment['id'] | null, value: string | null) => {
+    if (!locked) { experiment.setValue(id == null ? null : String(id)); arm.setValue(value) }
   }
   return <div className="xp-arm-select">
     {binding.banner ? <Banner>{binding.banner}</Banner> : null}
@@ -84,5 +86,6 @@ export function ArmSelectField({ path, field, readOnly }: GroupFieldClientProps)
       onChange={option => {
         if (binding.bound && !Array.isArray(option)) write(binding.bound.id, typeof option?.value === 'string' ? option.value : null)
       }} />
+    {arm.showError ? <p role="alert">{arm.errorMessage}</p> : null}
   </div>
 }

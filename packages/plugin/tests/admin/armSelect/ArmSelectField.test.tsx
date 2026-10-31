@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { ArmSelectField } from '../../../src/admin/armSelect/ArmSelectField.js'
 import { resetPayloadUiMock, setConfig, setField } from '../_helpers/payloadUiMock.js'
@@ -7,7 +7,7 @@ import { resetPayloadUiMock, setConfig, setField } from '../_helpers/payloadUiMo
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
 afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals() })
 const field = { name: 'tag', type: 'group' as const, admin: { custom: { flagPoint: 'donation ask' } }, fields: [
-  { name: 'experiment', type: 'relationship' as const, relationTo: 'xp-experiments' },
+  { name: 'experiment', type: 'text' as const },
   { name: 'arm', type: 'text' as const, required: true },
 ] }
 const arms = [ { key: 'control', kind: 'control', label: 'Original' },
@@ -49,7 +49,7 @@ test('uses the configured route, editor credentials and both flag-point queries;
   expect(statuses).toEqual(['running,decided', 'draft,stopped'])
   expect(fetcher).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ credentials: 'include' }))
   fireEvent.change(select, { target: { value: 'variantA' } })
-  expect(setExperiment).toHaveBeenCalledWith(2)
+  expect(setExperiment).toHaveBeenCalledWith('2')
   expect(setArm).toHaveBeenCalledWith('variantA')
 })
 test('candidate picker sets the experiment and clears the previous group', async () => {
@@ -57,7 +57,7 @@ test('candidate picker sets the experiment and clears the previous group', async
   stub([], [{ ...live, status: 'stopped' }])
   render(<ArmSelectField path="rows.0.tag" field={field} />)
   fireEvent.change(await screen.findByLabelText('Experiment'), { target: { value: '2' } })
-  expect(setExperiment).toHaveBeenCalledWith(2)
+  expect(setExperiment).toHaveBeenCalledWith('2')
   expect(setArm).toHaveBeenCalledWith(null)
   fireEvent.change(screen.getByLabelText('Group'), { target: { value: 'control' } })
   expect(setArm).toHaveBeenLastCalledWith('control')
@@ -89,4 +89,56 @@ test('read-only fields cannot change either stored value', async () => {
   fireEvent.change(screen.getByLabelText('Group'), { target: { value: 'variantA' } })
   expect(setExperiment).not.toHaveBeenCalled()
   expect(setArm).not.toHaveBeenCalled()
+})
+test('the required arm validation message is visible after validation', async () => {
+  const { setArm } = fields()
+  setField({ value: null, setValue: setArm, showError: false, errorMessage: 'Please choose a group.' }, 'rows.0.tag.arm')
+  stub()
+  render(<ArmSelectField path="rows.0.tag" field={field} />)
+  await screen.findByLabelText('Group')
+  expect(screen.queryByRole('alert')).toBeNull()
+  act(() => setField({ value: null, setValue: setArm, showError: true, errorMessage: 'Please choose a group.' }, 'rows.0.tag.arm'))
+  expect(screen.getByRole('alert').textContent).toBe('Please choose a group.')
+})
+test('a deleted earlier experiment uses the nameless stale message', async () => {
+  fields('deleted', 'variantA')
+  vi.stubGlobal('fetch', vi.fn(async (input: string) => input.includes('/xp-experiments/deleted?')
+    ? { ok: false, status: 404 }
+    : { ok: true, json: async () => ({ docs: input.includes('running%2Cdecided') ? [live] : [] }) }))
+  render(<ArmSelectField path="rows.0.tag" field={field} />)
+  expect(await screen.findByText("This was set for an earlier experiment and won't be used now.")).toBeTruthy()
+  await act(async () => {})
+  expect(screen.getByText("This was set for an earlier experiment and won't be used now.")).toBeTruthy()
+})
+test('missing flag-point configuration renders guidance and skips every fetch', async () => {
+  fields('earlier', 'variantA')
+  const fetcher = vi.fn()
+  vi.stubGlobal('fetch', fetcher)
+  render(<ArmSelectField path="rows.0.tag" field={{ ...field, admin: {} }} />)
+  await act(async () => {})
+  expect(screen.getByText('No flag point is configured for this field.')).toBeTruthy()
+  expect(screen.queryByLabelText('Group')).toBeNull()
+  expect(fetcher).not.toHaveBeenCalled()
+})
+test('a late earlier-experiment name cannot replace the name for a newer stored id', async () => {
+  fields('1', 'variantA')
+  let resolveOld!: (value: unknown) => void
+  let resolveNew!: (value: unknown) => void
+  const fetcher = vi.fn((input: string) => {
+    const url = new URL(input, 'https://example.com')
+    if (url.pathname.endsWith('/1')) return new Promise(resolve => { resolveOld = resolve })
+    if (url.pathname.endsWith('/3')) return new Promise(resolve => { resolveNew = resolve })
+    return Promise.resolve({ ok: true, json: async () => ({ docs: url.searchParams.get('where[status][in]') === 'running,decided' ? [live] : [] }) })
+  })
+  vi.stubGlobal('fetch', fetcher)
+  render(<ArmSelectField path="rows.0.tag" field={field} />)
+  await waitFor(() => expect(resolveOld).toBeTypeOf('function'))
+  act(() => { fields('3', 'variantA') })
+  await waitFor(() => expect(resolveNew).toBeTypeOf('function'))
+  await act(async () => resolveNew({ ok: true, json: async () => ({ name: 'Newer stored test' }) }))
+  const message = "This was set for an earlier experiment (Newer stored test) and won't be used now."
+  expect(screen.getByText(message)).toBeTruthy()
+  await act(async () => resolveOld({ ok: true, json: async () => ({ name: 'Older stored test' }) }))
+  expect(screen.getByText(message)).toBeTruthy()
+  expect(screen.queryByText(/Older stored test/)).toBeNull()
 })

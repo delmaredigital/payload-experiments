@@ -26,7 +26,7 @@ export function PhaseHistory(_props: UIFieldClientProps) {
       const docs: HistoryPhase[] = []
       let page = 1
       while (!controller.signal.aborted) {
-        const query = new URLSearchParams({ depth: '0', sort: 'phase', limit: '100', page: String(page), 'where[experiment][equals]': String(id) })
+        const query = new URLSearchParams({ depth: '0', sort: 'phase,startedAt', limit: '100', page: String(page), 'where[experiment][equals]': String(id) })
         const response = await fetch(`${api}/xp-phases?${query}`, { credentials: 'include', signal: controller.signal })
         if (!response.ok) { if (!controller.signal.aborted) setState(null); return }
         const result = await response.json() as { docs: HistoryPhase[]; hasNextPage?: boolean }
@@ -42,7 +42,7 @@ export function PhaseHistory(_props: UIFieldClientProps) {
   if (id == null || state?.key !== key) return null
   const history = phaseHistory(state.docs, { decidedBy })
   return <section aria-label={HISTORY_COPY.rounds}>
-    <ul>{history.rows.map(row => <li key={row.phase}>{row.text}</li>)}</ul>
+    <ul>{history.rows.map(row => <li key={`${row.phase}-${row.phaseKind}`}>{row.text}</li>)}</ul>
     {history.decision ? <p>{history.decision}</p> : null}
   </section>
 }

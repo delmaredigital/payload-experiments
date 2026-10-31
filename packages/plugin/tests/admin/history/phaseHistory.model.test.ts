@@ -5,10 +5,15 @@ const phase = { phase: 2, phaseKind: 'test' as const, startedAt: '2026-10-03T00:
 test('round text is sorted by round, includes kind, dates and weights in stored order', () => {
   const phases = [phase, { ...phase, phase: 1 }]
   expect(phaseHistory(phases).rows).toEqual([
-    { phase: 1, text: 'Round 1 · during the test · Oct 3 – Oct 17 · 45/45/10' },
-    { phase: 2, text: 'Round 2 · during the test · Oct 3 – Oct 17 · 45/45/10' },
+    { phase: 1, phaseKind: 'test', text: 'Round 1 · during the test · Oct 3 – Oct 17 · 45/45/10' },
+    { phase: 2, phaseKind: 'test', text: 'Round 2 · during the test · Oct 3 – Oct 17 · 45/45/10' },
   ])
   expect(phases[0]?.phase).toBe(2)
+})
+test('test and rollout rounds sharing a number are sorted by start time', () => {
+  const rollout = { ...phase, phaseKind: 'rollout' as const, startedAt: '2026-10-17T23:00:00Z', endedAt: null }
+  expect(phaseHistory([rollout, { ...phase, phase: 3 }, phase]).rows.map(row => [row.phase, row.phaseKind]))
+    .toEqual([[2, 'test'], [2, 'rollout'], [3, 'test']])
 })
 test('an open rollout ends now', () => {
   expect(phaseHistory([{ ...phase, phaseKind: 'rollout', endedAt: null }]).rows[0]?.text)
