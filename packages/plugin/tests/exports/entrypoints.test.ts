@@ -1,6 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import ts from 'typescript'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
+
+// These scans parse every src file with the TypeScript compiler; give them room under a loaded full-suite run.
+vi.setConfig({ testTimeout: 30_000 })
 
 const required = {
   client: {
