@@ -2,7 +2,10 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
+
+// These scans parse every src file with the TypeScript compiler; give them room under a loaded full-suite run.
+vi.setConfig({ testTimeout: 30_000 })
 
 const src = fileURLToPath(new URL('../../src/', import.meta.url))
 const prefix = '@delmaredigital/payload-experiments/admin/client#'

@@ -125,7 +125,7 @@ export async function ownConnection(pool: Pool): Promise<Executor & { release(er
     async query<R>(text: string, params?: unknown[]) {
       try { return await exec.query<R>(text, params) }
       catch (error) {
-        queryError = error instanceof Error ? error : new Error('Query failed', { cause: error })
+        queryError ??= connectionError(error)
         throw error
       }
     },
@@ -133,8 +133,79 @@ export async function ownConnection(pool: Pool): Promise<Executor & { release(er
   }
 }
 
-export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec: Executor) => Promise<T>): Promise<T> {
+export const RESULTS_TIMEOUT_MARGIN_MS = 10
+export class ResultsBudgetError extends Error {
+  override name = 'ResultsBudgetError'
+  constructor() { super('Results budget exhausted') }
+}
+
+/** SQL errors leave a usable connection after rollback. Transport failures and
+ * deadline races can leave queries in flight, so those clients must be discarded. */
+function connectionError(error: unknown): Error | undefined {
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+  if (!(error instanceof ResultsBudgetError) && typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)
+    && !code.startsWith('08') && !code.startsWith('57P')) return undefined
+  return error instanceof Error ? error : new Error('Query failed', { cause: error })
+}
+
+/** Invoke lazily so expired work never starts. Promise.race observes late source
+ * rejections too; clearing the timer keeps successful cron calls from lingering. */
+export async function raceDeadline<T>(deadline: number, work: () => Promise<T>): Promise<T> {
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) throw new ResultsBudgetError()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([Promise.resolve().then(work), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new ResultsBudgetError()), remaining)
+    })])
+  } finally { clearTimeout(timer) }
+}
+
+export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec: Executor) => Promise<T>, deadline?: number): Promise<T> {
   if (!Number.isSafeInteger(ms) || ms <= 0) throw new RangeError('statement timeout must be a positive integer')
+  if (deadline !== undefined) {
+    if (deadline - Date.now() <= RESULTS_TIMEOUT_MARGIN_MS) throw new ResultsBudgetError()
+    let abandoned = false
+    const connection = Promise.resolve().then(() => pool.connect()).then(client => {
+      if (abandoned) { client.release(new ResultsBudgetError()); throw new ResultsBudgetError() }
+      return client
+    })
+    let client: PoolClient
+    try { client = await raceDeadline(deadline, () => connection) }
+    catch (error) { abandoned = true; throw error }
+    const exec = pgPoolExecutor(client)
+    let releaseError: Error | undefined
+    try {
+      return await raceDeadline(deadline, async () => {
+        if (deadline - Date.now() <= RESULTS_TIMEOUT_MARGIN_MS) throw new ResultsBudgetError()
+        await exec.query('BEGIN')
+        const timeout = Math.min(ms, Math.floor(deadline - Date.now() - RESULTS_TIMEOUT_MARGIN_MS))
+        if (timeout <= 0) throw new ResultsBudgetError()
+        await exec.query(`SET LOCAL statement_timeout = ${timeout}`)
+        if (deadline - Date.now() <= RESULTS_TIMEOUT_MARGIN_MS) throw new ResultsBudgetError()
+        const result = await fn(exec)
+        if (Date.now() >= deadline) throw new ResultsBudgetError()
+        // COMMIT may land while the deadline race reports this experiment as
+        // skipped. Harmless: the next results run rewrites the snapshot.
+        await exec.query('COMMIT')
+        return result
+      })
+    } catch (error) {
+      const failure = error && typeof error === 'object' && 'code' in error && error.code === '57014' ? new ResultsBudgetError() : error
+      releaseError = connectionError(error)
+      // Destroy deadline-raced clients immediately, including BEGIN/SET/COMMIT hangs.
+      // A rollback cannot be allowed to extend the caller's deadline either.
+      // A server statement timeout (57014) has settled; rollback can reuse it.
+      if (!(error instanceof ResultsBudgetError)) {
+        try { await raceDeadline(deadline, () => exec.query('ROLLBACK')) }
+        catch (rollbackError) {
+          // Even an ordinary SQL error here leaves transaction state uncertain.
+          releaseError = rollbackError instanceof Error ? rollbackError : new Error('Rollback failed', { cause: rollbackError })
+        }
+      }
+      throw failure
+    } finally { client.release(releaseError) }
+  }
   const exec = await ownConnection(pool)
   let releaseError: Error | undefined
   try {
@@ -144,6 +215,7 @@ export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec:
     await exec.query('COMMIT')
     return result
   } catch (error) {
+    releaseError = connectionError(error)
     try { await exec.query('ROLLBACK') } catch (rollbackError) {
       releaseError = rollbackError instanceof Error ? rollbackError : new Error('Rollback failed', { cause: rollbackError })
     }

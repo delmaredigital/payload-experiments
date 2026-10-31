@@ -92,13 +92,22 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
     preview: decoded?.preview ?? false, sessionUnknown: needsUser && canResolveUser && !userFailed ? false : decoded?.sessionUnknown ?? unit.sessionUnknown ?? false,
     method: request.method,
   }
+  const fillHostDefaults = (result: AssignmentResult) => {
+    for (const point of options?.flagPoints ?? []) if (!Object.hasOwn(result.flagPoints, point.id)) {
+      result.flagPoints[point.id] = { arm: 'control', params: { ...point.defaultParams }, source: 'default', exposable: false }
+    }
+    return result
+  }
+  const lastResort = () => rememberManifest(fillHostDefaults(emptyAssignments(context)), emptyManifest())
   let result: AssignmentResult
-  if (payloadFailed) result = controlAssignments(manifest, context)
+  if (payloadFailed) {
+    try { result = controlAssignments(manifest, context) } catch { return lastResort() }
+  }
   else if (consent === false && !decoded) {
     try { result = consentFallback(manifest, attributes, context) } catch {
       console.error('[payload-experiments] consent fallback failed; serving non-exposable control')
       try { result = controlAssignments(manifest, context) } catch {
-        return rememberManifest(emptyAssignments(context), emptyManifest())
+        return lastResort()
       }
     }
   } else if (decoded) {
@@ -128,9 +137,7 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
     if (!result.bySlug[experiment.slug]) result.bySlug[experiment.slug] = controls.bySlug[experiment.slug]!
   }
   fillFlagPoints(result, manifest)
-  for (const point of options?.flagPoints ?? []) if (!Object.hasOwn(result.flagPoints, point.id)) {
-    result.flagPoints[point.id] = { arm: 'control', params: { ...point.defaultParams }, source: 'default', exposable: false }
-  }
+  fillHostDefaults(result)
   const token = hasContext ? verifyPreviewToken(request.nextUrl.searchParams.get('xp_preview') ?? '', proxy.secrets) : null
   if (token && visitorId && payload) {
     const live = manifest.experiments.find(e => e.id === token.e && e.phase === token.p && e.arms.some(a => a.key === token.a))

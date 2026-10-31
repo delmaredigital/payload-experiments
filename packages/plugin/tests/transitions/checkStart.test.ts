@@ -41,6 +41,7 @@ const cases: Array<[string, (input: CheckStartInput) => void]> = [
   ['empty-slot', i => { i.placements![0]!.slots.variantA = 0 }],
   ['layer-unit-mismatch', i => { i.experiment.layer = 3; i.layer = { unitType: 'user', usedSlices: [] } }],
   ['layer-full', i => { i.experiment.layer = 3; i.layer = { unitType: 'visitor', usedSlices: Array.from({ length: 51 }, (_, n) => n) } }],
+  ['unknown-metric-source', i => { i.metricSources = [] }],
   ['unit-source-mismatch', i => { i.experiment.unitType = 'user'; i.metricSources![0]!.keyedBy = 'visitor' }],
   ['invalid-targeting-rule', i => { i.attributeKeys = { country: { type: 'string' } }; i.experiment.targeting = [{ attribute: 'country', op: 'eq', value: 42 }] }],
   ['undeclared-targeting-key', i => { i.experiment.targeting = [{ attribute: 'country', op: 'eq', value: 'US' }] }],
@@ -52,7 +53,7 @@ describe('checkStart', () => {
   })
   test('all checks pass and remain in fixed order even when many checks fail', () => {
     const input = ready()
-    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'empty-slot', 'layer-unit-mismatch', 'layer-full', 'unit-source-mismatch', 'undeclared-targeting-key', 'invalid-targeting-rule']
+    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'empty-slot', 'layer-unit-mismatch', 'layer-full', 'unknown-metric-source', 'unit-source-mismatch', 'undeclared-targeting-key', 'invalid-targeting-rule']
     expect(checkStart(input)).toEqual(order.map(code => ({ code, ok: true })))
     for (const [, mutate] of cases) {
       const changed = ready(); mutate(changed)
@@ -69,7 +70,8 @@ describe('checkStart', () => {
   })
   test.each(['user', 'visitor'] as const)('events sources serve %s experiments', unitType => {
     const input = ready(); input.experiment.unitType = unitType; input.metrics[0]!.source = 'events:signup'
-    input.metricSources = [{ id: 'events:signup', keyedBy: 'visitor' }]
+    input.metricSources = []
+    expect(checkStart(input).find(check => check.code === 'unknown-metric-source')?.ok).toBe(true)
     expect(checkStart(input).find(check => check.code === 'unit-source-mismatch')?.ok).toBe(true)
   })
   test('checks secondary and guardrail sources, allows linked user sources on visitor experiments', () => {

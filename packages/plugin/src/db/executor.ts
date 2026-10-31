@@ -6,7 +6,7 @@ import { normalise, scanParameters } from './pgExecutor.js'
 import type { Executor } from './pgExecutor.js'
 
 export type { Executor } from './pgExecutor.js'
-export { pgPoolExecutor, ownConnection, withStatementTimeout } from './pgExecutor.js'
+export { pgPoolExecutor, ownConnection, withStatementTimeout, raceDeadline, ResultsBudgetError, RESULTS_TIMEOUT_MARGIN_MS } from './pgExecutor.js'
 
 type Database = { execute(query: ReturnType<typeof sql.raw>): Promise<unknown> }
 type PostgresDatabase = Pick<PostgresAdapter, 'schemaName' | 'drizzle' | 'sessions'>

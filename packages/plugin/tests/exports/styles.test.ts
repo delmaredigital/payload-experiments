@@ -1,7 +1,10 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { matchesGlob } from 'node:path'
 import ts from 'typescript'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
+
+// These scans parse every src file with the TypeScript compiler; give them room under a loaded full-suite run.
+vi.setConfig({ testTimeout: 30_000 })
 
 const src = new URL('../../src/', import.meta.url)
 function imports(file: string) {

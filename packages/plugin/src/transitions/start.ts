@@ -49,7 +49,7 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
   // Review reads respect field access; internal writes must preserve hidden config.
   input.experiment = { ...input.experiment, kind: full.kind, analysis: full.analysis }
   const failed = checkStart(input).find(check => !check.ok)
-  if (failed) refuse(failed.code === 'invalid-body' ? 'undeclared-targeting-key' : failed.code, failed.detail)
+  if (failed) refuse(failed.code, failed.detail)
   const before = input.experiment as TransitionExperiment
   const updatedAt = before.updatedAt
   const at = new Date()
@@ -69,7 +69,7 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
       const defaults = state.flagDefaults as Record<string, { params: Record<string, unknown> }> | undefined
       current.arms = current.arms.map(arm => arm.kind === 'control' ? { ...arm, params: defaults?.[point.id]?.params ?? point.defaultParams } : arm)
       const recheck = checkStart({ ...input, experiment: current }).find(check => !check.ok)
-      if (recheck) refuse(recheck.code === 'invalid-body' ? 'undeclared-targeting-key' : recheck.code, recheck.detail)
+      if (recheck) refuse(recheck.code, recheck.detail)
     }
     const targeting = (current.targeting ?? []).map(rule => {
       const type = Object.hasOwn(options.attributeKeys ?? {}, rule.attribute) ? options.attributeKeys![rule.attribute]!.type : undefined

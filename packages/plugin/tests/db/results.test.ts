@@ -1,9 +1,92 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { armMismatchCount, identityRows, metricEventRows, phaseExposureRows, rolloutExposureRows } from '../../src/db/results.js'
 import { createFakeExecutor } from '../_fakes/executor.js'
+import type { Payload } from 'payload'
+import { resultsExecutor } from '../../src/db/snapshots.js'
 
 const from = new Date('2026-10-31T00:00:00Z')
 const to = '2026-10-31T01:00:00.000Z'
+
+test('results transport applies a timeout per query and recovers after an isolated SQL failure', async () => {
+  const calls: string[] = [], releases: unknown[] = []
+  let fail = true
+  const pool = { connect: async () => ({
+    query: async ({ text }: { text: string }) => {
+      calls.push(text)
+      if (text === 'SELECT broken' && fail) { fail = false; throw new Error('Query failed') }
+      return { rows: [], rowCount: 0 }
+    }, release: (error: unknown) => releases.push(error),
+  }) }
+  const exec = resultsExecutor({ db: { pool, schemaName: 'host' } } as unknown as Payload, () => 123)
+  await expect(exec.query('SELECT broken')).rejects.toThrow('Query failed')
+  await expect(exec.query('SELECT healthy')).resolves.toEqual({ rows: [], rowCount: 0 })
+  expect(calls).toEqual(['BEGIN', expect.stringMatching(/^SET LOCAL statement_timeout = \d+$/), 'SELECT broken', 'ROLLBACK',
+    'BEGIN', expect.stringMatching(/^SET LOCAL statement_timeout = \d+$/), 'SELECT healthy', 'COMMIT'])
+  for (const call of calls.filter(text => text.startsWith('SET'))) expect(Number(call.split(' = ')[1])).toBeLessThanOrEqual(113)
+  expect(releases).toHaveLength(2)
+  expect(exec).toMatchObject({ schemaName: 'host' })
+})
+
+test.each(['57014', '23505'])('results transport rolls back SQL error %s without destroying its client', async code => {
+  const release = vi.fn(), calls: string[] = []
+  const error = Object.assign(new Error('SQL failed'), { code })
+  const pool = { connect: async () => ({ release, query: async ({ text }: { text: string }) => {
+    calls.push(text)
+    if (text === 'SELECT broken') throw error
+    return { rows: [], rowCount: 0 }
+  } }) }
+  const exec = resultsExecutor({ db: { pool } } as unknown as Payload, () => 1000)
+  await expect(exec.query('SELECT broken')).rejects.toThrow(code === '57014' ? 'Results budget exhausted' : 'SQL failed')
+  expect(calls.at(-1)).toBe('ROLLBACK')
+  expect(release).toHaveBeenCalledExactlyOnceWith(undefined)
+})
+
+test.each(['BEGIN', 'SET', 'COMMIT'])('results transport bounds a hung %s and destroys its client', async hang => {
+  const release = vi.fn(), calls: string[] = []
+  const pool = { connect: async () => ({ release, query: async ({ text }: { text: string }) => {
+    calls.push(text)
+    if (text.startsWith(hang)) return new Promise(() => {})
+    return { rows: [], rowCount: 0 }
+  } }) }
+  const exec = resultsExecutor({ db: { pool } } as unknown as Payload, () => 100)
+  await expect(exec.query('SELECT healthy')).rejects.toThrow('Results budget exhausted')
+  expect(release).toHaveBeenCalledWith(expect.any(Error))
+  if (hang !== 'COMMIT') expect(calls).not.toContain('SELECT healthy')
+})
+
+test('results transport skips acquisition when only the timeout margin remains', async () => {
+  const connect = vi.fn()
+  const exec = resultsExecutor({ db: { pool: { connect } } } as unknown as Payload, () => 10)
+  await expect(exec.query('SELECT healthy')).rejects.toThrow('Results budget exhausted')
+  expect(connect).not.toHaveBeenCalled()
+})
+
+test('a delayed SET that consumes the margin never starts the data query', async () => {
+  const start = Date.now(), clock = vi.spyOn(Date, 'now').mockReturnValue(start), calls: string[] = []
+  try {
+    const pool = { connect: async () => ({ release: vi.fn(), query: async ({ text }: { text: string }) => {
+      calls.push(text)
+      if (text.startsWith('SET')) clock.mockReturnValue(start + 95)
+      return { rows: [], rowCount: 0 }
+    } }) }
+    const exec = resultsExecutor({ db: { pool } } as unknown as Payload, () => 100)
+    await expect(exec.query('SELECT healthy')).rejects.toThrow('Results budget exhausted')
+    expect(calls).not.toContain('SELECT healthy')
+  } finally { clock.mockRestore() }
+})
+
+test('userIds filters stored user_id, batches independently, and never filters unit_id', async () => {
+  const exec = createFakeExecutor()
+  const userIds = Array.from({ length: 10_001 }, (_, n) => String(n))
+  await metricEventRows(exec, { eventName: 'signup', from, to, userIds: [...userIds, '0'] })
+  expect(exec.calls).toHaveLength(2)
+  expect(exec.calls.every(call => call.text.includes('"user_id" = ANY($5::text[])') && !call.text.includes('"unit_id" = ANY'))).toBe(true)
+  expect(exec.calls[0]!.params[4]).toHaveLength(10_000)
+  expect(exec.calls[1]!.params[4]).toEqual(['10000'])
+  await metricEventRows(exec, { eventName: 'signup', from, to, userIds: [] })
+  expect(exec.calls).toHaveLength(2)
+  await expect(metricEventRows(exec, { eventName: 'signup', from, to, userIds: [], unitIds: [] })).rejects.toThrow('Choose unitIds or userIds')
+})
 
 test('phase exposure SQL binds values in order, quotes identifiers and uses strict endedAt', async () => {
   const exec = Object.assign(createFakeExecutor({ results: [{ rows: [{ unitId: 'v', arm: 'control', ts: String(+from) }] }] }), { schemaName: 'host"schema' })

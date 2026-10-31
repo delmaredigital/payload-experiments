@@ -110,3 +110,14 @@ test('unsaved changes disable every action and explain why', () => {
   fireEvent.click(buttons[0]!)
   expect(screen.queryByRole('dialog')).toBeNull()
 })
+
+test('draft and archived experiments explain what deleting does', () => {
+  setAuth({ permissions: { collections: { 'xp-experiments': { update: true } } } })
+  setFormFields({ status: { value: 'archived' }, kind: { value: 'flag' }, 'arms.0.key': { value: 'control' }, 'arms.1.key': { value: 'variantA' } })
+  const view = render(<ExperimentActions field={{ name: 'actions', type: 'ui', admin: {} }} path="actions" />)
+  expect(screen.getByText("Deleting removes this experiment's records and results. A winner that was already made permanent stays in place.")).toBeTruthy()
+  view.unmount()
+  setFormFields({ status: { value: 'draft' }, kind: { value: 'block' }, 'arms.0.key': { value: 'control' }, 'arms.1.key': { value: 'variantA' } })
+  render(<ExperimentActions field={{ name: 'actions', type: 'ui', admin: {} }} path="actions" />)
+  expect(screen.getByText('Deleting removes this experiment and its settings.')).toBeTruthy()
+})

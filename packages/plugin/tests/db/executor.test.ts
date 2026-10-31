@@ -3,7 +3,7 @@ import type { SQL } from 'drizzle-orm'
 import type { Payload, PayloadRequest } from 'payload'
 import type { Pool, QueryConfig } from 'pg'
 import { describe, expect, test, vi } from 'vitest'
-import { ownConnection, pgPoolExecutor, pooledExecutor, txExecutor, withStatementTimeout } from '../../src/db/executor.js'
+import { ownConnection, pgPoolExecutor, pooledExecutor, txExecutor, withStatementTimeout, ResultsBudgetError } from '../../src/db/executor.js'
 import { XpNoTransactionError } from '../../src/errors.js'
 
 function fake() {
@@ -101,6 +101,62 @@ test('ownConnection releases a failed query with its error to discard the client
   try { await expect(exec.query('SELECT 1')).rejects.toBe(queryError) }
   finally { exec.release() }
   expect(client.release).toHaveBeenCalledExactlyOnceWith(queryError)
+})
+test.each(['57014', '23505', '42P01'])('ownConnection reuses a client after SQL error %s and successful rollback', async code => {
+  const { pool, client } = fakePool()
+  const error = Object.assign(new Error('SQL failed'), { code })
+  client.query.mockRejectedValueOnce(error)
+  const exec = await ownConnection(pool)
+  await expect(exec.query('SELECT broken')).rejects.toBe(error)
+  await exec.query('ROLLBACK')
+  exec.release()
+  expect(client.release).toHaveBeenCalledExactlyOnceWith(undefined)
+})
+test.each(['08006', '08003', '57P01', '57P02', '57P03', 'ECONNRESET', undefined])('ownConnection discards connection failure %s even after rollback', async code => {
+  const { pool, client } = fakePool()
+  const error = Object.assign(new Error('connection failed'), { code })
+  client.query.mockRejectedValueOnce(error)
+  const exec = await ownConnection(pool)
+  await expect(exec.query('SELECT broken')).rejects.toBe(error)
+  await exec.query('ROLLBACK')
+  exec.release()
+  expect(client.release).toHaveBeenCalledExactlyOnceWith(error)
+})
+test.each([false, true])('timeout executor releases SQL failures normally after rollback (deadline %s)', async bounded => {
+  for (const code of ['57014', '23505']) {
+    const { pool, client } = fakePool()
+    const error = Object.assign(new Error('SQL failed'), { code })
+    client.query.mockImplementation(async query => {
+      if (query.text === 'SELECT broken') throw error
+      return { rows: [], rowCount: 0 }
+    })
+    const work = withStatementTimeout(pool, 250, exec => exec.query('SELECT broken'), bounded ? Date.now() + 1000 : undefined)
+    if (bounded && code === '57014') await expect(work).rejects.toBeInstanceOf(ResultsBudgetError)
+    else await expect(work).rejects.toBe(error)
+    expect(client.query.mock.calls.at(-1)![0].text).toBe('ROLLBACK')
+    expect(client.release).toHaveBeenCalledExactlyOnceWith(undefined)
+  }
+})
+test.each([false, true])('timeout executor discards transport errors (deadline %s)', async bounded => {
+  for (const code of ['08006', '57P01', undefined]) {
+    const { pool, client } = fakePool()
+    const error = Object.assign(new Error('connection failed'), { code })
+    client.query.mockRejectedValueOnce(error)
+    await expect(withStatementTimeout(pool, 250, async () => {}, bounded ? Date.now() + 1000 : undefined)).rejects.toBe(error)
+    expect(client.release).toHaveBeenCalledExactlyOnceWith(error)
+  }
+})
+test('a bounded failed rollback discards the client while preserving the SQL error', async () => {
+  const { pool, client } = fakePool()
+  const error = Object.assign(new Error('SQL failed'), { code: '23505' })
+  const rollbackError = Object.assign(new Error('rollback failed'), { code: '25P02' })
+  client.query.mockImplementation(async query => {
+    if (query.text === 'SELECT broken') throw error
+    if (query.text === 'ROLLBACK') throw rollbackError
+    return { rows: [], rowCount: 0 }
+  })
+  await expect(withStatementTimeout(pool, 250, exec => exec.query('SELECT broken'), Date.now() + 1000)).rejects.toBe(error)
+  expect(client.release).toHaveBeenCalledExactlyOnceWith(rollbackError)
 })
 test.each([false, true])('timeout transaction releases on success/failure (%s)', async fail => {
   const { pool, client } = fakePool()

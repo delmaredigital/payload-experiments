@@ -1,0 +1,104 @@
+import type { Payload } from 'payload'
+import type { Pool } from 'pg'
+import type { DocId, UnitType } from '../types/contracts.js'
+import type { Snapshot } from '../types/snapshot.js'
+import type { AnalysisPhase, FrozenMetric } from '../results/analyse.js'
+import { withStatementTimeout, ResultsBudgetError, RESULTS_TIMEOUT_MARGIN_MS, type Executor } from './executor.js'
+import { COLUMNS, TABLES } from './names.js'
+import { qualifiedTable, quoteIdentifier as q } from './sql.js'
+
+export interface ResultsPhase extends AnalysisPhase {
+  seed: string
+  allocation: number
+  metricDefinitions: Array<FrozenMetric & { source: string; keyedBy?: UnitType; capNotice?: 'no-history' }>
+}
+export interface ResultsCandidate {
+  phase: ResultsPhase
+  unitType: UnitType
+  status: 'running' | 'stopped' | 'decided' | 'archived'
+  latestComputedAt: string | null
+  testArms: Array<{ weight: number }>
+  layerSlug: string | null
+  layerSlices: number[] | null
+}
+
+/** Each query gets its own pooled connection and timeout transaction. A failed
+ * metric query cannot poison the next metric's transaction. */
+export function resultsExecutor(payload: Payload, timeoutMs: () => number): Executor {
+  const db = payload.db as unknown as { pool: Pool; schemaName?: string }
+  return Object.assign({
+    query<R>(text: string, params?: unknown[]) {
+      const remaining = Math.floor(timeoutMs())
+      if (remaining <= RESULTS_TIMEOUT_MARGIN_MS) return Promise.reject(new ResultsBudgetError())
+      return withStatementTimeout(db.pool, remaining - RESULTS_TIMEOUT_MARGIN_MS, exec => exec.query<R>(text, params), Date.now() + remaining)
+    },
+  }, { schemaName: db.schemaName })
+}
+
+// CORE-16 README: allow late beacons for 24 hours after a phase ends, then keep
+// its final snapshot frozen. This is internal scheduling policy, not public API.
+const LATE_BEACON_GRACE_MS = 24 * 60 * 60 * 1000
+
+/** Scheduling and immutable assignment metadata only; metric/config data comes
+ * from the phase JSON, never from live metric or experiment analysis fields. */
+export async function resultsCandidates(exec: Executor, { cutoff, experimentId }: { cutoff: string; experimentId?: DocId }): Promise<ResultsCandidate[]> {
+  const p = COLUMNS.phases, e = COLUMNS.experiments, s = COLUMNS.resultsSnapshots, l = COLUMNS.layers
+  const phases = qualifiedTable(exec, TABLES.phases), snapshots = qualifiedTable(exec, TABLES.resultsSnapshots)
+  const params: unknown[] = [cutoff, LATE_BEACON_GRACE_MS]
+  if (experimentId !== undefined) params.push(experimentId)
+  const { rows } = await exec.query<ResultsCandidate>(`SELECT
+    jsonb_build_object('experiment', p.${q(p.experimentId)}, 'phase', p.${q(p.phase)}, 'phaseKind', p.${q(p.phaseKind)},
+      'startedAt', p.${q(p.startedAt)}, 'endedAt', p.${q(p.endedAt)}, 'seed', p.${q(p.seed)},
+      'arms', p.${q(p.arms)}, 'allocation', p.${q(p.allocation)}, 'metricDefinitions', p.${q(p.metricDefinitions)},
+      'analysis', p.${q(p.analysis)}, 'contentChanges', p.${q(p.contentChanges)}) AS "phase",
+    e.${q(e.unitType)} AS "unitType", e.${q(e.status)} AS "status",
+    (SELECT max(s.${q(s.computedAt)}) FROM ${snapshots} s WHERE s.${q(s.experimentId)} = p.${q(p.experimentId)} AND s.${q(s.phase)} = p.${q(p.phase)}) AS "latestComputedAt",
+    (SELECT t.${q(p.arms)} FROM ${phases} t WHERE t.${q(p.experimentId)} = p.${q(p.experimentId)} AND t.${q(p.phaseKind)} = 'test' AND t.${q(p.phase)} <= p.${q(p.phase)} ORDER BY t.${q(p.phase)} DESC LIMIT 1) AS "testArms",
+    l.${q(l.slug)} AS "layerSlug", e.${q(e.layerSlices)} AS "layerSlices"
+    FROM ${phases} p JOIN ${qualifiedTable(exec, TABLES.experiments)} e ON e.${q(e.id)} = p.${q(p.experimentId)}
+    LEFT JOIN ${qualifiedTable(exec, TABLES.layers)} l ON l.${q(l.id)} = e.${q(e.layerId)}
+    WHERE (p.${q(p.endedAt)} IS NULL OR p.${q(p.endedAt)} >= $1)
+    AND NOT EXISTS (SELECT 1 FROM ${snapshots} frozen WHERE frozen.${q(s.experimentId)} = p.${q(p.experimentId)} AND frozen.${q(s.phase)} = p.${q(p.phase)}
+      AND frozen.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond')${experimentId === undefined ? '' : ` AND p.${q(p.experimentId)} = $3`}
+    ORDER BY "latestComputedAt" NULLS FIRST, p.${q(p.experimentId)}, p.${q(p.phase)}`, params)
+  return rows
+}
+
+export async function writeSnapshot(exec: Executor, snapshot: Snapshot): Promise<void> {
+  return writeSnapshots(exec, [snapshot])
+}
+
+/** One atomic insert after all phases complete: a budget failure cannot leave
+ * the experiment with a partially persisted set of phase snapshots. */
+export async function writeSnapshots(exec: Executor, snapshots: Snapshot[]): Promise<void> {
+  if (!snapshots.length) return
+  const c = COLUMNS.resultsSnapshots
+  const params: unknown[] = []
+  const values = snapshots.map(snapshot => {
+    const offset = params.length
+    params.push(snapshot.experiment, snapshot.phase, snapshot.computedAt, JSON.stringify(snapshot.window), JSON.stringify(snapshot))
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}::jsonb, $${offset + 5}::jsonb)`
+  })
+  // §7.8: runResults writes are privileged internal side effects, using pooled SQL.
+  await exec.query(`INSERT INTO ${qualifiedTable(exec, TABLES.resultsSnapshots)} (${q(c.experimentId)}, ${q(c.phase)}, ${q(c.computedAt)}, ${q(c.window)}, ${q(c.snapshot)}) VALUES ${values.join(', ')}`, params)
+}
+
+/** Fetch pointers only, then the endpoint reads the bounded set through Payload
+ * with req/overrideAccess:false. Called behind the readResults/manage gate. */
+export async function newestSnapshotIds(exec: Executor, ids: DocId[], per: 'phase' | 'experiment'): Promise<DocId[]> {
+  if (!ids.length) return []
+  const c = COLUMNS.resultsSnapshots
+  const partition = [c.experimentId, ...(per === 'phase' ? [c.phase] : [])].map(q).join(', ')
+  const params: unknown[] = []
+  const placeholders = ids.map(id => { params.push(id); return `$${params.length}` })
+  const { rows } = await exec.query<{ id: DocId }>(`SELECT DISTINCT ON (${partition}) ${q(c.id)} AS "id" FROM ${qualifiedTable(exec, TABLES.resultsSnapshots)} WHERE ${q(c.experimentId)} IN (${placeholders.join(', ')}) ORDER BY ${partition}, ${q(c.computedAt)} DESC, ${q(c.id)} DESC`, params)
+  return rows.map(row => row.id)
+}
+
+/** Called only behind the endpoint's readResults gate. Experiment collection
+ * reads require manage, so read only the decision pointer needed by results. */
+export async function resultsMetadata(exec: Executor, id: DocId): Promise<{ status: string; snapshotId: DocId | null } | null> {
+  const c = COLUMNS.experiments
+  const { rows } = await exec.query<{ status: string; snapshotId: DocId | null }>(`SELECT ${q(c.status)} AS "status", ${q(c.decisionSnapshotId)} AS "snapshotId" FROM ${qualifiedTable(exec, TABLES.experiments)} WHERE ${q(c.id)} = $1`, [id])
+  return rows[0] ?? null
+}

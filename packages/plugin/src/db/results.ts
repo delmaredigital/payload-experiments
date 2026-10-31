@@ -41,24 +41,29 @@ export async function armMismatchCount(exec: Executor, opts: PhaseQuery): Promis
 }
 
 /** All phases are required to identify first-ever exposure for rollout X1. */
-export async function rolloutExposureRows(exec: Executor, { experimentId }: { experimentId: DocId }): Promise<RolloutExposureRow[]> {
-  const { rows } = await exec.query<RolloutExposureRow>(`SELECT ${q(c.unitId)} AS "unitId", ${q(c.phase)} AS "phase", ${epochMs} AS "ts" FROM ${qualifiedTable(exec, TABLES.events)} WHERE ${q(c.experimentId)} = $1 AND ${q(c.type)} = $2 ORDER BY ${q(c.ts)}, ${q(c.unitId)}, ${q(c.phase)}`, [experimentId, 'exposure'])
+export async function rolloutExposureRows(exec: Executor, { experimentId, respectPhaseEnds = false }: { experimentId: DocId; respectPhaseEnds?: boolean }): Promise<RolloutExposureRow[]> {
+  const p = COLUMNS.phases
+  const cutoff = respectPhaseEnds ? ` AND NOT EXISTS (SELECT 1 FROM ${qualifiedTable(exec, TABLES.phases)} p WHERE p.${q(p.experimentId)} = ${qualifiedTable(exec, TABLES.events)}.${q(c.experimentId)} AND p.${q(p.phase)} = ${qualifiedTable(exec, TABLES.events)}.${q(c.phase)} AND p.${q(p.endedAt)} <= ${qualifiedTable(exec, TABLES.events)}.${q(c.ts)})` : ''
+  const { rows } = await exec.query<RolloutExposureRow>(`SELECT ${q(c.unitId)} AS "unitId", ${q(c.phase)} AS "phase", ${epochMs} AS "ts" FROM ${qualifiedTable(exec, TABLES.events)} WHERE ${q(c.experimentId)} = $1 AND ${q(c.type)} = $2${cutoff} ORDER BY ${q(c.ts)}, ${q(c.unitId)}, ${q(c.phase)}`, [experimentId, 'exposure'])
   return rows.map(row => ({ unitId: row.unitId, phase: Number(row.phase), ts: Number(row.ts) }))
 }
 
-/** events:<name> conversion rows in [from, to). unitIds filters the stored unitId;
- * omit it when fetching user-keyed conversions for identity credit. Each distinct
+/** events:<name> conversion rows in [from, to). Choose unitIds for stored unit_id,
+ * or userIds for stored user_id (user units and visitor identity credit). Each distinct
  * ID occurs in one ANY array of at most 10,000, so batching cannot duplicate rows.
  */
-export async function metricEventRows(exec: Executor, { eventName, unitIds, from, to }: {
-  eventName: string; unitIds?: readonly string[]; from: Timestamp; to: Timestamp
+export async function metricEventRows(exec: Executor, { eventName, unitIds, userIds, from, to }: {
+  eventName: string; unitIds?: readonly string[]; userIds?: readonly string[]; from: Timestamp; to: Timestamp
 }): Promise<MetricEventRow[]> {
+  if (unitIds !== undefined && userIds !== undefined) throw new RangeError('Choose unitIds or userIds')
   const params: unknown[] = ['conversion', eventName, iso(from), iso(to)]
   const text = `SELECT ${q(c.unitId)} AS "unitId", ${q(c.userId)} AS "userId", ${q(c.value)} AS "value", ${epochMs} AS "ts" FROM ${qualifiedTable(exec, TABLES.events)} WHERE ${q(c.type)} = $1 AND ${q(c.eventName)} = $2 AND ${q(c.ts)} >= $3 AND ${q(c.ts)} < $4`
-  const ids = unitIds === undefined ? undefined : [...new Set(unitIds)]
+  const filterIds = userIds ?? unitIds
+  const column = userIds === undefined ? c.unitId : c.userId
+  const ids = filterIds === undefined ? undefined : [...new Set(filterIds)]
   const rows: MetricEventRow[] = []
   for (let offset = 0; ids === undefined || offset < ids.length; offset += batchSize) {
-    const result = await exec.query<MetricEventRow>(`${text}${ids === undefined ? '' : ` AND ${q(c.unitId)} = ANY($5::text[])`} ORDER BY ${q(c.ts)}, ${q(c.unitId)}`, ids === undefined ? params : [...params, ids.slice(offset, offset + batchSize)])
+    const result = await exec.query<MetricEventRow>(`${text}${ids === undefined ? '' : ` AND ${q(column)} = ANY($5::text[])`} ORDER BY ${q(c.ts)}, ${q(c.unitId)}`, ids === undefined ? params : [...params, ids.slice(offset, offset + batchSize)])
     for (const row of result.rows) {
       rows.push({ unitId: row.unitId, userId: row.userId == null ? null : String(row.userId), value: Number(row.value), ts: Number(row.ts) })
     }

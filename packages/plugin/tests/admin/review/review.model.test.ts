@@ -15,7 +15,7 @@ test('locked placements explain that every page must be available', () => {
   expect(REVIEW_DONE['locked-placement']).toBe('Pages available for changes')
 })
 test('all refusal codes have hints, including every start check', () => {
-  expect(Object.keys(REVIEW_HINTS)).toHaveLength(41)
+  expect(Object.keys(REVIEW_HINTS)).toHaveLength(46)
   const codes: RefusalCode[] = ['weights-total', 'control-count', 'control-first', 'holdout-last', 'holdout-count',
     'variant-count', 'duplicate-key', 'duplicate-slot', 'slot-required', 'invalid-key', 'no-planned-duration',
     'no-primary-metric', 'no-placements', 'empty-slot', 'page-no-targets', 'page-user-unit', 'flag-no-point',
