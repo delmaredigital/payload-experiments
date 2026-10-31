@@ -17,3 +17,12 @@ export function controlAssignments(manifest: Manifest, context: Pick<AssignmentR
   fillFlagPoints(result, manifest)
   return result
 }
+
+/** Last resort: do not inspect a manifest that could not even produce controls. */
+export function emptyAssignments(context: Pick<AssignmentResult,
+  'visitorId' | 'userId' | 'staff' | 'bot' | 'preview' | 'sessionUnknown' | 'method'>): AssignmentResult {
+  return {
+    ...context, revision: 0, archivedWinners: {},
+    bySlug: Object.create(null), flagPoints: Object.create(null), deferred: [],
+  }
+}

@@ -13,7 +13,7 @@ import { encodeAssignmentsHeader } from '../runtime/header.js'
 import { verifyPreviewToken } from '../runtime/previewToken.js'
 import { pageRewrite } from './pageRewrite.js'
 import { skipPath } from './skip.js'
-import { controlAssignments } from './control.js'
+import { controlAssignments, emptyAssignments } from './control.js'
 import { consentFallback } from './consentFallback.js'
 
 const caches = new WeakMap<ExperimentsProxyRuntime, ReturnType<typeof createManifestCache>>()
@@ -87,7 +87,9 @@ export async function resolveExperiments(request: NextRequest, proxyRuntime: Exp
     try { assignments = consentFallback(currentManifest, attributes, context) } catch {
       console.error('[payload-experiments] consent fallback failed; serving non-exposable control')
       assignmentFailed = true
-      assignments = controlAssignments(currentManifest, context)
+      try { assignments = controlAssignments(currentManifest, context) } catch {
+        assignments = emptyAssignments(context)
+      }
     }
   } else {
     try {

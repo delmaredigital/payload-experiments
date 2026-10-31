@@ -547,3 +547,15 @@ test('draft preview tokens disable caching before the server resolves the draft'
   expect(result.responseHeaders?.get('cache-control')).toBe('no-store')
   expect(result.requestHeaders.get('x-xp-request')).toContain(`/?xp_preview=${token}`)
 })
+
+
+test('c0 corrupt arms cannot throw from either consent fallback or its control fallback', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const m = manifest([experiment({ status: 'decided', winnerArm: 'variantA', arms: null as unknown as ManifestExperiment['arms'] })])
+  const result = await resolveExperiments(signedRequest(), runtime(m, { cookie: { consent: () => false } }))
+  const empty = { ...manifest([]), revision: 0 }
+  expect(decode(result, empty)).toMatchObject({ bySlug: {}, flagPoints: {}, deferred: [] })
+  expect(result.rewrite).toBeUndefined()
+  expect(result.setCookies).toEqual([])
+  expect(log).toHaveBeenCalledExactlyOnceWith('[payload-experiments] consent fallback failed; serving non-exposable control')
+})

@@ -10,7 +10,7 @@ import { verifyPreviewToken } from '../runtime/previewToken.js'
 import { isBot } from '../runtime/bot.js'
 import { consentFallback } from '../proxy/consentFallback.js'
 import { normalisePath } from '../runtime/normalisePath.js'
-import { controlAssignments } from '../proxy/control.js'
+import { controlAssignments, emptyAssignments } from '../proxy/control.js'
 import type { Attributes, ExperimentsPluginOptions } from '../types/contracts.js'
 import { emptyManifest, rememberManifest, serverManifest, suppressExposure } from './context.js'
 import { serverRequest } from './request.js'
@@ -41,10 +41,11 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
   }
   const options = payload?.config?.custom?.xp as ExperimentsPluginOptions<TUser> | undefined
   let unit: { userId?: string; attributes: Attributes; sessionUnknown?: boolean } = { attributes: {} }
-  try { unit = consent === false ? unit : await proxy.getUnit?.(request) ?? unit } catch {
+  try { unit = await proxy.getUnit?.(request) ?? unit } catch {
     unit = { attributes: {}, sessionUnknown: true }
     console.error('[payload-experiments] getUnit failed; treating session as unknown')
   }
+  if (consent === false) unit = { attributes: unit.attributes, sessionUnknown: unit.sessionUnknown }
   let user = consent === false ? null : suppliedUser
   const canResolveUser = consent !== false && (suppliedUser !== undefined || Boolean(runtime.getUser))
   let userFailed = false
@@ -100,7 +101,9 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
   else if (consent === false && !decoded) {
     try { result = consentFallback(manifest, attributes, context) } catch {
       console.error('[payload-experiments] consent fallback failed; serving non-exposable control')
-      result = controlAssignments(manifest, context)
+      try { result = controlAssignments(manifest, context) } catch {
+        return rememberManifest(emptyAssignments(context), emptyManifest())
+      }
     }
   } else if (decoded) {
     result = { ...decoded, ...context, archivedWinners: { ...manifest.archivedWinners } }

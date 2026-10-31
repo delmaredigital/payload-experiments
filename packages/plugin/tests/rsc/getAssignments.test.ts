@@ -6,6 +6,9 @@ import { encodeAssignmentsHeader } from '../../src/runtime/header.js'
 import { signPreviewToken } from '../../src/runtime/previewToken.js'
 import { resolveExperimentData } from '../../src/server/resolveExperimentData.js'
 import { assign } from '../../src/runtime/assign.js'
+import { NextRequest } from 'next/server.js'
+import { resolveExperiments } from '../../src/proxy/resolve.js'
+import type { ManifestExperiment } from '../../src/types/manifest.js'
 import { sign } from '../../src/runtime/signing.js'
 import { serverRequest } from '../../src/server/request.js'
 import { toClientAssignments } from '../../src/server/toClientAssignments.js'
@@ -297,7 +300,7 @@ test.each([false, true])('signed c0 ignores a valid cookie and logged-in user (a
   if (withHeader) header(assignments(m), m)
   const result = await getAssignments(runtime(m, { getUnit }, { getUser }).rt, { user: { id: 'supplied-user' } })
   expect(result).toMatchObject({ visitorId: undefined, userId: undefined, bySlug: { hero: { arm: 'variantA', exposable: false } }, flagPoints: { point: { arm: 'variantA', exposable: false } } })
-  expect(getUnit).not.toHaveBeenCalled()
+  expect(getUnit).toHaveBeenCalledTimes(1)
   expect(getUser).not.toHaveBeenCalled()
 })
 test('signed c1 with a valid cookie recomputes normally', async () => {
@@ -320,4 +323,34 @@ test('old request-context secret verifies during rotation, preserving raw path a
   expect(context).toMatchObject({ hasContext: true, consent: true })
   expect(context.request.url).toBe('https://xp.invalid/courses/%2F/?q=a|b')
   expect((await getAssignments(runtime().rt)).bySlug.hero!.exposable).toBe(true)
+})
+
+
+test.each([false, true])('c0 recompute preserves proxy attributes and unknown-session handling (%s)', async sessionUnknown => {
+  const m = manifest([experiment({ status: 'decided', winnerArm: 'variantA', targeting: [
+    { attribute: 'loggedIn', op: 'eq', value: true, type: 'boolean' },
+  ] })])
+  const getUnit = vi.fn(() => ({ userId: 'must-ignore', attributes: { loggedIn: true, staff: false }, sessionUnknown }))
+  const getUser = vi.fn(async () => ({ id: 'also-ignore' }))
+  const { rt } = runtime(m, { getUnit, cookie: { consent: () => false } }, { getUser })
+  const proxied = await resolveExperiments(new NextRequest('https://example.com/', { headers: requestState.headers }), rt.proxyRuntime)
+  requestState.headers = proxied.requestHeaders
+  const proxyArm = /hero=(variantA|control)!/.exec(requestState.headers.get('x-xp-assignments')!)![1]
+  requestState.headers.delete('x-xp-assignments')
+  getUnit.mockClear()
+  const result = await getAssignments(rt)
+  expect(proxyArm).toBe(sessionUnknown ? 'control' : 'variantA')
+  expect(result).toMatchObject({ visitorId: undefined, userId: undefined, sessionUnknown,
+    bySlug: { hero: { arm: proxyArm, exposable: false } } })
+  expect(getUnit).toHaveBeenCalledTimes(1)
+  expect(getUser).not.toHaveBeenCalled()
+})
+test('c0 with corrupt arms returns empty assignments when consent fallback and controls both fail', async () => {
+  trustedContext('/', 'GET', false)
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const m = manifest([experiment({ status: 'decided', winnerArm: 'variantA', arms: null as unknown as ManifestExperiment['arms'] })])
+  const result = await getAssignments(runtime(m, {}, {}, { flagPoints: [{ id: 'point', defaultParams: {} }] }).rt)
+  expect(result).toMatchObject({ visitorId: undefined, userId: undefined, bySlug: {}, flagPoints: {}, archivedWinners: {} })
+  expect(Object.values(result.bySlug)).toEqual([])
+  expect(log).toHaveBeenCalledExactlyOnceWith('[payload-experiments] consent fallback failed; serving non-exposable control')
 })

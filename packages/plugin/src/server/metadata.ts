@@ -1,4 +1,4 @@
-import { normalisePath } from '../runtime/normalisePath.js'
+import { findNormalisedPathKey, normalisePath } from '../runtime/normalisePath.js'
 import type { Metadata } from 'next'
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
 import { serverManifest } from './context.js'
@@ -10,6 +10,7 @@ export async function experimentMetadata<TUser extends { id: string | number } =
     const controlPath = live.arms.find(a => a.kind === 'control')?.pageTarget
     return controlPath && normalisePath(path) !== normalisePath(controlPath) ? { robots: { index: false }, alternates: { canonical: controlPath } } : {}
   }
-  const archived = manifest && Object.hasOwn(manifest.archivedPages, path) ? manifest.archivedPages[path] : undefined
+  const archivedPath = manifest ? findNormalisedPathKey(manifest.archivedPages, path) : undefined
+  const archived = archivedPath === undefined ? undefined : manifest?.archivedPages[archivedPath]
   return archived ? { alternates: { canonical: archived.winnerPath } } : {}
 }

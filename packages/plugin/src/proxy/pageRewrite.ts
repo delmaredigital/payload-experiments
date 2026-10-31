@@ -1,4 +1,4 @@
-import { normalisePath } from '../runtime/normalisePath.js'
+import { findNormalisedPathKey, normalisePath } from '../runtime/normalisePath.js'
 import type { AssignmentResult } from '../runtime/assign.js'
 import type { Manifest } from '../types/manifest.js'
 import type { NextRequest } from 'next/server'
@@ -35,7 +35,7 @@ export function pageRewrite(manifest: Manifest, assignments: AssignmentResult, r
     }
     return targetURL(control?.pageTarget, requestURL)
   }
-  const archivedPath = Object.keys(manifest.archivedPages).find(path => normalisePath(path) === normalisePath(requestURL.pathname))
+  const archivedPath = findNormalisedPathKey(manifest.archivedPages, requestURL.pathname)
   const archived = archivedPath === undefined ? undefined : manifest.archivedPages[archivedPath]
   return targetURL(archived?.winnerPath, requestURL)
 }

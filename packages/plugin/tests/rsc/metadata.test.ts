@@ -28,3 +28,10 @@ test('live page matching normalises both the target and request paths', async ()
   expect(await experimentMetadata(rt, '/original')).toEqual({})
   expect(await experimentMetadata(rt, '/variant')).toEqual({ robots: { index: false }, alternates: { canonical: '/original/' } })
 })
+
+
+test.each(['/old', '/old/'])('archived key /old/ matches normalised request %s', async path => {
+  const m = manifest([])
+  m.archivedPages['/old/'] = { slug: 'archived', winnerPath: '/winner' }
+  expect(await experimentMetadata(runtime(m).rt, path)).toEqual({ alternates: { canonical: '/winner' } })
+})
