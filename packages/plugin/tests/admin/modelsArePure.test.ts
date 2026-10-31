@@ -17,18 +17,17 @@ function checkModels(entries: readonly string[]): string[] {
   const visited = new Set<string>()
   const options: ts.CompilerOptions = { moduleResolution: ts.ModuleResolutionKind.Bundler, module: ts.ModuleKind.ESNext }
   function visit(entry: string) {
-    // Follow value imports transitively; also inspect type imports in every reached file.
-    // Shared contract type dependencies are erased and do not add runtime helper edges.
+    // Follow value and relative type-only edges: an erased helper must be pure too.
     for (const file of collectImports(entry).files) {
       if (visited.has(file)) continue
       visited.add(file)
       const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
-      function check(specifier: string, requireEdge = false) {
+      function check(specifier: string) {
         if (/^(?:react(?:-dom)?(?:\/|$)|@payloadcms\/|next(?:\/|$))/.test(specifier)) violations.push(`${file}: ${specifier}`)
-        // collectImports handles import/export and import(); require() needs its own edge.
-        if (requireEdge && specifier.startsWith('.')) {
+        // collectImports skips type-only edges and require(); inspect both here.
+        if (specifier.startsWith('.')) {
           const resolved = ts.resolveModuleName(specifier, file, options, ts.sys).resolvedModule
-          if (!resolved) throw new Error(`Unresolved require ${specifier} from ${file}`)
+          if (!resolved) throw new Error(`Unresolved import ${specifier} from ${file}`)
           visit(resolved.resolvedFileName)
         }
       }
@@ -37,10 +36,12 @@ function checkModels(entries: readonly string[]): string[] {
         else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) check(node.moduleSpecifier.text)
         else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
           const expression = node.moduleReference.expression
-          if (expression && ts.isStringLiteralLike(expression)) check(expression.text, !node.isTypeOnly)
+          if (expression && ts.isStringLiteralLike(expression)) check(expression.text)
         } else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || ts.isIdentifier(node.expression) && node.expression.text === 'require')) {
           const arg = node.arguments[0]
-          if (arg && ts.isStringLiteralLike(arg)) check(arg.text, ts.isIdentifier(node.expression))
+          if (arg && ts.isStringLiteralLike(arg)) check(arg.text)
+        } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) {
+          check(node.argument.literal.text)
         }
         ts.forEachChild(node, walk)
       }
@@ -65,9 +66,13 @@ test('the checker reports planted imports and transitive helpers but ignores ord
     "import ui = require('@payloadcms/ui')",
     "import './helper.js'",
     "require('./helper.js')",
+    "import type { X } from './helper.js'",
+    "import { type X } from './helper.js'",
+    "export type { X } from './helper.js'",
+    "type X = import('./helper.js').X",
   ]
   try {
-    writeFileSync(join(directory, 'helper.ts'), "export * from './nested.js'")
+    writeFileSync(join(directory, 'helper.ts'), "export type { X } from './nested.js'")
     writeFileSync(join(directory, 'nested.ts'), "import React from 'react'")
     for (const [index, fixture] of fixtures.entries()) {
       const file = join(directory, `${index}.model.ts`)

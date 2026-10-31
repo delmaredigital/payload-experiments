@@ -13,7 +13,7 @@ test('/puck reaches only server-safe code and the approved client leaves', () =>
   expect(graph.files.filter(file => /\/src\/(db|server|endpoints|admin)\/|\/src\/puck\/editor\//.test(file))).toEqual([])
   const allowedClient = new Set([
     'client/ViewportExposure.tsx', 'puck/ExperimentPicker.tsx',
-    'client/context.ts', 'client/beacon.ts', 'constants.ts',
+    'client/beacon.ts',
   ].map(path))
   const clients = graph.files.filter(file => /^\s*['"]use client['"]/.test(readFileSync(file, 'utf8')))
   expect(clients).toContain(path('client/ViewportExposure.tsx'))
