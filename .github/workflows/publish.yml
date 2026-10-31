@@ -37,6 +37,12 @@ jobs:
             plugin-v*) echo "PKG=packages/plugin" >> "$GITHUB_ENV"; echo "VER=${TAG#plugin-v}" >> "$GITHUB_ENV" ;;
             *) echo "unknown tag $TAG"; exit 1 ;;
           esac
+          # A prerelease (semver suffix, e.g. 0.1.0-rc.1) goes to the `next` dist-tag
+          # and a GitHub prerelease, so it never becomes `latest`.
+          case "${TAG#*-v}" in
+            *-*) echo "NPM_TAG=next" >> "$GITHUB_ENV"; echo "PRERELEASE_ARG=--prerelease" >> "$GITHUB_ENV" ;;
+            *)   echo "NPM_TAG=latest" >> "$GITHUB_ENV"; echo "PRERELEASE_ARG=" >> "$GITHUB_ENV" ;;
+          esac
         env:
           TAG: ${{ github.ref_name }}
       - run: pnpm --filter "./$PKG" build
@@ -66,7 +72,7 @@ jobs:
           fi
           echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
       - name: Publish (npm trusted publishing)
-        run: npm publish "$TARBALL" --access public --provenance
+        run: npm publish "$TARBALL" --access public --provenance --tag "$NPM_TAG"
       - name: Extract release notes from CHANGELOG
         run: |
           awk -v ver="$VER" '
@@ -75,7 +81,7 @@ jobs:
             flag {print}
           ' CHANGELOG.md > release-notes.md
           if [ -s release-notes.md ]; then echo "NOTES_ARG=--notes-file release-notes.md" >> "$GITHUB_ENV"; else echo "NOTES_ARG=" >> "$GITHUB_ENV"; fi
-      - run: gh release create "$TAG" $NOTES_ARG --generate-notes
+      - run: gh release create "$TAG" $NOTES_ARG $PRERELEASE_ARG --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
