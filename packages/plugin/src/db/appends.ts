@@ -9,19 +9,33 @@ export interface AllocationChange { at: string; from: number; to: number }
 export interface ContentChange { at: string; doc: { collection: string; id: DocId }; by: DocId | null }
 type AppendArgs<T> = { experimentId: DocId; phase: number; entry: T }
 
-/** Payload saves the current published version before afterChange (3.90.2).
- * The next published version is the baseline, even when previousDoc is a draft.
- * Read the adapter directly so Local API error handling cannot kill the host tx.
+/** Read the main collection row BEFORE the host write. Draft version retention
+ * and unpublishing cannot remove this baseline. Adapter reads avoid Local API
+ * error handling killing the host transaction before savepoint recovery.
  */
 export async function previousPublishedContent(req: PayloadRequest, collection: string, id: DocId): Promise<Record<string, unknown> | undefined> {
-  const result = await req.payload.db.findVersions<Record<string, unknown>>({
-    collection, req, limit: 2, pagination: false, sort: ['-updatedAt', '-id'],
-    where: { and: [{ parent: { equals: id } }, { 'version._status': { equals: 'published' } }] },
-    // Adapter reads have no access layer; this is the §7.8 content-change audit.
-    // Explicit false documents that no privileged Payload Local API call is made.
+  const doc = await req.payload.db.findOne<Record<string, unknown> & { id: DocId }>({ collection, req, where: { id: { equals: id } },
+    // Adapter reads have no access layer; document the audit's access posture.
     overrideAccess: false,
-  } as Parameters<PayloadRequest['payload']['db']['findVersions']>[0])
-  return result.docs[1]?.version
+  } as Parameters<PayloadRequest['payload']['db']['findOne']>[0])
+  if (!doc) return undefined
+  // A draft created with content is already in the main table. Only the
+  // existence of a published version matters here; never use its content as
+  // the baseline (published main rows remain reliable after version pruning).
+  if (doc._status === 'draft') {
+    // §7.8 contentChanges exception: existence only, on the capture savepoint's req.
+    const published = await req.payload.db.findVersions({ collection, req, limit: 1, pagination: false,
+      where: { and: [{ parent: { equals: id } }, { 'version._status': { equals: 'published' } }] },
+      overrideAccess: false,
+    } as Parameters<PayloadRequest['payload']['db']['findVersions']>[0])
+    if (!published.docs.length) return undefined
+  }
+  return doc
+}
+
+/** Serialize flagDefaults read/modify/write before the manifest builder bumps. */
+export async function lockContentDefaults(exec: Executor): Promise<void> {
+  await exec.query("SELECT pg_advisory_xact_lock(hashtext('xp:state'), 0)")
 }
 
 /** §7.8 contentChanges exception: internal lookup on the host transaction.

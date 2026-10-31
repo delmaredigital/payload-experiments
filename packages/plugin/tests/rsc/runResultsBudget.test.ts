@@ -52,6 +52,9 @@ test.each(['query', 'covariate', 'connect', 'all-connections'] as const)('real e
     expect(deletes).toHaveLength(3)
     expect(result.swept).toBe(deletes.length)
   }
+  const warnings = context.payload.logs.filter(log => log.level === 'warn')
+  if (hang === 'all-connections') expect(warnings).toEqual([{ level: 'warn', args: ['Experiment retention sweep made no progress before its budget expired; eligible rows may remain.'] }])
+  else expect(warnings).toEqual([])
   expect(context.calls.some(text => text.startsWith('INSERT'))).toBe(false)
   context.resolveLate()
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve()

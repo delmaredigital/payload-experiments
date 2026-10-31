@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
-import type { CollectionAfterChangeHook } from 'payload'
+import type { CollectionAfterChangeHook, CollectionBeforeChangeHook } from 'payload'
 import { appendContentChange, contentChangeSavepoint, previousPublishedContent, runningContentExperiment } from '../db/appends.js'
 import { txExecutor } from '../db/executor.js'
 import { puckCollections } from '../options.js'
@@ -42,12 +42,51 @@ function bindings(data: unknown, puck: boolean): Map<string, Binding> {
   return found
 }
 
-/** Explicit host helper: failures propagate to the caller. Installed host hooks
- * wrap it with neverThrow. Drafts/autosaves do not affect published content.
- */
-export async function recordContentChange({ doc, previousDoc, req, collection }: Pick<Parameters<CollectionAfterChangeHook>[0], 'doc' | 'previousDoc' | 'req' | 'collection'>): Promise<void> {
+type Baseline = { collection: string; id: DocId; doc?: Record<string, unknown> }
+const baselineKey = (collection: string, id: DocId) => `${collection}:${id}`
+
+/** Paired beforeChange capture: previousDoc may be an autosaved draft. */
+export async function capturePublishedContent({ req, collection, originalDoc, operation }: Parameters<CollectionBeforeChangeHook>[0]): Promise<void> {
+  if (!collection.versions || !collection.versions.drafts) return
+  if (await req.transactionID == null) {
+    req.payload.logger?.debug('[payload-experiments] contentChanges baseline skipped without a transaction')
+    return
+  }
+  const id = operation === 'create' ? '__create__' : originalDoc.id as DocId
+  const baselines = (req.context.xpPublishedContent ??= {}) as Record<string, Baseline>
+  const key = baselineKey(collection.slug, id)
+  delete baselines[key]
+  const audit = await contentChangeSavepoint(txExecutor(req), async () => operation === 'create' ? undefined : previousPublishedContent(req, collection.slug, id))
+  if (!audit.ok) throw audit.error
+  baselines[key] = { collection: collection.slug, id, doc: audit.result }
+}
+
+type ContentChangeArgs = Pick<Parameters<CollectionAfterChangeHook>[0], 'doc' | 'previousDoc' | 'req' | 'collection'>
+
+/** Publish-only host helper. Audit failures are logged, never thrown into saves. */
+export async function recordContentChange(args: ContentChangeArgs): Promise<void> {
+  try { await auditContentChange(args) }
+  catch (error) {
+    console.error('[payload-experiments] contentChanges failed; the document was saved without it', error)
+  }
+}
+
+async function auditContentChange({ doc, previousDoc, req, collection }: ContentChangeArgs): Promise<void> {
   const drafts = Boolean(collection.versions && collection.versions.drafts)
   if (drafts && doc._status !== 'published') return
+  if (await req.transactionID == null) {
+    req.payload.logger?.debug('[payload-experiments] contentChanges skipped without a transaction')
+    return
+  }
+  const baselines = req.context.xpPublishedContent as Record<string, Baseline> | undefined
+  const key = baselineKey(collection.slug, previousDoc?.id == null ? '__create__' : doc.id)
+  const baseline = baselines?.[key]
+  if (baselines) delete baselines[key]
+  // Missing capture must never turn an unchanged publish into a false marker.
+  if (drafts && !baseline) {
+    req.payload.logger?.debug('[payload-experiments] contentChanges skipped without a captured published baseline')
+    return
+  }
   const options = req.payload.config.custom?.xp as ResolvedOptions | undefined
   const registration = puckCollections(options ?? {}).find(entry => entry.slug === collection.slug)
   const after = bindings(registration ? doc[registration.field] : doc, Boolean(registration))
@@ -62,7 +101,7 @@ export async function recordContentChange({ doc, previousDoc, req, collection }:
   // An explicit host call must supply its afterChange request's transaction.
   const executor = txExecutor(req)
   const audit = await contentChangeSavepoint(executor, async () => {
-    const changed = changes(drafts ? await previousPublishedContent(req, collection.slug, doc.id) : previousDoc)
+    const changed = changes(drafts ? baseline?.doc : previousDoc)
     const experiments = new Map<string, DocId>()
     for (const binding of changed) {
       const experiment = await runningContentExperiment(executor, binding)

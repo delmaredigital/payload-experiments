@@ -39,7 +39,7 @@ test('frozen JSON fields, uniques and compound indexes', () => {
   for (const name of ['arms', 'allocation', 'allocationChanges', 'targeting', 'metricDefinitions', 'analysis', 'contentChanges']) expect(field(bySlug('xp-phases').fields, name, 'json')).toBeDefined()
   for (const [slug, name] of [['xp-events', 'dedupeKey'], ['xp-identities', 'anonymousId'], ['xp-layers', 'slug']] as const) expect(field(bySlug(slug).fields, name, 'text').unique).toBe(true)
   expect(field(bySlug('xp-events').fields, 'dedupeKey', 'text').index).toBe(true)
-  expect(bySlug('xp-events').indexes).toEqual([{ fields: ['experiment', 'phase', 'type', 'ts'] }, { fields: ['unitId', 'experiment'] }, { fields: ['type', 'eventName', 'ts'] }, { fields: ['experiment', 'ts'] }])
+  expect(bySlug('xp-events').indexes).toEqual([{ fields: ['experiment', 'phase', 'type', 'ts'] }, { fields: ['unitId', 'experiment'] }, { fields: ['type', 'eventName', 'ts'] }, { fields: ['experiment', 'ts'] }, { fields: ['experiment', 'type', 'ts'] }])
   expect(field(bySlug('xp-events').fields, 'dimensions', 'json')).toMatchObject({ admin: { hidden: true, readOnly: true } })
   expect(field(bySlug('xp-events').fields, 'dimensions', 'json').required).not.toBe(true)
   expect(bySlug('xp-events').hooks).toBeUndefined()

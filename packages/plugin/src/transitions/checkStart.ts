@@ -77,6 +77,8 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('layer-unit-mismatch', e.layer == null || input.layer?.unitType === e.unitType)
   const free = 100 - new Set(input.layer?.usedSlices).size
   add('layer-full', e.layer == null || !!input.layer && free >= e.allocation, { available: free, requested: e.allocation })
+  const unknown = input.metrics.filter(metric => !metric.source.startsWith('events:') && !input.metricSources?.some(source => source.id === metric.source))
+  add('unknown-metric-source', unknown.length === 0, unknown)
   const mismatches = input.metrics.filter(metric => !metric.source.startsWith('events:') && e.unitType === 'user' && input.metricSources?.some(source => source.id === metric.source && source.keyedBy === 'visitor'))
   add('unit-source-mismatch', mismatches.length === 0, mismatches)
   const undeclared = (e.targeting ?? []).filter(rule => !Object.hasOwn(input.attributeKeys ?? {}, rule.attribute))

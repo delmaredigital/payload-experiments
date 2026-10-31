@@ -38,6 +38,7 @@ const required = {
     createExperimentSlotField: '../puck/experimentSlotField.js',
     EXPERIMENT_SLOT_TYPE: '../types/puck.js',
   },
+  rsc: { captureContentBaseline: '../hooks/contentChanges.js' },
   puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js' },
   index: { createArmSelectField: '../fields/armSelect.js' },
 } as const
@@ -102,4 +103,10 @@ test('every barrel uses explicit named exports, never export *', () => {
       }
     }
   }
+})
+
+test('captureContentBaseline is the same wrapped hook installed by the plugin', async () => {
+  const { captureContentBaseline } = await import('../../src/exports/rsc.js')
+  const { contentChangesBeforeHook } = await import('../../src/hooks/contentChanges.js')
+  expect(captureContentBaseline).toBe(contentChangesBeforeHook)
 })

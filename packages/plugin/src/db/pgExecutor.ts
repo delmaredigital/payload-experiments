@@ -125,7 +125,7 @@ export async function ownConnection(pool: Pool): Promise<Executor & { release(er
     async query<R>(text: string, params?: unknown[]) {
       try { return await exec.query<R>(text, params) }
       catch (error) {
-        queryError = error instanceof Error ? error : new Error('Query failed', { cause: error })
+        queryError ??= connectionError(error)
         throw error
       }
     },
@@ -137,6 +137,15 @@ export const RESULTS_TIMEOUT_MARGIN_MS = 10
 export class ResultsBudgetError extends Error {
   override name = 'ResultsBudgetError'
   constructor() { super('Results budget exhausted') }
+}
+
+/** SQL errors leave a usable connection after rollback. Transport failures and
+ * deadline races can leave queries in flight, so those clients must be discarded. */
+function connectionError(error: unknown): Error | undefined {
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+  if (!(error instanceof ResultsBudgetError) && typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)
+    && !code.startsWith('08') && !code.startsWith('57P')) return undefined
+  return error instanceof Error ? error : new Error('Query failed', { cause: error })
 }
 
 /** Invoke lazily so expired work never starts. Promise.race observes late source
@@ -176,17 +185,23 @@ export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec:
         if (deadline - Date.now() <= RESULTS_TIMEOUT_MARGIN_MS) throw new ResultsBudgetError()
         const result = await fn(exec)
         if (Date.now() >= deadline) throw new ResultsBudgetError()
+        // COMMIT may land while the deadline race reports this experiment as
+        // skipped. Harmless: the next results run rewrites the snapshot.
         await exec.query('COMMIT')
         return result
       })
     } catch (error) {
       const failure = error && typeof error === 'object' && 'code' in error && error.code === '57014' ? new ResultsBudgetError() : error
-      releaseError = failure instanceof Error ? failure : new Error('Query failed', { cause: failure })
-      // Destroy timed-out clients immediately, including BEGIN/SET/COMMIT hangs.
+      releaseError = connectionError(error)
+      // Destroy deadline-raced clients immediately, including BEGIN/SET/COMMIT hangs.
       // A rollback cannot be allowed to extend the caller's deadline either.
-      if (!(failure instanceof ResultsBudgetError)) {
+      // A server statement timeout (57014) has settled; rollback can reuse it.
+      if (!(error instanceof ResultsBudgetError)) {
         try { await raceDeadline(deadline, () => exec.query('ROLLBACK')) }
-        catch { /* release(error) discards the connection and rolls back server-side */ }
+        catch (rollbackError) {
+          // Even an ordinary SQL error here leaves transaction state uncertain.
+          releaseError = rollbackError instanceof Error ? rollbackError : new Error('Rollback failed', { cause: rollbackError })
+        }
       }
       throw failure
     } finally { client.release(releaseError) }
@@ -200,6 +215,7 @@ export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec:
     await exec.query('COMMIT')
     return result
   } catch (error) {
+    releaseError = connectionError(error)
     try { await exec.query('ROLLBACK') } catch (rollbackError) {
       releaseError = rollbackError instanceof Error ? rollbackError : new Error('Rollback failed', { cause: rollbackError })
     }

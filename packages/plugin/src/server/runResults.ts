@@ -155,7 +155,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
     const sweepDeadline = deadline - RESULTS_TIMEOUT_MARGIN_MS
     try {
       const sweepExec = resultsExecutor(payload, () => sweepDeadline - Date.now())
-      summary.swept = await sweepEvents(sweepExec, { now, retentionDays, shouldContinue: () => Date.now() < sweepDeadline })
+      summary.swept = await sweepEvents(sweepExec, { now, retentionDays, shouldContinue: () => Date.now() < sweepDeadline, logger: payload.logger })
     } catch (error) {
       summary.budgetExhausted ||= error instanceof ResultsBudgetError
       payload.logger.error({ err: error }, 'Experiment retention sweep failed')

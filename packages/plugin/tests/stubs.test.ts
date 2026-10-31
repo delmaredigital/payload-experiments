@@ -42,7 +42,7 @@ const exportsByEntry = [
   [runtimeProxy, ['defineExperimentsProxyRuntime', 'createPostgresManifestLoader', 'createHttpManifestLoader']],
   [runtimeServer, ['defineExperimentsServerRuntime']],
   [proxy, ['resolveExperiments', 'applyExperiments', 'createExperimentProxy']],
-  [rsc, ['getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments']],
+  [rsc, ['getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments']],
   [client, ['ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
   [adminClient, ['StatusCell', 'SummaryCell', 'ExperimentActions', 'LockedFieldNotice', 'FlagPointSelect', 'ArmsField', 'AllocationField', 'TargetingAttributeField', 'TargetingOpField', 'TargetingValueField', 'MetricSourceSelect', 'ReviewPanel', 'PhaseHistory', 'LayerUsage', 'ResultsView', 'ArmSelectField']],
   [puck, ['ExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
