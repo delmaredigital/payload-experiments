@@ -60,3 +60,22 @@ test('simultaneous exposures use a stable anonymous-id tie-break', () => {
 test('empty inputs', () => {
   expect(creditUserEvents(new Map(), [], [])).toEqual({ events: [], conflicts: 0 })
 })
+
+test('accepts timestamp text and epoch milliseconds when choosing the earliest linked id', () => {
+  const mixed = new Map([
+    ['later', { arm: 'variantA', firstTs: at(3).getTime() }],
+    ['earlier', { arm: 'control', firstTs: '2026-10-30 01:00:00+00' }],
+  ])
+  expect(creditUserEvents(mixed, [
+    { anonymousId: 'later', userId: 'u' }, { anonymousId: 'earlier', userId: 'u' },
+  ], [{ userId: 'u', value: 5, ts: at(4).toISOString() }])).toEqual({
+    events: [{ unitId: 'earlier', value: 5, ts: at(4).toISOString() }], conflicts: 1,
+  })
+})
+
+test.each([new Date(NaN), 'invalid', NaN, Infinity, 8.64e15 + 1])('rejects invalid timestamps %s', ts => {
+  expect(() => creditUserEvents(new Map([['a', { arm: 'control', firstTs: ts }]]), [], []))
+    .toThrow(RangeError)
+  expect(() => creditUserEvents(new Map(), [], [{ userId: 'unexposed', value: 1, ts }]))
+    .toThrow(RangeError)
+})

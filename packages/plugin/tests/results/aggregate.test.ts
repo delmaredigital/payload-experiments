@@ -4,6 +4,26 @@ import { firstExposures, perUnitValues } from '../../src/results/aggregate.js'
 const at = (hours: number) => new Date(Date.UTC(2026, 9, 30) + hours * 3_600_000)
 
 describe('firstExposures', () => {
+  test('accepts mixed timestamp formats and returns Date first exposures', () => {
+    expect(firstExposures([
+      { unitId: 'a', arm: 'control', ts: at(2).getTime() },
+      { unitId: 'a', arm: 'control', ts: '2026-10-30 01:00:00+00' },
+      { unitId: 'b', arm: 'control', ts: at(3) },
+    ], { endedAt: at(3).toISOString() })).toEqual({
+      units: new Map([['a', { arm: 'control', firstTs: at(1) }]]), excludedMultiArm: 0,
+    })
+  })
+
+  test.each([new Date(NaN), 'invalid', NaN, Infinity, 8.64e15 + 1])('rejects invalid timestamps %s', ts => {
+    expect(() => firstExposures([{ unitId: 'a', arm: 'control', ts }])).toThrow(RangeError)
+    expect(() => firstExposures([], { endedAt: ts })).toThrow(RangeError)
+    expect(() => firstExposures([
+      { unitId: 'a', arm: 'control', ts: at(1) },
+      { unitId: 'a', arm: 'variantA', ts: at(2) },
+      { unitId: 'a', arm: 'control', ts }, // already excluded units must still be validated
+    ])).toThrow(RangeError)
+  })
+
   test('finds the earliest exposure without relying on input order', () => {
     const rows = [
       { unitId: 'a', arm: 'control', ts: at(4) },
@@ -48,6 +68,36 @@ describe('firstExposures', () => {
 })
 
 describe('perUnitValues', () => {
+  test('accepts mixed timestamp formats for exposure, events and endedAt', () => {
+    expect(perUnitValues(new Map([
+      ['a', { arm: 'control', firstTs: '2026-10-30T01:00:00Z' }],
+      ['b', { arm: 'variantA', firstTs: at(1).getTime() }],
+    ]), [
+      { unitId: 'a', value: 2, ts: at(1).getTime() },
+      { unitId: 'a', value: 3, ts: '2026-10-30 02:00:00+00' },
+      { unitId: 'b', value: 5, ts: at(2) },
+      { unitId: 'a', value: 100, ts: at(3) },
+    ], { kind: 'revenue', windowHours: 4, endedAt: at(3).getTime() }))
+      .toEqual(new Map([['a', 5], ['b', 5]]))
+  })
+
+  test.each([0, -1, NaN, Infinity, -Infinity, undefined, null, '2'])(
+    'rejects invalid windowHours %s even with empty inputs', windowHours => {
+      expect(() => perUnitValues(new Map(), [], { kind: 'count', windowHours: windowHours as number }))
+        .toThrow(RangeError)
+    },
+  )
+
+  test.each([new Date(NaN), 'invalid', NaN, Infinity, 8.64e15 + 1])('rejects invalid timestamps %s', ts => {
+    const options = { kind: 'revenue', windowHours: 2 } as const
+    expect(() => perUnitValues(new Map(), [], { ...options, endedAt: ts })).toThrow(RangeError)
+    expect(() => perUnitValues(new Map([['a', { arm: 'control', firstTs: ts }]]), [], options))
+      .toThrow(RangeError)
+    // Bad event timestamps are rejected even if their unit was never exposed.
+    expect(() => perUnitValues(new Map(), [{ unitId: 'unexposed', value: 1, ts }], options))
+      .toThrow(RangeError)
+  })
+
   const units = new Map([
     ['a', { arm: 'control', firstTs: at(1) }],
     ['b', { arm: 'variantA', firstTs: at(3) }],

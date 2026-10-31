@@ -85,3 +85,21 @@ test('membership matches assignment rolloutBucketRanges with the test weights', 
 test('empty exposures', () => {
   expect(rolloutAnalysisUnits({ ...args, exposuresAllPhases: [] })).toEqual(new Set())
 })
+
+test('rejects a seed without the assignment separator, even with no exposures', () => {
+  expect(() => rolloutAnalysisUnits({ ...args, seed: 'missing-pipe', exposuresAllPhases: [] }))
+    .toThrow(new RangeError('Assignment seed must end in |'))
+})
+
+test('accepts mixed timestamp formats when comparing exposures across phases', () => {
+  const unit = findUnit(bucket => bucket < 0.4)
+  expect(rolloutAnalysisUnits({ ...args, exposuresAllPhases: [
+    { unitId: unit, phase: 2, ts: at(2).getTime() },
+    { unitId: unit, phase: 1, ts: '2026-10-30 01:00:00+00' },
+  ] })).toEqual(new Set())
+})
+
+test.each([new Date(NaN), 'invalid', NaN, Infinity, 8.64e15 + 1])('rejects invalid exposure timestamp %s', ts => {
+  expect(() => rolloutAnalysisUnits({ ...args, exposuresAllPhases: [{ unitId: 'a', phase: 1, ts }] }))
+    .toThrow(RangeError)
+})
