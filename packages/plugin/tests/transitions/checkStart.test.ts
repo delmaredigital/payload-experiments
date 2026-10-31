@@ -1,0 +1,115 @@
+import { describe, expect, test } from 'vitest'
+import { checkStart, ARM_CHECK_ORDER } from '../../src/transitions/checkStart.js'
+import type { CheckStartInput } from '../../src/transitions/checkStart.js'
+import type { Arm } from '../../src/types/contracts.js'
+import { defaultArms } from '../../src/collections/experiments/armInvariants.js'
+
+export function ready(): CheckStartInput {
+  return { experiment: { id: 1, slug: 'hero', kind: 'block', status: 'draft', unitType: 'visitor', arms: defaultArms('block'),
+    allocation: 50, exposurePolicy: 'render', metrics: { primary: 2 }, analysis: { plannedDurationDays: 14 } },
+    metrics: [{ id: 2, source: 'signup' }], metricSources: [{ id: 'signup', keyedBy: 'user' }],
+    placements: [{ collection: 'pages', id: 1, title: 'Home', published: true, slots: { control: 1, variantA: 1, variantB: 0, variantC: 0 } }],
+  }
+}
+function flag(input: CheckStartInput) {
+  input.experiment.kind = 'flag'; input.experiment.flagPoint = 'cta'
+  input.flagPoints = [{ id: 'cta', label: 'CTA', defaultParams: {}, params: { title: { type: 'text', label: 'Title', required: true } } }]
+  input.experiment.arms = defaultArms('flag').map(arm => ({ ...arm, params: { title: 'Hello' } }))
+}
+const cases: Array<[string, (input: CheckStartInput) => void]> = [
+  ['invalid-status', i => { i.experiment.status = 'running' }],
+  ['weights-total', i => { i.experiment.arms[0]!.weight = 12 }],
+  ['control-count', i => { i.experiment.arms = [] }],
+  ['control-first', i => { i.experiment.arms.reverse() }],
+  ['holdout-count', i => { i.experiment.arms.push(...[0, 1].map(() => ({ key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 0 } as Arm))) }],
+  ['holdout-last', i => { i.experiment.arms.unshift({ key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 0 }) }],
+  ['variant-count', i => { i.experiment.arms.push(...Array.from({ length: 3 }, () => ({ ...i.experiment.arms[1]!, weight: 0 }))) }],
+  ['invalid-key', i => { i.experiment.arms[0]!.key = 'variantA' }],
+  ['duplicate-key', i => { i.experiment.arms.push({ ...i.experiment.arms[1]!, weight: 0 }) }],
+  ['slot-required', i => { delete i.experiment.arms[1]!.slot }],
+  ['duplicate-slot', i => { i.experiment.arms[1]!.slot = 'control' }],
+  ['no-planned-duration', i => { i.experiment.analysis = {} }],
+  ['no-primary-metric', i => { i.experiment.metrics = {} }],
+  ['no-reach-per-day', i => { i.experiment.exposurePolicy = 'manual' }],
+  ['page-no-targets', i => { i.experiment.kind = 'page' }],
+  ['page-user-unit', i => { i.experiment.kind = 'page'; i.experiment.unitType = 'user' }],
+  ['flag-no-point', i => { i.experiment.kind = 'flag' }],
+  ['flag-params-invalid', i => { flag(i); i.experiment.arms[1]!.params = { title: 42 } }],
+  ['flag-point-busy', i => { flag(i); i.flagPointBusy = true }],
+  ['flag-placement-missing', i => { flag(i); i.flagPlacements = [{ arm: 'control', ok: true }] }],
+  ['no-placements', i => { i.placements = [] }],
+  ['empty-slot', i => { i.placements![0]!.slots.variantA = 0 }],
+  ['layer-unit-mismatch', i => { i.experiment.layer = 3; i.layer = { unitType: 'user', usedSlices: [] } }],
+  ['layer-full', i => { i.experiment.layer = 3; i.layer = { unitType: 'visitor', usedSlices: Array.from({ length: 51 }, (_, n) => n) } }],
+  ['unit-source-mismatch', i => { i.experiment.unitType = 'user'; i.metricSources![0]!.keyedBy = 'visitor' }],
+  ['invalid-body', i => { i.experiment.targeting = [{ attribute: 'country', op: 'eq', value: 'US' }] }],
+]
+describe('checkStart', () => {
+  test.each(cases)('refuses %s', (code, mutate) => {
+    const input = ready(); mutate(input)
+    expect(checkStart(input)).toContainEqual(expect.objectContaining({ code, ok: false }))
+  })
+  test('all checks pass and remain in fixed order even when many checks fail', () => {
+    const input = ready()
+    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'empty-slot', 'layer-unit-mismatch', 'layer-full', 'unit-source-mismatch', 'invalid-body']
+    expect(checkStart(input)).toEqual(order.map(code => ({ code, ok: true })))
+    for (const [, mutate] of cases) {
+      const changed = ready(); mutate(changed)
+      expect(checkStart(changed).map(check => check.code)).toEqual(order)
+    }
+  })
+  test('stopped is startable; holdout needs neither page target nor content slot', () => {
+    const input = ready(); input.experiment.status = 'stopped'
+    input.experiment.arms.push({ key: 'holdout', label: 'Holdout', kind: 'holdout', weight: 0 })
+    expect(checkStart(input).every(check => check.ok)).toBe(true)
+    input.experiment.kind = 'page'
+    input.experiment.arms = input.experiment.arms.map(arm => arm.kind === 'holdout' ? arm : { ...arm, pageTarget: '/hello' })
+    expect(checkStart(input).every(check => check.ok)).toBe(true)
+  })
+  test.each(['user', 'visitor'] as const)('events sources serve %s experiments', unitType => {
+    const input = ready(); input.experiment.unitType = unitType; input.metrics[0]!.source = 'events:signup'
+    input.metricSources = [{ id: 'events:signup', keyedBy: 'visitor' }]
+    expect(checkStart(input).find(check => check.code === 'unit-source-mismatch')?.ok).toBe(true)
+  })
+  test('checks secondary and guardrail sources, allows linked user sources on visitor experiments', () => {
+    const input = ready()
+    expect(checkStart(input).every(check => check.ok)).toBe(true)
+    input.experiment.unitType = 'user'
+    input.metrics.push({ id: 9, source: 'views' }); input.metricSources!.push({ id: 'views', keyedBy: 'visitor' })
+    expect(checkStart(input)).toContainEqual(expect.objectContaining({ code: 'unit-source-mismatch', ok: false }))
+  })
+  test('flag holdout needs no placement; a missing variant still refuses Start', () => {
+    const input = ready(); flag(input)
+    input.experiment.exposurePolicy = 'manual'
+    input.experiment.analysis!.reachPerDay = 100
+    input.experiment.arms.forEach(arm => { arm.weight = 45 })
+    input.experiment.arms.push({ key: 'holdout', label: 'Holdout', kind: 'holdout', weight: 10 })
+    input.flagPlacements = [{ arm: 'control', ok: true }, { arm: 'variantA', ok: true }]
+    expect(checkStart(input).every(check => check.ok)).toBe(true)
+    input.flagPlacements = [{ arm: 'control', ok: true }]
+    expect(checkStart(input)).toContainEqual(expect.objectContaining({ code: 'flag-placement-missing', ok: false }))
+  })
+  test('counts distinct occupied slices and requires allocation free slices', () => {
+    const input = ready(); input.experiment.layer = 1
+    input.layer = { unitType: 'visitor', usedSlices: [...Array.from({ length: 50 }, (_, n) => n), 0] }
+    expect(checkStart(input).every(check => check.ok)).toBe(true)
+  })
+  test('hook errors retain detail and failed rows cannot be masked by successful duplicates', () => {
+    const input = ready(); flag(input)
+    input.flagPlacementError = 'Host lookup unavailable'
+    expect(checkStart(input)).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'Host lookup unavailable' })
+    delete input.flagPlacementError
+    input.flagPlacements = [{ arm: 'control', ok: true }, { arm: 'variantA', ok: true }, { arm: 'variantA', ok: false, detail: 'Missing published content' }]
+    expect(checkStart(input).find(check => check.code === 'flag-placement-missing')?.ok).toBe(false)
+  })
+  test.each([
+    [{ type: 'number', min: 1, max: 5 }, 0], [{ type: 'number', min: 1, max: 5 }, 6], [{ type: 'number' }, NaN],
+    [{ type: 'checkbox' }, 'true'], [{ type: 'select', options: [{ label: 'Yes', value: 'yes' }] }, 'no'],
+    [{ type: 'textarea', required: true }, '   '],
+  ])('validates ParamField %j', (field, value) => {
+    const input = ready(); flag(input)
+    input.flagPoints![0]!.params = { title: { label: 'Title', ...field } as import('../../src/types/contracts.js').ParamField }
+    input.experiment.arms[1]!.params = { title: value }
+    expect(checkStart(input).find(check => check.code === 'flag-params-invalid')?.ok).toBe(false)
+  })
+})

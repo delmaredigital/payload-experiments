@@ -50,14 +50,17 @@ for (const route of ROUTES.filter(route => route.access === 'manage' || route.ac
     test.each([false, 'yes', {}])('only literal true grants access (%j)', async value => {
       await assertResponse(await invoke(route.path, options(value), request()), 403, 'forbidden')
     })
-    test('true reaches the 501 handler', async () => {
-      await assertResponse(await invoke(route.path, options(), request()), 501, 'not-implemented')
+    test('true reaches the handler', async () => {
+      // A stand-in handler keeps this test independent of each lane's implementation.
+      vi.spyOn(route, 'handler').mockImplementation(async () => new Response(null, { status: 204 }))
+      expect((await invoke(route.path, options(), request())).status).toBe(204)
     })
     if (route.access === 'readResults') {
       test('explicit readResults overrides manage, also requiring literal true', async () => {
         const req = request()
         const allowed = options(false, vi.fn(async () => true))
-        await assertResponse(await invoke(route.path, allowed, req), 501, 'not-implemented')
+        vi.spyOn(route, 'handler').mockImplementation(async () => new Response(null, { status: 204 }))
+        expect((await invoke(route.path, allowed, req)).status).toBe(204)
         expect(allowed.access.readResults).toHaveBeenCalledWith({ req })
         expect(allowed.access.manage).not.toHaveBeenCalled()
         for (const value of [false, 'yes', {}]) {
