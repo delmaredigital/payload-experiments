@@ -1,10 +1,13 @@
 import type { Status } from '../../types/contracts.js'
 import type { EditableField } from '../../types/admin.js'
-import { XpNotImplemented } from '../../errors.js'
 
 export const EDITABLE_BY_STATUS: Record<Status, readonly EditableField[]> = {
-  draft: [], running: [], stopped: [], decided: [], archived: [],
+  draft: ['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'flagPoint', 'metrics', 'analysis', 'exposurePolicy'],
+  stopped: ['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'metrics', 'analysis', 'exposurePolicy'],
+  running: ['name', 'hypothesis'],
+  decided: ['name', 'hypothesis'],
+  archived: [],
 }
-export function isEditable(_status: Status, _field: EditableField): boolean {
-  throw new XpNotImplemented('CORE-03')
+export function isEditable(status: Status, field: EditableField): boolean {
+  return EDITABLE_BY_STATUS[status].includes(field)
 }

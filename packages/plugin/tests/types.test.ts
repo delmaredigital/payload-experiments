@@ -27,7 +27,7 @@ test('reviewed numeric and statistical shapes', () => {
   expectTypeOf<NonNullable<Snapshot['metrics'][number]['perArm'][number]['covariate']>>().toEqualTypeOf<{ preSum: number; preSumSquares: number; postPreSumOfProducts: number }>()
   expectTypeOf<ExperimentsProxyRuntime['secrets']>().toEqualTypeOf<readonly string[]>()
   expectTypeOf<'weights'>().not.toExtend<EditableField>()
-  expectTypeOf<ArmIssueCode>().toEqualTypeOf<'weights-total' | 'control-count' | 'control-first' | 'holdout-last' | 'holdout-count' | 'variant-count' | 'duplicate-key' | 'duplicate-slot' | 'slot-required'>()
+  expectTypeOf<ArmIssueCode>().toEqualTypeOf<'weights-total' | 'control-count' | 'control-first' | 'holdout-last' | 'holdout-count' | 'variant-count' | 'duplicate-key' | 'duplicate-slot' | 'slot-required' | 'invalid-key'>()
   expectTypeOf<ArmIssueCode>().toExtend<RefusalCode>()
   expectTypeOf<'not-found'>().toExtend<RefusalCode>()
   type Conversion = Extract<EventBody['events'][number], { type: 'conversion' }>

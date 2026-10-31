@@ -1,6 +1,6 @@
 import type { ArmKind, DocId, ExposurePolicy, MetricSource, ResolvedOptions } from './contracts.js'
 import type { Snapshot, VerdictCode } from './snapshot.js'
-export type ArmIssueCode = 'weights-total' | 'control-count' | 'control-first' | 'holdout-last' | 'holdout-count' | 'variant-count' | 'duplicate-key' | 'duplicate-slot' | 'slot-required'
+export type ArmIssueCode = 'weights-total' | 'control-count' | 'control-first' | 'holdout-last' | 'holdout-count' | 'variant-count' | 'duplicate-key' | 'duplicate-slot' | 'slot-required' | 'invalid-key'
 export type RefusalCode = ArmIssueCode | 'not-found' | 'no-planned-duration' | 'no-primary-metric' | 'no-placements' | 'empty-slot' | 'page-no-targets' | 'page-user-unit' | 'flag-no-point' | 'flag-params-invalid' | 'flag-point-busy' | 'flag-placement-missing' | 'layer-full' | 'layer-unit-mismatch' | 'unit-source-mismatch' | 'no-reach-per-day' | 'invalid-status' | 'stale-draft' | 'commit-unverified' | 'allocation-lower' | 'confirmation-required' | 'invalid-winner' | 'slices-taken' | 'locked-placement' | 'not-implemented' | 'forbidden' | 'unauthenticated' | 'body-too-large' | 'invalid-body'
 export type ErrorEnvelope = { errors: Array<{ code: RefusalCode; message: string; detail?: unknown }> }
 export type TransitionSuccess = { doc: Record<string, unknown>; revision: number }
