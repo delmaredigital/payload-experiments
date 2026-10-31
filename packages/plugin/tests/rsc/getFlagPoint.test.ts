@@ -6,10 +6,11 @@ import * as exposure from '../../src/server/recordExposures.js'
 import { XpNotImplemented } from '../../src/errors.js'
 import * as requestReader from '../../src/server/request.js'
 import { NextRequest } from 'next/server'
+import { PgDialect } from 'drizzle-orm/pg-core'
 
 const trustedContext = () => vi.spyOn(requestReader, 'serverRequest').mockImplementation(headers => ({ request: new NextRequest('https://example.com/', { headers }), hasContext: true }))
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 test('live experiment beats shipped defaults and registered point defaults', async () => {
   trustedContext()
   const m = manifest([experiment({ kind: 'flag', flagPoint: 'point', exposurePolicy: 'manual' })])
@@ -47,4 +48,31 @@ test('CORE-08a stub failure is caught and logged', async () => {
   const { rt } = runtime(manifest([experiment({ kind: 'flag', flagPoint: 'point', exposurePolicy: 'manual' })]))
   await expect((await getFlagPoint(rt, 'point')).expose('variantA')).resolves.toBeUndefined()
   expect(log).toHaveBeenCalledTimes(1)
+})
+
+test.each([true, false])('unmocked manual expose writes only when exposable (%s)', async exposable => {
+  // CORE-06c owns signed context; supply the trusted reader result at that seam.
+  // getFlagPoint, recordExposures, pooledExecutor and insertEvents all run for real.
+  trustedContext()
+  vi.useFakeTimers().setSystemTime(new Date('2026-10-31T03:30:00.000Z'))
+  const m = manifest([experiment({ kind: 'flag', flagPoint: 'point', exposurePolicy: 'manual', coverage: exposable ? 1 : 0 })])
+  const execute = vi.fn().mockResolvedValueOnce({ rows: [{ revision: m.revision, manifest: m }] }).mockResolvedValue({ rows: [{ id: 1 }] })
+  const { rt, payload } = runtime(m)
+  Object.assign(payload, { db: { drizzle: { execute } }, logger: { error: vi.fn() } })
+  const point = await getFlagPoint(rt, 'point')
+  expect(point).toMatchObject({ policy: 'manual', exposable })
+  expect(execute).not.toHaveBeenCalled()
+  await point.expose(point.arm)
+  if (!exposable) {
+    expect(execute).not.toHaveBeenCalled()
+    return
+  }
+  expect(point.arm).toBe('variantA')
+  expect(execute).toHaveBeenCalledTimes(2)
+  const insert = new PgDialect().sqlToQuery(execute.mock.calls[1]![0])
+  expect(insert.sql).toMatch(/^INSERT INTO "xp_events"/)
+  expect(insert.params).toStrictEqual([
+    'exposure', 7, 1, 'variantA', 'visitor', 'visitor', null, null, null,
+    '2026-10-31T03:30:00.000Z', null, 'exposure:7:1:variantA:visitor:2026-10-31',
+  ])
 })
