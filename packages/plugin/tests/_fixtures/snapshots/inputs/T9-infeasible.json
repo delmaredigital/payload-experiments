@@ -4,7 +4,6 @@
   "method": "sequential",
   "primary": {
     "name": "Registrations",
-    "converters": 1608,
     "minSampleSize": 150,
     "comparisons": [
       {
@@ -16,6 +15,23 @@
           -0.08,
           0.12
         ]
+      }
+    ],
+    "convertersPerArm": [
+      {
+        "arm": "control",
+        "kind": "control",
+        "converters": 800
+      },
+      {
+        "arm": "variantA",
+        "kind": "variant",
+        "converters": 808
+      },
+      {
+        "arm": "holdout",
+        "kind": "holdout",
+        "converters": 88
       }
     ]
   },

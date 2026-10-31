@@ -4,7 +4,6 @@
   "method": "sequential",
   "primary": {
     "name": "Registrations",
-    "converters": 2640,
     "minSampleSize": 150,
     "comparisons": [
       {
@@ -13,8 +12,8 @@
         "significant": "better",
         "lift": 0.11994949494949489,
         "ci": [
-          0.03,
-          0.21
+          0.009999999999999998,
+          0.22999999999999998
         ]
       },
       {
@@ -23,9 +22,31 @@
         "significant": "better",
         "lift": 0.17945544554455434,
         "ci": [
-          0.07,
-          0.29
+          0.05,
+          0.31
         ]
+      }
+    ],
+    "convertersPerArm": [
+      {
+        "arm": "control",
+        "kind": "control",
+        "converters": 800
+      },
+      {
+        "arm": "variantA",
+        "kind": "variant",
+        "converters": 887
+      },
+      {
+        "arm": "variantB",
+        "kind": "variant",
+        "converters": 953
+      },
+      {
+        "arm": "holdout",
+        "kind": "holdout",
+        "converters": 88
       }
     ]
   },
@@ -69,7 +90,7 @@
     }
   ],
   "power": {
-    "daysRemaining": 6.2,
+    "daysRemaining": 0,
     "feasible": true
   },
   "plannedDurationPassed": false,

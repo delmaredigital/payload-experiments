@@ -4,18 +4,29 @@
   "method": "sequential",
   "primary": {
     "name": "Registrations",
-    "converters": 8208,
     "minSampleSize": 150,
     "comparisons": [
       {
         "arm": "variantA",
         "label": "Shorter form",
-        "significant": "better",
-        "lift": 0.11999999999999997,
+        "significant": "none",
+        "lift": 0.12037037037037027,
         "ci": [
-          0.03,
-          0.21
+          -0.15,
+          0.39
         ]
+      }
+    ],
+    "convertersPerArm": [
+      {
+        "arm": "variantA",
+        "kind": "variant",
+        "converters": 1452
+      },
+      {
+        "arm": "holdout",
+        "kind": "holdout",
+        "converters": 144
       }
     ]
   },
@@ -25,7 +36,7 @@
         "arm": "variantA",
         "label": "Shorter form",
         "kind": "variant",
-        "n": 18000
+        "n": 3240
       },
       {
         "arm": "holdout",
@@ -43,15 +54,16 @@
   "guardrails": [
     {
       "name": "Completed lessons",
-      "status": "ok"
+      "status": "insufficient"
     }
   ],
   "power": {
-    "daysRemaining": 6.2,
+    "daysRemaining": 16,
     "feasible": true
   },
   "plannedDurationPassed": false,
   "originalLabel": "Original",
   "controlArm": "holdout",
-  "winnerLabel": "Shorter form"
+  "winnerLabel": "Shorter form",
+  "winnerArm": "variantA"
 }

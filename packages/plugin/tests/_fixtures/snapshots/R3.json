@@ -49,7 +49,7 @@
     "capped": {}
   },
   "srm": {
-    "p": 0.74,
+    "p": 1.0,
     "flagged": false,
     "expected": {
       "variantA": 0.9,
@@ -149,9 +149,9 @@
     }
   ],
   "power": {
-    "daysRemaining": 6.2,
+    "daysRemaining": 0,
     "feasible": true,
-    "exposuresNeededPerArm": 3000,
+    "exposuresNeededPerArm": 0,
     "lowerBound": true
   },
   "verdict": {

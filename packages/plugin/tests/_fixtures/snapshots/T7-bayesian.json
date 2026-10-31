@@ -50,11 +50,11 @@
     "capped": {}
   },
   "srm": {
-    "p": 0.74,
+    "p": 0.7329294407662567,
     "flagged": false,
     "expected": {
-      "control": 0.475,
-      "variantA": 0.475,
+      "control": 0.48,
+      "variantA": 0.47,
       "holdout": 0.05
     }
   },
@@ -170,17 +170,17 @@
     }
   ],
   "power": {
-    "daysRemaining": 6.2,
+    "daysRemaining": 0,
     "feasible": true,
-    "exposuresNeededPerArm": 3000,
+    "exposuresNeededPerArm": 0,
     "lowerBound": false
   },
   "verdict": {
     "row": 7,
     "code": "winner",
-    "finding": "Shorter form is very likely better (98%).",
+    "finding": "Shorter form is very likely better (97%).",
     "action": null,
-    "headline": "Shorter form is very likely better (98%).",
+    "headline": "Shorter form is very likely better (97%).",
     "detail": "The main outcome improved compared with the Original.",
     "recommendedArm": "variantA",
     "guardrailLine": "No harm detected so far"

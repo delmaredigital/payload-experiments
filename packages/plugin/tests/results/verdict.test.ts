@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, expectTypeOf, test } from 'vitest'
 import { computeVerdict, type VerdictInput } from '../../src/results/verdict.js'
 import type { Snapshot } from '../../src/types/snapshot.js'
 import { collectImports } from '../_helpers/importGraph.js'
@@ -14,6 +14,15 @@ function input(name = 'T7'): VerdictInput {
 function snapshot(name: string): Snapshot {
   return JSON.parse(readFileSync(new URL(`${name}.json`, fixtures), 'utf8'))
 }
+
+test('rollout winner and failing guardrail labels are required by the contract', () => {
+  type Rollout = Extract<VerdictInput, { phaseKind: 'rollout' }>
+  expectTypeOf<Rollout>().toExtend<{ winnerArm: string; winnerLabel: string }>()
+  expectTypeOf<Omit<Rollout, 'winnerArm'>>().not.toExtend<VerdictInput>()
+  expectTypeOf<Omit<Rollout, 'winnerLabel'>>().not.toExtend<VerdictInput>()
+  type Guardrail = VerdictInput['guardrails'][number]
+  expectTypeOf<{ name: string; status: 'failing' }>().not.toExtend<Guardrail>()
+})
 
 test('every JSON snapshot and input satisfies its complete contract', () => {
   // JSON imports widen strings and tuples. Compile the actual JSON literals with
@@ -59,10 +68,11 @@ describe('shared admin fixtures', () => {
       const treatment = primary.perArm.find(group => group.arm === comparison.arm)!
       expect(comparison.lift).toBeCloseTo((treatment.mean - control.mean) / control.mean, 12)
     }
-    const compared = new Set(value.exposures.perArm
-      .filter(group => value.phaseKind === 'rollout' || group.kind !== 'holdout').map(group => group.arm))
-    expect(primary.perArm.filter(group => compared.has(group.arm)).reduce((sum, group) => sum + group.converters, 0))
-      .toBe(value.primary.converters)
+    expect(value.primary.convertersPerArm).toEqual(primary.perArm.map(group => ({
+      arm: group.arm, converters: group.converters,
+      kind: value.exposures.perArm.find(exposure => exposure.arm === group.arm)!.kind,
+    })))
+    expect(value.primary.comparisons.map(comparison => comparison.ci)).toEqual(primary.comparisons.map(comparison => comparison.ciAdjusted))
     for (const group of primary.perArm) {
       expect(group.mean).toBe(group.sum / group.n)
       expect(group.n).toBe(stored.exposures.perArm[group.arm])
@@ -99,8 +109,7 @@ test.each([0.01, 0.02])('same-person multiple versions at share %s is a data pro
   const value = input()
   value.exposures.multiArmShare = share
   expect(computeVerdict(value).row).toBe(2)
-  value.phaseKind = 'rollout'
-  expect(computeVerdict(value)).toMatchObject({ row: 'R1', code: 'data-problem' })
+  expect(computeVerdict({ ...value, phaseKind: 'rollout', winnerArm: 'variantA', winnerLabel: 'Shorter form' })).toMatchObject({ row: 'R1', code: 'data-problem' })
 })
 
 test('multiple-version share below one percent does not override a winner', () => {
@@ -114,7 +123,7 @@ test('holdout is excluded from the collecting minimum', () => {
   value.exposures.perArm.find(item => item.kind === 'holdout')!.n = 0
   expect(computeVerdict(value).row).toBe(7)
   value.exposures.perArm[1]!.n = 999
-  expect(computeVerdict(value).finding).toBe(`Collecting data: 999 of 1000 people, ${value.primary.converters} of 150 conversions.`)
+  expect(computeVerdict(value).finding).toBe(`Collecting data: 999 of 1000 people, ${Math.min(...value.primary.convertersPerArm.filter(group => group.kind !== 'holdout').map(group => group.converters))} of 150 conversions.`)
 })
 
 test.each(['T5', 'T6', 'T7', 'T8'])('holdout comparisons cannot alter %s', name => {
@@ -128,14 +137,25 @@ test.each(['T5', 'T6', 'T7', 'T8'])('holdout comparisons cannot alter %s', name 
 
 test('conversion minimum alone collects, with stopped wording', () => {
   const value = input()
-  value.primary.converters = 149
+  value.primary.convertersPerArm[0]!.converters = 149
   value.status = 'stopped'
   expect(computeVerdict(value)).toMatchObject({ row: 4, finding: 'Stopped before enough data was collected.' })
 })
 
+test('conversion minimum is per group, even when the total exceeds the minimum', () => {
+  const value = input()
+  value.primary.convertersPerArm[0]!.converters = 149
+  expect(computeVerdict(value)).toMatchObject({
+    row: 4, finding: 'Collecting data: 1980 of 1000 people, 149 of 150 conversions.',
+  })
+  value.primary.convertersPerArm[0]!.converters = 150
+  value.primary.convertersPerArm.find(group => group.kind === 'holdout')!.converters = 0
+  expect(computeVerdict(value).row).toBe(7)
+})
+
 test('meeting both minimums allows a result', () => {
   const value = input()
-  value.primary.converters = value.primary.minSampleSize
+  for (const group of value.primary.convertersPerArm) group.converters = value.primary.minSampleSize
   for (const group of value.exposures.perArm) group.n = value.exposures.minExposuresPerArm
   expect(computeVerdict(value).row).toBe(7)
 })
@@ -148,6 +168,10 @@ test('a stopped inconclusive result recommends the Original', () => {
 
 test('days round up; 90 is feasible, over 90 and infeasible use the long-duration wording', () => {
   const value = input('T9')
+  value.power.daysRemaining = 6.2
+  expect(computeVerdict(value).action).toBe('Keep running about 7 days.')
+  value.power.daysRemaining = 1
+  expect(computeVerdict(value).action).toBe('Keep running about 1 days.')
   value.power.daysRemaining = 90
   expect(computeVerdict(value).action).toBe('Keep running about 90 days.')
   value.power.daysRemaining = 90.01
@@ -156,15 +180,43 @@ test('days round up; 90 is feasible, over 90 and infeasible use the long-duratio
   expect(computeVerdict(value).headline).toBe(snapshot('T9-infeasible').verdict.headline)
 })
 
+test.each([0, null])('unknown/already-sufficient estimate %s runs to the planned end date', daysRemaining => {
+  const value = input('T9')
+  value.power = { daysRemaining, feasible: true }
+  expect(computeVerdict(value)).toMatchObject({ finding: 'No clear winner yet.', action: 'Keep running to the planned end date.' })
+  expect(computeVerdict(value).headline).not.toContain('0 days')
+  value.power.feasible = false
+  expect(computeVerdict(value).headline).toBe(snapshot('T9-infeasible').verdict.headline)
+})
+
+test.each(['T7', 'T7-adjusted'])('%s quotes its multiplicity-adjusted CI', name => {
+  const stored = snapshot(name)
+  const value = input(name)
+  expect(stored.k).toBeGreaterThanOrEqual(2)
+  expect(stored.metrics[0]!.comparisons[0]!.ci).not.toEqual(stored.metrics[0]!.comparisons[0]!.ciAdjusted)
+  expect(computeVerdict(value).finding).toBe(name === 'T7'
+    ? 'Shorter form is statistically better: +12% (CI +1% to +23%).'
+    : 'Shorter form is statistically better: +12% (CI +1% to +24%).')
+})
+
+test.each([
+  [0.978, ' (97%)'], [0.99499, ' (99%)'], [0.995, ' (more than 99%)'],
+  [0.996, ' (more than 99%)'], [1, ' (more than 99%)'], [undefined, ''],
+] as const)('chance to win %s does not imply certainty', (chanceToWin, suffix) => {
+  const value = input('T7-bayesian')
+  value.primary.comparisons[0]!.chanceToWin = chanceToWin
+  expect(computeVerdict(value).finding).toBe(`Shorter form is very likely better${suffix}.`)
+})
+
 test('percentages are signed, rounded, and unbounded limits use an ellipsis', () => {
   const value = input()
   Object.assign(value.primary.comparisons[0]!, { lift: 0.124, ci: [null, 0.216] })
   expect(computeVerdict(value).finding).toBe('Shorter form is statistically better: +12% (CI … to +22%).')
-  value.phaseKind = 'rollout'
-  value.winnerLabel = 'Shorter form'
-  value.exposures.perArm.find(item => item.kind === 'holdout')!.n = 1000
+  const rollout: VerdictInput = { ...value, phaseKind: 'rollout', winnerArm: 'variantA', winnerLabel: 'Shorter form' }
+  rollout.exposures.perArm.find(item => item.kind === 'holdout')!.n = 1000
+  rollout.primary.convertersPerArm.find(item => item.kind === 'holdout')!.converters = 150
   Object.assign(value.primary.comparisons[0]!, { lift: -0.124, ci: [-0.216, null] })
-  expect(computeVerdict(value).finding).toBe('Since shipping Shorter form: -12% vs the holdout (CI -22% to …).')
+  expect(computeVerdict(rollout).finding).toBe('Since shipping Shorter form: -12% vs the holdout (CI -22% to …).')
 })
 
 test('several better variants recommend the largest lift, independently of comparison order', () => {
@@ -172,6 +224,38 @@ test('several better variants recommend the largest lift, independently of compa
   expect(computeVerdict(value).recommendedArm).toBe('variantB')
   value.primary.comparisons.reverse()
   expect(computeVerdict(value)).toEqual(snapshot('T7-several').verdict)
+})
+
+function addVariant(value: VerdictInput, arm: string, label: string, significant: 'better' | 'worse' | 'none', lift: number) {
+  value.exposures.perArm.push({ arm, label, kind: 'variant', n: 2000 })
+  value.primary.convertersPerArm.push({ arm, kind: 'variant', converters: 800 })
+  value.primary.comparisons.push({ arm, label, significant, lift, ci: [lift - .1, lift + .1] })
+}
+
+test('three better variants say all three and still recommend the greatest lift', () => {
+  const value = input('T7-several')
+  addVariant(value, 'variantC', 'One-page form', 'better', .3)
+  expect(computeVerdict(value)).toMatchObject({
+    finding: 'All 3 variants beat the Original; not tested against each other — One-page form has the larger lift.',
+    recommendedArm: 'variantC',
+  })
+})
+
+test('rows 6 and 8 name every worse and better variant', () => {
+  const value = input('T6')
+  addVariant(value, 'variantC', 'One-page form', 'worse', -.2)
+  expect(computeVerdict(value)).toMatchObject({
+    row: 6, finding: 'Shorter form and One-page form are worse; no variant is better.',
+    action: 'Decide for the Original or restart without them.',
+  })
+  value.primary.comparisons.find(comparison => comparison.arm === 'variantB')!.significant = 'better'
+  expect(computeVerdict(value)).toMatchObject({
+    row: 8, finding: 'Mixed: Guided form better, Shorter form and One-page form worse.',
+  })
+  value.primary.comparisons[0]!.significant = 'better'
+  expect(computeVerdict(value)).toMatchObject({
+    row: 8, finding: 'Mixed: Shorter form and Guided form better, One-page form worse.',
+  })
 })
 
 test.each(['T7', 'R3'])('%s guardrail warnings win over insufficient data', name => {
@@ -183,15 +267,41 @@ test.each(['T7', 'R3'])('%s guardrail warnings win over insufficient data', name
   expect(computeVerdict(value).guardrailLine).toBe('Watch Completed lessons: trending worse.')
 })
 
+test.each(['T7', 'R3'])('%s omits the guardrailLine property when nothing was checked', name => {
+  const value = input(name)
+  value.guardrails = []
+  expect(computeVerdict(value)).not.toHaveProperty('guardrailLine')
+})
+
+test.each(['warning', 'insufficient'] as const)('confirmed rollout harm takes priority over %s', status => {
+  const value = input('R3')
+  value.guardrails = [
+    { name: 'Donations', status },
+    { name: 'Completed lessons', status: 'failing', worstArmLabel: 'Shorter form' },
+  ]
+  expect(computeVerdict(value).guardrailLine).toBe('Harm detected: Completed lessons is worse since shipping.')
+})
+
 test('rollout minimum includes the holdout and conversions, and failing guardrails do not become test verdicts', () => {
   const value = input('R3')
-  value.guardrails[0]!.status = 'failing'
-  expect(computeVerdict(value)).toMatchObject({ row: 'R3', guardrailLine: 'Watch Completed lessons: trending worse.' })
+  value.guardrails[0] = { name: 'Completed lessons', status: 'failing', worstArmLabel: 'Shorter form' }
+  expect(computeVerdict(value)).toMatchObject({ row: 'R3', guardrailLine: 'Harm detected: Completed lessons is worse since shipping.' })
   value.exposures.perArm.find(item => item.kind === 'holdout')!.n = 999
   expect(computeVerdict(value).row).toBe('R2')
   value.exposures.perArm.find(item => item.kind === 'holdout')!.n = 1000
-  value.primary.converters = 149
+  value.primary.convertersPerArm[0]!.converters = 149
+  expect(computeVerdict(value)).toMatchObject({ row: 'R2',
+    finding: 'Since shipping Shorter form: collecting data (1000 of 1000 people, 149 of 150 conversions).',
+  })
+  value.primary.convertersPerArm[0]!.converters = 150
+  value.primary.convertersPerArm.find(group => group.kind === 'holdout')!.converters = 149
   expect(computeVerdict(value).row).toBe('R2')
+})
+
+test('rollout reads the explicitly shipped winner, not an earlier unrelated comparison', () => {
+  const value = input('R3')
+  value.primary.comparisons.unshift({ arm: 'variantB', label: 'Guided form', significant: 'none', lift: -.2, ci: [-.4, 0] })
+  expect(computeVerdict(value)).toEqual(snapshot('R3').verdict)
 })
 
 test('pure helpers have no runtime dependency edges', () => {

@@ -4,21 +4,10 @@
   "method": "sequential",
   "primary": {
     "name": "Registrations",
-    "converters": 1608,
     "minSampleSize": 150,
-    "comparisons": [
-      {
-        "arm": "variantA",
-        "label": "Shorter form",
-        "significant": "none",
-        "lift": 0.020202020202020193,
-        "ci": [
-          -0.08,
-          0.12
-        ]
-      }
-    ],
-    "unavailable": "Source timed out"
+    "comparisons": [],
+    "unavailable": "Source timed out",
+    "convertersPerArm": []
   },
   "exposures": {
     "perArm": [
@@ -54,7 +43,7 @@
     }
   ],
   "power": {
-    "daysRemaining": 6.2,
+    "daysRemaining": null,
     "feasible": true
   },
   "plannedDurationPassed": false,

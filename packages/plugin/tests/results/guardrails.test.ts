@@ -11,14 +11,14 @@ function example(method: GuardrailInput['method'], direction: GuardrailInput['di
   const values = cases[status as keyof typeof cases]
   return {
     method, direction, n: 150, minSampleSize: 150, threshold: 0.05, ...values,
-    ...(direction === 'inverse' ? {
+    ...(direction === 'decrease' ? {
       lowerBound: -values.upperBound, upperBound: -values.lowerBound, pointEstimate: -values.pointEstimate,
     } : {}),
   }
 }
 
 for (const method of ['sequential', 'bayesian'] as const) {
-  for (const direction of ['higher-is-better', 'inverse'] as const) {
+  for (const direction of ['increase', 'decrease'] as const) {
     describe(`${method}, ${direction}`, () => {
       test.each(['failing', 'ok', 'warning', 'insufficient'])('%s', status => {
         expect(guardrailStatus(example(method, direction, status))).toBe(status)
@@ -31,7 +31,7 @@ for (const method of ['sequential', 'bayesian'] as const) {
       test('failing takes priority over ok, and ok over warning', () => {
         const value = example(method, direction, 'failing')
         // A small but clearly negative effect can also rule out the larger harm threshold.
-        Object.assign(value, direction === 'inverse'
+        Object.assign(value, direction === 'decrease'
           ? { lowerBound: 0.01, upperBound: 0.04 }
           : { lowerBound: -0.04, upperBound: -0.01 })
         expect(guardrailStatus(value)).toBe('failing')
@@ -40,7 +40,7 @@ for (const method of ['sequential', 'bayesian'] as const) {
       })
       test('a bound equal to the tolerated harm is not ok', () => {
         const value = example(method, direction, 'warning')
-        if (direction === 'inverse') value.upperBound = 0.05
+        if (direction === 'decrease') value.upperBound = 0.05
         else value.lowerBound = -0.05
         expect(guardrailStatus(value)).toBe('warning')
       })
@@ -54,13 +54,13 @@ for (const method of ['sequential', 'bayesian'] as const) {
 }
 
 test('sequential harm requires a strict bound beyond zero', () => {
-  const value = example('sequential', 'higher-is-better', 'failing')
+  const value = example('sequential', 'increase', 'failing')
   value.upperBound = 0
   expect(guardrailStatus(value)).toBe('warning')
 })
 
 test('Bayesian probability boundaries and missing probability', () => {
-  const value = example('bayesian', 'higher-is-better', 'failing')
+  const value = example('bayesian', 'increase', 'failing')
   value.pWorse = 0.9499
   expect(guardrailStatus(value)).toBe('warning')
   value.pWorse = 0.6999

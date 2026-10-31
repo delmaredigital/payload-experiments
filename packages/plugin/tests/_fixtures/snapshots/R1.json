@@ -49,7 +49,7 @@
     "capped": {}
   },
   "srm": {
-    "p": 0.74,
+    "p": 1.0,
     "flagged": false,
     "expected": {
       "variantA": 0.9,
@@ -63,41 +63,8 @@
       "kind": "binomial",
       "role": "primary",
       "cupedApplied": false,
-      "perArm": [
-        {
-          "arm": "variantA",
-          "n": 18000,
-          "converters": 8064,
-          "sum": 8064,
-          "sumSquares": 8064,
-          "mean": 0.448,
-          "variance": 0.24729600000000002
-        },
-        {
-          "arm": "holdout",
-          "n": 2000,
-          "converters": 800,
-          "sum": 800,
-          "sumSquares": 800,
-          "mean": 0.4,
-          "variance": 0.24
-        }
-      ],
-      "comparisons": [
-        {
-          "arm": "variantA",
-          "significant": "better",
-          "lift": 0.11999999999999997,
-          "ci": [
-            0.03,
-            0.21
-          ],
-          "ciAdjusted": [
-            0.03,
-            0.21
-          ]
-        }
-      ],
+      "perArm": [],
+      "comparisons": [],
       "unavailable": "Source timed out"
     },
     {
@@ -150,9 +117,9 @@
     }
   ],
   "power": {
-    "daysRemaining": 6.2,
+    "daysRemaining": null,
     "feasible": true,
-    "exposuresNeededPerArm": 3000,
+    "exposuresNeededPerArm": null,
     "lowerBound": true
   },
   "verdict": {

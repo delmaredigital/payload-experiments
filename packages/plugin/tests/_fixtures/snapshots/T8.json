@@ -51,13 +51,13 @@
     "capped": {}
   },
   "srm": {
-    "p": 0.74,
+    "p": 0.27532754652694674,
     "flagged": false,
     "expected": {
-      "control": 0.31666666666666665,
-      "variantA": 0.31666666666666665,
-      "variantB": 0.31666666666666665,
-      "holdout": 0.05
+      "control": 0.32,
+      "variantA": 0.32,
+      "variantB": 0.32,
+      "holdout": 0.04
     }
   },
   "metrics": [
@@ -115,8 +115,8 @@
             0.21
           ],
           "ciAdjusted": [
-            0.03,
-            0.21
+            0.009999999999999998,
+            0.22999999999999998
           ]
         },
         {
@@ -128,8 +128,8 @@
             -0.04
           ],
           "ciAdjusted": [
-            -0.24,
-            -0.04
+            -0.26,
+            -0.02
           ]
         }
       ]
@@ -215,9 +215,9 @@
     }
   ],
   "power": {
-    "daysRemaining": 6.2,
+    "daysRemaining": 0,
     "feasible": true,
-    "exposuresNeededPerArm": 3000,
+    "exposuresNeededPerArm": 0,
     "lowerBound": true
   },
   "verdict": {

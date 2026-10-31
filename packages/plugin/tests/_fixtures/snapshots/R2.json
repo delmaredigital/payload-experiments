@@ -37,9 +37,9 @@
     }
   },
   "exposures": {
-    "total": 18360,
+    "total": 3600,
     "perArm": {
-      "variantA": 18000,
+      "variantA": 3240,
       "holdout": 360
     },
     "excludedMultiArm": 0,
@@ -49,7 +49,7 @@
     "capped": {}
   },
   "srm": {
-    "p": 0.74,
+    "p": 1.0,
     "flagged": false,
     "expected": {
       "variantA": 0.9,
@@ -66,12 +66,12 @@
       "perArm": [
         {
           "arm": "variantA",
-          "n": 18000,
-          "converters": 8064,
-          "sum": 8064,
-          "sumSquares": 8064,
-          "mean": 0.448,
-          "variance": 0.24729600000000002
+          "n": 3240,
+          "converters": 1452,
+          "sum": 1452,
+          "sumSquares": 1452,
+          "mean": 0.44814814814814813,
+          "variance": 0.24731138545953357
         },
         {
           "arm": "holdout",
@@ -86,15 +86,15 @@
       "comparisons": [
         {
           "arm": "variantA",
-          "significant": "better",
-          "lift": 0.11999999999999997,
+          "significant": "none",
+          "lift": 0.12037037037037027,
           "ci": [
-            0.03,
-            0.21
+            -0.15,
+            0.39
           ],
           "ciAdjusted": [
-            0.03,
-            0.21
+            -0.15,
+            0.39
           ]
         }
       ]
@@ -108,10 +108,10 @@
       "perArm": [
         {
           "arm": "variantA",
-          "n": 18000,
-          "converters": 14400,
-          "sum": 14400,
-          "sumSquares": 14400,
+          "n": 3240,
+          "converters": 2592,
+          "sum": 2592,
+          "sumSquares": 2592,
           "mean": 0.8,
           "variance": 0.15999999999999998
         },
@@ -130,12 +130,12 @@
           "arm": "variantA",
           "lift": 0.0,
           "ci": [
-            -0.03,
-            0.03
+            -0.08,
+            0.08
           ],
           "ciAdjusted": [
-            -0.03,
-            0.03
+            -0.08,
+            0.08
           ],
           "significant": "none"
         }
@@ -145,21 +145,21 @@
   "guardrails": [
     {
       "metricId": "completed-lessons",
-      "status": "ok"
+      "status": "insufficient"
     }
   ],
   "power": {
-    "daysRemaining": 6.2,
+    "daysRemaining": 16,
     "feasible": true,
-    "exposuresNeededPerArm": 3000,
+    "exposuresNeededPerArm": 2000,
     "lowerBound": true
   },
   "verdict": {
     "row": "R2",
     "code": "rollout-collecting",
-    "finding": "Since shipping Shorter form: collecting data (360 of 1000).",
+    "finding": "Since shipping Shorter form: collecting data (360 of 1000 people, 144 of 150 conversions).",
     "action": null,
-    "headline": "Since shipping Shorter form: collecting data (360 of 1000).",
+    "headline": "Since shipping Shorter form: collecting data (360 of 1000 people, 144 of 150 conversions).",
     "detail": "More people and conversions are needed to describe the shipped result.",
     "recommendedArm": null
   },

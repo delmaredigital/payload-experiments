@@ -50,11 +50,11 @@
     "capped": {}
   },
   "srm": {
-    "p": 0.74,
+    "p": 0.7329294407662567,
     "flagged": false,
     "expected": {
-      "control": 0.475,
-      "variantA": 0.475,
+      "control": 0.48,
+      "variantA": 0.47,
       "holdout": 0.05
     }
   },
@@ -65,50 +65,8 @@
       "kind": "binomial",
       "role": "primary",
       "cupedApplied": false,
-      "perArm": [
-        {
-          "arm": "control",
-          "n": 2000,
-          "converters": 800,
-          "sum": 800,
-          "sumSquares": 800,
-          "mean": 0.4,
-          "variance": 0.24
-        },
-        {
-          "arm": "variantA",
-          "n": 1980,
-          "converters": 808,
-          "sum": 808,
-          "sumSquares": 808,
-          "mean": 0.4080808080808081,
-          "variance": 0.24155086215692279
-        },
-        {
-          "arm": "holdout",
-          "n": 220,
-          "converters": 88,
-          "sum": 88,
-          "sumSquares": 88,
-          "mean": 0.4,
-          "variance": 0.24
-        }
-      ],
-      "comparisons": [
-        {
-          "arm": "variantA",
-          "significant": "none",
-          "lift": 0.020202020202020193,
-          "ci": [
-            -0.08,
-            0.12
-          ],
-          "ciAdjusted": [
-            -0.08,
-            0.12
-          ]
-        }
-      ],
+      "perArm": [],
+      "comparisons": [],
       "unavailable": "Source timed out"
     },
     {
@@ -170,9 +128,9 @@
     }
   ],
   "power": {
-    "daysRemaining": 6.2,
+    "daysRemaining": null,
     "feasible": true,
-    "exposuresNeededPerArm": 3000,
+    "exposuresNeededPerArm": null,
     "lowerBound": true
   },
   "verdict": {

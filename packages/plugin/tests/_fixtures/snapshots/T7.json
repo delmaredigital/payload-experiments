@@ -9,8 +9,8 @@
   },
   "method": "sequential",
   "alpha": 0.05,
-  "alphaAdjusted": 0.05,
-  "k": 1,
+  "alphaAdjusted": 0.025,
+  "k": 2,
   "params": {
     "sequentialTuningParameter": 10000,
     "prior": {
@@ -37,10 +37,11 @@
     }
   },
   "exposures": {
-    "total": 4200,
+    "total": 6220,
     "perArm": {
       "control": 2000,
       "variantA": 1980,
+      "variantB": 2020,
       "holdout": 220
     },
     "excludedMultiArm": 0,
@@ -50,12 +51,13 @@
     "capped": {}
   },
   "srm": {
-    "p": 0.74,
+    "p": 0.27532754652694674,
     "flagged": false,
     "expected": {
-      "control": 0.475,
-      "variantA": 0.475,
-      "holdout": 0.05
+      "control": 0.32,
+      "variantA": 0.32,
+      "variantB": 0.32,
+      "holdout": 0.04
     }
   },
   "metrics": [
@@ -85,6 +87,15 @@
           "variance": 0.2472938985817774
         },
         {
+          "arm": "variantB",
+          "n": 2020,
+          "converters": 816,
+          "sum": 816,
+          "sumSquares": 816,
+          "mean": 0.403960396039604,
+          "variance": 0.24077639447113028
+        },
+        {
           "arm": "holdout",
           "n": 220,
           "converters": 88,
@@ -104,8 +115,21 @@
             0.21
           ],
           "ciAdjusted": [
-            0.03,
-            0.21
+            0.009999999999999998,
+            0.22999999999999998
+          ]
+        },
+        {
+          "arm": "variantB",
+          "significant": "none",
+          "lift": 0.00990099009900991,
+          "ci": [
+            -0.11,
+            0.13
+          ],
+          "ciAdjusted": [
+            -0.13,
+            0.15
           ]
         }
       ]
@@ -136,6 +160,15 @@
           "variance": 0.15999999999999998
         },
         {
+          "arm": "variantB",
+          "n": 2020,
+          "converters": 1616,
+          "sum": 1616,
+          "sumSquares": 1616,
+          "mean": 0.8,
+          "variance": 0.16
+        },
+        {
           "arm": "holdout",
           "n": 220,
           "converters": 176,
@@ -158,6 +191,19 @@
             0.03
           ],
           "significant": "none"
+        },
+        {
+          "arm": "variantB",
+          "lift": 0,
+          "ci": [
+            -0.03,
+            0.03
+          ],
+          "ciAdjusted": [
+            -0.03,
+            0.03
+          ],
+          "significant": "none"
         }
       ]
     }
@@ -169,17 +215,17 @@
     }
   ],
   "power": {
-    "daysRemaining": 6.2,
+    "daysRemaining": 0,
     "feasible": true,
-    "exposuresNeededPerArm": 3000,
+    "exposuresNeededPerArm": 0,
     "lowerBound": true
   },
   "verdict": {
     "row": 7,
     "code": "winner",
-    "finding": "Shorter form is statistically better: +12% (CI +3% to +21%).",
+    "finding": "Shorter form is statistically better: +12% (CI +1% to +23%).",
     "action": null,
-    "headline": "Shorter form is statistically better: +12% (CI +3% to +21%).",
+    "headline": "Shorter form is statistically better: +12% (CI +1% to +23%).",
     "detail": "The main outcome improved compared with the Original.",
     "recommendedArm": "variantA",
     "guardrailLine": "No harm detected so far"
