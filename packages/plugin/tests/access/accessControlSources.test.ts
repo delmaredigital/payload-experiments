@@ -96,6 +96,25 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
     return ts.isCallExpression(node) && (ts.isIdentifier(unwrap(node.expression))
       ? unwrap(node.expression).getText(source) === 'getPayload' : memberName(node.expression) === 'getPayload')
   }
+  // The Payload instance itself (not a member chain below it such as payload.db.sessions).
+  const payloadInstance = (expression: ts.Expression | undefined, seen = new Set<ts.Symbol>()): boolean => {
+    if (!expression) return false
+    const node = unwrap(expression)
+    if (ts.isIdentifier(node)) {
+      if (node.text === 'payload') return true
+      const symbol = checker.getSymbolAtLocation(node)
+      if (!symbol || seen.has(symbol)) return false
+      seen.add(symbol)
+      return symbol.declarations?.some(declaration => ts.isVariableDeclaration(declaration) &&
+        payloadInstance(declaration.initializer, seen)) ?? false
+    }
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) return memberName(node) === 'payload'
+    if (ts.isAwaitExpression(node)) return payloadInstance(node.expression, seen)
+    return ts.isCallExpression(node) && (ts.isIdentifier(unwrap(node.expression))
+      ? unwrap(node.expression).getText(source) === 'getPayload' : memberName(node.expression) === 'getPayload')
+  }
+  // Standard globals are never the Payload instance (no local declaration shadows them).
+  const globals = new Set(['Object', 'Array', 'JSON', 'Math', 'Number', 'String', 'Promise', 'Date', 'Symbol', 'BigInt', 'Boolean', 'Intl'])
   const constructors = new Set(['Map', 'Set', 'WeakMap', 'WeakSet', 'URLSearchParams', 'Headers', 'FormData'])
   const builtinValue = (expression: ts.Expression): boolean => {
     const node = unwrap(expression)
@@ -114,6 +133,7 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
     const node = unwrap(expression)
     if (builtinValue(node) || cryptoCall(node)) return true
     if (!ts.isIdentifier(node)) return false
+    if (globals.has(node.text) && !checker.getSymbolAtLocation(node)?.declarations?.length) return true
     // Declaration syntax is the evidence, not inferred library types. Symbols
     // keep a same-named parameter or variable in another scope from matching.
     return checker.getSymbolAtLocation(node)?.declarations?.some(declaration =>
@@ -172,6 +192,15 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
     }
     return node
   }
+  // Like capturedOrInvoked, but a plain read into a variable (`const a = obj[key]`) is data access.
+  const invokedOrBound = (node: ts.Expression): boolean => {
+    const expression = outerExpression(node)
+    const parent = expression.parent
+    return (ts.isCallExpression(parent) && (parent.expression === expression ||
+      (memberName(parent.expression) === 'apply' && parent.arguments[0] === expression))) ||
+      ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+        ['call', 'apply', 'bind'].includes(memberName(parent) ?? ''))
+  }
   const capturedOrInvoked = (node: ts.Expression): boolean => {
     const expression = outerExpression(node)
     const parent = expression.parent
@@ -200,8 +229,8 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
       !builtinReceiver(node.expression)) {
       const direct = ts.isCallExpression(node.parent) && node.parent.expression === node
       const computed = ts.isElementAccessExpression(node) &&
-        ((payloadReceiver(node.expression) && !ts.isStringLiteralLike(node.argumentExpression) && !ts.isNumericLiteral(node.argumentExpression)) ||
-        (capturedOrInvoked(node) && (ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)
+        ((payloadInstance(node.expression) && !ts.isStringLiteralLike(node.argumentExpression) && !ts.isNumericLiteral(node.argumentExpression)) ||
+        (invokedOrBound(node) && (ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)
           ? methods.has(node.argumentExpression.text)
           : !ts.isStringLiteral(node.argumentExpression) && !ts.isNumericLiteral(node.argumentExpression))))
       if (computed || (methods.has(memberName(node) ?? '') && !direct && !nonCallableMember(node))) {
@@ -575,5 +604,31 @@ describe('access and SQL source boundaries', () => {
     expect(scan(text, 'src/db/example.ts')).toEqual([])
     expect(scan('const query = `SELECT ${columns} FROM ${table}`', 'src/example.ts').map(v => v.rule)).toContain('sql-literal-outside-db')
     expect(scan('req.payload.db.drizzle.execute(query)', 'src/example.ts').map(v => v.rule)).toContain('db-outside-db')
+  })
+})
+
+describe('precision: shapes that are provably not Local API calls', () => {
+  test.each([
+    ['Object.create(null)', 'export const a = Object.create(null)'],
+    ['Object.create with a prototype variable', 'declare const proto: object; export const a = Object.create(proto)'],
+    ['plain computed read on an unknown receiver', 'declare const bySlug: Record<string, number>; declare const key: string; export const a = bySlug[key]'],
+    ['computed read into a variable below payload', 'declare const req: any; declare const id: string; const db = req.payload.db; export const s = db.sessions?.[id]'],
+    ['JSON.parse of a variable', 'declare const text: string; export const v = JSON.parse(text)'],
+  ])('%s is not flagged in src/db', (_name, text) => {
+    expect(scan(text, 'src/db/example.ts')).toEqual([])
+  })
+  test.each([
+    ['Object.create(null)', 'export const a = Object.create(null)'],
+    ['plain computed read on an unknown receiver', 'declare const bySlug: Record<string, number>; declare const key: string; export const a = bySlug[key]'],
+  ])('%s is not flagged outside src/db', (_name, text) => {
+    expect(scan(text, 'src/runtime/example.ts')).toEqual([])
+  })
+  test('a computed key invoked on an unknown receiver is still flagged', () => {
+    const text = 'export function f(p: any, x: string) { return p[x]({ collection: "a", overrideAccess: false }) }'
+    expect(scan(text, 'src/example.ts').map(v => v.rule)).toContain('local-api-indirect')
+  })
+  test('a computed key on the payload instance is still flagged', () => {
+    const text = 'declare const payload: any; declare const m: string; export const v = payload[m]'
+    expect(scan(text, 'src/example.ts').map(v => v.rule)).toContain('local-api-indirect')
   })
 })
