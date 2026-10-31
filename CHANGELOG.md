@@ -59,9 +59,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deciding a winner, releasing a holdout, archiving and deleting experiments are
   not available yet.
 - Making the winner permanent content is not available yet.
-- The results run (`runResults`), results SQL wiring and analysis integration are
-  incomplete. Results, recompute and experiment-summary endpoints are not
-  available yet, so the admin cannot show computed results or list summaries.
+- Computed results are not available yet: the results run (`runResults`) and the
+  results, recompute and experiment-summary endpoints are still to come, so the
+  admin cannot show computed results or list summaries.
 
 ## [0.1.0] - 2026-10-30
 
