@@ -326,7 +326,7 @@ test.each('js mjs css map png jpg jpeg gif webp avif svg ico woff woff2 ttf otf 
   expect(skipPath(`/assets/file.${extension.toUpperCase()}`, '/api')).toBe(true)
   expect(skipPath(`/assets/file.${extension}/page`, '/api')).toBe(false)
 })
-test.each(['/blog/v1.2', '/users/john.doe', '/docs/next.js'])('dotted page route %s still assigns experiments', async path => {
+test.each(['/blog/v1.2', '/users/john.doe', '/docs/v2.0.1/intro'])('dotted page route %s still assigns experiments', async path => {
   const result = await resolveExperiments(request(path), runtime())
   expect(result.setCookies).toHaveLength(1)
   expect(result.requestHeaders.has('x-xp-assignments')).toBe(true)
