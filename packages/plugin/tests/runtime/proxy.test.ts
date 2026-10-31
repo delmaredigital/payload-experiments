@@ -8,6 +8,11 @@ import { encodeUnitCookie, verifyUnitCookie } from '../../src/runtime/cookie.js'
 import * as header from '../../src/runtime/header.js'
 import { signPreviewToken } from '../../src/runtime/previewToken.js'
 import { defineExperimentsProxyRuntime } from '../../src/runtime/proxyRuntime.js'
+
+type ManifestRule = Manifest['experiments'][number]['targeting'][number]
+/** A manifest targeting rule; the compiled manifest stamps each rule with its attribute type (CORE-05b). */
+const rule = (attribute: string, op: 'eq', value: string | boolean) =>
+  ({ attribute, op, value, type: typeof value }) as unknown as ManifestRule
 import type { Manifest, ManifestExperiment } from '../../src/types/manifest.js'
 import type { ExperimentsProxyRuntimeOptions } from '../../src/types/runtime.js'
 
@@ -121,7 +126,7 @@ test('HEAD is assigned without exposure', async () => {
 test('defers missing user ids and unknown session targeting; ordinary deferrable visitors still assign', async () => {
   const m = manifest([
     experiment({ slug: 'user', unitType: 'user', deferrable: true }),
-    experiment({ slug: 'session', deferrable: true, targeting: [{ attribute: 'loggedIn', op: 'eq', value: true }] }),
+    experiment({ slug: 'session', deferrable: true, targeting: [rule('loggedIn', 'eq', true)] }),
     experiment({ slug: 'visitor', deferrable: true }),
   ])
   const result = await resolveExperiments(signedRequest(), runtime(m, { getUnit: async () => ({ attributes: {}, sessionUnknown: true }) }))
@@ -131,7 +136,7 @@ test('defers missing user ids and unknown session targeting; ordinary deferrable
   expect(decode(known, m, 'visitor', 'user-1').deferred).toEqual([])
 })
 test('adds pathname without query over host attributes before targeting', async () => {
-  const m = manifest([experiment({ targeting: [{ attribute: 'path', op: 'eq', value: '/landing' }] })])
+  const m = manifest([experiment({ targeting: [rule('path', 'eq', '/landing')] })])
   const rt = runtime(m, { getUnit: () => ({ attributes: { path: '/wrong' } }) })
   expect(decode(await resolveExperiments(signedRequest('/landing?q=1'), rt), m, 'visitor').bySlug.hero!.exposable).toBe(true)
   expect(decode(await resolveExperiments(signedRequest('/elsewhere'), rt), m, 'visitor').bySlug.hero!.exposable).toBe(false)
@@ -150,7 +155,7 @@ test('holdout page assignment serves the control page and remains measurable', a
 })
 test('a deferred page serves control and signs control! instead of permitting later variant exposure', async () => {
   const m = manifest([
-    page({ deferrable: true, targeting: [{ attribute: 'loggedIn', op: 'eq', value: true }] }),
+    page({ deferrable: true, targeting: [rule('loggedIn', 'eq', true)] }),
     experiment({ slug: 'other', unitType: 'user', deferrable: true }),
   ])
   const result = await resolveExperiments(signedRequest('/original'), runtime(m, {
