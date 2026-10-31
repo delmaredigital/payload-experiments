@@ -1,0 +1,2610 @@
+{
+  "cases": [
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1e-12,
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "range-0-point-0"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "range-0-point-1"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1e-12,
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "range-0-point-2"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "range-0-point-3"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1e-12,
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "range-0-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "range-0-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1e-12,
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "range-0-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "range-0-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "range-0-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "range-0-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.039999999999,
+          [
+            0.04,
+            0.09
+          ]
+        ]
+      },
+      "name": "range-1-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.04,
+          [
+            0.04,
+            0.09
+          ]
+        ]
+      },
+      "name": "range-1-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.040000000001,
+          [
+            0.04,
+            0.09
+          ]
+        ]
+      },
+      "name": "range-1-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.065,
+          [
+            0.04,
+            0.09
+          ]
+        ]
+      },
+      "name": "range-1-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.08999999999899999,
+          [
+            0.04,
+            0.09
+          ]
+        ]
+      },
+      "name": "range-1-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.09,
+          [
+            0.04,
+            0.09
+          ]
+        ]
+      },
+      "name": "range-1-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.090000000001,
+          [
+            0.04,
+            0.09
+          ]
+        ]
+      },
+      "name": "range-1-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.04,
+            0.09
+          ]
+        ]
+      },
+      "name": "range-1-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.04,
+            0.09
+          ]
+        ]
+      },
+      "name": "range-1-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.04,
+            0.09
+          ]
+        ]
+      },
+      "name": "range-1-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.079999999999,
+          [
+            0.08,
+            0.18
+          ]
+        ]
+      },
+      "name": "range-2-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.08,
+          [
+            0.08,
+            0.18
+          ]
+        ]
+      },
+      "name": "range-2-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.08000000000100001,
+          [
+            0.08,
+            0.18
+          ]
+        ]
+      },
+      "name": "range-2-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.13,
+          [
+            0.08,
+            0.18
+          ]
+        ]
+      },
+      "name": "range-2-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.179999999999,
+          [
+            0.08,
+            0.18
+          ]
+        ]
+      },
+      "name": "range-2-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.18,
+          [
+            0.08,
+            0.18
+          ]
+        ]
+      },
+      "name": "range-2-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.180000000001,
+          [
+            0.08,
+            0.18
+          ]
+        ]
+      },
+      "name": "range-2-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.08,
+            0.18
+          ]
+        ]
+      },
+      "name": "range-2-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.08,
+            0.18
+          ]
+        ]
+      },
+      "name": "range-2-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.08,
+            0.18
+          ]
+        ]
+      },
+      "name": "range-2-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.11999999999899999,
+          [
+            0.12,
+            0.27
+          ]
+        ]
+      },
+      "name": "range-3-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.12,
+          [
+            0.12,
+            0.27
+          ]
+        ]
+      },
+      "name": "range-3-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.120000000001,
+          [
+            0.12,
+            0.27
+          ]
+        ]
+      },
+      "name": "range-3-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.195,
+          [
+            0.12,
+            0.27
+          ]
+        ]
+      },
+      "name": "range-3-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.26999999999900004,
+          [
+            0.12,
+            0.27
+          ]
+        ]
+      },
+      "name": "range-3-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.27,
+          [
+            0.12,
+            0.27
+          ]
+        ]
+      },
+      "name": "range-3-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.270000000001,
+          [
+            0.12,
+            0.27
+          ]
+        ]
+      },
+      "name": "range-3-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.12,
+            0.27
+          ]
+        ]
+      },
+      "name": "range-3-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.12,
+            0.27
+          ]
+        ]
+      },
+      "name": "range-3-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.12,
+            0.27
+          ]
+        ]
+      },
+      "name": "range-3-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.159999999999,
+          [
+            0.16,
+            0.16
+          ]
+        ]
+      },
+      "name": "range-4-point-0"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.16,
+          [
+            0.16,
+            0.16
+          ]
+        ]
+      },
+      "name": "range-4-point-1"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.160000000001,
+          [
+            0.16,
+            0.16
+          ]
+        ]
+      },
+      "name": "range-4-point-2"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.16,
+          [
+            0.16,
+            0.16
+          ]
+        ]
+      },
+      "name": "range-4-point-3"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.159999999999,
+          [
+            0.16,
+            0.16
+          ]
+        ]
+      },
+      "name": "range-4-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.16,
+          [
+            0.16,
+            0.16
+          ]
+        ]
+      },
+      "name": "range-4-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.160000000001,
+          [
+            0.16,
+            0.16
+          ]
+        ]
+      },
+      "name": "range-4-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.16,
+            0.16
+          ]
+        ]
+      },
+      "name": "range-4-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.16,
+            0.16
+          ]
+        ]
+      },
+      "name": "range-4-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.16,
+            0.16
+          ]
+        ]
+      },
+      "name": "range-4-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.199999999999,
+          [
+            0.2,
+            0.25
+          ]
+        ]
+      },
+      "name": "range-5-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.2,
+          [
+            0.2,
+            0.25
+          ]
+        ]
+      },
+      "name": "range-5-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.20000000000100002,
+          [
+            0.2,
+            0.25
+          ]
+        ]
+      },
+      "name": "range-5-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.225,
+          [
+            0.2,
+            0.25
+          ]
+        ]
+      },
+      "name": "range-5-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.249999999999,
+          [
+            0.2,
+            0.25
+          ]
+        ]
+      },
+      "name": "range-5-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.25,
+          [
+            0.2,
+            0.25
+          ]
+        ]
+      },
+      "name": "range-5-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.250000000001,
+          [
+            0.2,
+            0.25
+          ]
+        ]
+      },
+      "name": "range-5-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.2,
+            0.25
+          ]
+        ]
+      },
+      "name": "range-5-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.2,
+            0.25
+          ]
+        ]
+      },
+      "name": "range-5-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.2,
+            0.25
+          ]
+        ]
+      },
+      "name": "range-5-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.23999999999899999,
+          [
+            0.24,
+            0.33999999999999997
+          ]
+        ]
+      },
+      "name": "range-6-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.24,
+          [
+            0.24,
+            0.33999999999999997
+          ]
+        ]
+      },
+      "name": "range-6-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.240000000001,
+          [
+            0.24,
+            0.33999999999999997
+          ]
+        ]
+      },
+      "name": "range-6-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.29,
+          [
+            0.24,
+            0.33999999999999997
+          ]
+        ]
+      },
+      "name": "range-6-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.339999999999,
+          [
+            0.24,
+            0.33999999999999997
+          ]
+        ]
+      },
+      "name": "range-6-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.33999999999999997,
+          [
+            0.24,
+            0.33999999999999997
+          ]
+        ]
+      },
+      "name": "range-6-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.34000000000099995,
+          [
+            0.24,
+            0.33999999999999997
+          ]
+        ]
+      },
+      "name": "range-6-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.24,
+            0.33999999999999997
+          ]
+        ]
+      },
+      "name": "range-6-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.24,
+            0.33999999999999997
+          ]
+        ]
+      },
+      "name": "range-6-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.24,
+            0.33999999999999997
+          ]
+        ]
+      },
+      "name": "range-6-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.27999999999900005,
+          [
+            0.28,
+            0.43000000000000005
+          ]
+        ]
+      },
+      "name": "range-7-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.28,
+          [
+            0.28,
+            0.43000000000000005
+          ]
+        ]
+      },
+      "name": "range-7-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.280000000001,
+          [
+            0.28,
+            0.43000000000000005
+          ]
+        ]
+      },
+      "name": "range-7-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.35500000000000004,
+          [
+            0.28,
+            0.43000000000000005
+          ]
+        ]
+      },
+      "name": "range-7-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.42999999999900007,
+          [
+            0.28,
+            0.43000000000000005
+          ]
+        ]
+      },
+      "name": "range-7-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.43000000000000005,
+          [
+            0.28,
+            0.43000000000000005
+          ]
+        ]
+      },
+      "name": "range-7-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.430000000001,
+          [
+            0.28,
+            0.43000000000000005
+          ]
+        ]
+      },
+      "name": "range-7-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.28,
+            0.43000000000000005
+          ]
+        ]
+      },
+      "name": "range-7-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.28,
+            0.43000000000000005
+          ]
+        ]
+      },
+      "name": "range-7-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.28,
+            0.43000000000000005
+          ]
+        ]
+      },
+      "name": "range-7-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.31999999999900003,
+          [
+            0.32,
+            0.32
+          ]
+        ]
+      },
+      "name": "range-8-point-0"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.32,
+          [
+            0.32,
+            0.32
+          ]
+        ]
+      },
+      "name": "range-8-point-1"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.320000000001,
+          [
+            0.32,
+            0.32
+          ]
+        ]
+      },
+      "name": "range-8-point-2"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.32,
+          [
+            0.32,
+            0.32
+          ]
+        ]
+      },
+      "name": "range-8-point-3"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.31999999999900003,
+          [
+            0.32,
+            0.32
+          ]
+        ]
+      },
+      "name": "range-8-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.32,
+          [
+            0.32,
+            0.32
+          ]
+        ]
+      },
+      "name": "range-8-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.320000000001,
+          [
+            0.32,
+            0.32
+          ]
+        ]
+      },
+      "name": "range-8-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.32,
+            0.32
+          ]
+        ]
+      },
+      "name": "range-8-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.32,
+            0.32
+          ]
+        ]
+      },
+      "name": "range-8-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.32,
+            0.32
+          ]
+        ]
+      },
+      "name": "range-8-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.359999999999,
+          [
+            0.36,
+            0.41
+          ]
+        ]
+      },
+      "name": "range-9-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.36,
+          [
+            0.36,
+            0.41
+          ]
+        ]
+      },
+      "name": "range-9-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.36000000000099996,
+          [
+            0.36,
+            0.41
+          ]
+        ]
+      },
+      "name": "range-9-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.385,
+          [
+            0.36,
+            0.41
+          ]
+        ]
+      },
+      "name": "range-9-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.409999999999,
+          [
+            0.36,
+            0.41
+          ]
+        ]
+      },
+      "name": "range-9-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.41,
+          [
+            0.36,
+            0.41
+          ]
+        ]
+      },
+      "name": "range-9-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.41000000000099995,
+          [
+            0.36,
+            0.41
+          ]
+        ]
+      },
+      "name": "range-9-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.36,
+            0.41
+          ]
+        ]
+      },
+      "name": "range-9-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.36,
+            0.41
+          ]
+        ]
+      },
+      "name": "range-9-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.36,
+            0.41
+          ]
+        ]
+      },
+      "name": "range-9-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.39999999999900004,
+          [
+            0.4,
+            0.5
+          ]
+        ]
+      },
+      "name": "range-10-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.4,
+          [
+            0.4,
+            0.5
+          ]
+        ]
+      },
+      "name": "range-10-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.400000000001,
+          [
+            0.4,
+            0.5
+          ]
+        ]
+      },
+      "name": "range-10-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.45,
+          [
+            0.4,
+            0.5
+          ]
+        ]
+      },
+      "name": "range-10-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.499999999999,
+          [
+            0.4,
+            0.5
+          ]
+        ]
+      },
+      "name": "range-10-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.5,
+          [
+            0.4,
+            0.5
+          ]
+        ]
+      },
+      "name": "range-10-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.500000000001,
+          [
+            0.4,
+            0.5
+          ]
+        ]
+      },
+      "name": "range-10-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.4,
+            0.5
+          ]
+        ]
+      },
+      "name": "range-10-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.4,
+            0.5
+          ]
+        ]
+      },
+      "name": "range-10-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.4,
+            0.5
+          ]
+        ]
+      },
+      "name": "range-10-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.439999999999,
+          [
+            0.44,
+            0.59
+          ]
+        ]
+      },
+      "name": "range-11-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.44,
+          [
+            0.44,
+            0.59
+          ]
+        ]
+      },
+      "name": "range-11-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.440000000001,
+          [
+            0.44,
+            0.59
+          ]
+        ]
+      },
+      "name": "range-11-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.515,
+          [
+            0.44,
+            0.59
+          ]
+        ]
+      },
+      "name": "range-11-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.589999999999,
+          [
+            0.44,
+            0.59
+          ]
+        ]
+      },
+      "name": "range-11-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.59,
+          [
+            0.44,
+            0.59
+          ]
+        ]
+      },
+      "name": "range-11-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.590000000001,
+          [
+            0.44,
+            0.59
+          ]
+        ]
+      },
+      "name": "range-11-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.44,
+            0.59
+          ]
+        ]
+      },
+      "name": "range-11-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.44,
+            0.59
+          ]
+        ]
+      },
+      "name": "range-11-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.44,
+            0.59
+          ]
+        ]
+      },
+      "name": "range-11-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.479999999999,
+          [
+            0.48,
+            0.48
+          ]
+        ]
+      },
+      "name": "range-12-point-0"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.48,
+          [
+            0.48,
+            0.48
+          ]
+        ]
+      },
+      "name": "range-12-point-1"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.48000000000099996,
+          [
+            0.48,
+            0.48
+          ]
+        ]
+      },
+      "name": "range-12-point-2"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.48,
+          [
+            0.48,
+            0.48
+          ]
+        ]
+      },
+      "name": "range-12-point-3"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.479999999999,
+          [
+            0.48,
+            0.48
+          ]
+        ]
+      },
+      "name": "range-12-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.48,
+          [
+            0.48,
+            0.48
+          ]
+        ]
+      },
+      "name": "range-12-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.48000000000099996,
+          [
+            0.48,
+            0.48
+          ]
+        ]
+      },
+      "name": "range-12-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.48,
+            0.48
+          ]
+        ]
+      },
+      "name": "range-12-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.48,
+            0.48
+          ]
+        ]
+      },
+      "name": "range-12-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.48,
+            0.48
+          ]
+        ]
+      },
+      "name": "range-12-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.519999999999,
+          [
+            0.52,
+            0.5700000000000001
+          ]
+        ]
+      },
+      "name": "range-13-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.52,
+          [
+            0.52,
+            0.5700000000000001
+          ]
+        ]
+      },
+      "name": "range-13-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.520000000001,
+          [
+            0.52,
+            0.5700000000000001
+          ]
+        ]
+      },
+      "name": "range-13-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.545,
+          [
+            0.52,
+            0.5700000000000001
+          ]
+        ]
+      },
+      "name": "range-13-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.5699999999990001,
+          [
+            0.52,
+            0.5700000000000001
+          ]
+        ]
+      },
+      "name": "range-13-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.5700000000000001,
+          [
+            0.52,
+            0.5700000000000001
+          ]
+        ]
+      },
+      "name": "range-13-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.570000000001,
+          [
+            0.52,
+            0.5700000000000001
+          ]
+        ]
+      },
+      "name": "range-13-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.52,
+            0.5700000000000001
+          ]
+        ]
+      },
+      "name": "range-13-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.52,
+            0.5700000000000001
+          ]
+        ]
+      },
+      "name": "range-13-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.52,
+            0.5700000000000001
+          ]
+        ]
+      },
+      "name": "range-13-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.5599999999990001,
+          [
+            0.56,
+            0.66
+          ]
+        ]
+      },
+      "name": "range-14-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.56,
+          [
+            0.56,
+            0.66
+          ]
+        ]
+      },
+      "name": "range-14-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.560000000001,
+          [
+            0.56,
+            0.66
+          ]
+        ]
+      },
+      "name": "range-14-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.6100000000000001,
+          [
+            0.56,
+            0.66
+          ]
+        ]
+      },
+      "name": "range-14-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.659999999999,
+          [
+            0.56,
+            0.66
+          ]
+        ]
+      },
+      "name": "range-14-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.66,
+          [
+            0.56,
+            0.66
+          ]
+        ]
+      },
+      "name": "range-14-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.660000000001,
+          [
+            0.56,
+            0.66
+          ]
+        ]
+      },
+      "name": "range-14-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.56,
+            0.66
+          ]
+        ]
+      },
+      "name": "range-14-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.56,
+            0.66
+          ]
+        ]
+      },
+      "name": "range-14-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.56,
+            0.66
+          ]
+        ]
+      },
+      "name": "range-14-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.599999999999,
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      },
+      "name": "range-15-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.6,
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      },
+      "name": "range-15-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.600000000001,
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      },
+      "name": "range-15-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.675,
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      },
+      "name": "range-15-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.749999999999,
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      },
+      "name": "range-15-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.75,
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      },
+      "name": "range-15-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.750000000001,
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      },
+      "name": "range-15-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      },
+      "name": "range-15-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      },
+      "name": "range-15-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      },
+      "name": "range-15-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.639999999999,
+          [
+            0.64,
+            0.64
+          ]
+        ]
+      },
+      "name": "range-16-point-0"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.64,
+          [
+            0.64,
+            0.64
+          ]
+        ]
+      },
+      "name": "range-16-point-1"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.640000000001,
+          [
+            0.64,
+            0.64
+          ]
+        ]
+      },
+      "name": "range-16-point-2"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.64,
+          [
+            0.64,
+            0.64
+          ]
+        ]
+      },
+      "name": "range-16-point-3"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.639999999999,
+          [
+            0.64,
+            0.64
+          ]
+        ]
+      },
+      "name": "range-16-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.64,
+          [
+            0.64,
+            0.64
+          ]
+        ]
+      },
+      "name": "range-16-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.640000000001,
+          [
+            0.64,
+            0.64
+          ]
+        ]
+      },
+      "name": "range-16-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.64,
+            0.64
+          ]
+        ]
+      },
+      "name": "range-16-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.64,
+            0.64
+          ]
+        ]
+      },
+      "name": "range-16-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.64,
+            0.64
+          ]
+        ]
+      },
+      "name": "range-16-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.6799999999990001,
+          [
+            0.68,
+            0.7300000000000001
+          ]
+        ]
+      },
+      "name": "range-17-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.68,
+          [
+            0.68,
+            0.7300000000000001
+          ]
+        ]
+      },
+      "name": "range-17-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.680000000001,
+          [
+            0.68,
+            0.7300000000000001
+          ]
+        ]
+      },
+      "name": "range-17-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.7050000000000001,
+          [
+            0.68,
+            0.7300000000000001
+          ]
+        ]
+      },
+      "name": "range-17-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.7299999999990001,
+          [
+            0.68,
+            0.7300000000000001
+          ]
+        ]
+      },
+      "name": "range-17-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.7300000000000001,
+          [
+            0.68,
+            0.7300000000000001
+          ]
+        ]
+      },
+      "name": "range-17-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.7300000000010001,
+          [
+            0.68,
+            0.7300000000000001
+          ]
+        ]
+      },
+      "name": "range-17-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.68,
+            0.7300000000000001
+          ]
+        ]
+      },
+      "name": "range-17-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.68,
+            0.7300000000000001
+          ]
+        ]
+      },
+      "name": "range-17-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.68,
+            0.7300000000000001
+          ]
+        ]
+      },
+      "name": "range-17-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.719999999999,
+          [
+            0.72,
+            0.82
+          ]
+        ]
+      },
+      "name": "range-18-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.72,
+          [
+            0.72,
+            0.82
+          ]
+        ]
+      },
+      "name": "range-18-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.720000000001,
+          [
+            0.72,
+            0.82
+          ]
+        ]
+      },
+      "name": "range-18-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.77,
+          [
+            0.72,
+            0.82
+          ]
+        ]
+      },
+      "name": "range-18-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.819999999999,
+          [
+            0.72,
+            0.82
+          ]
+        ]
+      },
+      "name": "range-18-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.82,
+          [
+            0.72,
+            0.82
+          ]
+        ]
+      },
+      "name": "range-18-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.8200000000009999,
+          [
+            0.72,
+            0.82
+          ]
+        ]
+      },
+      "name": "range-18-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.72,
+            0.82
+          ]
+        ]
+      },
+      "name": "range-18-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.72,
+            0.82
+          ]
+        ]
+      },
+      "name": "range-18-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.72,
+            0.82
+          ]
+        ]
+      },
+      "name": "range-18-point-9"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.759999999999,
+          [
+            0.76,
+            0.91
+          ]
+        ]
+      },
+      "name": "range-19-point-0"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.76,
+          [
+            0.76,
+            0.91
+          ]
+        ]
+      },
+      "name": "range-19-point-1"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.760000000001,
+          [
+            0.76,
+            0.91
+          ]
+        ]
+      },
+      "name": "range-19-point-2"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.835,
+          [
+            0.76,
+            0.91
+          ]
+        ]
+      },
+      "name": "range-19-point-3"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          0.909999999999,
+          [
+            0.76,
+            0.91
+          ]
+        ]
+      },
+      "name": "range-19-point-4"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.91,
+          [
+            0.76,
+            0.91
+          ]
+        ]
+      },
+      "name": "range-19-point-5"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0.910000000001,
+          [
+            0.76,
+            0.91
+          ]
+        ]
+      },
+      "name": "range-19-point-6"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          -1,
+          [
+            0.76,
+            0.91
+          ]
+        ]
+      },
+      "name": "range-19-point-7"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          0,
+          [
+            0.76,
+            0.91
+          ]
+        ]
+      },
+      "name": "range-19-point-8"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          1,
+          [
+            0.76,
+            0.91
+          ]
+        ]
+      },
+      "name": "range-19-point-9"
+    }
+  ],
+  "source": {
+    "module": "packages/sdk-js/src/util.ts",
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "inRange"
+  }
+}

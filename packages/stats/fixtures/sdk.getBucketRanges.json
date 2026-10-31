@@ -1,0 +1,320 @@
+{
+  "cases": [
+    {
+      "expected": [
+        [
+          0,
+          0.5
+        ],
+        [
+          0.5,
+          1
+        ]
+      ],
+      "input": {
+        "args": [
+          2,
+          1,
+          null
+        ]
+      },
+      "name": "normal 50/50-0"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0.25
+        ],
+        [
+          0.5,
+          0.75
+        ]
+      ],
+      "input": {
+        "args": [
+          2,
+          0.5,
+          null
+        ]
+      },
+      "name": "reduced coverage-1"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0
+        ],
+        [
+          0.5,
+          0.5
+        ]
+      ],
+      "input": {
+        "args": [
+          2,
+          0,
+          null
+        ]
+      },
+      "name": "zero coverage-2"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0.25
+        ],
+        [
+          0.25,
+          0.5
+        ],
+        [
+          0.5,
+          0.75
+        ],
+        [
+          0.75,
+          1
+        ]
+      ],
+      "input": {
+        "args": [
+          4,
+          1,
+          null
+        ]
+      },
+      "name": "4 variations-3"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0.4
+        ],
+        [
+          0.4,
+          1
+        ]
+      ],
+      "input": {
+        "args": [
+          2,
+          1,
+          [
+            0.4,
+            0.6
+          ]
+        ]
+      },
+      "name": "uneven weights-4"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0.2
+        ],
+        [
+          0.2,
+          0.5
+        ],
+        [
+          0.5,
+          1
+        ]
+      ],
+      "input": {
+        "args": [
+          3,
+          1,
+          [
+            0.2,
+            0.3,
+            0.5
+          ]
+        ]
+      },
+      "name": "uneven weights, 3 variations-5"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0.04
+        ],
+        [
+          0.2,
+          0.26
+        ],
+        [
+          0.5,
+          0.6
+        ]
+      ],
+      "input": {
+        "args": [
+          3,
+          0.2,
+          [
+            0.2,
+            0.3,
+            0.5
+          ]
+        ]
+      },
+      "name": "uneven weights, reduced coverage, 3 variations-6"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0
+        ],
+        [
+          0.5,
+          0.5
+        ]
+      ],
+      "input": {
+        "args": [
+          2,
+          -0.2,
+          null
+        ]
+      },
+      "name": "negative coverage-7"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0.5
+        ],
+        [
+          0.5,
+          1
+        ]
+      ],
+      "input": {
+        "args": [
+          2,
+          1.5,
+          null
+        ]
+      },
+      "name": "coverage above 1-8"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0.5
+        ],
+        [
+          0.5,
+          1
+        ]
+      ],
+      "input": {
+        "args": [
+          2,
+          1,
+          [
+            0.4,
+            0.1
+          ]
+        ]
+      },
+      "name": "weights sum below 1-9"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0.5
+        ],
+        [
+          0.5,
+          1
+        ]
+      ],
+      "input": {
+        "args": [
+          2,
+          1,
+          [
+            0.7,
+            0.6
+          ]
+        ]
+      },
+      "name": "weights sum above 1-10"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0.25
+        ],
+        [
+          0.25,
+          0.5
+        ],
+        [
+          0.5,
+          0.75
+        ],
+        [
+          0.75,
+          1
+        ]
+      ],
+      "input": {
+        "args": [
+          4,
+          1,
+          [
+            0.4,
+            0.4,
+            0.2
+          ]
+        ]
+      },
+      "name": "weights.length not equal to num variations-11"
+    },
+    {
+      "expected": [
+        [
+          0,
+          0.4
+        ],
+        [
+          0.4,
+          0.9999
+        ]
+      ],
+      "input": {
+        "args": [
+          2,
+          1,
+          [
+            0.4,
+            0.5999
+          ]
+        ]
+      },
+      "name": "weights sum almost equals 1-12"
+    }
+  ],
+  "compare": "upstream-floor-1e8",
+  "source": {
+    "compareRef": "packages/sdk-js/test/json.test.ts:107-109",
+    "module": "packages/sdk-js/test/cases.json",
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "getBucketRanges"
+  }
+}

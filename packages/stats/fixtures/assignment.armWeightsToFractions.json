@@ -1,0 +1,195 @@
+{
+  "cases": [
+    {
+      "expected": [
+        0.5,
+        0.5
+      ],
+      "input": {
+        "args": [
+          [
+            50,
+            50
+          ]
+        ]
+      },
+      "name": "valid-0"
+    },
+    {
+      "expected": [
+        0.45,
+        0.45,
+        0.1
+      ],
+      "input": {
+        "args": [
+          [
+            45,
+            45,
+            10
+          ]
+        ]
+      },
+      "name": "valid-1"
+    },
+    {
+      "expected": [
+        0.34,
+        0.33,
+        0.33
+      ],
+      "input": {
+        "args": [
+          [
+            34,
+            33,
+            33
+          ]
+        ]
+      },
+      "name": "valid-2"
+    },
+    {
+      "expected": [
+        0.05,
+        0.93,
+        0.02
+      ],
+      "input": {
+        "args": [
+          [
+            5,
+            93,
+            2
+          ]
+        ]
+      },
+      "name": "valid-3"
+    },
+    {
+      "expected": [
+        0.25,
+        0.25,
+        0.25,
+        0.15,
+        0.1
+      ],
+      "input": {
+        "args": [
+          [
+            25,
+            25,
+            25,
+            15,
+            10
+          ]
+        ]
+      },
+      "name": "valid-4"
+    },
+    {
+      "expected": [
+        1
+      ],
+      "input": {
+        "args": [
+          [
+            100
+          ]
+        ]
+      },
+      "name": "valid-5"
+    },
+    {
+      "expected": [
+        0,
+        1
+      ],
+      "input": {
+        "args": [
+          [
+            0,
+            100
+          ]
+        ]
+      },
+      "name": "valid-6"
+    },
+    {
+      "expected": [
+        0,
+        0,
+        1
+      ],
+      "input": {
+        "args": [
+          [
+            0,
+            0,
+            100
+          ]
+        ]
+      },
+      "name": "valid-7"
+    },
+    {
+      "expected": {
+        "$raises": "RangeError"
+      },
+      "input": {
+        "args": [
+          []
+        ]
+      },
+      "name": "invalid-0"
+    },
+    {
+      "expected": {
+        "$raises": "RangeError"
+      },
+      "input": {
+        "args": [
+          [
+            49,
+            50
+          ]
+        ]
+      },
+      "name": "invalid-1"
+    },
+    {
+      "expected": {
+        "$raises": "RangeError"
+      },
+      "input": {
+        "args": [
+          [
+            49.5,
+            50.5
+          ]
+        ]
+      },
+      "name": "invalid-2"
+    },
+    {
+      "expected": {
+        "$raises": "RangeError"
+      },
+      "input": {
+        "args": [
+          [
+            -1,
+            101
+          ]
+        ]
+      },
+      "name": "invalid-3"
+    }
+  ],
+  "source": {
+    "module": "packages/sdk-js/src/util.ts",
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "composed:§6.1"
+  }
+}

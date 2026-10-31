@@ -115,3 +115,18 @@ Use `--ref main --out
 fixtures or `last-freeze.txt`.
 
 The workflow remains dispatch-only until STATS-L9 restores its schedule.
+
+## SDK assignment fixtures
+
+`node scripts/gbstats-parity/fetch_sdk_cases.mjs` projects the upstream SDK
+`cases.json` into four SDK fixtures (upstream calls the range group
+`getBucketRange`). `node scripts/gbstats-parity/sdk_composed_fixtures.mjs`
+selects the upstream assignment declarations from `util.ts`, transpiles them
+with the root's installed `@swc/core`, and evaluates the brief's compositions
+without loading the local port. Both GET the pinned SHA above, fail before any
+output writes on a SHA256 mismatch, accept `--out <dir>` and `--ref <40-hex sha>`,
+and accept/ignore `--only`. A different SHA skips source hash checks for drift.
+The composed script stubs upstream `process`/`console` in a temporary module
+that it removes after importing; the pure port drops `console.error` and
+`process.env` checks. Regenerate into a temporary `--out` and byte-compare all
+nine fixtures to confirm deterministic output.

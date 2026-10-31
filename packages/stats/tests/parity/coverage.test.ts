@@ -72,6 +72,10 @@ describe('parity coverage', () => {
       expect(existsSync(path), path).toBe(true)
       const fixture = loadFixture(entry.fixture)
       if (!fixture) throw new Error(`Missing active fixture: ${entry.fixture}`)
+      expect([undefined, 'upstream-floor-1e8'], `${entry.fixture}: compare`).toContain(fixture.compare)
+      if (fixture.compare === 'upstream-floor-1e8') {
+        expect(['sdk.getEqualWeights', 'sdk.getBucketRanges'], `${entry.fixture}: rounded comparator`).toContain(entry.fixture)
+      }
       expect(fixture.cases.length, entry.fixture).toBeGreaterThanOrEqual(1)
       expect(fixture.source.symbol, entry.fixture).toBe(entry.symbol)
       expect(typeof fixture.source.repo, entry.fixture).toBe('string')
