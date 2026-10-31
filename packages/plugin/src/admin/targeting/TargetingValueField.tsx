@@ -1,5 +1,5 @@
 'use client'
-import { SelectInput, TextInput, useField, useFormFields } from '@payloadcms/ui'
+import { FieldError, SelectInput, TextInput, useField, useFormFields } from '@payloadcms/ui'
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { JSONFieldClientProps } from 'payload'
@@ -9,7 +9,7 @@ import { isEditable } from '../../collections/experiments/editability.js'
 import { isOpValid } from '../../targeting/ops.js'
 import type { TargetingOp } from '../../targeting/ops.js'
 import { WHO_COPY } from '../copy/who.js'
-import { coerceValue, rowPath, valueInput } from './targeting.model.js'
+import { coerceValue, emptyListHint, rowPath, valueInput } from './targeting.model.js'
 
 // Preserve an unfinished comma list while the form receives its typed JSON value.
 function CommaList({ path, value, setValue, readOnly, required }: {
@@ -54,6 +54,7 @@ export function TargetingValueField({ path, field, readOnly }: JSONFieldClientPr
     if (!locked && definition && isOpValid(definition.type, operator)) setValue(coerceValue(definition.type, operator, raw))
   }
   const many = operator === 'in' || operator === 'nin'
+  const hint = emptyListHint(operator, value)
   const props = { path, label: WHO_COPY.value, readOnly: locked, required: field.required }
   return <div>
     {input.kind === 'select' || input.kind === 'multiselect' || input.kind === 'boolean'
@@ -65,10 +66,11 @@ export function TargetingValueField({ path, field, readOnly }: JSONFieldClientPr
         ? <><label htmlFor={path}>{WHO_COPY.value}</label><input id={path} name={path} type="number" step="any"
             required={field.required} readOnly={locked} value={typeof value === 'number' || typeof value === 'string' ? value : ''}
             style={{ display: 'block', color: 'var(--theme-text)', background: 'var(--theme-input-bg)', border: '1px solid var(--theme-elevation-200)', padding: '0.5rem' }}
-            onChange={event => write(event.target.value)} /></>
+            onChange={event => write(event.target.value)} /><FieldError path={path} /></>
         : many ? <CommaList key={`${path}:${attribute}:${operator}`} {...props} value={value} setValue={write} />
           : <TextInput {...props} value={typeof value === 'string' ? value : ''} onChange={(event: ChangeEvent<HTMLInputElement>) => write(event.target.value)} />}
     {definition?.type === 'string' ? <p>{WHO_COPY.caseNote}</p> : null}
     {many && input.kind === 'text' ? <p>{WHO_COPY.listNote}</p> : null}
+    {hint ? <p>{hint}</p> : null}
   </div>
 }

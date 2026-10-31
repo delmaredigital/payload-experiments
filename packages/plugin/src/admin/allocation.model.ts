@@ -17,6 +17,7 @@ export function allocationSentence({ allocation, unitType, arms, layer, status }
     : groups.map(group => groupShare(percent(allocation * group.weight / 100), armLabel(group.key, group.label))).join(', ')
   const holdout = arms.find(group => group.kind === 'holdout')
   let sentence = participation(percent(allocation), peopleLabel[unitType], shares) + (holdout ? holdoutClause(percent(holdout.weight)) : uncounted)
+  if ((layer || status === 'running') && !sentence.endsWith('.')) sentence += '.'
   if (layer) sentence += layerSentence(layer.name, layer.used, layer.free)
   if (status === 'running') sentence += ` ${LOCKED_MESSAGES.runningAllocation}`
   return sentence

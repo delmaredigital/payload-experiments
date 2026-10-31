@@ -4,9 +4,15 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { TargetingAttributeField } from '../../../src/admin/targeting/TargetingAttributeField.js'
 import { TargetingOpField } from '../../../src/admin/targeting/TargetingOpField.js'
 import { TargetingValueField } from '../../../src/admin/targeting/TargetingValueField.js'
-import { payloadUiMock, resetPayloadUiMock, setField, setFormFields } from '../_helpers/payloadUiMock.js'
+import { resetPayloadUiMock, setField, setFormFields } from '../_helpers/payloadUiMock.js'
 
-vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
+vi.mock('@payloadcms/ui', async () => {
+  const ui = (await import('../_helpers/payloadUiMock.js')).payloadUiMock()
+  return { ...ui, FieldError: ({ path }: { path: string }) => {
+    const field = ui.useFormFields(([fields]) => fields[path])
+    return field?.valid === false ? <p role="alert">{String(field.errorMessage)}</p> : null
+  } }
+})
 afterEach(() => { cleanup(); resetPayloadUiMock() })
 const custom = { attributeKeys: { utmSource: { type: 'string' }, age: { type: 'number' }, loggedIn: { type: 'boolean' }, device: { type: 'string', values: ['mobile', 'desktop'] } } }
 const textField = { name: 'attribute', type: 'text' as const, admin: { custom } }
@@ -79,6 +85,33 @@ test('changing to a list comparison while locked preserves the stored JSON', () 
   act(() => form('utmSource', 'in', 'running'))
   expect(setValue).not.toHaveBeenCalled()
 })
+test('shows the numeric targeting validation error from field state', () => {
+  setField({ value: null, setValue: vi.fn() })
+  setFormFields({ 'targeting.1.attribute': { value: 'age' }, 'targeting.1.op': { value: 'eq' },
+    'targeting.1.value': { value: null, valid: false, errorMessage: 'Enter a value of the type required by this attribute and operator.' } })
+  render(<TargetingValueField path="targeting.1.value" field={valueField} />)
+  expect(screen.getByRole('alert').textContent).toBe('Enter a value of the type required by this attribute and operator.')
+})
+test.each([
+  ['utmSource', 'in'], ['utmSource', 'nin'], ['device', 'in'], ['device', 'nin'],
+])('empty %s/%s lists show a hint and remain writable as []', (attribute, op) => {
+  const setValue = vi.fn()
+  setField({ value: [], setValue }, 'targeting.1.value')
+  form(attribute, op)
+  render(<TargetingValueField path="targeting.1.value" field={valueField} />)
+  const hint = 'Add at least one value — an empty list matches nobody.'
+  expect(screen.getByText(hint)).toBeTruthy()
+  act(() => setField({ value: ['mobile'], setValue }, 'targeting.1.value'))
+  expect(screen.queryByText(hint)).toBeNull()
+  const input = screen.getByLabelText('Value') as HTMLInputElement | HTMLSelectElement
+  if (input instanceof HTMLSelectElement) {
+    for (const option of input.options) option.selected = false
+    fireEvent.change(input)
+  } else fireEvent.change(input, { target: { value: '' } })
+  expect(setValue).toHaveBeenLastCalledWith([])
+  act(() => setField({ value: [], setValue }, 'targeting.1.value'))
+  expect(screen.getByText(hint)).toBeTruthy()
+})
 test('free-text lists preserve unfinished commas while saving JSON and accept external values', () => {
   const setValue = vi.fn()
   setField({ value: ['Email'], setValue })
@@ -107,4 +140,5 @@ test.each(['running', 'decided', 'archived'])('all targeting controls are locked
   expect(input.readOnly).toBe(true)
   fireEvent.change(input, { target: { value: '20' } })
   expect(setValue).not.toHaveBeenCalled()
+  expect(document.querySelector('.xp-locked-notice')).toBeNull()
 })

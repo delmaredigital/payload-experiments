@@ -1,7 +1,7 @@
 import type { SerializedAttributeKeys } from '../../types/admin.js'
 import { TARGETING_OPS, isOpValid } from '../../targeting/ops.js'
 import type { TargetingOp } from '../../targeting/ops.js'
-import { NUMBER_OP_LABELS, STRING_OP_LABELS } from '../copy/who.js'
+import { NUMBER_OP_LABELS, STRING_OP_LABELS, WHO_COPY } from '../copy/who.js'
 
 type Attribute = SerializedAttributeKeys[string]
 export type AttributeType = Attribute['type']
@@ -32,6 +32,11 @@ export function coerceValue(type: AttributeType, op: TargetingOp, raw: unknown):
   return raw === true || raw === 'true' ? true : raw === false || raw === 'false' ? false : null
 }
 export function rowPath(path: string): string { return path.slice(0, Math.max(0, path.lastIndexOf('.'))) }
+export function emptyListHint(op: TargetingOp, value: unknown): string | undefined {
+  if (op !== 'in' && op !== 'nin') return undefined
+  const list = coerceValue('string', op, value)
+  return Array.isArray(list) && list.length === 0 ? WHO_COPY.emptyListNote : undefined
+}
 export function humaniseAttribute(key: string): string {
   const words = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ')
   return words.charAt(0).toUpperCase() + words.slice(1)

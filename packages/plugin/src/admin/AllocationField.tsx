@@ -1,5 +1,5 @@
 'use client'
-import { useField, useFormFields } from '@payloadcms/ui'
+import { FieldError, useField, useFormFields } from '@payloadcms/ui'
 import type { NumberFieldClientProps } from 'payload'
 import type { Status, UnitType } from '../types/contracts.js'
 import { EDITABLE_BY_STATUS, isEditable } from '../collections/experiments/editability.js'
@@ -26,6 +26,7 @@ export function AllocationField({ path, field, readOnly }: NumberFieldClientProp
       value={value ?? ''} readOnly={locked} aria-describedby={`${path}-description`}
       style={{ display: 'block', color: 'var(--theme-text)', background: 'var(--theme-input-bg)', border: '1px solid var(--theme-elevation-200)', borderRadius: 'var(--style-radius-s)', padding: '0.5rem' }}
       onChange={event => { if (!locked) setValue(event.target.value === '' ? null : event.target.valueAsNumber) }} />
+    <FieldError path={path} />
     <p id={`${path}-description`}>{sentence}</p>
     {reason && (form.status !== 'running' || !sentence) ? <p className="xp-locked-notice">{reason}</p> : null}
   </div>
