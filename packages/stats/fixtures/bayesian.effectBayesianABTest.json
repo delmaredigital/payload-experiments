@@ -40,6 +40,36 @@
     },
     {
       "expected": {
+        "$raises": "ZeroDivisionError"
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "priorEffect": {
+              "mean": 0,
+              "proper": true,
+              "variance": 0
+            },
+            "priorType": "absolute"
+          }
+        ]
+      },
+      "name": "zero-variance-proper-prior-raises"
+    },
+    {
+      "expected": {
         "chanceToWin": 0.9690691085323815,
         "ci": [
           -0.03510623324566797,

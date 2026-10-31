@@ -1,0 +1,1041 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "additionalUsers": 179822.265625,
+        "error": null,
+        "scalingFactor": 78.18359375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {},
+          {}
+        ]
+      },
+      "name": "defaults-doubling-bisection"
+    },
+    {
+      "expected": {
+        "additionalUsers": null,
+        "error": null,
+        "scalingFactor": 0.0,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {},
+          {
+            "targetMde": 10
+          }
+        ]
+      },
+      "name": "already-powered"
+    },
+    {
+      "expected": {
+        "additionalUsers": null,
+        "error": "could not find upper bound for scaling factor",
+        "scalingFactor": null,
+        "targetPower": 0.8,
+        "updateMessage": "unsuccessful",
+        "upperBoundAchieved": true
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 22244.273247460624
+          },
+          {
+            "errorMessage": null
+          },
+          {},
+          {
+            "priorEffect": null,
+            "targetMde": 1e-12
+          }
+        ]
+      },
+      "name": "upper-bound-not-found"
+    },
+    {
+      "expected": {
+        "additionalUsers": 0.0,
+        "error": "ZERO_NEGATIVE_VARIANCE",
+        "scalingFactor": null,
+        "targetPower": 0.9,
+        "updateMessage": "unsuccessful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+            "pairwiseSampleSize": 0,
+            "pointEstimate": 0.0,
+            "standardError": 0.0
+          },
+          {
+            "errorMessage": "ZERO_NEGATIVE_VARIANCE"
+          },
+          {},
+          {
+            "targetPower": 0.9
+          }
+        ]
+      },
+      "name": "test-error-passthrough"
+    },
+    {
+      "expected": {
+        "additionalUsers": 179840.234375,
+        "error": null,
+        "scalingFactor": 78.19140625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {},
+          {
+            "priorEffect": {
+              "mean": 0,
+              "proper": true,
+              "variance": 0.09
+            }
+          }
+        ]
+      },
+      "name": "proper-prior"
+    },
+    {
+      "expected": {
+        "additionalUsers": 179840.234375,
+        "error": null,
+        "scalingFactor": 78.19140625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {},
+          {
+            "priorEffect": {
+              "mean": 0,
+              "proper": true,
+              "variance": 0.09
+            },
+            "sequential": true
+          }
+        ]
+      },
+      "name": "proper-prior-ignores-sequential"
+    },
+    {
+      "expected": {
+        "additionalUsers": 323671.09375,
+        "error": null,
+        "scalingFactor": 140.7265625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {},
+          {
+            "numGoalMetrics": 2,
+            "numVariations": 3,
+            "pValueCorrected": true,
+            "priorEffect": null
+          }
+        ]
+      },
+      "name": "corrected-3-variations-2-goals"
+    },
+    {
+      "expected": {
+        "additionalUsers": 650360.9375,
+        "error": null,
+        "scalingFactor": 282.765625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 5000,
+            "targetMde": 0.01
+          }
+        ]
+      },
+      "name": "('absolute', False, 5000, 0.01)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 23806.34765625,
+        "error": null,
+        "scalingFactor": 10.3505859375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 5000,
+            "targetMde": 0.05
+          }
+        ]
+      },
+      "name": "('absolute', False, 5000, 0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 23806.34765625,
+        "error": null,
+        "scalingFactor": 10.3505859375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 5000,
+            "targetMde": -0.05
+          }
+        ]
+      },
+      "name": "('absolute', False, 5000, -0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 650360.9375,
+        "error": null,
+        "scalingFactor": 282.765625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": 0.01
+          }
+        ]
+      },
+      "name": "('absolute', False, 1000000.0, 0.01)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 23806.34765625,
+        "error": null,
+        "scalingFactor": 10.3505859375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": 0.05
+          }
+        ]
+      },
+      "name": "('absolute', False, 1000000.0, 0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 23806.34765625,
+        "error": null,
+        "scalingFactor": 10.3505859375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": -0.05
+          }
+        ]
+      },
+      "name": "('absolute', False, 1000000.0, -0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 1736284.375,
+        "error": null,
+        "scalingFactor": 754.90625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 5000,
+            "targetMde": 0.01
+          }
+        ]
+      },
+      "name": "('absolute', True, 5000, 0.01)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 53567.08984375,
+        "error": null,
+        "scalingFactor": 23.2900390625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 5000,
+            "targetMde": 0.05
+          }
+        ]
+      },
+      "name": "('absolute', True, 5000, 0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 53567.08984375,
+        "error": null,
+        "scalingFactor": 23.2900390625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 5000,
+            "targetMde": -0.05
+          }
+        ]
+      },
+      "name": "('absolute', True, 5000, -0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 1249043.75,
+        "error": null,
+        "scalingFactor": 543.0625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": 0.01
+          }
+        ]
+      },
+      "name": "('absolute', True, 1000000.0, 0.01)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 78220.21484375,
+        "error": null,
+        "scalingFactor": 34.0087890625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": 0.05
+          }
+        ]
+      },
+      "name": "('absolute', True, 1000000.0, 0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 78220.21484375,
+        "error": null,
+        "scalingFactor": 34.0087890625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.20000000000000018,
+            "standardError": 0.06012806844880862
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "absolute"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": -0.05
+          }
+        ]
+      },
+      "name": "('absolute', True, 1000000.0, -0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 179822.265625,
+        "error": null,
+        "scalingFactor": 78.18359375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 5000,
+            "targetMde": 0.01
+          }
+        ]
+      },
+      "name": "('relative', False, 5000, 0.01)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 4984.92431640625,
+        "error": null,
+        "scalingFactor": 2.1673583984375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 5000,
+            "targetMde": 0.05
+          }
+        ]
+      },
+      "name": "('relative', False, 5000, 0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 4984.92431640625,
+        "error": null,
+        "scalingFactor": 2.1673583984375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 5000,
+            "targetMde": -0.05
+          }
+        ]
+      },
+      "name": "('relative', False, 5000, -0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 179822.265625,
+        "error": null,
+        "scalingFactor": 78.18359375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": 0.01
+          }
+        ]
+      },
+      "name": "('relative', False, 1000000.0, 0.01)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 4984.92431640625,
+        "error": null,
+        "scalingFactor": 2.1673583984375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": 0.05
+          }
+        ]
+      },
+      "name": "('relative', False, 1000000.0, 0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 4984.92431640625,
+        "error": null,
+        "scalingFactor": 2.1673583984375,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": false,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": -0.05
+          }
+        ]
+      },
+      "name": "('relative', False, 1000000.0, -0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 444403.125,
+        "error": null,
+        "scalingFactor": 193.21875,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 5000,
+            "targetMde": 0.01
+          }
+        ]
+      },
+      "name": "('relative', True, 5000, 0.01)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 12064.3310546875,
+        "error": null,
+        "scalingFactor": 5.245361328125,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 5000,
+            "targetMde": 0.05
+          }
+        ]
+      },
+      "name": "('relative', True, 5000, 0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 12064.3310546875,
+        "error": null,
+        "scalingFactor": 5.245361328125,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 5000,
+            "targetMde": -0.05
+          }
+        ]
+      },
+      "name": "('relative', True, 5000, -0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 366023.4375,
+        "error": null,
+        "scalingFactor": 159.140625,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": 0.01
+          }
+        ]
+      },
+      "name": "('relative', True, 1000000.0, 0.01)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 33095.6298828125,
+        "error": null,
+        "scalingFactor": 14.389404296875,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": 0.05
+          }
+        ]
+      },
+      "name": "('relative', True, 1000000.0, 0.05)"
+    },
+    {
+      "expected": {
+        "additionalUsers": 33095.6298828125,
+        "error": null,
+        "scalingFactor": 14.389404296875,
+        "targetPower": 0.8,
+        "updateMessage": "successful",
+        "upperBoundAchieved": false
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {
+            "differenceType": "relative"
+          },
+          {
+            "priorEffect": null,
+            "sequential": true,
+            "sequentialTuningParameter": 1000000.0,
+            "targetMde": -0.05
+          }
+        ]
+      },
+      "name": "('relative', True, 1000000.0, -0.05)"
+    },
+    {
+      "expected": {
+        "$raises": "ValueError"
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {},
+          {
+            "targetMde": 0,
+            "targetPower": {
+              "$num": "nan"
+            }
+          }
+        ]
+      },
+      "name": "non-convergence-grid"
+    }
+  ],
+  "source": {
+    "module": "gbstats.power.midexperimentpower",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "MidExperimentPower"
+  }
+}
