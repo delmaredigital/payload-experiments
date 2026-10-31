@@ -36,7 +36,18 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
   })
   const allowed = allowList.some(entry => matchesGlob(file, entry.file))
   const inDb = file.startsWith('src/db/')
-  const aliases = new Set<string>()
+  // Bind this source alone: symbols distinguish same-named aliases in separate
+  // scopes without loading dependencies or typechecking the scanned program.
+  const options: ts.CompilerOptions = { noLib: true, noResolve: true }
+  const host = ts.createCompilerHost(options)
+  host.getSourceFile = name => name === file ? source : undefined
+  const checker = ts.createProgram([file], options, host).getTypeChecker()
+  type Alias = { method: string; receiver: string }
+  const aliases = new Map<ts.Symbol, Alias>()
+  const setAlias = (name: ts.Identifier, alias: Alias) => {
+    const symbol = checker.getSymbolAtLocation(name)
+    if (symbol) aliases.set(symbol, alias)
+  }
   const comments: Array<{ end: number; line: number }> = []
   const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.JSX, text)
   for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
@@ -64,10 +75,20 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
   }
   const collectAliases = (node: ts.Node) => {
     if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent) && ts.isIdentifier(node.name)) {
-      if (methods.has(nameOf(node.propertyName) ?? node.name.text)) aliases.add(node.name.text)
+      const method = nameOf(node.propertyName) ?? node.name.text
+      const binding = node.parent.parent
+      if (methods.has(method)) setAlias(node.name, {
+        method,
+        receiver: (ts.isVariableDeclaration(binding) || ts.isParameter(binding))
+          ? binding.initializer?.getText(source) ?? '' : '',
+      })
     }
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-      if (methods.has(memberName(node.initializer) ?? '')) aliases.add(node.name.text)
+      const member = unwrap(node.initializer)
+      const method = memberName(member) ?? ''
+      if (methods.has(method) && (ts.isPropertyAccessExpression(member) || ts.isElementAccessExpression(member))) {
+        setAlias(node.name, { method, receiver: member.expression.getText(source) })
+      }
     }
     ts.forEachChild(node, collectAliases)
   }
@@ -76,9 +97,18 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
   const walk = (node: ts.Node) => {
     if (ts.isCallExpression(node)) {
       const callee = unwrap(node.expression)
-      const method = memberName(callee) ?? (ts.isIdentifier(callee) && aliases.has(callee.text) ? callee.text : '')
-      if (methods.has(method) || (ts.isIdentifier(callee) && aliases.has(callee.text))) {
-        const arg = node.arguments[0] && unwrap(node.arguments[0])
+      const symbol = ts.isIdentifier(callee) ? checker.getSymbolAtLocation(callee) : undefined
+      const alias = symbol ? aliases.get(symbol) : undefined
+      const method = memberName(callee) ?? alias?.method ?? ''
+      const receiver = ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee)
+        ? callee.expression.getText(source) : alias?.receiver ?? ''
+      const arg = node.arguments[0] && unwrap(node.arguments[0])
+      const localApiShape = arg && ts.isObjectLiteralExpression(arg) && arg.properties.some(
+        property => ['collection', 'slug'].includes(nameOf(property.name) ?? ''),
+      )
+      // Call shape identifies Local API calls on any receiver; a payload receiver
+      // also catches options variables and malformed calls without a signature.
+      if (methods.has(method) && (localApiShape || receiver.includes('payload'))) {
         if (!arg || !ts.isObjectLiteralExpression(arg)) {
           if (!allowed) report(node, 'local-api-nonliteral')
         } else {
@@ -136,6 +166,7 @@ describe('access and SQL source boundaries', () => {
 
   const fixtures = [
     ['missingOverride.ts', 'local-api-override-required'],
+    ['otherClient.ts', 'local-api-override-required'],
     ['nonliteral.ts', 'local-api-nonliteral'],
     ['unapprovedOverride.ts', 'override-true-not-allowed'],
     ['uncommentedOverride.ts', 'override-true-comment-required'],
@@ -156,7 +187,35 @@ describe('access and SQL source boundaries', () => {
     }
     expect(scan(`const { ${method}: alias } = payload; alias({})`, 'src/example.ts')).toHaveLength(1)
     expect(scan(`const alias = req.payload.${method}; alias({})`, 'src/example.ts')).toHaveLength(1)
+    expect(scan(`someClient.${method}({ slug: 'xp-state' })`, 'src/example.ts')).toHaveLength(1)
+    expect(scan(`payload.${method}(options)`, 'src/example.ts').map(v => v.rule)).toEqual(['local-api-nonliteral'])
     expect(scan(`payload.${method}({ overrideAccess: false })`, 'src/example.ts')).toEqual([])
+  })
+
+  test.each(['mapDelete.ts', 'hmacUpdate.ts', 'arrayFind.ts', 'setDelete.ts'])(
+    '%s is not a Local API call', fixture => {
+      const text = readFileSync(new URL(`./_fixtures/${fixture}`, import.meta.url), 'utf8')
+      expect(scan(text, 'src/example.ts')).toEqual([])
+    },
+  )
+
+  test('arbitrary receivers and aliases require a Local API argument shape', () => {
+    expect(scan('someClient.find(args)', 'src/example.ts')).toEqual([])
+    expect(scan('someClient.find({ overrideAccess: true })', 'src/example.ts')).toEqual([])
+    expect(scan('const { find: alias } = someClient; alias({})', 'src/example.ts')).toEqual([])
+    expect(scan("const { find: alias } = someClient; alias({ collection: 'x' })", 'src/example.ts').map(v => v.rule))
+      .toEqual(['local-api-override-required'])
+    expect(scan('const { find: alias } = payload; alias(args)', 'src/example.ts').map(v => v.rule))
+      .toEqual(['local-api-nonliteral'])
+  })
+
+  test('same-named aliases in separate scopes keep their own receiver', () => {
+    const payloadCall = 'function a() { const { find } = payload; find(args) }'
+    const otherCall = 'function b() { const { find } = someClient; find(args) }'
+    for (const text of [payloadCall + '\n' + otherCall, otherCall + '\n' + payloadCall]) {
+      expect(scan(text, 'src/example.ts').map(v => v.rule)).toEqual(['local-api-nonliteral'])
+    }
+    expect(scan('const { find } = payload; function a(find) { find(args) }', 'src/example.ts')).toEqual([])
   })
 
   test('UI copy and ordinary literals do not look like SQL', () => {

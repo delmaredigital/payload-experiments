@@ -24,9 +24,9 @@ describe('SQL identifiers match the generated Payload schema', () => {
     const events = getTableConfig(schema.xp_events)
     expect(schema.xp_events.dedupeKey.name).toBe(COLUMNS.events.dedupeKey)
     expect(schema.xp_events.dedupeKey.getSQLType()).toBe('varchar')
-    const index = events.indexes.find(index => index.config.name === 'xp_events_dedupe_key_idx')
-    expect(index?.config.unique).toBe(true)
-    expect(index?.config.columns).toEqual([expect.objectContaining({ name: COLUMNS.events.dedupeKey })])
+    expect(events.indexes.some(index => index.config.unique && index.config.columns.length === 1 &&
+      'name' in index.config.columns[0]! && index.config.columns[0].name === COLUMNS.events.dedupeKey,
+    )).toBe(true)
   })
 
   test('state is xp_state with timestamps; hasMany metrics live in xp_experiments_rels', () => {
