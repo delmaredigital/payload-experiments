@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { NextRequest } from 'next/server'
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
 import { insertIdentityOnOwnConnection } from '../db/identities.js'
 import { verifyUnitCookie } from '../runtime/cookie.js'
@@ -7,6 +8,8 @@ export async function linkIdentity<TUser extends { id: string | number } = { id:
   let payload: Payload | undefined
   try {
     const runtime = serverRuntime.proxyRuntime
+    // Consent sees cookies and headers only; the URL is a placeholder.
+    if (runtime.cookie.consent?.(new NextRequest('http://consent.invalid/', { headers: opts.headers })) === false) return
     const cookie = opts.headers.get('cookie')?.split(';').map(part => part.trim()).find(part => part.startsWith(`${runtime.cookie.name}=`))?.slice(runtime.cookie.name.length + 1)
     const anonymousId = verifyUnitCookie(cookie, runtime.secrets)
     if (!anonymousId) return

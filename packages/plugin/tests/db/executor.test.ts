@@ -91,6 +91,16 @@ test('ownConnection uses one checked-out client and exposes release', async () =
   try { await exec.query('SELECT $1', [8]) } finally { exec.release() }
   expect(client.query).toHaveBeenCalledWith(expect.objectContaining({ text: 'SELECT $1', values: [8] }))
   expect(client.release).toHaveBeenCalledOnce()
+  expect(client.release).toHaveBeenCalledWith(undefined)
+})
+test('ownConnection releases a failed query with its error to discard the client', async () => {
+  const { pool, client } = fakePool()
+  const queryError = new Error('connection lost')
+  client.query.mockRejectedValue(queryError)
+  const exec = await ownConnection(pool)
+  try { await expect(exec.query('SELECT 1')).rejects.toBe(queryError) }
+  finally { exec.release() }
+  expect(client.release).toHaveBeenCalledExactlyOnceWith(queryError)
 })
 test.each([false, true])('timeout transaction releases on success/failure (%s)', async fail => {
   const { pool, client } = fakePool()
