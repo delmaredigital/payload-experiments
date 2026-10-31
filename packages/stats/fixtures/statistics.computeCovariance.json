@@ -1,0 +1,331 @@
+{
+  "cases": [
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          0,
+          {
+            "n": 0,
+            "sum": 0.0,
+            "type": "proportion"
+          },
+          {
+            "n": 0,
+            "sum": 0.0,
+            "type": "proportion"
+          },
+          0.0
+        ]
+      },
+      "name": "0-proportions"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          0,
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          0.0
+        ]
+      },
+      "name": "0-means"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          0,
+          {
+            "n": 0,
+            "sum": 0.0,
+            "type": "proportion"
+          },
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          0.0
+        ]
+      },
+      "name": "0-mixed"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          1,
+          {
+            "n": 1,
+            "sum": 0.5,
+            "type": "proportion"
+          },
+          {
+            "n": 1,
+            "sum": 0.25,
+            "type": "proportion"
+          },
+          0.2
+        ]
+      },
+      "name": "1-proportions"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          1,
+          {
+            "n": 1,
+            "sum": -1,
+            "sumSquares": 2,
+            "type": "sampleMean"
+          },
+          {
+            "n": 1,
+            "sum": 2,
+            "sumSquares": 6,
+            "type": "sampleMean"
+          },
+          0.2
+        ]
+      },
+      "name": "1-means"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          1,
+          {
+            "n": 1,
+            "sum": 0.5,
+            "type": "proportion"
+          },
+          {
+            "n": 1,
+            "sum": -1,
+            "sumSquares": 2,
+            "type": "sampleMean"
+          },
+          0.2
+        ]
+      },
+      "name": "1-mixed"
+    },
+    {
+      "expected": 0.07500000000000001,
+      "input": {
+        "args": [
+          2,
+          {
+            "n": 2,
+            "sum": 1.0,
+            "type": "proportion"
+          },
+          {
+            "n": 2,
+            "sum": 0.5,
+            "type": "proportion"
+          },
+          0.4
+        ]
+      },
+      "name": "2-proportions"
+    },
+    {
+      "expected": 4.4,
+      "input": {
+        "args": [
+          2,
+          {
+            "n": 2,
+            "sum": -2,
+            "sumSquares": 4,
+            "type": "sampleMean"
+          },
+          {
+            "n": 2,
+            "sum": 4,
+            "sumSquares": 12,
+            "type": "sampleMean"
+          },
+          0.4
+        ]
+      },
+      "name": "2-means"
+    },
+    {
+      "expected": 1.4,
+      "input": {
+        "args": [
+          2,
+          {
+            "n": 2,
+            "sum": 1.0,
+            "type": "proportion"
+          },
+          {
+            "n": 2,
+            "sum": -2,
+            "sumSquares": 4,
+            "type": "sampleMean"
+          },
+          0.4
+        ]
+      },
+      "name": "2-mixed"
+    },
+    {
+      "expected": 0.07500000000000001,
+      "input": {
+        "args": [
+          1000,
+          {
+            "n": 1000,
+            "sum": 500.0,
+            "type": "proportion"
+          },
+          {
+            "n": 1000,
+            "sum": 250.0,
+            "type": "proportion"
+          },
+          200.0
+        ]
+      },
+      "name": "1000-proportions"
+    },
+    {
+      "expected": 2.2022022022022023,
+      "input": {
+        "args": [
+          1000,
+          {
+            "n": 1000,
+            "sum": -1000,
+            "sumSquares": 2000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 1000,
+            "sum": 2000,
+            "sumSquares": 6000,
+            "type": "sampleMean"
+          },
+          200.0
+        ]
+      },
+      "name": "1000-means"
+    },
+    {
+      "expected": 0.7007007007007007,
+      "input": {
+        "args": [
+          1000,
+          {
+            "n": 1000,
+            "sum": 500.0,
+            "type": "proportion"
+          },
+          {
+            "n": 1000,
+            "sum": -1000,
+            "sumSquares": 2000,
+            "type": "sampleMean"
+          },
+          200.0
+        ]
+      },
+      "name": "1000-mixed"
+    },
+    {
+      "expected": 0.07500000000000001,
+      "input": {
+        "args": [
+          10000000,
+          {
+            "n": 10000000,
+            "sum": 5000000.0,
+            "type": "proportion"
+          },
+          {
+            "n": 10000000,
+            "sum": 2500000.0,
+            "type": "proportion"
+          },
+          2000000.0
+        ]
+      },
+      "name": "10000000-proportions"
+    },
+    {
+      "expected": 2.200000220000022,
+      "input": {
+        "args": [
+          10000000,
+          {
+            "n": 10000000,
+            "sum": -10000000,
+            "sumSquares": 20000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          2000000.0
+        ]
+      },
+      "name": "10000000-means"
+    },
+    {
+      "expected": 0.700000070000007,
+      "input": {
+        "args": [
+          10000000,
+          {
+            "n": 10000000,
+            "sum": 5000000.0,
+            "type": "proportion"
+          },
+          {
+            "n": 10000000,
+            "sum": -10000000,
+            "sumSquares": 20000000,
+            "type": "sampleMean"
+          },
+          2000000.0
+        ]
+      },
+      "name": "10000000-mixed"
+    }
+  ],
+  "source": {
+    "module": "gbstats.models.statistics",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "compute_covariance"
+  }
+}

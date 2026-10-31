@@ -1,0 +1,410 @@
+{
+  "cases": [
+    {
+      "expected": 0.45102505694760825,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 2000,
+              "sumSquares": 6000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 2500,
+            "pre": {
+              "n": 1000,
+              "sum": 1000,
+              "sumSquares": 2000,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 2200,
+              "sumSquares": 7000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 2900,
+            "pre": {
+              "n": 1000,
+              "sum": 1100,
+              "sumSquares": 2400,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "cuped-means"
+    },
+    {
+      "expected": 0.018637909653276857,
+      "input": {
+        "args": [
+          {
+            "n": 4,
+            "post": {
+              "n": 4,
+              "sum": 11,
+              "sumSquares": 39,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 71.6,
+            "pre": {
+              "n": 4,
+              "sum": 23.7,
+              "sumSquares": 485.15,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 4,
+            "post": {
+              "n": 4,
+              "sum": 11,
+              "sumSquares": 39,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 71.6,
+            "pre": {
+              "n": 4,
+              "sum": 23.7,
+              "sumSquares": 485.15,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "upstream-shared-models"
+    },
+    {
+      "expected": 0.22089761570827485,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 500,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 200,
+            "pre": {
+              "n": 1000,
+              "sum": 300,
+              "type": "proportion"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 550,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 220,
+            "pre": {
+              "n": 1000,
+              "sum": 320,
+              "type": "proportion"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "cuped-proportions"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 2000,
+              "sumSquares": 6000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 1000,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 2200,
+              "sumSquares": 7000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 1000,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "zero-pre"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 1000,
+              "sum": 1000,
+              "sumSquares": 2000,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 1000,
+              "sum": 1100,
+              "sumSquares": 2400,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "zero-post"
+    },
+    {
+      "expected": 0.0,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "post": {
+              "n": 2,
+              "sum": 2,
+              "sumSquares": 4,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 2,
+            "pre": {
+              "n": 2,
+              "sum": 2,
+              "sumSquares": 4,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 2,
+            "post": {
+              "n": 2,
+              "sum": 2,
+              "sumSquares": 4,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 2,
+            "pre": {
+              "n": 2,
+              "sum": 2,
+              "sumSquares": 4,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "zero-covariance"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "post": {
+              "n": 0,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 0,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 0,
+            "post": {
+              "n": 0,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 0,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "empty"
+    },
+    {
+      "expected": {
+        "$raises": "TypeError"
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "post": {
+              "n": 2,
+              "sum": 2,
+              "sumSquares": 4,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 2,
+              "sum": 1,
+              "type": "proportion"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 2000,
+              "sumSquares": 6000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 2500,
+            "pre": {
+              "n": 1000,
+              "sum": 1000,
+              "sumSquares": 2000,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "invalid-a"
+    },
+    {
+      "expected": {
+        "$raises": "TypeError"
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 2000,
+              "sumSquares": 6000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 2500,
+            "pre": {
+              "n": 1000,
+              "sum": 1000,
+              "sumSquares": 2000,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 2,
+            "post": {
+              "n": 2,
+              "sum": 2,
+              "sumSquares": 4,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 2,
+              "sum": 1,
+              "type": "proportion"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "invalid-b"
+    }
+  ],
+  "source": {
+    "module": "gbstats.models.statistics",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "compute_theta"
+  }
+}

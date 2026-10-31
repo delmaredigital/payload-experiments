@@ -1,0 +1,7024 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "ci": [
+          0.08415697243115916,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.03095591372809181,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-means-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.08415697243115916,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.05446239286740884,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-means-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.08471663704726476,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.010079201321793407,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-means-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.08471663704726476,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.06395201219126934,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-means-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.1741322515611854,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.03095591372809181,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-means-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.1741322515611854,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.05446239286740884,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-means-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.0003698125708561095,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.010079201321793407,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-means-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.0003698125708561095,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.06395201219126934,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-means-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.22181766477090126,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.03095591372809181,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-means-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.22181766477090126,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.05446239286740884,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-means-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.13006525586346546,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.010079201321793407,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-means-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.13006525586346546,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.06395201219126934,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-means-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.3877953741052513,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.06666666666666665,
+        "pValue": 0.40353584160109435,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.06666666666666665,
+          "stddev": 0.27169855689735606
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.3877953741052513,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.06666666666666665,
+        "pValue": 0.5486009525113454,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.06666666666666665,
+          "stddev": 0.27169855689735606
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.18619381220342815,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.033333333333333326,
+        "pValue": 0.4002227722194446,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.033333333333333326,
+          "stddev": 0.13124354355497922
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.18619381220342815,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.033333333333333326,
+        "pValue": 0.6932570749938438,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.033333333333333326,
+          "stddev": 0.13124354355497922
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.5840977693255209,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.06666666666666665,
+        "pValue": 0.40353584160109435,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.06666666666666665,
+          "stddev": 0.27169855689735606
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.5840977693255209,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.06666666666666665,
+        "pValue": 0.5486009525113454,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.06666666666666665,
+          "stddev": 0.27169855689735606
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.2810173631682987,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.033333333333333326,
+        "pValue": 0.4002227722194446,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.033333333333333326,
+          "stddev": 0.13124354355497922
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.2810173631682987,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.033333333333333326,
+        "pValue": 0.6932570749938438,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.033333333333333326,
+          "stddev": 0.13124354355497922
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.28570843059426015,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.06666666666666665,
+        "pValue": 0.40353584160109435,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.06666666666666665,
+          "stddev": 0.27169855689735606
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.28570843059426015,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.06666666666666665,
+        "pValue": 0.5486009525113454,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.06666666666666665,
+          "stddev": 0.27169855689735606
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.13688088110037067,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.033333333333333326,
+        "pValue": 0.4002227722194446,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.033333333333333326,
+          "stddev": 0.13124354355497922
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.13688088110037067,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.033333333333333326,
+        "pValue": 0.6932570749938438,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.033333333333333326,
+          "stddev": 0.13124354355497922
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 28,
+            "sum": 14,
+            "type": "proportion"
+          },
+          {
+            "n": 30,
+            "sum": 16,
+            "type": "proportion"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-proportions-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.2971717574679874,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2738853503184713,
+        "pValue": 0.20571034563764856,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2738853503184713,
+          "stddev": 0.32292404864017277
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.2971717574679874,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2738853503184713,
+        "pValue": 0.2995912830977949,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2738853503184713,
+          "stddev": 0.32292404864017277
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.364525236718634,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.5477707006369426,
+        "pValue": 0.1536497798976817,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.5477707006369426,
+          "stddev": 0.5158893806449353
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.364525236718634,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.5477707006369426,
+        "pValue": 0.20043286712412156,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.5477707006369426,
+          "stddev": 0.5158893806449353
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.5797581265597272,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2738853503184713,
+        "pValue": 0.20571034563764856,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2738853503184713,
+          "stddev": 0.32292404864017277
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.5797581265597272,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2738853503184713,
+        "pValue": 0.2995912830977949,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2738853503184713,
+          "stddev": 0.32292404864017277
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.8159728992365838,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.5477707006369426,
+        "pValue": 0.1536497798976817,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.5477707006369426,
+          "stddev": 0.5158893806449353
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.8159728992365838,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.5477707006369426,
+        "pValue": 0.20043286712412156,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.5477707006369426,
+          "stddev": 0.5158893806449353
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.16167991636082057,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2738853503184713,
+        "pValue": 0.20571034563764856,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2738853503184713,
+          "stddev": 0.32292404864017277
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.16167991636082057,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2738853503184713,
+        "pValue": 0.2995912830977949,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2738853503184713,
+          "stddev": 0.32292404864017277
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.14806937879922277,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.5477707006369426,
+        "pValue": 0.1536497798976817,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.5477707006369426,
+          "stddev": 0.5158893806449353
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.14806937879922277,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.5477707006369426,
+        "pValue": 0.20043286712412156,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.5477707006369426,
+          "stddev": 0.5158893806449353
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 12,
+            "sum": 24,
+            "sumSquares": 80,
+            "type": "sampleMean"
+          },
+          {
+            "n": 157,
+            "sum": 400,
+            "sumSquares": 1600,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "unequal-n-Welch-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.0451133995524301,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.503383995601997,
+        "pValue": 0.06557373027271729,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.503383995601997,
+          "stddev": 0.33341199182116854
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.0451133995524301,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.503383995601997,
+        "pValue": 0.11318855420114138,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.503383995601997,
+          "stddev": 0.33341199182116854
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.020802296044617474,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2343873339788538,
+        "pValue": 0.03553620055002016,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2343873339788538,
+          "stddev": 0.12983072216925332
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.020802296044617474,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2343873339788538,
+        "pValue": 0.15033246796340083,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2343873339788538,
+          "stddev": 0.12983072216925332
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.27245257934607114,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.503383995601997,
+        "pValue": 0.06557373027271729,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.503383995601997,
+          "stddev": 0.33341199182116854
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.27245257934607114,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.503383995601997,
+        "pValue": 0.11318855420114138,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.503383995601997,
+          "stddev": 0.33341199182116854
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.06772364367564715,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2343873339788538,
+        "pValue": 0.03553620055002016,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2343873339788538,
+          "stddev": 0.12983072216925332
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.06772364367564715,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2343873339788538,
+        "pValue": 0.15033246796340083,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2343873339788538,
+          "stddev": 0.12983072216925332
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0760529620817807,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.503383995601997,
+        "pValue": 0.06557373027271729,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.503383995601997,
+          "stddev": 0.33341199182116854
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0760529620817807,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.503383995601997,
+        "pValue": 0.11318855420114138,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.503383995601997,
+          "stddev": 0.33341199182116854
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.06798451090036917,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2343873339788538,
+        "pValue": 0.03553620055002016,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2343873339788538,
+          "stddev": 0.12983072216925332
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.06798451090036917,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.2343873339788538,
+        "pValue": 0.15033246796340083,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.2343873339788538,
+          "stddev": 0.12983072216925332
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3461,
+              "sum": 22.7,
+              "sumSquares": 1348.29,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-cuped-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.08415697243115916,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.03095591372809181,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.08415697243115916,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.05446239286740884,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.08471663704726476,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.010079201321793407,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.08471663704726476,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.06395201219126934,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.1741322515611854,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.03095591372809181,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.1741322515611854,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.05446239286740884,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.0003698125708561095,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.010079201321793407,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.0003698125708561095,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.06395201219126934,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.22181766477090126,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.03095591372809181,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.22181766477090126,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.05446239286740884,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.13006525586346546,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.010079201321793407,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.13006525586346546,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.29,
+        "pValue": 0.06395201219126934,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.29,
+          "stddev": 0.12478363158758794
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "post": {
+              "n": 3407,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3407,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "post": {
+              "n": 3461,
+              "sum": 2422.7,
+              "sumSquares": 134698.29,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 3461,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "theta-zero-revert-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.37913685508712097,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.5,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.23046749497263705
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "identical-arms-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.37913685508712097,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.6678128421260994,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.23046749497263705
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "identical-arms-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.1554461105857196,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.5,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.09449167293878119
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "identical-arms-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.1554461105857196,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.855020594583071,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.09449167293878119
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "identical-arms-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.5362737595585961,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.5,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.23046749497263705
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "identical-arms-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.5362737595585961,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.6678128421260994,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.23046749497263705
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "identical-arms-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.21987224141902442,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.5,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.09449167293878119
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "identical-arms-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.21987224141902442,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.855020594583071,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.09449167293878119
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "identical-arms-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.2953846239667981,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.5,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.23046749497263705
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "identical-arms-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.2953846239667981,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.6678128421260994,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.23046749497263705
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "identical-arms-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.12110769582638722,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.5,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.09449167293878119
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "identical-arms-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.12110769582638722,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.0,
+        "pValue": 0.855020594583071,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.09449167293878119
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "identical-arms-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.09659494869322194,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.20083561628644897,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.11900301542106241
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "negative-baseline-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.09659494869322194,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.5000000000000001,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.11900301542106241
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "negative-baseline-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.10949308584713863,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.2156163678912929,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.12681052637102938
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "negative-baseline-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.10949308584713863,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.5000000000000001,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.12681052637102938
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "negative-baseline-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.17893438507405707,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.20083561628644897,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.11900301542106241
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "negative-baseline-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.17893438507405707,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.5000000000000001,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.11900301542106241
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "negative-baseline-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.1972346210645693,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.2156163678912929,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.12681052637102938
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "negative-baseline-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.1972346210645693,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.5000000000000001,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.12681052637102938
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "negative-baseline-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.0529815139795021,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.20083561628644897,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.11900301542106241
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "negative-baseline-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.0529815139795021,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.5000000000000001,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.11900301542106241
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "negative-baseline-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.06301827515997627,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.2156163678912929,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.12681052637102938
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "negative-baseline-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          -0.06301827515997627,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.09999999999999998,
+        "pValue": 0.5000000000000001,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.09999999999999998,
+          "stddev": 0.12681052637102938
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": -100,
+            "sumSquares": 200,
+            "type": "sampleMean"
+          },
+          {
+            "n": 200,
+            "sum": -180,
+            "sumSquares": 400,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "negative-baseline-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0994434168658567,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.10000000000000009,
+        "pValue": 0.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.10000000000000009,
+          "stddev": 0.0003383785032326982
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "large-n-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0994434168658567,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.10000000000000009,
+        "pValue": 0.49999999999990186,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.10000000000000009,
+          "stddev": 0.0003383785032326982
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "large-n-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.19893910118584593,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.20000000000000018,
+        "pValue": 0.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.20000000000000018,
+          "stddev": 0.0006449806521129175
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "large-n-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.19893910118584593,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.20000000000000018,
+        "pValue": 0.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.20000000000000018,
+          "stddev": 0.0006449806521129175
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "large-n-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.09921281382519831,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.10000000000000009,
+        "pValue": 0.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.10000000000000009,
+          "stddev": 0.0003383785032326982
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "large-n-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.09921281382519831,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.10000000000000009,
+        "pValue": 0.49999999999990186,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.10000000000000009,
+          "stddev": 0.0003383785032326982
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "large-n-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.19849955051072285,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.20000000000000018,
+        "pValue": 0.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.20000000000000018,
+          "stddev": 0.0006449806521129175
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "large-n-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.19849955051072285,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.20000000000000018,
+        "pValue": 0.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.20000000000000018,
+          "stddev": 0.0006449806521129175
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "large-n-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.09956635048509109,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.10000000000000009,
+        "pValue": 0.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.10000000000000009,
+          "stddev": 0.0003383785032326982
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "large-n-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.09956635048509109,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.10000000000000009,
+        "pValue": 0.49999999999990186,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.10000000000000009,
+          "stddev": 0.0003383785032326982
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "large-n-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.19917342400819696,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.20000000000000018,
+        "pValue": 0.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.20000000000000018,
+          "stddev": 0.0006449806521129175
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "large-n-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.19917342400819696,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.20000000000000018,
+        "pValue": 0.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.20000000000000018,
+          "stddev": 0.0006449806521129175
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          },
+          {
+            "n": 10000000,
+            "sum": 22000000,
+            "sumSquares": 70000000,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "large-n-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "upstream-negative-variance-error-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "empty-error-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "empty-error-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "empty-error-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "empty-error-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "empty-error-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "empty-error-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "empty-error-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "empty-error-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "empty-error-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "empty-error-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "empty-error-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "empty-error-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "singleton-error-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "singleton-error-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "singleton-error-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "singleton-error-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "singleton-error-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "singleton-error-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "singleton-error-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "singleton-error-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "singleton-error-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "singleton-error-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "singleton-error-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 1,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "singleton-error-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "baseline-error-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "baseline-error-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_BASELINE_VARIATION",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "baseline-error-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_BASELINE_VARIATION",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "baseline-error-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "baseline-error-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "baseline-error-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_BASELINE_VARIATION",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "baseline-error-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_BASELINE_VARIATION",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "baseline-error-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "baseline-error-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "baseline-error-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_BASELINE_VARIATION",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "baseline-error-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "ZERO_NEGATIVE_BASELINE_VARIATION",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 100,
+            "sum": 0,
+            "sumSquares": 100,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "baseline-error-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.05-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.05-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.05-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.05,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.05-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.01-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.01-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.01-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.01,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.01-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.1-relative-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "relative",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.1-relative-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.1-absolute-0"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "errorMessage": "If stat_a is a RegressionAdjustedStatistic, stat_b must be as well",
+        "expected": 0.0,
+        "pValue": 1.0,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.0,
+          "stddev": 0.0
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3000,
+            "post": {
+              "n": 3000,
+              "sum": 1396.87,
+              "sumSquares": 52377.9767,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 1,
+            "pre": {
+              "n": 3000,
+              "sum": 16.87,
+              "sumSquares": 527.9767,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          },
+          {
+            "alpha": 0.1,
+            "differenceType": "absolute",
+            "testValue": 0.1
+          }
+        ]
+      },
+      "name": "mixed-RA-error-0.1-absolute-0.1"
+    },
+    {
+      "expected": {
+        "ci": [
+          0.08415697243115916,
+          {
+            "$num": "inf"
+          }
+        ],
+        "errorMessage": null,
+        "expected": 0.7073170731707317,
+        "pValue": 0.03095591372809181,
+        "pValueErrorMessage": null,
+        "uplift": {
+          "dist": "normal",
+          "mean": 0.7073170731707317,
+          "stddev": 0.3787943616681428
+        }
+      },
+      "input": {
+        "args": [
+          {
+            "n": 3407,
+            "sum": 1396.87,
+            "sumSquares": 52377.9767,
+            "type": "sampleMean"
+          },
+          {
+            "n": 3461,
+            "sum": 2422.7,
+            "sumSquares": 134698.29,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "default-config"
+    }
+  ],
+  "source": {
+    "module": "gbstats.frequentist.tests",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "OneSidedTreatmentGreaterTTest"
+  }
+}

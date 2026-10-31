@@ -1,0 +1,106 @@
+{
+  "cases": [
+    {
+      "expected": 0.007950617283950617,
+      "input": {
+        "args": [
+          2,
+          3,
+          100,
+          4,
+          5,
+          250,
+          true
+        ]
+      },
+      "name": "relative"
+    },
+    {
+      "expected": 0.036000000000000004,
+      "input": {
+        "args": [
+          2,
+          3,
+          100,
+          4,
+          5,
+          250,
+          false
+        ]
+      },
+      "name": "absolute"
+    },
+    {
+      "expected": 0.007950617283950617,
+      "input": {
+        "args": [
+          2,
+          -3,
+          100,
+          4,
+          -5,
+          250,
+          true
+        ]
+      },
+      "name": "negative-baseline"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          2,
+          0,
+          100,
+          4,
+          5,
+          250,
+          true
+        ]
+      },
+      "name": "zero-baseline"
+    },
+    {
+      "expected": 1.0617283950617283e-07,
+      "input": {
+        "args": [
+          2,
+          3,
+          10000000,
+          4,
+          5,
+          10000000,
+          true
+        ]
+      },
+      "name": "large-n"
+    },
+    {
+      "expected": 6.0,
+      "input": {
+        "args": [
+          2,
+          3,
+          1,
+          4,
+          5,
+          1,
+          false
+        ]
+      },
+      "name": "singleton"
+    }
+  ],
+  "source": {
+    "module": "gbstats.utils",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "frequentist_variance"
+  }
+}

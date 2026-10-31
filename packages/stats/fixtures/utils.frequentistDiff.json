@@ -1,0 +1,96 @@
+{
+  "cases": [
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          2,
+          3,
+          true
+        ]
+      },
+      "name": "relative-default-unadjusted"
+    },
+    {
+      "expected": 1,
+      "input": {
+        "args": [
+          2,
+          3,
+          false
+        ]
+      },
+      "name": "absolute"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          -2,
+          -1,
+          true
+        ]
+      },
+      "name": "negative-baseline"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          2,
+          3,
+          true,
+          0
+        ]
+      },
+      "name": "zero-unadjusted-falsy"
+    },
+    {
+      "expected": 0.25,
+      "input": {
+        "args": [
+          2,
+          3,
+          true,
+          4
+        ]
+      },
+      "name": "set-unadjusted"
+    },
+    {
+      "expected": 0.25,
+      "input": {
+        "args": [
+          2,
+          3,
+          true,
+          -4
+        ]
+      },
+      "name": "negative-unadjusted"
+    },
+    {
+      "expected": 3,
+      "input": {
+        "args": [
+          0,
+          3,
+          false
+        ]
+      },
+      "name": "zero-absolute"
+    }
+  ],
+  "source": {
+    "module": "gbstats.utils",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "frequentist_diff"
+  }
+}

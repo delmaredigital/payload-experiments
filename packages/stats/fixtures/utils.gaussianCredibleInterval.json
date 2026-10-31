@@ -1,0 +1,86 @@
+{
+  "cases": [
+    {
+      "expected": [
+        -1.9599639845400545,
+        1.959963984540054
+      ],
+      "input": {
+        "args": [
+          0,
+          1,
+          0.05
+        ]
+      },
+      "name": "standard"
+    },
+    {
+      "expected": [
+        -1.1516586070978017,
+        9.1516586070978
+      ],
+      "input": {
+        "args": [
+          4,
+          2,
+          0.01
+        ]
+      },
+      "name": "shift-scale"
+    },
+    {
+      "expected": [
+        -10.493456088085441,
+        -9.506543911914559
+      ],
+      "input": {
+        "args": [
+          -10,
+          0.3,
+          0.1
+        ]
+      },
+      "name": "negative-mean"
+    },
+    {
+      "expected": [
+        9999999.98040036,
+        10000000.01959964
+      ],
+      "input": {
+        "args": [
+          10000000.0,
+          0.01,
+          0.05
+        ]
+      },
+      "name": "large-location"
+    },
+    {
+      "expected": [
+        -489.1538475698591,
+        489.1738475714779
+      ],
+      "input": {
+        "args": [
+          0.01,
+          100,
+          1e-06
+        ]
+      },
+      "name": "small-alpha"
+    }
+  ],
+  "source": {
+    "module": "gbstats.utils",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "gaussian_credible_interval"
+  }
+}

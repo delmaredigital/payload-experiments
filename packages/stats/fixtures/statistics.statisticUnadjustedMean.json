@@ -1,0 +1,1197 @@
+{
+  "cases": [
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "0-p0"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "0-p1"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0.0,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "0-p-half"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "0-positive"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "0-negative"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "sum": 0,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "0-negative-variance"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "post": {
+              "n": 0,
+              "sum": 0.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 0.0,
+            "pre": {
+              "n": 0,
+              "sum": 0.0,
+              "type": "proportion"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "0-ra-prop-None"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "post": {
+              "n": 0,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 0,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "0-ra-mean-None"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "post": {
+              "n": 0,
+              "sum": 0.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 0.0,
+            "pre": {
+              "n": 0,
+              "sum": 0.0,
+              "type": "proportion"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "0-ra-prop-0"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "post": {
+              "n": 0,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 0,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "0-ra-mean-0"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "post": {
+              "n": 0,
+              "sum": 0.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 0.0,
+            "pre": {
+              "n": 0,
+              "sum": 0.0,
+              "type": "proportion"
+            },
+            "theta": 0.23,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "0-ra-prop-0.23"
+    },
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          {
+            "n": 0,
+            "post": {
+              "n": 0,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 0,
+            "pre": {
+              "n": 0,
+              "sum": 0,
+              "sumSquares": 0,
+              "type": "sampleMean"
+            },
+            "theta": 0.23,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "0-ra-mean-0.23"
+    },
+    {
+      "expected": 0.0,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 0,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "1-p0"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "1-p1"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 0.5,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "1-p-half"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 2,
+            "sumSquares": 6,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "1-positive"
+    },
+    {
+      "expected": -2.0,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": -2,
+            "sumSquares": 6,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "1-negative"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "sum": 1,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "1-negative-variance"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "post": {
+              "n": 1,
+              "sum": 0.5,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 0.2,
+            "pre": {
+              "n": 1,
+              "sum": 0.25,
+              "type": "proportion"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1-ra-prop-None"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "post": {
+              "n": 1,
+              "sum": 2,
+              "sumSquares": 6,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 3,
+            "pre": {
+              "n": 1,
+              "sum": 1,
+              "sumSquares": 2,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1-ra-mean-None"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "post": {
+              "n": 1,
+              "sum": 0.5,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 0.2,
+            "pre": {
+              "n": 1,
+              "sum": 0.25,
+              "type": "proportion"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1-ra-prop-0"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "post": {
+              "n": 1,
+              "sum": 2,
+              "sumSquares": 6,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 3,
+            "pre": {
+              "n": 1,
+              "sum": 1,
+              "sumSquares": 2,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1-ra-mean-0"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "post": {
+              "n": 1,
+              "sum": 0.5,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 0.2,
+            "pre": {
+              "n": 1,
+              "sum": 0.25,
+              "type": "proportion"
+            },
+            "theta": 0.23,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1-ra-prop-0.23"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 1,
+            "post": {
+              "n": 1,
+              "sum": 2,
+              "sumSquares": 6,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 3,
+            "pre": {
+              "n": 1,
+              "sum": 1,
+              "sumSquares": 2,
+              "type": "sampleMean"
+            },
+            "theta": 0.23,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1-ra-mean-0.23"
+    },
+    {
+      "expected": 0.0,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 0,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "2-p0"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 2,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "2-p1"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 1.0,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "2-p-half"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 4,
+            "sumSquares": 12,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "2-positive"
+    },
+    {
+      "expected": -2.0,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": -4,
+            "sumSquares": 12,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "2-negative"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "sum": 2,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "2-negative-variance"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "post": {
+              "n": 2,
+              "sum": 1.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 0.4,
+            "pre": {
+              "n": 2,
+              "sum": 0.5,
+              "type": "proportion"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "2-ra-prop-None"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "post": {
+              "n": 2,
+              "sum": 4,
+              "sumSquares": 12,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 6,
+            "pre": {
+              "n": 2,
+              "sum": 2,
+              "sumSquares": 4,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "2-ra-mean-None"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "post": {
+              "n": 2,
+              "sum": 1.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 0.4,
+            "pre": {
+              "n": 2,
+              "sum": 0.5,
+              "type": "proportion"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "2-ra-prop-0"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "post": {
+              "n": 2,
+              "sum": 4,
+              "sumSquares": 12,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 6,
+            "pre": {
+              "n": 2,
+              "sum": 2,
+              "sumSquares": 4,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "2-ra-mean-0"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "post": {
+              "n": 2,
+              "sum": 1.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 0.4,
+            "pre": {
+              "n": 2,
+              "sum": 0.5,
+              "type": "proportion"
+            },
+            "theta": 0.23,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "2-ra-prop-0.23"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 2,
+            "post": {
+              "n": 2,
+              "sum": 4,
+              "sumSquares": 12,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 6,
+            "pre": {
+              "n": 2,
+              "sum": 2,
+              "sumSquares": 4,
+              "type": "sampleMean"
+            },
+            "theta": 0.23,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "2-ra-mean-0.23"
+    },
+    {
+      "expected": 0.0,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "sum": 0,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "1000-p0"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "sum": 1000,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "1000-p1"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "sum": 500.0,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "1000-p-half"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "sum": 2000,
+            "sumSquares": 6000,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "1000-positive"
+    },
+    {
+      "expected": -2.0,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "sum": -2000,
+            "sumSquares": 6000,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "1000-negative"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "sum": 1000,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "1000-negative-variance"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 500.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 200.0,
+            "pre": {
+              "n": 1000,
+              "sum": 250.0,
+              "type": "proportion"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1000-ra-prop-None"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 2000,
+              "sumSquares": 6000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 3000,
+            "pre": {
+              "n": 1000,
+              "sum": 1000,
+              "sumSquares": 2000,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1000-ra-mean-None"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 500.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 200.0,
+            "pre": {
+              "n": 1000,
+              "sum": 250.0,
+              "type": "proportion"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1000-ra-prop-0"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 2000,
+              "sumSquares": 6000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 3000,
+            "pre": {
+              "n": 1000,
+              "sum": 1000,
+              "sumSquares": 2000,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1000-ra-mean-0"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 500.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 200.0,
+            "pre": {
+              "n": 1000,
+              "sum": 250.0,
+              "type": "proportion"
+            },
+            "theta": 0.23,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1000-ra-prop-0.23"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 1000,
+            "post": {
+              "n": 1000,
+              "sum": 2000,
+              "sumSquares": 6000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 3000,
+            "pre": {
+              "n": 1000,
+              "sum": 1000,
+              "sumSquares": 2000,
+              "type": "sampleMean"
+            },
+            "theta": 0.23,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "1000-ra-mean-0.23"
+    },
+    {
+      "expected": 0.0,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 0,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "10000000-p0"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 10000000,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "10000000-p1"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 5000000.0,
+            "type": "proportion"
+          }
+        ]
+      },
+      "name": "10000000-p-half"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "10000000-positive"
+    },
+    {
+      "expected": -2.0,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": -20000000,
+            "sumSquares": 60000000,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "10000000-negative"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "sum": 10000000,
+            "sumSquares": 0,
+            "type": "sampleMean"
+          }
+        ]
+      },
+      "name": "10000000-negative-variance"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "post": {
+              "n": 10000000,
+              "sum": 5000000.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 2000000.0,
+            "pre": {
+              "n": 10000000,
+              "sum": 2500000.0,
+              "type": "proportion"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "10000000-ra-prop-None"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "post": {
+              "n": 10000000,
+              "sum": 20000000,
+              "sumSquares": 60000000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 30000000,
+            "pre": {
+              "n": 10000000,
+              "sum": 10000000,
+              "sumSquares": 20000000,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "10000000-ra-mean-None"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "post": {
+              "n": 10000000,
+              "sum": 5000000.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 2000000.0,
+            "pre": {
+              "n": 10000000,
+              "sum": 2500000.0,
+              "type": "proportion"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "10000000-ra-prop-0"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "post": {
+              "n": 10000000,
+              "sum": 20000000,
+              "sumSquares": 60000000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 30000000,
+            "pre": {
+              "n": 10000000,
+              "sum": 10000000,
+              "sumSquares": 20000000,
+              "type": "sampleMean"
+            },
+            "theta": 0,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "10000000-ra-mean-0"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "post": {
+              "n": 10000000,
+              "sum": 5000000.0,
+              "type": "proportion"
+            },
+            "postPreSumOfProducts": 2000000.0,
+            "pre": {
+              "n": 10000000,
+              "sum": 2500000.0,
+              "type": "proportion"
+            },
+            "theta": 0.23,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "10000000-ra-prop-0.23"
+    },
+    {
+      "expected": 2.0,
+      "input": {
+        "args": [
+          {
+            "n": 10000000,
+            "post": {
+              "n": 10000000,
+              "sum": 20000000,
+              "sumSquares": 60000000,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 30000000,
+            "pre": {
+              "n": 10000000,
+              "sum": 10000000,
+              "sumSquares": 20000000,
+              "type": "sampleMean"
+            },
+            "theta": 0.23,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "10000000-ra-mean-0.23"
+    },
+    {
+      "expected": 2.75,
+      "input": {
+        "args": [
+          {
+            "n": 4,
+            "post": {
+              "n": 4,
+              "sum": 11,
+              "sumSquares": 39,
+              "type": "sampleMean"
+            },
+            "postPreSumOfProducts": 71.6,
+            "pre": {
+              "n": 4,
+              "sum": 23.7,
+              "sumSquares": 485.15,
+              "type": "sampleMean"
+            },
+            "theta": null,
+            "type": "regressionAdjusted"
+          }
+        ]
+      },
+      "name": "upstream-shared-models"
+    }
+  ],
+  "source": {
+    "module": "gbstats.models.statistics",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "Statistic.unadjusted_mean"
+  }
+}

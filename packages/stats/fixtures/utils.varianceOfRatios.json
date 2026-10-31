@@ -1,0 +1,81 @@
+{
+  "cases": [
+    {
+      "expected": 0,
+      "input": {
+        "args": [
+          2,
+          3,
+          0,
+          4,
+          1
+        ]
+      },
+      "name": "zero-denominator"
+    },
+    {
+      "expected": 0.203125,
+      "input": {
+        "args": [
+          2,
+          3,
+          4,
+          5,
+          1
+        ]
+      },
+      "name": "positive"
+    },
+    {
+      "expected": 0.203125,
+      "input": {
+        "args": [
+          2,
+          3,
+          -4,
+          5,
+          -1
+        ]
+      },
+      "name": "negative-denominator"
+    },
+    {
+      "expected": 0.1875,
+      "input": {
+        "args": [
+          0,
+          3,
+          4,
+          5,
+          1
+        ]
+      },
+      "name": "zero-numerator"
+    },
+    {
+      "expected": 0.203125,
+      "input": {
+        "args": [
+          -2,
+          3,
+          4,
+          5,
+          -1
+        ]
+      },
+      "name": "negative-covariance"
+    }
+  ],
+  "source": {
+    "module": "gbstats.utils",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "variance_of_ratios"
+  }
+}
