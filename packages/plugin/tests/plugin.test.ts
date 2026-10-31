@@ -27,7 +27,7 @@ test('host onInit runs before plugin checks, with the same payload', async () =>
   const payload = fakePayload()
   const onInit = vi.fn(async () => {
     expect(payload.dbCalls).toEqual([])
-    Object.assign(payload.db, { name: 'postgres' })
+    Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
   })
   const config = await createExperimentsPlugin(sampleOptions())({ secret: 'test', db: {} as Config['db'], onInit })
   await config.onInit!(payload)
@@ -53,6 +53,16 @@ test('unknown puck collection fails at config time', async () => {
   const options = sampleOptions()
   options.puck = { enabled: true, collections: ['missing'] }
   expect(() => createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'] })).toThrow('Unknown experiments puck collection: missing')
+})
+
+test('disabled puck leaves the listed collection hooks alone', async () => {
+  const previous = vi.fn()
+  const pages = { slug: 'pages', fields: [], hooks: { afterChange: [previous] } }
+  const options = sampleOptions()
+  options.puck = { enabled: false, collections: ['pages'] }
+  const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [pages] })
+  expect(config.collections?.[0]).toBe(pages)
+  expect(pages.hooks.afterChange).toEqual([previous])
 })
 
 test('fake requests default to POST only when a body is supplied', () => {

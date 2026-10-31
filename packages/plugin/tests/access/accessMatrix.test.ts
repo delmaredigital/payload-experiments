@@ -13,7 +13,7 @@ const callback = (result: unknown) => (async () => result) as ExperimentsAccess
 const built = (options: ExperimentsPluginOptions) => createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'] })
 
 test.each([true, false, 'yes', {}])('every plugin operation enforces strict booleans (%j)', async value => {
-  const options = sampleOptions()
+  const options: ExperimentsPluginOptions = sampleOptions()
   options.access.manage = callback(value)
   const config = await built(options)
   for (const collection of config.collections ?? []) {
@@ -45,11 +45,28 @@ test('readResults defaults to manage; readIdentities defaults to admin', async (
 })
 
 test.each([true, false, 'yes', {}])('explicit results and identities callbacks have independent strict access (%j)', async value => {
-  const options = sampleOptions()
+  const options: ExperimentsPluginOptions = sampleOptions()
   options.access = { manage: () => false, admin: () => false, readResults: callback(value), readIdentities: callback(value) }
   const config = await built(options)
   for (const collection of config.collections ?? []) {
     expect(await invoke(collection.access?.read, { req }), collection.slug).toBe(value === true && ['xp-phases', 'xp-results-snapshots', 'xp-events', 'xp-identities'].includes(collection.slug))
+  }
+})
+
+test('managed operations and state read use manage independently of all other roles', async () => {
+  const options: ExperimentsPluginOptions = sampleOptions()
+  options.access = { manage: () => true, admin: () => false, readResults: () => false, readIdentities: () => false }
+  const config = await built(options)
+  for (const collection of config.collections ?? []) {
+    const managed = ['xp-experiments', 'xp-layers', 'xp-metrics'].includes(collection.slug)
+    for (const operation of operations) {
+      const expected = collection.slug === 'xp-experiments' && operation === 'delete'
+        ? { status: { in: ['draft', 'archived'] } } : managed
+      expect(await invoke(collection.access?.[operation], { req }), `${collection.slug}.${operation}`).toEqual(expected)
+    }
+  }
+  for (const global of config.globals ?? []) {
+    expect(await invoke(global.access?.read, { req }), `${global.slug}.read`).toBe(true)
   }
 })
 

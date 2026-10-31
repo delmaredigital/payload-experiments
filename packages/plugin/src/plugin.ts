@@ -19,7 +19,7 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
     return {
       ...config,
       collections: [
-        ...(config.collections ?? []).map(collection => options.puck?.collections.includes(collection.slug) ? {
+        ...(config.collections ?? []).map(collection => options.puck?.enabled && options.puck.collections.includes(collection.slug) ? {
           ...collection, hooks: { ...collection.hooks, afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook] },
         } : collection),
         ...collections,

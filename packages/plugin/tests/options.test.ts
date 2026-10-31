@@ -5,7 +5,7 @@ import type { ExperimentsPluginOptions } from '../src/types/contracts.js'
 import { sampleOptions } from './collections/fixtures.js'
 
 test('resolves access, events and puck defaults without mutating the input', () => {
-  const input = sampleOptions()
+  const input: ExperimentsPluginOptions = sampleOptions()
   const options = resolveOptions(input)
   expect(options.access).toEqual({ manage: input.access.manage, admin: input.access.manage, readResults: input.access.manage, readIdentities: input.access.manage })
   expect(options.events).toEqual({ retentionDays: 180, maxBodyBytes: DEFAULT_MAX_BODY_BYTES })
@@ -19,7 +19,7 @@ test('resolves access, events and puck defaults without mutating the input', () 
 })
 
 test('preserves overrides and defaults identities to admin', () => {
-  const input = sampleOptions()
+  const input: ExperimentsPluginOptions = sampleOptions()
   const admin = () => false, readResults = () => true, rateLimit = () => false
   input.access = { manage: input.access.manage, admin, readResults }
   input.events = { retentionDays: 30, maxBodyBytes: 1024, rateLimit }
@@ -60,4 +60,17 @@ test('accepts typed unique attribute keys and valid event source names', () => {
 
 test.each([{ country: { type: 'object' } }, { country: { type: 'string', values: [1] } }, { '': { type: 'number' } }])('rejects invalid attribute declarations (%j)', attributeKeys => {
   expect(() => resolveOptions({ ...sampleOptions(), attributeKeys } as unknown as ExperimentsPluginOptions)).toThrow(/attribute/)
+})
+
+test.each(['maxBodyBytes', 'retentionDays'] as const)('validates events.%s', key => {
+  for (const value of [NaN, Infinity, -Infinity, -1, 0, 1.5]) {
+    expect(() => resolveOptions({ ...sampleOptions(), events: { [key]: value } })).toThrow(`events.${key} must be a finite positive integer`)
+  }
+  expect(resolveOptions({ ...sampleOptions(), events: { [key]: 1 } }).events?.[key]).toBe(1)
+})
+
+test('puck defaults enabled to true when collections are registered', () => {
+  const input = { ...sampleOptions(), puck: { collections: ['pages'] } } as ExperimentsPluginOptions
+  expect(resolveOptions(input).puck).toEqual({ enabled: true, collections: ['pages'] })
+  expect(resolveOptions({ ...input, puck: { enabled: false, collections: ["pages"] } }).puck?.enabled).toBe(false)
 })

@@ -23,12 +23,17 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
   for (const name of input.eventSources ?? []) {
     if (typeof name !== 'string' || !/^[a-z0-9_]+$/.test(name)) throw new Error('Experiments event source names must match /^[a-z0-9_]+$/')
   }
+  const retentionDays = input.events?.retentionDays ?? 180
+  const maxBodyBytes = input.events?.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
+  for (const [name, value] of Object.entries({ retentionDays, maxBodyBytes })) {
+    if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1) throw new Error(`Experiments events.${name} must be a finite positive integer`)
+  }
   return {
     ...input,
     access: { manage, admin, readResults, readIdentities },
     flagPoints: [...(input.flagPoints ?? [])], metricSources: [...(input.metricSources ?? [])], eventSources: [...(input.eventSources ?? [])],
     attributeKeys: Object.fromEntries(Object.entries(input.attributeKeys ?? {}).map(([key, attribute]) => [key, { ...attribute, ...(attribute.values ? { values: [...attribute.values] } : {}) }])),
-    events: { ...input.events, retentionDays: input.events?.retentionDays ?? 180, maxBodyBytes: input.events?.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES },
-    puck: { ...input.puck, enabled: input.puck?.enabled ?? false, collections: [...(input.puck?.collections ?? [])] },
+    events: { ...input.events, retentionDays, maxBodyBytes },
+    puck: { ...input.puck, enabled: input.puck?.enabled ?? Boolean(input.puck?.collections?.length), collections: [...(input.puck?.collections ?? [])] },
   }
 }

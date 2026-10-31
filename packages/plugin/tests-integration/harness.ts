@@ -5,11 +5,10 @@ import pg, { Pool, type PoolClient, type PoolConfig } from 'pg'
 import { createExperimentsPlugin } from '../src/plugin.js'
 import { sampleOptions } from '../tests/collections/fixtures.js'
 
-/** Validate before opening any connection. Never fall back to a host database. */
-export function integrationConnectionString(): string {
-  const connectionString = process.env.INTEGRATION_DATABASE_URL
+/** Pure URL refusal rules; validate before opening any connection. */
+export function validateIntegrationConnectionString(connectionString: string | undefined, hostDatabases: { DATABASE_URL?: string; CC_NXT_DATABASE_URL?: string } = {}): string {
   if (!connectionString) throw new Error('INTEGRATION_DATABASE_URL is required')
-  if (connectionString === process.env.DATABASE_URL || connectionString === process.env.CC_NXT_DATABASE_URL) {
+  if (connectionString === hostDatabases.DATABASE_URL || connectionString === hostDatabases.CC_NXT_DATABASE_URL) {
     throw new Error('Integration database must differ from host databases')
   }
   let database: string
@@ -24,12 +23,19 @@ export function integrationConnectionString(): string {
   return connectionString
 }
 
+/** Never fall back to a host database. */
+export function integrationConnectionString(): string {
+  return validateIntegrationConnectionString(process.env.INTEGRATION_DATABASE_URL, {
+    DATABASE_URL: process.env.DATABASE_URL, CC_NXT_DATABASE_URL: process.env.CC_NXT_DATABASE_URL,
+  })
+}
+
 export async function publicTables(pool: Pool): Promise<string[]> {
   const result = await pool.query<{ tablename: string }>('SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1 ORDER BY tablename', ['public'])
   return result.rows.map(row => row.tablename)
 }
 
-/** One isolated, freshly pushed schema per integration test file. Train-only. */
+/** One harness per test file. Forced push also supports a second boot. Train-only. */
 export async function createIntegrationHarness() {
   const connectionString = integrationConnectionString()
   const pool = new Pool({ connectionString, max: 6 })
@@ -64,7 +70,9 @@ export async function createIntegrationHarness() {
     if (publicBefore.some(name => /^(xp_|payload_)/.test(name))) throw new Error('Integration preflight refused plugin or Payload tables in public')
     await pool.query(`CREATE SCHEMA ${schema}`)
     schemaCreated = true
-    Object.assign(process.env, { NODE_ENV: 'test' })
+    Object.assign(process.env, { NODE_ENV: 'test', PAYLOAD_FORCE_DRIZZLE_PUSH: 'true' })
+    delete process.env.PAYLOAD_MIGRATING
+    delete process.env.PAYLOAD_DROP_DATABASE
     const options = sampleOptions()
     const config = buildConfig({
       secret: 'integration-only-secret-never-use-in-production',
@@ -102,13 +110,19 @@ export async function createIntegrationHarness() {
     }
   } catch (error) {
     try {
-      await destroyPayload()
-    } finally {
       try {
-        if (schemaCreated) await pool.query(`DROP SCHEMA ${schema} CASCADE`)
+        await destroyPayload()
       } finally {
-        await pool.end()
+        try {
+          if (schemaCreated) await pool.query(`DROP SCHEMA ${schema} CASCADE`)
+        } finally {
+          await pool.end()
+        }
       }
+    } catch (cleanupError) {
+      // Preserve the original boot failure, including its identity and stack.
+      if (error instanceof Error && Object.isExtensible(error) && error.cause === undefined) error.cause = cleanupError
+      else console.error('Integration harness cleanup failed', cleanupError)
     }
     throw error
   }

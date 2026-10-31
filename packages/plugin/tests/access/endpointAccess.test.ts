@@ -2,8 +2,9 @@ import { createHmac } from 'node:crypto'
 import type { Config } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { createExperimentsPlugin } from '../../src/plugin.js'
+import { ROUTES } from '../../src/endpoints/index.js'
 import * as cookie from '../../src/runtime/cookie.js'
-import type { ExperimentsAccess } from '../../src/types/contracts.js'
+import type { ExperimentsAccess, ExperimentsPluginOptions } from '../../src/types/contracts.js'
 import { fakeReq } from '../_fakes/req.js'
 import { sampleOptions } from '../collections/fixtures.js'
 
@@ -27,7 +28,7 @@ const routes = [
 ] as const
 
 async function endpoints(value: unknown = true, results?: ExperimentsAccess) {
-  const options = sampleOptions()
+  const options: ExperimentsPluginOptions = sampleOptions()
   options.access.manage = vi.fn(async () => value) as ExperimentsAccess
   options.access.readResults = results
   const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'] })
@@ -38,6 +39,7 @@ afterEach(() => vi.restoreAllMocks())
 test('every endpoint registered by the plugin appears exactly once in the inventory', async () => {
   const config = await endpoints()
   expect(config.endpoints.map(({ method, path }) => [method, path])).toEqual(routes.map(([method, path]) => [method, path]))
+  expect(ROUTES.map(({ method, path, access }) => [method, path, access])).toEqual(routes)
 })
 
 for (const [method, path, access] of routes) {
@@ -78,12 +80,12 @@ for (const [method, path, access] of routes) {
   }
 }
 
-test('results endpoints use an explicit readResults callback instead of manage', async () => {
+test('manage and readResults routes enforce their distinct declared access levels', async () => {
   const config = await endpoints(false, () => true)
   for (const [, path, access] of routes) {
-    if (access !== 'readResults') continue
+    if (access !== 'readResults' && access !== 'manage') continue
     const endpoint = config.endpoints.find(endpoint => endpoint.path === path)!
-    expect((await endpoint.handler(fakeReq({ user: { id: 'reader' } }))).status).toBe(501)
+    expect((await endpoint.handler(fakeReq({ user: { id: 'reader' } }))).status, path).toBe(access === 'manage' ? 403 : 501)
   }
-  expect(config.options.access.manage).not.toHaveBeenCalled()
+  expect(config.options.access.manage).toHaveBeenCalledTimes(routes.filter(([, , access]) => access === 'manage').length)
 })
