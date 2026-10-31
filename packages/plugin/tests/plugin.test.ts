@@ -79,12 +79,12 @@ test('fake requests default to POST only when a body is supplied', () => {
   expect(fakeReq({ body: '{}', method: 'PATCH' }).method).toBe('PATCH')
 })
 
-test('draft-enabled arm-select hosts get baseline capture without a Puck afterChange hook', async () => {
+test('non-Puck draft-enabled host collections get no content-change hooks (CORE-12b F5)', async () => {
   const afterChange = vi.fn()
   const beforeChange = vi.fn()
   const config = await createExperimentsPlugin(sampleOptions())({ secret: 'test', db: {} as Config['db'], collections: [{
     slug: 'asks', fields: [], versions: { drafts: {} }, hooks: { beforeChange: [beforeChange], afterChange: [afterChange] },
   }] })
-  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange, contentChangesBeforeHook])
+  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange])
   expect(config.collections?.[0]?.hooks?.afterChange).toEqual([afterChange])
 })
