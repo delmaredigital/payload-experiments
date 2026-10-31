@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Button, useAuth, useDocumentInfo } from '@payloadcms/ui'
-import type { DocumentViewClientProps } from 'payload'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Button, Form, useAuth, useDocumentInfo } from '@payloadcms/ui'
+import type { DocumentViewClientProps, FormState } from 'payload'
 import type { DocId, Status } from '../../types/contracts.js'
 import type { PhaseSummary, PreflightResult, ResultsResponse } from '../../types/endpoints.js'
 import { useApi } from '../useApi.js'
@@ -20,21 +20,36 @@ import { armRows, collectingLine, dataQuality, defaultRound, guardrailChips, pow
 
 type SavedExperiment = {
   status?: Status; decision?: { phase: number; winnerArm?: string } | null
+  kind?: string; arms?: Array<{ key: string; kind?: string; label?: string }>
+  metrics?: Record<string, unknown>
   layer?: unknown; layerSlices?: number[]; allocation?: number
 }
 type LoadState = { round: number | null } & (
-  | { kind: 'loading' } | { kind: 'ready'; data: ResultsResponse }
-  | { kind: 'error' | 'forbidden'; message: string }
+  | { kind: 'loading'; data?: ResultsResponse } | { kind: 'ready'; data: ResultsResponse }
+  | { kind: 'error' | 'forbidden'; message: string; data?: ResultsResponse }
 )
 
-export function ResultsView(_props: DocumentViewClientProps) {
-  const { id, data } = useDocumentInfo()
-  const { permissions } = useAuth()
-  if (id == null) return <p>{C.empty}</p>
-  return <ResultsContent key={id} id={id} saved={data as SavedExperiment | undefined} manage={canManage(permissions)} />
+function savedFormState(saved?: SavedExperiment): FormState {
+  const fields: FormState = {}
+  const field = (path: string, value: unknown) => { fields[path] = { value, initialValue: value } }
+  for (const path of ['status', 'kind', 'allocation'] as const) field(path, saved?.[path])
+  saved?.arms?.forEach((arm, index) => {
+    for (const [key, value] of Object.entries(arm)) field(`arms.${index}.${key}`, value)
+  })
+  for (const [key, value] of Object.entries(saved?.decision ?? {})) field(`decision.${key}`, value)
+  for (const [key, value] of Object.entries(saved?.metrics ?? {})) field(`metrics.${key}`, value)
+  return fields
 }
 
-function ResultsContent({ id, saved, manage }: { id: DocId; saved?: SavedExperiment; manage: boolean }) {
+export function ResultsView(_props: DocumentViewClientProps) {
+  const { id, data, initialState } = useDocumentInfo()
+  const { permissions } = useAuth()
+  const formState = useMemo(() => initialState ?? savedFormState(data as SavedExperiment | undefined), [initialState, data])
+  if (id == null) return <p>{C.empty}</p>
+  return <ResultsContent key={id} id={id} saved={data as SavedExperiment | undefined} formState={formState} manage={canManage(permissions)} />
+}
+
+function ResultsContent({ id, saved, formState, manage }: { id: DocId; saved?: SavedExperiment; formState: FormState; manage: boolean }) {
   const api = useApi()
   const status = saved?.status ?? 'draft'
   const decision = saved?.decision
@@ -50,12 +65,13 @@ function ResultsContent({ id, saved, manage }: { id: DocId; saved?: SavedExperim
   const [actionError, setActionError] = useState<string | null>(null)
   useEffect(() => {
     let active = true
-    setState({ round, kind: 'loading' })
+    setState(previous => ({ round, kind: 'loading', data: previous.round === round ? previous.data : undefined }))
     void api.results(id, { ...(round === null ? {} : { phase: round }), series: true }).then(result => {
       if (!active) return
       if (!result.ok || !result.data) {
-        setState({ round, kind: !result.ok && result.status === 403 ? 'forbidden' : 'error',
-          message: result.ok ? API_MESSAGES.unreadable : result.message })
+        setState(previous => ({ round, kind: !result.ok && result.status === 403 ? 'forbidden' : 'error',
+          data: previous.round === round ? previous.data : undefined,
+          message: result.ok ? API_MESSAGES.unreadable : result.message }))
         return
       }
       setPhases(result.data.phases)
@@ -91,7 +107,7 @@ function ResultsContent({ id, saved, manage }: { id: DocId; saved?: SavedExperim
       else setActionError(result.message)
     } finally { inFlight.current = false; setBusy(false) }
   }
-  const response = state.round === round && state.kind === 'ready' ? state.data : null
+  const response = state.round === round ? state.data : undefined
   const phase = response?.phases.find(phase => phase.phase === round)
   const snapshot = response?.snapshot
   const isDecidedTestRound = status === 'decided' && phase?.phaseKind === 'test' && decision?.phase === round
@@ -104,11 +120,11 @@ function ResultsContent({ id, saved, manage }: { id: DocId; saved?: SavedExperim
     {phases.length > 0 ? <label>{C.round}<select value={round ?? ''} onChange={event => setRound(Number(event.target.value))}>
       {roundOptions(phases).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select></label> : null}
-    {state.round !== round || state.kind === 'loading' ? <p role="status">{C.loading}</p>
+    {state.round !== round || state.kind === 'loading' ? <p role="status">{response ? C.refreshing : C.loading}</p>
       : state.kind === 'forbidden' ? <p role="alert">{C.forbidden}</p>
       : state.kind === 'error' ? <><p role="alert">{state.message}</p><Button onClick={() => setRefresh(value => value + 1)}>{C.retry}</Button></>
-      : !phase || !snapshot ? <p>{C.empty}</p>
-      : <>
+      : null}
+    {phase && snapshot ? <>
         <VerdictCard model={verdictCard({ snapshot, decisionSnapshot: response?.decisionSnapshot, isDecidedTestRound, winnerLabel: winner })}
           guardrails={guardrailChips(snapshot)} power={powerLine({ snapshot, phaseKind: phase.phaseKind, status: lineStatus })}
           collecting={collectingLine({ snapshot, phaseKind: phase.phaseKind, status: lineStatus }, context)}
@@ -123,10 +139,13 @@ function ResultsContent({ id, saved, manage }: { id: DocId; saved?: SavedExperim
           </section> : null
         })}
         {primary ? <CiChart series={response?.series} metricId={primary.metricId} metricName={primary.name} phase={phase} contentChanges={snapshot.contentChanges} /> : null}
-      </>}
-    {manage && placements && phase ? <PreviewLinks experimentId={id} placements={placements} arms={phase.arms} /> : null}
-    {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retry}</Button></> : null}
-    <ExperimentActions field={{ name: 'actions', type: 'ui', admin: {} }} path="actions" />
+      </> : state.round === round && state.kind === 'ready' ? <p>{C.empty}</p> : null}
+    {manage && placements ? <PreviewLinks experimentId={id} placements={placements} arms={saved?.arms ?? []} /> : null}
+    {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retryPreview}</Button></> : null}
+    {/* This custom tab has no edit Form. Use DocumentInfo's saved state, with no submit surface. */}
+    <Form initialState={formState} el="div">
+      <ExperimentActions field={{ name: 'actions', type: 'ui', admin: {} }} path="actions" />
+    </Form>
     {manage ? <Button disabled={busy} onClick={() => { void recompute() }}>{busy ? C.recomputing : C.recompute}</Button> : null}
     {actionError ? <p role="alert">{actionError}</p> : null}
   </div>

@@ -23,6 +23,7 @@ export const RESULTS_COPY = {
   layerNext: 'Free slices in the layer, then raise participation from the actions panel.',
   unavailableNext: 'Recompute; if it persists, contact a developer.',
   loading: 'Loading results…',
+  refreshing: 'Refreshing…', retryPreview: 'Retry preview links',
   forbidden: "You don't have access to results.",
   empty: 'No results yet — the first results appear within the hour after Start.',
   retry: 'Retry', round: 'Round', recompute: 'Recompute', recomputing: 'Recomputing…',
@@ -47,7 +48,7 @@ export const exclusionCopy = (count: string, share: string) => `${count} exclude
 export const ignoredCopy = (count: string) => `${count} ignored.`
 export const conflictCopy = (share: string) => `${share} with identity conflicts.`
 export const metricUnavailable = (name: string, reason: string) => `${name} is unavailable: ${reason}`
-export const chartSummary = (metric: string, groups: string, from: string, to: string) =>
-  `${metric}: lift and confidence intervals for ${groups}, ${from} to ${to}.`
+export const chartSummary = (metric: string, groups: string, from: string, to: string, changes: string[] = []) =>
+  `${metric}: lift and confidence intervals for ${groups}, ${from} to ${to}.${changes.length ? ` Content changed on ${new Intl.ListFormat('en-US', { style: 'long', type: 'conjunction' }).format(changes)}.` : ''}`
 export const contentChangeTitle = (date: string) => `Content changed ${date} by an editor`
-export const summaryLine = (exposures: string, days: string, verdict: string) => `${exposures} exposures · ${days} days · ${verdict}`
+export const summaryLine = (exposures: string, days: string, verdict: string) => `${exposures} ${exposures === '1' ? 'exposure' : 'exposures'} · ${days} ${days === '1' ? 'day' : 'days'} · ${verdict}`

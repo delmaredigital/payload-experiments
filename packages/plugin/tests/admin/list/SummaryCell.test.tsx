@@ -22,6 +22,11 @@ test('null entry renders a dash', async () => {
   await act(async () => { render(<SummaryCell {...props} rowData={{ id: 'missing' }} />) })
   expect(screen.getByText('—')).toBeTruthy()
 })
+test.each([[1, 1, '1 exposure · 1 day'], [1, 2, '1 exposure · 2 days'], [2, 1, '2 exposures · 1 day'], [0, 0, '0 exposures · 0 days']])('plural handling for %s exposures over %s days', async (exposures, days, text) => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ singular: { exposures, days, verdict: null } }))))
+  render(<SummaryCell {...props} rowData={{ id: 'singular' }} />)
+  expect(await screen.findByText(`${text} · —`)).toBeTruthy()
+})
 test('changing the row hides an old value and a late response cannot replace the new row', async () => {
   let first!: (response: Response) => void
   const fetcher = vi.fn().mockReturnValueOnce(new Promise<Response>(resolve => { first = resolve }))

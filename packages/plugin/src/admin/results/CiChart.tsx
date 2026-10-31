@@ -7,7 +7,7 @@ import { RESULTS_COPY as C, chartSummary, contentChangeTitle } from '../copy/res
 import { chartModel } from './chart.model.js'
 import { formatPercent } from './format.js'
 
-const colors = ['var(--theme-success-600)', 'var(--theme-warning-600)', 'var(--theme-error-600)']
+const colors = ['var(--theme-elevation-800)', 'var(--theme-elevation-600)', 'var(--theme-elevation-400)']
 const date = (t: number) => new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' }).format(t)
 
 export function CiChart({ series, metricId, metricName, phase, contentChanges }: {
@@ -22,7 +22,8 @@ export function CiChart({ series, metricId, metricName, phase, contentChanges }:
   return <section className="xp-ci-chart" style={{ color: 'var(--theme-text)' }}>
     <h2>{C.chart}</h2>
     <svg viewBox="0 0 760 280" style={{ width: '100%', height: 'auto' }} role="img"
-      aria-label={chartSummary(metricName, model.variants.map(variant => variant.label).join(', '), date(from), date(to))}>
+      aria-label={chartSummary(metricName, model.variants.map(variant => variant.label).join(', '), date(from), date(to),
+        [...new Set(model.markers.map(marker => date(marker.t)))])}>
       <line x1={80} x2={680} y1={y(0)} y2={y(0)} stroke="var(--theme-elevation-500)" strokeDasharray="4 4" />
       {[high, low].map((value, index) => <text key={index} x={72} y={y(value) + 4} textAnchor="end" fill="currentColor" fontSize={12}>{formatPercent(value, true)}</text>)}
       <text x={80} y={260} fill="currentColor" fontSize={12}>{date(from)}</text>
@@ -53,6 +54,9 @@ export function CiChart({ series, metricId, metricName, phase, contentChanges }:
         <line x1={x(marker.t)} x2={x(marker.t)} y1={20} y2={230} stroke="var(--theme-text)" strokeDasharray="2 4" />
       </g>)}
     </svg>
-    <ul>{model.variants.map((variant, index) => <li key={variant.arm} style={{ color: colors[index % colors.length] }}>{variant.label}</li>)}</ul>
+    <ul>{model.variants.map((variant, index) => <li key={variant.arm} style={{ color: 'var(--theme-text)' }}>
+      <span aria-hidden="true" style={{ display: 'inline-block', width: '1em', height: '0.5em', marginRight: '0.5em', backgroundColor: colors[index % colors.length] }} />
+      {variant.label}
+    </li>)}</ul>
   </section>
 }
