@@ -6,6 +6,7 @@ import { XpNoTransactionError } from '../../src/errors.js'
 import { createFakeExecutor, type FakeExecutorOptions } from '../_fakes/executor.js'
 import { fakePayload, type FakeTransactionOptions } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
+import { sampleOptions } from '../collections/fixtures.js'
 
 vi.mock('payload', async importOriginal => {
   const actual = await importOriginal<typeof import('payload')>()
@@ -28,7 +29,8 @@ function fixture(scope: TransitionScope, options: {
       ]),
     ],
   })
-  const payload = fakePayload({ executor, transactions: options.transactions, overrides: { findGlobal: vi.fn(async () => ({ flagDefaults: {} })) } })
+  // The manifest compile reads plugin options from config.custom.xp (CORE-05b).
+  const payload = fakePayload({ executor, transactions: options.transactions, config: { custom: { xp: sampleOptions() } }, overrides: { findGlobal: vi.fn(async () => ({ flagDefaults: {} })) } })
   const req = options.borrowed ? executor.withSession({ payload }) : fakeReq({ payload })
   return { executor, payload, req }
 }
