@@ -2,11 +2,12 @@ import type { ExperimentKind, Status } from '../../types/contracts.js'
 import type { ArchiveBody, MakeContentResult } from '../../types/endpoints.js'
 import { armLabel } from '../labels.js'
 import { ACTIONS_COPY as C, hardCodedLabel, makeContentCopy, releaseCopy } from '../copy/actions.js'
+import { REVIEW_COPY } from '../copy/review.js'
 
 export type ActionGroup = { key: string; label?: string; kind?: string }
 export type ContentReport = { docs: MakeContentResult['docs'] } | MakeContentResult['docs']
 export type ActionDecision = { winnerArm?: string | null; holdoutReleasedAt?: string | null; contentReport?: ContentReport | null }
-export type ActionId = 'start' | 'stop' | 'decide' | 'release-holdout' | 'make-content' | 'after-content' | 'archive' | 'discard' | 'hard-coded'
+export type ActionId = 'start' | 'stop' | 'decide' | 'release-holdout' | 'make-content' | 'after-content' | 'archive' | 'discard' | 'hard-coded' | 'allocate' | 'add-metric'
 export type ExperimentAction = {
   id: ActionId; label: string; tone: 'primary' | 'secondary' | 'danger'
   confirm: { title: string; body: string; phrase?: { action: 'discard' | 'hard-coded' } }
@@ -27,7 +28,8 @@ export function availableActions({ status, kind, arms, decision, canManage }: {
   const start = action('start', status === 'stopped' ? C.restart : C.start, status === 'stopped' ? C.restartBody : C.startBody, 'primary')
   const decide = action('decide', C.decide, '', 'primary')
   if (status === 'draft') return [start]
-  if (status === 'running') return [action('stop', C.stop, C.stopBody, 'danger'), decide]
+  if (status === 'running') return [action('stop', C.stop, C.stopBody, 'danger'), decide,
+    action('allocate', REVIEW_COPY.raise, REVIEW_COPY.allocationBody), action('add-metric', REVIEW_COPY.addMetric, '')]
   if (status === 'stopped') return [start, decide, action('archive', C.archive, C.archiveBody, 'secondary', { mode: 'stopped' })]
   if (status !== 'decided') return []
   const winner = arms.find(group => group.key === decision?.winnerArm)

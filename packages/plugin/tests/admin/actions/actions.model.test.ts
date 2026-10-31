@@ -9,7 +9,7 @@ const ok = { collection: 'pages', id: 1, ok: true }
 const failed = { collection: 'pages', id: 2, ok: false }
 const cases: Case[] = [
   { name: 'draft', input: { status: 'draft' }, expected: [['start', 'Start', 'primary']] },
-  { name: 'running', input: { status: 'running' }, expected: [['stop', 'Stop', 'danger'], ['decide', 'Decide', 'primary']] },
+  { name: 'running', input: { status: 'running' }, expected: [['stop', 'Stop', 'danger'], ['decide', 'Decide', 'primary'], ['allocate', 'Raise allocation', 'secondary'], ['add-metric', 'Add a metric', 'secondary']] },
   { name: 'stopped', input: { status: 'stopped' }, expected: [['start', 'Start a new round', 'primary'], ['decide', 'Decide', 'primary'], ['archive', 'Archive', 'secondary']] },
   { name: 'archived', input: { status: 'archived' }, expected: [] },
   { name: 'draft without permission', input: { status: 'draft', canManage: false }, expected: [] },
