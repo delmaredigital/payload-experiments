@@ -150,3 +150,37 @@ The composed script stubs upstream `process`/`console` in a temporary module
 that it removes after importing; the pure port drops `console.error` and
 `process.env` checks. Regenerate into a temporary `--out` and byte-compare all
 nine fixtures to confirm deterministic output.
+
+## Pre-experiment power fixtures
+
+`power_fixtures.mjs` declares `// xp-areas: power` and accepts `--out`, a resolved
+40-character `--ref`, and `--only` (skipping all work unless `power` is selected
+or no filter is given). The coordinator runs it on the fixture train; lanes do
+not execute it. It GETs upstream `packages/shared/src/power/power.ts` and
+`constants.ts`, enforces power.ts SHA256
+`f8a8846a2758f25a496000c3e09faa230b78b25f7624d36b3ebcb7491533ec4f` at the
+pin, and regex-reads `DEFAULT_PROPER_PRIOR_STDDEV` (must equal 0.3 at the pin).
+A different resolved SHA skips the power.ts hash check for drift.
+
+The script installs `@stdlib/stats@0.1.1` into a fresh temporary directory with
+`--no-save --ignore-scripts`. It records the sorted, deduplicated transitive
+`@stdlib/*` name@version list from `npm ls --all --json` in `source.pins.stdlib`.
+It rewrites only the normal-distribution import, removes `shared/types/*`
+type-only dependencies, and shims the fetched prior constant before transpiling
+upstream with the repo's installed `@swc/core`. Temporary files are removed in
+`finally`, including on failure. It never imports the local statistics port.
+
+`power_cases.json` stores TS-shaped `{ name, args }` inputs for all six exports.
+The script independently maps metric priors (variance → standard deviation,
+absent prior → mean 0 / standard deviation 0.3 / improper), disables form
+settings overrides, and maps `method` to upstream `statsEngineSettings`.
+`metricValuesData` is unused UI provenance. Weekly outputs drop upstream's
+extra `type: 'success'`; optional `weekThreshold` remains absent when upstream
+omits it. JSON keys are sorted and non-finite numbers use the harness's `$num`
+encoding. Cases cover mean/binomial metrics, fixed/sequential frequentist power,
+Bayesian relative/absolute scaling and prior modes, both frequentist MDE errors,
+and weekly thresholds reached or never reached. The supplied read-only clone
+contains no upstream `shared/test/power.test.ts`, so no inputs are attributed to
+that missing test file. Expected values are computed only from upstream.
+
+The port omits `sampleSizeAndRuntime` keys for metrics that never reach 80%, matching upstream's JSON while reads still return `undefined`.
