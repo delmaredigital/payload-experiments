@@ -61,14 +61,30 @@ export async function capturePublishedContent({ req, collection, originalDoc, op
   baselines[key] = { collection: collection.slug, id, doc: audit.result }
 }
 
-/** Explicit host helper: failures propagate to the caller. Installed host hooks
- * wrap it with neverThrow. Drafts/autosaves do not affect published content.
- */
-export async function recordContentChange({ doc, previousDoc, req, collection }: Pick<Parameters<CollectionAfterChangeHook>[0], 'doc' | 'previousDoc' | 'req' | 'collection'>): Promise<void> {
+type ContentChangeArgs = Pick<Parameters<CollectionAfterChangeHook>[0], 'doc' | 'previousDoc' | 'req' | 'collection'>
+
+/** Publish-only host helper. Audit failures are logged, never thrown into saves. */
+export async function recordContentChange(args: ContentChangeArgs): Promise<void> {
+  try { await auditContentChange(args) }
+  catch (error) {
+    console.error('[payload-experiments] contentChanges failed; the document was saved without it', error)
+  }
+}
+
+async function auditContentChange({ doc, previousDoc, req, collection }: ContentChangeArgs): Promise<void> {
   const drafts = Boolean(collection.versions && collection.versions.drafts)
   if (drafts && doc._status !== 'published') return
   if (await req.transactionID == null) {
     req.payload.logger?.debug('[payload-experiments] contentChanges skipped without a transaction')
+    return
+  }
+  const baselines = req.context.xpPublishedContent as Record<string, Baseline> | undefined
+  const key = baselineKey(collection.slug, previousDoc?.id == null ? '__create__' : doc.id)
+  const baseline = baselines?.[key]
+  if (baselines) delete baselines[key]
+  // Missing capture must never turn an unchanged publish into a false marker.
+  if (drafts && !baseline) {
+    req.payload.logger?.debug('[payload-experiments] contentChanges skipped without a captured published baseline')
     return
   }
   const options = req.payload.config.custom?.xp as ResolvedOptions | undefined
@@ -85,12 +101,6 @@ export async function recordContentChange({ doc, previousDoc, req, collection }:
   // An explicit host call must supply its afterChange request's transaction.
   const executor = txExecutor(req)
   const audit = await contentChangeSavepoint(executor, async () => {
-    const baselines = req.context.xpPublishedContent as Record<string, Baseline> | undefined
-    const key = baselineKey(collection.slug, previousDoc?.id == null ? '__create__' : doc.id)
-    const baseline = baselines?.[key]
-    if (baselines) delete baselines[key]
-    // Missing capture must never turn an unchanged publish into a false marker.
-    if (drafts && !baseline) throw new Error('Published content baseline was not captured before the write')
     const changed = changes(drafts ? baseline?.doc : previousDoc)
     const experiments = new Map<string, DocId>()
     for (const binding of changed) {

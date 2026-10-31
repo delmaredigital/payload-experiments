@@ -41,28 +41,29 @@ function contentData(doc: Record<string, unknown>, field: string, content: unkno
 
 /** Refuse unsafe collection shapes before rebuilding complete host documents. */
 async function fieldRefusal(fields: Field[], req: PayloadRequest, doc: Record<string, unknown> & { id: DocId },
-  siblingData: Record<string, unknown> = doc, blockData?: Record<string, unknown>, seen = new Set<Field>()): Promise<string | undefined> {
+  operation: 'read' | 'update' = 'read', data: Record<string, unknown> = doc,
+  siblingData: Record<string, unknown> = data, blockData?: Record<string, unknown>, seen = new Set<Field>()): Promise<string | undefined> {
   for (const field of fields) {
     if (seen.has(field)) continue
     const branch = new Set(seen).add(field)
     if ('localized' in field && field.localized) return 'This page is localized; update it by hand.'
     if ('hidden' in field && field.hidden === true) return 'This page has hidden fields; update it by hand.'
-    if ('access' in field && field.access?.read && !await field.access.read({ id: doc.id, req, doc, data: doc, siblingData, blockData })) {
-      return 'This page has fields you cannot read; update it by hand.'
+    if ('access' in field && field.access?.[operation] && !await field.access[operation]({ id: doc.id, req, doc, data, siblingData, blockData })) {
+      return operation === 'read' ? 'This page has fields you cannot read; update it by hand.' : 'This page has fields you cannot update; update it by hand.'
     }
     const value = 'name' in field ? siblingData[field.name] : siblingData
     if ('tabs' in field) for (const tab of field.tabs) {
       if ('localized' in tab && tab.localized) return 'This page is localized; update it by hand.'
       if ('hidden' in tab && tab.hidden === true) return 'This page has hidden fields; update it by hand.'
-      if ('access' in tab && tab.access?.read && !await tab.access.read({ id: doc.id, req, doc, data: doc, siblingData, blockData })) {
-        return 'This page has fields you cannot read; update it by hand.'
+      if ('access' in tab && tab.access?.[operation] && !await tab.access[operation]({ id: doc.id, req, doc, data, siblingData, blockData })) {
+        return operation === 'read' ? 'This page has fields you cannot read; update it by hand.' : 'This page has fields you cannot update; update it by hand.'
       }
-      const data = 'name' in tab && tab.name ? siblingData[tab.name] : siblingData
-      const refusal = await fieldRefusal(tab.fields, req, doc, object(data) ? data : {}, blockData, branch)
+      const tabData = 'name' in tab && tab.name ? siblingData[tab.name] : siblingData
+      const refusal = await fieldRefusal(tab.fields, req, doc, operation, data, object(tabData) ? tabData : {}, blockData, branch)
       if (refusal) return refusal
     }
-    if ('fields' in field) for (const data of Array.isArray(value) && value.length ? value : [value]) {
-      const refusal = await fieldRefusal(field.fields, req, doc, object(data) ? data : {}, blockData, branch)
+    if ('fields' in field) for (const row of Array.isArray(value) && value.length ? value : [value]) {
+      const refusal = await fieldRefusal(field.fields, req, doc, operation, data, object(row) ? row : {}, blockData, branch)
       if (refusal) return refusal
     }
     if (field.type === 'blocks') {
@@ -70,7 +71,7 @@ async function fieldRefusal(fields: Field[], req: PayloadRequest, doc: Record<st
       for (const block of blocks) {
         const rows = Array.isArray(value) ? value.filter(row => object(row) && row.blockType === block.slug) : []
         for (const row of rows.length ? rows : [{}]) {
-          const refusal = await fieldRefusal(block.fields, req, doc, row, row, branch)
+          const refusal = await fieldRefusal(block.fields, req, doc, operation, data, row, row, branch)
           if (refusal) return refusal
         }
       }
@@ -152,7 +153,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           const access = config?.access?.read ? await config.access.read({ id, req }) : true
           const doc = await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: true, includeLockStatus: true, disableErrors: true })
           if (!doc) {
-            const ok = access === true || typeof access === 'object' && access !== null && Object.keys(access).length === 0
+            const ok = access !== false
             const detail = ok ? 'This page no longer exists; nothing to change.' : 'You can no longer read this page.'
             docs.push({ collection, id, ok, detail, ...(!ok ? { error: detail } : {}) })
             skipped.add(key)
@@ -182,12 +183,23 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           const publishedContent = unwrap(published[field], current.slug, winner.slot!)
           const changedDraft = JSON.stringify(draftContent) !== JSON.stringify(draft[field])
           const changedPublished = JSON.stringify(publishedContent) !== JSON.stringify(published[field])
+          const publishedData = contentData(published, field, publishedContent)
+          const draftData = { ...contentData(draft, field, draftContent), _status: 'draft' }
+          // Payload beforeValidate receives the latest version as doc, and the
+          // proposed write as data/siblingData (blockData is the proposed row).
+          const publicationRefusal = await fieldRefusal(config?.fields ?? [], req, draft, 'update', publishedData)
+          if (publicationRefusal) throw new Error(publicationRefusal)
+          if (drafts) {
+            const draftOriginal = changedPublished ? { ...published, ...publishedData } : draft
+            const draftRefusal = await fieldRefusal(config?.fields ?? [], req, draftOriginal, 'update', draftData)
+            if (draftRefusal) throw new Error(draftRefusal)
+          }
           if (!changedDraft && !changedPublished) return
           // Host writes are access checked with the manager's req (§7.8).
           if (changedPublished) await req.payload.update({ collection, id, req, overrideAccess: false, overrideLock: false, draft: false,
-            data: contentData(published, field, publishedContent) })
+            data: publishedData })
           if (drafts) await req.payload.update({ collection, id, req, overrideAccess: false, overrideLock: false, draft: true,
-            data: { ...contentData(draft, field, draftContent), _status: 'draft' } })
+            data: draftData })
         })
       }
     } else if (current.kind === 'flag') {

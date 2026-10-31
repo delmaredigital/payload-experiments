@@ -215,7 +215,7 @@ test('evaluates field read access with the manager req even when the fake return
   expect(hostUpdates(f).filter(call => call.args.id === 3)).toEqual([])
   expect(hostUpdates(f).filter(call => call.args.id === 4)).toHaveLength(2)
 })
-test.each([true, {}])('retry after a failed placement is deleted reports it ok and archives (read=%j)', async access => {
+test.each([true, {}, { id: { equals: 3 } }])('retry after a failed placement is deleted reports it ok and archives (read=%j)', async access => {
   const f = fixture()
   Object.assign(f.payload.config.collections[0]!, { access: { read: () => access } })
   const update = f.payload.update.bind(f.payload)
@@ -290,4 +290,51 @@ test('collection read access removed since a partial run cannot abort the outer 
   expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'You can no longer read this page.' }, { id: 4, ok: false, detail: 'You can no longer read this page.' }])
   expect(hostUpdates(f)).toEqual([])
   expect(f.payload.dbCalls.some(call => call.method === 'rollbackTransaction')).toBe(false)
+})
+
+test.each(['field', 'tab'] as const)('readable admin-only %s update access refuses draft leakage before either write', async container => {
+  const f = fixture()
+  const updateAccess = vi.fn(({ id, req, doc, data, siblingData, blockData }) => {
+    expect(id).toBe(doc.id)
+    expect(req).toBe(f.req)
+    expect(req.user.id).toBe(42)
+    expect(doc.adminOnly).toBe('Draft-only secret')
+    expect(data.adminOnly).toBe('Published value')
+    expect(siblingData).toBe(data)
+    expect(blockData).toBeUndefined()
+    return false
+  })
+  f.payload.config.collections[0]!.fields = container === 'field'
+    ? [{ name: 'adminOnly', type: 'text', access: { read: () => true, update: updateAccess } }]
+    : [{ type: 'tabs', tabs: [{ name: 'settings', access: { read: () => true, update: updateAccess }, fields: [{ name: 'label', type: 'text' }] }] }]
+  const published = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, adminOnly: 'Published value', settings: { label: 'Published setting' } }]))
+  const drafts = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, adminOnly: 'Draft-only secret', settings: { label: 'Draft-only setting' } }]))
+  const originalPublished = structuredClone(published), originalDrafts = structuredClone(drafts)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => structuredClone((args.draft ? drafts : published).get(args.id!)!))
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(updateAccess).toHaveBeenCalledTimes(2)
+  for (const doc of result.docs) expect(doc).toMatchObject({ ok: false, detail: 'This page has fields you cannot update; update it by hand.' })
+  expect(hostUpdates(f)).toEqual([])
+  expect(published).toEqual(originalPublished)
+  expect(drafts).toEqual(originalDrafts)
+})
+test('nested block update access gets the proposed row and root data with the latest draft as doc', async () => {
+  const f = fixture()
+  const read = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => ({ ...await read(args), blocks: [{ blockType: 'copy', title: args.draft ? 'Draft-only title' : 'Published title' }] }))
+  const updateAccess = vi.fn(({ req, doc, data, siblingData, blockData }) => {
+    expect(req).toBe(f.req)
+    expect(doc.blocks[0].title).toBe('Draft-only title')
+    expect(data.blocks[0].title).toBe('Published title')
+    expect(siblingData).toBe(data.blocks[0])
+    expect(blockData).toBe(siblingData)
+    return false
+  })
+  f.payload.config.collections[0]!.fields = [{ name: 'blocks', type: 'blocks', blocks: [{ slug: 'copy', fields: [{ name: 'title', type: 'text', access: { read: () => true, update: updateAccess } }] }] }]
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(updateAccess).toHaveBeenCalledTimes(2)
+  expect(result.docs.every(doc => !doc.ok)).toBe(true)
+  expect(hostUpdates(f)).toEqual([])
 })

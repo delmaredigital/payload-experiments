@@ -23,6 +23,7 @@ export async function previousPublishedContent(req: PayloadRequest, collection: 
   // existence of a published version matters here; never use its content as
   // the baseline (published main rows remain reliable after version pruning).
   if (doc._status === 'draft') {
+    // §7.8 contentChanges exception: existence only, on the capture savepoint's req.
     const published = await req.payload.db.findVersions({ collection, req, limit: 1, pagination: false,
       where: { and: [{ parent: { equals: id } }, { 'version._status': { equals: 'published' } }] },
       overrideAccess: false,
