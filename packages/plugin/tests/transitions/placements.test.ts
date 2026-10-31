@@ -34,8 +34,9 @@ test('ignores unrelated and missing data, skips published documents repeated by 
   const payload = fakePayload({ collections: { pages: [{ id: 1, puckData: { content: [slot(null), slot('other')] } }, { id: 2 }, { id: 3, puckData: { content: [slot('hero')] } }] } })
   expect(await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', puckCollections: ['pages'] })).toHaveLength(1)
 })
-test('flag placements pass the request and every arm key, with an empty fallback', async () => {
+test('flag placements pass the request and non-holdout arm keys, with an empty fallback', async () => {
   const options = sampleOptions(), req = fakeReq(), experiment = { id: 2, flagPoint: 'cta', arms: defaultArms('flag') }
+  experiment.arms.push({ key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 0 })
   const hook = vi.fn(async () => [{ arm: 'control', ok: false, detail: 'Missing' }])
   options.flagPoints![0]!.placements = hook
   expect(await flagPlacements(options, experiment, req)).toEqual([{ arm: 'control', ok: false, detail: 'Missing' }])

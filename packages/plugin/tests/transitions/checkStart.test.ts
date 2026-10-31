@@ -78,6 +78,17 @@ describe('checkStart', () => {
     input.metrics.push({ id: 9, source: 'views' }); input.metricSources!.push({ id: 'views', keyedBy: 'visitor' })
     expect(checkStart(input)).toContainEqual(expect.objectContaining({ code: 'unit-source-mismatch', ok: false }))
   })
+  test('flag holdout needs no placement; a missing variant still refuses Start', () => {
+    const input = ready(); flag(input)
+    input.experiment.exposurePolicy = 'manual'
+    input.experiment.analysis!.reachPerDay = 100
+    input.experiment.arms.forEach(arm => { arm.weight = 45 })
+    input.experiment.arms.push({ key: 'holdout', label: 'Holdout', kind: 'holdout', weight: 10 })
+    input.flagPlacements = [{ arm: 'control', ok: true }, { arm: 'variantA', ok: true }]
+    expect(checkStart(input).every(check => check.ok)).toBe(true)
+    input.flagPlacements = [{ arm: 'control', ok: true }]
+    expect(checkStart(input)).toContainEqual(expect.objectContaining({ code: 'flag-placement-missing', ok: false }))
+  })
   test('counts distinct occupied slices and requires allocation free slices', () => {
     const input = ready(); input.experiment.layer = 1
     input.layer = { unitType: 'visitor', usedSlices: [...Array.from({ length: 50 }, (_, n) => n), 0] }

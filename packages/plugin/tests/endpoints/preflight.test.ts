@@ -48,6 +48,35 @@ test('a throwing host placement hook returns a failed check with detail, not 500
   expect(response.status).toBe(200)
   expect((await response.json()).checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'Content adapter unavailable' })
 })
+test.each([null, undefined, {}, 'invalid', 42])('a non-array placement result (%j) reports a failed check instead of 500', async value => {
+  const { options, req } = setup('flag')
+  options.flagPoints![0]!.placements = vi.fn().mockResolvedValue(value)
+  const response = await handlePreflight(req, { options })
+  expect(response.status).toBe(200)
+  const body = await response.json() as PreflightResult
+  expect(body.checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'Placement lookup returned an invalid result.' })
+  expect(body.placements).toEqual([])
+})
+test.each([null, undefined])('a synchronously returned %j placement result preserves the invalid-result detail', async value => {
+  const { options, req } = setup('flag')
+  options.flagPoints![0]!.placements = vi.fn().mockReturnValue(value)
+  const response = await handlePreflight(req, { options })
+  expect(response.status).toBe(200)
+  expect((await response.json() as PreflightResult).checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'Placement lookup returned an invalid result.' })
+})
+test('flag preflight with a holdout passes when host content covers the non-holdout arms', async () => {
+  const { options, req, payload } = setup('flag')
+  payload.documents['xp-experiments']![0]!.arms = [
+    ...defaultArms('flag').map(arm => ({ ...arm, weight: 45 })),
+    { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 10 },
+  ]
+  const placements = vi.fn(async () => [{ arm: 'control', ok: true }, { arm: 'variantA', ok: true }])
+  options.flagPoints![0]!.placements = placements
+  const response = await handlePreflight(req, { options })
+  expect(response.status).toBe(200)
+  expect(placements).toHaveBeenCalledWith({ experimentId: 'one', arms: ['control', 'variantA'], req })
+  expect((await response.json() as PreflightResult).checks.every(check => check.ok)).toBe(true)
+})
 test('host missing-arm rows remain visible to the Review tab', async () => {
   const { options, req } = setup('flag')
   options.flagPoints![0]!.placements = async () => [{ arm: 'control', ok: true }, { arm: 'variantA', ok: false, detail: 'No published ask' }]

@@ -52,7 +52,11 @@ export async function loadStartInputs<TUser extends { id: DocId }>(req: PayloadR
       experiment.arms = experiment.arms.map(arm => arm.kind === 'control' ? { ...arm, params } : arm)
     }
     if (point?.placements) {
-      try { input.flagPlacements = await flagPlacements(options, experiment, req) }
+      try {
+        const placements = await flagPlacements(options, experiment, req)
+        if (Array.isArray(placements)) input.flagPlacements = placements
+        else input.flagPlacementError = 'Placement lookup returned an invalid result.'
+      }
       catch (cause) { input.flagPlacementError = failureDetail(cause) }
     }
     if (experiment.flagPoint) {
@@ -110,16 +114,19 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
   const source = options.metricSources?.find(source => source.id === metric?.source)
   const historical = await primaryHistory(source, now)
   const history = historical?.values ?? null
-  const value = history === null ? null : source?.kind === 'binomial' ? historical!.dailyConverters / 28 : history.length ? history.reduce((sum, value) => sum + value, 0) / history.length : 0
-  const baseline: PreflightResult['baseline'] = primaryId === undefined || value === null ? null : { metricId: primaryId, value, days: 28 }
   const reach = e.analysis?.reachPerDay
   const trafficPerDay = typeof reach === 'number' && Number.isFinite(reach) && reach > 0 ? reach : null
+  const value = history === null ? null : source?.kind === 'binomial'
+    ? trafficPerDay === null ? null : historical!.dailyConverters / 28 / trafficPerDay
+    : history.length ? history.reduce((sum, value) => sum + value, 0) / history.length : 0
+  const baseline: PreflightResult['baseline'] = primaryId === undefined || value === null ? null : { metricId: primaryId, value, days: 28 }
   let power: PreflightResult['estimate'] = null
   if (trafficPerDay !== null && baseline && source && history) {
     const compared = e.arms.filter(arm => arm.kind !== 'holdout')
     const control = compared.find(arm => arm.kind === 'control')
     const variant = compared.find(arm => arm.kind === 'variant')
-    const planned = e.analysis?.plannedDurationDays && e.analysis.plannedDurationDays > 0 ? e.analysis.plannedDurationDays : 14
+    const savedDuration = e.analysis?.plannedDurationDays && e.analysis.plannedDurationDays > 0 ? e.analysis.plannedDurationDays : undefined
+    const planned = savedDuration ?? 14
     const enrolled = trafficPerDay * e.allocation / 100
     const pairShare = ((control?.weight ?? 0) + (variant?.weight ?? 0)) / 100
     const tuning = enrolled * planned * pairShare
@@ -129,7 +136,7 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
     const n = Math.max(trafficPerDay * 28, history.length)
     const mean = history.reduce((sum, value) => sum + value, 0) / n
     const variance = history.reduce((sum, value) => sum + value * value, 0) / n - mean * mean
-    const conversionRate = baseline.value / trafficPerDay
+    const conversionRate = baseline.value
     // v1 planning assumption: 10% relative lift at 80% power, alpha fixed at 5%.
     const params: PowerMetricParams = source.kind === 'binomial'
       ? { type: 'binomial', conversionRate, effectSize: 0.1 }
@@ -137,12 +144,19 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
     if (control && variant && usersPerWeek > 0 && tuning > 0 && (source.kind !== 'binomial' || conversionRate > 0 && conversionRate < 1) && (source.kind === 'binomial' || mean > 0)) {
       try {
         const alpha = e.analysis?.method === 'bayesian' ? 0.05 : 0.05 / Math.max(1, compared.filter(arm => arm.kind === 'variant').length)
-        const result = await estimate({ metrics: { primary: params }, nVariations: compared.length, nWeeks: 13, alpha, usersPerWeek, targetPower: 0.8,
-          method: e.analysis?.method === 'bayesian' ? { type: 'bayesian' } : { type: 'frequentist', sequentialTesting: tuning },
+        const estimateAt = (sequentialTuningParameter: number) => estimate({ metrics: { primary: params }, nVariations: compared.length, nWeeks: 13, alpha, usersPerWeek, targetPower: 0.8,
+          method: e.analysis?.method === 'bayesian' ? { type: 'bayesian' } : { type: 'frequentist', sequentialTesting: sequentialTuningParameter },
         })
-        const weeks = result.sampleSizeAndRuntime.primary?.weeks ?? result.weekThreshold ?? 13
-        const plannedDurationDays = e.analysis?.plannedDurationDays && e.analysis.plannedDurationDays > 0 ? e.analysis.plannedDurationDays : Math.ceil(weeks * 7)
-        power = { weeks, plannedDurationDays, sequentialTuningParameter: enrolled * plannedDurationDays * pairShare,
+        let result = await estimateAt(tuning)
+        let weeks = result.sampleSizeAndRuntime.primary?.weeks ?? result.weekThreshold ?? 13
+        const plannedDurationDays = savedDuration ?? Math.ceil(weeks * 7)
+        const sequentialTuningParameter = enrolled * plannedDurationDays * pairShare
+        if (savedDuration === undefined) {
+          // Re-evaluate using exactly the duration and tuning Review will prefill.
+          result = await estimateAt(sequentialTuningParameter)
+          weeks = result.sampleSizeAndRuntime.primary?.weeks ?? result.weekThreshold ?? 13
+        }
+        power = { weeks, plannedDurationDays, sequentialTuningParameter,
           feasible: Number.isFinite(weeks) && weeks * 7 <= 90 && result.sampleSizeAndRuntime.primary !== undefined }
       } catch { /* An unavailable power estimate must not prevent Review. */ }
     }

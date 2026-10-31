@@ -60,5 +60,6 @@ export async function flagPlacements<TUser extends { id: DocId }>(options: Resol
   id: DocId; flagPoint?: string | null; arms: Arm[]
 }, req: PayloadRequest): Promise<FlagPlacement[]> {
   const point = options.flagPoints?.find(point => point.id === experiment.flagPoint)
-  return point?.placements?.({ experimentId: experiment.id, arms: experiment.arms.map(arm => arm.key), req }) ?? []
+  if (!point?.placements) return []
+  return point.placements({ experimentId: experiment.id, arms: experiment.arms.filter(arm => arm.kind !== 'holdout').map(arm => arm.key), req })
 }

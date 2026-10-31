@@ -65,7 +65,7 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   const params = e.kind === 'flag' && point ? invalidParams(e.arms, point) : []
   add('flag-params-invalid', params.length === 0, params)
   add('flag-point-busy', e.kind !== 'flag' || !input.flagPointBusy)
-  const missing = input.flagPlacements === undefined ? [] : e.arms.filter(arm => !input.flagPlacements!.some(placement => placement.arm === arm.key && placement.ok))
+  const missing = input.flagPlacements === undefined ? [] : e.arms.filter(arm => arm.kind !== 'holdout' && !input.flagPlacements!.some(placement => placement.arm === arm.key && placement.ok))
   const failed = input.flagPlacements?.filter(placement => !placement.ok) ?? []
   add('flag-placement-missing', e.kind !== 'flag' || !input.flagPlacementError && missing.length === 0 && failed.length === 0,
     input.flagPlacementError ?? { missing: missing.map(arm => arm.key), placements: failed })

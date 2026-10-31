@@ -1,4 +1,5 @@
 import { expect, test, vi } from 'vitest'
+import type { PowerWeeksInput } from '@delmaredigital/experiments-stats'
 import { preflightData, loadStartInputs } from '../../src/transitions/preflightData.js'
 import { fakeReq } from '../_fakes/req.js'
 import { fakePayload } from '../_fakes/payload.js'
@@ -25,9 +26,13 @@ function setup(kind: 'binomial' | 'count' | 'revenue' = 'binomial', reach: numbe
 test.each(['binomial', 'count', 'revenue'] as const)('28-day %s baseline aggregates distinct eventful units', async kind => {
   const { options, req, query, payload } = setup(kind)
   const result = await preflightData(req, { experimentId: 1, options }, { now, estimate: () => ({ weeks: [], sampleSizeAndRuntime: {} }) })
-  expect(result!.baseline).toEqual({ metricId: 2, value: kind === 'binomial' ? 3 / 28 : 8, days: 28 })
+  expect(result!.baseline).toEqual({ metricId: 2, value: kind === 'binomial' ? (3 / 28) / 100 : 8, days: 28 })
   expect(query).toHaveBeenCalledWith({ from: new Date('2026-10-02T12:00:00Z'), to: now })
   expect(result!.trafficPerDay).toBe(100)
+  if (kind === 'binomial') {
+    expect(result!.baseline!.value).toBeGreaterThan(0)
+    expect(result!.baseline!.value).toBeLessThan(1)
+  }
   expect(payload.calls.every(call => call.method === 'find' && call.args.overrideAccess === false && call.args.req === req)).toBe(true)
   expect(payload.dbCalls).toEqual([])
 })
@@ -43,7 +48,7 @@ test('empty history yields a zero baseline; out-of-window rows are ignored', asy
   query.mockResolvedValueOnce([])
   expect((await preflightData(req, { experimentId: 1, options }, { now }))!.baseline?.value).toBe(0)
   query.mockResolvedValueOnce([...rows, { unitId: 'a', value: 20, ts: new Date('2026-10-10T17:00:00Z') }, { unitId: 'old', value: 1, ts: new Date('2026-10-01') }, { unitId: 'end', value: 1, ts: now }])
-  expect((await preflightData(req, { experimentId: 1, options }, { now }))!.baseline?.value).toBe(3 / 28)
+  expect((await preflightData(req, { experimentId: 1, options }, { now }))!.baseline?.value).toBe((3 / 28) / 100)
 })
 test('injected estimate receives enrolled traffic, method, primary moments and pair tuning', async () => {
   const { options, req } = setup()
@@ -52,6 +57,25 @@ test('injected estimate receives enrolled traffic, method, primary moments and p
   expect(estimate).toHaveBeenCalledWith({ metrics: { primary: { type: 'binomial', conversionRate: (3 / 28) / 100, effectSize: 0.1 } },
     usersPerWeek: 350, nVariations: 2, nWeeks: 13, alpha: 0.05, targetPower: 0.8, method: { type: 'frequentist', sequentialTesting: 700 } })
   expect(result!.estimate).toEqual({ weeks: 3, plannedDurationDays: 14, sequentialTuningParameter: 700, feasible: true })
+  expect(estimate).toHaveBeenCalledTimes(1)
+})
+test('unsaved duration is estimated once, then final tuning matches the returned prefill', async () => {
+  const { options, req, payload } = setup()
+  payload.documents['xp-experiments']![0]!.analysis = { reachPerDay: 100 }
+  const estimate = vi.fn((_input: PowerWeeksInput) => ({ weeks: [], sampleSizeAndRuntime: { primary: { weeks: 4, users: 1400 } } }))
+    .mockReturnValueOnce({ weeks: [], sampleSizeAndRuntime: { primary: { weeks: 3, users: 1050 } } })
+  const result = await preflightData(req, { experimentId: 1, options }, { now, estimate })
+  expect(estimate).toHaveBeenCalledTimes(2)
+  expect(result!.estimate).toEqual({ weeks: 4, plannedDurationDays: 21, sequentialTuningParameter: 1050, feasible: true })
+  expect(estimate.mock.calls[0]![0].method).toEqual({ type: 'frequentist', sequentialTesting: 700 })
+  expect(estimate.mock.calls[1]![0].method).toEqual({ type: 'frequentist', sequentialTesting: result!.estimate!.sequentialTuningParameter })
+})
+test.each(['count', 'revenue'] as const)('%s baseline remains available when traffic is unknown', async kind => {
+  const { options, req } = setup(kind, null)
+  const result = await preflightData(req, { experimentId: 1, options }, { now })
+  expect(result!.baseline).toEqual({ metricId: 2, value: 8, days: 28 })
+  expect(result!.trafficPerDay).toBeNull()
+  expect(result!.estimate).toBeNull()
 })
 test('unequal arms and holdout do not inflate planning traffic; tuning uses control plus one variant', async () => {
   const { options, req, payload } = setup('count')
@@ -68,7 +92,9 @@ test('unequal arms and holdout do not inflate planning traffic; tuning uses cont
 test('unknown traffic and unavailable baseline suppress estimates; estimate exceptions are tolerated', async () => {
   const { options, req } = setup('binomial', null)
   const estimate = vi.fn(() => { throw new Error('power unavailable') })
-  expect((await preflightData(req, { experimentId: 1, options }, { now, estimate }))!.estimate).toBeNull()
+  const unknown = await preflightData(req, { experimentId: 1, options }, { now, estimate })
+  expect(unknown!.estimate).toBeNull()
+  expect(unknown!.baseline).toBeNull()
   expect(estimate).not.toHaveBeenCalled()
   const known = setup()
   expect((await preflightData(known.req, { experimentId: 1, options: known.options }, { now, estimate }))!.estimate).toBeNull()
