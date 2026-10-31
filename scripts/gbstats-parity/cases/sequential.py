@@ -94,24 +94,16 @@ def cases() -> dict:
                                 {"alpha": alpha, "testValue": 0.07}))
         rows.append({"name": "default-config", "input": {"args": [a, b]},
                      "expected": freq_ts(test([(to_gb(a), to_gb(b))]).compute_result())})
-        if test is not SequentialTwoSidedTTest:
-            # A bounded grid probes large absolute units: the fixed 1e-6 CI
-            # tolerance can be below rounding resolution. Include a row ONLY
-            # if upstream actually reports non-convergence; never invent it.
-            found = False
-            for scale in (1e8, 1e12, 1e16):
-                for effect in (0.07, 0.12, 0.19, 0.27):
-                    x = mean(1000, 2 * scale, scale ** 2)
-                    direction = -1 if test is SequentialOneSidedTreatmentLesserTTest else 1
-                    y = mean(1000, (2 + direction * effect) * scale, scale ** 2)
-                    cfg = {"differenceType": "absolute", "alpha": 0.05, "testValue": 0.07}
-                    candidate = row(test, "non-converged-grid-" + str(scale) + "-" + str(effect), x, y, cfg)
-                    if candidate["expected"]["pValueErrorMessage"] == "NUMERICAL_PVALUE_NOT_CONVERGED":
-                        rows.append(candidate)
-                        found = True
-                        break
-                if found:
-                    break
+        # Non-finite moments give NaN CI bounds deterministically, unlike
+        # finite large-scale inputs whose convergence depends on libm rounding.
+        inf = float("inf")
+        for difference in ("absolute", "relative"):
+            rows.append(row(test, "non-converged-nan-ci-" + difference, mean(100, 2, 1),
+                            {"type": "sampleMean", "n": 100, "sum": inf, "sumSquares": inf},
+                            {"differenceType": difference}))
+            if test is not SequentialTwoSidedTTest:
+                assert rows[-1]["expected"]["pValue"] is None
+                assert rows[-1]["expected"]["pValueErrorMessage"] == "NUMERICAL_PVALUE_NOT_CONVERGED"
         return rows
 
     def test_fixture(test):

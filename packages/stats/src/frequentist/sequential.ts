@@ -161,12 +161,16 @@ function oneSidedPValue(state: ReturnType<typeof sequentialState>, config: Seque
     if (ciBigValue < 0) return { pValue: maxAlpha, pValueErrorMessage: null }
   }
   // Upstream never increments iters: convergence is solely |diff| < tol.
+  // At CI magnitudes >= 1e10, convergence depends on float rounding because
+  // upstream uses a fixed 1e-6 tolerance; this is inherited, not a port difference.
   const iters: number = 0
   let thisAlpha = 0.5 * (minAlpha + maxAlpha)
   let diff = 0
   for (let i = 0; i < maxIters; i++) {
     innerConfig.alpha = thisAlpha
     const ciValue = innerCI()[ciIndex]
+    // Upstream's `if ci_value is None: break` is unreachable here: CI bounds
+    // are numbers (including NaN and +/-Infinity), so that check is omitted.
     diff = ciValue - 0
     if (lesser) {
       if (diff > 0) minAlpha = thisAlpha
