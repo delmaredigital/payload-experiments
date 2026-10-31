@@ -1,0 +1,18 @@
+export const editorCopy = {
+  labels: { control: 'Original', variantA: 'Variant A', variantB: 'Variant B', variantC: 'Variant C' },
+  unbound: 'Choose or create an experiment to show different versions.',
+  draft: 'This block shows the Original to everyone until the experiment starts.',
+  running: 'Changing this content mid-test mixes two versions in one result',
+  decided: (winner: string) => `Decided: ${winner}. Use 'Make it the content' on the experiment to finish.`,
+  archived: 'This experiment is archived; the winning content is shown to everyone.',
+  copy: (label: string) => `Copy Original → ${label}`,
+  createLabel: 'Create experiment',
+  creating: 'Creating…',
+  cancel: 'Cancel',
+  name: 'Name',
+  slug: 'Slug',
+  createError: "Couldn't create the experiment. Try again.",
+  loading: 'Loading experiment…',
+  loadError: "Couldn't load this experiment. Try selecting it again.",
+  tabs: 'Experiment versions',
+} as const
