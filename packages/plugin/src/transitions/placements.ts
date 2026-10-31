@@ -1,6 +1,7 @@
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, FlagPoint, ResolvedOptions } from '../types/contracts.js'
 import type { ArmSlot } from '../types/puck.js'
+import { puckCollections as normalisePuckCollections } from '../options.js'
 
 export interface BlockPlacement {
   collection: string; id: DocId; title: string; published: boolean
@@ -13,10 +14,10 @@ const slots = ['control', 'variantA', 'variantB', 'variantC'] as const
  * in one document: content elsewhere in the document cannot hide an empty slot.
  */
 export async function scanBlockPlacements(req: PayloadRequest, { slug, puckCollections }: {
-  slug: string; puckCollections: string[]
+  slug: string; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']
 }): Promise<BlockPlacement[]> {
   const placements: BlockPlacement[] = []
-  for (const collection of puckCollections) {
+  for (const { slug: collection, field } of normalisePuckCollections({ puck: { enabled: true, collections: puckCollections } })) {
     const publishedIds = new Set<string>()
     const draftsEnabled = req.payload.config.collections?.some(config => config.slug === collection && config.versions && config.versions.drafts)
     for (const draft of [false, true]) {
@@ -46,7 +47,7 @@ export async function scanBlockPlacements(req: PayloadRequest, { slug, puckColle
             }
             Object.values(node).forEach(walk)
           }
-          walk(doc.puckData)
+          walk(doc[field])
         }
         if (!result.hasNextPage) break
         page++

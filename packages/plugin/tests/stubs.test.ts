@@ -94,7 +94,7 @@ const stubs: Array<[Function, string]> = [
   ...Object.values(proxy).map(fn => [fn, 'CORE-06'] as [Function, string]),
   ...[rsc.getAssignments, rsc.resolveExperimentData, rsc.toClientAssignments, rsc.getFlagPoint, rsc.experimentMetadata, rsc.experimentSitemapFilter].map(fn => [fn, 'CORE-07'] as [Function, string]),
   ...[rsc.recordExposures, rsc.trackConversion, rsc.linkIdentity, rsc.eraseUser].map(fn => [fn, 'CORE-08a'] as [Function, string]),
-  [rsc.recordContentChange, 'CORE-12'], [rsc.runResults, 'CORE-15b'],
+  [rsc.runResults, 'CORE-15b'],
   ...[isEditable, lockHook, checkArms, addHoldout, flagControlParams].map(fn => [fn, 'CORE-03'] as [Function, string]),
   [deleteGuard, 'CORE-11'], [deleteGuardAfter, 'CORE-11'], [decideGuard, 'CORE-13'],
 ]
@@ -110,5 +110,5 @@ for (const [fn, lane] of stubs) {
 
 test('hooks installed on host collections pass the document through and never throw', async () => {
   const doc = { id: 1, puckData: { content: [] } }
-  await expect(Promise.resolve().then(() => Reflect.apply(contentChangesHook, undefined, [{ doc }]))).resolves.toBe(doc)
+  await expect(Promise.resolve().then(() => Reflect.apply(contentChangesHook, undefined, [{ doc, previousDoc: doc, req: { payload: { config: {} } }, collection: { slug: 'pages' } }]))).resolves.toBe(doc)
 })

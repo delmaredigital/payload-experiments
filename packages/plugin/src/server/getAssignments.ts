@@ -1,14 +1,16 @@
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
 import type { Assignments } from '../types/assignments.js'
 import { cache } from 'react'
-import { headers, cookies } from 'next/headers'
+import { headers, cookies } from 'next/headers.js'
 import { XP_HEADER } from '../constants.js'
 import { assign, fillFlagPoints, type AssignmentResult } from '../runtime/assign.js'
 import { verifyUnitCookie } from '../runtime/cookie.js'
 import { decodeAssignmentsHeader } from '../runtime/header.js'
 import { verifyPreviewToken } from '../runtime/previewToken.js'
 import { isBot } from '../runtime/bot.js'
-import { controlAssignments } from '../proxy/control.js'
+import { consentFallback } from '../proxy/consentFallback.js'
+import { normalisePath, requestAttributes } from '../runtime/normalisePath.js'
+import { controlAssignments, emptyAssignments } from '../proxy/control.js'
 import type { Attributes, ExperimentsPluginOptions } from '../types/contracts.js'
 import { emptyManifest, rememberManifest, serverManifest, suppressExposure } from './context.js'
 import { serverRequest } from './request.js'
@@ -28,9 +30,9 @@ export async function getAssignments<TUser extends { id: string | number } = { i
 async function readAssignments<TUser extends { id: string | number }>(runtime: ExperimentsServerRuntime<TUser>, suppliedUser: TUser | null | undefined): Promise<Assignments> {
   const [incoming, jar] = await Promise.all([headers(), cookies()])
   const requestHeaders = new Headers(incoming)
-  const { request, hasContext } = serverRequest(requestHeaders)
   const proxy = runtime.proxyRuntime
-  const visitorId = verifyUnitCookie(jar.get(proxy.cookie.name)?.value, proxy.secrets) ?? undefined
+  const { request, hasContext, consent } = serverRequest(requestHeaders, proxy.secrets)
+  const visitorId = consent === false ? undefined : verifyUnitCookie(jar.get(proxy.cookie.name)?.value, proxy.secrets) ?? undefined
   let payload: Payload | undefined
   let payloadFailed = false
   try { payload = await runtime.getPayload() } catch {
@@ -43,8 +45,9 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
     unit = { attributes: {}, sessionUnknown: true }
     console.error('[payload-experiments] getUnit failed; treating session as unknown')
   }
-  let user = suppliedUser
-  const canResolveUser = suppliedUser !== undefined || Boolean(runtime.getUser)
+  if (consent === false) unit = { attributes: unit.attributes, sessionUnknown: unit.sessionUnknown }
+  let user = consent === false ? null : suppliedUser
+  const canResolveUser = consent !== false && (suppliedUser !== undefined || Boolean(runtime.getUser))
   let userFailed = false
   const resolveUser = async () => {
     if (user !== undefined) return user
@@ -76,14 +79,11 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
   const mustResolveStaff = Boolean(options?.attributeKeys?.staff && (decoded?.sessionUnknown || unit.sessionUnknown))
   const needsUser = !decoded || decoded.deferred.length > 0 || mustResolveStaff || suppliedUser !== undefined
   if (needsUser && canResolveUser) await resolveUser()
-  let attributes: Attributes = { ...unit.attributes }
-  if (hasContext) attributes.path = request.nextUrl.pathname
-  else delete attributes.path
+  const pathname = hasContext ? request.nextUrl.pathname : undefined
+  let attributes = requestAttributes(unit.attributes, pathname)
   if (needsUser && canResolveUser) {
     try {
-      attributes = { ...attributes, ...runtime.attributesOf(user ?? null) } as Attributes
-      if (hasContext) attributes.path = request.nextUrl.pathname
-      else delete attributes.path
+      attributes = requestAttributes({ ...attributes, ...runtime.attributesOf(user ?? null) } as Attributes, pathname)
     } catch { userFailed = true }
   }
   const userId = visitorId ? (user === undefined ? unit.userId : user ? runtime.userIdOf(user) : undefined) : undefined
@@ -95,7 +95,14 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
   }
   let result: AssignmentResult
   if (payloadFailed) result = controlAssignments(manifest, context)
-  else if (decoded) {
+  else if (consent === false && !decoded) {
+    try { result = consentFallback(manifest, attributes, context) } catch {
+      console.error('[payload-experiments] consent fallback failed; serving non-exposable control')
+      try { result = controlAssignments(manifest, context) } catch {
+        return rememberManifest(emptyAssignments(context), emptyManifest())
+      }
+    }
+  } else if (decoded) {
     result = { ...decoded, ...context, archivedWinners: { ...manifest.archivedWinners } }
     const slugs = new Set(hasContext ? decoded.deferred : [])
     if (visitorId && user !== undefined && userId !== headerUserId) {
@@ -120,9 +127,6 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
   const controls = controlAssignments(manifest, context)
   for (const experiment of manifest.experiments) {
     if (!result.bySlug[experiment.slug]) result.bySlug[experiment.slug] = controls.bySlug[experiment.slug]!
-    if (!value && hasContext && experiment.kind === 'page' && experiment.arms.some(arm => arm.pageTarget === request.nextUrl.pathname)) {
-      result.bySlug[experiment.slug] = controls.bySlug[experiment.slug]!
-    }
   }
   fillFlagPoints(result, manifest)
   for (const point of options?.flagPoints ?? []) if (!Object.hasOwn(result.flagPoints, point.id)) {

@@ -27,7 +27,7 @@ test('completeness check rejects deleted required fields at every nesting level'
     }
   }
   const snapshot = revenueSnapshot()
-  snapshot.contentChanges = [{ at: '2026-10-30', doc: 'page', by: 'editor' }]
+  snapshot.contentChanges = [{ at: '2026-10-30', doc: { collection: 'pages', id: 'page' }, by: 'editor' }]
   snapshot.metrics[0]!.perArm[0]!.covariate = { preSum: 1, preSumSquares: 1, postPreSumOfProducts: 1 }
   visit(snapshot)
 })

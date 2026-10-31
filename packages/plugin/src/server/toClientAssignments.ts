@@ -1,3 +1,4 @@
+import { normalisePath } from '../runtime/normalisePath.js'
 import type { Assignments, ClientAssignments } from '../types/assignments.js'
 import { manifestOf, suppressExposure } from './context.js'
 
@@ -19,7 +20,7 @@ export function toClientAssignments(assignments: Assignments, opts: { pathname: 
     const a = assignments.bySlug[e.slug]
     if (e.kind !== 'page' || !a?.exposable) continue
     const served = e.arms.find(arm => arm.key === a.arm && arm.kind !== 'holdout') ?? e.arms.find(arm => arm.kind === 'control')
-    if (served?.pageTarget === opts.pathname) result.pageviews.push({ slug: e.slug, arm: a.arm, phase: a.phase })
+    if (served?.pageTarget !== undefined && normalisePath(served.pageTarget) === normalisePath(opts.pathname)) result.pageviews.push({ slug: e.slug, arm: a.arm, phase: a.phase })
   }
   return result
 }

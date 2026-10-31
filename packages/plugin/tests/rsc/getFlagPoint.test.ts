@@ -1,14 +1,10 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import './requestHarness.js'
+import { trustedContext } from './requestHarness.js'
 import { experiment, manifest, runtime } from './helpers.js'
 import { getFlagPoint } from '../../src/server/getFlagPoint.js'
 import * as exposure from '../../src/server/recordExposures.js'
 import { XpNotImplemented } from '../../src/errors.js'
-import * as requestReader from '../../src/server/request.js'
-import { NextRequest } from 'next/server'
 import { PgDialect } from 'drizzle-orm/pg-core'
-
-const trustedContext = () => vi.spyOn(requestReader, 'serverRequest').mockImplementation(headers => ({ request: new NextRequest('https://example.com/', { headers }), hasContext: true }))
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 test('live experiment beats shipped defaults and registered point defaults', async () => {
@@ -51,7 +47,6 @@ test('CORE-08a stub failure is caught and logged', async () => {
 })
 
 test.each([true, false])('unmocked manual expose writes only when exposable (%s)', async exposable => {
-  // CORE-06c owns signed context; supply the trusted reader result at that seam.
   // getFlagPoint, recordExposures, pooledExecutor and insertEvents all run for real.
   trustedContext()
   vi.useFakeTimers().setSystemTime(new Date('2026-10-31T03:30:00.000Z'))

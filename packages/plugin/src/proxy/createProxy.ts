@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server.js'
 import type { ExperimentsProxyRuntime } from '../types/runtime.js'
 import { resolveExperiments } from './resolve.js'
 import { applyExperiments } from './apply.js'

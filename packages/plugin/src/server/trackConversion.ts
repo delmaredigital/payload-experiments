@@ -1,5 +1,5 @@
 import type { Payload } from 'payload'
-import { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server.js'
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
 import { pooledExecutor } from '../db/executor.js'
 import { insertEvents } from '../db/events.js'
@@ -10,7 +10,7 @@ export async function trackConversion<TUser extends { id: string | number } = { 
   try {
     let headers = event.headers
     if (!headers) {
-      try { headers = await (await import('next/headers')).headers() }
+      try { headers = await (await import('next/headers.js')).headers() }
       catch { /* A user-only server conversion need not have a Next request. */ }
     }
     const runtime = serverRuntime.proxyRuntime

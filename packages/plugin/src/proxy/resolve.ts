@@ -2,16 +2,18 @@ import type { NextRequest, NextResponse } from 'next/server'
 import type { ExperimentsProxyRuntime } from '../types/runtime.js'
 import type { Attributes } from '../types/contracts.js'
 import type { Manifest } from '../types/manifest.js'
-import { XP_HEADER } from '../constants.js'
+import { XP_HEADER, XP_REQUEST_HEADER } from '../constants.js'
 import { createManifestCache } from '../manifest/cache.js'
 import { assign, fillFlagPoints, type AssignmentResult } from '../runtime/assign.js'
+import { sign } from '../runtime/signing.js'
+import { normalisePath, requestAttributes } from '../runtime/normalisePath.js'
 import { isBot } from '../runtime/bot.js'
 import { cookieAttributes, encodeUnitCookie, mintUnitId, verifyUnitCookie } from '../runtime/cookie.js'
 import { encodeAssignmentsHeader } from '../runtime/header.js'
 import { verifyPreviewToken } from '../runtime/previewToken.js'
 import { pageRewrite } from './pageRewrite.js'
 import { skipPath } from './skip.js'
-import { controlAssignments } from './control.js'
+import { controlAssignments, emptyAssignments } from './control.js'
 import { consentFallback } from './consentFallback.js'
 
 const caches = new WeakMap<ExperimentsProxyRuntime, ReturnType<typeof createManifestCache>>()
@@ -34,6 +36,9 @@ export async function resolveExperiments(request: NextRequest, proxyRuntime: Exp
   try { consent = proxyRuntime.cookie.consent?.(request) !== false } catch {
     console.error('[payload-experiments] consent failed; treating consent as false')
   }
+  const requestContext = `${request.method}|${request.nextUrl.pathname}${request.nextUrl.search}|${consent ? 'c1' : 'c0'}`
+  const signedContext = `${requestContext}|${sign(`xp:request:${requestContext}`, proxyRuntime.secrets)}`
+  if (Buffer.byteLength(signedContext) <= 2048) requestHeaders.set(XP_REQUEST_HEADER, signedContext)
   const name = proxyRuntime.cookie.name
   let visitorId = consent ? verifyUnitCookie(request.cookies.get(name)?.value, proxyRuntime.secrets) ?? undefined : undefined
   if (!consent) {
@@ -59,7 +64,7 @@ export async function resolveExperiments(request: NextRequest, proxyRuntime: Exp
   }
   const { attributes: unitAttributes, sessionUnknown } = resolvedUnit
   const userId = consent ? resolvedUnit.userId : undefined
-  const attributes: Attributes = { ...unitAttributes, path: request.nextUrl.pathname }
+  const attributes = requestAttributes(unitAttributes, request.nextUrl.pathname)
   let cache = caches.get(proxyRuntime)
   if (!cache && proxyRuntime.loadManifest) {
     cache = createManifestCache(proxyRuntime.loadManifest)
@@ -79,7 +84,13 @@ export async function resolveExperiments(request: NextRequest, proxyRuntime: Exp
   let assignments: AssignmentResult
   let assignmentFailed = false
   if (!consent) {
-    assignments = consentFallback(currentManifest, attributes, context)
+    try { assignments = consentFallback(currentManifest, attributes, context) } catch {
+      console.error('[payload-experiments] consent fallback failed; serving non-exposable control')
+      assignmentFailed = true
+      try { assignments = controlAssignments(currentManifest, context) } catch {
+        assignments = emptyAssignments(context)
+      }
+    }
   } else {
     try {
       assignments = assign(currentManifest, { visitorId, userId, sessionUnknown }, attributes, { ...context, now })
@@ -98,15 +109,14 @@ export async function resolveExperiments(request: NextRequest, proxyRuntime: Exp
       }
       fillFlagPoints(assignments, currentManifest)
     }
-    result.responseHeaders = new Headers({ 'Cache-Control': 'no-store' })
   }
+  if (token) result.responseHeaders = new Headers({ 'Cache-Control': 'no-store' })
   if (manifest && !assignmentFailed) result.rewrite = pageRewrite(manifest, assignments, request.nextUrl)
   try {
     requestHeaders.set(XP_HEADER, encodeAssignmentsHeader(assignments, { secrets: proxyRuntime.secrets, manifest: manifest ?? undefined }))
   } catch {
-    // The server recomputes from the signed cookie. Overflow loses preview forcing
-    // and deferred/unresolvable-page control! overrides (CORE-07 handles recompute).
-    // Consent refusal stays safe because its cookie was removed before forwarding.
+    // The server recomputes from the signed cookie and request context.
+    // Without request context it fails closed; signed c0 keeps recompute identity-free.
   }
   return result
 }

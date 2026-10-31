@@ -33,7 +33,7 @@ test('one-sided null intervals stay open and non-finite bounds never enter the d
 test('only markers within the inclusive x domain survive and opaque ids are dropped', () => {
   const model = chartModel({ series: [point(first, [-1, 1]), point(last, [-1, 1])], metricId: 'registrations', phase,
     contentChanges: ['2026-10-28', first, '2026-10-29T12:00:00Z', last, '2026-10-31', 'invalid']
-      .map(at => ({ at, doc: 'page', by: 'opaque-editor-id' })) })
+      .map(at => ({ at, doc: { collection: 'pages', id: 'page' }, by: 'opaque-editor-id' })) })
   expect(model.empty).toBe(false)
   if (model.empty) return
   expect(model.markers.map(marker => marker.at)).toEqual([first, '2026-10-29T12:00:00Z', last])

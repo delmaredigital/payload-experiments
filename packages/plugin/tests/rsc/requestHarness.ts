@@ -2,11 +2,12 @@ import { beforeEach, vi } from 'vitest'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { encodeUnitCookie } from '../../src/runtime/cookie.js'
+import { sign } from '../../src/runtime/signing.js'
 import { secrets } from './helpers.js'
 
 const requestState = vi.hoisted(() => ({ headers: new Headers(), cookie: '', headersRead: vi.fn(), cookiesRead: vi.fn() }))
 export { requestState }
-vi.mock('next/headers', () => ({
+vi.mock('next/headers.js', () => ({
   headers: async () => { requestState.headersRead(); return requestState.headers },
   cookies: async () => { requestState.cookiesRead(); return { get: () => requestState.cookie ? { value: requestState.cookie } : undefined } },
 }))
@@ -27,3 +28,8 @@ export function newRequest() {
   requestState.cookiesRead.mockClear()
 }
 beforeEach(newRequest)
+
+export function trustedContext(path = '/', method = 'GET', consent = true, keys: readonly string[] = secrets) {
+  const value = `${method}|${path}|${consent ? 'c1' : 'c0'}`
+  requestState.headers.set('x-xp-request', `${value}|${sign(`xp:request:${value}`, keys)}`)
+}

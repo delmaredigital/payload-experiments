@@ -49,6 +49,6 @@ test('document references accept serial and UUID ids', () => {
   expectTypeOf<MakeContentResult['docs'][number]['id']>().toEqualTypeOf<DocId>()
   expectTypeOf<Snapshot['experiment']>().toEqualTypeOf<DocId>()
   expectTypeOf<Snapshot['metrics'][number]['metricId']>().toEqualTypeOf<DocId>()
-  expectTypeOf<Snapshot['contentChanges'][number]['doc']>().toEqualTypeOf<DocId>()
-  expectTypeOf<Snapshot['contentChanges'][number]['by']>().toEqualTypeOf<DocId>()
+  expectTypeOf<Snapshot['contentChanges'][number]['doc']>().toEqualTypeOf<{ collection: string; id: DocId }>()
+  expectTypeOf<Snapshot['contentChanges'][number]['by']>().toEqualTypeOf<DocId | null>()
 })
