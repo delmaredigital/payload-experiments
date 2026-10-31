@@ -27,16 +27,22 @@ function observerMock() {
   return { Observer, observers, intersect }
 }
 
-test('server markup is identical with and without expose; wrapper and sentinel styles do not depend on children', () => {
-  expect(renderToStaticMarkup(<ViewportExposure expose={expose}>Content</ViewportExposure>)).toBe(renderToStaticMarkup(<ViewportExposure>Content</ViewportExposure>))
-  const view = render(<ViewportExposure><p>Short</p></ViewportExposure>)
+test('without expose the children render bare: no wrapper and no sentinel', () => {
+  expect(renderToStaticMarkup(<ViewportExposure><p>Content</p></ViewportExposure>)).toBe(renderToStaticMarkup(<p>Content</p>))
+  const view = render(<ViewportExposure><p>Content</p></ViewportExposure>)
+  expect(view.container.querySelector('[data-xp-viewport]')).toBeNull()
+  expect(view.container.querySelector('[data-xp-sentinel]')).toBeNull()
+})
+
+test('with expose the wrapper and sentinel styles are fixed and do not depend on children', () => {
+  const view = render(<ViewportExposure expose={expose}><p>Short</p></ViewportExposure>)
   const wrapper = view.container.querySelector<HTMLDivElement>('[data-xp-viewport]')!
   const sentinel = view.container.querySelector<HTMLDivElement>('[data-xp-sentinel]')!
   expect(wrapper.style.cssText).toBe('position: relative; display: block;')
   expect(sentinel.style.cssText).toBe('position: absolute; top: 0px; left: 0px; width: 100%; height: 100px; pointer-events: none; visibility: hidden;')
   expect(sentinel.getAttribute('aria-hidden')).toBe('true')
   const style = sentinel.getAttribute('style')
-  view.rerender(<ViewportExposure><div style={{ height: 2000 }}>Tall</div></ViewportExposure>)
+  view.rerender(<ViewportExposure expose={expose}><div style={{ height: 2000 }}>Tall</div></ViewportExposure>)
   expect(view.container.querySelector('[data-xp-sentinel]')!.getAttribute('style')).toBe(style)
 })
 
@@ -46,9 +52,8 @@ test('only observes the fixed sentinel with expose; threshold 0.5 sends once and
   const tree = (enabled: boolean) => <ExperimentsProvider value={assignments()}><ViewportExposure expose={enabled ? expose : undefined}><p>Content</p></ViewportExposure></ExperimentsProvider>
   const view = render(tree(false))
   expect(Observer).not.toHaveBeenCalled()
-  const markup = view.container.innerHTML
+  expect(view.container.querySelector('[data-xp-sentinel]')).toBeNull()
   view.rerender(tree(true))
-  expect(view.container.innerHTML).toBe(markup)
   expect(Observer).toHaveBeenCalledWith(expect.any(Function), { threshold: 0.5 })
   expect(observers[0]!.observe).toHaveBeenCalledWith(view.container.querySelector('[data-xp-sentinel]'))
   expect(sendBeacon).not.toHaveBeenCalled()

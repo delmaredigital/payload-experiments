@@ -41,10 +41,9 @@ test.each([undefined, 'unknown' as ArmSlot])('falls back to the Original for xpS
   for (const name of ['variantA', 'variantB', 'variantC'] as const) expect(slots[name]).not.toHaveBeenCalled()
 })
 
-test('always renders byte-identical wrapper and fixed sentinel markup with or without exposure', () => {
+test('a viewport exposure renders the fixed wrapper and sentinel markup', () => {
   const { props } = renderProps({ xpSlot: 'variantB' })
-  const html = renderToString(ExperimentSlot.render(props))
-  expect(renderToString(ExperimentSlot.render({ ...props, xpExpose: { slug: 'example', arm: 'variantB', phase: 2 } }))).toBe(html)
+  const html = renderToString(ExperimentSlot.render({ ...props, xpExpose: { slug: 'example', arm: 'variantB', phase: 2 } }))
   expect(html).toContain('data-xp-viewport="true"')
   expect(html).toContain('data-xp-sentinel="true"')
   expect(html).toContain('height:100px')
@@ -68,4 +67,19 @@ test('custom field supports a label and passes the reference and change callback
   const element = field.render({ field, name: 'experiment', id: 'experiment-1', value, onChange })
   expect(element.type).toBe(ExperimentPicker)
   expect(element.props).toEqual({ value, onChange })
+})
+
+test('without xpExpose the slot renders exactly the bare Slot: no wrapper element', () => {
+  const { props } = renderProps({ xpSlot: 'variantA', xpArm: 'variantA' })
+  const html = renderToString(ExperimentSlot.render(props))
+  expect(html).toBe(renderToString(<p>A content</p>))
+  expect(html).not.toContain('data-xp-viewport')
+})
+
+test('with a viewport exposure the slot keeps its fixed-geometry wrapper', () => {
+  const { props } = renderProps({ xpSlot: 'variantA', xpArm: 'variantA', xpExpose: { slug: 'example', arm: 'variantA', phase: 1 } })
+  const html = renderToString(ExperimentSlot.render(props))
+  expect(html).toContain('data-xp-viewport')
+  expect(html).toContain('data-xp-sentinel')
+  expect(html).toContain('A content')
 })

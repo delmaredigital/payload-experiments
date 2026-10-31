@@ -23,10 +23,9 @@ test('the server slot attaches an observer only when xpExpose is present', () =>
   const view = render(tree())
   expect(Observer).not.toHaveBeenCalled()
   expect(observe).not.toHaveBeenCalled()
-  const markup = view.container.innerHTML
+  expect(view.container.querySelector('[data-xp-sentinel]')).toBeNull()
 
   view.rerender(tree({ slug: 'example', arm: 'variantA', phase: 1 }))
-  expect(view.container.innerHTML).toBe(markup)
   expect(Observer).toHaveBeenCalledExactlyOnceWith(expect.any(Function), { threshold: 0.5 })
   const sentinel = view.container.querySelector<HTMLDivElement>('[data-xp-sentinel]')!
   expect(observe).toHaveBeenCalledExactlyOnceWith(sentinel)
