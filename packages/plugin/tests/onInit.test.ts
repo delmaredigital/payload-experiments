@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { createOnInit } from '../src/onInit.js'
 import { resolveOptions } from '../src/options.js'
+import { defineExperimentsServerRuntime } from '../src/server/serverRuntime.js'
 import { fakePayload } from './_fakes/payload.js'
 import { sampleOptions } from './collections/fixtures.js'
 
@@ -26,22 +27,29 @@ test.each(['probe-id', 42])('immediately rolls back transaction %j', async id =>
   expect(payload.db.sessions).toEqual({})
 })
 
-test('staff requires attributesOf and does not leak the probe transaction', async () => {
+test('staff rejects default attributesOf and does not leak the probe transaction', async () => {
   const options = resolveOptions(sampleOptions())
   options.attributeKeys = { staff: { type: 'boolean' } }
-  // Model a JavaScript host bypassing the resolved runtime's TypeScript contract.
-  Reflect.deleteProperty(options.runtime, 'attributesOf')
+  options.runtime = defineExperimentsServerRuntime(options.runtime.proxyRuntime, { getPayload: options.runtime.getPayload })
   const payload = fakePayload()
   Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
-  await expect(createOnInit(options)(payload)).rejects.toThrow('staff attribute requires runtime.attributesOf')
+  expect(options.runtime.attributesOf(null)).toEqual({ loggedIn: false })
+  await expect(createOnInit(options)(payload)).rejects.toThrow('`staff` is declared in attributeKeys, so pass an `attributesOf` that identifies staff to defineExperimentsServerRuntime')
   expect(payload.db.sessions).toEqual({})
-  options.runtime.attributesOf = () => ({ staff: false })
+})
+
+test('staff starts with host-supplied attributesOf', async () => {
+  const options = resolveOptions(sampleOptions())
+  options.attributeKeys = { staff: { type: 'boolean' } }
+  options.runtime = defineExperimentsServerRuntime(options.runtime.proxyRuntime, { getPayload: options.runtime.getPayload, attributesOf: user => ({ staff: Boolean(user) }) })
+  const payload = fakePayload()
+  Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
   await expect(createOnInit(options)(payload)).resolves.toBeUndefined()
 })
 
-test('attributesOf may be absent when staff is not declared', async () => {
+test('default attributesOf starts when staff is not declared', async () => {
   const options = resolveOptions(sampleOptions())
-  Reflect.deleteProperty(options.runtime, 'attributesOf')
+  options.runtime = defineExperimentsServerRuntime(options.runtime.proxyRuntime, { getPayload: options.runtime.getPayload })
   const payload = fakePayload()
   Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
   await expect(createOnInit(options)(payload)).resolves.toBeUndefined()

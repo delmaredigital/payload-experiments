@@ -46,6 +46,18 @@ test('server payload is lazy; identity and attributes defaults are usable', () =
   expect(custom.userIdOf).toBe(opts.userIdOf)
   expect(custom.attributesOf).toBe(opts.attributesOf)
 })
+test.each([false, true])('host attributesOf marker preserves enumerable shape and JSON (supplied: %j)', supplied => {
+  const proxy = defineExperimentsProxyRuntime({ secret: 'key', apiRoute: '/api' })
+  const getPayload = vi.fn()
+  const opts = { getPayload, ...(supplied ? { attributesOf: () => ({ staff: true }) } : {}) }
+  const runtime = defineExperimentsServerRuntime(proxy, opts)
+  const originalShape = { proxyRuntime: proxy, getPayload, getUser: undefined, userIdOf: runtime.userIdOf, attributesOf: runtime.attributesOf }
+  expect(Object.keys(runtime)).toEqual(Object.keys(originalShape))
+  expect(JSON.stringify(runtime)).toBe(JSON.stringify(originalShape))
+  const symbols = Object.getOwnPropertySymbols(runtime)
+  expect(symbols).toHaveLength(supplied ? 1 : 0)
+  if (supplied) expect(Object.getOwnPropertyDescriptor(runtime, symbols[0]!)).toMatchObject({ value: true, enumerable: false })
+})
 test('definition helpers preserve identity and literal extensions', () => {
   const point = { id: 'point', label: 'Point', params: {}, defaultParams: {}, extension: true }
   expect(defineFlagPoint(point)).toBe(point)
