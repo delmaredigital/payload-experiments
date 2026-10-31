@@ -559,3 +559,12 @@ test('c0 corrupt arms cannot throw from either consent fallback or its control f
   expect(result.setCookies).toEqual([])
   expect(log).toHaveBeenCalledExactlyOnceWith('[payload-experiments] consent fallback failed; serving non-exposable control')
 })
+
+test('consenting assign failure with corrupt arms returns empty assignments without rewriting', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const m = manifest([experiment({ arms: null as unknown as ManifestExperiment['arms'] })])
+  const result = await resolveExperiments(signedRequest(), runtime(m))
+  expect(decode(result, { ...manifest([]), revision: 0 }, 'visitor')).toMatchObject({ bySlug: {}, flagPoints: {}, deferred: [] })
+  expect(result.rewrite).toBeUndefined()
+  expect(log).toHaveBeenCalledExactlyOnceWith('[payload-experiments] assign failed; serving non-exposable control')
+})

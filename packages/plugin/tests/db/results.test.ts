@@ -27,6 +27,20 @@ test('results transport applies a timeout per query and recovers after an isolat
   expect(exec).toMatchObject({ schemaName: 'host' })
 })
 
+test.each(['57014', '23505'])('results transport rolls back SQL error %s without destroying its client', async code => {
+  const release = vi.fn(), calls: string[] = []
+  const error = Object.assign(new Error('SQL failed'), { code })
+  const pool = { connect: async () => ({ release, query: async ({ text }: { text: string }) => {
+    calls.push(text)
+    if (text === 'SELECT broken') throw error
+    return { rows: [], rowCount: 0 }
+  } }) }
+  const exec = resultsExecutor({ db: { pool } } as unknown as Payload, () => 1000)
+  await expect(exec.query('SELECT broken')).rejects.toThrow(code === '57014' ? 'Results budget exhausted' : 'SQL failed')
+  expect(calls.at(-1)).toBe('ROLLBACK')
+  expect(release).toHaveBeenCalledExactlyOnceWith(undefined)
+})
+
 test.each(['BEGIN', 'SET', 'COMMIT'])('results transport bounds a hung %s and destroys its client', async hang => {
   const release = vi.fn(), calls: string[] = []
   const pool = { connect: async () => ({ release, query: async ({ text }: { text: string }) => {

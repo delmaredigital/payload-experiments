@@ -1,9 +1,9 @@
 import type { Payload } from 'payload'
 import { eq } from 'drizzle-orm'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { sweepEvents } from '../../src/db/sweep.js'
 import { insertEvents, type EventRow } from '../../src/db/events.js'
-import { pooledExecutor } from '../../src/db/executor.js'
+import { pooledExecutor, ResultsBudgetError } from '../../src/db/executor.js'
 import { createFakeExecutor } from '../_fakes/executor.js'
 import { createPgliteDb } from '../_helpers/pglite.js'
 import { xp_events, xp_experiments, xp_phases } from '../_fixtures/generated-schema.js'
@@ -16,6 +16,27 @@ test('sweep batches until fewer than batchSize deleted and checks budget between
   let n = 0
   expect(await sweepEvents(exec, { now: new Date(), shouldContinue: () => n++ < 1 })).toBe(0)
   await expect(sweepEvents(exec, { now: new Date(), batchSize: 0 })).rejects.toThrow('Invalid retention')
+})
+
+test.each([0, 2])('budget cancellation warns once only when no rows were deleted (%s)', async swept => {
+  const logger = { warn: vi.fn() }, failure = new ResultsBudgetError()
+  const exec = createFakeExecutor()
+  let queries = 0
+  exec.query = async () => {
+    if (swept && queries++ === 0) return { rows: [], rowCount: swept }
+    throw failure
+  }
+  await expect(sweepEvents(exec, { now: new Date(), batchSize: 2, logger })).rejects.toBe(failure)
+  if (swept) expect(logger.warn).not.toHaveBeenCalled()
+  else expect(logger.warn).toHaveBeenCalledExactlyOnceWith('Experiment retention sweep made no progress before its budget expired; eligible rows may remain.')
+})
+
+test('an empty sweep or unrelated SQL error does not warn about budget cancellation', async () => {
+  const logger = { warn: vi.fn() }, exec = createFakeExecutor()
+  expect(await sweepEvents(exec, { now: new Date(), logger })).toBe(0)
+  exec.query = async () => { throw Object.assign(new Error('SQL failed'), { code: '23505' }) }
+  await expect(sweepEvents(exec, { now: new Date(), logger })).rejects.toThrow('SQL failed')
+  expect(logger.warn).not.toHaveBeenCalled()
 })
 
 test('PGlite: an old stopped test plus open rollout keeps all rows until final endedAt + 180 days', async () => {

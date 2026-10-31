@@ -97,7 +97,9 @@ export async function resolveExperiments(request: NextRequest, proxyRuntime: Exp
     } catch {
       console.error('[payload-experiments] assign failed; serving non-exposable control')
       assignmentFailed = true
-      assignments = controlAssignments(currentManifest, context)
+      try { assignments = controlAssignments(currentManifest, context) } catch {
+        assignments = emptyAssignments(context)
+      }
     }
   }
   if (previewExperiment && token) {
