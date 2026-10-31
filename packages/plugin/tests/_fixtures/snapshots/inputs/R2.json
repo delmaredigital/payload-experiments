@@ -1,0 +1,69 @@
+{
+  "phaseKind": "rollout",
+  "status": "decided",
+  "method": "sequential",
+  "primary": {
+    "name": "Registrations",
+    "minSampleSize": 150,
+    "comparisons": [
+      {
+        "arm": "variantA",
+        "label": "Shorter form",
+        "significant": "none",
+        "lift": 0.12037037037037027,
+        "ci": [
+          -0.15,
+          0.39
+        ]
+      }
+    ],
+    "convertersPerArm": [
+      {
+        "arm": "variantA",
+        "kind": "variant",
+        "converters": 1452
+      },
+      {
+        "arm": "holdout",
+        "kind": "holdout",
+        "converters": 144
+      }
+    ]
+  },
+  "exposures": {
+    "perArm": [
+      {
+        "arm": "variantA",
+        "label": "Shorter form",
+        "kind": "variant",
+        "n": 3240
+      },
+      {
+        "arm": "holdout",
+        "label": "Holdout",
+        "kind": "holdout",
+        "n": 360
+      }
+    ],
+    "minExposuresPerArm": 1000,
+    "multiArmShare": 0
+  },
+  "srm": {
+    "flagged": false
+  },
+  "guardrails": [
+    {
+      "name": "Completed lessons",
+      "status": "insufficient"
+    }
+  ],
+  "power": {
+    "daysRemaining": 16,
+    "feasible": true
+  },
+  "plannedDurationPassed": false,
+  "originalLabel": "Original",
+  "controlArm": "holdout",
+  "winnerLabel": "Shorter form",
+  "winnerArm": "variantA"
+}

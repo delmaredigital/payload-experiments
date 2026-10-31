@@ -1,0 +1,187 @@
+{
+  "experiment": "registration-form",
+  "phase": 1,
+  "phaseKind": "test",
+  "computedAt": "2026-10-30T20:00:00.000Z",
+  "window": {
+    "from": "2026-10-16T20:00:00.000Z",
+    "to": "2026-10-30T20:00:00.000Z"
+  },
+  "method": "sequential",
+  "alpha": 0.05,
+  "alphaAdjusted": 0.05,
+  "k": 1,
+  "params": {
+    "sequentialTuningParameter": 10000,
+    "prior": {
+      "mean": 0,
+      "variance": 1,
+      "proper": false
+    },
+    "cupedLookbackDays": 14,
+    "caps": {},
+    "attributionWindows": {
+      "registrations": 168,
+      "completed-lessons": 168
+    },
+    "guardrailThresholds": {
+      "completed-lessons": 0.05
+    },
+    "minSampleSizes": {
+      "registrations": 150,
+      "completed-lessons": 150
+    },
+    "bayesian": {
+      "ctw": 0.95,
+      "risk": 0.0125
+    }
+  },
+  "exposures": {
+    "total": 4200,
+    "perArm": {
+      "control": 2600,
+      "variantA": 1380,
+      "holdout": 220
+    },
+    "excludedMultiArm": 0,
+    "multiArmShare": 0,
+    "armMismatch": 0,
+    "identityConflictShare": 0,
+    "capped": {}
+  },
+  "srm": {
+    "p": 2.2260964337539017e-76,
+    "flagged": true,
+    "expected": {
+      "control": 0.48,
+      "variantA": 0.47,
+      "holdout": 0.05
+    }
+  },
+  "metrics": [
+    {
+      "metricId": "registrations",
+      "name": "Registrations",
+      "kind": "binomial",
+      "role": "primary",
+      "cupedApplied": false,
+      "perArm": [
+        {
+          "arm": "control",
+          "n": 2600,
+          "converters": 1040,
+          "sum": 1040,
+          "sumSquares": 1040,
+          "mean": 0.4,
+          "variance": 0.24
+        },
+        {
+          "arm": "variantA",
+          "n": 1380,
+          "converters": 563,
+          "sum": 563,
+          "sumSquares": 563,
+          "mean": 0.40797101449275364,
+          "variance": 0.24153066582650703
+        },
+        {
+          "arm": "holdout",
+          "n": 220,
+          "converters": 88,
+          "sum": 88,
+          "sumSquares": 88,
+          "mean": 0.4,
+          "variance": 0.24
+        }
+      ],
+      "comparisons": [
+        {
+          "arm": "variantA",
+          "significant": "none",
+          "lift": 0.019927536231884035,
+          "ci": [
+            -0.08,
+            0.12
+          ],
+          "ciAdjusted": [
+            -0.08,
+            0.12
+          ]
+        }
+      ]
+    },
+    {
+      "metricId": "completed-lessons",
+      "name": "Completed lessons",
+      "kind": "binomial",
+      "role": "guardrail",
+      "cupedApplied": false,
+      "perArm": [
+        {
+          "arm": "control",
+          "n": 2600,
+          "converters": 2080,
+          "sum": 2080,
+          "sumSquares": 2080,
+          "mean": 0.8,
+          "variance": 0.15999999999999998
+        },
+        {
+          "arm": "variantA",
+          "n": 1380,
+          "converters": 1104,
+          "sum": 1104,
+          "sumSquares": 1104,
+          "mean": 0.8,
+          "variance": 0.15999999999999998
+        },
+        {
+          "arm": "holdout",
+          "n": 220,
+          "converters": 176,
+          "sum": 176,
+          "sumSquares": 176,
+          "mean": 0.8,
+          "variance": 0.15999999999999998
+        }
+      ],
+      "comparisons": [
+        {
+          "arm": "variantA",
+          "lift": 0.0,
+          "ci": [
+            -0.03,
+            0.03
+          ],
+          "ciAdjusted": [
+            -0.03,
+            0.03
+          ],
+          "significant": "none"
+        }
+      ]
+    }
+  ],
+  "guardrails": [
+    {
+      "metricId": "completed-lessons",
+      "status": "ok"
+    }
+  ],
+  "power": {
+    "daysRemaining": null,
+    "feasible": true,
+    "exposuresNeededPerArm": null,
+    "lowerBound": true
+  },
+  "verdict": {
+    "row": 2,
+    "code": "data-problem",
+    "finding": "Data problem: traffic isn't splitting as set.",
+    "action": "Don't trust these results. Check for caching or a page placed twice; contact a developer.",
+    "headline": "Data problem: traffic isn't splitting as set. Don't trust these results. Check for caching or a page placed twice; contact a developer.",
+    "detail": "The people counted do not match the expected split.",
+    "recommendedArm": null
+  },
+  "contentChanges": []
+}

@@ -1,0 +1,79 @@
+{
+  "phaseKind": "test",
+  "status": "running",
+  "method": "bayesian",
+  "primary": {
+    "name": "Registrations",
+    "minSampleSize": 150,
+    "comparisons": [
+      {
+        "arm": "variantA",
+        "label": "Shorter form",
+        "significant": "better",
+        "lift": 0.11994949494949489,
+        "ci": [
+          0.03,
+          0.21
+        ],
+        "chanceToWin": 0.978
+      }
+    ],
+    "convertersPerArm": [
+      {
+        "arm": "control",
+        "kind": "control",
+        "converters": 800
+      },
+      {
+        "arm": "variantA",
+        "kind": "variant",
+        "converters": 887
+      },
+      {
+        "arm": "holdout",
+        "kind": "holdout",
+        "converters": 88
+      }
+    ]
+  },
+  "exposures": {
+    "perArm": [
+      {
+        "arm": "control",
+        "label": "Original",
+        "kind": "control",
+        "n": 2000
+      },
+      {
+        "arm": "variantA",
+        "label": "Shorter form",
+        "kind": "variant",
+        "n": 1980
+      },
+      {
+        "arm": "holdout",
+        "label": "Holdout",
+        "kind": "holdout",
+        "n": 220
+      }
+    ],
+    "minExposuresPerArm": 1000,
+    "multiArmShare": 0
+  },
+  "srm": {
+    "flagged": false
+  },
+  "guardrails": [
+    {
+      "name": "Completed lessons",
+      "status": "ok"
+    }
+  ],
+  "power": {
+    "daysRemaining": 0,
+    "feasible": true
+  },
+  "plannedDurationPassed": false,
+  "originalLabel": "Original",
+  "controlArm": "control"
+}

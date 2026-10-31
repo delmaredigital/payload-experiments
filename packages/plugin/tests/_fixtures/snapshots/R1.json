@@ -1,0 +1,135 @@
+{
+  "experiment": "registration-form",
+  "phase": 2,
+  "phaseKind": "rollout",
+  "computedAt": "2026-10-30T20:00:00.000Z",
+  "window": {
+    "from": "2026-10-16T20:00:00.000Z",
+    "to": "2026-10-30T20:00:00.000Z"
+  },
+  "method": "sequential",
+  "alpha": 0.05,
+  "alphaAdjusted": 0.05,
+  "k": 1,
+  "params": {
+    "sequentialTuningParameter": 10000,
+    "prior": {
+      "mean": 0,
+      "variance": 1,
+      "proper": false
+    },
+    "cupedLookbackDays": 14,
+    "caps": {},
+    "attributionWindows": {
+      "registrations": 168,
+      "completed-lessons": 168
+    },
+    "guardrailThresholds": {
+      "completed-lessons": 0.05
+    },
+    "minSampleSizes": {
+      "registrations": 150,
+      "completed-lessons": 150
+    },
+    "bayesian": {
+      "ctw": 0.95,
+      "risk": 0.0125
+    }
+  },
+  "exposures": {
+    "total": 20000,
+    "perArm": {
+      "variantA": 18000,
+      "holdout": 2000
+    },
+    "excludedMultiArm": 0,
+    "multiArmShare": 0,
+    "armMismatch": 0,
+    "identityConflictShare": 0,
+    "capped": {}
+  },
+  "srm": {
+    "p": 1.0,
+    "flagged": false,
+    "expected": {
+      "variantA": 0.9,
+      "holdout": 0.1
+    }
+  },
+  "metrics": [
+    {
+      "metricId": "registrations",
+      "name": "Registrations",
+      "kind": "binomial",
+      "role": "primary",
+      "cupedApplied": false,
+      "perArm": [],
+      "comparisons": [],
+      "unavailable": "Source timed out"
+    },
+    {
+      "metricId": "completed-lessons",
+      "name": "Completed lessons",
+      "kind": "binomial",
+      "role": "guardrail",
+      "cupedApplied": false,
+      "perArm": [
+        {
+          "arm": "variantA",
+          "n": 18000,
+          "converters": 14400,
+          "sum": 14400,
+          "sumSquares": 14400,
+          "mean": 0.8,
+          "variance": 0.15999999999999998
+        },
+        {
+          "arm": "holdout",
+          "n": 2000,
+          "converters": 1600,
+          "sum": 1600,
+          "sumSquares": 1600,
+          "mean": 0.8,
+          "variance": 0.15999999999999998
+        }
+      ],
+      "comparisons": [
+        {
+          "arm": "variantA",
+          "lift": 0.0,
+          "ci": [
+            -0.03,
+            0.03
+          ],
+          "ciAdjusted": [
+            -0.03,
+            0.03
+          ],
+          "significant": "none"
+        }
+      ]
+    }
+  ],
+  "guardrails": [
+    {
+      "metricId": "completed-lessons",
+      "status": "ok"
+    }
+  ],
+  "power": {
+    "daysRemaining": null,
+    "feasible": true,
+    "exposuresNeededPerArm": null,
+    "lowerBound": true
+  },
+  "verdict": {
+    "row": "R1",
+    "code": "unavailable",
+    "finding": "Results unavailable: Registrations could not be read.",
+    "action": "Recompute; if it persists, contact a developer.",
+    "headline": "Results unavailable: Registrations could not be read. Recompute; if it persists, contact a developer.",
+    "detail": "The main outcome could not be loaded.",
+    "recommendedArm": null
+  },
+  "contentChanges": []
+}
