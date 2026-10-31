@@ -21,7 +21,7 @@ import { EDITABLE_BY_STATUS, isEditable } from '../src/collections/experiments/e
 import { checkArms, addHoldout } from '../src/collections/experiments/armInvariants.js'
 import { lockHook } from '../src/collections/experiments/lockHook.js'
 import { flagControlParams } from '../src/collections/experiments/flagControlParams.js'
-import { deleteGuard } from '../src/collections/experiments/deleteGuard.js'
+import { deleteGuard, deleteGuardAfter } from '../src/collections/experiments/deleteGuard.js'
 import { decideGuard } from '../src/results/decideGuard.js'
 import { contentChangesHook } from '../src/hooks/contentChanges.js'
 
@@ -84,7 +84,7 @@ const stubs: Array<[Function, string]> = [
   ...[rsc.recordExposures, rsc.trackConversion, rsc.linkIdentity, rsc.eraseUser].map(fn => [fn, 'CORE-08a'] as [Function, string]),
   [rsc.recordContentChange, 'CORE-12'], [rsc.runResults, 'CORE-15b'],
   ...[isEditable, lockHook, checkArms, addHoldout, flagControlParams].map(fn => [fn, 'CORE-03'] as [Function, string]),
-  [deleteGuard, 'CORE-11'], [decideGuard, 'CORE-13'], [contentChangesHook, 'CORE-12'],
+  [deleteGuard, 'CORE-11'], [deleteGuardAfter, 'CORE-11'], [decideGuard, 'CORE-13'], [contentChangesHook, 'CORE-12'],
 ]
 for (const [fn, lane] of stubs) {
   test(`${fn.name} throws XpNotImplemented(${lane})`, async () => {
