@@ -1,0 +1,187 @@
+{
+  "experiment": "registration-form",
+  "phase": 1,
+  "phaseKind": "test",
+  "computedAt": "2026-10-30T20:00:00.000Z",
+  "window": {
+    "from": "2026-10-16T20:00:00.000Z",
+    "to": "2026-10-30T20:00:00.000Z"
+  },
+  "method": "sequential",
+  "alpha": 0.05,
+  "alphaAdjusted": 0.05,
+  "k": 1,
+  "params": {
+    "sequentialTuningParameter": 10000,
+    "prior": {
+      "mean": 0,
+      "variance": 1,
+      "proper": false
+    },
+    "cupedLookbackDays": 14,
+    "caps": {},
+    "attributionWindows": {
+      "registrations": 168,
+      "completed-lessons": 168
+    },
+    "guardrailThresholds": {
+      "completed-lessons": 0.05
+    },
+    "minSampleSizes": {
+      "registrations": 150,
+      "completed-lessons": 150
+    },
+    "bayesian": {
+      "ctw": 0.95,
+      "risk": 0.0125
+    }
+  },
+  "exposures": {
+    "total": 780,
+    "perArm": {
+      "control": 380,
+      "variantA": 360,
+      "holdout": 40
+    },
+    "excludedMultiArm": 0,
+    "multiArmShare": 0,
+    "armMismatch": 0,
+    "identityConflictShare": 0,
+    "capped": {}
+  },
+  "srm": {
+    "p": 0.74,
+    "flagged": false,
+    "expected": {
+      "control": 0.475,
+      "variantA": 0.475,
+      "holdout": 0.05
+    }
+  },
+  "metrics": [
+    {
+      "metricId": "registrations",
+      "name": "Registrations",
+      "kind": "binomial",
+      "role": "primary",
+      "cupedApplied": false,
+      "perArm": [
+        {
+          "arm": "control",
+          "n": 380,
+          "converters": 38,
+          "sum": 38,
+          "sumSquares": 38,
+          "mean": 0.1,
+          "variance": 0.09000000000000001
+        },
+        {
+          "arm": "variantA",
+          "n": 360,
+          "converters": 37,
+          "sum": 37,
+          "sumSquares": 37,
+          "mean": 0.10277777777777777,
+          "variance": 0.09221450617283951
+        },
+        {
+          "arm": "holdout",
+          "n": 40,
+          "converters": 4,
+          "sum": 4,
+          "sumSquares": 4,
+          "mean": 0.1,
+          "variance": 0.09000000000000001
+        }
+      ],
+      "comparisons": [
+        {
+          "arm": "variantA",
+          "significant": "none",
+          "lift": 0.02777777777777768,
+          "ci": [
+            -0.08,
+            0.12
+          ],
+          "ciAdjusted": [
+            -0.08,
+            0.12
+          ]
+        }
+      ]
+    },
+    {
+      "metricId": "completed-lessons",
+      "name": "Completed lessons",
+      "kind": "binomial",
+      "role": "guardrail",
+      "cupedApplied": false,
+      "perArm": [
+        {
+          "arm": "control",
+          "n": 380,
+          "converters": 304,
+          "sum": 304,
+          "sumSquares": 304,
+          "mean": 0.8,
+          "variance": 0.15999999999999998
+        },
+        {
+          "arm": "variantA",
+          "n": 360,
+          "converters": 288,
+          "sum": 288,
+          "sumSquares": 288,
+          "mean": 0.8,
+          "variance": 0.15999999999999998
+        },
+        {
+          "arm": "holdout",
+          "n": 40,
+          "converters": 32,
+          "sum": 32,
+          "sumSquares": 32,
+          "mean": 0.8,
+          "variance": 0.15999999999999998
+        }
+      ],
+      "comparisons": [
+        {
+          "arm": "variantA",
+          "lift": 0.0,
+          "ci": [
+            -0.03,
+            0.03
+          ],
+          "ciAdjusted": [
+            -0.03,
+            0.03
+          ],
+          "significant": "none"
+        }
+      ]
+    }
+  ],
+  "guardrails": [
+    {
+      "metricId": "completed-lessons",
+      "status": "insufficient"
+    }
+  ],
+  "power": {
+    "daysRemaining": 6.2,
+    "feasible": true,
+    "exposuresNeededPerArm": 3000,
+    "lowerBound": true
+  },
+  "verdict": {
+    "row": 4,
+    "code": "collecting",
+    "finding": "Collecting data: 360 of 1000 people, 75 of 150 conversions.",
+    "action": null,
+    "headline": "Collecting data: 360 of 1000 people, 75 of 150 conversions.",
+    "detail": "More people or conversions are needed before drawing a conclusion.",
+    "recommendedArm": null
+  },
+  "contentChanges": []
+}

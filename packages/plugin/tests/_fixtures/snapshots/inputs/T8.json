@@ -1,0 +1,78 @@
+{
+  "phaseKind": "test",
+  "status": "running",
+  "method": "sequential",
+  "primary": {
+    "name": "Registrations",
+    "converters": 2382,
+    "minSampleSize": 150,
+    "comparisons": [
+      {
+        "arm": "variantA",
+        "label": "Shorter form",
+        "significant": "better",
+        "lift": 0.11994949494949489,
+        "ci": [
+          0.03,
+          0.21
+        ]
+      },
+      {
+        "arm": "variantB",
+        "label": "Guided form",
+        "significant": "worse",
+        "lift": -0.13985148514851498,
+        "ci": [
+          -0.24,
+          -0.04
+        ]
+      }
+    ]
+  },
+  "exposures": {
+    "perArm": [
+      {
+        "arm": "control",
+        "label": "Original",
+        "kind": "control",
+        "n": 2000
+      },
+      {
+        "arm": "variantA",
+        "label": "Shorter form",
+        "kind": "variant",
+        "n": 1980
+      },
+      {
+        "arm": "variantB",
+        "label": "Guided form",
+        "kind": "variant",
+        "n": 2020
+      },
+      {
+        "arm": "holdout",
+        "label": "Holdout",
+        "kind": "holdout",
+        "n": 220
+      }
+    ],
+    "minExposuresPerArm": 1000,
+    "multiArmShare": 0
+  },
+  "srm": {
+    "flagged": false
+  },
+  "guardrails": [
+    {
+      "name": "Completed lessons",
+      "status": "ok"
+    }
+  ],
+  "power": {
+    "daysRemaining": 6.2,
+    "feasible": true
+  },
+  "plannedDurationPassed": false,
+  "originalLabel": "Original",
+  "controlArm": "control"
+}
