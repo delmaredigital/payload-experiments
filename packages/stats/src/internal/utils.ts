@@ -4,8 +4,8 @@ import { normalPpf } from './normal.js'
  * Source: gbstats/utils.py frequentist_diff @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
  */
 export function frequentistDiff(meanA: number, meanB: number, relative: boolean, meanAUnadjusted?: number): number {
-  // Preserve Python's falsy fallback, including an explicit unadjusted mean of 0.
-  if (!meanAUnadjusted) meanAUnadjusted = meanA
+  // Python's missing/zero fallback keeps NaN, which is truthy in Python.
+  if (meanAUnadjusted === undefined || meanAUnadjusted === 0) meanAUnadjusted = meanA
   return relative ? (meanB - meanA) / Math.abs(meanAUnadjusted) : meanB - meanA
 }
 
@@ -28,6 +28,8 @@ export function varianceOfRatios(meanM: number, varM: number, meanD: number, var
  * Source: gbstats/utils.py gaussian_credible_interval @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
  */
 export function gaussianCredibleInterval(meanDiff: number, stdDiff: number, alpha: number): [number, number] {
+  // scipy's scale argument check returns NaN for scale <= 0 (and NaN).
+  if (!(stdDiff > 0)) return [NaN, NaN]
   // scipy norm.ppf applies scale before location: ppf(q) * scale + loc.
   return [normalPpf(alpha / 2) * stdDiff + meanDiff, normalPpf(1 - alpha / 2) * stdDiff + meanDiff]
 }
