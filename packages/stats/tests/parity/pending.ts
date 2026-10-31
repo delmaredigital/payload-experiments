@@ -6,7 +6,6 @@ export const pending: ReadonlySet<string> = new Set([
   'sequential.sequentialIntervalHalfwidth',
   'sequential.sequentialIntervalHalfwidthOneSided',
   'sequential.isStatisticallySignificant',
-  'bayesian.effectBayesianABTest',
   'midPower.midExperimentPower',
   'power.powerEstFrequentist',
   'power.powerFrequentist',
@@ -14,5 +13,4 @@ export const pending: ReadonlySet<string> = new Set([
   'power.powerEstBayesian',
   'power.findMdeBayesian',
   'power.powerMetricWeeks',
-  'bayesian.truncatedNormalMean',
 ])

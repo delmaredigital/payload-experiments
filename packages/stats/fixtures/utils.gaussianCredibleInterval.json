@@ -69,6 +69,42 @@
         ]
       },
       "name": "small-alpha"
+    },
+    {
+      "expected": [
+        {
+          "$num": "nan"
+        },
+        {
+          "$num": "nan"
+        }
+      ],
+      "input": {
+        "args": [
+          1,
+          0,
+          0.05
+        ]
+      },
+      "name": "zero-scale"
+    },
+    {
+      "expected": [
+        {
+          "$num": "nan"
+        },
+        {
+          "$num": "nan"
+        }
+      ],
+      "input": {
+        "args": [
+          1,
+          -1,
+          0.05
+        ]
+      },
+      "name": "negative-scale"
     }
   ],
   "source": {

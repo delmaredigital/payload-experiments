@@ -46,6 +46,22 @@
       "name": "zero-unadjusted-falsy"
     },
     {
+      "expected": {
+        "$num": "nan"
+      },
+      "input": {
+        "args": [
+          2,
+          3,
+          true,
+          {
+            "$num": "nan"
+          }
+        ]
+      },
+      "name": "nan-unadjusted-truthy"
+    },
+    {
       "expected": 0.25,
       "input": {
         "args": [
