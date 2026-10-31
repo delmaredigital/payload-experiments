@@ -62,7 +62,14 @@ test.each(['integer', 'uuid'] as const)('%s: retention branches use selective in
             expect(scale.emptyExamined).toBeLessThanOrEqual(batchSize)
             for (const branch of scale.branches) {
               expect(branch.scanTypes).not.toHaveLength(0)
-              expect(branch.scanTypes.every(type => /^(Index|Index Only) Scan$/.test(type))).toBe(true)
+              // PostgreSQL 17 plans a small selective set as a Bitmap Heap Scan over a Bitmap Index
+              // Scan. That is still index-served: accept it only when every bitmap child is the
+              // expected index (the Index Cond, no-filter and flat-cost assertions below still apply).
+              expect(branch.scanTypes.every(type => /^(Index|Index Only) Scan$/.test(type) || type === 'Bitmap Heap Scan')).toBe(true)
+              for (const children of branch.bitmapIndexes) {
+                expect(children).not.toHaveLength(0)
+                expect(children.every(name => name === 'experiment_type_ts_idx')).toBe(true)
+              }
               // A correlated phase subplan may have its own index as well.
               expect(branch.indexName).toContain('experiment_type_ts_idx')
               expect(branch.indexCond).toContain('experiment_id')

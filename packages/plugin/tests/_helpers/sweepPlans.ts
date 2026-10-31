@@ -22,7 +22,7 @@ const nodes = (plan: Plan): Plan[] => [plan, ...(plan.Plans ?? []).flatMap(nodes
 
 export type SweepBranchPlan = {
   branch: number; indexName: string[]; indexCond: string; rowsRemovedByFilter: number; examined: number
-  filters: string[]; scanTypes: string[]; sql: string; plan: unknown
+  filters: string[]; scanTypes: string[]; bitmapIndexes: string[][]; sql: string; plan: unknown
 }
 export type SweepPlanScale = {
   scale: 1 | 2 | 4; oldConversions: number; branches: SweepBranchPlan[]; windowReads: number; emptyExamined: number
@@ -103,6 +103,10 @@ export async function measureSweepPlans(exec: Executor, rawExec: (sql: string) =
             // only the event scan's Filter can hide a missing index probe.
             filters: candidates.flatMap(node => node.Filter ? [node.Filter] : []),
             scanTypes: candidates.map(node => node['Node Type']),
+            // Each Bitmap Heap Scan's child Bitmap Index Scan indexes, so a gate can accept a
+            // bitmap path only when it is driven by the expected index.
+            bitmapIndexes: candidates.filter(node => node['Node Type'] === 'Bitmap Heap Scan')
+              .map(node => nodes(node).filter(child => child['Node Type'] === 'Bitmap Index Scan').map(child => child['Index Name'] ?? '')),
             sql: call.text, plan: result.rows,
           })
         } finally {
