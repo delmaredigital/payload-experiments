@@ -7,7 +7,7 @@ export function phasesCollection(options: ResolvedOptions): CollectionConfig {
     slug: 'xp-phases', graphQL: false, disableDuplicate: true, admin: { hidden: true },
     access: readOnlyAccess(options.access.readResults ?? options.access.manage),
     fields: [
-      { name: 'experiment', type: 'relationship', relationTo: 'xp-experiments', required: true },
+      { name: 'experiment', type: 'relationship', relationTo: 'xp-experiments' },
       { name: 'phase', type: 'number', required: true },
       { name: 'phaseKind', type: 'select', required: true, options: ['test', 'rollout'] },
       { name: 'startedAt', type: 'date', required: true }, { name: 'endedAt', type: 'date' },

@@ -1,14 +1,18 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { buildCollections } from '../../src/collections/index.js'
 import { createDefaults } from '../../src/collections/experiments/createDefaults.js'
 import { lockHook } from '../../src/collections/experiments/lockHook.js'
 import { flagControlParams } from '../../src/collections/experiments/flagControlParams.js'
 import { deleteGuard, deleteGuardAfter } from '../../src/collections/experiments/deleteGuard.js'
+import { checkArms } from '../../src/collections/experiments/armInvariants.js'
+import { XpNotImplemented } from '../../src/errors.js'
 import * as paths from '../../src/admin/paths.js'
 import { TAB_DESCRIPTIONS } from '../../src/admin/copy/tabs.js'
 import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } from '../../src/collections/serialize.js'
 import { fakeReq } from '../_fakes/req.js'
 import { field, flatten, invoke, sampleOptions, validate } from './fixtures.js'
+
+vi.mock('../../src/collections/experiments/armInvariants.js', () => ({ checkArms: vi.fn() }))
 
 const options = sampleOptions()
 const { collections, globals } = buildCollections(options)
@@ -39,6 +43,15 @@ test('frozen JSON fields, uniques and compound indexes', () => {
   expect(field(bySlug('xp-events').fields, 'userId', 'text').required).not.toBe(true)
 })
 
+test('single parent relationships allow SET NULL on deletion', () => {
+  for (const slug of ['xp-phases', 'xp-results-snapshots', 'xp-events']) {
+    expect(field(bySlug(slug).fields, 'experiment', 'relationship').required).toBeFalsy()
+  }
+  for (const collection of collections) for (const f of flatten(collection.fields)) {
+    if (f.type === 'relationship' && !f.hasMany) expect(f.required, `${collection.slug}.${f.name}`).toBeFalsy()
+  }
+})
+
 test('unnamed editor tabs preserve document paths and hook ordering', () => {
   const tabs = experiments.fields.filter(f => f.type === 'tabs')
   expect(tabs).toHaveLength(1)
@@ -49,13 +62,20 @@ test('unnamed editor tabs preserve document paths and hook ordering', () => {
 })
 
 test.each([undefined, []])('create defaults populate missing/empty arms (%j)', arms => {
-  expect(invoke(experiments.hooks?.beforeValidate?.[0], { data: { arms }, operation: 'create' })).toEqual({ arms: [
+  expect(invoke(experiments.hooks?.beforeValidate?.[0], { data: { kind: 'block', arms }, operation: 'create' })).toEqual({ kind: 'block', arms: [
     { key: 'control', label: 'Original', kind: 'control', slot: 'control', weight: 50 },
     { key: 'variantA', label: 'Variant A', kind: 'variant', slot: 'variantA', weight: 50 },
   ] })
 })
+test.each(['page', 'flag', 'code', undefined])('create defaults omit slots for %s', kind => {
+  const result = invoke(createDefaults, { data: { kind, arms: [] }, operation: 'create' })
+  expect(result.arms).toEqual([
+    { key: 'control', label: 'Original', weight: 50, kind: 'control' },
+    { key: 'variantA', label: 'Variant A', weight: 50, kind: 'variant' },
+  ])
+})
 test('create defaults preserve explicit arms and updates', () => {
-  const data = { arms: [{ key: 'control', weight: 100 }] }
+  const data = { kind: 'block', arms: [{ key: 'control', weight: 90 }, { key: 'holdout', weight: 10 }] }
   expect(invoke(createDefaults, { data, operation: 'create' })).toBe(data)
   expect(invoke(createDefaults, { data: { arms: [] }, operation: 'update' })).toEqual({ arms: [] })
 })
@@ -121,14 +141,39 @@ test('custom number validators retain required and range checks', () => {
   const allocation = field(experiments.fields, 'allocation', 'number').validate
   for (const value of [null, undefined, 0, 101, 1.5, Infinity]) expect(validate(allocation, value)).not.toBe(true)
   for (const value of [1, 50, 100]) expect(validate(allocation, value)).toBe(true)
-  const duration = field(experiments.fields, 'plannedDurationDays', 'number').validate
-  for (const value of [null, undefined, 0, -1, 1.5]) expect(validate(duration, value)).not.toBe(true)
+  const durationField = field(experiments.fields, 'plannedDurationDays', 'number')
+  expect(durationField.required).toBeFalsy()
+  const duration = durationField.validate
+  for (const value of [null, undefined]) expect(validate(duration, value)).toBe(true)
+  for (const value of [0, -1, 1.5, Infinity]) expect(validate(duration, value)).not.toBe(true)
   expect(validate(duration, 14)).toBe(true)
-  const reach = field(experiments.fields, 'reachPerDay', 'number').validate
+  const reachField = field(experiments.fields, 'reachPerDay', 'number')
+  expect(reachField.required).toBeFalsy()
+  const reach = reachField.validate
   expect(validate(reach, -1, { data: { exposurePolicy: 'render' } })).not.toBe(true)
   expect(validate(reach, null, { data: { exposurePolicy: 'render' } })).toBe(true)
-  expect(validate(reach, null, { data: { exposurePolicy: 'manual' } })).not.toBe(true)
+  for (const policy of ['manual', 'viewport', 'pageview', 'render']) for (const value of [null, undefined]) expect(validate(reach, value, { data: { exposurePolicy: policy } })).toBe(true)
+  for (const value of [0, -1, 1.5, Infinity]) expect(validate(reach, value)).not.toBe(true)
   expect(validate(reach, 100, { data: { exposurePolicy: 'viewport' } })).toBe(true)
+})
+
+test('arms validation delegates kind and joins issue messages', () => {
+  const validator = field(experiments.fields, 'arms', 'array').validate
+  const arms = [{ key: 'control', weight: 100 }]
+  const mock = vi.mocked(checkArms).mockReset().mockReturnValue([])
+  expect(validate(validator, arms, { siblingData: { kind: 'block' }, data: { kind: 'flag' } })).toBe(true)
+  expect(mock).toHaveBeenLastCalledWith(arms, 'block')
+  mock.mockReturnValue([
+    { code: 'weights-total', message: 'Weights must total 100.' },
+    { code: 'control-count', message: 'Choose one Original.' },
+  ])
+  expect(validate(validator, arms, { siblingData: {}, data: { kind: 'page' } })).toBe('Weights must total 100.; Choose one Original.')
+  expect(mock).toHaveBeenLastCalledWith(arms, 'page')
+  mock.mockImplementation(() => { throw new XpNotImplemented('CORE-03') })
+  expect(validate(validator, arms, { siblingData: {}, data: { kind: 'block' } })).toBe(true)
+  const unexpected = new Error('unexpected failure')
+  mock.mockImplementation(() => { throw unexpected })
+  expect(() => validate(validator, arms, { siblingData: {}, data: { kind: 'block' } })).toThrow(unexpected)
 })
 
 test('targeting values match the attribute type and operator', () => {
