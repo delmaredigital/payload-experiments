@@ -61,6 +61,12 @@ def fixture_names(path):
         if (not isinstance(key, ast.Constant) or not isinstance(key.value, str)
                 or not re.fullmatch(r"[A-Za-z0-9_]+\.[A-Za-z0-9_]+", key.value)):
             raise ValueError("--list requires literal <area>.<exportName> fixture keys")
+        if key.value in names:
+            raise ValueError("duplicate fixture: " + key.value)
+        # The frozen example contract is example.identity in _example.py.
+        area = "example" if path.stem == "_example" else path.stem
+        if key.value.split(".", 1)[0] != area:
+            raise ValueError("fixture area must equal case-module stem: " + key.value)
         names.add(key.value)
     return names
 
@@ -84,31 +90,36 @@ def interpreter():
     if override:
         python = override
     else:
-        found = subprocess.run(["uv", "python", "find", "3.12"],
+        found = subprocess.run(["uv", "python", "find", "--system", "cpython@3.12"],
                                capture_output=True, text=True)
         if found.returncode:
-            subprocess.run(["uv", "python", "install", "3.12"], check=True)
-            found = subprocess.run(["uv", "python", "find", "3.12"],
+            subprocess.run(["uv", "python", "install", "cpython@3.12"], check=True)
+            found = subprocess.run(["uv", "python", "find", "--system", "cpython@3.12"],
                                    check=True, capture_output=True, text=True)
         python = found.stdout.strip()
-    version = subprocess.check_output([
+    identity = subprocess.check_output([
         python, "-I", "-c",
-        "import sys; print('.'.join(map(str, sys.version_info[:3])))",
-    ], text=True).strip()
+        "import sys; from pathlib import Path; print(Path(sys.executable).resolve()); "
+        "print('.'.join(map(str, sys.version_info[:3]))); print(sys.implementation.name)",
+    ], text=True).splitlines()
+    python, version, implementation = identity
+    if implementation != "cpython":
+        raise RuntimeError("generator requires CPython")
     parts = tuple(int(part) for part in version.split("."))
     if override:
         if not (3, 10) <= parts[:2] < (3, 13):
             raise RuntimeError("XP_PYTHON must be Python 3.10, 3.11 or 3.12")
     elif parts[:2] != (3, 12):
         raise RuntimeError("uv must provide CPython 3.12")
-    return python, version
+    return python, version, implementation
 
 
 def ensure_venv(ref, resolved):
-    python, version = interpreter()
+    python, version, implementation = interpreter()
     # Including the resolved SHA makes repeated --ref main runs refresh on drift.
     stamp = hashlib.sha256(
-        LOCK.read_bytes() + b"\0" + version.encode() + b"\0"
+        LOCK.read_bytes() + b"\0" + str(Path(python).resolve()).encode() + b"\0"
+        + implementation.encode() + b"\0" + version.encode() + b"\0"
         + ref.encode() + b"\0" + resolved.encode()
     ).hexdigest()
     stamp_path = VENV / ".xp-stamp"
@@ -121,9 +132,9 @@ def ensure_venv(ref, resolved):
     if os.environ.get("XP_PYTHON"):
         subprocess.run([python, "-I", "-m", "venv", str(VENV)], check=True)
     else:
-        subprocess.run(["uv", "venv", "--seed", "--python", "3.12", str(VENV)], check=True)
+        subprocess.run(["uv", "venv", "--seed", "--python", python, str(VENV)], check=True)
     subprocess.run([str(venv_python), "-I", "-m", "pip", "install",
-                    "--require-hashes", "-r", str(LOCK)], check=True)
+                    "--only-binary", ":all:", "--require-hashes", "-r", str(LOCK)], check=True)
     subprocess.run([str(venv_python), "-I", "-m", "pip", "install", "--no-deps",
                     "gbstats @ git+" + REPO + "@" + resolved
                     + "#subdirectory=packages/stats"], check=True)
@@ -136,10 +147,15 @@ def run_cases(args, out, resolved):
     written = set()
     for path in case_paths(args):
         try:
+            static_names = fixture_names(path)
             module = load_module("_xp_cases_" + path.stem, path)
             fixtures = module.cases()
             if not isinstance(fixtures, dict):
                 raise TypeError("cases() must return a dict")
+            if set(fixtures) != static_names:
+                raise ValueError("cases() keys differ from the literal return keys")
+            for fixture in fixtures.values():
+                common.validate_fixture(fixture)
             for name, fixture in sorted(fixtures.items()):
                 if name in written:
                     raise ValueError("duplicate fixture: " + name)
@@ -151,9 +167,8 @@ def run_cases(args, out, resolved):
             traceback.print_exc()
             failed = True
     # A script matching both patterns still runs only once.
-    steps = sorted(set(HERE.glob("fetch_*.mjs")) | set(HERE.glob("*_fixtures.mjs")))
-    for step in steps:
-        command = ["node", str(step), "--out", str(out), "--ref", args.ref]
+    for step in node_steps():
+        command = ["node", str(step), "--out", str(out), "--ref", resolved]
         if args.only is not None:
             command.extend(["--only", args.only])
         try:
@@ -163,6 +178,10 @@ def run_cases(args, out, resolved):
             traceback.print_exc()
             failed = True
     return 1 if failed else 0
+
+
+def node_steps():
+    return sorted(set(HERE.glob("fetch_*.mjs")) | set(HERE.glob("*_fixtures.mjs")))
 
 
 def main():
@@ -177,13 +196,25 @@ def main():
     if args.areas is not None and ("" in args.areas or any(
             not re.fullmatch(r"[A-Za-z0-9_]+", area) for area in args.areas)):
         parser.error("--only requires comma-separated module stems")
+    if (args.areas is not None and not args.include_examples
+            and any(area.startswith("_") for area in args.areas)):
+        parser.error("--only selecting a _* stem requires --include-examples")
+    print("Python modules: " + (", ".join(path.stem for path in case_paths(args))
+                               or "none selected"), file=sys.stderr)
+    print("Node steps: " + (", ".join(step.name for step in node_steps())
+                           or "none selected")
+          + (" (not run in --list mode)" if args.list else ""), file=sys.stderr)
     if args.list:
         names = set()
         failed = False
         for path in case_paths(args):
             try:
                 load_module("_xp_cases_" + path.stem, path)
-                names.update(fixture_names(path))
+                module_names = fixture_names(path)
+                duplicates = names & module_names
+                if duplicates:
+                    raise ValueError("duplicate fixture: " + ", ".join(sorted(duplicates)))
+                names.update(module_names)
             except Exception:
                 print("case module failed: " + path.stem, file=sys.stderr)
                 traceback.print_exc()
@@ -198,12 +229,17 @@ def main():
     resolved = carried if carried is not None else resolve_ref(args.ref)
     if not re.fullmatch(r"[0-9a-f]{40}", resolved):
         raise ValueError("invalid resolved upstream commit")
-    if sys.prefix == sys.base_prefix:
+    if Path(sys.prefix).resolve() != VENV.resolve():
+        if carried is not None:
+            raise RuntimeError("re-exec did not land in " + str(VENV))
         python = ensure_venv(args.ref, resolved)
         environment = dict(os.environ, _XP_GBSTATS_RESOLVED_REF=resolved)
         os.execve(str(python),
                   [str(python), "-I", str(Path(__file__).resolve()), *sys.argv[1:]],
                   environment)
+    if Path(sys.prefix).resolve() != VENV.resolve():
+        raise RuntimeError("re-exec did not land in " + str(VENV))
+    assert sys.implementation.name == "cpython", "generator requires CPython"
     if os.environ.get("XP_PYTHON"):
         assert (3, 10) <= sys.version_info[:2] < (3, 13), "XP_PYTHON requires Python 3.10–3.12"
     else:
