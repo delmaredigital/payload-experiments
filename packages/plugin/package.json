@@ -1,6 +1,6 @@
 {
   "name": "@delmaredigital/payload-experiments",
-  "version": "0.0.0",
+  "version": "0.1.0-rc.1",
   "description": "No-code A/B testing for Payload CMS and Next.js: block, page and flag experiments with holdouts, layers, exposure logging and honest statistics inside the admin — no vendor",
   "type": "module",
   "license": "MIT",
@@ -62,12 +62,13 @@
       "default": "./dist/exports/puckEditor.js"
     }
   },
-  "files": ["dist"],
+  "files": ["dist", "LICENSE", "README.md"],
   "scripts": {
     "build": "swc ./src -d ./dist --strip-leading-paths --config-file ../../.swcrc && tsc -p tsconfig.build.json && copyfiles -u 1 \"src/**/*.css\" dist",
     "dev": "swc ./src -d ./dist --strip-leading-paths --config-file ../../.swcrc --watch",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "check:esm": "node scripts/check-node-esm.mjs",
+    "check:package": "node scripts/check-package.mjs",
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm build"
   },
