@@ -15,13 +15,13 @@ function fixture(unitType = 'visitor') {
 }
 afterEach(() => vi.useRealTimers())
 
-test.each(['bot', 'staff', 'preview', 'HEAD', 'consent', 'non-exposable', 'viewport', 'arm', 'phase', 'missing-unit'])('skips %s', async mode => {
+test.each(['bot', 'staff', 'preview', 'HEAD', 'consent', 'non-exposable', 'viewport', 'pageview', 'arm', 'phase', 'missing-unit'])('skips %s', async mode => {
   const { runtime, ctx, execute } = fixture()
   if (mode === 'bot' || mode === 'staff' || mode === 'preview') ctx[mode] = true
   if (mode === 'HEAD') ctx.method = 'HEAD'
   if (mode === 'consent') { ctx.bySlug = {}; delete ctx.visitorId }
   if (mode === 'non-exposable') ctx.bySlug.hero = { ...assignment, exposable: false }
-  if (mode === 'viewport') ctx.bySlug.hero = { ...assignment, policy: 'viewport' }
+  if (mode === 'viewport' || mode === 'pageview') ctx.bySlug.hero = { ...assignment, policy: mode }
   if (mode === 'arm') ctx.bySlug.hero = { ...assignment, arm: 'variantA' }
   if (mode === 'phase') ctx.bySlug.hero = { ...assignment, phase: 3 }
   if (mode === 'missing-unit') delete ctx.visitorId
@@ -29,9 +29,10 @@ test.each(['bot', 'staff', 'preview', 'HEAD', 'consent', 'non-exposable', 'viewp
   expect(execute).toHaveBeenCalledTimes(mode === 'missing-unit' ? 1 : 0)
 })
 
-test.each(['visitor', 'user'])('writes a %s exposure using a UTC day and known user', async unitType => {
+test.each([['visitor', 'render'], ['user', 'render'], ['visitor', 'manual'], ['user', 'manual']] as const)('writes a %s %s exposure using a UTC day and known user', async (unitType, policy) => {
   vi.useFakeTimers().setSystemTime(new Date('2026-10-30T23:30:00-04:00'))
   const { runtime, ctx, execute } = fixture(unitType)
+  ctx.bySlug.hero = { ...assignment, policy }
   await recordExposures(runtime, rendered, ctx)
   const query = JSON.stringify(execute.mock.calls[1])
   const unitId = unitType === 'user' ? 'user' : 'visitor'

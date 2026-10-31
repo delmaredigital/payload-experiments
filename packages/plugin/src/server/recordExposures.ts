@@ -11,7 +11,7 @@ export async function recordExposures<TUser extends { id: string | number } = { 
     if (ctx.bot || ctx.staff || ctx.preview || ctx.method === 'HEAD') return
     const candidates = rendered.flatMap(entry => {
       const assignment = ctx.bySlug[entry.slug]
-      return assignment?.exposable && assignment.policy === 'render' && assignment.arm === entry.arm && assignment.phase === entry.phase ? [{ ...assignment }] : []
+      return assignment?.exposable && (assignment.policy === 'render' || assignment.policy === 'manual') && assignment.arm === entry.arm && assignment.phase === entry.phase ? [{ ...assignment }] : []
     })
     if (!candidates.length) return
     const { visitorId, userId } = ctx
