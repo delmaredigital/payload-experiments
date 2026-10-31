@@ -48,7 +48,7 @@ test('a throwing host placement hook returns a failed check with detail, not 500
   expect(response.status).toBe(200)
   expect((await response.json()).checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'Content adapter unavailable' })
 })
-test.each([null, undefined, {}, 'invalid', 42])('a non-array placement result (%j) reports a failed check instead of 500', async value => {
+test.each([null, undefined, {}, 'invalid', 42, [null], [{ ok: true }]])('a non-array placement result (%j) reports a failed check instead of 500', async value => {
   const { options, req } = setup('flag')
   options.flagPoints![0]!.placements = vi.fn().mockResolvedValue(value)
   const response = await handlePreflight(req, { options })

@@ -54,7 +54,7 @@ export async function loadStartInputs<TUser extends { id: DocId }>(req: PayloadR
     if (point?.placements) {
       try {
         const placements = await flagPlacements(options, experiment, req)
-        if (Array.isArray(placements)) input.flagPlacements = placements
+        if (Array.isArray(placements) && placements.every(p => p && typeof p === 'object' && typeof p.arm === 'string')) input.flagPlacements = placements
         else input.flagPlacementError = 'Placement lookup returned an invalid result.'
       }
       catch (cause) { input.flagPlacementError = failureDetail(cause) }
@@ -119,7 +119,8 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
   const value = history === null ? null : source?.kind === 'binomial'
     ? trafficPerDay === null ? null : historical!.dailyConverters / 28 / trafficPerDay
     : history.length ? history.reduce((sum, value) => sum + value, 0) / history.length : 0
-  const baseline: PreflightResult['baseline'] = primaryId === undefined || value === null ? null : { metricId: primaryId, value, days: 28 }
+  // A rate of 1 or more means reachPerDay is below the converters; no honest baseline then.
+  const baseline: PreflightResult['baseline'] = primaryId === undefined || value === null || source?.kind === 'binomial' && value >= 1 ? null : { metricId: primaryId, value, days: 28 }
   let power: PreflightResult['estimate'] = null
   if (trafficPerDay !== null && baseline && source && history) {
     const compared = e.arms.filter(arm => arm.kind !== 'holdout')

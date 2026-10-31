@@ -124,3 +124,12 @@ test('gathers layer usage and point occupancy through paged, access-checked read
   expect(payload.calls.some(call => call.args.page === 2)).toBe(true)
   expect(payload.calls.every(call => call.args.overrideAccess === false && call.args.req === req)).toBe(true)
 })
+
+test('a binomial rate of 1 or more (reachPerDay below the converters) gives no baseline and no estimate', async () => {
+  const { options, req } = setup('binomial', 0.05)
+  const estimate = vi.fn()
+  const result = await preflightData(req, { experimentId: 1, options }, { now, estimate })
+  expect(result!.baseline).toBeNull()
+  expect(result!.estimate).toBeNull()
+  expect(estimate).not.toHaveBeenCalled()
+})
