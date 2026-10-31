@@ -19,6 +19,7 @@ def cases() -> dict:
             ("relative-default-unadjusted", [2, 3, True]),
             ("absolute", [2, 3, False]), ("negative-baseline", [-2, -1, True]),
             ("zero-unadjusted-falsy", [2, 3, True, 0]),
+            ("nan-unadjusted-truthy", [2, 3, True, float("nan")]),
             ("set-unadjusted", [2, 3, True, 4]),
             ("negative-unadjusted", [2, 3, True, -4]),
             ("zero-absolute", [0, 3, False]),
@@ -43,5 +44,7 @@ def cases() -> dict:
             ("negative-mean", [-10, 0.3, 0.1]),
             ("large-location", [1e7, 0.01, 0.05]),
             ("small-alpha", [0.01, 100, 1e-6]),
+            ("zero-scale", [1, 0, 0.05]),
+            ("negative-scale", [1, -1, 0.05]),
         ]),
     }

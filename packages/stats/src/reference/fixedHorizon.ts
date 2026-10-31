@@ -30,6 +30,8 @@ export function oneSidedTreatmentLesserTTest(a: TestStatistic, b: TestStatistic,
 // Source: gbstats/frequentist/tests.py TTest.compute_result, TTest.dof @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
 function fixedHorizon(a: TestStatistic, b: TestStatistic, config: FrequentistConfig = {}, side: 'twoSided' | 'greater' | 'lesser'): FrequentistTestResult {
   const [statA, statB] = createThetaAdjustedStatistics(a, b)
+  // abTestMoments adjusts again; this is a no-op because the first pass has
+  // either set both thetas or reverted the pair to base statistics.
   const moments = abTestMoments(statA, statB, config.differenceType ?? 'relative')
   if (moments.errorMessage) return {
     expected: 0, ci: [0, 0], pValue: 1, uplift: { dist: 'normal', mean: 0, stddev: 0 },
