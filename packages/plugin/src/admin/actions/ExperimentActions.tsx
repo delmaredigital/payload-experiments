@@ -3,9 +3,8 @@ import { useState } from 'react'
 import { Button, useAuth, useDocumentInfo, useFormFields } from '@payloadcms/ui'
 import type { UIFieldClientProps } from 'payload'
 import type { ExperimentKind, Status } from '../../types/contracts.js'
-import { armLabel } from '../labels.js'
 import { canManage } from '../permissions.model.js'
-import { availableActions } from './actions.model.js'
+import { actionGroupLabel, availableActions } from './actions.model.js'
 import type { ActionDecision, ActionGroup, ActionId } from './actions.model.js'
 import { ConfirmDialog } from './ConfirmDialog.js'
 import { DecideDialog } from './DecideDialog.js'
@@ -32,7 +31,7 @@ export function ExperimentActions(_props: UIFieldClientProps) {
   const actions = availableActions({ status, kind, arms, decision: { winnerArm, holdoutReleasedAt, contentReport }, canManage: canManage(permissions) })
   const action = actions.find(candidate => candidate.id === selected)
   if (id == null) return null
-  const label = armLabel(winnerArm ?? 'control', arms.find(group => group.key === winnerArm)?.label)
+  const label = actionGroupLabel(winnerArm ?? 'control', arms.find(group => group.key === winnerArm)?.label)
   return <div className="xp-actions">
     {actions.map(item => <Button key={item.id} buttonStyle={item.tone === 'primary' ? 'primary' : 'secondary'}
       className={`xp-action xp-action--${item.tone}`} onClick={() => setSelected(item.id)}>{item.label}</Button>)}

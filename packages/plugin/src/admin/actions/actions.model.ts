@@ -13,6 +13,10 @@ export type ExperimentAction = {
   archive?: ArchiveBody
 }
 
+export function actionGroupLabel(key: string, storedLabel?: string): string {
+  return storedLabel?.trim() || armLabel(key)
+}
+
 export function availableActions({ status, kind, arms, decision, canManage }: {
   status: Status; kind: ExperimentKind; arms: readonly ActionGroup[]; decision?: ActionDecision | null; canManage: boolean
 }): ExperimentAction[] {
@@ -27,14 +31,14 @@ export function availableActions({ status, kind, arms, decision, canManage }: {
   if (status === 'stopped') return [start, decide, action('archive', C.archive, C.archiveBody, 'secondary', { mode: 'stopped' })]
   if (status !== 'decided') return []
   const winner = arms.find(group => group.key === decision?.winnerArm)
-  const label = armLabel(decision?.winnerArm ?? 'control', winner?.label)
+  const label = actionGroupLabel(decision?.winnerArm ?? 'control', winner?.label)
   const rolloutOpen = arms.some(group => group.key === 'holdout') && Boolean(decision?.winnerArm)
     && decision?.winnerArm !== 'control' && !decision?.holdoutReleasedAt
   const report = decision?.contentReport
   const docs = Array.isArray(report) ? report : report?.docs
   return [
     ...(rolloutOpen ? [action('release-holdout', C.release, releaseCopy(label))] : []),
-    ...(kind !== 'code' ? [action('make-content', C.makeContent, makeContentCopy(label), 'primary')] : []),
+    ...(kind !== 'code' ? [action('make-content', C.makeContent, makeContentCopy(label, kind), 'primary')] : []),
     ...(docs?.length && docs.every(doc => doc.ok) ? [action('after-content', C.finish, C.finishBody, 'secondary', { mode: 'after-content' })] : []),
     action('discard', C.discard, C.discardBody, 'danger', { mode: 'discard' }, 'discard'),
     ...(kind === 'code' ? [action('hard-coded', hardCodedLabel(label), hardCodedLabel(label), 'primary', { mode: 'hard-coded' }, 'hard-coded')] : []),

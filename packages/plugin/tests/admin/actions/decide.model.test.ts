@@ -29,7 +29,10 @@ test.each([T1, T2, T3, T4])('row $verdict.row is guarded', fixture => {
   const snapshot = fixture as unknown as Snapshot
   const result = state(snapshot, snapshot.verdict.recommendedArm)
   expect(result.guarded).toBe(true)
-  if (snapshot.verdict.recommendedArm !== null) expect(result.reason).toBe(snapshot.verdict.headline)
+  expect(state(snapshot, 'variantA').reason).toBe(snapshot.verdict.headline)
+  expect(state(snapshot, 'control').reason).toBe(snapshot.verdict.headline)
+  expect(state(snapshot, null).reason).toBeNull()
+  expect(state(snapshot, null).canSubmit).toBe(false)
 })
 test('guard requires nonblank note and shared exact phrase after trim', () => {
   const phrase = expectedConfirm('decide', 'Variant A')
@@ -39,4 +42,16 @@ test('guard requires nonblank note and shared exact phrase after trim', () => {
   expect(state(null, 'variantA', ' reason ', ` ${phrase} `)).toMatchObject({
     canSubmit: true, body: { winnerArm: 'variantA', note: 'reason', confirmation: phrase },
   })
+})
+
+test.each([null, T1, T2, T3, T4, T7])('no group chosen has no reason and cannot submit', fixture => {
+  expect(state(fixture as unknown as Snapshot | null, null)).toMatchObject({ reason: null, canSubmit: false })
+})
+test('stored labels are trimmed for options and confirmation, with fixed-name fallback', () => {
+  const renamed = [{ key: 'control', label: '  ' }, { key: 'variantA', label: ' Short headline ' }]
+  const result = decideState({ snapshot: null, arms: renamed, chosenArm: 'variantA', note: 'Reviewed', typed: ' Short headline ' })
+  expect(result.options).toEqual([{ value: 'control', label: 'Original' }, { value: 'variantA', label: 'Short headline' }])
+  expect(result.phrase).toBe(expectedConfirm('decide', 'Short headline'))
+  expect(result.canSubmit).toBe(true)
+  expect(result.body.confirmation).toBe('Short headline')
 })

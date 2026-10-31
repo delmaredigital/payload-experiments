@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { MakeContentResult } from '../../../src/admin/actions/MakeContentResult.js'
 import { ConfirmDialog } from '../../../src/admin/actions/ConfirmDialog.js'
@@ -41,4 +41,43 @@ test('make-content retry reposts and keeps results visible until Done reloads', 
   expect(reloadPage).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Done' }))
   expect(reloadPage).toHaveBeenCalledTimes(1)
+})
+
+test('Retry synchronously prevents rapid duplicate calls and disables itself while pending', async () => {
+  let resolve!: () => void
+  const pending = new Promise<void>(done => { resolve = done })
+  const retry = vi.fn(() => pending)
+  render(<MakeContentResult result={partial} onRetry={retry} />)
+  const button = screen.getByRole('button', { name: 'Retry' }) as HTMLButtonElement
+  act(() => { button.click(); button.click() })
+  expect(retry).toHaveBeenCalledTimes(1)
+  expect(button.disabled).toBe(true)
+  resolve()
+  await waitFor(() => expect(button.disabled).toBe(false))
+})
+
+test('make-content and Retry each POST once on rapid clicks with pending controls disabled', async () => {
+  let resolveFirst!: (value: Response) => void
+  let resolveRetry!: (value: Response) => void
+  const fetcher = vi.fn().mockReturnValueOnce(new Promise<Response>(done => { resolveFirst = done }))
+    .mockReturnValueOnce(new Promise<Response>(done => { resolveRetry = done }))
+  vi.stubGlobal('fetch', fetcher)
+  const action = availableActions({ status: 'decided', kind: 'block', arms: [{ key: 'variantA' }],
+    decision: { winnerArm: 'variantA' }, canManage: true }).find(item => item.id === 'make-content')!
+  render(<ConfirmDialog id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  const submit = screen.getByRole('button', { name: 'Make it the content' }) as HTMLButtonElement
+  act(() => { submit.click(); submit.click() })
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  expect(submit.disabled).toBe(true)
+  expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true)
+  resolveFirst(new Response(JSON.stringify(partial)))
+  const retry = await screen.findByRole('button', { name: 'Retry' }) as HTMLButtonElement
+  act(() => { retry.click(); retry.click() })
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  expect(retry.disabled).toBe(true)
+  expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true)
+  resolveRetry(new Response(JSON.stringify({ ...partial, docs: partial.docs.map(doc => ({ ...doc, ok: true })) })))
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull())
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(false)
 })

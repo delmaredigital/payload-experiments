@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { ConfirmDialog } from '../../../src/admin/actions/ConfirmDialog.js'
 import { ExperimentActions } from '../../../src/admin/actions/ExperimentActions.js'
@@ -15,7 +15,9 @@ const response = (data: unknown, status = 200) => new Response(JSON.stringify(da
 test.each(['discard', 'hard-coded'] as const)('%s uses shared typed phrase and exact archive body', async mode => {
   const action = availableActions({ status: 'decided', kind: 'code', canManage: true,
     arms: [{ key: 'control' }, { key: 'variantA' }], decision: { winnerArm: 'variantA' } }).find(item => item.id === mode)!
-  const fetcher = vi.fn().mockResolvedValue(response({ doc: {}, revision: 2 }))
+  let resolve!: (value: Response) => void
+  const pending = new Promise<Response>(done => { resolve = done })
+  const fetcher = vi.fn().mockReturnValue(pending)
   vi.stubGlobal('fetch', fetcher)
   render(<ConfirmDialog id="xp1" action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
   const phrase = expectedConfirm(mode, 'Variant A')
@@ -26,8 +28,16 @@ test.each(['discard', 'hard-coded'] as const)('%s uses shared typed phrase and e
   expect(submit.disabled).toBe(true)
   fireEvent.change(screen.getByLabelText('Confirmation'), { target: { value: ` ${phrase} ` } })
   expect(submit.disabled).toBe(false)
-  fireEvent.click(submit)
+  act(() => { submit.click(); submit.click() })
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  expect(submit.disabled).toBe(true)
+  expect((screen.getByLabelText('Confirmation') as HTMLInputElement).readOnly).toBe(true)
+  expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true)
+  resolve(response({ doc: {}, revision: 2 }))
   await waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1))
+  expect(submit.disabled).toBe(true)
+  fireEvent.click(submit)
+  expect(fetcher).toHaveBeenCalledTimes(1)
   expect(fetcher.mock.calls[0]?.[0]).toBe('/api/xp/experiments/xp1/archive')
   expect(JSON.parse(fetcher.mock.calls[0]?.[1].body)).toEqual({ mode, confirmation: phrase })
 })
@@ -67,4 +77,22 @@ test('create form and read-only users have no actions', () => {
   setAuth({ permissions: { collections: {} } })
   render(<ExperimentActions field={{ name: 'actions', type: 'ui', admin: {} }} path="actions" />)
   expect(screen.queryByRole('button')).toBeNull()
+})
+
+test('hard-coded panel label and typed phrase use the trimmed stored winner label', async () => {
+  setAuth({ permissions: { collections: { 'xp-experiments': { update: true } } } })
+  setFormFields({ status: { value: 'decided' }, kind: { value: 'code' },
+    'arms.0.key': { value: 'control' }, 'arms.1.key': { value: 'variantA' },
+    'arms.1.label': { value: ' Short headline ' }, 'decision.winnerArm': { value: 'variantA' } })
+  const fetcher = vi.fn().mockResolvedValue(response({ doc: {}, revision: 2 }))
+  vi.stubGlobal('fetch', fetcher)
+  render(<ExperimentActions field={{ name: 'actions', type: 'ui', admin: {} }} path="actions" />)
+  fireEvent.click(screen.getByRole('button', { name: 'The developer has hard-coded Short headline' }))
+  const phrase = expectedConfirm('hard-coded', 'Short headline')
+  expect(screen.getByText(phrase, { selector: 'strong' })).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Confirmation'), { target: { value: ` ${phrase} ` } })
+  const dialog = screen.getByRole('dialog')
+  fireEvent.click(dialog.querySelector('button')!)
+  await waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1))
+  expect(JSON.parse(fetcher.mock.calls[0]?.[1].body)).toEqual({ mode: 'hard-coded', confirmation: phrase })
 })

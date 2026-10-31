@@ -5,7 +5,7 @@ import { expectedConfirm } from '../../../src/transitions/confirmPhrases.js'
 
 test('copy uses editor vocabulary and never stores a typed phrase', () => {
   const phrases = (['decide', 'discard', 'hard-coded'] as const).map(action => expectedConfirm(action, 'Variant A'))
-  const values = [...Object.values(ACTIONS_COPY), decideCopy('Variant A', true, false), releaseCopy('Variant A'), makeContentCopy('Variant A'), hardCodedLabel('Variant A')]
+  const values = [...Object.values(ACTIONS_COPY), decideCopy('Variant A', true, false), releaseCopy('Variant A'), makeContentCopy('Variant A', 'block'), makeContentCopy('Variant A', 'flag'), hardCodedLabel('Variant A')]
   for (const value of values) {
     expect(value).not.toMatch(/\b(arms?|phases?)\b/i)
     expect(phrases).not.toContain(value)

@@ -28,6 +28,7 @@ export function DialogFrame({ title, onClose, children }: { title: string; onClo
       style={{ background: 'var(--theme-bg)', color: 'var(--theme-text)', border: '1px solid var(--theme-elevation-200)',
         padding: '2rem', width: 'min(36rem, 90vw)', maxHeight: '90vh', overflow: 'auto', borderRadius: 'var(--style-radius-s)' }}
       onKeyDown={event => {
+        if (event.defaultPrevented) return
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }
         if (event.key === 'Tab') {
           const items = Array.from(ref.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]') ?? [])
@@ -48,12 +49,14 @@ export function ConfirmDialog({ id, action, winnerLabel, onClose }: {
   const api = useApi()
   const [typed, setTyped] = useState('')
   const [busy, setBusy] = useState(false)
+  const inFlight = useRef(false)
   const [error, setError] = useState<Extract<ApiResult<unknown>, { ok: false }> | null>(null)
   const [content, setContent] = useState<ContentResult | null>(null)
   const phrase = action.confirm.phrase ? expectedConfirm(action.confirm.phrase.action, winnerLabel) : null
   const enabled = !busy && (!phrase || matchesConfirm(phrase, typed))
   async function submit() {
-    if (!enabled) return
+    if (inFlight.current || !enabled) return
+    inFlight.current = true
     setBusy(true)
     setError(null)
     let result: ApiResult<unknown>
@@ -63,13 +66,13 @@ export function ConfirmDialog({ id, action, winnerLabel, onClose }: {
     else if (action.id === 'release-holdout') result = await api.releaseHoldout(id)
     else {
       const response = await api.makeContent(id)
-      if (response.ok && response.data) { setContent(response.data); setBusy(false); return }
+      if (response.ok && response.data) { setContent(response.data); inFlight.current = false; setBusy(false); return }
       result = response
     }
+    if (result.ok && action.id !== 'make-content') { reloadPage(); return }
+    inFlight.current = false
     setBusy(false)
-    if (!result.ok) setError(result)
-    else if (action.id === 'make-content') setError({ ok: false, status: 0, message: API_MESSAGES.unreadable, retryable: true })
-    else reloadPage()
+    setError(!result.ok ? result : { ok: false, status: 0, message: API_MESSAGES.unreadable, retryable: true })
   }
   function close() {
     if (busy) return
@@ -77,7 +80,7 @@ export function ConfirmDialog({ id, action, winnerLabel, onClose }: {
     onClose()
   }
   return <DialogFrame title={action.confirm.title} onClose={close}>
-    {content ? <MakeContentResult result={content} onRetry={() => { void submit() }} busy={busy} /> : <>
+    {content ? <MakeContentResult result={content} onRetry={submit} busy={busy} /> : <>
       <p>{action.confirm.body}</p>
       {phrase ? <><p>{C.typePhrase} <strong>{phrase}</strong></p>
         <TextInput path="xp-confirmation" hasMany={false} label={C.confirmation} value={typed} readOnly={busy}

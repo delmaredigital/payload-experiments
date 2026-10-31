@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, SelectInput, TextareaInput, TextInput } from '@payloadcms/ui'
 import type { DocId } from '../../types/contracts.js'
 import type { ResultsResponse } from '../../types/endpoints.js'
@@ -20,6 +20,8 @@ export function DecideDialog({ id, arms, onClose }: { id: DocId; arms: readonly 
   const [typed, setTyped] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const inFlight = useRef(false)
+  const refreshing = useRef(false)
   const [error, setError] = useState<Extract<ApiResult<unknown>, { ok: false }> | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   const state = decideState({ snapshot, arms, chosenArm, note, typed })
@@ -38,22 +40,27 @@ export function DecideDialog({ id, arms, onClose }: { id: DocId; arms: readonly 
   }, [api, id])
 
   async function refresh() {
+    if (refreshing.current) return
+    refreshing.current = true
     setLoading(true)
     const result = await api.results(id)
+    refreshing.current = false
     setLoading(false)
     if (result.ok) { setSnapshot(result.data?.snapshot ?? null); setLoadFailed(false) }
     else { setSnapshot(null); setError(result); setLoadFailed(true) }
   }
   async function submit() {
-    if (loading || busy || !state.canSubmit || loadFailed) return
+    if (inFlight.current || loading || busy || !state.canSubmit || loadFailed) return
+    inFlight.current = true
     setBusy(true)
     setError(null)
     const result = await api.decide(id, state.body)
-    if (result.ok) reloadPage()
+    if (result.ok) { reloadPage(); return }
     else {
       setError(result)
       if (result.code === 'confirmation-required') { setTyped(''); await refresh() }
     }
+    inFlight.current = false
     setBusy(false)
   }
   const enabled = !busy && !loading && !loadFailed && state.canSubmit

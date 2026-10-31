@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { DecideDialog } from '../../../src/admin/actions/DecideDialog.js'
 import { reloadPage } from '../../../src/admin/reload.js'
 import { expectedConfirm } from '../../../src/transitions/confirmPhrases.js'
+import T1 from '../../_fixtures/snapshots/T1.json'
+import T2 from '../../_fixtures/snapshots/T2.json'
+import T3 from '../../_fixtures/snapshots/T3.json'
 import T7 from '../../_fixtures/snapshots/T7.json'
 import T4 from '../../_fixtures/snapshots/T4.json'
 import { resetPayloadUiMock } from '../_helpers/payloadUiMock.js'
@@ -99,4 +102,87 @@ test('failed results load can retry; Escape closes and restores trigger focus', 
   view.unmount()
   expect(document.activeElement).toBe(trigger)
   trigger.remove()
+})
+
+test('rapid Decide clicks submit once; pending controls and successful submit stay locked', async () => {
+  let resolve!: (value: Response) => void
+  const pending = new Promise<Response>(done => { resolve = done })
+  const fetcher = vi.fn().mockResolvedValueOnce(response({ phases: [], snapshot: null })).mockReturnValue(pending)
+  vi.stubGlobal('fetch', fetcher)
+  render(<DecideDialog id={1} arms={arms} onClose={vi.fn()} />)
+  await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+  chooseAndConfirm()
+  const submit = submitButton()
+  act(() => { submit.click(); submit.click() })
+  expect(fetcher.mock.calls.filter(call => call[1]?.method === 'POST')).toHaveLength(1)
+  expect(submit.disabled).toBe(true)
+  expect((screen.getByLabelText('Group') as HTMLSelectElement).disabled).toBe(true)
+  expect((screen.getByLabelText('Decision note') as HTMLTextAreaElement).readOnly).toBe(true)
+  expect((screen.getByLabelText('Confirmation') as HTMLInputElement).readOnly).toBe(true)
+  expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true)
+  resolve(response({ doc: {}, revision: 2 }))
+  await waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1))
+  expect(submit.disabled).toBe(true)
+  fireEvent.click(submit)
+  expect(fetcher.mock.calls.filter(call => call[1]?.method === 'POST')).toHaveLength(1)
+})
+
+test.each([
+  { name: 'Original', chosen: 'control', holdout: true, copy: 'Everyone will see the Original.' },
+  { name: 'variant with holdout', chosen: 'variantA', holdout: true, copy: 'Everyone except the holdout will see Short headline. The holdout keeps seeing the Original so we can measure the shipped change.' },
+  { name: 'variant without holdout', chosen: 'variantA', holdout: false, copy: 'Everyone will see Short headline.' },
+])('$name copy renders with the stored group label', async ({ chosen, holdout, copy }) => {
+  const fetcher = vi.fn().mockResolvedValueOnce(response({ phases: [], snapshot: null })).mockResolvedValueOnce(response({ doc: {}, revision: 2 }))
+  vi.stubGlobal('fetch', fetcher)
+  render(<DecideDialog id={1} arms={[
+    { key: 'control', label: ' Original ' }, { key: 'variantA', label: ' Short headline ' },
+    ...(holdout ? [{ key: 'holdout' }] : []),
+  ]} onClose={vi.fn()} />)
+  await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+  expect(screen.getByRole('option', { name: 'Short headline' })).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Group'), { target: { value: chosen } })
+  expect(screen.getByText(copy)).toBeTruthy()
+  const phrase = expectedConfirm('decide', chosen === 'control' ? 'Original' : 'Short headline')
+  expect(screen.getByText(phrase, { selector: 'strong' })).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Decision note'), { target: { value: 'Reviewed.' } })
+  fireEvent.change(screen.getByLabelText('Confirmation'), { target: { value: ` ${phrase} ` } })
+  fireEvent.click(submitButton())
+  await waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1))
+  expect(JSON.parse(fetcher.mock.calls[1]?.[1].body)).toEqual({ winnerArm: chosen, note: 'Reviewed.', confirmation: phrase })
+})
+
+test.each([
+  { name: 'T1 unavailable', snapshot: T1, chosen: 'variantA', reason: T1.verdict.headline },
+  { name: 'T2 data problem', snapshot: T2, chosen: 'control', reason: T2.verdict.headline },
+  { name: 'T3 guardrail, different choice', snapshot: T3, chosen: 'variantA', reason: T3.verdict.headline },
+  { name: 'T4 collecting', snapshot: T4, chosen: 'variantA', reason: T4.verdict.headline },
+  { name: 'no results', snapshot: null, chosen: 'variantA', reason: 'There are no results yet.' },
+  { name: 'no recommendation', snapshot: { ...T7, verdict: { ...T7.verdict, recommendedArm: null } }, chosen: 'variantA', reason: "The results don't recommend a group yet." },
+  { name: 'different choice', snapshot: T7, chosen: 'control', reason: 'You chose a different group than the results recommend.' },
+])('$name reason renders only after a group is chosen', async ({ snapshot, chosen, reason }) => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ phases: [], snapshot })))
+  render(<DecideDialog id={1} arms={arms} onClose={vi.fn()} />)
+  await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+  fireEvent.change(screen.getByLabelText('Group'), { target: { value: '' } })
+  expect(screen.queryByText(reason)).toBeNull()
+  expect(submitButton().disabled).toBe(true)
+  fireEvent.change(screen.getByLabelText('Group'), { target: { value: chosen } })
+  expect(screen.getByText(reason)).toBeTruthy()
+  expect(submitButton().disabled).toBe(true)
+})
+
+test('Escape consumed by the group dropdown leaves the dialog open', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ phases: [], snapshot: null })))
+  const onClose = vi.fn()
+  render(<DecideDialog id={1} arms={arms} onClose={onClose} />)
+  await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+  chooseAndConfirm()
+  const group = screen.getByLabelText('Group')
+  group.addEventListener('keydown', event => event.preventDefault(), { once: true })
+  fireEvent.keyDown(group, { key: 'Escape' })
+  expect(onClose).not.toHaveBeenCalled()
+  expect((screen.getByLabelText('Decision note') as HTMLTextAreaElement).value).toBe('We reviewed this.')
+  expect((screen.getByLabelText('Confirmation') as HTMLInputElement).value).toBe('Variant A')
+  fireEvent.keyDown(group, { key: 'Escape' })
+  expect(onClose).toHaveBeenCalledTimes(1)
 })

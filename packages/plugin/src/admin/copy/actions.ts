@@ -20,5 +20,7 @@ export const decideCopy = (winner: string, holdout: boolean, original: boolean) 
   : holdout ? `Everyone except the holdout will see ${winner}. The holdout keeps seeing the Original so we can measure the shipped change.`
     : `Everyone will see ${winner}.`
 export const releaseCopy = (winner: string) => `The holdout will see ${winner} too. Measuring since shipping ends.`
-export const makeContentCopy = (winner: string) => `Copies ${winner} into the page content so the experiment can be archived.`
+export const makeContentCopy = (winner: string, kind: 'block' | 'page' | 'flag') => kind === 'flag'
+  ? `Saves ${winner}'s settings as the new defaults so the experiment can be archived.`
+  : `Copies ${winner} into the page content so the experiment can be archived.`
 export const hardCodedLabel = (winner: string) => `The developer has hard-coded ${winner}`
