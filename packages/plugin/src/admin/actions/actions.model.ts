@@ -1,0 +1,42 @@
+import type { ExperimentKind, Status } from '../../types/contracts.js'
+import type { ArchiveBody, MakeContentResult } from '../../types/endpoints.js'
+import { armLabel } from '../labels.js'
+import { ACTIONS_COPY as C, hardCodedLabel, makeContentCopy, releaseCopy } from '../copy/actions.js'
+
+export type ActionGroup = { key: string; label?: string; kind?: string }
+export type ContentReport = { docs: MakeContentResult['docs'] } | MakeContentResult['docs']
+export type ActionDecision = { winnerArm?: string | null; holdoutReleasedAt?: string | null; contentReport?: ContentReport | null }
+export type ActionId = 'start' | 'stop' | 'decide' | 'release-holdout' | 'make-content' | 'after-content' | 'archive' | 'discard' | 'hard-coded'
+export type ExperimentAction = {
+  id: ActionId; label: string; tone: 'primary' | 'secondary' | 'danger'
+  confirm: { title: string; body: string; phrase?: { action: 'discard' | 'hard-coded' } }
+  archive?: ArchiveBody
+}
+
+export function availableActions({ status, kind, arms, decision, canManage }: {
+  status: Status; kind: ExperimentKind; arms: readonly ActionGroup[]; decision?: ActionDecision | null; canManage: boolean
+}): ExperimentAction[] {
+  if (!canManage) return []
+  const action = (id: ActionId, label: string, body: string, tone: ExperimentAction['tone'] = 'secondary', archive?: ArchiveBody,
+    phrase?: 'discard' | 'hard-coded'): ExperimentAction => ({ id, label, tone,
+    confirm: { title: label, body, ...(phrase ? { phrase: { action: phrase } } : {}) }, ...(archive ? { archive } : {}) })
+  const start = action('start', status === 'stopped' ? C.restart : C.start, status === 'stopped' ? C.restartBody : C.startBody, 'primary')
+  const decide = action('decide', C.decide, '', 'primary')
+  if (status === 'draft') return [start]
+  if (status === 'running') return [action('stop', C.stop, C.stopBody, 'danger'), decide]
+  if (status === 'stopped') return [start, decide, action('archive', C.archive, C.archiveBody, 'secondary', { mode: 'stopped' })]
+  if (status !== 'decided') return []
+  const winner = arms.find(group => group.key === decision?.winnerArm)
+  const label = armLabel(decision?.winnerArm ?? 'control', winner?.label)
+  const rolloutOpen = arms.some(group => group.key === 'holdout') && Boolean(decision?.winnerArm)
+    && decision?.winnerArm !== 'control' && !decision?.holdoutReleasedAt
+  const report = decision?.contentReport
+  const docs = Array.isArray(report) ? report : report?.docs
+  return [
+    ...(rolloutOpen ? [action('release-holdout', C.release, releaseCopy(label))] : []),
+    ...(kind !== 'code' ? [action('make-content', C.makeContent, makeContentCopy(label), 'primary')] : []),
+    ...(docs?.length && docs.every(doc => doc.ok) ? [action('after-content', C.finish, C.finishBody, 'secondary', { mode: 'after-content' })] : []),
+    action('discard', C.discard, C.discardBody, 'danger', { mode: 'discard' }, 'discard'),
+    ...(kind === 'code' ? [action('hard-coded', hardCodedLabel(label), hardCodedLabel(label), 'primary', { mode: 'hard-coded' }, 'hard-coded')] : []),
+  ]
+}
