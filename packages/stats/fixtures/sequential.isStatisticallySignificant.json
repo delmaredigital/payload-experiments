@@ -1,0 +1,160 @@
+{
+  "cases": [
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          [
+            -1,
+            1
+          ]
+        ]
+      },
+      "name": "[-1, 1]"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          [
+            0,
+            1
+          ]
+        ]
+      },
+      "name": "[0, 1]"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          [
+            -1,
+            0
+          ]
+        ]
+      },
+      "name": "[-1, 0]"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "name": "[0, 0]"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          [
+            0.1,
+            1
+          ]
+        ]
+      },
+      "name": "[0.1, 1]"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          [
+            -1,
+            -0.1
+          ]
+        ]
+      },
+      "name": "[-1, -0.1]"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          [
+            {
+              "$num": "-inf"
+            },
+            1
+          ]
+        ]
+      },
+      "name": "[-inf, 1]"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          [
+            {
+              "$num": "-inf"
+            },
+            -0.1
+          ]
+        ]
+      },
+      "name": "[-inf, -0.1]"
+    },
+    {
+      "expected": true,
+      "input": {
+        "args": [
+          [
+            0.1,
+            {
+              "$num": "inf"
+            }
+          ]
+        ]
+      },
+      "name": "[0.1, inf]"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          [
+            -1,
+            {
+              "$num": "inf"
+            }
+          ]
+        ]
+      },
+      "name": "[-1, inf]"
+    },
+    {
+      "expected": false,
+      "input": {
+        "args": [
+          [
+            {
+              "$num": "-inf"
+            },
+            {
+              "$num": "inf"
+            }
+          ]
+        ]
+      },
+      "name": "[-inf, inf]"
+    }
+  ],
+  "source": {
+    "module": "gbstats.utils",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "is_statistically_significant"
+  }
+}

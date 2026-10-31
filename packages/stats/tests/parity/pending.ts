@@ -1,10 +1,3 @@
 export const pending: ReadonlySet<string> = new Set([
-  'sequential.sequentialTwoSidedTTest',
-  'sequential.sequentialOneSidedTreatmentGreaterTTest',
-  'sequential.sequentialOneSidedTreatmentLesserTTest',
-  'sequential.sequentialRho',
-  'sequential.sequentialIntervalHalfwidth',
-  'sequential.sequentialIntervalHalfwidthOneSided',
-  'sequential.isStatisticallySignificant',
   'midPower.midExperimentPower',
 ])
