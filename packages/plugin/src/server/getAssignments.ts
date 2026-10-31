@@ -144,5 +144,5 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
     for (const assignment of Object.values(result.bySlug)) assignment.exposable = false
     for (const point of Object.values(result.flagPoints)) point.exposable = false
   }
-  return rememberManifest(result, manifest)
+  return rememberManifest(result, manifest, attributes)
 }

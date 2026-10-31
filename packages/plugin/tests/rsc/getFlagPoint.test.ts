@@ -68,6 +68,6 @@ test.each([true, false])('unmocked manual expose writes only when exposable (%s)
   expect(insert.sql).toMatch(/^INSERT INTO "xp_events"/)
   expect(insert.params).toStrictEqual([
     'exposure', 7, 1, 'variantA', 'visitor', 'visitor', null, null, null,
-    '2026-10-31T03:30:00.000Z', null, 'exposure:7:1:variantA:visitor:2026-10-31',
+    '2026-10-31T03:30:00.000Z', null, null, 'exposure:7:1:variantA:visitor:2026-10-31',
   ])
 })

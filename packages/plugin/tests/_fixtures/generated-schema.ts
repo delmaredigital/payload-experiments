@@ -763,6 +763,7 @@ export const xp_events = pgTable(
       withTimezone: true,
       precision: 3,
     }).notNull(),
+    dimensions: jsonb("dimensions"),
     attributes: jsonb("attributes"),
     dedupeKey: varchar("dedupe_key").notNull(),
     updatedAt: timestamp("updated_at", {
@@ -797,6 +798,7 @@ export const xp_events = pgTable(
       columns.eventName,
       columns.ts,
     ),
+    index("experiment_ts_idx").on(columns.experiment, columns.ts),
   ],
 );
 

@@ -33,3 +33,24 @@ test('FK 23503 retries individually and drops an exposure whose experiment was d
     expect((await exec.query('SELECT dedupe_key FROM xp_events ORDER BY dedupe_key')).rows).toEqual([{ dedupe_key: 'good1' }, { dedupe_key: 'good2' }])
   } finally { await close() }
 }, 60_000)
+
+
+test('dimensions round-trip JSON only on exposures and the sweep index exists after push', async () => {
+  const { db, close } = await createPgliteDb()
+  try {
+    const exec = pooledExecutor({ db: { drizzle: db } } as unknown as Payload)
+    const dimensions = { path: '/article', loggedIn: false, amount: 42, campaign: 's'.repeat(64) }
+    await insertEvents(exec, [
+      { ...row('exposure'), type: 'exposure', dimensions },
+      { ...row('conversion'), dimensions },
+      { ...row('mismatch'), type: 'arm-mismatch', dimensions },
+      { ...row('default'), type: 'exposure' },
+    ])
+    expect((await exec.query('SELECT dedupe_key, dimensions FROM xp_events ORDER BY dedupe_key')).rows).toEqual([
+      { dedupe_key: 'conversion', dimensions: null }, { dedupe_key: 'default', dimensions: null },
+      { dedupe_key: 'exposure', dimensions }, { dedupe_key: 'mismatch', dimensions: null },
+    ])
+    const indexes = await exec.query<{ indexdef: string }>("SELECT indexdef FROM pg_indexes WHERE tablename = 'xp_events'")
+    expect(indexes.rows.some(row => /\(experiment_id, ts\)/.test(row.indexdef))).toBe(true)
+  } finally { await close() }
+}, 60_000)

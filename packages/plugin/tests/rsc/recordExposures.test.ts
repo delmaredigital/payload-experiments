@@ -1,3 +1,8 @@
+import { PgDialect } from '@payloadcms/db-postgres/drizzle/pg-core'
+import { trustedContext } from './requestHarness.js'
+import { runtime as serverFixture, manifest } from './helpers.js'
+import { getAssignments } from '../../src/server/getAssignments.js'
+import { rememberManifest } from '../../src/server/context.js'
 import type { Payload } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { recordExposures } from '../../src/server/recordExposures.js'
@@ -48,4 +53,50 @@ test('executor and logger failures never reach the page', async () => {
   error.mockImplementation(() => { throw new Error('logger down') })
   await expect(recordExposures(runtime, rendered, ctx)).resolves.toBeUndefined()
   expect(error).toHaveBeenCalledOnce()
+})
+
+
+function insertedDimensions(execute: ReturnType<typeof vi.fn>): unknown {
+  const query = new PgDialect().sqlToQuery(execute.mock.calls.at(-1)![0])
+  const columnIndex = query.sql.slice(0, query.sql.indexOf(') VALUES')).split(',').findIndex(column => column.trim() === '"dimensions"')
+  const value = query.params[columnIndex]
+  return typeof value === 'string' ? JSON.parse(value) : value
+}
+
+test.each(['render', 'manual'] as const)('%s freezes configured primitive attributes from the actual server request', async policy => {
+  const f = fixture()
+  const m = manifest([{ ...manifest().experiments[0]!, exposurePolicy: policy }])
+  const attributes = { campaign: 's'.repeat(80), amount: 42, loggedIn: true, path: '/spoof', unconfigured: 'drop', object: {}, array: [], nil: null }
+  const getUnit = vi.fn(() => ({ attributes: attributes as unknown as Record<string, string | number | boolean> }))
+  const server = serverFixture(m, { getUnit }, { attributesOf: () => ({ loggedIn: false, path: '/also-spoof' }) }, {
+    events: { dimensions: ['campaign', 'amount', 'loggedIn', 'path', 'object', 'array', 'nil', 'missing'] },
+  })
+  Object.assign(server.payload, { db: { drizzle: { execute: f.execute } }, logger: { error: f.error } })
+  f.execute.mockResolvedValue({ rows: [{ revision: m.revision, manifest: m }] })
+  trustedContext('/article//?ignored=1')
+  const ctx = await getAssignments(server.rt, { user: null })
+  attributes.campaign = 'changed-after-assignment'
+  await recordExposures(server.rt, [{ slug: 'hero', arm: 'variantA', phase: 1 }], ctx)
+  expect(insertedDimensions(f.execute)).toEqual({ campaign: 's'.repeat(64), amount: 42, loggedIn: false, path: '/article' })
+  expect(getUnit).toHaveBeenCalledOnce()
+})
+
+test.each([undefined, [], ['missing'], ['amount']].map(dimensions => ({ dimensions })))('no selected primitive dimensions %j writes null', async ({ dimensions }) => {
+  const f = fixture()
+  const payload = await f.runtime.getPayload()
+  Object.assign(payload, { config: { custom: { xp: { events: { dimensions } } } } })
+  f.runtime.getPayload = async () => payload
+  rememberManifest(f.ctx, manifest(), { amount: NaN })
+  await recordExposures(f.runtime, rendered, f.ctx)
+  expect(insertedDimensions(f.execute)).toBeNull()
+})
+
+test('consent false with configured dimensions records no server exposure', async () => {
+  const f = fixture()
+  const server = serverFixture(manifest(), { getUnit: () => ({ attributes: { campaign: 'server' } }) }, {}, { events: { dimensions: ['campaign'] } })
+  Object.assign(server.payload, { db: { drizzle: { execute: f.execute } }, logger: { error: f.error } })
+  trustedContext('/', 'GET', false)
+  const ctx = await getAssignments(server.rt)
+  await recordExposures(server.rt, [{ slug: 'hero', arm: 'variantA', phase: 1 }], ctx)
+  expect(f.execute).not.toHaveBeenCalled()
 })

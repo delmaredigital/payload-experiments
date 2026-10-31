@@ -46,3 +46,24 @@ test('attributesOf may be absent when staff is not declared', async () => {
   Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
   await expect(createOnInit(options)(payload)).resolves.toBeUndefined()
 })
+
+
+test.each([
+  null, 'country', {}, [1], [''], ['1name'], ['has-dash'], ['has space'], ['a.b'], ['__proto__'],
+  ['a'.repeat(41)], Array.from({ length: 9 }, (_, i) => `dim${i}`), ['country', 'country'],
+  ...['userId', 'email', 'id', 'unitId', 'visitorId', 'EMAIL', 'UserId'].map(name => [name]),
+].map(dimensions => ({ dimensions })))('onInit rejects invalid events.dimensions %j', async ({ dimensions }) => {
+  const options = resolveOptions({ ...sampleOptions(), events: { dimensions: dimensions as string[] } })
+  const payload = fakePayload()
+  Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
+  await expect(createOnInit(options)(payload)).rejects.toThrow('events.dimensions')
+  expect(payload.dbCalls).toEqual([])
+})
+
+test.each([undefined, [], ['a'.repeat(40)], ['registrationSource', 'loggedIn', 'staff', 'path', 'device', 'utmSource', 'n2', 'A_']].map(dimensions => ({ dimensions })))('onInit accepts valid dimensions %j', async ({ dimensions }) => {
+  const options = resolveOptions({ ...sampleOptions(), events: { dimensions } })
+  const payload = fakePayload()
+  Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
+  await expect(createOnInit(options)(payload)).resolves.toBeUndefined()
+  expect(payload.db.sessions).toEqual({})
+})

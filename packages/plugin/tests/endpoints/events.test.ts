@@ -136,6 +136,7 @@ test('accepts rotated secrets and the configured cookie name through the registe
 })
 test.each(['false', 'throws'])('consent %s suppresses all storage with a stale cookie', async mode => {
   const f = fixture()
+  f.options.events = { dimensions: ['loggedIn', 'path'] }
   const consent = vi.fn(request => {
     expect(request.cookies.get('xp_id')?.value).toBe(signed)
     expect(request.nextUrl.pathname).toBe('/api/xp/events')
@@ -375,4 +376,30 @@ test('individual unrecognized entries are dropped without rejecting a batch', as
   await accepted(await f.run(f.request({ events: [null, [], {}, { type: 'unknown' }, { ...exposure, phase: '1' }, conversion] })))
   expect(stored()).toHaveLength(1)
   expect(stored()[0]?.type).toBe('conversion')
+})
+
+
+test.each(['manual', 'viewport', 'pageview'] as const)('%s exposure freezes configured server dimensions and ignores body attributes', async policy => {
+  const f = fixture({ exposurePolicy: policy })
+  f.options.events = { dimensions: ['campaign', 'amount', 'loggedIn', 'path', 'object', 'array', 'nil', 'missing'] }
+  f.options.runtime.proxyRuntime = { ...f.options.runtime.proxyRuntime, getUnit: async () => ({ attributes: {
+    campaign: 's'.repeat(80), amount: 42, loggedIn: true, path: '/spoof', unconfigured: 'drop',
+    object: { nested: true }, array: ['drop'], nil: null,
+  } as unknown as Record<string, string | number | boolean> }) }
+  const forged = { dimensions: { campaign: 'forged', missing: 'forged' }, attributes: { campaign: 'forged', missing: 'forged' }, campaign: 'forged', path: '/forged', loggedIn: true }
+  await accepted(await f.run(f.request({ ...forged, events: [
+    { ...exposure, policy, ...forged }, { ...conversion, ...forged }, { ...exposure, policy, arm: 'control', ...forged },
+  ] }, { referer: 'https://example.test/article//?ignored=1' })))
+  expect(stored().map(row => [row.type, row.dimensions])).toEqual([
+    ['exposure', { campaign: 's'.repeat(64), amount: 42, loggedIn: false, path: '/article' }],
+    ['conversion', null], ['arm-mismatch', null],
+  ])
+})
+
+test.each([undefined, [], ['missing'], ['amount']].map(dimensions => ({ dimensions })))('empty dimension selection %j writes null', async ({ dimensions }) => {
+  const f = fixture()
+  f.options.events = { dimensions }
+  f.options.runtime.proxyRuntime = { ...f.options.runtime.proxyRuntime, getUnit: async () => ({ attributes: { amount: Infinity } }) }
+  await accepted(await f.run(f.request({ events: [{ ...exposure, dimensions: { amount: 1 }, attributes: { amount: 1 } }] })))
+  expect(stored()).toMatchObject([{ type: 'exposure', dimensions: null }])
 })

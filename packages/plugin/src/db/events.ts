@@ -19,6 +19,7 @@ export interface EventRow {
   eventName?: string
   value?: number
   ts: string
+  dimensions?: Record<string, string | number | boolean> | null
   attributes?: Record<string, unknown>
   dedupeKey: string
 }
@@ -52,11 +53,12 @@ export async function insertEvents(exec: Executor, rows: EventRow[], log: (messa
     const values = batch.map(row => {
       const fields = [row.type, row.experimentId ?? null, row.phase ?? null, row.arm ?? null, row.unitId, row.unitType,
         row.userId ?? null, row.eventName ?? null, row.value ?? null, row.ts,
+        row.type === 'exposure' && row.dimensions ? JSON.stringify(row.dimensions) : null,
         row.attributes === undefined ? null : JSON.stringify(row.attributes), row.dedupeKey]
       return `(${fields.map(value => { params.push(value); return `$${params.length}` }).join(', ')}, now(), now())`
     })
     const result = await exec.query(`INSERT INTO ${table} (${[c.type, c.experimentId, c.phase, c.arm, c.unitId, c.unitType,
-      c.userId, c.eventName, c.value, c.ts, c.attributes, c.dedupeKey, c.createdAt, c.updatedAt].map(quote).join(', ')}) VALUES ${values.join(', ')} ON CONFLICT (${quote(c.dedupeKey)}) DO NOTHING RETURNING ${quote(c.id)}`, params)
+      c.userId, c.eventName, c.value, c.ts, c.dimensions, c.attributes, c.dedupeKey, c.createdAt, c.updatedAt].map(quote).join(', ')}) VALUES ${values.join(', ')} ON CONFLICT (${quote(c.dedupeKey)}) DO NOTHING RETURNING ${quote(c.id)}`, params)
     return result.rows.length
   }
   try { return await insert(valid) } catch (error) {

@@ -217,6 +217,7 @@ export const COLUMNS = {
     eventName: 'event_name',
     value: 'value',
     ts: 'ts',
+    dimensions: 'dimensions',
     attributes: 'attributes',
     dedupeKey: 'dedupe_key',
     updatedAt: 'updated_at',
