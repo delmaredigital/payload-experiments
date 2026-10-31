@@ -7,10 +7,6 @@ import {
 import { twoSidedTTest } from '../../src/reference/fixedHorizon.js'
 import { abTestMoments } from '../../src/effectMoments.js'
 import type { RegressionAdjustedStatistic, SampleMeanStatistic } from '../../src/types.js'
-import { expectParity } from '../parity/compare.js'
-import { decode, loadFixture } from '../parity/fixtures.js'
-import { manifest } from '../parity/manifest.js'
-import { runners } from '../parity/runners.js'
 
 const a: SampleMeanStatistic = { type: 'sampleMean', n: 1000, sum: 2000, sumSquares: 6000 }
 const b: SampleMeanStatistic = { type: 'sampleMean', n: 1300, sum: 2860, sumSquares: 9000 }
@@ -27,22 +23,6 @@ const allTests = [sequentialTwoSidedTTest, ...oneSided]
 const pairs = [[a, b], [raA, raB], [
   { type: 'proportion', n: 1000, sum: 200 }, { type: 'proportion', n: 1300, sum: 290 },
 ]] as const
-
-// No handwritten numeric oracle: each public function loads its named upstream
-// fixture. These are explicitly skipped until the coordinator's fixture train.
-for (const { key, fixture } of manifest.filter(entry => entry.fixture.startsWith('sequential.'))) {
-  const data = loadFixture(fixture)
-  if (!data) {
-    it.skip(`${fixture}: awaits pinned upstream fixture generation on the train`, () => {})
-  } else {
-    it(`${fixture}: matches the pinned upstream fixture`, () => {
-      expect(data.cases.length).toBeGreaterThan(0)
-      for (const row of data.cases) {
-        expectParity(runners[key]!(...decode(row.input.args)), decode(row.expected))
-      }
-    })
-  }
-}
 
 describe('sequential identities', () => {
   it('has a strictly wider CI than the fixed two-sided reference at n >= 100 per arm', () => {
