@@ -4,8 +4,8 @@ import { flagControlParams } from '../../src/collections/experiments/flagControl
 import { fakeReq } from '../_fakes/req.js'
 import { fakePayload } from '../_fakes/payload.js'
 
-const setup = (state: unknown = {}, refused = false) => {
-  const findGlobal = vi.fn(async () => { if (refused) throw new Error('Forbidden'); return state })
+const setup = (state: unknown = {}, failure?: unknown) => {
+  const findGlobal = vi.fn(async () => { if (failure !== undefined) throw failure; return state })
   const req = fakeReq({ payload: fakePayload({ config: { custom: { xp: { flagPoints: [
     { id: 'card', defaultParams: { text: 'Default' } }, { id: 'other', defaultParams: { text: 'Other' } },
   ] } } }, overrides: { findGlobal } }) })
@@ -31,9 +31,13 @@ test.each([{}, { flagDefaults: {} }, { flagDefaults: { card: { params: {} } } }]
   const result = await run({}, original(), setup(state).req)
   expect(result.arms[0].params).toEqual('flagDefaults' in state && state.flagDefaults && 'card' in state.flagDefaults ? {} : { text: 'Default' })
 })
-test('refused read falls back to registered defaults', async () => {
-  const result = await run({}, original(), setup({}, true).req)
+test.each([{ name: 'Forbidden' }, { status: 403 }])('refused read falls back to registered defaults: %j', async failure => {
+  const result = await run({}, original(), setup({}, failure).req)
   expect(result.arms[0].params).toEqual({ text: 'Default' })
+})
+test('database errors propagate without replacing control params', async () => {
+  const error = new Error('Database connection lost')
+  await expect(run({}, original(), setup({}, error).req)).rejects.toBe(error)
 })
 test.each(['running', 'decided', 'archived'])('%s is unchanged without a state read', async status => {
   const { req, findGlobal } = setup()

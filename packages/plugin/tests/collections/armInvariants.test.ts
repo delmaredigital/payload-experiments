@@ -4,7 +4,7 @@ import type { ArmIssueCode } from '../../src/types/endpoints.js'
 import { addHoldout, checkArms } from '../../src/collections/experiments/armInvariants.js'
 
 const arm = (key: ArmKey, weight: number, kind: ArmKind = key === 'control' ? 'control' : key === 'holdout' ? 'holdout' : 'variant'): Arm =>
-  ({ key, kind, label: key, weight, slot: key as Arm['slot'] })
+  ({ key, kind, label: key, weight, ...(key === 'holdout' ? {} : { slot: key }) })
 const valid = () => [arm('control', 45), arm('variantA', 45), arm('holdout', 10)]
 
 const failures: Array<[ArmIssueCode, Arm[]]> = [
@@ -17,6 +17,7 @@ const failures: Array<[ArmIssueCode, Arm[]]> = [
   ['duplicate-key', [arm('control', 50), arm('control', 50, 'variant')]],
   ['slot-required', [{ ...arm('control', 100), slot: undefined }]],
   ['duplicate-slot', [arm('control', 50), { ...arm('variantA', 50), slot: 'control' }]],
+  ['invalid-key', [arm('unknown' as ArmKey, 100, 'control')]],
 ]
 test.each(failures)('%s has a failing input', (code, arms) => {
   expect(checkArms(arms, 'block').map(issue => issue.code)).toContain(code)
@@ -29,8 +30,23 @@ test('requires exactly one control, including when two are supplied', () => {
   expect(checkArms([arm('control', 50), arm('variantA', 50, 'control')], 'flag').map(issue => issue.code)).toContain('control-count')
 })
 test('fixed vocabulary and block slots matching keys', () => {
-  expect(checkArms([arm('unknown' as ArmKey, 100, 'control')], 'flag')).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'duplicate-key', armIndex: 0, armKey: 'unknown' })]))
+  expect(checkArms([arm('unknown' as ArmKey, 100, 'control')], 'flag')).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'invalid-key', armIndex: 0, armKey: 'unknown' })]))
   expect(checkArms([{ ...arm('control', 100), slot: 'variantA' }], 'block').map(issue => issue.code)).toContain('slot-required')
+})
+test.each([
+  ['control', 'variant'], ['control', 'holdout'],
+  ['variantA', 'control'], ['variantA', 'holdout'],
+  ['variantB', 'control'], ['variantB', 'holdout'],
+  ['variantC', 'control'], ['variantC', 'holdout'],
+  ['holdout', 'control'], ['holdout', 'variant'],
+] as const)('key %s cannot have kind %s', (key, kind) => {
+  expect(checkArms([arm(key, 100, kind)], 'flag').map(issue => issue.code)).toContain('invalid-key')
+})
+test('block holdout stores no slot', () => {
+  expect(checkArms([...valid().slice(0, 2), { ...arm('holdout', 10), slot: 'control' }], 'block').map(issue => issue.code)).toContain('invalid-key')
+  const result = addHoldout([arm('control', 50), arm('variantA', 50)])
+  expect(result.at(-1)).not.toHaveProperty('slot')
+  expect(checkArms(result, 'block')).toEqual([])
 })
 test.each(['flag', 'page', 'code'] as const)('%s does not require slots', kind => {
   expect(checkArms([{ ...arm('control', 100), slot: undefined }], kind)).toEqual([])
@@ -51,7 +67,12 @@ test('largest remainder on 34/33/33', () => {
   expect(result.reduce((sum, arm) => sum + arm.weight, 0)).toBe(100)
 })
 test('control wins a rounding tie even if not first', () => {
-  expect(addHoldout([arm('variantA', 25), arm('control', 25), arm('variantB', 25), arm('variantC', 25)]).map(arm => arm.weight)).toEqual([23, 23, 22, 22, 10])
+  expect(addHoldout([arm('variantA', 25), arm('variantB', 25), arm('variantC', 25), arm('control', 25)]).map(arm => arm.weight)).toEqual([23, 22, 22, 23, 10])
+})
+test('three variants use exact integer remainders across unequal integer parts', () => {
+  const result = addHoldout([arm('control', 13), arm('variantA', 3), arm('variantB', 43), arm('variantC', 41)])
+  expect(result.map(arm => arm.weight)).toEqual([12, 3, 38, 37, 10])
+  expect(checkArms(result, 'block')).toEqual([])
 })
 test('existing holdout is a no-op', () => {
   const arms = valid()

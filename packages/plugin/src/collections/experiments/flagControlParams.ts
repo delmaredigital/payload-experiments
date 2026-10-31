@@ -15,7 +15,9 @@ export const flagControlParams: CollectionBeforeChangeHook = async ({ data, orig
     const state = await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: false })
     const defaults = state.flagDefaults as Record<string, FlagDefault> | undefined
     params = defaults?.[point.id]?.params ?? params
-  } catch {
+  } catch (cause) {
+    const error = cause as { status?: unknown; name?: unknown } | null | undefined
+    if (error?.status !== 403 && error?.name !== 'Forbidden') throw cause
     // A refused state read must not prevent using the registered point defaults.
   }
   const arms: Arm[] | undefined = data.arms ?? originalDoc?.arms

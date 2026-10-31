@@ -6,7 +6,9 @@ export class XpNotImplemented extends Error {
 }
 export class XpLockedFieldError extends Error {
   override name = 'XpLockedFieldError'
-  constructor(public readonly field: string, public readonly status: Status) { super(`${field} is locked in ${status}`) }
+  readonly status = 400
+  readonly isPublic = true
+  constructor(public readonly field: string, public readonly experimentStatus: Status) { super(`${field} is locked in ${experimentStatus}`) }
 }
 export class XpNoTransactionError extends Error {
   override name = 'XpNoTransactionError'
@@ -14,5 +16,6 @@ export class XpNoTransactionError extends Error {
 }
 export class XpRefusal extends Error {
   override name = 'XpRefusal'
+  readonly isPublic = true
   constructor(public readonly code: RefusalCode, message: string, public readonly detail: unknown | undefined, public readonly status: 409 | 422 | 500 | 404) { super(message) }
 }

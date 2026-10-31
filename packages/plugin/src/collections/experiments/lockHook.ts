@@ -7,15 +7,17 @@ import { EDITABLE_BY_STATUS } from './editability.js'
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)
 const relationships = new Set(['layer', 'metrics.primary', 'metrics.secondary', 'metrics.guardrails', 'decision.decidedBy', 'decision.snapshotId'])
-const dates = new Set(['createdAt', 'updatedAt', 'startedAt', 'stoppedAt', 'decidedAt', 'archivedAt', 'decision.discardedAt'])
+const dates = new Set(['startedAt', 'stoppedAt', 'decidedAt', 'archivedAt', 'decision.discardedAt'])
 
 /** Schema-aware: JSON retains its own ids and date-like strings. */
 function normalize(value: unknown, path: string, json = false): unknown {
   json ||= ['arms.params', 'targeting.value', 'decision.contentReport'].includes(path)
-  if (value == null) return undefined
+  if (value === undefined || (value === null && !json)) return undefined
+  if (value === null) return null
   if (!json && relationships.has(path)) {
-    if (Array.isArray(value)) return value.map(item => normalize(item, path))
-    if (isObject(value) && 'id' in value) return value.id
+    if (Array.isArray(value)) return value.length ? value.map(item => normalize(item, path)) : undefined
+    if (isObject(value) && 'id' in value) return value.id == null ? undefined : String(value.id)
+    if (typeof value === 'string' || typeof value === 'number') return String(value)
   }
   if (!json && (value instanceof Date || dates.has(path))) {
     const date = new Date(value as string | Date)
@@ -63,11 +65,20 @@ export const lockHook: CollectionBeforeChangeHook = async ({ data, originalDoc, 
     if (!editable.includes(field.split('.')[0] as EditableField)) throw new XpLockedFieldError(field, status)
     if (field === 'analysis.method' && !await admin()) throw new XpLockedFieldError(field, status)
     if (field === 'arms' && status !== 'draft') {
-      const keys = (arms: unknown) => Array.isArray(arms) ? arms.map(arm => arm.key) : arms
-      if (!same(keys(value), keys(before), 'keys')) throw new XpLockedFieldError('arms.key', status)
+      if (Array.isArray(value) && Array.isArray(before)) {
+        const byId = new Map(before.filter(arm => arm.id != null).map(arm => [String(arm.id), arm]))
+        const changedKey = value.some((arm, index) => {
+          // An unmatched id is a new row; without ids, position identifies an existing row.
+          const previous = arm.id != null && byId.size > 0 ? byId.get(String(arm.id)) : before[index]
+          return previous !== undefined && arm.key !== previous.key
+        })
+        if (changedKey) throw new XpLockedFieldError('arms.key', status)
+      }
     }
   }
   for (const [field, value] of Object.entries(data)) {
+    // Payload owns these timestamps, including on full-version Restores.
+    if (field === 'updatedAt' || field === 'createdAt') continue
     if (['analysis', 'metrics', 'decision'].includes(field) && isObject(value)) {
       for (const [key, nested] of Object.entries(value)) await check(`${field}.${key}`, nested, originalDoc[field]?.[key])
     } else {

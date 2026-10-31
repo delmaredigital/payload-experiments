@@ -51,7 +51,7 @@ test('editability table exactly matches the per-status contract', () => {
 test.each(statuses.flatMap(status => Object.entries(changes).map(([field, value]) => ({ status, field, value }))))('$status × $field', async ({ status, field, value }) => {
   if (field === 'status' && value === status) value = 'stopped'
   const result = run({ [field]: value }, fixture(status))
-  if (expected[status].includes(field)) await expect(result).resolves.toEqual({ [field]: value })
+  if (expected[status].includes(field) || ['createdAt', 'updatedAt'].includes(field)) await expect(result).resolves.toEqual({ [field]: value })
   else await expect(result).rejects.toBeInstanceOf(XpLockedFieldError)
 })
 const nestedChanges = {
@@ -66,14 +66,34 @@ test.each(statuses.flatMap(status => Object.entries(nestedChanges).map(([field, 
   const [group, key] = field.split('.') as [string, string]
   const result = run({ [group]: { [key]: value } }, fixture(status))
   if (expected[status].includes(group)) await expect(result).resolves.toEqual({ [group]: { [key]: value } })
-  else await expect(result).rejects.toMatchObject({ field, status })
+  else await expect(result).rejects.toMatchObject({ field, experimentStatus: status, status: 400 })
 })
 test('draft PATCH of status is refused', async () => {
-  await expect(run({ status: 'running' })).rejects.toMatchObject({ field: 'status', status: 'draft' })
+  await expect(run({ status: 'running' })).rejects.toMatchObject({ field: 'status', experimentStatus: 'draft', status: 400 })
 })
-test.each(Object.entries(changes).filter(([field]) => !expected.running.includes(field)))('Restore refuses locked change to %s', async (field, value) => {
+test.each(Object.entries(changes).filter(([field]) => ![...expected.running, 'createdAt', 'updatedAt'].includes(field)))('Restore refuses locked change to %s', async (field, value) => {
   if (field === 'status') value = 'stopped'
   await expect(run({ [field]: value }, fixture('running'), request(true, { isRestoringVersion: true }))).rejects.toBeInstanceOf(XpLockedFieldError)
+})
+test.each(['draft', 'stopped'] as const)('Restore of a complete older %s version accepts editable differences', async status => {
+  const original = fixture(status)
+  const older = {
+    ...structuredClone(original), name: 'Older name', hypothesis: 'Older hypothesis', updatedAt: '2026-10-29T15:00:00Z',
+    arms: original.arms.map((arm, index) => ({ ...arm, label: `Older ${arm.label}`, weight: index === 0 ? 40 : 60 })),
+    allocation: 90, metrics: { primary: 20, secondary: [], guardrails: [] },
+    analysis: { ...original.analysis, plannedDurationDays: 21 },
+  }
+  await expect(run(older, original, request(false, { isRestoringVersion: true }))).resolves.toBe(older)
+})
+test('Restore of a complete older running version accepts only editorial differences', async () => {
+  const original = fixture('running')
+  const older = { ...structuredClone(original), name: 'Older name', hypothesis: 'Older hypothesis', updatedAt: '2026-10-29T15:00:00Z' }
+  await expect(run(older, original, request(false, { isRestoringVersion: true }))).resolves.toBe(older)
+})
+test.each(['seed', 'arms'] as const)('Restore of a complete older running version rejects changed %s', async field => {
+  const original = fixture('running')
+  const older = { ...structuredClone(original), name: 'Older name', updatedAt: '2026-10-29T15:00:00Z', [field]: changes[field] }
+  await expect(run(older, original, request(false, { isRestoringVersion: true }))).rejects.toMatchObject({ field })
 })
 test.each(statuses)('unchanged realistic admin post-back is accepted in %s', async status => {
   const original = fixture(status)
@@ -92,6 +112,31 @@ test('JSON ids and date-like values remain meaningful', async () => {
     const original = fixture('running')
     await expect(run({ arms: [{ ...original.arms[0], params }, original.arms[1]] }, original)).rejects.toMatchObject({ field: 'arms' })
   }
+})
+test.each([true, false])('JSON null differs from a missing key (null in original: %s)', async nullInOriginal => {
+  const original = fixture('running')
+  const control = original.arms[0]!
+  original.arms[0] = { ...control, params: { ...control.params, nested: nullInOriginal ? { a: 1, b: 2, nullable: null } : { a: 1, b: 2 } } } as typeof control
+  const data = { arms: original.arms.map((arm, index) => index === 0 ? {
+    ...arm, params: { ...arm.params, nested: nullInOriginal ? { a: 1, b: 2 } : { a: 1, b: 2, nullable: null } },
+  } : arm) }
+  await expect(run(data, original)).rejects.toMatchObject({ field: 'arms' })
+})
+test('relationship ids compare equally as strings, numbers and populated docs', async () => {
+  const original = fixture('running')
+  const data = {
+    layer: '7', metrics: { primary: { id: '8' }, secondary: ['9'], guardrails: [{ id: '10' }] },
+    decision: { decidedBy: '12', snapshotId: { id: '13' } },
+  }
+  await expect(run(data, original)).resolves.toBe(data)
+  await expect(run({ layer: '8' }, original)).rejects.toMatchObject({ field: 'layer' })
+})
+test.each([undefined, null, []])('empty hasMany equals missing: %j', async empty => {
+  const original = { ...fixture('running'), metrics: { primary: 8, secondary: empty, guardrails: empty } }
+  const data = { metrics: { secondary: [], guardrails: [] } }
+  await expect(run(data, original as ReturnType<typeof fixture>)).resolves.toBe(data)
+  const populated = { ...original, metrics: { primary: 8, secondary: [], guardrails: [] } }
+  await expect(run({ metrics: { secondary: empty, guardrails: empty } }, populated)).resolves.toBeDefined()
 })
 test.each(statuses)('content report host document ids remain locked in %s', async status => {
   const original = { ...fixture(status), decision: { ...fixture(status).decision, contentReport: { docs: [{ collection: 'pages', id: 1, ok: true }] } } }
@@ -146,6 +191,31 @@ test.each(statuses)('arm keys change only in draft: %s', async status => {
   const data = { arms: original.arms.map(arm => ({ ...arm, key: arm.key === 'variantA' ? 'variantB' : arm.key })) }
   if (status === 'draft') await expect(run(data, original)).resolves.toBe(data)
   else await expect(run(data, original)).rejects.toBeInstanceOf(XpLockedFieldError)
+})
+test('stopped may add a holdout for the next phase', async () => {
+  const original = fixture('stopped')
+  const data = { arms: [
+    ...original.arms.map(arm => ({ ...arm, weight: 45 })),
+    { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 10 },
+  ] }
+  await expect(run(data, original)).resolves.toBe(data)
+})
+test('stopped may remove a variant, preserving surviving row identities', async () => {
+  const original = fixture('stopped')
+  original.arms.push({ ...original.arms[1]!, id: 'variant-b', key: 'variantB', label: 'Variant B', weight: 0 })
+  const data = { arms: original.arms.filter(arm => arm.key !== 'variantA') }
+  await expect(run(data, original)).resolves.toBe(data)
+})
+test.each([true, false])('stopped refuses in-place key swaps (row ids: %s)', async withIds => {
+  const original = fixture('stopped')
+  if (!withIds) original.arms = original.arms.map(({ id: _id, ...arm }) => arm) as typeof original.arms
+  const data = { arms: original.arms.map(arm => arm.key === 'variantA' ? { ...arm, key: 'variantB' } : arm) }
+  await expect(run(data, original)).rejects.toMatchObject({ field: 'arms.key' })
+})
+test('stopped matches row ids as strings when arms reorder', async () => {
+  const original = fixture('stopped')
+  const data = { arms: [...original.arms].reverse() }
+  await expect(run(data, original)).resolves.toBe(data)
 })
 test('missing options produce a clear installation error', () => {
   expect(() => xpOptionsFromReq(fakeReq())).toThrow('req.payload.config.custom.xp')
