@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server.js'
 
 /** Browser beacons carry their page URL in Referer. It supplies targeting context only. */
 export function sourceRequest(request: NextRequest): NextRequest | null {

@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server.js'
 import type { PayloadRequest } from 'payload'
 import { DEFAULT_MAX_BODY_BYTES } from '../constants.js'
 import { pooledExecutor } from '../db/executor.js'
