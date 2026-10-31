@@ -33,7 +33,7 @@ function payload() {
 }
 async function seed(unitType: 'visitor' | 'user' = 'visitor', overrides: Partial<ResultsPhase> = {}) {
   const [experiment] = await database.db.insert(xp_experiments).values({ name: 'Frozen', slug: `frozen-${++serial}`, kind: 'code', status: 'running', exposurePolicy: 'manual', unitType,
-    analysisMethod: 'bayesian', analysisAttributionWindowHours: 1 }).returning()
+    analysis_method: 'bayesian', analysis_attributionWindowHours: 1 }).returning()
   const phase: ResultsPhase = { experiment: experiment!.id, phase: 1, phaseKind: 'test', startedAt: new Date(start).toISOString(), seed: 'frozen|', allocation: 100,
     arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 50 }, { key: 'variantA', label: 'Variant', kind: 'variant', weight: 50 }],
     analysis: { method: 'sequential', cuped: 'off', sequentialTuningParameter: 5000, plannedDurationDays: 14, minExposuresPerArm: 200 },

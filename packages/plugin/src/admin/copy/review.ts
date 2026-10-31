@@ -39,6 +39,9 @@ export const REVIEW_HINTS: Record<RefusalCode, string> = {
   forbidden: 'Ask an admin for permission to manage experiments.',
   unauthenticated: 'Sign in again to continue.',
   'body-too-large': 'Reduce the size of this change and try again.',
+  'too-many-ids': 'Ask for at most 100 experiments at a time.',
+  'invalid-phase': 'Choose a round this experiment has run.',
+  'invalid-ids': 'Check the experiment list and try again.',
   'invalid-body': 'Check the values and try again.',
 }
 
@@ -80,6 +83,9 @@ export const REVIEW_DONE: Record<RefusalCode, string> = {
   forbidden: 'Permission to manage experiments checked',
   unauthenticated: 'Signed in',
   'body-too-large': 'Change size checked',
+  'too-many-ids': 'Experiment count checked',
+  'invalid-phase': 'Round found',
+  'invalid-ids': 'Experiment list checked',
   'invalid-body': 'Values checked',
 }
 

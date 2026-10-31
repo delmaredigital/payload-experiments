@@ -16,7 +16,7 @@ const phase = (n: number, phaseKind = 'test') => ({ id: n, experiment: 'exp', ph
   metricDefinitions: [{ metricId: 'primary', name: 'Signup', kind: 'binomial', role: 'primary', resolvedCap: null, historyUnits: 0, capNotice: 'no-history' }],
 })
 const snap = (id: number, round: number, computedAt: string) => ({ id, experiment: 'exp', phase: round, computedAt,
-  snapshot: { ...fixture, phase: round, computedAt } as Snapshot })
+  snapshot: { ...fixture, phase: round, computedAt } as unknown as Snapshot })
 
 test('returns phase summaries and null snapshot before first run, passes req and access posture', async () => {
   vi.mocked(resultsMetadata).mockResolvedValue({ status: 'running', snapshotId: null })
