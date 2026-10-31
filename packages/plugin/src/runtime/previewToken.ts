@@ -16,13 +16,13 @@ function validToken(value: unknown, now: number): value is PreviewToken {
 export function signPreviewToken(token: PreviewToken, secrets: readonly string[], now = Math.floor(Date.now() / 1000)): string {
   if (!validToken(token, now)) throw new Error('Invalid preview token or expiry')
   const value = Buffer.from(JSON.stringify(token)).toString('base64url')
-  return `${value}.${sign(value, secrets)}`
+  return `${value}.${sign(`xp:preview:${value}`, secrets)}`
 }
 
 export function verifyPreviewToken(value: string, secrets: readonly string[], now = Math.floor(Date.now() / 1000)): PreviewToken | null {
   try {
     const match = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/.exec(value)
-    if (!match || !verify(match[1]!, match[2]!, secrets)) return null
+    if (!match || !verify(`xp:preview:${match[1]!}`, match[2]!, secrets)) return null
     const bytes = Buffer.from(match[1]!, 'base64url')
     if (bytes.toString('base64url') !== match[1]) return null
     const token: unknown = JSON.parse(bytes.toString('utf8'))

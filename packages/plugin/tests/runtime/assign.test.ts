@@ -1,7 +1,8 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { assignArm, hash, inRange, layerSlice, rolloutBucketRanges } from '@delmaredigital/experiments-stats'
 import { assign } from '../../src/runtime/assign.js'
 import type { Manifest, ManifestExperiment } from '../../src/types/manifest.js'
+import { encodeAssignmentsHeader } from '../../src/runtime/header.js'
 
 const now = 1_800_000_000
 const experiment = (patch: Partial<ManifestExperiment> = {}): ManifestExperiment => ({
@@ -85,16 +86,54 @@ test('decided without rollout serves winner non-exposably in and outside former 
   }
   expect(assign(manifest(e), { visitorId: 'visitor' }, { loggedIn: false }, { now }).bySlug.test).toMatchObject({ arm: 'control', exposable: false })
 })
-test('unresolvable units and session-dependent unknown targeting are deferred', () => {
+test('user units without an id and session-dependent unknown targeting are deferred', () => {
   const user = experiment({ unitType: 'user' })
   expect(assign(manifest(user), { visitorId: 'v' }, {}, { now })).toMatchObject({ bySlug: {}, deferred: ['test'] })
   expect(assign(manifest(user), { userId: 'u' }, {}, { now }).deferred).toEqual([])
-  expect(assign(manifest(), {}, {}, { now }).deferred).toEqual(['test'])
   for (const attribute of ['staff', 'loggedIn']) {
     const e = experiment({ targeting: [{ attribute, op: 'eq', value: false }] })
     expect(assign(manifest(e), { visitorId: 'v', sessionUnknown: true }, { [attribute]: false }, { now })).toMatchObject({ bySlug: {}, deferred: ['test'], sessionUnknown: true })
   }
   expect(assign(manifest(), { visitorId: 'v', sessionUnknown: true }, {}, { now }).deferred).toEqual([])
+})
+test.each(['running', 'decided'] as const)('visitor without a cookie gets non-exposable control, never deferred (%s)', status => {
+  const e = experiment({ status, ...(status === 'decided' ? { phaseKind: 'rollout', winnerArm: 'variantA', holdoutKey: 'holdout' } : {}) })
+  const result = assign(manifest(e), { userId: 'user', sessionUnknown: true }, {}, { now })
+  expect(result.deferred).toEqual([])
+  expect(result.bySlug.test).toMatchObject({ arm: 'control', exposable: false, source: 'fallback' })
+  expect(result.flagPoints.hero).toMatchObject({ params: { label: 'original' }, exposable: false })
+  expect(encodeAssignmentsHeader(result, { secrets: ['key'] })).toContain('.test=control!.')
+})
+test('rollout targeting failure serves control rather than winner, and missing user id is deferred', () => {
+  const e = experiment({ status: 'decided', phaseKind: 'rollout', winnerArm: 'variantA', holdoutKey: 'holdout', targeting: [{ attribute: 'loggedIn', op: 'eq', value: true }] })
+  expect(assign(manifest(e), { visitorId: 'v' }, { loggedIn: false }, { now }).bySlug.test).toMatchObject({ arm: 'control', exposable: false })
+  const result = assign(manifest({ ...e, unitType: 'user' }), { visitorId: 'v' }, { loggedIn: true }, { now })
+  expect(result).toMatchObject({ bySlug: {}, deferred: ['test'] })
+})
+test('rollout rejects a seed without the same separator required by assignArm', () => {
+  const e = experiment({ status: 'decided', phaseKind: 'rollout', winnerArm: 'variantA', holdoutKey: 'holdout', seed: 'missing-separator' })
+  let expected: unknown
+  try { assignArm({ seed: e.seed, unitId: 'v', weights: [50, 50], coverage: 1 }) } catch (error) { expected = error }
+  expect(expected).toBeInstanceOf(RangeError)
+  expect(() => run(e, 'v')).toThrow(expected as RangeError)
+})
+test.each([
+  { phaseKind: 'test', winnerArm: undefined, holdoutKey: undefined, reason: 'invalid-winner-arm' },
+  { phaseKind: 'test', winnerArm: 'absent', holdoutKey: undefined, reason: 'invalid-winner-arm' },
+  { phaseKind: 'rollout', winnerArm: undefined, holdoutKey: 'holdout', reason: 'invalid-winner-arm' },
+  { phaseKind: 'rollout', winnerArm: 'absent', holdoutKey: 'holdout', reason: 'invalid-winner-arm' },
+  { phaseKind: 'rollout', winnerArm: 'variantA', holdoutKey: 'absent', reason: 'invalid-holdout-key' },
+  { phaseKind: 'rollout', winnerArm: 'variantA', holdoutKey: undefined, reason: 'invalid-holdout-key' },
+] as const)('invalid decided/rollout arms are skipped and reported: %j', ({ reason, ...patch }) => {
+  const invalid = experiment({ status: 'decided', ...patch }), onInvalid = vi.fn()
+  const m = manifest(invalid)
+  m.experiments.push(experiment({ id: 'valid', slug: 'valid', flagPoint: 'valid' }))
+  const result = assign(m, { visitorId: 'v' }, {}, { now, onInvalid })
+  expect(Object.keys(result.bySlug)).toEqual(['valid'])
+  expect(result.flagPoints.hero).toBeUndefined()
+  expect(onInvalid).toHaveBeenCalledExactlyOnceWith('test', reason)
+  expect(() => encodeAssignmentsHeader(result, { secrets: ['key'] })).not.toThrow()
+  expect(assign(manifest(invalid), { visitorId: 'v' }, {}, { now }).bySlug.test).toBeUndefined()
 })
 test.each(['staff', 'bot', 'preview', 'HEAD'])('%s suppresses every assignment and flag exposure', flag => {
   const e = experiment({ coverage: 1 }), m = manifest(e)

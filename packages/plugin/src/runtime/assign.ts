@@ -11,6 +11,7 @@ export interface AssignOptions {
   now: number
   staff?: boolean; bot?: boolean; preview?: boolean; sessionUnknown?: boolean; method?: string
   attributeKeys?: AttributeKeys
+  onInvalid?(slug: string, reason: string): void
 }
 
 /** Also used after header decoding so flag results always reflect the rendered content. */
@@ -41,6 +42,14 @@ export function assign(manifest: Manifest, unit: AssignmentUnit, attributes: Att
   }
   for (const experiment of manifest.experiments) {
     if (experiment.status !== 'running' && experiment.status !== 'decided') continue
+    if ((experiment.status === 'decided' || experiment.phaseKind === 'rollout') && !experiment.arms.some(arm => arm.key === experiment.winnerArm)) {
+      opts.onInvalid?.(experiment.slug, 'invalid-winner-arm')
+      continue
+    }
+    if (experiment.phaseKind === 'rollout' && !experiment.arms.some(arm => arm.key === experiment.holdoutKey)) {
+      opts.onInvalid?.(experiment.slug, 'invalid-holdout-key')
+      continue
+    }
     const eligible = eligibility(experiment, unit, attributes, { ...opts, sessionUnknown: result.sessionUnknown })
     if (eligible.kind === 'deferred') {
       result.deferred.push(experiment.slug)
@@ -52,6 +61,7 @@ export function assign(manifest: Manifest, unit: AssignmentUnit, attributes: Att
       if (experiment.status === 'decided' && !experiment.holdoutKey) {
         arm = experiment.winnerArm as typeof arm
       } else if (experiment.phaseKind === 'rollout') {
+        if (!experiment.seed.endsWith('|')) throw new RangeError('Assignment seed must end in |')
         const ranges = rolloutBucketRanges(experiment.arms.map(arm => arm.weight), eligible.coverage)
         const bucket = hash(experiment.seed, eligible.unitId, 2)!
         const holdout = eligible.inLayer && inRange(bucket, ranges.holdout)

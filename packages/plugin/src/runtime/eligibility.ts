@@ -8,7 +8,7 @@ export type Eligibility = { kind: 'deferred' } | { kind: 'ineligible' } | { kind
 
 export function eligibility(experiment: ManifestExperiment, unit: AssignmentUnit, attributes: Attributes, opts: { sessionUnknown?: boolean; attributeKeys?: AttributeKeys } = {}): Eligibility {
   const unitId = experiment.unitType === 'visitor' ? unit.visitorId : unit.userId
-  if (!unitId) return { kind: 'deferred' }
+  if (!unitId) return { kind: experiment.unitType === 'user' ? 'deferred' : 'ineligible' }
   if ((opts.sessionUnknown ?? unit.sessionUnknown) && experiment.targeting.some(rule => rule.attribute === 'loggedIn' || rule.attribute === 'staff')) return { kind: 'deferred' }
   if (!evaluateTargeting(experiment.targeting, attributes, opts.attributeKeys)) return { kind: 'ineligible' }
   return {

@@ -8,13 +8,13 @@ export function mintUnitId(): string {
 
 export function encodeUnitCookie(unitId: string, secrets: readonly string[]): string {
   if (!/^[A-Za-z0-9_-]+$/.test(unitId)) throw new Error('Invalid unit id')
-  return `${unitId}.${sign(unitId, secrets)}`
+  return `${unitId}.${sign(`xp:unit:${unitId}`, secrets)}`
 }
 
 export function verifyUnitCookie(cookie: string | undefined, secrets: readonly string[]): string | null {
   if (typeof cookie !== 'string') return null
   const match = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/.exec(cookie)
-  return match && verify(match[1]!, match[2]!, secrets) ? match[1]! : null
+  return match && verify(`xp:unit:${match[1]!}`, match[2]!, secrets) ? match[1]! : null
 }
 
 export function cookieAttributes(runtime: Pick<ExperimentsProxyRuntime, 'cookie'>, { https }: { https: boolean }) {

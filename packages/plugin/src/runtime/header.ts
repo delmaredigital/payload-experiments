@@ -8,8 +8,9 @@ const MAX_BYTES = 1024
 const SLUG = /^[A-Za-z0-9_-]+$/
 const ARM = /^(control|variantA|variantB|variantC|holdout)$/
 const slugHash = (slug: string) => `#${createHash('sha256').update(slug).digest('hex').slice(0, 8)}`
-const message = (visitorId: string | undefined, userId: string | undefined, flags: string, entries: string, revision: string) => `${visitorId ?? ''}|${userId ?? ''}|${flags}|${entries}|${revision}`
+const message = (visitorId: string | undefined, userId: string | undefined, flags: string, entries: string, revision: string) => `xp:assign:${visitorId ?? ''}|${userId ?? ''}|${flags}|${entries}|${revision}`
 
+/** Throws if compression still exceeds the 1 KB budget; callers fall back to recompute. */
 export function encodeAssignmentsHeader(assignments: Assignments & { deferred?: readonly string[] }, opts: { secrets: readonly string[]; manifest?: Manifest }): string {
   if (!Number.isSafeInteger(assignments.revision) || assignments.revision < 0) throw new Error('Invalid revision')
   const flags = `${assignments.staff ? 's' : ''}${assignments.bot ? 'b' : ''}${assignments.preview ? 'p' : ''}${assignments.sessionUnknown ? 'u' : ''}`
@@ -33,6 +34,7 @@ export function encodeAssignmentsHeader(assignments: Assignments & { deferred?: 
   return hashed
 }
 
+/** A header newer than the supplied manifest returns null; callers reload the manifest and retry. */
 export function decodeAssignmentsHeader(value: string, opts: { secrets: readonly string[]; visitorId?: string; userId?: string; manifest: Manifest }): AssignmentResult | null {
   if (typeof value !== 'string' || Buffer.byteLength(value) > MAX_BYTES) return null
   const parts = value.split('.')

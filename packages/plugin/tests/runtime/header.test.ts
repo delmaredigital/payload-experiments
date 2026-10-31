@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto'
 import { expect, test } from 'vitest'
 import { assign, type AssignmentResult } from '../../src/runtime/assign.js'
 import { decodeAssignmentsHeader, encodeAssignmentsHeader } from '../../src/runtime/header.js'
-import { sign } from '../../src/runtime/signing.js'
+import { sign, verify } from '../../src/runtime/signing.js'
+import { encodeUnitCookie, verifyUnitCookie } from '../../src/runtime/cookie.js'
+import { signPreviewToken, verifyPreviewToken } from '../../src/runtime/previewToken.js'
 import type { Manifest } from '../../src/types/manifest.js'
 
 const manifest: Manifest = {
@@ -73,7 +75,7 @@ test('tampering with entries, revision, flags, ids or version and truncation fai
   for (const ids of [{ visitorId: 'attacker', userId: 'user' }, { visitorId: 'visitor', userId: 'attacker' }, {}]) expect(decodeAssignmentsHeader(value, { secrets, manifest, ...ids })).toBeNull()
 })
 test('signed malformed entries, unknown arms, duplicates and invalid flags are rejected', () => {
-  const wire = (entries: string, flags = '', revision = '4') => `v1.${revision}.${flags}.${entries}.${sign(`visitor|user|${flags}|${entries}|${revision}`, secrets)}`
+  const wire = (entries: string, flags = '', revision = '4') => `v1.${revision}.${flags}.${entries}.${sign(`xp:assign:visitor|user|${flags}|${entries}|${revision}`, secrets)}`
   for (const entries of ['hero-test=unknown', 'hero-test=holdout', '?hero-test=control', 'hero-test', 'hero-test=control;hero-test=variantA', '?hero-test;hero-test=control', 'hero-test=control;', '?missing', '#12345678=control', 'hero-test=control!!']) expect(decode(wire(entries))).toBeNull()
   for (const flags of ['x', 'ss', 'suus']) expect(decode(wire('hero-test=control', flags))).toBeNull()
   for (const revision of ['04', '-1', 'NaN', '9007199254740992']) expect(decode(wire('hero-test=control', '', revision))).toBeNull()
@@ -104,4 +106,20 @@ test('prototype-key slugs and flag points survive the wire as own entries', () =
   expect(Object.keys(decoded.bySlug)).toEqual(['__proto__'])
   expect(Object.keys(decoded.flagPoints)).toEqual(['__proto__'])
   expect(decoded.bySlug.__proto__).toEqual({ ...original.bySlug.__proto__, source: 'header' })
+})
+test('header MACs use their own domain and cannot authenticate cookies or previews', () => {
+  const value = encodeAssignmentsHeader(result(), { secrets })
+  const [, revision, flags, entries, mac] = value.split('.')
+  const payload = `visitor|user|${flags}|${entries}|${revision}`
+  expect(mac).toBe(sign(`xp:assign:${payload}`, secrets))
+  expect(verify(`xp:unit:${payload}`, mac!, secrets)).toBe(false)
+  expect(verify(`xp:preview:${payload}`, mac!, secrets)).toBe(false)
+  const now = 1_800_000_000
+  const preview = signPreviewToken({ e: 'experiment', a: 'variantA', p: 1, exp: now + 3600 }, secrets, now)
+  const body = preview.split('.')[0]!
+  expect(verifyUnitCookie(`${body}.${mac}`, secrets)).toBeNull()
+  expect(verifyPreviewToken(`${body}.${mac}`, secrets, now)).toBeNull()
+  for (const replacement of [sign(payload, secrets), preview.split('.')[1], encodeUnitCookie(body, secrets).split('.')[1]]) {
+    expect(decode(`v1.${revision}.${flags}.${entries}.${replacement}`)).toBeNull()
+  }
 })

@@ -21,6 +21,6 @@ test('tamper, truncation, malformed JSON and signed invalid payloads are rejecte
   for (const invalid of ['', value.slice(1), value.slice(0, -1), `${value}.extra`]) expect(verifyPreviewToken(invalid, ['key'], now)).toBeNull()
   for (const raw of ['{', 'null', '[]', JSON.stringify({ ...token, p: -1 }), JSON.stringify({ ...token, a: 'unknown' }), JSON.stringify({ ...token, exp: 'tomorrow' }), JSON.stringify({ ...token, extra: true })]) {
     const body = Buffer.from(raw).toString('base64url')
-    expect(verifyPreviewToken(`${body}.${sign(body, ['key'])}`, ['key'], now)).toBeNull()
+    expect(verifyPreviewToken(`${body}.${sign(`xp:preview:${body}`, ['key'])}`, ['key'], now)).toBeNull()
   }
 })

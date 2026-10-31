@@ -1,6 +1,8 @@
 import { expect, test } from 'vitest'
 import { cookieAttributes, encodeUnitCookie, mintUnitId, verifyUnitCookie } from '../../src/runtime/cookie.js'
 import { defineExperimentsProxyRuntime } from '../../src/runtime/proxyRuntime.js'
+import { signPreviewToken, verifyPreviewToken } from '../../src/runtime/previewToken.js'
+import { sign } from '../../src/runtime/signing.js'
 
 test('minted ids contain 128 random bits and cookies round trip through rotation', () => {
   const ids = Array.from({ length: 100 }, mintUnitId)
@@ -26,4 +28,20 @@ test('cookie attributes use seconds, defaults and Secure only on https', () => {
   const custom = defineExperimentsProxyRuntime({ secret: 'key', apiRoute: '/api', cookie: { maxAgeDays: 30, domain: '.example.com' } })
   expect(cookieAttributes(custom, { https: true })).toEqual({ httpOnly: true, sameSite: 'lax', path: '/', maxAge: 30 * 86400, domain: '.example.com', secure: true })
   expect(cookieAttributes(custom, { https: false })).not.toHaveProperty('secure')
+})
+test('cookie and preview MACs are domain-separated even with identical valid bodies', () => {
+  const now = 1_800_000_000, secrets = ['key']
+  const preview = signPreviewToken({ e: 'experiment', a: 'variantA', p: 1, exp: now + 3600 }, secrets, now)
+  const [body, previewMac] = preview.split('.')
+  const cookie = encodeUnitCookie(body!, secrets)
+  expect(verifyUnitCookie(preview, secrets)).toBeNull()
+  expect(verifyPreviewToken(cookie, secrets, now)).toBeNull()
+  expect(cookie).toBe(`${body}.${sign(`xp:unit:${body}`, secrets)}`)
+  expect(previewMac).toBe(sign(`xp:preview:${body}`, secrets))
+  expect(verifyUnitCookie(cookie, secrets)).toBe(body)
+  expect(verifyPreviewToken(preview, secrets, now)).not.toBeNull()
+  // Previously signed untagged values cannot cross into either codec.
+  const untagged = `${body}.${sign(body!, secrets)}`
+  expect(verifyUnitCookie(untagged, secrets)).toBeNull()
+  expect(verifyPreviewToken(untagged, secrets, now)).toBeNull()
 })
