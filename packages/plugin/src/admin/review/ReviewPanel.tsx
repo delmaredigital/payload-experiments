@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, useConfig, useDocumentInfo, useForm, useFormFields, useFormModified } from '@payloadcms/ui'
 import type { UIFieldClientProps } from 'payload'
-import type { MetricSource, Status } from '../../types/contracts.js'
+import type { ExperimentKind, MetricSource, Status } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import type { SerializedMetricSource } from '../../types/admin.js'
 import { useApi } from '../useApi.js'
@@ -11,6 +11,8 @@ import { readArms } from '../arms/arms.model.js'
 import { PreviewLinks } from '../PreviewLinks.js'
 import { REVIEW_COPY as C } from '../copy/review.js'
 import { API_MESSAGES, LOCKED_MESSAGES } from '../copy/common.js'
+import { availableActions } from '../actions/actions.model.js'
+import { ConfirmDialog } from '../actions/ConfirmDialog.js'
 import { reviewView } from './review.model.js'
 
 export function ReviewPanel(_props: UIFieldClientProps) {
@@ -21,6 +23,7 @@ export function ReviewPanel(_props: UIFieldClientProps) {
   const { dispatchFields, setModified } = useForm()
   const modified = useFormModified()
   const status = useFormFields(([fields]) => (fields.status?.value ?? 'draft') as Status)
+  const kind = useFormFields(([fields]) => (fields.kind?.value ?? 'block') as ExperimentKind)
   const armsJson = useFormFields(([fields]) => JSON.stringify(readArms(fields)))
   const arms = JSON.parse(armsJson) as ReturnType<typeof readArms>
   const metricFields = getEntityConfig({ collectionSlug: 'xp-metrics' })?.fields as
@@ -30,6 +33,7 @@ export function ReviewPanel(_props: UIFieldClientProps) {
   const [refresh, setRefresh] = useState(0)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [confirmStart, setConfirmStart] = useState(false)
   const inFlight = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [metricKind, setMetricKind] = useState<MetricSource['kind']>()
@@ -73,18 +77,21 @@ export function ReviewPanel(_props: UIFieldClientProps) {
   if (id == null) return <p>{C.save}</p>
   const view = preflight ? reviewView(preflight, { status, primaryMetricKind: metricKind }) : null
   const editable = status === 'draft' || status === 'stopped'
+  const startAction = availableActions({ status, kind, arms, canManage: true }).find(action => action.id === 'start')
+  const pending = busy || confirmStart
   const lockedReason = status === 'running' ? LOCKED_MESSAGES.running : status === 'decided' ? LOCKED_MESSAGES.decided : LOCKED_MESSAGES.archived
   const validValues = duration.trim() !== '' && Number.isInteger(Number(duration)) && Number(duration) > 0
     && tuning.trim() !== '' && Number.isFinite(Number(tuning)) && Number(tuning) >= 0
   function apply() {
-    if (!editable || busy || loading || !view?.applyValues || !validValues) return
+    if (!editable || pending || loading || !view?.applyValues || !validValues) return
     dispatchFields({ type: 'UPDATE', path: 'analysis.plannedDurationDays', value: Number(duration) })
     dispatchFields({ type: 'UPDATE', path: 'analysis.sequentialTuningParameter', value: Number(tuning) })
     setModified(true)
     setRefresh(value => value + 1)
   }
   async function start() {
-    if (id == null || inFlight.current || loading || modified || !view?.canStart) return
+    if (id == null || inFlight.current || pending || loading || modified || !view?.canStart) return
+    if (status === 'stopped') { setConfirmStart(true); return }
     inFlight.current = true
     setBusy(true)
     setError(null)
@@ -98,29 +105,31 @@ export function ReviewPanel(_props: UIFieldClientProps) {
     {loading ? <p role="status">{C.loading}</p> : null}
     {view && preflight ? <>
       <ul>{view.checks.map((check, index) => <li key={index}>
-        <span>{check.ok ? '✓' : '✗'} {check.hint}</span>{check.detail ? <p>{check.detail}</p> : null}
+        <span>{check.ok ? '✓' : '✗'} {check.ok ? check.done : check.hint}</span>{check.detail ? <p>{check.detail}</p> : null}
       </li>)}</ul>
       <ul>{view.placements.map(placement => <li key={`${placement.collection}/${placement.id}`}>
         {placement.ok ? '✓' : '✗'} {placement.title}{placement.detail ? <p>{placement.detail}</p> : null}
       </li>)}</ul>
-      <fieldset disabled={busy || loading} style={{ border: 0, padding: 0 }}>
+      <fieldset disabled={pending || loading} style={{ border: 0, padding: 0 }}>
         <PreviewLinks experimentId={id} placements={preflight.placements} arms={arms} />
       </fieldset>
       <p>{view.baseline}</p><p>{view.traffic}</p>
       <p className={view.estimateWarning ? 'xp-review__warning' : undefined}
         style={view.estimateWarning ? { color: 'var(--theme-warning-600)' } : undefined}>{view.estimate}</p>
       {view.applyValues ? <>
-        <label>{C.duration}<input type="number" min={1} step={1} value={duration} disabled={!editable || busy || loading}
+        <label>{C.duration}<input type="number" min={1} step={1} value={duration} disabled={!editable || pending || loading}
           onChange={event => setDuration(event.target.value)} /></label>
-        <label>{C.tuning}<input type="number" min={0} step="any" value={tuning} disabled={!editable || busy || loading}
+        <label>{C.tuning}<input type="number" min={0} step="any" value={tuning} disabled={!editable || pending || loading}
           onChange={event => setTuning(event.target.value)} /></label>
-        <Button disabled={!editable || busy || loading || !validValues} onClick={apply}>{C.apply}</Button>
+        <Button disabled={!editable || pending || loading || !validValues} onClick={apply}>{C.apply}</Button>
       </> : null}
       {!editable ? <p>{lockedReason}</p> : null}
       {modified ? <p>{C.saveFirst}</p> : null}
-      <Button disabled={!view.canStart || modified || busy || loading} onClick={() => { void start() }}>{C.start}</Button>
+      <Button disabled={!view.canStart || modified || pending || loading} onClick={() => { void start() }}>{startAction?.label ?? C.start}</Button>
     </> : null}
     {error ? <p role="alert">{error}</p> : null}
-    {error && !preflight ? <Button disabled={busy || loading} onClick={() => setRefresh(value => value + 1)}>Retry</Button> : null}
+    {error && !preflight ? <Button disabled={pending || loading} onClick={() => setRefresh(value => value + 1)}>{C.retry}</Button> : null}
+    {confirmStart && startAction ? <ConfirmDialog key={`${id}/start`} id={id} action={startAction} winnerLabel=""
+      onClose={() => setConfirmStart(false)} /> : null}
   </div>
 }
