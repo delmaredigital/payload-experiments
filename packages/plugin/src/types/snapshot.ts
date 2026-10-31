@@ -20,5 +20,5 @@ export interface Snapshot {
   guardrails: Array<{ metricId: DocId; status: 'failing' | 'ok' | 'warning' | 'insufficient' }>
   power: { daysRemaining: number | null; exposuresNeededPerArm: number | null; lowerBound: boolean; feasible: boolean }
   verdict: { row: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 'R1' | 'R2' | 'R3'; code: VerdictCode; finding: string; action: string | null; headline: string; detail: string; recommendedArm: string | null; guardrailLine?: string }
-  contentChanges: Array<{ at: string; doc: DocId; by: DocId }>
+  contentChanges: Array<{ at: string; doc: { collection: string; id: DocId }; by: DocId | null }>
 }

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { DEFAULT_MAX_BODY_BYTES } from '../src/constants.js'
-import { resolveOptions } from '../src/options.js'
+import { puckCollections, resolveOptions } from '../src/options.js'
 import type { ExperimentsPluginOptions } from '../src/types/contracts.js'
 import { sampleOptions } from './collections/fixtures.js'
 
@@ -27,7 +27,7 @@ test('preserves overrides and defaults identities to admin', () => {
   const options = resolveOptions(input)
   expect(options.access).toEqual({ ...input.access, readIdentities: admin })
   expect(options.events).toEqual(input.events)
-  expect(options.puck).toEqual(input.puck)
+  expect(options.puck).toEqual({ enabled: true, collections: [{ slug: 'pages', field: 'puckData' }] })
   expect(options.puck?.collections).not.toBe(input.puck.collections)
   const readIdentities = () => true
   expect(resolveOptions({ ...input, access: { ...input.access, readIdentities } }).access.readIdentities).toBe(readIdentities)
@@ -71,6 +71,15 @@ test.each(['maxBodyBytes', 'retentionDays'] as const)('validates events.%s', key
 
 test('puck defaults enabled to true when collections are registered', () => {
   const input = { ...sampleOptions(), puck: { collections: ['pages'] } } as ExperimentsPluginOptions
-  expect(resolveOptions(input).puck).toEqual({ enabled: true, collections: ['pages'] })
+  expect(resolveOptions(input).puck).toEqual({ enabled: true, collections: [{ slug: 'pages', field: 'puckData' }] })
   expect(resolveOptions({ ...input, puck: { enabled: false, collections: ["pages"] } }).puck?.enabled).toBe(false)
+})
+
+test('normalises mixed collection forms once without mutating registrations', () => {
+  const input = { ...sampleOptions(), puck: { enabled: true, collections: ['pages', { slug: 'templates', field: 'content' }, { slug: 'posts' }] } }
+  const options = resolveOptions(input)
+  expect(puckCollections(options)).toEqual([{ slug: 'pages', field: 'puckData' }, { slug: 'templates', field: 'content' }, { slug: 'posts', field: 'puckData' }])
+  expect(puckCollections(options)).toBe(options.puck?.collections)
+  expect(puckCollections(options)).toBe(puckCollections(options))
+  expect(input.puck.collections).toEqual(['pages', { slug: 'templates', field: 'content' }, { slug: 'posts' }])
 })

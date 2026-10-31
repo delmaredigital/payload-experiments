@@ -39,6 +39,39 @@ function fixture(scope: TransitionScope, options: {
 }
 
 describe('ordered transition kernel', () => {
+  test.each(['SAVEPOINT', 'ROLLBACK TO SAVEPOINT'])('borrowed audit never kills the host when %s fails', async statement => {
+    const error = new Error('savepoint recovery failed')
+    const executor = createFakeExecutor({
+      results: [{ rows: [] }, { rows: [{ timeout: '10s' }] }, { rows: [] }, { rows: [] }],
+      throwOn: { match: statement, error },
+    })
+    const payload = fakePayload({ executor })
+    const req = executor.withSession({ payload })
+    const transaction = req.transactionID
+    await expect(withTransition(req, { experimentId: 1, bump: false, audit: true }, async () => { throw new Error('append failed') })).rejects.toBe(error)
+    expect(payloadHelpers.killTransaction).not.toHaveBeenCalled()
+    expect(payload.dbCalls).toEqual([])
+    expect(req.transactionID).toBe(transaction)
+    expect(req.context).not.toHaveProperty('xpTransition')
+  })
+
+  test('borrowed bump:false without audit kills the transaction on failure', async () => {
+    const scope = { experimentId: 1, bump: false }
+    const { req, executor } = fixture(scope, { borrowed: true })
+    const error = new Error('ordinary failure')
+    await expect(withTransition(req, scope, async () => { throw error })).rejects.toBe(error)
+    expect(payloadHelpers.killTransaction).toHaveBeenCalledWith(req)
+    expect(executor.calls.some(call => call.text.includes('SAVEPOINT'))).toBe(false)
+  })
+
+  test('an owned audit keeps the ordinary commit and verification path', async () => {
+    const scope = { experimentId: 1, bump: false, audit: true }
+    const { req, executor } = fixture(scope)
+    await expect(withTransition(req, scope, async () => 'ok')).resolves.toEqual({ result: 'ok' })
+    expect(payloadHelpers.commitTransaction).toHaveBeenCalledWith(req)
+    expect(executor.calls.some(call => call.text.includes('SAVEPOINT'))).toBe(false)
+    expect(executor.calls.at(-1)?.text).toContain('txid_status(')
+  })
   const operations = [
     ['start', true, true, true], ['allocate', true, false, true],
     ['add-metric', false, false, true], ['stop', true, false, true],

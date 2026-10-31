@@ -22,7 +22,7 @@ test('accessible summary and one labelled series per variant, with open bands re
 })
 test('content-change dates reach the accessible summary without exposing editor or document ids', () => {
   const { container } = render(<CiChart series={series} metricId="registrations" metricName="Registrations" phase={phase}
-    contentChanges={['2026-10-29T12:00:00Z', '2026-10-30T00:00:00Z', '2026-10-31T00:00:00Z'].map(at => ({ at, doc: 'opaque-doc', by: 'opaque-editor-id' }))} />)
+    contentChanges={['2026-10-29T12:00:00Z', '2026-10-30T00:00:00Z', '2026-10-31T00:00:00Z'].map(at => ({ at, doc: { collection: 'pages', id: 'opaque-doc' }, by: 'opaque-editor-id' }))} />)
   expect(screen.getByRole('img').getAttribute('aria-label')).toContain('Content changed on Oct 29, 2026 and Oct 30, 2026.')
   expect(screen.getByRole('img').getAttribute('aria-label')).not.toContain('Oct 31')
   expect(screen.getByText('Content changed Oct 29, 2026 by an editor')).toBeTruthy()

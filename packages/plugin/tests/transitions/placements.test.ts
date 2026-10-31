@@ -7,6 +7,12 @@ import { defaultArms } from '../../src/collections/experiments/armInvariants.js'
 import { checkStart } from '../../src/transitions/checkStart.js'
 
 const slot = (experiment: unknown, control: unknown[] = [{}], variantA: unknown[] = [{}, {}]) => ({ type: 'ExperimentSlot', props: { experiment, control, variantA } })
+test('custom Puck fields are scanned without reading puckData', async () => {
+  const payload = fakePayload({ collections: { templates: [{ id: 'template', content: { content: [slot('hero')] }, puckData: { content: [slot('wrong')] } }] } })
+  const placements = await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', puckCollections: [{ slug: 'templates', field: 'content' }] })
+  expect(placements).toHaveLength(1)
+  expect(placements[0]).toMatchObject({ collection: 'templates', id: 'template', slots: { control: 1, variantA: 2 } })
+})
 test('pages both views with manager access; finds nested slug and object refs, preserves top-level counts', async () => {
   const find = vi.fn(async ({ page, draft }: { page?: number; draft?: boolean }) => ({
     docs: page === 2 ? [{ id: 102, title: 'Nested', _status: draft ? 'draft' : 'published', puckData: { zones: { aside: [{ type: 'Wrapper', props: { content: [slot({ slug: 'hero' }, [{ props: { nested: [{}] } }])] } }] } } }]

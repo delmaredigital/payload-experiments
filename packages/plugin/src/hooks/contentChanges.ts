@@ -1,5 +1,8 @@
 import type { CollectionAfterChangeHook } from 'payload'
+import { recordContentChange } from '../server/recordContentChange.js'
+import { neverThrow } from './hostHook.js'
 
-// Installed on host collections: never throws (spec §7.1, §13 "LMS B3 H1").
-// CORE-12 records the content-change marker; until then the hook passes the document through.
-export const contentChangesHook: CollectionAfterChangeHook = ({ doc }) => doc
+export const contentChangesHook: CollectionAfterChangeHook = neverThrow('contentChanges', async args => {
+  await recordContentChange(args)
+  return args.doc
+})
