@@ -19,6 +19,14 @@ export interface PhaseRecord {
   contentChanges?: ContentChange[]
 }
 
+export async function readPhaseRecord(req: PayloadRequest, experimentId: DocId, phase: number): Promise<PhaseRecord & { id: DocId }> {
+  // §7.8: frozen configuration lookup serves an authorised transition.
+  const { docs } = await req.payload.find({ collection: 'xp-phases', req, overrideAccess: true, depth: 0, limit: 1,
+    where: { and: [{ experiment: { equals: experimentId } }, { phase: { equals: phase } }] } })
+  if (!docs[0]) throw new XpRefusal('not-found', 'The phase record was not found.', { experimentId, phase }, 404)
+  return docs[0] as unknown as PhaseRecord & { id: DocId }
+}
+
 /** Caller holds the experiment lock and passes the kernel's transaction req. */
 export async function writePhaseRecord(req: PayloadRequest, record: PhaseRecord) {
   // §7.8: transition endpoints' writes to plugin collections.

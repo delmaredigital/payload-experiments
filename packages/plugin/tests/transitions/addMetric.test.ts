@@ -71,10 +71,10 @@ test.each(['draft', 'stopped', 'decided', 'archived'])('refuses %s', async statu
 })
 test('primary and already added metrics cannot be added again or moved between roles', async () => {
   const { req, options } = fixture('running')
-  await expect(addMetric(req, { experimentId: 1, metric: 2, role: 'secondary', options })).rejects.toMatchObject({ code: 'invalid-body' })
+  await expect(addMetric(req, { experimentId: 1, metric: 2, role: 'secondary', options })).rejects.toMatchObject({ code: 'duplicate-metric' })
   // The fake does not roll back writes, but refusals above wrote nothing.
   await addMetric(req, { experimentId: 1, metric: 4, role: 'secondary', options })
-  await expect(addMetric(req, { experimentId: 1, metric: 4, role: 'guardrail', options })).rejects.toMatchObject({ code: 'invalid-body' })
+  await expect(addMetric(req, { experimentId: 1, metric: 4, role: 'guardrail', options })).rejects.toMatchObject({ code: 'duplicate-metric' })
 })
 test('missing metric or experiment returns 404', async () => {
   const { req, options } = fixture('running')

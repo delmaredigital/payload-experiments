@@ -1,4 +1,5 @@
 import { checkArms } from '../collections/experiments/armInvariants.js'
+import { isOpValid } from '../targeting/ops.js'
 import type { Arm, DocId, ExperimentKind, ExposurePolicy, FlagPoint, MetricSource, ResolvedOptions, Status, TargetingRule, UnitType } from '../types/contracts.js'
 import type { ArmIssueCode, PreflightResult } from '../types/endpoints.js'
 import type { BlockPlacement, FlagPlacement } from './placements.js'
@@ -79,6 +80,15 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   const mismatches = input.metrics.filter(metric => !metric.source.startsWith('events:') && e.unitType === 'user' && input.metricSources?.some(source => source.id === metric.source && source.keyedBy === 'visitor'))
   add('unit-source-mismatch', mismatches.length === 0, mismatches)
   const undeclared = (e.targeting ?? []).filter(rule => !Object.hasOwn(input.attributeKeys ?? {}, rule.attribute))
-  add('invalid-body', undeclared.length === 0, { message: 'Targeting uses an undeclared attribute.', attributes: undeclared.map(rule => rule.attribute) })
+  add('undeclared-targeting-key', undeclared.length === 0, { message: 'Targeting uses an undeclared attribute.', attributes: undeclared.map(rule => rule.attribute) })
+  const invalidRules = (e.targeting ?? []).filter(rule => {
+    const type = Object.hasOwn(input.attributeKeys ?? {}, rule.attribute) ? input.attributeKeys![rule.attribute]!.type : undefined
+    if (!type) return false // Report undeclared keys through their own refusal.
+    const validValue = type === 'string' && ['in', 'nin'].includes(rule.op)
+      ? Array.isArray(rule.value) && rule.value.length > 0 && rule.value.every(value => typeof value === 'string')
+      : typeof rule.value === type && (type !== 'number' || Number.isFinite(rule.value))
+    return !isOpValid(type, rule.op) || !validValue
+  })
+  add('invalid-targeting-rule', invalidRules.length === 0, { attributes: invalidRules.map(rule => rule.attribute) })
   return checks
 }
