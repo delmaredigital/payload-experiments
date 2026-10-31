@@ -19,5 +19,7 @@ const reasons = {
 for (const status of Object.keys(table) as Status[]) for (const field of fields) test(`${status}: ${field}`, () => {
   const expected = ['slug', 'kind', 'unitType', 'layer'].includes(field) ? 'Set when the experiment was created.'
     : (table[status] as readonly string[]).includes(field) ? null : reasons[status]
-  expect(lockedReason(status, field, table)).toBe(expected)
+  const runningReason = field === 'allocation' ? 'Raise it from the actions panel; lowering takes effect in the next round.'
+    : field === 'metrics' ? 'Add supporting metrics or guardrails from the actions panel; the main metric is fixed for this round.' : expected
+  expect(lockedReason(status, field, table)).toBe(status === 'running' ? runningReason : expected)
 })

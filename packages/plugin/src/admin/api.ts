@@ -21,10 +21,11 @@ export function createApi(apiBase: string) {
       })
       let data: unknown
       try { data = await response.json() } catch {
+        if (response.ok) return { ok: true, data: undefined as T }
         return { ok: false, status: response.status,
           ...(response.status === 501 ? { code: 'not-implemented' as const } : {}),
-          message: response.ok ? API_MESSAGES.unreadable : refusalMessage(undefined, response.status),
-          retryable: response.ok || response.status >= 500 }
+          message: refusalMessage(undefined, response.status),
+          retryable: response.status >= 500 && response.status !== 501 }
       }
       if (response.ok) return { ok: true, data: data as T }
       // Payload's own errors may omit code; future server codes retain their message.
@@ -33,7 +34,7 @@ export function createApi(apiBase: string) {
       const code = response.status === 501 ? 'not-implemented' : typeof error?.code === 'string' ? error.code : undefined
       return { ok: false, status: response.status, ...(code ? { code } : {}),
         message: refusalMessage(code, response.status, typeof error?.message === 'string' ? error.message : undefined),
-        retryable: code === 'commit-unverified' || response.status >= 500 }
+        retryable: code === 'commit-unverified' || (response.status >= 500 && response.status !== 501) }
     } catch {
       return { ok: false, status: 0, message: API_MESSAGES.network, retryable: true }
     }
@@ -54,10 +55,19 @@ export function createApi(apiBase: string) {
       const query = new URLSearchParams()
       if (options.phase !== undefined) query.set('phase', String(options.phase))
       if (options.series) query.set('series', '1')
-      return `${route(id, 'results')}${query.size ? `?${query}` : ''}`
+      const qs = query.toString()
+      return `${route(id, 'results')}${qs ? `?${qs}` : ''}`
     }, 'GET'),
-    // The recompute endpoint has no specified response payload.
-    recompute: (id: DocId) => post<unknown>(id, 'recompute'),
-    summary: (ids: readonly DocId[]) => request<SummaryResponse>(() => `${base}/summary?ids=${ids.map(id => encodeURIComponent(id)).join(',')}`, 'GET'),
+    recompute: (id: DocId) => post<{ snapshotId: string }>(id, 'recompute'),
+    summary: async (ids: readonly DocId[]): Promise<ApiResult<SummaryResponse>> => {
+      const data: SummaryResponse = {}
+      // Wire format: comma-separated ids, each URI-encoded; at most 100 per request.
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const result = await request<SummaryResponse>(() => `${base}/summary?ids=${ids.slice(offset, offset + 100).map(id => encodeURIComponent(id)).join(',')}`, 'GET')
+        if (!result.ok) return result
+        Object.assign(data, result.data)
+      }
+      return { ok: true, data }
+    },
   }
 }

@@ -21,3 +21,8 @@ test.each([
 test('a running holdout is still running', () => {
   expect(statusPill({ status: 'running', arms: [{ key: 'holdout' }], decision: { winnerArm: 'variantA' } }).tooltip).toBe('Running')
 })
+
+test.each([undefined, null, '2026-10-30T21:22:00Z'])('holdout release timestamp %s', holdoutReleasedAt => {
+  expect(statusPill({ status: 'decided', arms: [{ key: 'holdout' }], decision: { winnerArm: 'variantA', holdoutReleasedAt } }).tooltip)
+    .toBe(holdoutReleasedAt ? STATUS_TOOLTIPS.decided : STATUS_TOOLTIPS.decidedWithHoldout)
+})

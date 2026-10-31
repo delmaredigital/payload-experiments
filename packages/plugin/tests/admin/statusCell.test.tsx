@@ -18,3 +18,9 @@ test('running pill', () => {
   expect(screen.getByTitle('Running').textContent).toBe('Running')
   expect(screen.getByText('Running').className).toContain('xp-status-pill--success')
 })
+
+test('a released holdout uses the plain decided tooltip from row data', () => {
+  render(<StatusCell cellData="decided" rowData={{ arms: [{ key: 'holdout' }], decision: { winnerArm: 'variantA', holdoutReleasedAt: '2026-10-30T21:22:00Z' } }}
+    collectionSlug="xp-experiments" field={{ name: 'status', type: 'text' }} />)
+  expect(screen.getByTitle('Decided — everyone sees the winner').textContent).toBe('Decided')
+})

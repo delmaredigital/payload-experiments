@@ -9,9 +9,9 @@ const TONES: Record<Status, PillTone> = {
 export function statusPill({ status, arms = [], decision }: {
   status: Status
   arms?: readonly { key: string }[] | null
-  decision?: { winnerArm?: string | null } | null
+  decision?: { winnerArm?: string | null; holdoutReleasedAt?: string | null } | null
 }): { label: string; tone: PillTone; tooltip: string } {
   const holdout = status === 'decided' && arms?.some(group => group.key === 'holdout')
-    && Boolean(decision?.winnerArm) && decision?.winnerArm !== 'control'
+    && Boolean(decision?.winnerArm) && decision?.winnerArm !== 'control' && !decision?.holdoutReleasedAt
   return { label: statusLabel(status), tone: TONES[status], tooltip: holdout ? STATUS_TOOLTIPS.decidedWithHoldout : STATUS_TOOLTIPS[status] }
 }
