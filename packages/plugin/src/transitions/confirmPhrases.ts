@@ -4,5 +4,6 @@ export function expectedConfirm(action: 'decide' | 'discard' | 'hard-coded', win
   return `the developer has hard-coded ${winnerLabel}`
 }
 export function matchesConfirm(expected: string, typed: string | undefined | null): boolean {
-  return typed != null && typed.trim() === expected.trim()
+  const phrase = expected.trim()
+  return phrase !== '' && typed != null && typed.trim() === phrase
 }

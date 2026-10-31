@@ -3,6 +3,7 @@ import type { ExperimentsServerRuntime } from './runtime.js'
 import type { ArmSlot } from './puck.js'
 import type { TargetingOp } from '../targeting/ops.js'
 
+export type DocId = string | number
 export type Attributes = Record<string, string | number | boolean>
 export type ExposurePolicy = 'render' | 'viewport' | 'pageview' | 'manual'
 export type ExperimentKind = 'block' | 'page' | 'flag' | 'code'
@@ -27,14 +28,14 @@ export interface MetricSource {
 }
 export interface FlagPoint {
   id: string; label: string; params: Record<string, ParamField>; defaultParams: Record<string, unknown>
-  placements?(args: { experimentId: string; arms: string[]; req: PayloadRequest }): Promise<Array<{ arm: string; ok: boolean; detail?: string }>>
-  makeContent?(args: { experimentId: string; winner: { arm: string; params: Record<string, unknown> }; req: PayloadRequest }): Promise<void>
+  placements?(args: { experimentId: DocId; arms: string[]; req: PayloadRequest }): Promise<Array<{ arm: string; ok: boolean; detail?: string }>>
+  makeContent?(args: { experimentId: DocId; winner: { arm: string; params: Record<string, unknown> }; req: PayloadRequest }): Promise<void>
 }
 /** Host adapter: true permits the request; false drops it. */
 export type RateLimiter = (args: { req: PayloadRequest; unitId: string }) => boolean | Promise<boolean>
 export type ExperimentsAccess = (args: { req: PayloadRequest }) => boolean | Promise<boolean>
-export interface ExperimentsPluginOptions {
-  runtime: ExperimentsServerRuntime
+export interface ExperimentsPluginOptions<TUser extends { id: string | number } = { id: string | number }> {
+  runtime: ExperimentsServerRuntime<TUser>
   access: { manage: ExperimentsAccess; admin?: ExperimentsAccess; readResults?: ExperimentsAccess; readIdentities?: ExperimentsAccess }
   metricSources?: MetricSource[]
   eventSources?: string[]
@@ -44,4 +45,5 @@ export interface ExperimentsPluginOptions {
   events?: { retentionDays?: number; maxBodyBytes?: number; rateLimit?: RateLimiter }
 }
 /** Options required by the route table; CORE-02c resolves optional defaults. */
-export type ResolvedOptions = ExperimentsPluginOptions
+// CORE-02c may narrow this alias (pre-authorised exception to the src/types freeze)
+export type ResolvedOptions<TUser extends { id: string | number } = { id: string | number }> = ExperimentsPluginOptions<TUser>

@@ -1,7 +1,9 @@
-import { expect, test, vi } from 'vitest'
+import { expect, expectTypeOf, test, vi } from 'vitest'
 import { defineExperimentsProxyRuntime } from '../../src/runtime/proxyRuntime.js'
+import type { ExperimentsPluginOptions } from '../../src/types/contracts.js'
+import { buildEndpoints } from '../../src/endpoints/index.js'
 import { defineExperimentsServerRuntime } from '../../src/server/serverRuntime.js'
-import type { ExperimentsServerRuntimeOptions } from '../../src/types/runtime.js'
+import type { ExperimentsServerRuntime, ExperimentsServerRuntimeOptions } from '../../src/types/runtime.js'
 import { defineFlagPoint, defineMetricSource } from '../../src/define.js'
 import { XpNotImplemented, XpLockedFieldError, XpNoTransactionError, XpRefusal } from '../../src/errors.js'
 
@@ -34,7 +36,7 @@ test('server payload is lazy; identity and attributes defaults are usable', () =
   expect(getPayload).not.toHaveBeenCalled()
   expect(runtime.getPayload).toBe(getPayload)
   expect(runtime.proxyRuntime).toBe(proxy)
-  const user = { id: 42 } as Parameters<typeof runtime.userIdOf>[0]
+  const user = { id: 42 }
   expect(runtime.userIdOf(user)).toBe('42')
   expect(runtime.attributesOf(user)).toEqual({ loggedIn: true })
   expect(runtime.attributesOf(null)).toEqual({ loggedIn: false })
@@ -55,4 +57,31 @@ test('errors carry stable names and refusal metadata', () => {
   expect(errors.map(error => error.name)).toEqual(['XpNotImplemented', 'XpLockedFieldError', 'XpNoTransactionError', 'XpRefusal'])
   for (const error of errors) expect(error).toBeInstanceOf(Error)
   expect(errors[3]).toMatchObject({ code: 'invalid-body', message: 'Invalid', detail: { field: 'arms' }, status: 422 })
+})
+
+test('server runtime infers the host session user without a Payload collection', async () => {
+  const user = { id: 'x', role: 'user', impersonatedBy: null }
+  const proxy = defineExperimentsProxyRuntime({ secret: 'key', apiRoute: '/api' })
+  const getPayload = vi.fn(), getUser = vi.fn(async () => user)
+  const runtime = defineExperimentsServerRuntime(proxy, {
+    getPayload,
+    getUser,
+    userIdOf: u => u.id,
+    attributesOf: u => ({ loggedIn: Boolean(u), staff: Boolean(u && (u.role !== 'user' || u.impersonatedBy)) }),
+  })
+  const pluginOptions = { runtime, access: { manage: () => true } } satisfies ExperimentsPluginOptions<typeof user>
+  expect(buildEndpoints({ options: pluginOptions })).toHaveLength(15)
+  expectTypeOf(runtime).toEqualTypeOf<ExperimentsServerRuntime<typeof user>>()
+  expectTypeOf<Parameters<typeof runtime.userIdOf>[0]>().toEqualTypeOf<typeof user>()
+  expectTypeOf<NonNullable<ExperimentsServerRuntimeOptions<typeof user>['getUser']>>().returns.toEqualTypeOf<Promise<typeof user | null>>()
+  expect(getPayload).not.toHaveBeenCalled()
+  expect(getUser).not.toHaveBeenCalled()
+  expect(await runtime.getUser?.()).toBe(user)
+  expect(runtime.userIdOf(user)).toBe('x')
+  expect(runtime.attributesOf(user)).toEqual({ loggedIn: true, staff: false })
+  expect(runtime.attributesOf(null)).toEqual({ loggedIn: false, staff: false })
+})
+test('refusals support commit-unverified and not-found status codes', () => {
+  expect(new XpRefusal('commit-unverified', 'Commit result unknown', undefined, 500)).toMatchObject({ code: 'commit-unverified', status: 500 })
+  expect(new XpRefusal('not-found', 'Unknown experiment', undefined, 404)).toMatchObject({ code: 'not-found', status: 404 })
 })

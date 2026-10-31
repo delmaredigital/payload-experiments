@@ -11,5 +11,7 @@ test('trimmed comparison is case sensitive and null safe', () => {
   expect(matchesConfirm('Variant A', 'Variant  A')).toBe(false)
   expect(matchesConfirm('', null)).toBe(false)
   expect(matchesConfirm('', undefined)).toBe(false)
-  expect(matchesConfirm('', ' ')).toBe(true)
+  expect(matchesConfirm('', ' ')).toBe(false)
+  expect(matchesConfirm(' \t ', '')).toBe(false)
+  expect(matchesConfirm(' \t ', ' \n')).toBe(false)
 })

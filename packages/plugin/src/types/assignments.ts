@@ -1,6 +1,6 @@
-import type { ExposurePolicy } from './contracts.js'
+import type { DocId, ExposurePolicy } from './contracts.js'
 export interface Assignment {
-  slug: string; experimentId: string; arm: string; phase: number; exposable: boolean; policy: ExposurePolicy
+  slug: string; experimentId: DocId; arm: string; phase: number; exposable: boolean; policy: ExposurePolicy
   source: 'header' | 'recomputed' | 'preview' | 'fallback'
 }
 export interface Assignments {
@@ -9,11 +9,11 @@ export interface Assignments {
 }
 export interface FlagPointResult {
   arm: string; params: Record<string, unknown>; source: 'experiment' | 'default'
-  experiment?: string; experimentId?: string; phase?: number; policy?: ExposurePolicy; exposable: boolean
+  experiment?: string; experimentId?: DocId; phase?: number; policy?: ExposurePolicy; exposable: boolean
 }
 export interface ClientAssignments {
   v: 1; revision: number; apiRoute: string
-  experiments: Record<string, { arm: string; experimentId: string; phase: number; params: Record<string, unknown>; policy: ExposurePolicy; exposable: boolean }>
+  experiments: Record<string, { arm: string; experimentId: DocId; phase: number; params: Record<string, unknown>; policy: ExposurePolicy; exposable: boolean }>
   flagPoints: Record<string, FlagPointResult>
   pageviews: Array<{ slug: string; phase: number; arm: string }>
 }

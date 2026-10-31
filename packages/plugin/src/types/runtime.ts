@@ -1,9 +1,8 @@
-import type { Payload, PayloadRequest } from 'payload'
+import type { Payload } from 'payload'
 import type { NextRequest } from 'next/server'
 import type { Attributes } from './contracts.js'
 import type { Manifest } from './manifest.js'
 
-type User = NonNullable<PayloadRequest['user']>
 export interface ExperimentsProxyRuntimeOptions {
   secret: string | string[]
   apiRoute: string
@@ -12,22 +11,22 @@ export interface ExperimentsProxyRuntimeOptions {
   getUnit?: (req: NextRequest) => { userId?: string; attributes: Attributes; sessionUnknown?: boolean } | Promise<{ userId?: string; attributes: Attributes; sessionUnknown?: boolean }>
 }
 export interface ExperimentsProxyRuntime {
-  readonly secrets: string[]
+  readonly secrets: readonly string[]
   readonly apiRoute: string
   readonly cookie: { name: string; maxAgeDays: number; domain?: string; consent?(req: NextRequest): boolean }
   readonly loadManifest?: ExperimentsProxyRuntimeOptions['loadManifest']
   readonly getUnit?: ExperimentsProxyRuntimeOptions['getUnit']
 }
-export interface ExperimentsServerRuntimeOptions {
+export interface ExperimentsServerRuntimeOptions<TUser extends { id: string | number } = { id: string | number }> {
   getPayload: () => Promise<Payload>
-  getUser?: () => User | null | Promise<User | null>
-  userIdOf?: (user: User) => string
-  attributesOf?: (user: User | null) => Partial<Attributes>
+  getUser?: () => Promise<TUser | null>
+  userIdOf?: (user: TUser) => string
+  attributesOf?: (user: TUser | null) => Partial<Attributes>
 }
-export interface ExperimentsServerRuntime {
+export interface ExperimentsServerRuntime<TUser extends { id: string | number } = { id: string | number }> {
   proxyRuntime: ExperimentsProxyRuntime
-  getPayload: ExperimentsServerRuntimeOptions['getPayload']
-  getUser?: ExperimentsServerRuntimeOptions['getUser']
-  userIdOf: NonNullable<ExperimentsServerRuntimeOptions['userIdOf']>
-  attributesOf: NonNullable<ExperimentsServerRuntimeOptions['attributesOf']>
+  getPayload: ExperimentsServerRuntimeOptions<TUser>['getPayload']
+  getUser?: ExperimentsServerRuntimeOptions<TUser>['getUser']
+  userIdOf: NonNullable<ExperimentsServerRuntimeOptions<TUser>['userIdOf']>
+  attributesOf: NonNullable<ExperimentsServerRuntimeOptions<TUser>['attributesOf']>
 }

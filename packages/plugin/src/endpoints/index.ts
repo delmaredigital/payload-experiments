@@ -1,10 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Endpoint, PayloadRequest } from 'payload'
 import { XP_MANIFEST_KEY_HEADER } from '../constants.js'
-import { XpNotImplemented } from '../errors.js'
+import { XpNotImplemented, XpRefusal } from '../errors.js'
 import { verifyUnitCookie } from '../runtime/cookie.js'
 import type { ResolvedOptions } from '../types/contracts.js'
-import type { AccessKind, ErrorEnvelope, RefusalCode } from '../types/endpoints.js'
+import type { AccessKind, EndpointContext, ErrorEnvelope, RefusalCode } from '../types/endpoints.js'
 import { handleManifest } from './manifest.js'
 import { handleEvents } from './events.js'
 import { handleStart, handleAllocate, handleAddMetric, handleStop, handleDecide, handleReleaseHoldout, handleMakeContent, handleArchive } from './transitions.js'
@@ -14,8 +14,7 @@ import { handleResults } from './results.js'
 import { handleRecompute } from './recompute.js'
 import { handleSummary } from './summary.js'
 
-type Context = { options: ResolvedOptions }
-export const ROUTES: Array<{ method: Endpoint['method']; path: string; access: AccessKind; handler: (req: PayloadRequest, ctx: Context) => Promise<Response> }> = [
+export const ROUTES: Array<{ method: Endpoint['method']; path: string; access: AccessKind; handler: <TUser extends { id: string | number }>(req: PayloadRequest, ctx: EndpointContext<TUser>) => Promise<Response> }> = [
   { method: 'get', path: '/xp/manifest', access: 'manifestKey', handler: handleManifest },
   { method: 'post', path: '/xp/events', access: 'signedCookie', handler: handleEvents },
   { method: 'post', path: '/xp/experiments/:id/start', access: 'manage', handler: handleStart },
@@ -32,35 +31,39 @@ export const ROUTES: Array<{ method: Endpoint['method']; path: string; access: A
   { method: 'post', path: '/xp/experiments/:id/recompute', access: 'manage', handler: handleRecompute },
   { method: 'get', path: '/xp/experiments/summary', access: 'readResults', handler: handleSummary },
 ]
-function error(status: number, code: RefusalCode, message: string): Response {
-  return Response.json({ errors: [{ code, message }] } satisfies ErrorEnvelope, { status })
+function error(status: number, code: RefusalCode, message: string, detail?: unknown): Response {
+  return Response.json({ errors: [{ code, message, ...(detail === undefined ? {} : { detail }) }] } satisfies ErrorEnvelope, { status })
 }
-export function buildEndpoints(ctx: Context): Endpoint[] {
+export function buildEndpoints<TUser extends { id: string | number } = { id: string | number }>(ctx: { options: ResolvedOptions<TUser> }): Endpoint[] {
   return ROUTES.map(route => ({ method: route.method, path: route.path, handler: async req => {
     const { options } = ctx
-    if (route.access === 'manage' || route.access === 'readResults') {
-      if (!req.user) return error(401, 'unauthenticated', 'Authentication required')
-      const access = route.access === 'readResults' ? options.access.readResults ?? options.access.manage : options.access.manage
-      if (await access({ req }) !== true) return error(403, 'forbidden', 'Access denied')
-    } else if (route.access === 'manifestKey') {
-      const secret = options.runtime.proxyRuntime.secrets[0]
-      if (!secret) return error(401, 'unauthenticated', 'Invalid manifest key')
-      const expected = createHmac('sha256', secret).update('xp:manifest-key').digest('hex')
-      const supplied = req.headers.get(XP_MANIFEST_KEY_HEADER)
-      // Compare the wire hex bytes, including length and case, rather than permissive hex decoding.
-      if (!supplied || Buffer.byteLength(supplied) !== Buffer.byteLength(expected) || !timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) {
-        return error(401, 'unauthenticated', 'Invalid manifest key')
-      }
-    } else {
-      try {
+    const handlerContext: EndpointContext<TUser> = { options }
+    try {
+      if (route.access === 'manage' || route.access === 'readResults') {
+        if (!req.user) return error(401, 'unauthenticated', 'Authentication required')
+        const access = route.access === 'readResults' ? options.access.readResults ?? options.access.manage : options.access.manage
+        if (await access({ req }) !== true) return error(403, 'forbidden', 'Access denied')
+      } else if (route.access === 'manifestKey') {
+        const secret = options.runtime.proxyRuntime.secrets[0]
+        if (!secret) return error(401, 'unauthenticated', 'Invalid manifest key')
+        const expected = createHmac('sha256', secret).update('xp:manifest-key').digest('hex')
+        const supplied = req.headers.get(XP_MANIFEST_KEY_HEADER)
+        // Compare the wire hex bytes, including length and case, rather than permissive hex decoding.
+        if (!supplied || Buffer.byteLength(supplied) !== Buffer.byteLength(expected) || !timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) {
+          return error(401, 'unauthenticated', 'Invalid manifest key')
+        }
+      } else {
         const name = options.runtime.proxyRuntime.cookie.name
         const cookie = req.headers.get('cookie')?.split(';').map(part => part.trim()).find(part => part.startsWith(`${name}=`))?.slice(name.length + 1)
-        if (!verifyUnitCookie(cookie, options.runtime.proxyRuntime.secrets)) return error(401, 'unauthenticated', 'Invalid unit cookie')
-      } catch (cause) {
-        if (cause instanceof XpNotImplemented) return error(501, 'not-implemented', cause.lane)
-        throw cause
+        const visitorId = verifyUnitCookie(cookie, options.runtime.proxyRuntime.secrets)
+        if (!visitorId) return error(401, 'unauthenticated', 'Invalid unit cookie')
+        handlerContext.unit = { visitorId }
       }
+      return await route.handler(req, handlerContext)
+    } catch (cause) {
+      if (cause instanceof XpRefusal) return error(cause.status, cause.code, cause.message, cause.detail)
+      if (cause instanceof XpNotImplemented) return error(501, 'not-implemented', cause.lane)
+      throw cause
     }
-    return route.handler(req, ctx)
   } }))
 }

@@ -1,10 +1,14 @@
 import { createHmac } from 'node:crypto'
 import type { PayloadRequest } from 'payload'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
+import * as unitCookie from '../../src/runtime/cookie.js'
+import { XpNotImplemented, XpRefusal } from '../../src/errors.js'
 import { buildEndpoints, ROUTES } from '../../src/endpoints/index.js'
 import { defineExperimentsProxyRuntime } from '../../src/runtime/proxyRuntime.js'
 import { defineExperimentsServerRuntime } from '../../src/server/serverRuntime.js'
 import type { ExperimentsPluginOptions, ExperimentsAccess } from '../../src/types/contracts.js'
+
+afterEach(() => vi.restoreAllMocks())
 
 const paths = [
   ['get', '/xp/manifest'], ['post', '/xp/events'],
@@ -86,4 +90,75 @@ test('transition stubs identify their owning lanes', async () => {
     expect(response.status).toBe(501)
     expect(await response.json()).toEqual({ errors: [{ code: 'not-implemented', message: lane }] })
   }
+})
+
+describe('handler error mapping', () => {
+  const route = ROUTES.find(route => route.path === '/xp/experiments/:id/start')!
+  test.each([
+    new XpRefusal('invalid-status', 'Wrong status', { x: 1 }, 409),
+    new XpRefusal('invalid-body', 'Bad input', { field: 'arms' }, 422),
+    new XpRefusal('commit-unverified', 'Commit result unknown', null, 500),
+    new XpRefusal('not-found', 'Unknown experiment', undefined, 404),
+  ])('maps $code to its status and preserves defined detail', async refusal => {
+    vi.spyOn(route, 'handler').mockRejectedValue(refusal)
+    const response = await invoke(route.path, options(), request())
+    expect(response.status).toBe(refusal.status)
+    expect(await response.json()).toEqual({ errors: [{ code: refusal.code, message: refusal.message, ...(refusal.detail === undefined ? {} : { detail: refusal.detail }) }] })
+  })
+  test('maps a synchronous not-implemented throw to 501', async () => {
+    vi.spyOn(route, 'handler').mockImplementation(() => { throw new XpNotImplemented('CORE-test') })
+    const response = await invoke(route.path, options(), request())
+    expect(response.status).toBe(501)
+    expect(await response.json()).toEqual({ errors: [{ code: 'not-implemented', message: 'CORE-test' }] })
+  })
+  test('rethrows unexpected errors for Payload to handle', async () => {
+    const failure = new Error('unexpected')
+    vi.spyOn(route, 'handler').mockRejectedValue(failure)
+    await expect(invoke(route.path, options(), request())).rejects.toBe(failure)
+  })
+  test('access denial prevents handler execution', async () => {
+    const handler = vi.spyOn(route, 'handler').mockRejectedValue(new Error('must not run'))
+    await assertResponse(await invoke(route.path, options(), request(false)), 401, 'unauthenticated')
+    await assertResponse(await invoke(route.path, options(false), request()), 403, 'forbidden')
+    expect(handler).not.toHaveBeenCalled()
+  })
+})
+describe('verified visitor context', () => {
+  const route = ROUTES.find(route => route.access === 'signedCookie')!
+  test('passes the verified visitor to the handler without sharing context across requests', async () => {
+    const verifier = vi.spyOn(unitCookie, 'verifyUnitCookie').mockReturnValueOnce('visitor-one').mockReturnValueOnce('visitor-two')
+    const handler = vi.spyOn(route, 'handler').mockImplementation(async () => Response.json({}))
+    const opts = options()
+    const endpoint = buildEndpoints({ options: opts }).find(endpoint => endpoint.path === route.path)!
+    const req = request(false, { cookie: 'other=ignored; xp_id=signed-cookie; tail=value' })
+    expect((await endpoint.handler(req)).status).toBe(200)
+    expect(verifier).toHaveBeenCalledWith('signed-cookie', opts.runtime.proxyRuntime.secrets)
+    expect(handler).toHaveBeenNthCalledWith(1, req, { options: opts, unit: { visitorId: 'visitor-one' } })
+    const secondReq = request(false, { cookie: 'xp_id=second-cookie' })
+    expect((await endpoint.handler(secondReq)).status).toBe(200)
+    expect(handler).toHaveBeenNthCalledWith(2, secondReq, { options: opts, unit: { visitorId: 'visitor-two' } })
+    expect(handler.mock.calls[0]?.[1].unit).toEqual({ visitorId: 'visitor-one' })
+    expect(handler.mock.calls[0]?.[1]).not.toBe(handler.mock.calls[1]?.[1])
+  })
+  test('invalid cookies cannot reach the handler', async () => {
+    vi.spyOn(unitCookie, 'verifyUnitCookie').mockReturnValue(null)
+    const handler = vi.spyOn(route, 'handler')
+    await assertResponse(await invoke(route.path, options(), request(false)), 401, 'unauthenticated')
+    expect(handler).not.toHaveBeenCalled()
+  })
+  test('unexpected verification errors propagate', async () => {
+    const failure = new Error('verification failed')
+    vi.spyOn(unitCookie, 'verifyUnitCookie').mockImplementation(() => { throw failure })
+    await expect(invoke(route.path, options(), request(false))).rejects.toBe(failure)
+  })
+  test('non-cookie handlers receive no visitor, even after a signed request', async () => {
+    const opts = options()
+    vi.spyOn(unitCookie, 'verifyUnitCookie').mockReturnValue('visitor')
+    await invoke(route.path, opts, request(false))
+    const manageRoute = ROUTES.find(route => route.access === 'manage')!
+    const handler = vi.spyOn(manageRoute, 'handler').mockImplementation(async () => Response.json({}))
+    const req = request()
+    await invoke(manageRoute.path, opts, req)
+    expect(handler).toHaveBeenCalledWith(req, { options: opts })
+  })
 })
