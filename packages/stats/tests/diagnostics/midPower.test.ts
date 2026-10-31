@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { midExperimentPower } from '../../src/diagnostics/midExperimentPower.js'
 import { abTestMoments } from '../../src/effectMoments.js'
 import { sequentialTwoSidedTTest } from '../../src/frequentist/sequential.js'
-import { decode, loadFixture } from '../parity/fixtures.js'
-import { expectParity } from '../parity/compare.js'
 
 const a = { type: 'sampleMean', n: 1000, sum: 2000, sumSquares: 6000 } as const
 const b = { type: 'sampleMean', n: 1200, sum: 2640, sumSquares: 8200 } as const
@@ -53,25 +51,14 @@ describe('mid-experiment power identities', () => {
     }
   })
 
+  it('throws RangeError where upstream divides by zero in __init__', () => {
+    expect(() => midExperimentPower(moments, result, {}, { numGoalMetrics: 0 })).toThrow(RangeError)
+    expect(() => midExperimentPower(moments, result, {}, { pValueCorrected: true, numVariations: 1 })).toThrow(RangeError)
+  })
+
   it('throws the six-element upstream payload when NaN prevents convergence', () => {
     // A deterministic extreme input: NaN power never satisfies the tolerance.
     expect(() => midExperimentPower({ ...moments, standardError: NaN }, result, {}))
       .toThrow(/^\[NaN, 0\.8, NaN, [^,]+, [^,]+, [^,]+\]$/)
   })
-})
-
-const fixture = loadFixture('midPower.midExperimentPower')
-describe('midPower.midExperimentPower parity', () => {
-  if (!fixture) {
-    it.skip('awaits midPower.midExperimentPower.json generated on this lane’s train', () => {})
-  } else {
-    for (const { name, input, expected } of fixture.cases) {
-      it(name, () => {
-        const args = decode(input.args) as Parameters<typeof midExperimentPower>
-        if (expected !== null && typeof expected === 'object' && '$raises' in expected) {
-          expect(() => midExperimentPower(...args)).toThrow()
-        } else expectParity(midExperimentPower(...args), decode(expected))
-      })
-    }
-  }
 })

@@ -15,6 +15,11 @@ export function midExperimentPower(moments: EffectMomentsResult, testResult: { e
   // Upstream stores relative but never uses it in the power calculation.
   const numGoalMetrics = powerConfig.numGoalMetrics ?? 1
   const numTests = powerConfig.pValueCorrected ? ((powerConfig.numVariations ?? 2) - 1) * numGoalMetrics : 1
+  // Upstream's __init__ divides by num_tests (multiplier) and by num_goal_metrics
+  // (adjusted_power) before anything else, raising ZeroDivisionError; JS would
+  // silently produce Infinity/0 and a confident "already powered" result.
+  if (numTests === 0) throw new RangeError('numTests is 0 (pValueCorrected with numVariations 1 or numGoalMetrics 0)')
+  if (numGoalMetrics === 0) throw new RangeError('numGoalMetrics must not be 0')
   const multiplier = normalPpf(1 - alpha / (2 * numTests))
   const targetPower = powerConfig.targetPower ?? 0.8
   const adjustedPower = targetPower ** (1 / numGoalMetrics)

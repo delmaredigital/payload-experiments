@@ -1,6 +1,6 @@
 {
   "name": "@delmaredigital/experiments-stats",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Experiment statistics engine: deterministic assignment, frequentist and Bayesian inference, sequential testing, CUPED, SRM and power — a TypeScript port of GrowthBook's gbstats",
   "type": "module",
   "license": "MIT",

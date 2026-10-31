@@ -89,23 +89,24 @@ def cases() -> dict:
                                         "sequential": sequential, "sequentialTuningParameter": tuning,
                                         "targetMde": mde, "priorEffect": None}))
 
-    # Small finite grid first; retain any upstream non-converging input as a
-    # raises case. The final NaN target is a deterministic non-finite fallback:
-    # every diff is NaN, so the 100-iteration tolerance check can never pass.
-    found = False
-    for target_power in (0.8, 0.999999, float("nan")):
-        for mde in (0, 1e-12, 0.01):
-            args, calculation = build(a, b, {}, {"targetPower": target_power, "targetMde": mde})
-            try:
-                calculation.calculate_sample_size()
-            except ValueError:
-                rows.append({"name": "non-convergence-grid", "input": {"args": args},
-                             "expected": raises(ValueError, calculation.calculate_sample_size)})
-                found = True
-                break
-        if found:
-            break
-    assert found, "expected NaN target to prevent bisection convergence"
+    # Deterministic non-convergence: a NaN target power makes every bisection diff
+    # NaN, so the tolerance check never passes on any platform (no libm involved).
+    # Finite searches are avoided: their convergence can depend on last-ulp rounding.
+    args, calculation = build(a, b, {}, {"targetPower": float("nan"), "targetMde": 0})
+    rows.append({"name": "non-convergence-nan-target-power", "input": {"args": args},
+                 "expected": raises(ValueError, calculation.calculate_sample_size)})
+
+    # Upstream raises ZeroDivisionError in MidExperimentPower.__init__ when
+    # num_tests or num_goal_metrics is 0 (the TS port throws RangeError there).
+    for name, x, y, power_config in (
+        ("zero-goal-metrics-raises", a, b, {"numGoalMetrics": 0}),
+        ("zero-tests-raises", a, b, {"pValueCorrected": True, "numVariations": 1}),
+        ("zero-goal-metrics-before-error-passthrough-raises", mean(1000, 2, 0), mean(1300, 2.2, 0),
+         {"numGoalMetrics": 0}),
+    ):
+        args = build(x, y, {}, {})[0][:3] + [power_config]
+        rows.append({"name": name, "input": {"args": args},
+                     "expected": raises(ZeroDivisionError, build, x, y, {}, power_config)})
 
     return {
         "midPower.midExperimentPower": {"module": "gbstats.power.midexperimentpower",
