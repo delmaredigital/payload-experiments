@@ -1,0 +1,332 @@
+{
+  "cases": [
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          [
+            500,
+            500
+          ],
+          [
+            50,
+            50
+          ]
+        ]
+      },
+      "name": "balanced-two"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          [
+            100,
+            100,
+            100
+          ],
+          [
+            1,
+            1,
+            1
+          ]
+        ]
+      },
+      "name": "balanced-three"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          [
+            100,
+            100,
+            100,
+            100
+          ],
+          [
+            25,
+            25,
+            25,
+            25
+          ]
+        ]
+      },
+      "name": "balanced-four"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          [
+            100,
+            100,
+            100,
+            100,
+            100
+          ],
+          [
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      },
+      "name": "balanced-five"
+    },
+    {
+      "expected": 0.2059032107320647,
+      "input": {
+        "args": [
+          [
+            520,
+            480
+          ],
+          [
+            50,
+            50
+          ]
+        ]
+      },
+      "name": "mild-two"
+    },
+    {
+      "expected": 0.04978706836786395,
+      "input": {
+        "args": [
+          [
+            120,
+            90,
+            90
+          ],
+          [
+            1,
+            1,
+            1
+          ]
+        ]
+      },
+      "name": "mild-three"
+    },
+    {
+      "expected": 0.01856613546304323,
+      "input": {
+        "args": [
+          [
+            120,
+            110,
+            90,
+            80
+          ],
+          [
+            1,
+            1,
+            1,
+            1
+          ]
+        ]
+      },
+      "name": "mild-four"
+    },
+    {
+      "expected": 0.04042768199451279,
+      "input": {
+        "args": [
+          [
+            120,
+            110,
+            100,
+            90,
+            80
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        ]
+      },
+      "name": "mild-five"
+    },
+    {
+      "expected": 1.978343039352866e-202,
+      "input": {
+        "args": [
+          [
+            980,
+            20
+          ],
+          [
+            50,
+            50
+          ]
+        ]
+      },
+      "name": "extreme-two"
+    },
+    {
+      "expected": 0.0,
+      "input": {
+        "args": [
+          [
+            950,
+            25,
+            25
+          ],
+          [
+            1,
+            1,
+            1
+          ]
+        ]
+      },
+      "name": "extreme-three"
+    },
+    {
+      "expected": 0.0,
+      "input": {
+        "args": [
+          [
+            850,
+            50,
+            50,
+            50
+          ],
+          [
+            1,
+            1,
+            1,
+            1
+          ]
+        ]
+      },
+      "name": "extreme-four"
+    },
+    {
+      "expected": 0.0,
+      "input": {
+        "args": [
+          [
+            800,
+            50,
+            50,
+            50,
+            50
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        ]
+      },
+      "name": "extreme-five"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          [
+            0,
+            0
+          ],
+          [
+            50,
+            50
+          ]
+        ]
+      },
+      "name": "zero-total"
+    },
+    {
+      "expected": 5.7777485194191284e-08,
+      "input": {
+        "args": [
+          [
+            100,
+            200,
+            0
+          ],
+          [
+            50,
+            50,
+            0
+          ]
+        ]
+      },
+      "name": "zero-weight-counted-dof"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          [
+            450,
+            450,
+            100
+          ],
+          [
+            45,
+            45,
+            10
+          ]
+        ]
+      },
+      "name": "holdout-balanced"
+    },
+    {
+      "expected": 0.1353352832366127,
+      "input": {
+        "args": [
+          [
+            480,
+            420,
+            100
+          ],
+          [
+            45,
+            45,
+            10
+          ]
+        ]
+      },
+      "name": "holdout-unnormalised"
+    },
+    {
+      "expected": 0.1353352832366127,
+      "input": {
+        "args": [
+          [
+            480,
+            420,
+            100
+          ],
+          [
+            0.45,
+            0.45,
+            0.1
+          ]
+        ]
+      },
+      "name": "holdout-fractions"
+    }
+  ],
+  "source": {
+    "module": "gbstats.utils",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "check_srm"
+  }
+}

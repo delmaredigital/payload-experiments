@@ -1,0 +1,223 @@
+{
+  "cases": [
+    {
+      "expected": 0.0,
+      "input": {
+        "args": [
+          -38
+        ]
+      },
+      "name": "0:-38"
+    },
+    {
+      "expected": 4.605353009581956e-308,
+      "input": {
+        "args": [
+          -37.5
+        ]
+      },
+      "name": "1:-37.5"
+    },
+    {
+      "expected": 4.906713927147908e-198,
+      "input": {
+        "args": [
+          -30
+        ]
+      },
+      "name": "2:-30"
+    },
+    {
+      "expected": 2.753624118606155e-89,
+      "input": {
+        "args": [
+          -20
+        ]
+      },
+      "name": "3:-20"
+    },
+    {
+      "expected": 7.619853024160474e-24,
+      "input": {
+        "args": [
+          -10
+        ]
+      },
+      "name": "4:-10"
+    },
+    {
+      "expected": 5.2055697448902465e-17,
+      "input": {
+        "args": [
+          -8.3
+        ]
+      },
+      "name": "5:-8.3"
+    },
+    {
+      "expected": 2.8665157187919344e-07,
+      "input": {
+        "args": [
+          -5
+        ]
+      },
+      "name": "6:-5"
+    },
+    {
+      "expected": 0.001349898031630093,
+      "input": {
+        "args": [
+          -3
+        ]
+      },
+      "name": "7:-3"
+    },
+    {
+      "expected": 0.024997895148220435,
+      "input": {
+        "args": [
+          -1.96
+        ]
+      },
+      "name": "8:-1.96"
+    },
+    {
+      "expected": 0.15865525393145707,
+      "input": {
+        "args": [
+          -1
+        ]
+      },
+      "name": "9:-1"
+    },
+    {
+      "expected": 0.4999999960105772,
+      "input": {
+        "args": [
+          -1e-08
+        ]
+      },
+      "name": "10:-1e-08"
+    },
+    {
+      "expected": 0.5,
+      "input": {
+        "args": [
+          0
+        ]
+      },
+      "name": "11:0"
+    },
+    {
+      "expected": 0.5000000039894228,
+      "input": {
+        "args": [
+          1e-08
+        ]
+      },
+      "name": "12:1e-08"
+    },
+    {
+      "expected": 0.8413447460685429,
+      "input": {
+        "args": [
+          1
+        ]
+      },
+      "name": "13:1"
+    },
+    {
+      "expected": 0.9750021048517795,
+      "input": {
+        "args": [
+          1.96
+        ]
+      },
+      "name": "14:1.96"
+    },
+    {
+      "expected": 0.9986501019683699,
+      "input": {
+        "args": [
+          3
+        ]
+      },
+      "name": "15:3"
+    },
+    {
+      "expected": 0.9999997133484281,
+      "input": {
+        "args": [
+          5
+        ]
+      },
+      "name": "16:5"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          8.3
+        ]
+      },
+      "name": "17:8.3"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          10
+        ]
+      },
+      "name": "18:10"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          20
+        ]
+      },
+      "name": "19:20"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          30
+        ]
+      },
+      "name": "20:30"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          37.5
+        ]
+      },
+      "name": "21:37.5"
+    },
+    {
+      "expected": 1.0,
+      "input": {
+        "args": [
+          38
+        ]
+      },
+      "name": "22:38"
+    }
+  ],
+  "source": {
+    "module": "scipy.stats",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "norm.cdf"
+  }
+}
