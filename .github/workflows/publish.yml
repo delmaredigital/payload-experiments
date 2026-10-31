@@ -52,8 +52,21 @@ jobs:
             const ok = a > 11 || (a === 11 && (b > 5 || (b === 5 && c >= 1)))
             if (!ok) { console.error(`npm ${process.argv[1]} is below 11.5.1 (no OIDC trusted publishing)`); process.exit(1) }
           ' "$v"
+      # Pack with pnpm (rewrites workspace:/catalog: specifiers to real versions; npm
+      # would publish them verbatim, e.g. the plugin's dependency on the stats
+      # package), refuse a tarball that still has one, then publish that tarball.
+      - name: Pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          (cd "$PKG" && pnpm pack --pack-destination "$RUNNER_TEMP/pack")
+          TARBALL="$(ls "$RUNNER_TEMP"/pack/*.tgz)"
+          [ "$(echo "$TARBALL" | wc -l)" -eq 1 ] || { echo "expected one tarball"; exit 1; }
+          if tar -xOzf "$TARBALL" package/package.json | grep -E '"(workspace|catalog):'; then
+            echo "::error::packed package.json still contains a workspace:/catalog: specifier"; exit 1
+          fi
+          echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
       - name: Publish (npm trusted publishing)
-        run: cd "$PKG" && npm publish --access public --provenance
+        run: npm publish "$TARBALL" --access public --provenance
       - name: Extract release notes from CHANGELOG
         run: |
           awk -v ver="$VER" '
