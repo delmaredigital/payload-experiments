@@ -1,7 +1,7 @@
 // xp-areas: power
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -90,7 +90,9 @@ function sorted(value) {
 }
 const inputs = JSON.parse(await readFile(new URL('./power_cases.json', import.meta.url), 'utf8'))
 if (Object.keys(inputs).sort().join(',') !== [...symbols].sort().join(',')) throw new Error('power_cases.json must cover exactly the six public symbols')
-const temporary = await mkdtemp(join(tmpdir(), 'xp-power-'))
+// realpath: on macOS os.tmpdir() is a symlink (/var -> /private/var); `npm ls --prefix` on the
+// symlinked path reports no dependencies, so every later use goes through the resolved path.
+const temporary = await realpath(await mkdtemp(join(tmpdir(), 'xp-power-')))
 const run = promisify(execFile)
 try {
   await run('npm', ['install', '--prefix', temporary, '--no-save', '--ignore-scripts', '@stdlib/stats@0.1.1'], { maxBuffer: 32 * 1024 * 1024 })
