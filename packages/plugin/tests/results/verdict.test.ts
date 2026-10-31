@@ -9,10 +9,14 @@ import { collectImports } from '../_helpers/importGraph.js'
 const fixtures = new URL('../_fixtures/snapshots/', import.meta.url)
 const names = readdirSync(fixtures).filter(name => name.endsWith('.json')).sort()
 function input(name = 'T7'): VerdictInput {
-  return JSON.parse(readFileSync(new URL(`inputs/${name}.json`, fixtures), 'utf8'))
+  const value: VerdictInput = JSON.parse(readFileSync(new URL(`inputs/${name}.json`, fixtures), 'utf8'))
+  // The shared legacy inputs describe higher-is-better metrics.
+  value.primary.direction = 'increase'
+  return value
 }
 function snapshot(name: string): Snapshot {
-  return JSON.parse(readFileSync(new URL(`${name}.json`, fixtures), 'utf8'))
+  const value: Snapshot = JSON.parse(readFileSync(new URL(`${name}.json`, fixtures), 'utf8'))
+  return value
 }
 
 test('rollout winner and failing guardrail labels are required by the contract', () => {
@@ -20,6 +24,8 @@ test('rollout winner and failing guardrail labels are required by the contract',
   expectTypeOf<Rollout>().toExtend<{ winnerArm: string; winnerLabel: string }>()
   expectTypeOf<Omit<Rollout, 'winnerArm'>>().not.toExtend<VerdictInput>()
   expectTypeOf<Omit<Rollout, 'winnerLabel'>>().not.toExtend<VerdictInput>()
+  expectTypeOf<VerdictInput['primary']['direction']>().toEqualTypeOf<'increase' | 'decrease'>()
+  expectTypeOf<Omit<VerdictInput['primary'], 'direction'>>().not.toExtend<VerdictInput['primary']>()
   type Guardrail = VerdictInput['guardrails'][number]
   expectTypeOf<{ name: string; status: 'failing' }>().not.toExtend<Guardrail>()
 })
@@ -33,7 +39,7 @@ test('every JSON snapshot and input satisfies its complete contract', () => {
     "import type { VerdictInput } from '../../src/results/verdict.js'",
     ...names.flatMap((name, index) => [
       `const snapshot${index} = ${readFileSync(new URL(name, fixtures), 'utf8').trimEnd()} satisfies Snapshot;`,
-      `const input${index} = ${readFileSync(new URL(`inputs/${name}`, fixtures), 'utf8').trimEnd()} satisfies VerdictInput;`,
+      `const input${index} = ${JSON.stringify(input(name.slice(0, -5)))} satisfies VerdictInput;`,
     ]),
   ].join('\n')
   const configPath = fileURLToPath(new URL('../../tsconfig.test.json', import.meta.url))
@@ -236,7 +242,7 @@ test('three better variants say all three and still recommend the greatest lift'
   const value = input('T7-several')
   addVariant(value, 'variantC', 'One-page form', 'better', .3)
   expect(computeVerdict(value)).toMatchObject({
-    finding: 'All 3 variants beat the Original; not tested against each other — One-page form has the larger lift.',
+    finding: 'All 3 variants beat the Original; not tested against each other — One-page form has the larger improvement.',
     recommendedArm: 'variantC',
   })
 })
@@ -309,5 +315,26 @@ test('pure helpers have no runtime dependency edges', () => {
     const graph = collectImports(fileURLToPath(new URL(`../../src/results/${name}.ts`, import.meta.url)))
     expect(graph.bare).toEqual([])
     expect(graph.dynamic).toEqual([])
+  }
+})
+
+test.each(['sequential', 'bayesian'] as const)('%s recommends the larger improvement for both metric directions in rows 7 and 8', method => {
+  for (const direction of ['increase', 'decrease'] as const) {
+    const value = input('T7-several')
+    value.method = method
+    value.primary.direction = direction
+    const sign = direction === 'decrease' ? -1 : 1
+    value.primary.comparisons = [
+      { arm: 'variantA', label: 'Shorter form', significant: 'better', lift: sign * .2, ci: direction === 'decrease' ? [-.3, -.1] : [.1, .3] },
+      { arm: 'variantB', label: 'Guided form', significant: 'better', lift: sign * .52, ci: direction === 'decrease' ? [-.62, -.42] : [.42, .62] },
+    ]
+    expect(computeVerdict(value)).toMatchObject({ row: 7, recommendedArm: 'variantB',
+      finding: 'Both beat the Original; not tested against each other — Guided form has the larger improvement.' })
+    addVariant(value, 'variantC', 'One-page form', 'worse', -sign * .1)
+    const before = structuredClone(value)
+    expect(computeVerdict(value)).toMatchObject({ row: 8, recommendedArm: 'variantB' })
+    expect(value).toEqual(before)
+    value.primary.comparisons.reverse()
+    expect(computeVerdict(value).recommendedArm).toBe('variantB')
   }
 })
