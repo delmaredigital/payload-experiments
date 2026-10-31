@@ -7,7 +7,7 @@ export interface ExperimentsProxyRuntimeOptions {
   secret: string | string[]
   apiRoute: string
   cookie?: { name?: string; maxAgeDays?: number; domain?: string; consent?(req: NextRequest): boolean }
-  loadManifest?: () => Promise<Manifest>
+  loadManifest?: (opts?: { ifRevision?: number }) => Promise<Manifest | 'not-modified' | null>
   getUnit?: (req: NextRequest) => { userId?: string; attributes: Attributes; sessionUnknown?: boolean } | Promise<{ userId?: string; attributes: Attributes; sessionUnknown?: boolean }>
 }
 export interface ExperimentsProxyRuntime {

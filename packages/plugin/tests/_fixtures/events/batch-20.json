@@ -1,0 +1,104 @@
+{
+  "events": [
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-1"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-2"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-3"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-4"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-5"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-6"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-7"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-8"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-9"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-10"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-11"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-12"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-13"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-14"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-15"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-16"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-17"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-18"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-19"
+    },
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-20"
+    }
+  ]
+}

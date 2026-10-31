@@ -1,0 +1,9 @@
+'use client'
+
+export { ExperimentsProvider } from '../client/ExperimentsProvider.js'
+export { useFlagPoint } from '../client/useFlagPoint.js'
+export { useExperiment } from '../client/useExperiment.js'
+export { ExperimentPageview } from '../client/ExperimentPageview.js'
+export { trackConversionBeacon } from '../client/trackConversionBeacon.js'
+export { MAX_EVENTS_PER_BODY, DEFAULT_MAX_BODY_BYTES } from '../constants.js'
+export type { ClientAssignments } from '../types/assignments.js'
