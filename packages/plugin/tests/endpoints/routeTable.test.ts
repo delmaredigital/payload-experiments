@@ -93,13 +93,8 @@ test('a validly signed cookie reaches the events handler', async () => {
   expect(response.status).not.toBe(403)
 })
 
-test('transition stubs identify their owning lanes', async () => {
-  const lanes = { 'make-content': 'CORE-12' }
-  for (const [action, lane] of Object.entries(lanes)) {
-    const response = await invoke(`/xp/experiments/:id/${action}`, options(), request())
-    expect(response.status).toBe(501)
-    expect(await response.json()).toEqual({ errors: [{ code: 'not-implemented', message: lane }] })
-  }
+test('make-content is a real manage endpoint (CORE-12b)', async () => {
+  await assertResponse(await invoke('/xp/experiments/:id/make-content', options(), request()), 404, 'not-found')
 })
 
 describe('handler error mapping', () => {

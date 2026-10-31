@@ -24,7 +24,7 @@ export async function scanBlockPlacements(req: PayloadRequest, { slug, puckColle
       let page = 1
       while (true) {
         const result = await req.payload.find({
-          collection, req, overrideAccess: false, limit: 100, page, depth: 0, draft,
+          collection, req, overrideAccess: false, limit: 100, page, depth: 0, draft, includeLockStatus: true,
           ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}),
         })
         for (const doc of result.docs) {
@@ -42,7 +42,7 @@ export async function scanBlockPlacements(req: PayloadRequest, { slug, puckColle
               placements.push({ collection, id: doc.id, title: String(doc.title ?? doc.name ?? doc.id),
                 published: !draft || doc._status === 'published',
                 slots: Object.fromEntries(slots.map(slot => [slot, Array.isArray(props[slot]) ? props[slot].length : 0])) as Record<ArmSlot, number>,
-                ...(typeof doc.locked === 'boolean' ? { locked: doc.locked } : {}),
+                locked: doc._isLocked === true || doc.locked === true,
               })
             }
             Object.values(node).forEach(walk)

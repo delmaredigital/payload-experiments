@@ -10,6 +10,10 @@ const preflight: PreflightResult = {
   baseline: { metricId: 1, value: 0.125, days: 28 }, trafficPerDay: 1200,
   estimate: { weeks: 8, plannedDurationDays: 56, sequentialTuningParameter: 500, feasible: true },
 }
+test('locked placements explain that every page must be available', () => {
+  expect(REVIEW_HINTS['locked-placement']).toBe('Finish editing every page using this experiment, then try again.')
+  expect(REVIEW_DONE['locked-placement']).toBe('Pages available for changes')
+})
 test('all refusal codes have hints, including every start check', () => {
   expect(Object.keys(REVIEW_HINTS)).toHaveLength(41)
   const codes: RefusalCode[] = ['weights-total', 'control-count', 'control-first', 'holdout-last', 'holdout-count',

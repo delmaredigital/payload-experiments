@@ -34,7 +34,7 @@ export const REVIEW_HINTS: Record<RefusalCode, string> = {
   'confirmation-required': 'Review and confirm this change.',
   'invalid-winner': 'Choose the Original or a variant.',
   'slices-taken': 'Free the space this experiment needs in its layer.',
-  'locked-placement': 'Finish editing the page and try again.',
+  'locked-placement': 'Finish editing every page using this experiment, then try again.',
   'not-implemented': 'This review is not available yet.',
   forbidden: 'Ask an admin for permission to manage experiments.',
   unauthenticated: 'Sign in again to continue.',

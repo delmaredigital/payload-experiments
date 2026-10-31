@@ -2,7 +2,7 @@ import type { Plugin } from 'payload'
 import type { ExperimentsPluginOptions } from './types/contracts.js'
 import { buildCollections } from './collections/index.js'
 import { buildEndpoints } from './endpoints/index.js'
-import { contentChangesHook } from './hooks/contentChanges.js'
+import { contentChangesBeforeHook, contentChangesHook } from './hooks/contentChanges.js'
 import { createOnInit } from './onInit.js'
 import { puckCollections, resolveOptions } from './options.js'
 
@@ -20,9 +20,17 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
     return {
       ...config,
       collections: [
-        ...(config.collections ?? []).map(collection => options.puck?.enabled && registrations.some(entry => entry.slug === collection.slug) ? {
-          ...collection, hooks: { ...collection.hooks, afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook] },
-        } : collection),
+        ...(config.collections ?? []).map(collection => {
+          const puck = options.puck?.enabled && registrations.some(entry => entry.slug === collection.slug)
+          // Draft-enabled hosts can call recordContentChange themselves, including
+          // arm-select collections outside Puck. Capture their baseline as well.
+          const capture = puck || Boolean(collection.versions && typeof collection.versions === 'object' && collection.versions.drafts)
+          if (!capture) return collection
+          return { ...collection, hooks: { ...collection.hooks,
+            beforeChange: [...(collection.hooks?.beforeChange ?? []), contentChangesBeforeHook],
+            ...(puck ? { afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook] } : {}),
+          } }
+        }),
         ...collections,
       ],
       globals: [...(config.globals ?? []), ...globals],
