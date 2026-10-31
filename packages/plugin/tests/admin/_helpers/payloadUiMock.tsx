@@ -13,6 +13,7 @@ const defaults = () => ({
   form: { dispatchFields: vi.fn(), submit: vi.fn(), getData: vi.fn(() => ({})), setModified: vi.fn() } as Values,
   formFields: {} as MockFields,
   documentInfo: { id: '1', collectionSlug: 'xp-experiments', data: {} } as Values,
+  formModified: false,
 })
 let state = defaults()
 const listeners = new Set<() => void>()
@@ -34,6 +35,7 @@ export const setAuth = (auth: Values) => setPayloadUiState({ auth })
 export const setField = (field: Values, path?: string) => setPayloadUiState(path ? { fieldsByPath: { ...state.fieldsByPath, [path]: field } } : { field })
 export const setForm = (form: Values) => setPayloadUiState({ form })
 export const setFormFields = (formFields: MockFields) => setPayloadUiState({ formFields })
+export const setFormModified = (formModified: boolean) => setPayloadUiState({ formModified })
 export const setDocumentInfo = (documentInfo: Values) => setPayloadUiState({ documentInfo })
 
 // Keep wrappers deliberately small; no Payload internals or layout are simulated.
@@ -96,6 +98,7 @@ export function payloadUiMock() {
       return selector([snapshot.formFields, snapshot.form.dispatchFields])
     },
     useDocumentInfo: () => useStateSnapshot().documentInfo,
+    useFormModified: () => useStateSnapshot().formModified,
     Button: ({ children, className, onClick, disabled, type = 'button' }: Children & {
       onClick?: () => void; disabled?: boolean; type?: 'button' | 'submit' | 'reset'
     }) => <button className={className} onClick={onClick} disabled={disabled} type={type}>{children}</button>,

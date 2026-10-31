@@ -6,7 +6,7 @@ import { ExperimentActions } from '../../../src/admin/actions/ExperimentActions.
 import { availableActions } from '../../../src/admin/actions/actions.model.js'
 import { reloadPage } from '../../../src/admin/reload.js'
 import { expectedConfirm } from '../../../src/transitions/confirmPhrases.js'
-import { resetPayloadUiMock, setAuth, setDocumentInfo, setFormFields } from '../_helpers/payloadUiMock.js'
+import { resetPayloadUiMock, setAuth, setDocumentInfo, setFormFields, setFormModified } from '../_helpers/payloadUiMock.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
 vi.mock('../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
@@ -95,4 +95,18 @@ test('hard-coded panel label and typed phrase use the trimmed stored winner labe
   fireEvent.click(dialog.querySelector('button')!)
   await waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1))
   expect(JSON.parse(fetcher.mock.calls[0]?.[1].body)).toEqual({ mode: 'hard-coded', confirmation: phrase })
+})
+
+test('unsaved changes disable every action and explain why', () => {
+  setAuth({ permissions: { collections: { 'xp-experiments': { update: true } } } })
+  setFormFields({ status: { value: 'stopped' }, kind: { value: 'block' },
+    'arms.0.key': { value: 'control' }, 'arms.1.key': { value: 'variantA' }, 'arms.1.label': { value: 'Renamed, not saved' } })
+  setFormModified(true)
+  render(<ExperimentActions field={{ name: 'actions', type: 'ui', admin: {} }} path="actions" />)
+  const buttons = screen.getAllByRole('button')
+  expect(buttons.length).toBeGreaterThan(0)
+  for (const button of buttons) expect((button as HTMLButtonElement).disabled).toBe(true)
+  expect(screen.getByText('Save your changes first; these actions use the saved experiment.')).toBeTruthy()
+  fireEvent.click(buttons[0]!)
+  expect(screen.queryByRole('dialog')).toBeNull()
 })

@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Button, useAuth, useDocumentInfo, useFormFields } from '@payloadcms/ui'
+import { Button, useAuth, useDocumentInfo, useFormFields, useFormModified } from '@payloadcms/ui'
 import type { UIFieldClientProps } from 'payload'
 import type { ExperimentKind, Status } from '../../types/contracts.js'
 import { canManage } from '../permissions.model.js'
@@ -8,6 +8,8 @@ import { actionGroupLabel, availableActions } from './actions.model.js'
 import type { ActionDecision, ActionGroup, ActionId } from './actions.model.js'
 import { ConfirmDialog } from './ConfirmDialog.js'
 import { DecideDialog } from './DecideDialog.js'
+
+const SAVE_FIRST = 'Save your changes first; these actions use the saved experiment.'
 
 export function ExperimentActions(_props: UIFieldClientProps) {
   const { id } = useDocumentInfo()
@@ -28,13 +30,16 @@ export function ExperimentActions(_props: UIFieldClientProps) {
   const holdoutReleasedAt = useFormFields(([fields]) => fields['decision.holdoutReleasedAt']?.value as string | null | undefined)
   const contentReport = useFormFields(([fields]) => fields['decision.contentReport']?.value as ActionDecision['contentReport'])
   const [selected, setSelected] = useState<ActionId | null>(null)
+  // Transitions act on the saved document (and the typed phrase uses the saved group label), so unsaved edits block them.
+  const modified = useFormModified()
   const actions = availableActions({ status, kind, arms, decision: { winnerArm, holdoutReleasedAt, contentReport }, canManage: canManage(permissions) })
   const action = actions.find(candidate => candidate.id === selected)
   if (id == null) return null
   const label = actionGroupLabel(winnerArm ?? 'control', arms.find(group => group.key === winnerArm)?.label)
   return <div className="xp-actions">
-    {actions.map(item => <Button key={item.id} buttonStyle={item.tone === 'primary' ? 'primary' : 'secondary'}
-      className={`xp-action xp-action--${item.tone}`} onClick={() => setSelected(item.id)}>{item.label}</Button>)}
+    {modified && actions.length ? <p className="xp-actions__note">{SAVE_FIRST}</p> : null}
+    {actions.map(item => <Button key={item.id} buttonStyle={item.tone === 'primary' ? 'primary' : 'secondary'} disabled={modified}
+      className={`xp-action xp-action--${item.tone}`} onClick={() => { if (!modified) setSelected(item.id) }}>{item.label}</Button>)}
     {action?.id === 'decide' ? <DecideDialog key={`${id}/decide`} id={id} arms={arms} onClose={() => setSelected(null)} />
       : action ? <ConfirmDialog key={`${id}/${action.id}`} id={id} action={action} winnerLabel={label} onClose={() => setSelected(null)} /> : null}
   </div>
