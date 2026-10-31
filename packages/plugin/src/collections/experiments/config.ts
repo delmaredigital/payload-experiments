@@ -110,7 +110,7 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
             { name: 'cuped', type: 'select', defaultValue: 'auto', options: ['auto', 'off'] },
             { name: 'minExposuresPerArm', type: 'number', defaultValue: 200, min: 1, validate: positiveInteger },
             { name: 'plannedDurationDays', type: 'number', min: 1, validate: (value: number | null | undefined) => value == null || positiveInteger(value) },
-            { name: 'attributionWindowHours', type: 'number', min: 0 },
+            { name: 'attributionWindowHours', type: 'number', min: 1 },
             { name: 'sequentialTuningParameter', type: 'number', min: 0 },
             { name: 'reachPerDay', type: 'number', min: 1, validate: (value: number | null | undefined) => value == null || positiveInteger(value) },
           ] },
