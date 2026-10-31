@@ -1,6 +1,6 @@
 import type { Payload } from 'payload'
-import { XpNotImplemented } from '../errors.js'
+import { eraseUserInTransaction } from '../db/erase.js'
 
-export async function eraseUser(_payload: Payload, _opts: { userId: string }): Promise<{ identities: number; events: number }> {
-  throw new XpNotImplemented('CORE-08a')
+export async function eraseUser(payload: Payload, opts: { userId: string }): Promise<{ identities: number; events: number }> {
+  return eraseUserInTransaction(payload, String(opts.userId))
 }
