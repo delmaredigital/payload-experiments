@@ -1,4 +1,5 @@
 import type { Executor } from './executor.js'
+import type { PayloadRequest } from 'payload'
 import { COLUMNS, TABLES } from './names.js'
 import type { DocId } from '../types/contracts.js'
 import { XpRefusal } from '../errors.js'
@@ -7,6 +8,21 @@ import { qualifiedTable, quoteIdentifier as quote } from './sql.js'
 export interface AllocationChange { at: string; from: number; to: number }
 export interface ContentChange { at: string; doc: { collection: string; id: DocId }; by: DocId | null }
 type AppendArgs<T> = { experimentId: DocId; phase: number; entry: T }
+
+/** Payload saves the current published version before afterChange (3.90.2).
+ * The next published version is the baseline, even when previousDoc is a draft.
+ * Read the adapter directly so Local API error handling cannot kill the host tx.
+ */
+export async function previousPublishedContent(req: PayloadRequest, collection: string, id: DocId): Promise<Record<string, unknown> | undefined> {
+  const result = await req.payload.db.findVersions<Record<string, unknown>>({
+    collection, req, limit: 2, pagination: false, sort: ['-updatedAt', '-id'],
+    where: { and: [{ parent: { equals: id } }, { 'version._status': { equals: 'published' } }] },
+    // Adapter reads have no access layer; this is the §7.8 content-change audit.
+    // Explicit false documents that no privileged Payload Local API call is made.
+    overrideAccess: false,
+  } as Parameters<PayloadRequest['payload']['db']['findVersions']>[0])
+  return result.docs[1]?.version
+}
 
 /** §7.8 contentChanges exception: internal lookup on the host transaction.
  * Use the executor directly: Payload Local API read errors kill the caller's
@@ -52,10 +68,16 @@ export function appendContentChange(exec: Executor, args: AppendArgs<ContentChan
 export async function contentChangeSavepoint<T>(exec: Executor, fn: () => Promise<T>): Promise<{ ok: true; result: T } | { ok: false; error: unknown }> {
   await exec.query('SAVEPOINT xp_content_change')
   try {
+    const { rows } = await exec.query<{ timeout: string }>("SELECT current_setting('lock_timeout') AS timeout")
+    const previousTimeout = rows[0]!.timeout
+    await exec.query("SELECT set_config('lock_timeout', '2s', true)")
     const result = await fn()
+    // RELEASE retains SET LOCAL changes; restore the caller's value explicitly.
+    await exec.query("SELECT set_config('lock_timeout', $1, true)", [previousTimeout])
     await exec.query('RELEASE SAVEPOINT xp_content_change')
     return { ok: true, result }
   } catch (error) {
+    // ROLLBACK TO restores SET LOCAL and releases locks acquired in this savepoint.
     await exec.query('ROLLBACK TO SAVEPOINT xp_content_change')
     await exec.query('RELEASE SAVEPOINT xp_content_change')
     return { ok: false, error }

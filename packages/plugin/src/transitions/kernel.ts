@@ -13,6 +13,8 @@ export interface TransitionScope {
   flagPointId?: string | null
   /** Defaults to true; content-change audit appends opt out. */
   bump?: boolean
+  /** Best-effort content audit only; a borrowed transaction must never be killed here. */
+  audit?: boolean
   excludeIds?: DocId[]
 }
 
@@ -20,9 +22,12 @@ export interface TransitionScope {
  * Returns the callback result and, unless bump is false, the stored manifest's
  * revision. Only the transaction owner commits and verifies that transaction's
  * status on the pool (even without a bump); a caller-owned transaction still
- * needs its caller to commit. Borrowed, non-bumping content-change appends use a
- * savepoint so their caller may report a lost marker without losing the host save.
- * Other failures kill even a borrowed transaction.
+ * needs its caller to commit. The explicit borrowed audit path takes only lock E
+ * inside a savepoint. ROLLBACK TO SAVEPOINT releases that transaction advisory
+ * lock (Postgres §13.3); after RELEASE it remains held until the host commits.
+ * Audit failures never kill the host transaction, even if savepoint recovery
+ * itself fails: the host must observe its own failed commit. Other failures kill
+ * even a borrowed transaction. Owned audits follow the ordinary owned path.
  */
 export async function withTransition<T>(
   req: PayloadRequest,
@@ -31,9 +36,10 @@ export async function withTransition<T>(
 ): Promise<{ result: T; revision?: number }> {
   const hadTransition = Object.prototype.hasOwnProperty.call(req.context, 'xpTransition')
   const previousTransition = req.context.xpTransition
-  let recoveredAudit = false
+  let borrowedAudit = scope.audit === true && req.transactionID != null
   try {
     const owns = await initTransaction(req)
+    borrowedAudit = scope.audit === true && !owns
     const exec = txExecutor(req)
     req.context.xpTransition = true
     const work = async () => {
@@ -41,10 +47,9 @@ export async function withTransition<T>(
       return fn({ exec, req })
     }
     let result: T
-    if (!owns && scope.bump === false) {
+    if (borrowedAudit) {
       const audit = await contentChangeSavepoint(exec, work)
       if (!audit.ok) {
-        recoveredAudit = true
         throw audit.error
       }
       result = audit.result
@@ -61,7 +66,7 @@ export async function withTransition<T>(
     }
     return revision === undefined ? { result } : { result, revision }
   } catch (error) {
-    if (!recoveredAudit) await killTransaction(req)
+    if (!borrowedAudit) await killTransaction(req)
     throw error
   } finally {
     if (hadTransition) req.context.xpTransition = previousTransition

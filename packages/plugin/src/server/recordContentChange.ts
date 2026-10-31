@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import type { CollectionAfterChangeHook } from 'payload'
-import { appendContentChange, contentChangeSavepoint, runningContentExperiment } from '../db/appends.js'
+import { appendContentChange, contentChangeSavepoint, previousPublishedContent, runningContentExperiment } from '../db/appends.js'
 import { txExecutor } from '../db/executor.js'
 import { puckCollections } from '../options.js'
 import { withTransition } from '../transitions/kernel.js'
@@ -43,28 +43,34 @@ function bindings(data: unknown, puck: boolean): Map<string, Binding> {
 }
 
 /** Explicit host helper: failures propagate to the caller. Installed host hooks
- * wrap it with neverThrow. Drafts/autosaves are content edits too (§7.3 / H1).
+ * wrap it with neverThrow. Drafts/autosaves do not affect published content.
  */
 export async function recordContentChange({ doc, previousDoc, req, collection }: Pick<Parameters<CollectionAfterChangeHook>[0], 'doc' | 'previousDoc' | 'req' | 'collection'>): Promise<void> {
+  const drafts = Boolean(collection.versions && collection.versions.drafts)
+  if (drafts && doc._status !== 'published') return
   const options = req.payload.config.custom?.xp as ResolvedOptions | undefined
   const registration = puckCollections(options ?? {}).find(entry => entry.slug === collection.slug)
-  const before = bindings(registration ? previousDoc?.[registration.field] : previousDoc, Boolean(registration))
   const after = bindings(registration ? doc[registration.field] : doc, Boolean(registration))
-  const changed = [...new Set([...before.keys(), ...after.keys()])].filter(key => !isDeepStrictEqual(before.get(key)?.contents, after.get(key)?.contents))
-  if (!changed.length) return
+  const changes = (previous: unknown) => {
+    const before = bindings(registration && object(previous) ? previous[registration.field] : previous, Boolean(registration))
+    return [...new Set([...before.keys(), ...after.keys()])]
+      .filter(key => !isDeepStrictEqual(before.get(key)?.contents, after.get(key)?.contents))
+      .map(key => after.get(key) ?? before.get(key)!)
+  }
+  if (!drafts && !changes(previousDoc).length) return
   // Include discovery reads in the savepoint: a SQL read error also aborts Postgres.
   // An explicit host call must supply its afterChange request's transaction.
   const executor = txExecutor(req)
   const audit = await contentChangeSavepoint(executor, async () => {
+    const changed = changes(drafts ? await previousPublishedContent(req, collection.slug, doc.id) : previousDoc)
     const experiments = new Map<string, DocId>()
-    for (const key of changed) {
-      const binding = after.get(key) ?? before.get(key)!
+    for (const binding of changed) {
       const experiment = await runningContentExperiment(executor, binding)
       if (experiment) experiments.set(String(experiment.id), experiment.id)
     }
-    // Locks persist until the host transaction ends; keep multi-experiment saves ordered.
+    // Successful audit locks persist until commit; acquire multiple E locks in order.
     for (const [, experimentId] of [...experiments].sort(([a], [b]) => a.localeCompare(b))) {
-      await withTransition(req, { experimentId, bump: false }, async ({ exec }) => {
+      await withTransition(req, { experimentId, bump: false, audit: true }, async ({ exec }) => {
         const experiment = await runningContentExperiment(exec, { field: 'id', value: experimentId })
         if (!experiment) return
         await appendContentChange(exec, { experimentId, phase: experiment.phase,

@@ -2,7 +2,7 @@ import { sql, type SQL } from '@payloadcms/db-postgres/drizzle'
 import { PgDialect } from '@payloadcms/db-postgres/drizzle/pg-core'
 import type { CollectionAfterChangeHook, PayloadRequest } from 'payload'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
-import { appendAllocationChange, appendContentChange } from '../../src/db/appends.js'
+import { appendAllocationChange, appendContentChange, contentChangeSavepoint } from '../../src/db/appends.js'
 import { txExecutor } from '../../src/db/executor.js'
 import { createPgliteDb } from '../_helpers/pglite.js'
 import { users, xp_experiments, xp_phases } from '../_fixtures/generated-schema.js'
@@ -10,6 +10,7 @@ import { contentChangesHook } from '../../src/hooks/contentChanges.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
 import { sampleOptions } from '../collections/fixtures.js'
+import { withTransition } from '../../src/transitions/kernel.js'
 
 let database: Awaited<ReturnType<typeof createPgliteDb>>
 let experimentId: number
@@ -116,6 +117,8 @@ test.each(['discovery read', 'locked read', 'append'])('a real SQL failure in th
       expect(req.transactionID).toBe('host')
       expect(payload.dbCalls).toEqual([])
       expect(find).not.toHaveBeenCalled()
+      const locks = await txExecutor(req).query<{ count: string }>("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()")
+      expect(Number(locks.rows[0]!.count)).toBe(0)
       // This query fails with "transaction is aborted" unless savepoint recovery worked.
       expect((await tx.select().from(users)).some(user => user.email === email)).toBe(true)
     })
@@ -124,4 +127,32 @@ test.each(['discovery read', 'locked read', 'append'])('a real SQL failure in th
   } finally {
     report.mockRestore()
   }
+})
+
+test.each([false, true])('audit restores lock_timeout after %s (false=release, true=rollback)', async fail => {
+  await database.db.transaction(async tx => {
+    const req = { transactionID: 'tx', payload: { db: { sessions: { tx: { db: tx } } } } } as unknown as PayloadRequest
+    const exec = txExecutor(req)
+    await exec.query("SELECT set_config('lock_timeout', '7s', true)")
+    const audit = await contentChangeSavepoint(exec, async () => {
+      expect((await exec.query<{ value: string }>("SELECT current_setting('lock_timeout') AS value")).rows[0]!.value).toBe('2s')
+      if (fail) await exec.query('SELECT xp_missing_column FROM users')
+      return 'ok'
+    })
+    expect(audit.ok).toBe(!fail)
+    expect((await exec.query<{ value: string }>("SELECT current_setting('lock_timeout') AS value")).rows[0]!.value).toBe('7s')
+  })
+})
+
+test('successful audit keeps lock E after RELEASE until the host commits', async () => {
+  await database.db.transaction(async tx => {
+    const payload = fakePayload()
+    payload.db.sessions.host = { db: tx, resolve: async () => {}, reject: async () => {} }
+    const req = fakeReq({ payload, transactionID: 'host' })
+    await withTransition(req, { experimentId, bump: false, audit: true }, async () => undefined)
+    const locks = await txExecutor(req).query<{ count: string }>("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()")
+    expect(Number(locks.rows[0]!.count)).toBe(1)
+  })
+  const locks = await database.db.execute(sql.raw("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()"))
+  expect(Number(locks.rows[0]!.count)).toBe(0)
 })
