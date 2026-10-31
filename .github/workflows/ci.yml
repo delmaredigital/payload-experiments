@@ -24,8 +24,10 @@ jobs:
         node: ['22', '24']
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       # pnpm version comes from package.json `packageManager`.
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10 (target of the v6 tag)
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
@@ -61,7 +63,9 @@ jobs:
       XP_IT_ID_TYPE: ${{ matrix.id_type }}
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10 (target of the v6 tag)
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
