@@ -16,10 +16,6 @@ function input(name = 'T7'): VerdictInput {
 }
 function snapshot(name: string): Snapshot {
   const value: Snapshot = JSON.parse(readFileSync(new URL(`${name}.json`, fixtures), 'utf8'))
-  // Shared snapshot files retain their historic copy; this round changes the
-  // verdict wording without rewriting stored snapshots or admin fixtures.
-  value.verdict.finding = value.verdict.finding.replace('larger lift', 'larger improvement')
-  value.verdict.headline = value.verdict.headline.replace('larger lift', 'larger improvement')
   return value
 }
 
