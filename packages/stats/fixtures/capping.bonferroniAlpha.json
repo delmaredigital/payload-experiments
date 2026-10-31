@@ -1,0 +1,104 @@
+{
+  "cases": [
+    {
+      "expected": 0.05,
+      "input": {
+        "args": [
+          0.05,
+          1
+        ]
+      },
+      "name": "alpha-0.05-k1"
+    },
+    {
+      "expected": 0.025,
+      "input": {
+        "args": [
+          0.05,
+          2
+        ]
+      },
+      "name": "alpha-0.05-k2"
+    },
+    {
+      "expected": 0.016666666666666666,
+      "input": {
+        "args": [
+          0.05,
+          3
+        ]
+      },
+      "name": "alpha-0.05-k3"
+    },
+    {
+      "expected": 0.025,
+      "input": {
+        "args": [
+          0.1,
+          4
+        ]
+      },
+      "name": "alpha-0.1-k4"
+    },
+    {
+      "expected": {
+        "$raises": "ValueError"
+      },
+      "input": {
+        "args": [
+          0.05,
+          0
+        ]
+      },
+      "name": "k-zero"
+    },
+    {
+      "expected": {
+        "$raises": "ValueError"
+      },
+      "input": {
+        "args": [
+          0.05,
+          1.5
+        ]
+      },
+      "name": "k-fractional"
+    },
+    {
+      "expected": {
+        "$raises": "ValueError"
+      },
+      "input": {
+        "args": [
+          0.0,
+          2
+        ]
+      },
+      "name": "alpha-zero"
+    },
+    {
+      "expected": {
+        "$raises": "ValueError"
+      },
+      "input": {
+        "args": [
+          1.0,
+          2
+        ]
+      },
+      "name": "alpha-one"
+    }
+  ],
+  "source": {
+    "module": "python",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "composed:\u00a76.3"
+  }
+}

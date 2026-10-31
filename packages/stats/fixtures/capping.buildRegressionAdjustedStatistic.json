@@ -1,0 +1,492 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "n": 0,
+        "post": {
+          "n": 0,
+          "sum": 0.0,
+          "type": "proportion"
+        },
+        "postPreSumOfProducts": 0.0,
+        "pre": {
+          "n": 0,
+          "sum": 0.0,
+          "type": "proportion"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "binomial",
+          {
+            "n": 0,
+            "postPreSumOfProducts": 0.0,
+            "preSum": 0.0,
+            "preSumSquares": 0.0,
+            "sum": 0.0,
+            "sumSquares": 0.0
+          }
+        ]
+      },
+      "name": "binomial-empty"
+    },
+    {
+      "expected": {
+        "n": 1,
+        "post": {
+          "n": 1,
+          "sum": 0.0,
+          "type": "proportion"
+        },
+        "postPreSumOfProducts": 0.0,
+        "pre": {
+          "n": 1,
+          "sum": 1.0,
+          "type": "proportion"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "binomial",
+          {
+            "n": 1,
+            "postPreSumOfProducts": 0.0,
+            "preSum": 1.0,
+            "preSumSquares": 1.0,
+            "sum": 0.0,
+            "sumSquares": 0.0
+          }
+        ]
+      },
+      "name": "binomial-singleton"
+    },
+    {
+      "expected": {
+        "n": 4,
+        "post": {
+          "n": 4,
+          "sum": 2.0,
+          "type": "proportion"
+        },
+        "postPreSumOfProducts": 1.0,
+        "pre": {
+          "n": 4,
+          "sum": 2.0,
+          "type": "proportion"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "binomial",
+          {
+            "n": 4,
+            "postPreSumOfProducts": 1.0,
+            "preSum": 2.0,
+            "preSumSquares": 2.0,
+            "sum": 2.0,
+            "sumSquares": 2.0
+          }
+        ]
+      },
+      "name": "binomial-mixed"
+    },
+    {
+      "expected": {
+        "n": 4,
+        "post": {
+          "n": 4,
+          "sum": 0.0,
+          "type": "proportion"
+        },
+        "postPreSumOfProducts": 0.0,
+        "pre": {
+          "n": 4,
+          "sum": 0.0,
+          "type": "proportion"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "binomial",
+          {
+            "n": 4,
+            "postPreSumOfProducts": 0.0,
+            "preSum": 0.0,
+            "preSumSquares": 0.0,
+            "sum": 0.0,
+            "sumSquares": 0.0
+          }
+        ]
+      },
+      "name": "binomial-zero"
+    },
+    {
+      "expected": {
+        "n": 0,
+        "post": {
+          "n": 0,
+          "sum": 0.0,
+          "sumSquares": 0.0,
+          "type": "sampleMean"
+        },
+        "postPreSumOfProducts": 0.0,
+        "pre": {
+          "n": 0,
+          "sum": 0.0,
+          "sumSquares": 0.0,
+          "type": "sampleMean"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "count",
+          {
+            "n": 0,
+            "postPreSumOfProducts": 0.0,
+            "preSum": 0.0,
+            "preSumSquares": 0.0,
+            "sum": 0.0,
+            "sumSquares": 0.0
+          }
+        ]
+      },
+      "name": "count-empty"
+    },
+    {
+      "expected": {
+        "n": 1,
+        "post": {
+          "n": 1,
+          "sum": -5.0,
+          "sumSquares": 25.0,
+          "type": "sampleMean"
+        },
+        "postPreSumOfProducts": 0.0,
+        "pre": {
+          "n": 1,
+          "sum": 0.0,
+          "sumSquares": 0.0,
+          "type": "sampleMean"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "count",
+          {
+            "n": 1,
+            "postPreSumOfProducts": 0.0,
+            "preSum": 0.0,
+            "preSumSquares": 0.0,
+            "sum": -5.0,
+            "sumSquares": 25.0
+          }
+        ]
+      },
+      "name": "count-singleton"
+    },
+    {
+      "expected": {
+        "n": 4,
+        "post": {
+          "n": 4,
+          "sum": 107.0,
+          "sumSquares": 10129.0,
+          "type": "sampleMean"
+        },
+        "postPreSumOfProducts": 4986.0,
+        "pre": {
+          "n": 4,
+          "sum": 51.0,
+          "sumSquares": 2513.0,
+          "type": "sampleMean"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "count",
+          {
+            "n": 4,
+            "postPreSumOfProducts": 4986.0,
+            "preSum": 51.0,
+            "preSumSquares": 2513.0,
+            "sum": 107.0,
+            "sumSquares": 10129.0
+          }
+        ]
+      },
+      "name": "count-mixed"
+    },
+    {
+      "expected": {
+        "n": 4,
+        "post": {
+          "n": 4,
+          "sum": 0.0,
+          "sumSquares": 0.0,
+          "type": "sampleMean"
+        },
+        "postPreSumOfProducts": 0.0,
+        "pre": {
+          "n": 4,
+          "sum": 0.0,
+          "sumSquares": 0.0,
+          "type": "sampleMean"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "count",
+          {
+            "n": 4,
+            "postPreSumOfProducts": 0.0,
+            "preSum": 0.0,
+            "preSumSquares": 0.0,
+            "sum": 0.0,
+            "sumSquares": 0.0
+          }
+        ]
+      },
+      "name": "count-zero"
+    },
+    {
+      "expected": {
+        "n": 0,
+        "post": {
+          "n": 0,
+          "sum": 0.0,
+          "sumSquares": 0.0,
+          "type": "sampleMean"
+        },
+        "postPreSumOfProducts": 0.0,
+        "pre": {
+          "n": 0,
+          "sum": 0.0,
+          "sumSquares": 0.0,
+          "type": "sampleMean"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "revenue",
+          {
+            "n": 0,
+            "postPreSumOfProducts": 0.0,
+            "preSum": 0.0,
+            "preSumSquares": 0.0,
+            "sum": 0.0,
+            "sumSquares": 0.0
+          }
+        ]
+      },
+      "name": "revenue-empty"
+    },
+    {
+      "expected": {
+        "n": 1,
+        "post": {
+          "n": 1,
+          "sum": -5.0,
+          "sumSquares": 25.0,
+          "type": "sampleMean"
+        },
+        "postPreSumOfProducts": 0.0,
+        "pre": {
+          "n": 1,
+          "sum": 0.0,
+          "sumSquares": 0.0,
+          "type": "sampleMean"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "revenue",
+          {
+            "n": 1,
+            "postPreSumOfProducts": 0.0,
+            "preSum": 0.0,
+            "preSumSquares": 0.0,
+            "sum": -5.0,
+            "sumSquares": 25.0
+          }
+        ]
+      },
+      "name": "revenue-singleton"
+    },
+    {
+      "expected": {
+        "n": 4,
+        "post": {
+          "n": 4,
+          "sum": 107.0,
+          "sumSquares": 10129.0,
+          "type": "sampleMean"
+        },
+        "postPreSumOfProducts": 4986.0,
+        "pre": {
+          "n": 4,
+          "sum": 51.0,
+          "sumSquares": 2513.0,
+          "type": "sampleMean"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "revenue",
+          {
+            "n": 4,
+            "postPreSumOfProducts": 4986.0,
+            "preSum": 51.0,
+            "preSumSquares": 2513.0,
+            "sum": 107.0,
+            "sumSquares": 10129.0
+          }
+        ]
+      },
+      "name": "revenue-mixed"
+    },
+    {
+      "expected": {
+        "n": 4,
+        "post": {
+          "n": 4,
+          "sum": 0.0,
+          "sumSquares": 0.0,
+          "type": "sampleMean"
+        },
+        "postPreSumOfProducts": 0.0,
+        "pre": {
+          "n": 4,
+          "sum": 0.0,
+          "sumSquares": 0.0,
+          "type": "sampleMean"
+        },
+        "theta": null,
+        "type": "regressionAdjusted"
+      },
+      "input": {
+        "args": [
+          "revenue",
+          {
+            "n": 4,
+            "postPreSumOfProducts": 0.0,
+            "preSum": 0.0,
+            "preSumSquares": 0.0,
+            "sum": 0.0,
+            "sumSquares": 0.0
+          }
+        ]
+      },
+      "name": "revenue-zero"
+    },
+    {
+      "expected": {
+        "$raises": "ValueError"
+      },
+      "input": {
+        "args": [
+          "binomial",
+          {
+            "n": 3,
+            "postPreSumOfProducts": 1.0,
+            "preSum": 1.0,
+            "preSumSquares": 1.0,
+            "sum": 2.0,
+            "sumSquares": 4.0
+          }
+        ]
+      },
+      "name": "not-01-post"
+    },
+    {
+      "expected": {
+        "$raises": "ValueError"
+      },
+      "input": {
+        "args": [
+          "binomial",
+          {
+            "n": 3,
+            "postPreSumOfProducts": 1.0,
+            "preSum": 2.0,
+            "preSumSquares": 4.0,
+            "sum": 1.0,
+            "sumSquares": 1.0
+          }
+        ]
+      },
+      "name": "not-01-pre"
+    },
+    {
+      "expected": {
+        "$raises": "ValueError"
+      },
+      "input": {
+        "args": [
+          "binomial",
+          {
+            "n": 1,
+            "postPreSumOfProducts": 1.0,
+            "preSum": 1.0,
+            "preSumSquares": 1.0,
+            "sum": 2.0,
+            "sumSquares": 2.0
+          }
+        ]
+      },
+      "name": "sum-exceeds-n-post"
+    },
+    {
+      "expected": {
+        "$raises": "ValueError"
+      },
+      "input": {
+        "args": [
+          "binomial",
+          {
+            "n": 1,
+            "postPreSumOfProducts": 1.0,
+            "preSum": 2.0,
+            "preSumSquares": 2.0,
+            "sum": 1.0,
+            "sumSquares": 1.0
+          }
+        ]
+      },
+      "name": "sum-exceeds-n-pre"
+    }
+  ],
+  "source": {
+    "module": "python",
+    "pins": {
+      "numpy": "1.26.4",
+      "pandas": "2.3.1",
+      "pydantic": "2.11.7",
+      "scipy": "1.13.1"
+    },
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "composed:\u00a76.3"
+  }
+}
