@@ -50,7 +50,7 @@ export const manifest: Array<{ key: string; fixture: string; symbol: string }> =
   { key: 'internal/studentT#tCdf', fixture: 'distributions.tCdf', symbol: 't.cdf' },
   { key: 'internal/studentT#tPpf', fixture: 'distributions.tPpf', symbol: 't.ppf' },
   { key: 'internal/gamma#chi2Sf', fixture: 'distributions.chi2Sf', symbol: 'chi2.sf' },
-  { key: 'internal/truncatedNormal#truncatedNormalMean', fixture: 'distributions.truncatedNormalMean', symbol: 'truncated_normal_mean' },
+  { key: 'internal/truncatedNormal#truncatedNormalMean', fixture: 'bayesian.truncatedNormalMean', symbol: 'truncated_normal_mean' },
   { key: 'internal/utils#frequentistDiff', fixture: 'utils.frequentistDiff', symbol: 'frequentist_diff' },
   { key: 'internal/utils#frequentistVariance', fixture: 'utils.frequentistVariance', symbol: 'frequentist_variance' },
   { key: 'internal/utils#varianceOfRatios', fixture: 'utils.varianceOfRatios', symbol: 'variance_of_ratios' },

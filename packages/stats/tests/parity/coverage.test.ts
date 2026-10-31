@@ -10,6 +10,11 @@ import { pending } from './pending.js'
 import { runners } from './runners.js'
 
 const sourceDir = fileURLToPath(new URL('../../src/', import.meta.url))
+const OTHER_REPOS = new Set<string>()
+const FIXTURE_AREAS = new Set([
+  'sdk', 'assignment', 'statistics', 'moments', 'sequential', 'fixedHorizon',
+  'bayesian', 'srm', 'midPower', 'power', 'capping', 'distributions', 'utils',
+])
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
@@ -51,6 +56,12 @@ describe('parity coverage', () => {
     for (const fixture of pending) expect(manifest.some(entry => entry.fixture === fixture), fixture).toBe(true)
   })
 
+  it('uses fixture areas matching the case module stems', () => {
+    for (const entry of manifest) {
+      expect(FIXTURE_AREAS.has(entry.fixture.split('.')[0]!), entry.fixture).toBe(true)
+    }
+  })
+
   it('requires active fixtures to have cases and the correct provenance', () => {
     for (const entry of manifest) {
       const path = join(FIXTURE_DIR, `${entry.fixture}.json`)
@@ -63,7 +74,11 @@ describe('parity coverage', () => {
       if (!fixture) throw new Error(`Missing active fixture: ${entry.fixture}`)
       expect(fixture.cases.length, entry.fixture).toBeGreaterThanOrEqual(1)
       expect(fixture.source.symbol, entry.fixture).toBe(entry.symbol)
-      if (!process.env.XP_FIXTURE_DIR && fixture.source.repo === 'growthbook/growthbook') {
+      expect(typeof fixture.source.repo, entry.fixture).toBe('string')
+      if (!OTHER_REPOS.has(fixture.source.repo)) {
+        expect(fixture.source.repo, entry.fixture).toBe('growthbook/growthbook')
+      }
+      if (!process.env.XP_FIXTURE_DIR) {
         expect(fixture.source.sha, entry.fixture).toBe(PIN)
       }
     }

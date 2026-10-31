@@ -48,7 +48,7 @@ export const pending: ReadonlySet<string> = new Set([
   'distributions.tCdf',
   'distributions.tPpf',
   'distributions.chi2Sf',
-  'distributions.truncatedNormalMean',
+  'bayesian.truncatedNormalMean',
   'utils.frequentistDiff',
   'utils.frequentistVariance',
   'utils.varianceOfRatios',

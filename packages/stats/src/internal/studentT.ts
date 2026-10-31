@@ -1,12 +1,12 @@
 /**
- * Source: gbstats/frequentist/tests.py t.cdf @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
+ * Source: scipy.stats.t.cdf; fixtures from scipy via gbstats' pinned environment.
  */
 export function tCdf(x: number, dof: number): number {
   throw new Error('not implemented: tCdf')
 }
 
 /**
- * Source: gbstats/frequentist/tests.py t.ppf @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
+ * Source: scipy.stats.t.ppf; fixtures from scipy via gbstats' pinned environment.
  */
 export function tPpf(p: number, dof: number): number {
   throw new Error('not implemented: tPpf')

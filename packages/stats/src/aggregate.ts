@@ -1,7 +1,7 @@
 import type { ProportionStatistic, BaseStatistic, RegressionAdjustedStatistic, UnitMoments, UnitMomentsWithCovariate } from './types.js'
 
 /**
- * Source: spec §5.4, §6.3, §7.6 composed:§6.3 @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
+ * Source: spec §6.3 (composed helper)
  * left-to-right float sums
  */
 export function summarizeUnits(values: readonly number[]): UnitMoments {
@@ -9,14 +9,14 @@ export function summarizeUnits(values: readonly number[]): UnitMoments {
 }
 
 /**
- * Source: spec §5.4, §6.3, §7.6 composed:§6.3 @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
+ * Source: spec §6.3 (composed helper)
  */
 export function summarizeUnitsWithCovariate(values: readonly number[], covariates: readonly number[]): UnitMomentsWithCovariate {
   throw new Error('not implemented: summarizeUnitsWithCovariate')
 }
 
 /**
- * Source: spec §5.4, §6.3, §7.6 composed:§6.3 @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
+ * Source: spec §6.3 (composed helper)
  * binomial → proportion; count/revenue → sampleMean (binomial contract below)
  * binomial → ProportionStatistic(n, sum = converters)
  */
@@ -25,7 +25,7 @@ export function buildStatistic(kind: 'binomial' | 'count' | 'revenue', m: UnitMo
 }
 
 /**
- * Source: spec §5.4, §6.3, §7.6 composed:§6.3 @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
+ * Source: spec §6.3 (composed helper)
  * theta null; pre same type as post; binomial requires 0/1 values AND 0/1 covariates
  */
 export function buildRegressionAdjustedStatistic(kind: 'binomial' | 'count' | 'revenue', m: UnitMomentsWithCovariate): RegressionAdjustedStatistic {
@@ -33,7 +33,7 @@ export function buildRegressionAdjustedStatistic(kind: 'binomial' | 'count' | 'r
 }
 
 /**
- * Source: spec §5.4, §6.3, §7.6 composed:§6.3 @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
+ * Source: spec §6.3 (composed helper)
  * alpha / k; throws k < 1
  */
 export function bonferroniAlpha(alpha: number, k: number): number {
