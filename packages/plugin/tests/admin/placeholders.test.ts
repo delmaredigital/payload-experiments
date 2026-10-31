@@ -21,11 +21,14 @@ for (const file of files) test(`placeholder: ${file}`, () => {
   const source = readFileSync(fileURLToPath(new URL(`../../src/${file}`, import.meta.url)), 'utf8')
   const lines = source.split('\n')
   const client = file.startsWith('admin/') && file.endsWith('.tsx') || file.startsWith('client/') || file.startsWith('puck/editor/')
+  // Once an exp-admin lane replaces a placeholder the marker is gone and only the
+  // directive rule applies; ADM-10 asserts that no marker survives at the end.
+  const placeholder = source.includes('XP-PLACEHOLDER')
   if (client) {
     expect(lines[0]).toBe("'use client'")
-    expect(lines[1]).toBe('// XP-PLACEHOLDER')
+    if (placeholder) expect(lines[1]).toBe('// XP-PLACEHOLDER')
   } else {
-    expect(lines[0]).toBe('// XP-PLACEHOLDER')
+    if (placeholder) expect(lines[0]).toBe('// XP-PLACEHOLDER')
     expect(source).not.toContain("'use client'")
   }
 })
