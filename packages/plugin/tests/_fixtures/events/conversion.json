@@ -1,0 +1,9 @@
+{
+  "events": [
+    {
+      "type": "conversion",
+      "eventName": "registration",
+      "idempotencyKey": "event-1"
+    }
+  ]
+}

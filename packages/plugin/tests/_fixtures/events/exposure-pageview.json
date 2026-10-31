@@ -1,0 +1,11 @@
+{
+  "events": [
+    {
+      "type": "exposure",
+      "experiment": "example-experiment",
+      "phase": 1,
+      "arm": "variantA",
+      "policy": "pageview"
+    }
+  ]
+}
