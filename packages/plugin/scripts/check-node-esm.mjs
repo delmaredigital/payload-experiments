@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -48,6 +49,6 @@ async function checkNodeEsm() {
 }
 
 // Importing the pure helpers does not execute the post-build check.
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+if (process.argv[1] && pathToFileURL(realpathSync(resolve(process.argv[1]))).href === pathToFileURL(realpathSync(new URL(import.meta.url))).href) {
   await checkNodeEsm()
 }
