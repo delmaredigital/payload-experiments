@@ -10,7 +10,7 @@ test('mock descriptions, textareas and checkboxes render and accept changes', ()
   render(<>
     <FieldDescription path="note" description="Explain the choice." />
     <TextareaInput label="Note" path="note" onChange={textChange} />
-    <CheckboxInput label="Confirm" path="confirm" onChange={checkChange} />
+    <CheckboxInput label="Confirm" path="confirm" onToggle={checkChange} />
   </>)
   expect(screen.getByText('Explain the choice.').id).toBe('note-description')
   fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'Ship it' } })

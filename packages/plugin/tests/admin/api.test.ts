@@ -108,8 +108,8 @@ test('recompute returns a typed snapshot id', async () => {
   respond({ snapshotId: 'snapshot-1' })
   const result = await api.recompute(1)
   if (!result.ok) throw new Error(result.message)
-  expectTypeOf(result.data).toEqualTypeOf<{ snapshotId: string }>()
-  expect(result.data.snapshotId).toBe('snapshot-1')
+  expectTypeOf(result.data).toEqualTypeOf<{ snapshotId: string } | undefined>()
+  expect(result.data?.snapshotId).toBe('snapshot-1')
 })
 test('results query works without URLSearchParams.size', async () => {
   const query = new URLSearchParams()

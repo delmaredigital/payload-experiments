@@ -51,8 +51,13 @@ function TextareaInput({ label, path, name, id, ...props }: Omit<InputProps, 'on
 }) {
   return <label>{label}<textarea {...props} name={name ?? path} id={id ?? path} /></label>
 }
-function CheckboxInput({ label, path, name, id, checked, ...props }: Omit<InputProps, 'value'> & { checked?: boolean }) {
-  return <label><input {...props} type="checkbox" checked={checked} name={name ?? path} id={id ?? path} />{label}</label>
+// Mirrors @payloadcms/ui 3.90.2: CheckboxInput takes `onToggle` (no `onChange`) and `readOnly` disables it.
+function CheckboxInput({ label, path, name, id, checked, onToggle, readOnly, disabled, required }: {
+  label?: ReactNode; path?: string; name?: string; id?: string; checked?: boolean
+  onToggle?: (event: ChangeEvent<HTMLInputElement>) => void; readOnly?: boolean; disabled?: boolean; required?: boolean
+}) {
+  return <label><input type="checkbox" checked={checked} name={name ?? path} id={id ?? path} required={required}
+    disabled={disabled || readOnly} onChange={event => onToggle?.(event)} />{label}</label>
 }
 function FieldDescription({ description, path }: { description?: ReactNode; path?: string }) {
   return description ? <div id={path ? `${path}-description` : undefined}>{description}</div> : null

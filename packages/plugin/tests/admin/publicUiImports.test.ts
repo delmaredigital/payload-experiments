@@ -43,7 +43,10 @@ function checkSource(file: string, text: string): string[] {
 }
 test('UI trees and exports import public UI and Payload types only', () => {
   const violations: string[] = []
+  // UI rules apply to UI trees and the UI entry barrels only; server entries (index, rsc, proxy, runtime*) may import payload.
+  const uiEntries = new Set(['client.ts', 'adminClient.ts', 'puck.ts', 'puckEditor.ts'])
   for (const area of ['admin', 'client', 'puck', 'fields', 'exports']) for (const file of scan(new URL(`../../src/${area}/`, import.meta.url))) {
+    if (area === 'exports' && !uiEntries.has(file.split('/').pop()!)) continue
     violations.push(...checkSource(file, readFileSync(file, 'utf8')))
   }
   expect(violations, "Use public UI exports; Payload types must use 'import type', not 'import { type X }'.").toEqual([])

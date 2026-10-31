@@ -5,7 +5,8 @@ import type {
 } from '../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from './copy/common.js'
 
-export type ApiResult<T> = { ok: true; data: T } | {
+// `data` is undefined when a 2xx response has no JSON body (the server always sends one; callers must not assume it).
+export type ApiResult<T> = { ok: true; data: T | undefined } | {
   ok: false; status: number; code?: RefusalCode; message: string; retryable: boolean
 }
 
@@ -21,7 +22,7 @@ export function createApi(apiBase: string) {
       })
       let data: unknown
       try { data = await response.json() } catch {
-        if (response.ok) return { ok: true, data: undefined as T }
+        if (response.ok) return { ok: true, data: undefined }
         return { ok: false, status: response.status,
           ...(response.status === 501 ? { code: 'not-implemented' as const } : {}),
           message: refusalMessage(undefined, response.status),
