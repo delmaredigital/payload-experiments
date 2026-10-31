@@ -4,10 +4,18 @@ import type { Manifest, ManifestExperiment } from '../types/manifest.js'
 import { txExecutor } from '../db/executor.js'
 import { bumpRevision, writeManifest } from '../db/state.js'
 import { XpRefusal } from '../errors.js'
+import { xpOptionsFromReq } from '../options/fromReq.js'
+import type { AttributeKeys } from '../runtime/targeting.js'
+
+type TypedTargetingRule = ManifestExperiment['targeting'][number]
+export interface ManifestCompileOptions {
+  attributeKeys?: AttributeKeys
+  onInvalid?(slug: string, reason: string): void
+}
 
 export interface ManifestPhase {
   phase: number; phaseKind: 'test' | 'rollout'; seed: string; arms: Arm[]
-  allocation: number; targeting: TargetingRule[]; endedAt?: string | null
+  allocation: number; targeting: Array<TargetingRule & { type?: TypedTargetingRule['type'] }>; endedAt?: string | null
 }
 export interface ManifestInputExperiment {
   id: DocId; slug: string; kind: ExperimentKind; status: Status; unitType: UnitType
@@ -15,6 +23,7 @@ export interface ManifestInputExperiment {
   layer?: { slug: string } | DocId | null; layerSlices?: number[] | null
   decision?: { winnerArm?: string | null; discardedAt?: string | null; holdoutReleasedAt?: string | null } | null
   currentPhase: ManifestPhase | null
+  lastTestPhase?: ManifestPhase | null
 }
 export interface ManifestInputs {
   experiments: ManifestInputExperiment[]
@@ -32,12 +41,15 @@ export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [] 
   const experiments: ManifestInputExperiment[] = []
   for (const doc of result.docs) {
     if (excluded.has(String(doc.id))) continue
-    // §7.8 manifest reads: current immutable phase, never editable live config.
+    // §7.8 manifest reads: archived routing needs all arms from the last test,
+    // while active assignment uses the current immutable phase.
     const phases = await req.payload.find({
       collection: 'xp-phases', req, overrideAccess: true, depth: 0, limit: 1,
-      where: { experiment: { equals: doc.id } }, sort: '-phase',
+      where: { experiment: { equals: doc.id }, ...(doc.status === 'archived' ? { phaseKind: { equals: 'test' } } : {}) }, sort: '-phase',
     })
-    experiments.push({ ...doc, currentPhase: phases.docs[0] ?? null } as unknown as ManifestInputExperiment)
+    experiments.push({ ...doc, currentPhase: doc.status === 'archived' ? null : phases.docs[0] ?? null,
+      ...(doc.status === 'archived' ? { lastTestPhase: phases.docs[0] ?? null } : {}),
+    } as unknown as ManifestInputExperiment)
   }
   // §7.8 manifest reads: defaults are part of the private compiled manifest.
   const state = await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: true, depth: 0 })
@@ -45,7 +57,7 @@ export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [] 
 }
 
 /** Pure compiler. Assignment config comes exclusively from the frozen phase. */
-export function compileManifest(inputs: ManifestInputs, revision: number): Manifest {
+export function compileManifest(inputs: ManifestInputs, revision: number, { attributeKeys, onInvalid }: ManifestCompileOptions = {}): Manifest {
   const excluded = new Set(inputs.excludeIds?.map(String))
   const manifest: Manifest = { v: 1, revision, experiments: [], flagDefaults: {}, archivedWinners: {}, archivedPages: {} }
   for (const [point, value] of Object.entries(inputs.flagDefaults)) {
@@ -56,11 +68,12 @@ export function compileManifest(inputs: ManifestInputs, revision: number): Manif
     const { decision, currentPhase: phase } = experiment
     if (experiment.status === 'archived') {
       if (!decision?.winnerArm || decision.discardedAt) continue
-      if (!phase) throw new XpRefusal('invalid-status', `Missing last phase for experiment ${experiment.slug}`, undefined, 409)
-      const winner = phase.arms.find(arm => arm.key === decision.winnerArm)
+      const testPhase = experiment.lastTestPhase ?? (phase?.phaseKind === 'test' ? phase : null)
+      if (!testPhase) throw new XpRefusal('invalid-status', `Missing last test phase for experiment ${experiment.slug}`, undefined, 409)
+      const winner = testPhase.arms.find(arm => arm.key === decision.winnerArm)
       if (experiment.kind === 'block' && winner?.slot) manifest.archivedWinners[experiment.slug] = winner.slot
       if (experiment.kind === 'page' && winner?.pageTarget) {
-        for (const arm of phase.arms) {
+        for (const arm of testPhase.arms) {
           if (arm.pageTarget && arm.pageTarget !== winner.pageTarget) {
             manifest.archivedPages[arm.pageTarget] = { slug: experiment.slug, winnerPath: winner.pageTarget }
           }
@@ -70,6 +83,17 @@ export function compileManifest(inputs: ManifestInputs, revision: number): Manif
     }
     if (experiment.status !== 'running' && experiment.status !== 'decided') continue
     if (!phase) throw new Error(`Missing current phase for experiment ${experiment.slug}`)
+    const targeting: TypedTargetingRule[] = []
+    for (const rule of phase.targeting ?? []) {
+      // Legacy phases have no stored type. Only those consult today's registry.
+      const type = rule.type ?? (attributeKeys && Object.hasOwn(attributeKeys, rule.attribute) ? attributeKeys[rule.attribute]?.type : undefined)
+      if (type !== 'string' && type !== 'number' && type !== 'boolean') break
+      targeting.push({ attribute: rule.attribute, op: rule.op, value: rule.value, type })
+    }
+    if (targeting.length !== (phase.targeting ?? []).length) {
+      onInvalid?.(experiment.slug, 'untyped-targeting-rule')
+      continue
+    }
     const rollout = experiment.status === 'decided' && phase.phaseKind === 'rollout' && !phase.endedAt && !decision?.holdoutReleasedAt
     let layer: ManifestExperiment['layer']
     if ((experiment.status === 'running' || rollout) && experiment.layer != null) {
@@ -85,8 +109,8 @@ export function compileManifest(inputs: ManifestInputs, revision: number): Manif
       arms: phase.arms.map(({ key, kind, weight, slot, pageTarget, params }) => ({
         key, kind, weight, ...(slot != null ? { slot } : {}), ...(pageTarget != null ? { pageTarget } : {}), ...(params != null ? { params } : {}),
       })),
-      targeting: phase.targeting ?? [], exposurePolicy: experiment.exposurePolicy,
-      deferrable: (phase.targeting ?? []).some(rule => rule.attribute === 'loggedIn' || rule.attribute === 'staff'),
+      targeting, exposurePolicy: experiment.exposurePolicy,
+      deferrable: targeting.some(rule => rule.attribute === 'loggedIn' || rule.attribute === 'staff'),
       ...(experiment.flagPoint ? { flagPoint: experiment.flagPoint } : {}),
       ...(layer ? { layer } : {}),
       ...(decision?.winnerArm ? { winnerArm: decision.winnerArm } : {}),
@@ -109,7 +133,10 @@ export async function buildAndStoreManifest(req: PayloadRequest, options: { excl
   const exec = txExecutor(req)
   const revision = await bumpRevision(exec)
   const inputs = await loadManifestInputs(req, options)
-  const manifest = compileManifest(inputs, revision)
+  const manifest = compileManifest(inputs, revision, {
+    attributeKeys: xpOptionsFromReq(req).attributeKeys,
+    onInvalid: (slug, reason) => req.payload.logger.warn({ slug, reason }, 'Experiment omitted from manifest'),
+  })
   await writeManifest(exec, manifest)
   return manifest
 }
