@@ -15,9 +15,14 @@ export async function trackConversion<TUser extends { id: string | number } = { 
     }
     const runtime = serverRuntime.proxyRuntime
     // Consent sees cookies and headers only; the URL is a placeholder.
-    if (runtime.cookie.consent?.(new NextRequest('http://consent.invalid/', { headers })) === false) return
+    let consent = true
+    try { consent = runtime.cookie.consent?.(new NextRequest('http://consent.invalid/', { headers })) !== false } catch {
+      console.error('[payload-experiments] consent failed; treating consent as false')
+      consent = false
+    }
+    if (!consent) return
     payload = await serverRuntime.getPayload()
-    if (!event.idempotencyKey.trim()) {
+    if (typeof event.idempotencyKey !== 'string' || !event.idempotencyKey.trim()) {
       try { payload.logger.warn('Experiments: trackConversion requires a non-empty idempotencyKey') } catch { /* Never break the host's write path. */ }
       return
     }
