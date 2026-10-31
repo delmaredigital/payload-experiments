@@ -29,7 +29,8 @@ function filesUnder(directory: string): string[] {
 }
 
 function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST): Violation[] {
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true,
+    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
   const violations: Violation[] = []
   const report = (node: ts.Node, rule: string) => violations.push({
     file, line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1, rule,
@@ -56,7 +57,8 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
     }
   }
   const unwrap = (expression: ts.Expression): ts.Expression => {
-    while (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) {
+    while (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) ||
+      ts.isSatisfiesExpression(expression) || ts.isTypeAssertionExpression(expression) || ts.isNonNullExpression(expression)) {
       expression = expression.expression
     }
     return expression
@@ -70,7 +72,7 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
   const memberName = (expression: ts.Expression): string | undefined => {
     const node = unwrap(expression)
     if (ts.isPropertyAccessExpression(node)) return node.name.text
-    if (ts.isElementAccessExpression(node) && ts.isStringLiteral(node.argumentExpression)) return node.argumentExpression.text
+    if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression)) return node.argumentExpression.text
     return undefined
   }
   const constructors = new Set(['Map', 'Set', 'WeakMap', 'WeakSet', 'URLSearchParams', 'Headers', 'FormData'])
@@ -103,6 +105,14 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
     ts.isFunctionExpression(arg) || ts.isArrowFunction(arg) || ts.isStringLiteralLike(arg) ||
     ts.isNumericLiteral(arg) || ts.isTemplateExpression(arg) ||
     (ts.isPrefixUnaryExpression(arg) && [ts.SyntaxKind.MinusToken, ts.SyntaxKind.PlusToken].includes(arg.operator) && ts.isNumericLiteral(arg.operand))
+  // A typed permissions value such as { update?: boolean | { permission?: boolean } }
+  // is data. Unresolved, any and unknown types provide no such evidence.
+  const nonCallableType = (type: ts.Type): boolean => type.isUnion()
+    ? type.types.every(nonCallableType)
+    : (type.flags & (ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike | ts.TypeFlags.BooleanLike |
+      ts.TypeFlags.BigIntLike | ts.TypeFlags.ESSymbolLike | ts.TypeFlags.Null | ts.TypeFlags.Undefined)) !== 0 ||
+      ((type.flags & ts.TypeFlags.Object) !== 0 && type.getCallSignatures().length === 0)
+  const nonCallableMember = (node: ts.Expression): boolean => nonCallableType(checker.getTypeAtLocation(node))
   const collectAliases = (node: ts.Node) => {
     if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent) && ts.isIdentifier(node.name)) {
       const method = nameOf(node.propertyName) ?? node.name.text
@@ -116,7 +126,8 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
       const member = unwrap(node.initializer)
       const method = memberName(member) ?? ''
-      if (methods.has(method) && (ts.isPropertyAccessExpression(member) || ts.isElementAccessExpression(member))) {
+      if (methods.has(method) && (ts.isPropertyAccessExpression(member) || ts.isElementAccessExpression(member)) &&
+        !nonCallableMember(member)) {
         setAlias(node.name, { method, receiver: member.expression })
       }
     }
@@ -124,7 +135,63 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
   }
   collectAliases(source)
 
+  const sqlModule = (specifier: ts.Expression | undefined): boolean => specifier !== undefined &&
+    ts.isStringLiteralLike(specifier) && /^(?:drizzle-orm|@payloadcms\/(?:db-postgres|drizzle))(?:\/|$)/.test(specifier.text)
+  const typeOnlyImport = (clause: ts.ImportClause | undefined): boolean => clause !== undefined &&
+    (clause.isTypeOnly || (!clause.name && clause.namedBindings !== undefined &&
+      ts.isNamedImports(clause.namedBindings) && clause.namedBindings.elements.length > 0 &&
+      clause.namedBindings.elements.every(element => element.isTypeOnly)))
+  const typeOnlyExport = (node: ts.ExportDeclaration): boolean => node.isTypeOnly ||
+    (node.exportClause !== undefined && ts.isNamedExports(node.exportClause) &&
+      node.exportClause.elements.length > 0 && node.exportClause.elements.every(element => element.isTypeOnly))
+  const outerExpression = (node: ts.Expression): ts.Expression => {
+    while (ts.isParenthesizedExpression(node.parent) || ts.isAsExpression(node.parent) ||
+      ts.isSatisfiesExpression(node.parent) || ts.isTypeAssertionExpression(node.parent) || ts.isNonNullExpression(node.parent)) {
+      node = node.parent
+    }
+    return node
+  }
+  const capturedOrInvoked = (node: ts.Expression): boolean => {
+    const expression = outerExpression(node)
+    const parent = expression.parent
+    return (ts.isCallExpression(parent) && (parent.expression === expression ||
+      (memberName(parent.expression) === 'apply' && parent.arguments[0] === expression))) ||
+      (ts.isVariableDeclaration(parent) && parent.initializer === expression) ||
+      (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.EqualsToken && parent.right === expression) ||
+      ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+        ['call', 'apply', 'bind'].includes(memberName(parent) ?? ''))
+  }
+  const assignmentPattern = (pattern: ts.ObjectLiteralExpression): boolean => {
+    let node: ts.Node = pattern
+    while (ts.isParenthesizedExpression(node.parent) || ts.isObjectLiteralExpression(node.parent) ||
+      ts.isArrayLiteralExpression(node.parent) || ts.isPropertyAssignment(node.parent) || ts.isSpreadElement(node.parent)) {
+      node = node.parent
+    }
+    return ts.isBinaryExpression(node.parent) && node.parent.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      node.parent.left === node
+  }
+
   const walk = (node: ts.Node) => {
+    // Taking a suspect method as a value permits .call/.apply/.bind, Reflect.apply,
+    // assignment aliases and wrapped callees. Refuse it even if a later call
+    // cannot be resolved. Computed keys on unknown receivers stay suspect too.
+    if (!allowed && (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) &&
+      !builtinReceiver(node.expression)) {
+      const direct = ts.isCallExpression(node.parent) && node.parent.expression === node
+      const computed = capturedOrInvoked(node) && ts.isElementAccessExpression(node) &&
+        (ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)
+          ? methods.has(node.argumentExpression.text)
+          : !ts.isStringLiteral(node.argumentExpression) && !ts.isNumericLiteral(node.argumentExpression))
+      if (computed || (methods.has(memberName(node) ?? '') && !direct && !nonCallableMember(node))) {
+        report(node, 'local-api-indirect')
+      }
+    }
+    if (!allowed && ts.isIdentifier(node) && capturedOrInvoked(node)) {
+      const symbol = checker.getSymbolAtLocation(node)
+      const alias = symbol && aliases.get(symbol)
+      if (alias && !builtinReceiver(alias.receiver) &&
+        !(ts.isCallExpression(node.parent) && node.parent.expression === node)) report(node, 'local-api-indirect')
+    }
     if (ts.isCallExpression(node)) {
       const callee = unwrap(node.expression)
       const symbol = ts.isIdentifier(callee) ? checker.getSymbolAtLocation(callee) : undefined
@@ -139,11 +206,13 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
         if (!arg || !ts.isObjectLiteralExpression(arg)) {
           if (!allowed) report(node, 'local-api-nonliteral')
         } else {
+          if (!allowed && arg.properties.some(ts.isSpreadAssignment)) report(node, 'local-api-spread')
           const properties = arg.properties.filter(property => nameOf(property.name) === 'overrideAccess')
           if (!properties.length) report(node, 'local-api-override-required')
           for (const property of properties) {
+            if (!allowed && !(ts.isPropertyAssignment(property) &&
+              unwrap(property.initializer).kind === ts.SyntaxKind.FalseKeyword)) report(node, 'override-not-literal-false')
             if (ts.isPropertyAssignment(property) && unwrap(property.initializer).kind === ts.SyntaxKind.TrueKeyword) {
-              if (!allowed) report(node, 'override-true-not-allowed')
               const start = node.getStart(source)
               const line = source.getLineAndCharacterOfPosition(start).line
               if (!comments.some(comment => comment.end <= start && line - comment.line <= 3)) {
@@ -155,20 +224,25 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
       }
     }
     if (!inDb) {
-      // The receiver may be payload, req.payload, or a longer payload expression.
-      if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && memberName(node.expression) === 'db') {
-        const receiver = unwrap(node.expression)
-        if ((ts.isPropertyAccessExpression(receiver) || ts.isElementAccessExpression(receiver)) &&
-          (receiver.expression.getText(source) === 'payload' || memberName(receiver.expression) === 'payload')) {
-          report(node, 'payload-db-outside-db')
-        }
+      if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && memberName(node) === 'db') {
+        report(node, 'db-outside-db')
       }
+      if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent) && !node.dotDotDotToken &&
+        (nameOf(node.propertyName) ?? (ts.isIdentifier(node.name) ? node.name.text : undefined)) === 'db') {
+        report(node, 'db-outside-db')
+      }
+      if ((ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node)) && nameOf(node.name) === 'db' &&
+        ts.isObjectLiteralExpression(node.parent) && assignmentPattern(node.parent)) report(node, 'db-outside-db')
       if (ts.isTaggedTemplateExpression(node) && (node.tag.getText(source) === 'sql' || memberName(node.tag) === 'sql')) {
         report(node, 'sql-tag-outside-db')
       }
-      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) &&
-        /^(?:drizzle-orm|@payloadcms\/db-postgres\/drizzle)(?:\/|$)/.test(node.moduleSpecifier.text)) {
-        report(node, 'drizzle-import-outside-db')
+      if ((ts.isImportDeclaration(node) && sqlModule(node.moduleSpecifier) && !typeOnlyImport(node.importClause)) ||
+        (ts.isExportDeclaration(node) && sqlModule(node.moduleSpecifier) && !typeOnlyExport(node)) ||
+        (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference) &&
+          sqlModule(node.moduleReference.expression)) ||
+        (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+          (ts.isIdentifier(node.expression) && node.expression.text === 'require')) && sqlModule(node.arguments[0]))) {
+        report(node, 'sql-module-outside-db')
       }
       // Read the complete template, including interpolations, so SQL split over
       // template spans is checked too. Capitalisation intentionally matches §7.8.
@@ -197,11 +271,16 @@ describe('access and SQL source boundaries', () => {
     ['objectNoCollection.ts', 'local-api-override-required'],
     ['nonliteral.ts', 'local-api-nonliteral'],
     ['variableClient.ts', 'local-api-nonliteral'],
-    ['unapprovedOverride.ts', 'override-true-not-allowed'],
+    ['unapprovedOverride.ts', 'override-not-literal-false'],
+    ['nonliteralOverride.ts', 'override-not-literal-false'],
+    ['localApiSpread.ts', 'local-api-spread'],
+    ['indirectLocalApi.ts', 'local-api-indirect'],
     ['uncommentedOverride.ts', 'override-true-comment-required'],
-    ['payloadDb.ts', 'payload-db-outside-db'],
+    ['payloadDb.ts', 'db-outside-db'],
+    ['dbAccess.ts', 'db-outside-db'],
     ['sqlTag.ts', 'sql-tag-outside-db'],
-    ['drizzleImport.ts', 'drizzle-import-outside-db'],
+    ['drizzleImport.ts', 'sql-module-outside-db'],
+    ['sqlModules.ts', 'sql-module-outside-db'],
     ['sqlLiteral.ts', 'sql-literal-outside-db'],
   ] as const
   test.each(fixtures)('%s proves %s fires', (fixture, rule) => {
@@ -210,12 +289,92 @@ describe('access and SQL source boundaries', () => {
     expect(scan(text, file).map(v => v.rule)).toContain(rule)
   })
 
+  test.each([
+    'overrideAccess', 'overrideAccess: flag', 'overrideAccess: !0', 'overrideAccess: req.context.trusted',
+    'get overrideAccess() { return true }', 'overrideAccess() { return false }',
+    'overrideAccess: true', 'overrideAccess: 0', 'overrideAccess: null',
+  ])('requires literal false outside the allow-list: %s', property => {
+    expect(scan(`payload.find({ ${property} })`, 'src/example.ts').map(v => v.rule))
+      .toContain('override-not-literal-false')
+  })
+
+  test.each(['...options, overrideAccess: false', 'overrideAccess: false, ...options'])(
+    'rejects spreads regardless of position: %s', properties => {
+      const text = `payload.find({ ${properties} })`
+      expect(scan(text, 'src/example.ts').map(v => v.rule)).toEqual(['local-api-spread'])
+      expect(scan(text, 'src/transitions/example.ts')).toEqual([])
+    },
+  )
+
+  test.each([
+    'payload.find.call(payload, options)', 'payload.find.apply(payload, [options])',
+    'const bound = payload.find.bind(payload); bound(options)', 'Reflect.apply(payload.find, payload, [options])',
+    'payload[`find`]({ overrideAccess: false })', 'const m = "find"; payload[m](options)',
+    'const m = "other"; payload[m](options)', 'const f = payload.find; f({ overrideAccess: false })',
+    'let f; f = payload.find; f({ overrideAccess: false })',
+    'const f = payload[m]; f(options)', 'let f; f = payload[m]; f(options)',
+    '(payload[m] as any)(options)', '(payload[m] satisfies Function)(options)',
+    'payload[m].call(payload, options)', 'Reflect.apply(payload[m], payload, [options])',
+    'const { find } = payload; find.call(payload, options)',
+    '(payload.find satisfies Function)({ overrideAccess: false })', '(payload.find as any)({ overrideAccess: false })',
+    '(<Function>payload.find)({ overrideAccess: false })',
+  ])('refuses indirect Local API access: %s', text => {
+    expect(scan(text, 'src/example.ts').map(v => v.rule)).toContain('local-api-indirect')
+  })
+
+  test('typed non-callable method names are data; unknown and callable values stay suspect', () => {
+    expect(scan(`
+      type Permissions = { update?: boolean | { permission?: boolean } }
+      function read(permissions: Permissions) { const update = permissions.update; return update }
+    `, 'src/example.ts')).toEqual([])
+    for (const type of ['any', 'unknown', '() => void']) {
+      expect(scan(`declare const client: { find: ${type} }; const f = client.find`, 'src/example.ts').map(v => v.rule))
+        .toContain('local-api-indirect')
+    }
+  })
+
+  test.each([
+    'const db = receiver.db', 'receiver["db"]', 'receiver[`db`]', '(await getPayload()).db',
+    'const { db } = receiver', 'const { db: alias } = receiver', 'const { db: { execute } } = receiver',
+    'function f({ db }: any) {}', 'const f = ({ db: alias }: any) => alias',
+    'let db; ({ db } = receiver)', 'let alias; ({ db: alias } = receiver)',
+    'let alias; ({ nested: { db: alias } } = receiver)',
+  ])('keeps all db receivers and binding patterns inside src/db: %s', text => {
+    expect(scan(text, 'src/example.ts').map(v => v.rule)).toContain('db-outside-db')
+    expect(scan(text, 'src/db/example.ts')).toEqual([])
+  })
+
+  test('ordinary db object properties are not destructuring', () => {
+    expect(scan('const value = { db: true }; other = { nested: { db: true } }', 'src/example.ts')).toEqual([])
+  })
+
+  test.each(['@payloadcms/db-postgres', '@payloadcms/db-postgres/drizzle', '@payloadcms/drizzle', 'drizzle-orm', 'drizzle-orm/pg-core'])(
+    'blocks every value-loading form of SQL module %s outside src/db', module => {
+      for (const text of [
+        `import { sql as q } from '${module}'`, `import * as q from '${module}'`, `import '${module}'`,
+        `export { sql as q } from '${module}'`, `export * from '${module}'`,
+        `import('${module}')`, `require('${module}')`, `import q = require('${module}')`,
+        `import { type SQL, sql } from '${module}'`, `export { type SQL, sql } from '${module}'`,
+      ]) {
+        expect(scan(text, 'src/example.ts').map(v => v.rule), text).toContain('sql-module-outside-db')
+        expect(scan(text, 'src/db/example.ts'), text).toEqual([])
+      }
+      for (const text of [
+        `import type { SQL } from '${module}'`, `import { type SQL } from '${module}'`,
+        `export type { SQL } from '${module}'`, `export { type SQL } from '${module}'`,
+        `export type * from '${module}'`, `type SQL = import('${module}').SQL`,
+        `import type q = require('${module}')`,
+      ]) expect(scan(text, 'src/example.ts'), text).toEqual([])
+    },
+  )
+
   test.each([...methods])('checks %s on every receiver and destructured aliases', method => {
     for (const receiver of ['payload', 'req.payload', '(await getPayload())', 'arbitraryReceiver']) {
       expect(scan(`${receiver}.${method}({ collection: 'xp-events' })`, 'src/example.ts')).toHaveLength(1)
     }
     expect(scan(`const { ${method}: alias } = payload; alias({})`, 'src/example.ts')).toHaveLength(1)
-    expect(scan(`const alias = req.payload.${method}; alias({})`, 'src/example.ts')).toHaveLength(1)
+    expect(scan(`const alias = req.payload.${method}; alias({})`, 'src/example.ts').map(v => v.rule))
+      .toEqual(['local-api-indirect', 'local-api-override-required'])
     expect(scan(`someClient.${method}({ slug: 'xp-state' })`, 'src/example.ts')).toHaveLength(1)
     expect(scan(`payload.${method}(options)`, 'src/example.ts').map(v => v.rule)).toEqual(['local-api-nonliteral'])
     expect(scan(`payload.${method}({ overrideAccess: false })`, 'src/example.ts')).toEqual([])
@@ -302,6 +461,6 @@ describe('access and SQL source boundaries', () => {
     const text = 'import { sql } from "drizzle-orm"; payload.db.drizzle.execute(sql`SELECT * FROM xp_events`)'
     expect(scan(text, 'src/db/example.ts')).toEqual([])
     expect(scan('const query = `SELECT ${columns} FROM ${table}`', 'src/example.ts').map(v => v.rule)).toContain('sql-literal-outside-db')
-    expect(scan('req.payload.db.drizzle.execute(query)', 'src/example.ts').map(v => v.rule)).toContain('payload-db-outside-db')
+    expect(scan('req.payload.db.drizzle.execute(query)', 'src/example.ts').map(v => v.rule)).toContain('db-outside-db')
   })
 })

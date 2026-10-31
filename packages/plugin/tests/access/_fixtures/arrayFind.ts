@@ -1,3 +1,4 @@
 export {}
 const values = ['one', 'two']
-values.find(value => value === 'two')
+declare const predicate: (value: string) => boolean
+values.find(predicate)
