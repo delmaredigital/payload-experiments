@@ -1,6 +1,6 @@
-// Schema-only copy of CORE-02a ba8d1c703430d8908f13a3669a31f8e3bfb8a9b5; only external import paths adjusted.
+// Schema-only copy from main d292db4e74d036d15d012ce1b5892dc4ad1f5ba6; only external import paths adjusted.
 import type { CollectionConfig, Field, FieldAccess, FieldBase } from 'payload'
-import type { ResolvedOptions } from '../../../../../src/types/contracts.js'
+import type { Arm, ExperimentKind, ResolvedOptions } from '../../../../../src/types/contracts.js'
 import type { EditableField } from '../../../../../src/types/admin.js'
 import * as paths from '../../../../../src/admin/paths.js'
 import { TAB_DESCRIPTIONS } from '../../../../../src/admin/copy/tabs.js'
@@ -11,6 +11,8 @@ import { createDefaults } from './createDefaults.js'
 import { flagControlParams } from './flagControlParams.js'
 import { lockHook } from './lockHook.js'
 import { deleteGuard, deleteGuardAfter } from './deleteGuard.js'
+import { checkArms } from './armInvariants.js'
+import { XpNotImplemented } from '../../../../../src/errors.js'
 
 type FieldAdmin = NonNullable<FieldBase['admin']>
 type ValidationContext = { data?: { kind?: unknown; exposurePolicy?: unknown }; siblingData?: { attribute?: string; op?: string } }
@@ -81,7 +83,18 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
           ] },
         ] },
         { label: 'Groups', description: TAB_DESCRIPTIONS.Groups, fields: [
-          { name: 'arms', type: 'array', required: true, admin: locked('arms', { components: { Field: paths.XP_ARMS_FIELD }, custom: { flagPoints } }), fields: [
+          { name: 'arms', type: 'array', required: true,
+            validate: (value: unknown[] | null | undefined, { siblingData, data }: { siblingData: { kind?: ExperimentKind }; data: { kind?: ExperimentKind } }) => {
+              try {
+                const issues = checkArms(value as Arm[], (siblingData.kind ?? data.kind) as ExperimentKind)
+                return issues.length ? issues.map(issue => issue.message).join('; ') : true
+              } catch (error) {
+                // TODO(CORE-03 merged): remove the temporary stub allowance.
+                if (error instanceof XpNotImplemented) return true
+                throw error
+              }
+            },
+            admin: locked('arms', { components: { Field: paths.XP_ARMS_FIELD }, custom: { flagPoints } }), fields: [
             { name: 'key', type: 'select', required: true, options: ['control', 'variantA', 'variantB', 'variantC', 'holdout'] },
             { name: 'label', type: 'text', required: true },
             { name: 'weight', type: 'number', required: true, min: 0, max: 100, validate: (value: number | null | undefined) => value != null && Number.isInteger(value) && value >= 0 && value <= 100 || 'Enter a whole percentage from 0 to 100.' },
@@ -96,10 +109,10 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
             { name: 'method', type: 'select', defaultValue: 'sequential', options: ['sequential', 'bayesian'], access: { read: adminOnly } },
             { name: 'cuped', type: 'select', defaultValue: 'auto', options: ['auto', 'off'] },
             { name: 'minExposuresPerArm', type: 'number', defaultValue: 200, min: 1, validate: positiveInteger },
-            { name: 'plannedDurationDays', type: 'number', required: true, min: 1, validate: positiveInteger },
+            { name: 'plannedDurationDays', type: 'number', min: 1, validate: (value: number | null | undefined) => value == null || positiveInteger(value) },
             { name: 'attributionWindowHours', type: 'number', min: 0 },
             { name: 'sequentialTuningParameter', type: 'number', min: 0 },
-            { name: 'reachPerDay', type: 'number', min: 0, validate: (value: unknown, { data }: ValidationContext) => (value == null && !['manual', 'viewport'].includes(data?.exposurePolicy as string)) || (typeof value === 'number' && Number.isFinite(value) && value > 0) || 'Enter how many people reach this per day.' },
+            { name: 'reachPerDay', type: 'number', min: 1, validate: (value: number | null | undefined) => value == null || positiveInteger(value) },
           ] },
         ] },
         { label: 'Review', description: TAB_DESCRIPTIONS.Review, fields: [{ name: 'review', type: 'ui', admin: { components: { Field: paths.XP_REVIEW_PANEL } } }] },

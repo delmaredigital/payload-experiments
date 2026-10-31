@@ -4,8 +4,8 @@ import { buildConfig } from 'payload'
 import type { ResolvedOptions } from '../../../src/types/contracts.js'
 import { buildCollections } from './collections/index.js'
 
-// These factories are copied from CORE-02a while that lane is in review.
-// Refresh the copies and regenerate if its fields change before merging.
+// Schema factory/dependency copies are pinned to main d292db4.
+// Refresh the copies and regenerate when the collection schema changes.
 const sampleOptions: ResolvedOptions = {
   access: { manage: () => true },
   runtime: {

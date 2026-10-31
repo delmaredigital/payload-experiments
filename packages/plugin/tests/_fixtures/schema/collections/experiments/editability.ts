@@ -1,11 +1,14 @@
-// Schema-only copy of CORE-02a ba8d1c703430d8908f13a3669a31f8e3bfb8a9b5; only external import paths adjusted.
+// Schema-only copy from main d292db4e74d036d15d012ce1b5892dc4ad1f5ba6; only external import paths adjusted.
 import type { Status } from '../../../../../src/types/contracts.js'
 import type { EditableField } from '../../../../../src/types/admin.js'
-import { XpNotImplemented } from '../../../../../src/errors.js'
 
 export const EDITABLE_BY_STATUS: Record<Status, readonly EditableField[]> = {
-  draft: [], running: [], stopped: [], decided: [], archived: [],
+  draft: ['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'flagPoint', 'metrics', 'analysis', 'exposurePolicy'],
+  stopped: ['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'metrics', 'analysis', 'exposurePolicy'],
+  running: ['name', 'hypothesis'],
+  decided: ['name', 'hypothesis'],
+  archived: [],
 }
-export function isEditable(_status: Status, _field: EditableField): boolean {
-  throw new XpNotImplemented('CORE-03')
+export function isEditable(status: Status, field: EditableField): boolean {
+  return EDITABLE_BY_STATUS[status].includes(field)
 }

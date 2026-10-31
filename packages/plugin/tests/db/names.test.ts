@@ -50,4 +50,11 @@ describe('SQL identifiers match the generated Payload schema', () => {
     expect(schema.xp_experiments_arms.id.getSQLType()).toBe('varchar')
     expect(schema._xp_experiments_v_version_arms.id.getSQLType()).toBe('serial')
   })
+
+  test('phase, snapshot and event experiment relationships are nullable', () => {
+    for (const column of [schema.xp_phases.experiment, schema.xp_results_snapshots.experiment, schema.xp_events.experiment]) {
+      expect(column.name).toBe('experiment_id')
+      expect(column.notNull).toBe(false)
+    }
+  })
 })

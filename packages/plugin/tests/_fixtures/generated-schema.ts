@@ -1,9 +1,10 @@
 /**
  * Payload 3.90.2 — generated 2026-10-30, without a database connection.
+ * Factory/dependency copies are pinned to main d292db4e74d036d15d012ce1b5892dc4ad1f5ba6.
  * Regenerate from packages/plugin:
  * PAYLOAD_CONFIG_PATH=tests/_fixtures/schema/config.ts pnpm exec payload generate:db-schema
  * The CLI uses disableDBConnect + disableOnInit. Restore this provenance header afterwards.
- * Refresh tests/_fixtures/schema copies from CORE-02a after merge if its fields change.
+ * Refresh tests/_fixtures/schema copies when the collection schema changes.
  */
 /* tslint:disable */
 /* eslint-disable */
@@ -297,7 +298,7 @@ export const xp_experiments = pgTable(
     }).default(200),
     analysis_plannedDurationDays: numeric("analysis_planned_duration_days", {
       mode: "number",
-    }).notNull(),
+    }),
     analysis_attributionWindowHours: numeric(
       "analysis_attribution_window_hours",
       { mode: "number" },
@@ -492,7 +493,7 @@ export const _xp_experiments_v = pgTable(
     version_analysis_plannedDurationDays: numeric(
       "version_analysis_planned_duration_days",
       { mode: "number" },
-    ).notNull(),
+    ),
     version_analysis_attributionWindowHours: numeric(
       "version_analysis_attribution_window_hours",
       { mode: "number" },
@@ -618,11 +619,9 @@ export const xp_phases = pgTable(
   "xp_phases",
   {
     id: serial("id").primaryKey(),
-    experiment: integer("experiment_id")
-      .notNull()
-      .references(() => xp_experiments.id, {
-        onDelete: "set null",
-      }),
+    experiment: integer("experiment_id").references(() => xp_experiments.id, {
+      onDelete: "set null",
+    }),
     phase: numeric("phase", { mode: "number" }).notNull(),
     phaseKind: enum_xp_phases_phase_kind("phase_kind").notNull(),
     startedAt: timestamp("started_at", {
@@ -830,11 +829,9 @@ export const xp_results_snapshots = pgTable(
   "xp_results_snapshots",
   {
     id: serial("id").primaryKey(),
-    experiment: integer("experiment_id")
-      .notNull()
-      .references(() => xp_experiments.id, {
-        onDelete: "set null",
-      }),
+    experiment: integer("experiment_id").references(() => xp_experiments.id, {
+      onDelete: "set null",
+    }),
     phase: numeric("phase", { mode: "number" }).notNull(),
     computedAt: timestamp("computed_at", {
       mode: "string",
