@@ -42,9 +42,18 @@ test('every endpoint registered by the plugin appears exactly once in the invent
   expect(ROUTES.map(({ method, path, access }) => [method, path, access])).toEqual(routes)
 })
 
+// A sentinel handler proves the access wrapper let the request through, whatever the
+// owning lane's handler does once implemented (this test must not lag later lanes).
+const REACHED = 299
+function reachHandler(path: string) {
+  const route = ROUTES.find(route => route.path === path)!
+  return vi.spyOn(route, 'handler').mockImplementation(async () => Response.json({ reached: true }, { status: REACHED }))
+}
+
 for (const [method, path, access] of routes) {
   if (access === 'manage' || access === 'readResults') {
-    test(`${method} ${path}: anonymous 401, learner and truthy access 403, true reaches stub`, async () => {
+    test(`${method} ${path}: anonymous 401, learner and truthy access 403, true reaches the handler`, async () => {
+      reachHandler(path)
       for (const value of [false, 'yes', {}, true]) {
         const config = await endpoints(value)
         const endpoint = config.endpoints.find(endpoint => endpoint.path === path)!
@@ -52,40 +61,43 @@ for (const [method, path, access] of routes) {
         expect(anonymous.status).toBe(401)
         expect(config.options.access.manage).not.toHaveBeenCalled()
         const response = await endpoint.handler(fakeReq({ user: { id: 'learner' } }))
-        expect(response.status).toBe(value === true ? 501 : 403)
-        expect(await response.json()).toMatchObject({ errors: [{ code: value === true ? 'not-implemented' : 'forbidden' }] })
+        expect(response.status).toBe(value === true ? REACHED : 403)
+        if (value !== true) expect(await response.json()).toMatchObject({ errors: [{ code: 'forbidden' }] })
       }
     })
   } else if (access === 'manifestKey') {
     test(`${method} ${path}: requires the manifest credential regardless of user role`, async () => {
+      reachHandler(path)
       const config = await endpoints('yes')
       const endpoint = config.endpoints.find(endpoint => endpoint.path === path)!
       expect((await endpoint.handler(fakeReq())).status).toBe(401)
       expect((await endpoint.handler(fakeReq({ user: { id: 'learner' } }))).status).toBe(401)
       const key = createHmac('sha256', config.options.runtime.proxyRuntime.secrets[0]!).update('xp:manifest-key').digest('hex')
-      expect((await endpoint.handler(fakeReq({ headers: { 'x-xp-manifest-key': key } }))).status).toBe(501)
+      expect((await endpoint.handler(fakeReq({ headers: { 'x-xp-manifest-key': key } }))).status).toBe(REACHED)
       expect(config.options.access.manage).not.toHaveBeenCalled()
     })
   } else {
     test(`${method} ${path}: requires a verified visitor cookie regardless of user role`, async () => {
+      reachHandler(path)
       const config = await endpoints('yes')
       const endpoint = config.endpoints.find(endpoint => endpoint.path === path)!
       const verify = vi.spyOn(cookie, 'verifyUnitCookie').mockReturnValue(null)
       expect((await endpoint.handler(fakeReq())).status).toBe(401)
       expect((await endpoint.handler(fakeReq({ user: { id: 'learner' } }))).status).toBe(401)
       verify.mockReturnValue('verified-visitor')
-      expect((await endpoint.handler(fakeReq({ headers: { cookie: 'xp=signed' } }))).status).toBe(501)
+      expect((await endpoint.handler(fakeReq({ headers: { cookie: 'xp=signed' } }))).status).toBe(REACHED)
       expect(config.options.access.manage).not.toHaveBeenCalled()
     })
   }
 }
 
 test('manage and readResults routes enforce their distinct declared access levels', async () => {
+  for (const [, path, access] of routes) if (access === 'readResults' || access === 'manage') reachHandler(path)
   const config = await endpoints(false, () => true)
   for (const [, path, access] of routes) {
     if (access !== 'readResults' && access !== 'manage') continue
     const endpoint = config.endpoints.find(endpoint => endpoint.path === path)!
-    expect((await endpoint.handler(fakeReq({ user: { id: 'reader' } }))).status, path).toBe(access === 'manage' ? 403 : 501)
+    expect((await endpoint.handler(fakeReq({ user: { id: 'reader' } }))).status, path).toBe(access === 'manage' ? 403 : REACHED)
   }
   expect(config.options.access.manage).toHaveBeenCalledTimes(routes.filter(([, , access]) => access === 'manage').length)
 })

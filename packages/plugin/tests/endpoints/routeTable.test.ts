@@ -72,7 +72,9 @@ test('manifest key is private and uses the first signing secret', async () => {
     await assertResponse(await invoke('/xp/manifest', options(), request(false, header ? { 'x-xp-manifest-key': header } : {})), 401, 'unauthenticated')
   }
   const key = createHmac('sha256', 'first-key').update('xp:manifest-key').digest('hex')
-  await assertResponse(await invoke('/xp/manifest', options(), request(false, { 'x-xp-manifest-key': key })), 501, 'not-implemented')
+  // The handler itself belongs to CORE-05; a sentinel proves the wrapper let the key through.
+  vi.spyOn(ROUTES.find(route => route.path === '/xp/manifest')!, 'handler').mockImplementation(async () => new Response(null, { status: 204 }))
+  expect((await invoke('/xp/manifest', options(), request(false, { 'x-xp-manifest-key': key }))).status).toBe(204)
 })
 test('signed cookie stub is mapped to CORE-04 501', async () => {
   const cookieHeaders: Array<Record<string, string>> = [{}, { cookie: 'xp_id=unsigned' }]
