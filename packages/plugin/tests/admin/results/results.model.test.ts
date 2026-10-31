@@ -29,6 +29,7 @@ test('a missing pinned snapshot does not substitute the current finding', () => 
 })
 test('absent guardrail line stays absent', () => {
   const snapshot = makeSnapshot({ guardrails: [] })
+  expect(snapshot.verdict.guardrailLine).toBeDefined()
   delete snapshot.verdict.guardrailLine
   expect(verdictCard({ snapshot, isDecidedTestRound: false, winnerLabel: '' })).not.toHaveProperty('guardrailLine')
   expect(guardrailChips(snapshot)).toEqual([])
@@ -48,24 +49,34 @@ test('decided opens its test round; every other status opens the newest round', 
 test.each(Object.keys(fixtures))('%s rows keep round order and stored labels; holdout never has comparisons', name => {
   const snapshot = fixture(name)
   const phase = phaseFor(snapshot)
+  phase.arms.reverse()
   const rows = armRows({ snapshot, phase, metricId: 'registrations' })
+  expect(rows.map(row => row.key)).toEqual(phase.arms.map(arm => arm.key))
   expect(rows.map(row => row.label)).toEqual(phase.arms.map(arm => arm.label))
   const holdout = rows.find(row => row.key === 'holdout')!
-  expect(holdout.baseline).toBe('Measured, not compared')
+  expect(holdout.baseline).toBe(snapshot.phaseKind === 'rollout' ? 'Holdout · baseline' : 'Measured, not compared')
   expect(holdout).not.toHaveProperty('comparison')
   if (snapshot.phaseKind === 'test') expect(rows.find(row => row.key === 'control')?.baseline).toBe('Original')
+  else {
+    const winner = rows.find(row => row.key !== 'holdout')!
+    expect(winner).not.toHaveProperty('baseline')
+    expect(winner.comparison !== undefined).toBe(snapshot.metrics[0]!.comparisons.some(comparison => comparison.arm === winner.key))
+  }
 })
-test('sequential comparisons show raw and adjusted CI only for differing alpha, and prefer adjusted p', () => {
+test('sequential comparisons keep raw p separate and include adjusted values only for differing alpha', () => {
   const snapshot = fixture('T7-adjusted')
   const comparison = snapshot.metrics[0]!.comparisons[0]!
   comparison.pValue = 0.01
   comparison.pValueAdjusted = 0.03
   const row = armRows({ snapshot, phase: phaseFor(snapshot), metricId: 'registrations' })[1]!
-  expect(row.comparison).toEqual({ method: 'sequential', lift: '+12.0%', ci: formatCI(comparison.ci), adjustedCI: formatCI(comparison.ciAdjusted), pValue: '0.03', significance: 'Better' })
+  expect(row.comparison).toEqual({ method: 'sequential', lift: '+12.0%', ci: formatCI(comparison.ci), adjustedCI: formatCI(comparison.ciAdjusted), pValue: '0.01', pValueAdjusted: '0.03', significance: 'Better' })
   delete comparison.pValueAdjusted
   expect(armRows({ snapshot, phase: phaseFor(snapshot), metricId: 'registrations' })[1]!.comparison).toHaveProperty('pValue', '0.01')
+  expect(armRows({ snapshot, phase: phaseFor(snapshot), metricId: 'registrations' })[1]!.comparison).not.toHaveProperty('pValueAdjusted')
+  comparison.pValueAdjusted = 0.03
   snapshot.alphaAdjusted = snapshot.alpha
   expect(armRows({ snapshot, phase: phaseFor(snapshot), metricId: 'registrations' })[1]!.comparison).not.toHaveProperty('adjustedCI')
+  expect(armRows({ snapshot, phase: phaseFor(snapshot), metricId: 'registrations' })[1]!.comparison).not.toHaveProperty('pValueAdjusted')
 })
 test('Bayesian results use stored chance to win, CI and risk', () => {
   const snapshot = fixture('T7-bayesian')
@@ -84,30 +95,74 @@ test('several winners retain their own comparisons and server headline', () => {
 })
 test('row 4 uses per-arm minima and excludes holdout', () => {
   const snapshot = fixture('T4')
-  expect(collectingLine(snapshot, { minExposuresPerArm: 1000 })).toBe('360 of 1,000 people, 37 of 150 conversions')
+  const input = { snapshot, phaseKind: snapshot.phaseKind, status: 'running' as const }
+  expect(collectingLine(input, { minExposuresPerArm: 1000 })).toBe('360 of 1,000 people, 37 of 150 conversions')
   // The exposure minimum is not on today's wire type: never infer it from prose.
-  expect(collectingLine(snapshot)).toBe('360 of — people, 37 of 150 conversions')
+  expect(collectingLine(input)).toBe('360 of — people, 37 of 150 conversions')
   const phase = phaseFor(snapshot)
   snapshot.metrics[0]!.perArm[0]!.converters = 20
-  expect(collectingLine(snapshot, { phase, minExposuresPerArm: 1000 })).toContain('20 of 150 conversions')
-  expect(collectingLine(fixture('T7'))).toBeNull()
+  expect(collectingLine(input, { phase, minExposuresPerArm: 1000 })).toBe('360 of 1,000 people, 20 of 150 conversions')
 })
-test.each([0, null, 5])('power days %s has prescribed copy', daysRemaining => {
-  expect(powerLine({ ...fixture('T7').power, daysRemaining, exposuresNeededPerArm: null })).toBe(daysRemaining === 5 ? 'About 5 more days.' : RESULTS_COPY.plannedEnd)
+test.each([
+  [null, RESULTS_COPY.plannedEnd], [0, RESULTS_COPY.plannedEnd], [0.25, RESULTS_COPY.plannedEnd],
+  [1, 'About 1 more day.'], [1.01, 'About 2 more days.'], [5, 'About 5 more days.'],
+  [12.4, 'About 13 more days.'], [90, 'About 90 more days.'], [90.01, RESULTS_COPY.infeasible], [120, RESULTS_COPY.infeasible],
+] as const)('collecting power days %s mirrors server copy', (daysRemaining, expected) => {
+  const snapshot = fixture('T4')
+  snapshot.power.daysRemaining = daysRemaining
+  expect(powerLine({ snapshot, phaseKind: 'test', status: 'running' })).toBe(expected)
 })
-test('infeasible power uses the server flag', () => {
-  expect(powerLine(fixture('T9-infeasible').power)).toBe(RESULTS_COPY.infeasible)
+test('collecting power uses the server infeasible flag even without a days estimate', () => {
+  const snapshot = fixture('T4')
+  snapshot.power = { ...fixture('T9-infeasible').power, daysRemaining: null }
+  expect(powerLine({ snapshot, phaseKind: 'test', status: 'running' })).toBe(RESULTS_COPY.infeasible)
 })
-test('a positive fractional day is not rounded to zero days', () => {
-  expect(powerLine({ ...fixture('T7').power, daysRemaining: 0.25 })).toBe('About 0.25 more days.')
+test.each(Object.keys(fixtures))('%s only renders lines appropriate to its verdict and round', name => {
+  const snapshot = fixture(name)
+  const input = { snapshot, phaseKind: snapshot.phaseKind, status: name === 'T4-stopped' ? 'stopped' as const : snapshot.phaseKind === 'rollout' ? 'decided' as const : 'running' as const }
+  expect(powerLine(input) !== null).toBe(name === 'T4')
+  expect(collectingLine(input) !== null).toBe(['T4', 'T4-stopped', 'R2'].includes(name))
+})
+test.each(['draft', 'stopped', 'decided', 'archived'] as const)('collecting test power is absent when %s', status => {
+  const snapshot = fixture('T4')
+  expect(powerLine({ snapshot, phaseKind: 'test', status })).toBeNull()
+})
+test('a decided test round never offers power or collecting; a decided rollout can still collect', () => {
+  const snapshot = fixture('T4')
+  expect(collectingLine({ snapshot, phaseKind: 'test', status: 'decided' })).toBeNull()
+  const rollout = fixture('R2')
+  expect(collectingLine({ snapshot: rollout, phaseKind: 'rollout', status: 'decided' }, { minExposuresPerArm: 1000 }))
+    .toBe('360 of 1,000 people, 144 of 150 conversions')
+  expect(powerLine({ snapshot, phaseKind: 'rollout', status: 'running' })).toBeNull()
 })
 test.each(['R1', 'R2', 'R3'])('%s rollout is winner vs holdout with a shipping label and no Decide wording', name => {
   const snapshot = fixture(name)
   const phase = phaseFor(snapshot)
   expect(armRows({ snapshot, phase, metricId: 'registrations' }).map(row => row.key)).toEqual(['variantA', 'holdout'])
-  expect(rolloutLine(snapshot, phase, { winnerArm: 'variantA' })).toBe('Since shipping Shorter form')
-  expect(rolloutLine({ ...snapshot, winnerArm: 'holdout' }, phase, { winnerArm: 'variantA' })).toBe('Since shipping Unchanged form')
+  expect(rolloutLine(snapshot, phase, [phase], { winnerArm: 'variantA' })).toBe('Since shipping Shorter form')
+  expect(rolloutLine({ ...snapshot, winnerArm: 'holdout' }, phase, [phase], { winnerArm: 'variantA' })).toBe('Since shipping Unchanged form')
   expect(JSON.stringify(verdictCard({ snapshot, isDecidedTestRound: false, winnerLabel: '' }))).not.toMatch(/\bDecide\b/)
+})
+test('only the newest rollout borrows the current decision winner, regardless of phase list order', () => {
+  const snapshot = fixture('R3')
+  const older = phaseFor(snapshot)
+  const newer = { ...older, phase: older.phase + 2 }
+  const testPhase = { ...phaseFor(fixture('T7')), phase: newer.phase + 1 }
+  const phases = [newer, testPhase, older]
+  expect(rolloutLine(snapshot, older, phases, { winnerArm: 'variantB' })).toBe('Since shipping the shipped group')
+  expect(rolloutLine({ ...snapshot, phase: newer.phase }, newer, phases, { winnerArm: 'variantA' })).toBe('Since shipping Shorter form')
+  expect(rolloutLine({ ...snapshot, winnerArm: 'variantA' }, older, phases, { winnerArm: 'variantB' })).toBe('Since shipping Shorter form')
+  expect(rolloutLine(snapshot, older, [])).toBe('Since shipping the shipped group')
+  expect(rolloutLine(fixture('T7'), testPhase, phases)).toBeNull()
+})
+test('a shipped Original carries its rollout comparison against holdout', () => {
+  const snapshot = fixture('R3')
+  const phase = phaseFor(snapshot)
+  phase.arms[0] = { key: 'control', kind: 'control', label: 'Original form' }
+  snapshot.metrics[0]!.comparisons[0]!.arm = 'control'
+  const row = armRows({ snapshot, phase, metricId: 'registrations' })[0]!
+  expect(row).not.toHaveProperty('baseline')
+  expect(row.comparison).toBeDefined()
 })
 
 test('capped cells always show the stored mean, uncapped total, zero count and frozen cap', () => {
@@ -156,6 +211,19 @@ test('layer notice needs layer membership and a shortfall; holdout does not trig
   expect(dataQuality(snapshot, { minExposuresPerArm: 1000, inLayer: false, layerSlices: 0, allocation: 50 })).toEqual([])
   expect(dataQuality(snapshot, { inLayer: true, layerSlices: 50, allocation: 50 })).toEqual([])
   expect(dataQuality(snapshot, { inLayer: true, layerSlices: 49, allocation: 50 }).map(item => item.id)).toEqual(['layer'])
+})
+test('SRM shares use only the expected groups, excluding other exposure counts and totals', () => {
+  const snapshot = fixture('T2')
+  snapshot.srm.expected = { control: 0.5, variantA: 0.5 }
+  snapshot.exposures.perArm = { control: 60, variantA: 40, holdout: 100 }
+  snapshot.exposures.total = 250
+  expect(dataQuality(snapshot, { phase: phaseFor(snapshot) }).find(item => item.id === 'srm')?.shares).toEqual([
+    'Original form: expected 50.0%, observed 60.0%', 'Shorter form: expected 50.0%, observed 40.0%',
+  ])
+})
+test.each(Object.keys(fixtures))('%s too-few diagnostic follows the frozen verdict without a threshold', name => {
+  const snapshot = fixture(name)
+  expect(dataQuality(snapshot).some(item => item.id === 'too-few')).toBe(['collecting', 'rollout-collecting'].includes(snapshot.verdict.code))
 })
 test('an unavailable metric with an empty error still has a diagnostic and next step', () => {
   const snapshot = fixture('T1')

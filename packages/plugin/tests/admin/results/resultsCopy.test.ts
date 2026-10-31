@@ -20,9 +20,10 @@ test.each(Object.keys(fixtures))('%s model outputs use user vocabulary', name =>
   userWords(armRows({ snapshot, phase, metricId: 'registrations' }))
   userWords(roundOptions([phase]))
   userWords(guardrailChips(snapshot))
-  userWords(powerLine(snapshot.power))
-  userWords(collectingLine(snapshot))
-  userWords(rolloutLine(snapshot, phase, { winnerArm: 'variantA' }))
+  const input = { snapshot, phaseKind: snapshot.phaseKind, status: snapshot.phaseKind === 'rollout' ? 'decided' as const : 'running' as const }
+  userWords(powerLine(input))
+  userWords(collectingLine(input))
+  userWords(rolloutLine(snapshot, phase, [phase], { winnerArm: 'variantA' }))
   userWords(verdictLabel(snapshot))
   snapshot.exposures.armMismatch = 1
   snapshot.exposures.identityConflictShare = 0.01

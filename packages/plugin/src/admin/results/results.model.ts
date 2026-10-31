@@ -41,11 +41,13 @@ export function verdictCard({ snapshot, decisionSnapshot, isDecidedTestRound, wi
   return { headline, detail, ...(guardrailLine === undefined ? {} : { guardrailLine }) }
 }
 
-export function rolloutLine(snapshot: DisplaySnapshot, phase: PhaseSummary, decision?: Pick<Decision, 'winnerArm'>): string | null {
+export function rolloutLine(snapshot: DisplaySnapshot, phase: PhaseSummary, phases: PhaseSummary[], decision?: Pick<Decision, 'winnerArm'>): string | null {
   if (snapshot.phaseKind !== 'rollout') return null
-  const winner = snapshot.winnerArm ?? decision?.winnerArm
-  if (!winner) return null
-  return shippingTitle(phase.arms.find(arm => arm.key === winner)?.label ?? armLabel(winner))
+  const newestRollout = phases.filter(phase => phase.phaseKind === 'rollout').reduce<number | null>(
+    (latest, phase) => latest === null || phase.phase > latest ? phase.phase : latest, null,
+  )
+  const winner = snapshot.winnerArm ?? (snapshot.phase === newestRollout ? decision?.winnerArm : undefined)
+  return shippingTitle(winner ? phase.arms.find(arm => arm.key === winner)?.label ?? armLabel(winner) : RESULTS_COPY.shippedGroup)
 }
 
 export interface CappedCellModel { statistic: string; totalLine?: string; cappedLine?: string; notice?: string }
@@ -65,7 +67,7 @@ export function cappedCell({ metric, arm, caps }: {
 }
 
 export type ComparisonModel = {
-  method: 'sequential'; lift: string; ci: string; adjustedCI?: string; pValue: string
+  method: 'sequential'; lift: string; ci: string; adjustedCI?: string; pValue: string; pValueAdjusted?: string
   significance: string
 } | { method: 'bayesian'; chanceToWin: string; ci: string; risk: string; significance: string }
 export interface ArmRow {
@@ -81,8 +83,8 @@ export function armRows({ snapshot, phase, metricId }: { snapshot: Snapshot; pha
       key: group.key, label: group.label, n: formatCount(arm?.n ?? snapshot.exposures.perArm[group.key]),
       value: metric?.kind === 'binomial' ? formatCount(arm?.converters) : cell.statistic, capped: cell,
     }
-    if (group.kind === 'holdout') return { ...row, baseline: RESULTS_COPY.holdout }
-    if (group.kind === 'control') return { ...row, baseline: RESULTS_COPY.original }
+    if (group.kind === 'holdout') return { ...row, baseline: snapshot.phaseKind === 'rollout' ? RESULTS_COPY.holdoutBaseline : RESULTS_COPY.holdout }
+    if (group.kind === 'control' && snapshot.phaseKind === 'test') return { ...row, baseline: RESULTS_COPY.original }
     const comparison = metric?.comparisons.find(comparison => comparison.arm === group.key)
     if (!comparison) return row
     const common = { ci: formatCI(comparison.ci), significance: RESULTS_COPY.significance[comparison.significant] }
@@ -90,8 +92,9 @@ export function armRows({ snapshot, phase, metricId }: { snapshot: Snapshot; pha
       ? { ...common, method: 'bayesian', chanceToWin: formatPercent(comparison.chanceToWin), risk: formatPercent(comparison.risk) }
       : {
         ...common, method: 'sequential', lift: formatPercent(comparison.lift, true),
-        ...(snapshot.alphaAdjusted !== snapshot.alpha ? { adjustedCI: formatCI(comparison.ciAdjusted) } : {}),
-        pValue: formatProbability(comparison.pValueAdjusted ?? comparison.pValue),
+        ...(snapshot.alphaAdjusted !== snapshot.alpha && comparison.ciAdjusted !== undefined ? { adjustedCI: formatCI(comparison.ciAdjusted) } : {}),
+        pValue: formatProbability(comparison.pValue),
+        ...(snapshot.alphaAdjusted !== snapshot.alpha && comparison.pValueAdjusted !== undefined ? { pValueAdjusted: formatProbability(comparison.pValueAdjusted) } : {}),
       }
     return row
   })
@@ -104,10 +107,14 @@ export function guardrailChips(snapshot: Snapshot) {
   }))
 }
 
-export function powerLine(power: Snapshot['power']): string {
-  if (!power.feasible) return RESULTS_COPY.infeasible
-  return power.daysRemaining !== null && power.daysRemaining > 0
-    ? moreDays(formatProbability(power.daysRemaining)) : RESULTS_COPY.plannedEnd
+interface RoundLineInput { snapshot: DisplaySnapshot; phaseKind: Snapshot['phaseKind']; status: Status }
+
+export function powerLine({ snapshot, phaseKind, status }: RoundLineInput): string | null {
+  if (phaseKind !== 'test' || status !== 'running' || snapshot.verdict.code !== 'collecting') return null
+  const { power } = snapshot
+  if (power.feasible === false || (power.daysRemaining !== null && power.daysRemaining > 90)) return RESULTS_COPY.infeasible
+  return power.daysRemaining !== null && power.daysRemaining >= 1
+    ? moreDays(formatCount(Math.ceil(power.daysRemaining))) : RESULTS_COPY.plannedEnd
 }
 
 export interface ResultsContext {
@@ -124,8 +131,9 @@ function smallest(values: Array<number | undefined>): number | undefined {
 }
 
 /** Only selects stored counts; never estimates sample sizes or power in the UI. */
-export function collectingLine(snapshot: DisplaySnapshot, ctx: ResultsContext = {}): string | null {
-  if (snapshot.verdict.row !== 4) return null
+export function collectingLine({ snapshot, phaseKind, status }: RoundLineInput, ctx: ResultsContext = {}): string | null {
+  if (phaseKind === 'test' && status === 'decided') return null
+  if (snapshot.verdict.code !== (phaseKind === 'rollout' ? 'rollout-collecting' : 'collecting')) return null
   const keys = comparedKeys(snapshot, ctx.phase)
   const primary = snapshot.metrics.find(metric => metric.role === 'primary')
   return collectingCopy(
@@ -139,11 +147,12 @@ export function collectingLine(snapshot: DisplaySnapshot, ctx: ResultsContext = 
 export interface DataQualityItem { id: string; message: string; detail?: string; nextStep: string; shares?: string[] }
 export function dataQuality(snapshot: DisplaySnapshot, ctx: ResultsContext = {}): DataQualityItem[] {
   const items: DataQualityItem[] = []
+  const srmTotal = Object.keys(snapshot.srm.expected).reduce((total, key) => total + (snapshot.exposures.perArm[key] ?? 0), 0)
   if (snapshot.srm.flagged) items.push({
     id: 'srm', message: srmP(formatProbability(snapshot.srm.p)), nextStep: RESULTS_COPY.srm,
     shares: Object.entries(snapshot.srm.expected).map(([key, expected]) => shareCopy(
       ctx.phase?.arms.find(arm => arm.key === key)?.label ?? armLabel(key), formatPercent(expected),
-      formatPercent(snapshot.exposures.total > 0 ? (snapshot.exposures.perArm[key] ?? 0) / snapshot.exposures.total : undefined),
+      formatPercent(srmTotal > 0 ? (snapshot.exposures.perArm[key] ?? 0) / srmTotal : undefined),
     )),
   })
   const exposures = snapshot.exposures
@@ -157,8 +166,8 @@ export function dataQuality(snapshot: DisplaySnapshot, ctx: ResultsContext = {})
   if (exposures.identityConflictShare > 0) items.push({
     id: 'identity', message: RESULTS_COPY.identity, detail: conflictCopy(formatPercent(exposures.identityConflictShare)), nextStep: RESULTS_COPY.identityNext,
   })
-  const minExposures = snapshot.minExposuresPerArm ?? ctx.minExposuresPerArm
-  if (minExposures !== undefined && comparedKeys(snapshot, ctx.phase).some(key => (exposures.perArm[key] ?? 0) < minExposures)) items.push({
+  // TODO: Use Snapshot.minExposuresPerArm when the frozen wire field lands.
+  if (snapshot.verdict.code === 'collecting' || snapshot.verdict.code === 'rollout-collecting') items.push({
     id: 'too-few', message: RESULTS_COPY.tooFew, nextStep: RESULTS_COPY.tooFewNext,
   })
   const slices = typeof ctx.layerSlices === 'number' ? ctx.layerSlices : ctx.layerSlices?.length

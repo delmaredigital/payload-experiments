@@ -3,6 +3,7 @@ export const RESULTS_COPY = {
   lift: 'Lift', ci: 'Confidence interval', adjustedCI: 'Adjusted confidence interval',
   pValue: 'p-value', adjustedPValue: 'Adjusted p-value', chanceToWin: 'Chance to win', risk: 'Risk',
   comparison: 'Comparison', original: 'Original', holdout: 'Measured, not compared',
+  holdoutBaseline: 'Holdout · baseline', shippedGroup: 'the shipped group',
   significance: { better: 'Better', worse: 'Worse', none: 'No clear difference' },
   guardrails: { failing: 'Failing', ok: 'OK', warning: 'Watch', insufficient: 'Too little data' },
   plannedEnd: 'Keep running to the planned end date.',
@@ -26,7 +27,7 @@ export const RESULTS_COPY = {
 export const roundLabel = (round: number, kind: string) => `Round ${round} · ${kind}`
 export const decidedTitle = (winner: string) => `Decided: ${winner}`
 export const shippingTitle = (winner: string) => `Since shipping ${winner}`
-export const moreDays = (days: string) => `About ${days} more days.`
+export const moreDays = (days: string) => `About ${days} more ${days === '1' ? 'day' : 'days'}.`
 export const collectingCopy = (n: string, minimum: string, conversions: string, conversionMinimum: string) =>
   `${n} of ${minimum} people, ${conversions} of ${conversionMinimum} conversions`
 export const uncappedTotal = (total: string) => `Total ${total} (not capped)`

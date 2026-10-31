@@ -5,7 +5,7 @@ import type { VerdictCardModel, guardrailChips } from './results.model.js'
 export interface VerdictCardProps {
   model: VerdictCardModel
   guardrails?: ReturnType<typeof guardrailChips>
-  power?: string
+  power?: string | null
   collecting?: string | null
   sinceShipping?: string | null
 }
@@ -17,10 +17,10 @@ export function VerdictCard({ model, guardrails = [], power, collecting, sinceSh
     {'finding' in model && model.finding ? <p>{model.finding}</p> : null}
     {model.detail ? <p>{model.detail}</p> : null}
     {'guardrailLine' in model && model.guardrailLine ? <p>{model.guardrailLine}</p> : null}
-    {collecting ? <p className="xp-collecting">{collecting}</p> : null}
+    {!('title' in model) && collecting ? <p className="xp-collecting">{collecting}</p> : null}
     {guardrails.length > 0 ? <ul className="xp-guardrails">{guardrails.map((item, index) =>
       <li className="xp-chip" key={index}>{item.name}: {item.status}</li>,
     )}</ul> : null}
-    {power ? <p className="xp-power">{power}</p> : null}
+    {!('title' in model) && power ? <p className="xp-power">{power}</p> : null}
   </section>
 }
