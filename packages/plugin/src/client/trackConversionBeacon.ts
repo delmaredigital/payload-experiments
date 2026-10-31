@@ -1,4 +1,8 @@
 'use client'
-// XP-PLACEHOLDER
-import { XpNotImplemented } from '../errors.js'
-export function trackConversionBeacon(_eventName: string, _opts?: { idempotencyKey?: string }): void { throw new XpNotImplemented('ADM') }
+
+import { conversionApiRoute, sendEvent } from './beacon.js'
+import { idempotencyKey } from './idempotency.js'
+
+export function trackConversionBeacon(eventName: string, opts?: { idempotencyKey?: string }): void {
+  sendEvent(conversionApiRoute(), { type: 'conversion', eventName, idempotencyKey: idempotencyKey(opts?.idempotencyKey) })
+}
