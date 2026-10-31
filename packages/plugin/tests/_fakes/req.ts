@@ -16,7 +16,7 @@ export interface FakeRequestOptions {
 
 export type FakeRequest = PayloadRequest & Pick<Request, 'headers' | 'method' | 'url' | 'body' | 'bodyUsed' | 'json' | 'text'> & { searchParams: URLSearchParams }
 
-export function fakeReq({ user = null, context = {}, transactionID, payload = fakePayload(), headers, routeParams = {}, searchParams, method = 'GET', url = 'https://example.test/api/xp/events', body }: FakeRequestOptions = {}): FakeRequest {
+export function fakeReq({ user = null, context = {}, transactionID, payload = fakePayload(), headers, routeParams = {}, searchParams, body, method = body === undefined ? 'GET' : 'POST', url = 'https://example.test/api/xp/events' }: FakeRequestOptions = {}): FakeRequest {
   const bytes = typeof body === 'string' ? new TextEncoder().encode(body) : body?.slice()
   // Use the native Request reader methods so stream consumption and bodyUsed match Fetch.
   const request = new Request(url, { method: bytes === undefined ? method : 'POST', headers, body: bytes })

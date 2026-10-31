@@ -90,7 +90,6 @@ test('editability table has exactly the five statuses', () => {
 })
 
 const stubs: Array<[Function, string]> = [
-  [index.createExperimentsPlugin, 'CORE-02c'],
   [runtimeProxy.createPostgresManifestLoader, 'CORE-05'], [runtimeProxy.createHttpManifestLoader, 'CORE-05'],
   ...Object.values(proxy).map(fn => [fn, 'CORE-06'] as [Function, string]),
   ...[rsc.getAssignments, rsc.resolveExperimentData, rsc.toClientAssignments, rsc.getFlagPoint, rsc.experimentMetadata, rsc.experimentSitemapFilter].map(fn => [fn, 'CORE-07'] as [Function, string]),
