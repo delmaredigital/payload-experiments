@@ -76,11 +76,14 @@ def resolve_ref(ref):
         if not re.fullmatch(r"[0-9a-fA-F]{40}", ref):
             raise ValueError("--ref must be a full commit SHA or main")
         return ref.lower()
+    # Query the full ref and keep only the exact match: `git ls-remote <repo> main`
+    # also matches any ref ending in "/main" (e.g. refs/heads/<feature>/main).
     output = subprocess.check_output(
-        ["git", "ls-remote", REPO, "main"], text=True,
+        ["git", "ls-remote", REPO, "refs/heads/main"], text=True,
     )
-    lines = output.splitlines()
-    if len(lines) != 1 or not re.fullmatch(r"[0-9a-f]{40}\s+refs/heads/main", lines[0]):
+    lines = [line for line in output.splitlines()
+             if re.fullmatch(r"[0-9a-f]{40}\s+refs/heads/main", line)]
+    if len(lines) != 1:
         raise RuntimeError("could not resolve growthbook/growthbook main")
     return lines[0].split()[0]
 
