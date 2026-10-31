@@ -1,8 +1,9 @@
 import { expect, test } from 'vitest'
 import { sweepEvents } from '../src/db/sweep.js'
 import { insertEvents } from '../src/db/events.js'
-import { pooledExecutor } from '../src/db/executor.js'
+import { pooledExecutor, type Executor } from '../src/db/executor.js'
 import { createIntegrationHarness } from './harness.js'
+import { batchSize, eventIndexes, measureSweepPlans } from '../tests/_helpers/sweepPlans.js'
 
 // Written for the merged-main Postgres train; never run in the feature lane.
 test('sweep keeps test history through an open rollout and deletes after the final end plus retention', async () => {
@@ -29,3 +30,59 @@ test('sweep keeps test history through an open rollout and deletes after the fin
     expect(docs).toHaveLength(0)
   } finally { await harness.teardown() }
 }, 60_000)
+
+// Production uses postgres:17; PGlite's PG 18 skip scan must not mask a bad plan.
+// 50k initial events, growing to 60k/80k as conversions scale 10k/20k/40k.
+test.each(['integer', 'uuid'] as const)('%s: retention branches use selective indexes with flat batch cost on Postgres', async idType => {
+  const harness = await createIntegrationHarness()
+  try {
+    const client = await harness.pool.connect()
+    const schema = `"${harness.schemaName}_sweep_${idType}"`
+    try {
+      await client.query(`CREATE SCHEMA ${schema}`)
+      try {
+        const exec: Executor = { query: async <R>(text: string, params: unknown[] = []) => {
+          const result = await client.query(text, params)
+          return { rows: result.rows as R[], rowCount: result.rowCount ?? 0 }
+        } }
+        const result = await measureSweepPlans(exec, async sql => {
+          // The helper has begun its transaction on this same checked-out client.
+          await client.query(`SET LOCAL search_path TO ${schema}`)
+          await client.query(sql)
+        }, idType, 50_000)
+        const summary = JSON.stringify({ idType, baseEvents: 50_000, measurements: result.measurements.map(scale => ({
+          ...scale, branches: scale.branches.map(({ plan: _plan, sql: _sql, ...branch }) => branch),
+        })) }, null, 2)
+        try {
+          expect(result.physicalIndexes).toEqual(['xp_events_pkey', ...eventIndexes.map(index => index.name)].sort())
+          expect(result.measurements.map(scale => scale.scale)).toEqual([1, 2, 4])
+          for (const scale of result.measurements) {
+            expect(scale.branches).toHaveLength(4)
+            expect(scale.windowReads).toBe(1)
+            expect(scale.emptyExamined).toBeLessThanOrEqual(batchSize)
+            for (const branch of scale.branches) {
+              expect(branch.scanTypes).not.toHaveLength(0)
+              expect(branch.scanTypes.every(type => /^(Index|Index Only) Scan$/.test(type))).toBe(true)
+              // A correlated phase subplan may have its own index as well.
+              expect(branch.indexName).toContain('experiment_type_ts_idx')
+              expect(branch.indexCond).toContain('experiment_id')
+              if (branch.branch < 2 || branch.branch === 3) expect(branch.indexCond).toContain('type')
+              if (branch.branch === 2) expect(branch.indexCond).toContain('ANY')
+              if (branch.branch === 3) expect(branch.indexCond).toMatch(/ts < /)
+              const probed = branch.branch === 2 ? /\bexperiment_id\b/ : /\b(experiment_id|type|ts)\b/
+              expect(branch.filters.some(filter => probed.test(filter))).toBe(false)
+              expect(branch.examined).toBeLessThanOrEqual(batchSize * 4)
+            }
+          }
+          for (let branch = 0; branch < 4; branch++) {
+            const examined = result.measurements.map(scale => scale.branches[branch]!.examined)
+            expect(Math.max(...examined)).toBeLessThanOrEqual(Math.max(1, Math.min(...examined)) * 2)
+          }
+        } catch (error) {
+          console.error(`Sweep plan summary:\n${summary}`)
+          throw error
+        }
+      } finally { await client.query(`DROP SCHEMA ${schema} CASCADE`) }
+    } finally { client.release() }
+  } finally { await harness.teardown() }
+}, 180_000)
