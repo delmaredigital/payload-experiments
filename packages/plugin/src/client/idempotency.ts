@@ -2,7 +2,8 @@
 
 /** Prefer a caller's stable key; restricted browser crypto must not break the caller. */
 export function idempotencyKey(provided?: string): string {
-  if (provided !== undefined) return provided
+  // An empty key would collapse every conversion of this event for the unit into one dedupe row.
+  if (provided) return provided
   try {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
   } catch { /* Try random bytes when UUID generation is unavailable. */ }

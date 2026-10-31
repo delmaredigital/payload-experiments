@@ -5,13 +5,13 @@ import { __resetBeaconsForTests } from '../../src/client/beacon.js'
 afterEach(__resetBeaconsForTests)
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
-test('caller key wins, including an empty string; randomUUID is preferred otherwise', () => {
+test('caller key wins; an empty string counts as absent; randomUUID is preferred otherwise', () => {
   const randomUUID = vi.fn(() => 'uuid-key')
   const getRandomValues = vi.fn()
   vi.stubGlobal('crypto', { randomUUID, getRandomValues })
   expect(idempotencyKey('stable-key')).toBe('stable-key')
-  expect(idempotencyKey('')).toBe('')
   expect(randomUUID).not.toHaveBeenCalled()
+  expect(idempotencyKey('')).toBe('uuid-key')
   expect(idempotencyKey()).toBe('uuid-key')
   expect(getRandomValues).not.toHaveBeenCalled()
 })
