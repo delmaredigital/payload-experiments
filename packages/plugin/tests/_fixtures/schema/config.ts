@@ -2,10 +2,9 @@ import { fileURLToPath } from 'node:url'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { buildConfig } from 'payload'
 import type { ResolvedOptions } from '../../../src/types/contracts.js'
-import { buildCollections } from './collections/index.js'
+import { buildCollections } from '../../../src/collections/index.js'
 
-// Schema factory/dependency copies are pinned to main d292db4.
-// Refresh the copies and regenerate when the collection schema changes.
+// Build the collections and global from source so regeneration cannot use stale copies.
 const sampleOptions: ResolvedOptions = {
   access: { manage: () => true },
   runtime: {

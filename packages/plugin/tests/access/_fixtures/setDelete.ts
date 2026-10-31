@@ -1,2 +1,4 @@
 export {}
-new Set(['key']).delete('key')
+const entries = new Set<string>()
+declare const key: string
+entries.delete(key)

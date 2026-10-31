@@ -1,3 +1,4 @@
 export {}
 const entries = new Map<string, number>()
-entries.delete('key')
+declare const key: string
+entries.delete(key)

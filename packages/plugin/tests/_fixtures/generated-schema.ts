@@ -1,10 +1,9 @@
 /**
  * Payload 3.90.2 — generated 2026-10-30, without a database connection.
- * Factory/dependency copies are pinned to main d292db4e74d036d15d012ce1b5892dc4ad1f5ba6.
+ * Built directly from src/collections (including its global factory).
  * Regenerate from packages/plugin:
  * PAYLOAD_CONFIG_PATH=tests/_fixtures/schema/config.ts pnpm exec payload generate:db-schema
  * The CLI uses disableDBConnect + disableOnInit. Restore this provenance header afterwards.
- * Refresh tests/_fixtures/schema copies when the collection schema changes.
  */
 /* tslint:disable */
 /* eslint-disable */
