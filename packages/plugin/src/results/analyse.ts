@@ -198,7 +198,7 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
           comparison = { arm: arm.key, lift: raw.expected,
             ci: raw.errorMessage ? [null, null] : jsonInterval(raw.ci), ciAdjusted: ci,
             ...(raw.pValue === null ? {} : { pValue: raw.pValue }),
-            ...(raw.pValue === null ? {} : { pValueAdjusted: Math.min(1, raw.pValue * (definition.role === 'primary' ? k : 1)) }),
+            ...(adjusted.pValue === null ? {} : { pValueAdjusted: Math.min(1, adjusted.pValue * (definition.role === 'primary' ? k : 1)) }),
             significant: positive ? (inverse ? 'worse' : 'better') : negative ? (inverse ? 'better' : 'worse') : 'none',
           }
           if (definition.role === 'guardrail') {
@@ -255,7 +255,7 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
     lowerBound: analysis.method === 'sequential', feasible: true }
   const common = {
     status: input.status, method: analysis.method,
-    primary: { name: primary.name, ...(primary.unavailable === undefined ? {} : { unavailable: primary.unavailable }),
+    primary: { name: primary.name, direction: primaryDefinition.direction, ...(primary.unavailable === undefined ? {} : { unavailable: primary.unavailable }),
       minSampleSize: primaryDefinition.minSampleSize,
       convertersPerArm: primary.perArm.map(group => ({ arm: group.arm, kind: phase.arms.find(arm => arm.key === group.arm)!.kind, converters: group.converters })),
       comparisons: primary.comparisons.map(comparison => ({ ...comparison, ci: comparison.ciAdjusted, label: phase.arms.find(arm => arm.key === comparison.arm)!.label })),

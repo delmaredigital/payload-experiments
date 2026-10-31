@@ -53,7 +53,7 @@ test('sequential primary matches direct raw and Bonferroni-adjusted stats; holdo
   const adjusted = sequentialTwoSidedTTest(a, b, { alpha: bonferroniAlpha(0.05, 2), sequentialTuningParameter: 5000 })
   expect(result).toMatchObject({ winnerArm: null, minExposuresPerArm: 200, k: 2, alphaAdjusted: 0.025 })
   expect(result.metrics[0]!.comparisons[0]).toMatchObject({ lift: raw.expected, ci: raw.ci,
-    ciAdjusted: adjusted.ci, pValue: raw.pValue, pValueAdjusted: Math.min(1, raw.pValue! * 2) })
+    ciAdjusted: adjusted.ci, pValue: raw.pValue, pValueAdjusted: Math.min(1, adjusted.pValue! * 2) })
   expect(result.metrics[0]!.perArm.map(group => group.arm)).toContain('holdout')
   expect(result.metrics[0]!.comparisons.map(group => group.arm)).toEqual(['variantA', 'variantB'])
   expect(result.srm.expected).toEqual({ control: .3, variantA: .3, variantB: .3, holdout: .1 })
@@ -258,4 +258,49 @@ test('frozen analysis windows, guardrail thresholds and per-metric minimums over
     params: { attributionWindows: { primary: 24, guard: 24 }, minSampleSizes: { primary: 5000, guard: 3000 }, guardrailThresholds: { guard: .1 } },
     guardrails: [{ metricId: 'guard', status: 'warning' }], verdict: { code: 'collecting' },
   })
+})
+
+test.each(['sequential', 'bayesian'] as const)('%s passes frozen primary direction through for lower-is-better row-7 and row-8 recommendations', method => {
+  const n = 5000
+  const input = example({ n, secondVariant: true, method })
+  input.phase = { ...input.phase, metricDefinitions: [metric({ direction: 'decrease' })] }
+  const values = new Map(input.metricData[0]!.values)
+  for (let i = 0; i < n; i++) {
+    values.set(`variantA-${i}`, i < 800 ? 1 : 0)
+    values.set(`variantB-${i}`, i < 480 ? 1 : 0)
+  }
+  input.metricData = [{ metricId: 'primary', values }]
+  const result = analysePhase(input)
+  expect(result.verdict).toMatchObject({ row: 7, recommendedArm: 'variantB' })
+  expect(result.verdict.finding).toContain('Guided form has the larger improvement')
+  expect(result.metrics[0]!.comparisons[0]!.lift).toBeCloseTo(-.2)
+  expect(result.metrics[0]!.comparisons[1]!.lift).toBeCloseTo(-.52)
+  input.phase = { ...input.phase, arms: [
+    ...input.phase.arms.filter(arm => arm.kind !== 'holdout').map(arm => ({ ...arm, weight: 25 })),
+    { key: 'variantC', kind: 'variant', label: 'One-page form', weight: 25 },
+  ] }
+  const units = new Map([...input.units].filter(([, unit]) => unit.arm !== 'holdout'))
+  for (let i = 0; i < n; i++) {
+    const id = `variantC-${i}`
+    units.set(id, { arm: 'variantC', firstTs: '2026-10-01T00:00:00Z' })
+    values.set(id, i < 1250 ? 1 : 0)
+  }
+  input.units = units
+  expect(analysePhase(input).verdict).toMatchObject({ row: 8, recommendedArm: 'variantB' })
+})
+
+test('P2: adjusted sequential p-value uses the alpha/k test and agrees with the adjusted interval', () => {
+  const input = example({ n: 5000, rate: 1145 / 5000, controlRate: 1000 / 5000, secondVariant: true })
+  const result = analysePhase(input)
+  const [a, b] = direct(input)
+  const raw = sequentialTwoSidedTTest(a, b, { alpha: .05, sequentialTuningParameter: 5000 })
+  const adjusted = sequentialTwoSidedTTest(a, b, { alpha: .025, sequentialTuningParameter: 5000 })
+  const comparison = result.metrics[0]!.comparisons[0]!
+  expect(raw.pValue! * 2).toBeLessThan(.05)
+  expect(comparison.pValueAdjusted).toBe(Math.min(1, adjusted.pValue! * 2))
+  expect(comparison.ciAdjusted).toEqual(adjusted.ci)
+  expect(comparison.ciAdjusted[0]).toBeLessThanOrEqual(0)
+  expect(comparison.ciAdjusted[1]).toBeGreaterThanOrEqual(0)
+  expect(comparison.pValueAdjusted).toBeGreaterThanOrEqual(.05)
+  expect(comparison.significant).toBe('none')
 })

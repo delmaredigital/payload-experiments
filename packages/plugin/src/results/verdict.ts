@@ -12,6 +12,7 @@ interface VerdictInputFields {
   method: 'sequential' | 'bayesian'
   primary: {
     name: string
+    direction: 'increase' | 'decrease'
     unavailable?: string
     /** Minimums apply per compared group, excluding the holdout in a test and
      * including it in a rollout. Copy uses the smallest converter count. */
@@ -134,7 +135,8 @@ export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
   const variants = input.primary.comparisons.filter(item => variantKeys.has(item.arm))
   const better = variants.filter(item => item.significant === 'better')
   const worse = variants.filter(item => item.significant === 'worse')
-  const best = [...better].sort((a, b) => b.lift - a.lift)[0]
+  const direction = input.primary.direction === 'decrease' ? -1 : 1
+  const best = [...better].sort((a, b) => direction * (b.lift - a.lift))[0]
   const worst = worse[0]
   if (variants.length > 0 && worse.length === variants.length) return make(5, 'original-better',
     'The Original is better.', 'Decide for the Original.', 'Every tested alternative performed worse.', input.controlArm)
@@ -144,7 +146,7 @@ export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
     'At least one alternative performed worse and none improved the main outcome.', input.controlArm)
   if (best && !worst) {
     const finding = better.length >= 2
-      ? `${better.length === 2 ? 'Both' : `All ${better.length} variants`} beat the Original; not tested against each other — ${best.label} has the larger lift.`
+      ? `${better.length === 2 ? 'Both' : `All ${better.length} variants`} beat the Original; not tested against each other — ${best.label} has the larger improvement.`
       : input.method === 'bayesian'
         ? `${best.label} is very likely better${chance(best.chanceToWin)}.`
         : `${best.label} is statistically better: ${percent(best.lift)} (CI ${percent(best.ci[0])} to ${percent(best.ci[1])}).`

@@ -11,8 +11,6 @@ import { formatCI, formatCount, formatMetric, formatPercent, formatProbability }
 type Metric = Snapshot['metrics'][number]
 type Arm = Metric['perArm'][number]
 type Decision = { phase: number; winnerArm?: string }
-// The frozen wire type currently omits these two fields. Accept additive server
-// fields without casting or deriving either value from a verdict's prose.
 type DisplaySnapshot = Snapshot
 
 export function defaultRound({ phases, decision, status }: Pick<ResultsResponse, 'phases'> & {
@@ -166,7 +164,6 @@ export function dataQuality(snapshot: DisplaySnapshot, ctx: ResultsContext = {})
   if (exposures.identityConflictShare > 0) items.push({
     id: 'identity', message: RESULTS_COPY.identity, detail: conflictCopy(formatPercent(exposures.identityConflictShare)), nextStep: RESULTS_COPY.identityNext,
   })
-  // TODO: Use Snapshot.minExposuresPerArm when the frozen wire field lands.
   if (snapshot.verdict.code === 'collecting' || snapshot.verdict.code === 'rollout-collecting') items.push({
     id: 'too-few', message: RESULTS_COPY.tooFew, nextStep: RESULTS_COPY.tooFewNext,
   })
