@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+scripts/gbstats-parity/.venv/
+scripts/gbstats-parity/**/__pycache__/
 
 # Build output
 dist/
