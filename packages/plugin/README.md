@@ -31,14 +31,19 @@ Read assignments on the server and pass them to `ExperimentsProvider` from
 `flagPoints` and `experiments` are allow-lists: both default to none. Include
 only the flag points and experiments that the client needs. The provider value
 contains no visitor identifier. Use **one `apiRoute` for every provider on a
-page**, including nested providers; it is the API base, such as `/api`.
+page**, including nested providers; it is the API base, such as `/api`. When the
+API isn't at `/api`, set that shared route through
+`toClientAssignments(assignments, { pathname, apiRoute })`.
 
 `useFlagPoint(id)` reads the current group and settings at a registered flag
-point. `useExperiment(slug)` reads an allow-listed experiment. Neither hook
-records exposure automatically. For manual exposure, call
+point. `useExperiment(slug)` reads an allow-listed experiment. An unlisted flag
+point or experiment slug throws in development and returns the Original with
+one console error in production. Neither hook records exposure automatically.
+For manual exposure, call
 `expose(renderedArm)` only when that group's content actually showed, passing
 the group key you rendered. Reading an assignment alone does not count as
-seeing content.
+seeing content. `expose()` sends only for experiments using the manual exposure
+policy.
 
 On each whole-page experiment target, render a nested `ExperimentsProvider`
 whose value is built for **that page's pathname**, and put
@@ -78,8 +83,8 @@ Original into a variant, or create an experiment. It warns when edits would
 change content during a running test. `createExperimentSlotField` is available
 from `/puck` if you need the experiment picker in another custom component.
 
-The picker uses `/api` and lists the 100 most recently updated block
-experiments. Viewport exposure watches a fixed, invisible **100 px sentinel**
+The picker lists the 100 most recently updated block experiments.
+Viewport exposure watches a fixed, invisible **100 px sentinel**
 at the top of the slot and counts it when at least half is visible. The
 sentinel stays the same size for short and tall content.
 
@@ -106,8 +111,8 @@ The experiment's edit tabs guide setup:
 - **Metrics:** the main outcome, supporting metrics, guardrails, and planned
   duration.
 - **Review:** saved setup checks, placements and preview links, recent traffic,
-  and a duration estimate when enough information is available. Apply the
-  suggested settings before starting.
+  and a duration estimate when enough information is available. Apply copies
+  the suggested duration and sensitivity into the form; save before you start.
 
 The **Results** view lets you select a round, read the verdict, compare groups,
 check data quality, and see results over time with content-change markers.
@@ -149,3 +154,5 @@ changes block actions**; save first so they use the saved experiment.
 - “Raise allocation” is offered even at 100%.
 - The metric picker in “Add a metric” lists 100 metrics.
 - The Puck picker lists 100 experiments.
+- The Puck experiment picker always calls `/api`; hosts with a custom API route
+  see an empty picker.

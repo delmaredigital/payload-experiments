@@ -24,11 +24,33 @@ test('the stylesheet entry loads CSS and no barrel has a bare side-effect import
   }
 })
 
-test('package side-effect metadata preserves CSS', () => {
+function preservesAdminStyles(metadata: { sideEffects?: unknown }): boolean {
+  if (!Object.hasOwn(metadata, 'sideEffects') || metadata.sideEffects === true) return true
+  if (!Array.isArray(metadata.sideEffects)) return false
+  const patterns: unknown[] = metadata.sideEffects
+  return ['dist/admin/styles.css', 'dist/admin/styles.js'].every(file =>
+    patterns.some(pattern => {
+      if (typeof pattern !== 'string') return false
+      const glob = pattern.replace(/^\.\//, '')
+      return matchesGlob(file, glob.includes('/') ? glob : `**/${glob}`)
+    }))
+}
+
+test('package side-effect metadata preserves CSS and its JavaScript entry', () => {
   const metadata: { sideEffects?: unknown } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
-  if (!Object.hasOwn(metadata, 'sideEffects')) return
-  expect(Array.isArray(metadata.sideEffects), 'sideEffects must list a CSS pattern').toBe(true)
-  const patterns = metadata.sideEffects as unknown[]
-  expect(patterns.some(pattern => typeof pattern === 'string' &&
-    ['styles.css', 'src/admin/styles.css', 'dist/admin/styles.css'].some(file => matchesGlob(file, pattern))), 'sideEffects must retain *.css').toBe(true)
+  expect(preservesAdminStyles(metadata), 'sideEffects must retain both dist/admin/styles.css and dist/admin/styles.js').toBe(true)
+})
+
+test.each([
+  [{}, true],
+  [{ sideEffects: ['*.css'] }, false],
+  [{ sideEffects: ['*.css', './dist/admin/styles.js'] }, true],
+  [{ sideEffects: true }, true],
+  [{ sideEffects: false }, false],
+  [{ sideEffects: ['dist/admin/styles.js'] }, false],
+  [{ sideEffects: ['**/*.css', './dist/admin/styles.js'] }, true],
+  [{ sideEffects: ['dist/admin/*'] }, true],
+  [{ sideEffects: [] }, false],
+])('side-effect checker evaluates %j as %s', (metadata, expected) => {
+  expect(preservesAdminStyles(metadata)).toBe(expected)
 })
