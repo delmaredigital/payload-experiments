@@ -18,6 +18,6 @@ export async function lockTransitionScope(exec: Executor, scope: {
   experimentId: DocId; layerId?: DocId | null; flagPointId?: string | null
 }): Promise<void> {
   if (scope.layerId != null) await exec.query(LOCK_STATEMENTS.layer, [String(scope.layerId)])
-  if (scope.flagPointId != null) await exec.query(LOCK_STATEMENTS.flagPoint, [scope.flagPointId])
+  if (scope.flagPointId) await exec.query(LOCK_STATEMENTS.flagPoint, [scope.flagPointId])
   await exec.query(LOCK_STATEMENTS.experiment, [String(scope.experimentId)])
 }

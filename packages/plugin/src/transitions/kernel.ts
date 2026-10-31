@@ -1,7 +1,7 @@
 import { commitTransaction, initTransaction, killTransaction, type PayloadRequest } from 'payload'
 import { pooledExecutor, txExecutor, type Executor } from '../db/executor.js'
 import { lockTransitionScope } from '../db/locks.js'
-import { readState } from '../db/state.js'
+import { currentTxid, txidStatus } from '../db/txid.js'
 import { XpRefusal } from '../errors.js'
 import { buildAndStoreManifest } from '../manifest/compile.js'
 import type { DocId } from '../types/contracts.js'
@@ -17,8 +17,9 @@ export interface TransitionScope {
 
 /** Runs transition writes on the request's transaction under ordered locks.
  * Returns the callback result and, unless bump is false, the stored manifest's
- * revision. Only the transaction owner commits and verifies the revision on the
- * pool; a caller-owned transaction still needs its caller to commit. Any failure
+ * revision. Only the transaction owner commits and verifies that transaction's
+ * status on the pool (even without a bump); a caller-owned transaction still
+ * needs its caller to commit. Any failure
  * kills even a borrowed transaction because aborted sessions cannot be reused.
  */
 export async function withTransition<T>(
@@ -37,12 +38,11 @@ export async function withTransition<T>(
     const revision = scope.bump === false ? undefined
       : (await buildAndStoreManifest(req, { excludeIds: scope.excludeIds })).revision
     if (owns) {
+      const xid = await currentTxid(exec)
       await commitTransaction(req)
-      if (revision !== undefined) {
-        const state = await readState(pooledExecutor(req.payload))
-        if (!state || !(state.revision >= revision)) {
-          throw new XpRefusal('commit-unverified', 'The transition commit could not be verified.', { revision }, 500)
-        }
+      const status = await txidStatus(pooledExecutor(req.payload), xid)
+      if (status !== 'committed') {
+        throw new XpRefusal('commit-unverified', 'The transition commit could not be verified.', { xid, status }, 500)
       }
     }
     return revision === undefined ? { result } : { result, revision }

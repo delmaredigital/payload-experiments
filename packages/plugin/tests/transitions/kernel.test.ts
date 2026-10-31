@@ -15,17 +15,20 @@ vi.mock('payload', async importOriginal => {
 beforeEach(() => vi.clearAllMocks())
 
 function fixture(scope: TransitionScope, options: {
-  borrowed?: boolean; verifiedRevision?: number | null; transactions?: FakeTransactionOptions
+  borrowed?: boolean; status?: 'committed' | 'aborted' | 'in progress' | null; transactions?: FakeTransactionOptions
   throwOn?: FakeExecutorOptions['throwOn']
 } = {}) {
-  const lockCount = 1 + Number(scope.layerId != null) + Number(scope.flagPointId != null)
+  const lockCount = 1 + Number(scope.layerId != null) + Number(Boolean(scope.flagPointId))
   const executor = createFakeExecutor({
     throwOn: options.throwOn,
     results: [
       ...Array.from({ length: lockCount }, () => ({ rows: [] })),
       ...(scope.bump === false ? [] : [
         { rows: [] }, { rows: [{ revision: 7 }] }, { rows: [] },
-        { rows: options.verifiedRevision === null ? [] : [{ revision: options.verifiedRevision ?? 7, manifest: null, flagDefaults: {} }] },
+      ]),
+      ...(options.borrowed ? [] : [
+        { rows: [{ xid: '9007199254740993' }] },
+        { rows: [{ status: options.status === undefined ? 'committed' : options.status }] },
       ]),
     ],
   })
@@ -66,7 +69,7 @@ describe('ordered transition kernel', () => {
     if (!bump) {
       expect(payload.calls).toEqual([])
       expect(payload.findGlobal).not.toHaveBeenCalled()
-      expect(executor.calls).toHaveLength(1)
+      expect(executor.calls).toHaveLength(3) // experiment lock, xid capture, pooled status
     }
   })
 
@@ -81,7 +84,7 @@ describe('ordered transition kernel', () => {
     const locks = executor.calls.filter(call => call.text.includes('pg_advisory_xact_lock'))
     expect(locks.map(call => call.params)).toEqual([
       ...(scope.layerId != null ? [[String(scope.layerId)]] : []),
-      ...(scope.flagPointId != null ? [[scope.flagPointId]] : []), [String(scope.experimentId)], [],
+      ...(scope.flagPointId ? [[scope.flagPointId]] : []), [String(scope.experimentId)], [],
     ])
   })
 
@@ -94,13 +97,30 @@ describe('ordered transition kernel', () => {
     expect(Object.hasOwn(req.context, 'xpTransition')).toBe(previous !== undefined)
   })
 
-  test.each([false, true])('commits and checks the pool only when owner (borrowed=%s)', async borrowed => {
-    const scope = { experimentId: 1 }
+  test.each([
+    { borrowed: false, bump: true }, { borrowed: false, bump: false },
+    { borrowed: true, bump: true }, { borrowed: true, bump: false },
+  ])('commits and verifies txid only when owner (%j)', async ({ borrowed, bump }) => {
+    const scope = { experimentId: 1, bump }
     const { payload, req, executor } = fixture(scope, { borrowed })
     const session = req.transactionID
+    const pooledExecute = vi.spyOn(payload.db.drizzle, 'execute')
+    const originalCommit = payload.db.commitTransaction
+    vi.spyOn(payload.db, 'commitTransaction').mockImplementation(async id => {
+      expect(executor.calls.at(-1)?.text).toContain('txid_current()')
+      expect(req.transactionID).toBeDefined()
+      expect(pooledExecute).not.toHaveBeenCalled()
+      await originalCommit(id)
+    })
     await withTransition(req, scope, async () => 5)
     expect(payloadHelpers.commitTransaction).toHaveBeenCalledTimes(borrowed ? 0 : 1)
-    expect(executor.calls.filter(call => call.text.includes('LIMIT 1'))).toHaveLength(borrowed ? 0 : 1)
+    const captures = executor.calls.filter(call => call.text.includes('txid_current()'))
+    const checks = executor.calls.filter(call => call.text.includes('txid_status('))
+    expect(captures).toHaveLength(borrowed ? 0 : 1)
+    expect(checks).toHaveLength(borrowed ? 0 : 1)
+    if (!borrowed) expect(checks[0]!.params).toEqual(['9007199254740993'])
+    expect(pooledExecute).toHaveBeenCalledTimes(borrowed ? 0 : 1)
+    expect(executor.calls.some(call => call.text.includes('LIMIT 1'))).toBe(false)
     expect(req.transactionID).toBe(borrowed ? session : undefined)
     expect(payloadHelpers.killTransaction).not.toHaveBeenCalled()
     expect(payload.dbCalls.map(call => call.method)).toEqual(borrowed ? [] : ['beginTransaction', 'commitTransaction'])
@@ -122,15 +142,12 @@ describe('ordered transition kernel', () => {
     expect(payload.calls.map(call => call.args.collection)).toEqual(['xp-experiments'])
   })
 
-  test.each([7, 8])('accepts pooled revision %s at or beyond its own bump', async verifiedRevision => {
-    const scope = { experimentId: 1 }
-    const { req } = fixture(scope, { verifiedRevision })
-    await expect(withTransition(req, scope, async () => null)).resolves.toMatchObject({ revision: 7 })
-  })
-
-  test.each([6, null])('refuses a swallowed commit with pooled revision %s', async verifiedRevision => {
-    const scope = { experimentId: 1 }
-    const { req } = fixture(scope, { verifiedRevision })
+  test.each([
+    { status: 'aborted', bump: true }, { status: 'in progress', bump: true }, { status: null, bump: true },
+    { status: 'aborted', bump: false }, { status: 'in progress', bump: false }, { status: null, bump: false },
+  ] as const)('refuses an owned commit unless its txid is committed (%j)', async ({ status, bump }) => {
+    const scope = { experimentId: 1, bump }
+    const { req } = fixture(scope, { status })
     await expect(withTransition(req, scope, async () => null)).rejects.toMatchObject({ code: 'commit-unverified', status: 500 })
     expect(payloadHelpers.commitTransaction).toHaveBeenCalledOnce()
     expect(payloadHelpers.killTransaction).toHaveBeenCalledWith(req)
@@ -150,7 +167,7 @@ describe('ordered transition kernel', () => {
     expect(req.context.xpTransition).toBe(false)
   })
 
-  test.each([1, 2, 3, 4, 5])('SQL failure at query %s kills and preserves the error', async at => {
+  test.each([1, 2, 3, 4, 5, 6])('SQL failure at query %s kills and preserves the error', async at => {
     const error = new Error(`query ${at} failed`)
     const scope = { experimentId: 1, layerId: 2 }
     const { req } = fixture(scope, { throwOn: { at, error } })
@@ -162,7 +179,7 @@ describe('ordered transition kernel', () => {
   test('post-commit pool failure still kills and rethrows', async () => {
     const error = new Error('pool unavailable')
     const scope = { experimentId: 1 }
-    const { req } = fixture(scope, { throwOn: { match: 'LIMIT 1', error } })
+    const { req } = fixture(scope, { throwOn: { match: 'txid_status(', error } })
     await expect(withTransition(req, scope, async () => null)).rejects.toBe(error)
     expect(payloadHelpers.commitTransaction).toHaveBeenCalledOnce()
     expect(payloadHelpers.killTransaction).toHaveBeenCalledWith(req)
@@ -199,16 +216,51 @@ describe('ordered transition kernel', () => {
   })
 })
 
-test('phase writes keep the request and explicit privileged access', async () => {
+test('phase record creation keeps the request and explicit privileged access', async () => {
   const payload = fakePayload()
   const req = fakeReq({ payload })
   const record: PhaseRecord = { experiment: 4, phase: 2, phaseKind: 'test', startedAt: '2026-10-30T00:00:00Z', seed: 'seed|', arms: [], allocation: 50, targeting: [] }
   expect(await writePhaseRecord(req, record)).toMatchObject(record)
   expect(payload.calls[0]!.args).toMatchObject({ collection: 'xp-phases', req, overrideAccess: true, data: record })
-  const update = vi.spyOn(payload, 'update').mockResolvedValueOnce({ docs: [], errors: [] })
-  await setPhaseEndedAt(req, 4, 2, '2026-10-31T00:00:00Z')
-  expect(update).toHaveBeenCalledWith(expect.objectContaining({ collection: 'xp-phases', req, overrideAccess: true,
-    where: { and: [{ experiment: { equals: 4 } }, { phase: { equals: 2 } }, { or: [{ endedAt: { exists: false } }, { endedAt: { equals: null } }] }] },
-    data: { endedAt: '2026-10-31T00:00:00Z' },
-  }))
+})
+
+describe('setPhaseEndedAt', () => {
+  const at = '2026-10-31T00:00:00Z'
+  test('a missing phase refuses with 404', async () => {
+    const payload = fakePayload({ collections: { 'xp-phases': [{ id: 1, experiment: 5, phase: 2 }, { id: 2, experiment: 4, phase: 1 }] } })
+    const req = fakeReq({ payload })
+    await expect(setPhaseEndedAt(req, 4, 2, at)).rejects.toMatchObject({ code: 'not-found', status: 404 })
+    expect(payload.calls).toHaveLength(1)
+    expect(payload.calls[0]).toEqual({ method: 'find', args: {
+      collection: 'xp-phases', req, overrideAccess: true, limit: 1, depth: 0,
+      where: { and: [{ experiment: { equals: 4 } }, { phase: { equals: 2 } }] },
+    } })
+  })
+
+  test('an already ended phase keeps the stop time and is returned unchanged', async () => {
+    const record = { id: 3, experiment: 4, phase: 2, endedAt: '2026-10-30T12:00:00Z' }
+    const payload = fakePayload({ collections: { 'xp-phases': [record] } })
+    const req = fakeReq({ payload })
+    expect(await setPhaseEndedAt(req, 4, 2, at)).toEqual(record)
+    expect(payload.calls.map(call => call.method)).toEqual(['find'])
+    expect(payload.documents['xp-phases']).toEqual([record])
+  })
+
+  test.each([undefined, null])('an open phase (%s) is updated by its row id', async endedAt => {
+    const record = { id: 3, experiment: 4, phase: 2, endedAt }
+    const payload = fakePayload({ collections: { 'xp-phases': [record] } })
+    const req = fakeReq({ payload })
+    expect(await setPhaseEndedAt(req, 4, 2, at)).toEqual({ ...record, endedAt: at })
+    expect(payload.calls[1]).toEqual({ method: 'update', args: {
+      collection: 'xp-phases', id: 3, req, overrideAccess: true, data: { endedAt: at },
+    } })
+  })
+
+  test('an updateByID failure propagates instead of being swallowed by bulk update', async () => {
+    const payload = fakePayload({ collections: { 'xp-phases': [{ id: 3, experiment: 4, phase: 2 }] } })
+    const error = new Error('phase validation failed')
+    const update = vi.spyOn(payload, 'update').mockRejectedValueOnce(error)
+    await expect(setPhaseEndedAt(fakeReq({ payload }), 4, 2, at)).rejects.toBe(error)
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }))
+  })
 })

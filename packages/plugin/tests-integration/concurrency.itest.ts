@@ -1,7 +1,8 @@
 import { commitTransaction, createLocalReq, initTransaction, killTransaction, type PayloadRequest } from 'payload'
-import { afterAll, beforeAll, expect, test } from 'vitest'
+import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { txExecutor, type Executor } from '../src/db/executor.js'
 import { claimSlices } from '../src/db/slices.js'
+import * as txids from '../src/db/txid.js'
 import { buildAndStoreManifest } from '../src/manifest/compile.js'
 import { withTransition, type TransitionScope } from '../src/transitions/kernel.js'
 import { writePhaseRecord } from '../src/transitions/phaseRecord.js'
@@ -183,4 +184,33 @@ test('throw after a manifest bump leaves revision and manifest untouched', async
     const doc = await harness.payload.findByID({ collection: 'xp-experiments', id: a.id, overrideAccess: true })
     expect(doc.status).toBe('draft')
   } finally { await killTransaction(req) }
+})
+
+test('kernel opens and commits its own transaction and verifies its exact txid on the pool', async () => {
+  const a = await experiment()
+  const req = await createLocalReq({}, harness.payload)
+  expect(req.transactionID).toBeUndefined()
+  const status = vi.spyOn(txids, 'txidStatus')
+  try {
+    const result = await withTransition(req, { experimentId: a.id }, async ({ req }) => {
+      expect(req.transactionID).toBeDefined()
+      await start(req, a.id, [])
+      return a.id
+    })
+    expect(result.result).toBe(a.id)
+    expect(req.transactionID).toBeUndefined()
+    expect(status).toHaveBeenCalledOnce()
+    const [exec, xid] = status.mock.calls[0]!
+    expect(await status.mock.results[0]!.value).toBe('committed')
+    expect(await exec.query('SELECT 1 AS pooled')).toMatchObject({ rows: [{ pooled: 1 }] })
+    const committed = await harness.pool.query<{ status: string }>('SELECT txid_status($1::bigint) AS status', [xid])
+    expect(committed.rows[0]!.status).toBe('committed')
+    const state = await harness.pool.query<{ revision: string }>(`SELECT revision FROM "${harness.schemaName}".xp_state`)
+    expect(Number(state.rows[0]!.revision)).toBe(result.revision)
+    const doc = await harness.payload.findByID({ collection: 'xp-experiments', id: a.id, overrideAccess: true })
+    expect(doc.status).toBe('running')
+  } finally {
+    status.mockRestore()
+    await killTransaction(req)
+  }
 })

@@ -40,8 +40,6 @@ test('both JSONB columns append to null then existing arrays; only target phase 
     expect(target.contentChanges).toEqual([content])
     await appendAllocationChange(exec, { experimentId, phase: 1, entry: nextAllocation })
     await appendContentChange(exec, { experimentId, phase: 1, entry: nextContent })
-    // Nonexistent phase must not touch any other phase or experiment.
-    await appendContentChange(exec, { experimentId, phase: 99, entry: content })
   })
   const after = await database.db.select().from(xp_phases)
   for (const row of after) {
@@ -50,6 +48,22 @@ test('both JSONB columns append to null then existing arrays; only target phase 
       ? { ...original, allocationChanges: [allocation, nextAllocation], contentChanges: [content, nextContent] }
       : original)
   }
+})
+
+test.each(['allocation', 'content'] as const)('%s append refuses missing phase rows with 404 and changes nothing', async kind => {
+  const before = await database.db.select().from(xp_phases)
+  for (const target of [{ experimentId, phase: 99 }, { experimentId: otherId, phase: 2 }]) {
+    await expect(database.db.transaction(async tx => {
+      const req = { transactionID: 'tx', payload: { db: { sessions: { tx: { db: tx } } } } } as unknown as PayloadRequest
+      const exec = txExecutor(req)
+      if (kind === 'allocation') {
+        await appendAllocationChange(exec, { ...target, entry: { at: '2026-10-31T00:00:00Z', from: 1, to: 2 } })
+      } else {
+        await appendContentChange(exec, { ...target, entry: { at: '2026-10-31T00:00:00Z', doc: 7, by: 5 } })
+      }
+    })).rejects.toMatchObject({ code: 'not-found', status: 404, detail: target })
+  }
+  expect(await database.db.select().from(xp_phases)).toEqual(before)
 })
 
 test('SQL appends roll back atomically with their caller transaction', async () => {

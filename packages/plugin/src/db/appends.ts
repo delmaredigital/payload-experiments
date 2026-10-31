@@ -1,20 +1,21 @@
 import type { Executor } from './executor.js'
 import { COLUMNS, TABLES } from './names.js'
 import type { DocId } from '../types/contracts.js'
+import { XpRefusal } from '../errors.js'
+import { qualifiedTable, quoteIdentifier as quote } from './sql.js'
 
 export interface AllocationChange { at: string; from: number; to: number }
 export interface ContentChange { at: string; doc: DocId; by: DocId }
 type AppendArgs<T> = { experimentId: DocId; phase: number; entry: T }
-const quote = (name: string) => `"${name.replaceAll('"', '""')}"`
 
 async function append<T>(exec: Executor, column: string, { experimentId, phase, entry }: AppendArgs<T>): Promise<void> {
-  const schemaName = (exec as Executor & { schemaName?: string }).schemaName
-  const table = `${schemaName ? `${quote(schemaName)}.` : ''}${quote(TABLES.phases)}`
+  const table = qualifiedTable(exec, TABLES.phases)
   const c = COLUMNS.phases
-  await exec.query(
+  const { rowCount } = await exec.query(
     `UPDATE ${table} SET ${quote(column)} = coalesce(${quote(column)}, '[]'::jsonb) || $1::jsonb WHERE ${quote(c.experimentId)} = $2 AND ${quote(c.phase)} = $3`,
     [JSON.stringify([entry]), experimentId, phase],
   )
+  if (rowCount === 0) throw new XpRefusal('not-found', 'The phase record was not found.', { experimentId, phase }, 404)
 }
 
 /** Requires the experiment lock on the transaction executor (withTransition).

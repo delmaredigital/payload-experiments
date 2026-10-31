@@ -2,8 +2,7 @@ import type { Executor } from './executor.js'
 import { COLUMNS, TABLES } from './names.js'
 import { XpRefusal } from '../errors.js'
 import type { DocId } from '../types/contracts.js'
-
-const quote = (name: string) => `"${name.replaceAll('"', '""')}"`
+import { qualifiedTable, quoteIdentifier as quote } from './sql.js'
 
 /** Caller holds the layer lock on this transaction executor. Returns additional
  * free slices; the caller persists them in layerSlices. Existing slices, even
@@ -13,8 +12,7 @@ export async function claimSlices(exec: Executor, { layerId, experimentId, count
   layerId: DocId; experimentId: DocId; count: number; random?: () => number
 }): Promise<number[]> {
   if (!Number.isSafeInteger(count) || count < 0) throw new RangeError('Slice count must be a non-negative integer')
-  const schemaName = (exec as Executor & { schemaName?: string }).schemaName
-  const table = `${schemaName ? `${quote(schemaName)}.` : ''}${quote(TABLES.experiments)}`
+  const table = qualifiedTable(exec, TABLES.experiments)
   const c = COLUMNS.experiments
   const { rows } = await exec.query<{ slices: number[] | null }>(
     `SELECT ${quote(c.layerSlices)} AS slices FROM ${table} WHERE ${quote(c.layerId)} = $1 AND ${quote(c.status)} IN ('running', 'decided')`,
