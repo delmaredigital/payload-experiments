@@ -799,6 +799,11 @@ export const xp_events = pgTable(
       columns.ts,
     ),
     index("experiment_ts_idx").on(columns.experiment, columns.ts),
+    index("experiment_type_ts_idx").on(
+      columns.experiment,
+      columns.type,
+      columns.ts,
+    ),
   ],
 );
 

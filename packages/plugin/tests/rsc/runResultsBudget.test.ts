@@ -48,7 +48,9 @@ test.each(['query', 'covariate', 'connect', 'all-connections'] as const)('real e
   expect(context.pool.connect.mock.calls.length).toBeGreaterThanOrEqual(2)
   if (hang !== 'all-connections') {
     expect(context.calls.some(text => text.startsWith('DELETE'))).toBe(true)
-    expect(result.swept).toBeGreaterThanOrEqual(1) // one count per sweep branch (CORE-18 F2)
+    const deletes = context.calls.filter(text => text.startsWith('DELETE'))
+    expect(deletes).toHaveLength(3)
+    expect(result.swept).toBe(deletes.length)
   }
   expect(context.calls.some(text => text.startsWith('INSERT'))).toBe(false)
   context.resolveLate()
