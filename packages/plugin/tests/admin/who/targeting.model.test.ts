@@ -51,7 +51,7 @@ test('coercion produces the exact JSON types accepted by server validation for e
 test.each(['in', 'nin'] as const)('%s warns about empty lists while preserving their JSON', op => {
   for (const raw of ['', ' , ', [], undefined]) {
     expect(coerceValue('string', op, raw)).toEqual([])
-    expect(emptyListHint(op, raw)).toBe('Add at least one value — an empty list matches nobody.')
+    expect(emptyListHint(op, raw)).toBe("Add at least one value — an empty list can't be saved.")
   }
   expect(emptyListHint(op, ['Email'])).toBeUndefined()
   expect(emptyListHint(op, 'Email')).toBeUndefined()

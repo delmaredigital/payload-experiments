@@ -56,7 +56,8 @@ export function TargetingValueField({ path, field, readOnly }: JSONFieldClientPr
   const many = operator === 'in' || operator === 'nin'
   const hint = emptyListHint(operator, value)
   const props = { path, label: WHO_COPY.value, readOnly: locked, required: field.required }
-  return <div>
+  // position: relative anchors Payload's absolutely positioned FieldError tooltip to this field.
+  return <div style={{ position: 'relative' }}>
     {input.kind === 'select' || input.kind === 'multiselect' || input.kind === 'boolean'
       ? <SelectInput {...props} name={path} hasMany={input.kind === 'multiselect'}
           options={input.kind === 'boolean' ? [{ label: WHO_COPY.true, value: 'true' }, { label: WHO_COPY.false, value: 'false' }] : input.options}

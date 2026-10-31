@@ -99,7 +99,7 @@ test.each([
   setField({ value: [], setValue }, 'targeting.1.value')
   form(attribute, op)
   render(<TargetingValueField path="targeting.1.value" field={valueField} />)
-  const hint = 'Add at least one value — an empty list matches nobody.'
+  const hint = "Add at least one value — an empty list can't be saved."
   expect(screen.getByText(hint)).toBeTruthy()
   act(() => setField({ value: ['mobile'], setValue }, 'targeting.1.value'))
   expect(screen.queryByText(hint)).toBeNull()

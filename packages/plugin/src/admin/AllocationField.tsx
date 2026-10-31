@@ -20,7 +20,8 @@ export function AllocationField({ path, field, readOnly }: NumberFieldClientProp
   const locked = Boolean(readOnly || field.admin?.readOnly || !isEditable(form.status, 'allocation'))
   const reason = lockedReason(form.status, 'allocation', EDITABLE_BY_STATUS)
   const sentence = allocationSentence({ ...form, allocation: value ?? NaN })
-  return <div className="xp-allocation-field">
+  // position: relative anchors Payload's absolutely positioned FieldError tooltip to this field.
+  return <div className="xp-allocation-field" style={{ position: 'relative' }}>
     <label htmlFor={path}>{WHO_COPY.allocation}</label>
     <input id={path} name={path} type="number" min={1} max={100} step={1} required={field.required}
       value={value ?? ''} readOnly={locked} aria-describedby={`${path}-description`}
