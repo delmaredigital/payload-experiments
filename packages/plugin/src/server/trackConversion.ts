@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server.js'
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
 import { pooledExecutor } from '../db/executor.js'
 import { insertEvents } from '../db/events.js'
-import { verifyUnitCookie } from '../runtime/cookie.js'
+import { readUnitCookie } from '../runtime/cookie.js'
 
 export async function trackConversion<TUser extends { id: string | number } = { id: string | number }>(serverRuntime: ExperimentsServerRuntime<TUser>, event: { eventName: string; value?: number; idempotencyKey: string; userId?: string; headers?: Headers }): Promise<void> {
   let payload: Payload | undefined
@@ -26,8 +26,7 @@ export async function trackConversion<TUser extends { id: string | number } = { 
       try { payload.logger.warn('Experiments: trackConversion requires a non-empty idempotencyKey') } catch { /* Never break the host's write path. */ }
       return
     }
-    const cookie = headers?.get('cookie')?.split(';').map(part => part.trim()).find(part => part.startsWith(`${runtime.cookie.name}=`))?.slice(runtime.cookie.name.length + 1)
-    const visitorId = verifyUnitCookie(cookie, runtime.secrets)
+    const visitorId = headers ? readUnitCookie(headers, runtime) : null
     let userId = event.userId
     if (!userId && serverRuntime.getUser) {
       try {

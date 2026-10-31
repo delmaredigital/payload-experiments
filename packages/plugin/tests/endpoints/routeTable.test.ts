@@ -135,14 +135,22 @@ describe('handler error mapping', () => {
 })
 describe('verified visitor context', () => {
   const route = ROUTES.find(route => route.access === 'signedCookie')!
+  test('duplicate signed cookies forward the last visitor to the handler', async () => {
+    const opts = options()
+    const cookie = `xp_id=${unitCookie.encodeUnitCookie('first', ['first-key'])}; xp_id=${unitCookie.encodeUnitCookie('last', ['previous-key'])}`
+    const handler = vi.spyOn(route, 'handler').mockImplementation(async () => Response.json({}))
+    const req = request(false, { cookie })
+    await invoke(route.path, opts, req)
+    expect(handler).toHaveBeenCalledWith(req, { options: opts, unit: { visitorId: 'last' } })
+  })
   test('passes the verified visitor to the handler without sharing context across requests', async () => {
-    const verifier = vi.spyOn(unitCookie, 'verifyUnitCookie').mockReturnValueOnce('visitor-one').mockReturnValueOnce('visitor-two')
+    const verifier = vi.spyOn(unitCookie, 'readUnitCookie').mockReturnValueOnce('visitor-one').mockReturnValueOnce('visitor-two')
     const handler = vi.spyOn(route, 'handler').mockImplementation(async () => Response.json({}))
     const opts = options()
     const endpoint = buildEndpoints({ options: opts }).find(endpoint => endpoint.path === route.path)!
     const req = request(false, { cookie: 'other=ignored; xp_id=signed-cookie; tail=value' })
     expect((await endpoint.handler(req)).status).toBe(200)
-    expect(verifier).toHaveBeenCalledWith('signed-cookie', opts.runtime.proxyRuntime.secrets)
+    expect(verifier).toHaveBeenCalledWith(req.headers, opts.runtime.proxyRuntime)
     expect(handler).toHaveBeenNthCalledWith(1, req, { options: opts, unit: { visitorId: 'visitor-one' } })
     const secondReq = request(false, { cookie: 'xp_id=second-cookie' })
     expect((await endpoint.handler(secondReq)).status).toBe(200)
@@ -151,19 +159,19 @@ describe('verified visitor context', () => {
     expect(handler.mock.calls[0]?.[1]).not.toBe(handler.mock.calls[1]?.[1])
   })
   test('invalid cookies cannot reach the handler', async () => {
-    vi.spyOn(unitCookie, 'verifyUnitCookie').mockReturnValue(null)
+    vi.spyOn(unitCookie, 'readUnitCookie').mockReturnValue(null)
     const handler = vi.spyOn(route, 'handler')
     await assertResponse(await invoke(route.path, options(), request(false)), 401, 'unauthenticated')
     expect(handler).not.toHaveBeenCalled()
   })
   test('unexpected verification errors propagate', async () => {
     const failure = new Error('verification failed')
-    vi.spyOn(unitCookie, 'verifyUnitCookie').mockImplementation(() => { throw failure })
+    vi.spyOn(unitCookie, 'readUnitCookie').mockImplementation(() => { throw failure })
     await expect(invoke(route.path, options(), request(false))).rejects.toBe(failure)
   })
   test('non-cookie handlers receive no visitor, even after a signed request', async () => {
     const opts = options()
-    vi.spyOn(unitCookie, 'verifyUnitCookie').mockReturnValue('visitor')
+    vi.spyOn(unitCookie, 'readUnitCookie').mockReturnValue('visitor')
     await invoke(route.path, opts, request(false))
     const manageRoute = ROUTES.find(route => route.access === 'manage')!
     const handler = vi.spyOn(manageRoute, 'handler').mockImplementation(async () => Response.json({}))

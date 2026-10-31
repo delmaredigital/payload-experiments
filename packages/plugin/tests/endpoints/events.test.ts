@@ -8,6 +8,9 @@ import { buildEndpoints } from '../../src/endpoints/index.js'
 import { assign } from '../../src/runtime/assign.js'
 import { encodeUnitCookie } from '../../src/runtime/cookie.js'
 import { defineExperimentsProxyRuntime } from '../../src/runtime/proxyRuntime.js'
+import { NextRequest } from 'next/server.js'
+import { resolveExperiments } from '../../src/proxy/resolve.js'
+import { decodeAssignmentsHeader } from '../../src/runtime/header.js'
 import { defineExperimentsServerRuntime } from '../../src/server/serverRuntime.js'
 import type { ResolvedOptions } from '../../src/types/contracts.js'
 import type { Manifest, ManifestExperiment } from '../../src/types/manifest.js'
@@ -236,17 +239,56 @@ test('server attributes override proxy attributes for targeting', async () => {
   await accepted(await f.run(f.request({ events: [exposure] })))
   expect(stored()).toHaveLength(1)
 })
-test('recomputes page-path targeting from a same-origin referrer, with normalized pathname', async () => {
+test('recomputes page-path targeting from a same-origin referrer with the shared normalization', async () => {
   const f = fixture({ targeting: [{ attribute: 'path', type: 'string', op: 'eq', value: '/article' }] })
   const getUnit = vi.fn(async request => {
-    expect(request.nextUrl.pathname).toBe('/article/')
+    expect(request.nextUrl.pathname).toBe('/article//')
     return { userId: 'untrusted-proxy-user', attributes: { path: '/wrong' } }
   })
   f.options.runtime.proxyRuntime = { ...f.options.runtime.proxyRuntime, getUnit }
   f.options.runtime.attributesOf = () => ({ path: '/wrong-again' })
-  await accepted(await f.run(f.request({ events: [exposure] }, { referer: 'https://example.test/article/?campaign=autumn' })))
+  await accepted(await f.run(f.request({ events: [exposure] }, { referer: 'https://example.test/article//?campaign=autumn' })))
   expect(stored()).toHaveLength(1)
   expect(stored()[0]?.type).toBe('exposure')
+})
+test.each(['/', '/a', '/a/', '/a//'])('proxy and endpoint agree on path eligibility for %s', async pathname => {
+  const f = fixture()
+  // Try both possible target paths to check eligibility and rejection for each URL.
+  for (const target of ['/', '/a']) {
+    f.manifest.experiments[0]!.targeting = [{ attribute: 'path', type: 'string', op: 'eq', value: target }]
+    const proxy = { ...f.options.runtime.proxyRuntime, getUnit: async () => ({ attributes: { path: '/spoof' } }) }
+    f.options.runtime.proxyRuntime = proxy
+    f.options.runtime.attributesOf = () => ({ path: '/also-spoof' })
+    const url = `https://example.test${pathname}`
+    const proxied = await resolveExperiments(new NextRequest(url, { headers: { cookie: `xp_id=${signed}` } }), proxy)
+    const assignments = decodeAssignmentsHeader(proxied.requestHeaders.get('x-xp-assignments')!, { secrets, visitorId: 'visitor', manifest: f.manifest })!
+    const assigned = assignments.bySlug['example-experiment']!
+    const expected = target === (pathname === '/' ? '/' : '/a')
+    expect(assigned.exposable).toBe(expected)
+    insert.mockClear()
+    await accepted(await f.run(f.request({ events: [{ ...exposure, arm: assigned.arm }] }, { referer: url })))
+    expect(stored().length > 0).toBe(assigned.exposable)
+  }
+})
+test.each([false, true])('unknown session with declared staff suppresses exposure and mismatch rows (authenticated=%s)', async authenticated => {
+  const f = fixture()
+  f.options.attributeKeys = { staff: { type: 'boolean' } }
+  f.options.runtime.proxyRuntime = { ...f.options.runtime.proxyRuntime, getUnit: async () => ({ attributes: { staff: false }, sessionUnknown: true }) }
+  await accepted(await f.run(f.request({ events: [exposure, { ...exposure, arm: 'control' }, conversion] }, {},
+    { user: authenticated ? { id: 'user' } : undefined })))
+  expect(stored().map(row => row.type)).toEqual(authenticated ? ['exposure', 'arm-mismatch', 'conversion'] : ['conversion'])
+})
+test('events endpoint and signedCookie wrapper both select the last signed unit cookie', async () => {
+  const f = fixture()
+  const cookie = `xp_id=${signed}; xp_id=${encodeUnitCookie('last', ['previous'])}`
+  await accepted(await f.run(f.request(undefined, { cookie })))
+  const endpoint = buildEndpoints({ options: f.options }).find(route => route.path === '/xp/events')!
+  await accepted(await endpoint.handler(f.request(undefined, { cookie })))
+  expect(stored()).toHaveLength(4)
+  expect(stored().every(row => row.unitId === 'last')).toBe(true)
+  const invalidLast = `xp_id=${signed}; xp_id=unsigned`
+  expect((await f.run(f.request(undefined, { cookie: invalidLast }))).status).toBe(401)
+  expect((await endpoint.handler(f.request(undefined, { cookie: invalidLast }))).status).toBe(401)
 })
 test.each([undefined, 'https://other.test/article', 'bad-url'])('missing or invalid page context never uses the API route or host-supplied path (%s)', async referer => {
   const f = fixture({ targeting: [{ attribute: 'path', type: 'string', op: 'eq', value: '/article' }] })

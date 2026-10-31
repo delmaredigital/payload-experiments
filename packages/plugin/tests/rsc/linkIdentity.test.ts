@@ -18,6 +18,13 @@ function fixture() {
   return { runtime, query, connect, release, transaction, error }
 }
 
+test('duplicate signed cookies link the last visitor, matching the proxy', async () => {
+  const { runtime, query } = fixture()
+  const cookie = `custom_xp=${encodeUnitCookie('first', ['new'])}; custom_xp=${encodeUnitCookie('last', ['old'])}`
+  await linkIdentity(runtime, { headers: new Headers({ cookie }), userId: 'user' })
+  expect(query.mock.calls[0]![0]).toMatchObject({ values: ['last', 'user'] })
+})
+
 test.each([undefined, 'visitor', encodeUnitCookie('visitor', ['wrong']), `visitor.${sign('visitor', ['new'])}`])('rejects absent/unsigned/tampered/old-format cookies (%s)', async cookie => {
   const { runtime, connect } = fixture()
   await linkIdentity(runtime, { headers: new Headers(cookie ? { cookie: `custom_xp=${cookie}` } : {}), userId: 'user' })

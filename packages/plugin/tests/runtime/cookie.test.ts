@@ -1,8 +1,20 @@
 import { expect, test } from 'vitest'
-import { cookieAttributes, encodeUnitCookie, mintUnitId, verifyUnitCookie } from '../../src/runtime/cookie.js'
+import { NextRequest } from 'next/server.js'
+import { cookieAttributes, encodeUnitCookie, mintUnitId, readUnitCookie, verifyUnitCookie } from '../../src/runtime/cookie.js'
 import { defineExperimentsProxyRuntime } from '../../src/runtime/proxyRuntime.js'
 import { signPreviewToken, verifyPreviewToken } from '../../src/runtime/previewToken.js'
 import { sign } from '../../src/runtime/signing.js'
+
+test.each(['headers', 'request'])('signed-cookie reader chooses the last named cookie from %s with rotating secrets', mode => {
+  const runtime = defineExperimentsProxyRuntime({ secret: ['new', 'old'], apiRoute: '/api', cookie: { name: 'custom_xp' } })
+  const headers = new Headers({ cookie: `xp_id=ignored; custom_xp=${encodeUnitCookie('first', ['new'])}; custom_xp=${encodeUnitCookie('last', ['old'])}` })
+  const input = () => mode === 'headers' ? headers : new NextRequest('https://example.test/', { headers })
+  expect(readUnitCookie(input(), runtime)).toBe('last')
+  headers.set('cookie', `custom_xp=${encodeUnitCookie('first', ['new'])}; custom_xp=unsigned`)
+  expect(readUnitCookie(input(), runtime)).toBeNull()
+  headers.delete('cookie')
+  expect(readUnitCookie(input(), runtime)).toBeNull()
+})
 
 test('minted ids contain 128 random bits and cookies round trip through rotation', () => {
   const ids = Array.from({ length: 100 }, mintUnitId)

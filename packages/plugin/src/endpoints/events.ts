@@ -9,7 +9,8 @@ import { sourceRequest } from '../events/request.js'
 import { eventRows } from '../events/rows.js'
 import { assign } from '../runtime/assign.js'
 import { isBot } from '../runtime/bot.js'
-import { verifyUnitCookie } from '../runtime/cookie.js'
+import { readUnitCookie } from '../runtime/cookie.js'
+import { requestAttributes } from '../runtime/normalisePath.js'
 import { serverManifest } from '../server/context.js'
 import type { Attributes } from '../types/contracts.js'
 import type { EndpointContext, ErrorEnvelope } from '../types/endpoints.js'
@@ -17,8 +18,7 @@ import type { EndpointContext, ErrorEnvelope } from '../types/endpoints.js'
 const accepted = () => Response.json({}, { status: 202 })
 export async function handleEvents<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, { options }: EndpointContext<TUser>): Promise<Response> {
   const runtime = options.runtime, proxy = runtime.proxyRuntime
-  const cookie = req.headers.get('cookie')?.split(';').map(part => part.trim()).find(part => part.startsWith(`${proxy.cookie.name}=`))?.slice(proxy.cookie.name.length + 1)
-  const visitorId = verifyUnitCookie(cookie, proxy.secrets)
+  const visitorId = readUnitCookie(req.headers, proxy)
   if (!visitorId) return Response.json({ errors: [{ code: 'unauthenticated', message: 'Invalid unit cookie' }] } satisfies ErrorEnvelope, { status: 401 })
   let events: unknown[]
   try { events = await readEvents(req.body, options.events?.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES) } catch (error) {
@@ -36,16 +36,16 @@ export async function handleEvents<TUser extends { id: string | number } = { id:
     const unit = await proxy.getUnit?.(source ?? request)
     const user = (req.user ?? null) as TUser | null
     const userId = user ? runtime.userIdOf(user) : undefined
-    const attributes = { ...unit?.attributes, ...runtime.attributesOf(user) } as Attributes
     // The beacon URL is an API route, not the page whose content was rendered.
     // A referrer supplies page context only, never an identity or an assigned arm.
-    if (source) attributes.path = source.nextUrl.pathname.replace(/\/$/, '') || '/'
-    else delete attributes.path
+    const attributes = requestAttributes({ ...unit?.attributes, ...runtime.attributesOf(user) } as Attributes, source?.nextUrl.pathname)
+    const unresolvedStaff = Boolean(options.attributeKeys?.staff && unit?.sessionUnknown && !user)
     const assignments = assign(manifest, { visitorId, userId }, attributes, {
       now: Math.floor(Date.now() / 1000), method: req.method,
       staff: unit?.attributes.staff === true || attributes.staff === true,
       bot: isBot(req.headers.get('user-agent')), preview: isPreview(request),
     })
+    if (unresolvedStaff) for (const assignment of Object.values(assignments.bySlug)) assignment.exposable = false
     const rows = eventRows(events, manifest, assignments, options, visitorId, userId, new Date().toISOString())
     // §7.8 events insert / assignment lookup exception: pooled SQL and cached manifest,
     // no Local API calls (and hence no implicit overrideAccess defaults).

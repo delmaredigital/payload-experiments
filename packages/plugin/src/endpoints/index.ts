@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Endpoint, PayloadRequest } from 'payload'
 import { XP_MANIFEST_KEY_HEADER } from '../constants.js'
 import { XpNotImplemented, XpRefusal } from '../errors.js'
-import { verifyUnitCookie } from '../runtime/cookie.js'
+import { readUnitCookie } from '../runtime/cookie.js'
 import type { ResolvedOptions } from '../types/contracts.js'
 import type { AccessKind, EndpointContext, ErrorEnvelope, RefusalCode } from '../types/endpoints.js'
 import { handleManifest } from './manifest.js'
@@ -53,9 +53,7 @@ export function buildEndpoints<TUser extends { id: string | number } = { id: str
           return error(401, 'unauthenticated', 'Invalid manifest key')
         }
       } else {
-        const name = options.runtime.proxyRuntime.cookie.name
-        const cookie = req.headers.get('cookie')?.split(';').map(part => part.trim()).find(part => part.startsWith(`${name}=`))?.slice(name.length + 1)
-        const visitorId = verifyUnitCookie(cookie, options.runtime.proxyRuntime.secrets)
+        const visitorId = readUnitCookie(req.headers, options.runtime.proxyRuntime)
         if (!visitorId) return error(401, 'unauthenticated', 'Invalid unit cookie')
         handlerContext.unit = { visitorId }
       }

@@ -20,6 +20,15 @@ function fixture() {
   return { runtime, execute, error, warn }
 }
 
+test('duplicate signed cookies attribute conversions to the last visitor', async () => {
+  const { runtime, execute } = fixture()
+  const cookie = `xp_id=${encodeUnitCookie('first', ['secret'])}; xp_id=${encodeUnitCookie('last', ['secret'])}`
+  await trackConversion(runtime, { eventName: 'event', idempotencyKey: 'key', headers: new Headers({ cookie }) })
+  const params = new PgDialect().sqlToQuery(execute.mock.calls[0]![0]).params
+  expect(params[4]).toBe('last')
+  expect(params[5]).toBe('visitor')
+})
+
 test('signed cookie writes visitor conversion with server namespace and user attribution', async () => {
   const { runtime, execute } = fixture()
   await trackConversion(runtime, { eventName: 'donation', idempotencyKey: 'receipt', value: 10, userId: 'user', headers: new Headers({ cookie: `other=x; xp_id=${encodeUnitCookie('visitor', ['secret'])}` }) })

@@ -1,10 +1,10 @@
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
 import type { Assignments } from '../types/assignments.js'
 import { cache } from 'react'
-import { headers, cookies } from 'next/headers.js'
+import { headers } from 'next/headers.js'
 import { XP_HEADER } from '../constants.js'
 import { assign, fillFlagPoints, type AssignmentResult } from '../runtime/assign.js'
-import { verifyUnitCookie } from '../runtime/cookie.js'
+import { readUnitCookie } from '../runtime/cookie.js'
 import { decodeAssignmentsHeader } from '../runtime/header.js'
 import { verifyPreviewToken } from '../runtime/previewToken.js'
 import { isBot } from '../runtime/bot.js'
@@ -28,11 +28,10 @@ export async function getAssignments<TUser extends { id: string | number } = { i
 }
 
 async function readAssignments<TUser extends { id: string | number }>(runtime: ExperimentsServerRuntime<TUser>, suppliedUser: TUser | null | undefined): Promise<Assignments> {
-  const [incoming, jar] = await Promise.all([headers(), cookies()])
-  const requestHeaders = new Headers(incoming)
+  const requestHeaders = new Headers(await headers())
   const proxy = runtime.proxyRuntime
   const { request, hasContext, consent } = serverRequest(requestHeaders, proxy.secrets)
-  const visitorId = consent === false ? undefined : verifyUnitCookie(jar.get(proxy.cookie.name)?.value, proxy.secrets) ?? undefined
+  const visitorId = consent === false ? undefined : readUnitCookie(requestHeaders, proxy) ?? undefined
   let payload: Payload | undefined
   let payloadFailed = false
   try { payload = await runtime.getPayload() } catch {

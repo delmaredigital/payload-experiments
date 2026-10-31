@@ -2,6 +2,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { requestState, newRequest, trustedContext } from './requestHarness.js'
 import { assignments, experiment, manifest, page, runtime, secrets } from './helpers.js'
 import { getAssignments } from '../../src/server/getAssignments.js'
+import { encodeUnitCookie } from '../../src/runtime/cookie.js'
 import { encodeAssignmentsHeader } from '../../src/runtime/header.js'
 import { signPreviewToken } from '../../src/runtime/previewToken.js'
 import { resolveExperimentData } from '../../src/server/resolveExperimentData.js'
@@ -15,6 +16,15 @@ import { toClientAssignments } from '../../src/server/toClientAssignments.js'
 
 afterEach(() => vi.restoreAllMocks())
 const header = (a = assignments(), m = manifest()) => requestState.headers.set('x-xp-assignments', encodeAssignmentsHeader(a, { secrets, manifest: m }))
+
+test('duplicate signed cookies authenticate the header bound to the last visitor', async () => {
+  trustedContext()
+  requestState.headers.set('cookie', `xp_id=${encodeUnitCookie('first', secrets)}; xp_id=${encodeUnitCookie('last', secrets)}`)
+  const a = assignments(); a.visitorId = 'last'; a.userId = undefined
+  header(a)
+  const result = await getAssignments(runtime().rt)
+  expect(result).toMatchObject({ visitorId: 'last', bySlug: { hero: { source: 'header', exposable: true } } })
+})
 
 test('verified header is used but missing context keeps method unknown and non-exposable', async () => {
   const a = assignments(); a.userId = undefined; a.bySlug.hero!.arm = 'control'
@@ -31,7 +41,7 @@ test('tampered header falls back to non-exposable control without context', asyn
   expect(result.bySlug.hero).toMatchObject({ arm: 'control', exposable: false, source: 'fallback' })
 })
 test.each(['unsigned', 'missing'])('%s cookie gives control, non-exposable even for a known user', async mode => {
-  requestState.cookie = mode === 'unsigned' ? 'visitor' : ''
+  requestState.headers.set('cookie', mode === 'unsigned' ? 'xp_id=visitor' : '')
   const m = manifest([experiment(), experiment({ id: 8, slug: 'user', unitType: 'user' })])
   const result = await getAssignments(runtime(m, { getUnit: () => ({ userId: 'user', attributes: {} }) }).rt)
   expect(Object.values(result.bySlug).every(a => a.arm === 'control' && !a.exposable)).toBe(true)
@@ -39,7 +49,7 @@ test.each(['unsigned', 'missing'])('%s cookie gives control, non-exposable even 
 test('consent-false proxy request cannot expose even with a header and user', async () => {
   const a = assignments(); a.visitorId = undefined; a.userId = undefined
   for (const entry of Object.values(a.bySlug)) { entry.arm = 'control'; entry.exposable = false }
-  header(a); requestState.cookie = ''
+  header(a); requestState.headers.delete('cookie')
   const result = await getAssignments(runtime(undefined, {}, { getUser: async () => ({ id: 'user' }) }).rt)
   expect(result.bySlug.hero).toMatchObject({ arm: 'control', exposable: false })
 })
@@ -189,7 +199,7 @@ test('consent-false verified winners survive without either identity', async () 
   const m = manifest([experiment({ kind: 'flag', flagPoint: 'point', status: 'decided', winnerArm: 'variantA', exposurePolicy: 'manual' })])
   const a = assignments(m); a.visitorId = undefined; a.userId = undefined
   a.bySlug.hero!.arm = 'variantA'; a.bySlug.hero!.exposable = false
-  header(a, m); requestState.cookie = ''
+  header(a, m); requestState.headers.delete('cookie')
   const result = await getAssignments(runtime(m, { getUnit: () => ({ userId: 'must-ignore', attributes: {} }) }, { getUser: async () => ({ id: 'also-ignore' }) }).rt)
   expect(result).toMatchObject({ visitorId: undefined, userId: undefined, bySlug: { hero: { arm: 'variantA', source: 'header', exposable: false } }, flagPoints: { point: { arm: 'variantA', exposable: false } } })
 })

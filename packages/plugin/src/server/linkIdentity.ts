@@ -2,7 +2,7 @@ import type { Payload } from 'payload'
 import { NextRequest } from 'next/server.js'
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
 import { insertIdentityOnOwnConnection } from '../db/identities.js'
-import { verifyUnitCookie } from '../runtime/cookie.js'
+import { readUnitCookie } from '../runtime/cookie.js'
 
 export async function linkIdentity<TUser extends { id: string | number } = { id: string | number }>(serverRuntime: ExperimentsServerRuntime<TUser>, opts: { headers: Headers; userId: string }): Promise<void> {
   let payload: Payload | undefined
@@ -15,8 +15,7 @@ export async function linkIdentity<TUser extends { id: string | number } = { id:
       consent = false
     }
     if (!consent) return
-    const cookie = opts.headers.get('cookie')?.split(';').map(part => part.trim()).find(part => part.startsWith(`${runtime.cookie.name}=`))?.slice(runtime.cookie.name.length + 1)
-    const anonymousId = verifyUnitCookie(cookie, runtime.secrets)
+    const anonymousId = readUnitCookie(opts.headers, runtime)
     if (!anonymousId) return
     payload = await serverRuntime.getPayload()
     await insertIdentityOnOwnConnection(payload, { anonymousId, userId: opts.userId })

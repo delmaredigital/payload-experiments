@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { NextRequest } from 'next/server.js'
 import type { ExperimentsProxyRuntime } from '../types/runtime.js'
 import { sign, verify } from './signing.js'
 
@@ -15,6 +16,12 @@ export function verifyUnitCookie(cookie: string | undefined, secrets: readonly s
   if (typeof cookie !== 'string') return null
   const match = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/.exec(cookie)
   return match && verify(`xp:unit:${match[1]!}`, match[2]!, secrets) ? match[1]! : null
+}
+
+/** Use Next's cookie selection everywhere: the last cookie of a given name wins. */
+export function readUnitCookie(input: Headers | NextRequest, runtime: Pick<ExperimentsProxyRuntime, 'cookie' | 'secrets'>): string | null {
+  const request = input instanceof Headers ? new NextRequest('https://xp.invalid/', { headers: input }) : input
+  return verifyUnitCookie(request.cookies.get(runtime.cookie.name)?.value, runtime.secrets)
 }
 
 export function cookieAttributes(runtime: Pick<ExperimentsProxyRuntime, 'cookie'>, { https }: { https: boolean }) {
