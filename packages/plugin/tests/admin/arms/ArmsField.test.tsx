@@ -221,3 +221,22 @@ test('arm selector retains the same result across unrelated form changes', () =>
   expect(before).toBeDefined()
   expect(after).toBe(before)
 })
+
+test('loading saved rows with null slots and params does not dispatch or mark the form modified', () => {
+  const pageRows = [
+    { key: 'control', label: 'Original', kind: 'control', weight: 50, slot: null, params: null, pageTarget: '/a' },
+    { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 50, slot: null, params: null, pageTarget: '/b' },
+  ] as unknown as Arm[]
+  const page = setup(pageRows, 'draft', 'page')
+  expect(page.dispatchFields).not.toHaveBeenCalled()
+  expect(page.setModified).not.toHaveBeenCalled()
+  cleanup(); resetPayloadUiMock(); local.rows = []
+  const blockRows = [
+    { key: 'control', label: 'Original', kind: 'control', weight: 45, slot: 'control', params: null },
+    { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 45, slot: 'variantA', params: null },
+    { key: 'holdout', label: 'Holdout', kind: 'holdout', weight: 10, slot: null, params: null },
+  ] as unknown as Arm[]
+  const block = setup(blockRows, 'stopped', 'block')
+  expect(block.dispatchFields).not.toHaveBeenCalled()
+  expect(block.setModified).not.toHaveBeenCalled()
+})

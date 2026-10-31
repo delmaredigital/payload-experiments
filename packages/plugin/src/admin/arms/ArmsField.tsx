@@ -53,6 +53,9 @@ export function ArmsField({ field, path = 'arms', readOnly }: ArrayFieldClientPr
 
   function apply(next: Arm[]) {
     if (!editable) return
+    // null (from Postgres) and undefined both mean "unset"; only real differences are written.
+    const same = (a: unknown, b: unknown) => Object.is(a, b) || (a == null && b == null)
+    let changed = false
     next = withSlotsFor(next, kind)
     if (next === arms) return
     const structureChanged = next.length !== arms.length || next.some((row, index) => row.key !== arms[index]?.key)
@@ -60,6 +63,7 @@ export function ArmsField({ field, path = 'arms', readOnly }: ArrayFieldClientPr
     // Move both the hidden ID field and public row metadata with the logical key.
     const idsByKey = new Map(arms.map((row, index) => [row.key, rowIds[index]]))
     const nextIds = structureChanged ? next.map(row => idsByKey.get(row.key) ?? newRowId()) : rowIds
+    if (structureChanged) changed = true
     for (let rowIndex = arms.length - 1; rowIndex >= next.length; rowIndex--) form.removeFieldRow({ path, rowIndex })
     for (let rowIndex = arms.length; rowIndex < next.length; rowIndex++) {
       const row = next[rowIndex]!
@@ -75,16 +79,16 @@ export function ArmsField({ field, path = 'arms', readOnly }: ArrayFieldClientPr
         if (key === 'params' && row.kind === 'holdout') {
           // Reusing a physical row for the holdout must drop the former
           // variant's params without assigning params to the holdout.
-          if (arms[index]?.params !== undefined) form.dispatchFields({ type: 'UPDATE', path: `${path}.${index}.params`, value: undefined })
+          if (arms[index]?.params != null) { changed = true; form.dispatchFields({ type: 'UPDATE', path: `${path}.${index}.params`, value: undefined }) }
           continue
         }
-        if (!Object.is(arms[index]?.[key], row[key])) form.dispatchFields({ type: 'UPDATE', path: `${path}.${index}.${key}`, value: row[key] })
+        if (!same(arms[index]?.[key], row[key])) { changed = true; form.dispatchFields({ type: 'UPDATE', path: `${path}.${index}.${key}`, value: row[key] }) }
       }
     })
     if (structureChanged) form.dispatchFields({ type: 'UPDATE', path, rows: nextIds.map(id =>
       rowMetadata?.find(row => row.id === id) ?? { id: id!, isLoading: true }),
     })
-    form.setModified(true)
+    if (changed) form.setModified(true)
   }
   useEffect(() => {
     if (!editable) return

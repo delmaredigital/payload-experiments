@@ -15,7 +15,8 @@ export function defaultArms(kind?: ExperimentKind): Arm[] {
 export function withSlotsFor(arms: Arm[], kind?: ExperimentKind): Arm[] {
   const next = arms.map(arm => {
     if (kind === 'block' && arm.kind !== 'holdout') return arm.slot === arm.key ? arm : { ...arm, slot: arm.key as Arm['slot'] }
-    if (!Object.hasOwn(arm, 'slot')) return arm
+    // Postgres returns null for unset columns; null counts as "no slot" so a loaded doc is not rewritten.
+    if (arm.slot == null) return arm
     const { slot: _slot, ...rest } = arm
     return rest
   })
