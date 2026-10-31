@@ -341,6 +341,11 @@ export const xp_experiments = pgTable(
       precision: 3,
     }),
     decision_contentReport: jsonb("decision_content_report"),
+    decision_holdoutReleasedAt: timestamp("decision_holdout_released_at", {
+      mode: "string",
+      withTimezone: true,
+      precision: 3,
+    }),
     updatedAt: timestamp("updated_at", {
       mode: "string",
       withTimezone: true,
@@ -538,6 +543,10 @@ export const _xp_experiments_v = pgTable(
       precision: 3,
     }),
     version_decision_contentReport: jsonb("version_decision_content_report"),
+    version_decision_holdoutReleasedAt: timestamp(
+      "version_decision_holdout_released_at",
+      { mode: "string", withTimezone: true, precision: 3 },
+    ),
     version_updatedAt: timestamp("version_updated_at", {
       mode: "string",
       withTimezone: true,

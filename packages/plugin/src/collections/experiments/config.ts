@@ -125,7 +125,7 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
         { name: 'winnerArm', type: 'text' }, { name: 'verdictCode', type: 'text' }, { name: 'note', type: 'textarea' },
         // The frozen options contract has no auth collection or host config at factory time.
         { name: 'decidedBy', type: 'text' }, { name: 'snapshotId', type: 'text' },
-        { name: 'discardedAt', type: 'date' }, { name: 'contentReport', type: 'json' },
+        { name: 'discardedAt', type: 'date' }, { name: 'contentReport', type: 'json' }, { name: 'holdoutReleasedAt', type: 'date' },
       ] },
     ],
   }
