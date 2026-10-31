@@ -4,6 +4,7 @@ import type { Status } from '../../types/contracts.js'
 import { XpLockedFieldError } from '../../errors.js'
 import { xpOptionsFromReq } from '../../options/fromReq.js'
 import { EDITABLE_BY_STATUS } from './editability.js'
+import { defaultArms } from './armInvariants.js'
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)
 const relationships = new Set(['layer', 'metrics.primary', 'metrics.secondary', 'metrics.guardrails', 'decision.decidedBy', 'decision.snapshotId'])
@@ -52,10 +53,7 @@ export const lockHook: CollectionBeforeChangeHook = async ({ data, originalDoc, 
     delete result.updatedAt
     for (const field of ['seed', 'layerSlices', 'startedAt', 'stoppedAt', 'decidedAt', 'archivedAt', 'decision']) result[field] = undefined
     if (!data.arms || (Array.isArray(data.arms) && data.arms.length === 0)) {
-      result.arms = [
-        { key: 'control', kind: 'control', label: 'Original', weight: 50, ...(data.kind === 'block' ? { slot: 'control' } : {}) },
-        { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 50, ...(data.kind === 'block' ? { slot: 'variantA' } : {}) },
-      ]
+      result.arms = defaultArms(data.kind)
     }
     if (data.kind === 'code' && !await admin()) throw new XpLockedFieldError('kind', 'draft')
     if (data.analysis?.method != null && data.analysis.method !== 'sequential' && !await admin()) throw new XpLockedFieldError('analysis.method', 'draft')

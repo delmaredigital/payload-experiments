@@ -74,8 +74,9 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
                 const op = siblingData?.op ?? ''
                 if (!type || !isOpValid(type, op)) return 'Choose a registered attribute and supported operator.'
                 const valid = type === 'string' && (op === 'in' || op === 'nin')
-                  ? Array.isArray(value) && value.every(item => typeof item === 'string')
+                  ? Array.isArray(value) && value.length > 0 && value.every(item => typeof item === 'string')
                   : typeof value === type && (type !== 'number' || Number.isFinite(value))
+                if (!valid && type === 'string' && (op === 'in' || op === 'nin') && Array.isArray(value) && value.length === 0) return 'Add at least one value; an empty list matches nobody.'
                 return valid || 'Enter a value of the type required by this attribute and operator.'
               },
               admin: { components: { Field: paths.XP_TARGETING_VALUE }, custom: { attributeKeys } } },

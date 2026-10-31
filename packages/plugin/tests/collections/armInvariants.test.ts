@@ -78,3 +78,25 @@ test('existing holdout is a no-op', () => {
   const arms = valid()
   expect(addHoldout(arms)).toBe(arms)
 })
+
+test('defaultArms is the single source of the create defaults', async () => {
+  const { defaultArms } = await import('../../src/collections/experiments/armInvariants.js')
+  expect(defaultArms('block')).toEqual([
+    { key: 'control', kind: 'control', label: 'Original', weight: 50, slot: 'control' },
+    { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 50, slot: 'variantA' },
+  ])
+  expect(defaultArms('flag').every(arm => !('slot' in arm))).toBe(true)
+})
+test('issue messages use user language (no "arm")', async () => {
+  const { checkArms } = await import('../../src/collections/experiments/armInvariants.js')
+  const broken = [
+    { key: 'variantA', kind: 'control', label: 'x', weight: 30, slot: 'nope' },
+    { key: 'variantA', kind: 'variant', label: 'y', weight: 30 },
+    { key: 'holdout', kind: 'holdout', label: 'h', weight: 10, slot: 'control' },
+    { key: 'control', kind: 'control', label: 'z', weight: 10 },
+    { key: 'holdout', kind: 'holdout', label: 'h2', weight: 10 },
+  ] as never
+  const messages = checkArms(broken, 'block').map(issue => issue.message)
+  expect(messages.length).toBeGreaterThan(3)
+  for (const message of messages) expect(message).not.toMatch(/\barms?\b/i)
+})

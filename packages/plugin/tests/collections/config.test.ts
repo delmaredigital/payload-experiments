@@ -12,7 +12,9 @@ import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } f
 import { fakeReq } from '../_fakes/req.js'
 import { field, flatten, invoke, sampleOptions, validate } from './fixtures.js'
 
-vi.mock('../../src/collections/experiments/armInvariants.js', () => ({ checkArms: vi.fn() }))
+vi.mock('../../src/collections/experiments/armInvariants.js', async importOriginal => ({
+  ...await importOriginal<typeof import('../../src/collections/experiments/armInvariants.js')>(), checkArms: vi.fn(),
+}))
 
 const options = sampleOptions()
 const { collections, globals } = buildCollections(options)
