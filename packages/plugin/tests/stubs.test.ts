@@ -96,7 +96,7 @@ const stubs: Array<[Function, string]> = [
   ...[rsc.recordExposures, rsc.trackConversion, rsc.linkIdentity, rsc.eraseUser].map(fn => [fn, 'CORE-08a'] as [Function, string]),
   [rsc.recordContentChange, 'CORE-12'], [rsc.runResults, 'CORE-15b'],
   ...[isEditable, lockHook, checkArms, addHoldout, flagControlParams].map(fn => [fn, 'CORE-03'] as [Function, string]),
-  [deleteGuard, 'CORE-11'], [deleteGuardAfter, 'CORE-11'], [decideGuard, 'CORE-13'], [contentChangesHook, 'CORE-12'],
+  [deleteGuard, 'CORE-11'], [deleteGuardAfter, 'CORE-11'], [decideGuard, 'CORE-13'],
 ]
 for (const [fn, lane] of stubs) {
   test(`${fn.name} is a stub of ${lane} or has been implemented`, async () => {
@@ -107,3 +107,8 @@ for (const [fn, lane] of stubs) {
     if (outcome instanceof XpNotImplemented) expect(outcome).toMatchObject({ name: 'XpNotImplemented', lane })
   })
 }
+
+test('hooks installed on host collections pass the document through and never throw', async () => {
+  const doc = { id: 1, puckData: { content: [] } }
+  await expect(Promise.resolve().then(() => Reflect.apply(contentChangesHook, undefined, [{ doc }]))).resolves.toBe(doc)
+})
