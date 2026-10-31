@@ -81,6 +81,17 @@ Module-level code must import on
 Python 3.9: future annotations, no `match` or newer stdlib imports. Modules may
 use `from _common import camel, encode, raises` even under `-I`.
 
+`cases/_gb.py` supplies `to_gb`, `from_gb`, `moments_ts`, and `freq_ts`.
+Use `from _gb import to_gb, from_gb, moments_ts, freq_ts` for the needed helpers.
+The generator loads case modules by absolute path and preloads only `_common`;
+under `-I`, `cases/` is absent from `sys.path`. Before that import, load `_gb.py`
+with `importlib.util.spec_from_file_location("_gb", Path(__file__).with_name("_gb.py"))`,
+register the resulting module in `sys.modules["_gb"]`, and call its loader's
+`exec_module` (only if `_gb` is not already registered). See `statistics.py`.
+The helper imports gbstats inside converter calls, so `--list` needs no numerical
+dependencies. `moments_ts` drops `post_stratification_applied`; `freq_ts` converts
+CI tuples to lists and leaves numpy infinities for `encode`.
+
 Inputs use TypeScript argument order, camelCase keys and `type` discriminants.
 Project upstream outputs to that same TS shape. `_common.camel` recursively
 converts snake_case keys after the encoding pre-walk has converted dataclasses
