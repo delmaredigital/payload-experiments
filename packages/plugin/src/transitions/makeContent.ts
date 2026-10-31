@@ -153,8 +153,11 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           const access = config?.access?.read ? await config.access.read({ id, req }) : true
           const doc = await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: true, includeLockStatus: true, disableErrors: true })
           if (!doc) {
-            const ok = access !== false
-            const detail = ok ? 'This page no longer exists; nothing to change.' : 'You can no longer read this page.'
+            // Fail closed (exp-orch 16:20): only an unfiltered read proves the page is gone;
+            // a Where-filtered miss may be a page this manager cannot see.
+            const ok = access === true || (typeof access === 'object' && access !== null && Object.keys(access).length === 0)
+            const detail = ok ? 'This page no longer exists; nothing to change.' : access === false ? 'You can no longer read this page.'
+              : 'You can no longer read this page. If it was deleted, archive this experiment with discard or hard-coded instead.'
             docs.push({ collection, id, ok, detail, ...(!ok ? { error: detail } : {}) })
             skipped.add(key)
           } else if (doc._isLocked === true || doc.locked === true) refuse('locked-placement', { collection, id })
@@ -175,14 +178,16 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           const config = req.payload.config.collections.find(config => config.slug === collection)
           const drafts = Boolean(config?.versions && config.versions.drafts)
           const published = drafts ? await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: false }) : draft
-          for (const doc of [draft, published]) {
-            const refusal = await fieldRefusal(config?.fields ?? [], req, doc)
-            if (refusal) throw new Error(refusal)
-          }
           const draftContent = unwrap(draft[field], current.slug, winner.slot!)
           const publishedContent = unwrap(published[field], current.slug, winner.slot!)
           const changedDraft = JSON.stringify(draftContent) !== JSON.stringify(draft[field])
           const changedPublished = JSON.stringify(publishedContent) !== JSON.stringify(published[field])
+          // Nothing left to rewrite (e.g. an editor already did it by hand): done, before any refusal.
+          if (!changedDraft && !changedPublished) return
+          for (const doc of [draft, published]) {
+            const refusal = await fieldRefusal(config?.fields ?? [], req, doc)
+            if (refusal) throw new Error(refusal)
+          }
           const publishedData = contentData(published, field, publishedContent)
           const draftData = { ...contentData(draft, field, draftContent), _status: 'draft' }
           // Payload beforeValidate receives the latest version as doc, and the
@@ -194,7 +199,6 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
             const draftRefusal = await fieldRefusal(config?.fields ?? [], req, draftOriginal, 'update', draftData)
             if (draftRefusal) throw new Error(draftRefusal)
           }
-          if (!changedDraft && !changedPublished) return
           // Host writes are access checked with the manager's req (§7.8).
           if (changedPublished) await req.payload.update({ collection, id, req, overrideAccess: false, overrideLock: false, draft: false,
             data: publishedData })

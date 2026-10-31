@@ -215,7 +215,7 @@ test('evaluates field read access with the manager req even when the fake return
   expect(hostUpdates(f).filter(call => call.args.id === 3)).toEqual([])
   expect(hostUpdates(f).filter(call => call.args.id === 4)).toHaveLength(2)
 })
-test.each([true, {}, { id: { equals: 3 } }])('retry after a failed placement is deleted reports it ok and archives (read=%j)', async access => {
+test.each([true, {}])('retry after a failed placement is deleted reports it ok and archives (read=%j)', async access => {
   const f = fixture()
   Object.assign(f.payload.config.collections[0]!, { access: { read: () => access } })
   const update = f.payload.update.bind(f.payload)
@@ -336,5 +336,28 @@ test('nested block update access gets the proposed row and root data with the la
   expect(result.doc.status).toBe('decided')
   expect(updateAccess).toHaveBeenCalledTimes(2)
   expect(result.docs.every(doc => !doc.ok)).toBe(true)
+  expect(hostUpdates(f)).toEqual([])
+})
+
+test('a Where-filtered miss fails closed: not done, stays decided, and says how to get out (exp-orch 16:20)', async () => {
+  const f = fixture()
+  Object.assign(f.payload.config.collections[0]!, { access: { read: () => ({ id: { not_equals: 3 } }) } })
+  const findByID = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    if (args.collection === 'pages' && args.id === 3) return null as never
+    return findByID(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs).toContainEqual(expect.objectContaining({ collection: 'pages', id: 3, ok: false,
+    detail: 'You can no longer read this page. If it was deleted, archive this experiment with discard or hard-coded instead.' }))
+  expect(hostUpdates(f).some(call => call.args.id === 3)).toBe(false)
+})
+test('a page already fixed by hand is done even if it would be refused for a write (review F1)', async () => {
+  const f = fixture()
+  Object.assign(f.payload.config.collections[0]!, { fields: [{ name: 'secret', type: 'text', hidden: true }] })
+  f.payload.documents.pages = f.payload.documents.pages!.map(doc => ({ ...doc, puckData: { content: [] } }))
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('archived')
   expect(hostUpdates(f)).toEqual([])
 })
