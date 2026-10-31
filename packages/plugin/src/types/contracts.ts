@@ -42,7 +42,7 @@ export interface ExperimentsPluginOptions<TUser extends { id: string | number } 
   flagPoints?: FlagPoint[]
   attributeKeys?: Record<string, { type: 'string' | 'number' | 'boolean'; values?: string[] }>
   puck?: { enabled: boolean; collections: Array<string | { slug: string; field?: string }> }
-  events?: { retentionDays?: number; maxBodyBytes?: number; rateLimit?: RateLimiter }
+  events?: { retentionDays?: number; maxBodyBytes?: number; rateLimit?: RateLimiter; dimensions?: string[] }
 }
 /** Options required by the route table; CORE-02c resolves optional defaults. */
 // CORE-02c may narrow this alias (pre-authorised exception to the src/types freeze)

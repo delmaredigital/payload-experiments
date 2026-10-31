@@ -2,7 +2,7 @@ import type { Plugin } from 'payload'
 import type { ExperimentsPluginOptions } from './types/contracts.js'
 import { buildCollections } from './collections/index.js'
 import { buildEndpoints } from './endpoints/index.js'
-import { contentChangesHook } from './hooks/contentChanges.js'
+import { contentChangesBeforeHook, contentChangesHook } from './hooks/contentChanges.js'
 import { createOnInit } from './onInit.js'
 import { puckCollections, resolveOptions } from './options.js'
 
@@ -20,9 +20,14 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
     return {
       ...config,
       collections: [
-        ...(config.collections ?? []).map(collection => options.puck?.enabled && registrations.some(entry => entry.slug === collection.slug) ? {
-          ...collection, hooks: { ...collection.hooks, afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook] },
-        } : collection),
+        ...(config.collections ?? []).map(collection => {
+          const puck = options.puck?.enabled && registrations.some(entry => entry.slug === collection.slug)
+          if (!puck) return collection
+          return { ...collection, hooks: { ...collection.hooks,
+            beforeChange: [...(collection.hooks?.beforeChange ?? []), contentChangesBeforeHook],
+            ...(puck ? { afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook] } : {}),
+          } }
+        }),
         ...collections,
       ],
       globals: [...(config.globals ?? []), ...globals],

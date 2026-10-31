@@ -13,6 +13,7 @@ import type { ManifestExperiment } from '../../src/types/manifest.js'
 import { sign } from '../../src/runtime/signing.js'
 import { serverRequest } from '../../src/server/request.js'
 import { toClientAssignments } from '../../src/server/toClientAssignments.js'
+import { getFlagPoint } from '../../src/server/getFlagPoint.js'
 
 afterEach(() => vi.restoreAllMocks())
 const header = (a = assignments(), m = manifest()) => requestState.headers.set('x-xp-assignments', encodeAssignmentsHeader(a, { secrets, manifest: m }))
@@ -359,8 +360,21 @@ test('c0 with corrupt arms returns empty assignments when consent fallback and c
   trustedContext('/', 'GET', false)
   const log = vi.spyOn(console, 'error').mockImplementation(() => {})
   const m = manifest([experiment({ status: 'decided', winnerArm: 'variantA', arms: null as unknown as ManifestExperiment['arms'] })])
-  const result = await getAssignments(runtime(m, {}, {}, { flagPoints: [{ id: 'point', defaultParams: {} }] }).rt)
-  expect(result).toMatchObject({ visitorId: undefined, userId: undefined, bySlug: {}, flagPoints: {}, archivedWinners: {} })
+  m.flagDefaults.point = { winnerArm: 'variantA', params: { text: 'untrusted manifest' }, experiment: 7, decidedAt: '2026-10-31T00:00:00Z' }
+  const { rt } = runtime(m, {}, {}, { flagPoints: [{ id: 'point', defaultParams: { text: 'host default' } }] })
+  const result = await getAssignments(rt)
+  expect(result).toMatchObject({ visitorId: undefined, userId: undefined, bySlug: {}, archivedWinners: {} })
+  expect(result.flagPoints).toEqual({ point: { arm: 'control', params: { text: 'host default' }, source: 'default', exposable: false } })
+  expect(await getFlagPoint(rt, 'point')).toMatchObject({ params: { text: 'host default' }, source: 'default', exposable: false })
   expect(Object.values(result.bySlug)).toEqual([])
   expect(log).toHaveBeenCalledExactlyOnceWith('[payload-experiments] consent fallback failed; serving non-exposable control')
+})
+
+test('Payload load failure with malformed manifest returns empty non-exposable assignments', async () => {
+  trustedContext()
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const m = manifest([experiment({ arms: null as unknown as ManifestExperiment['arms'] })])
+  const { rt } = runtime(m, {}, { getPayload: async () => { throw new Error('offline') } })
+  expect(await getAssignments(rt)).toMatchObject({ revision: 0, bySlug: {}, flagPoints: {}, archivedWinners: {} })
+  expect(log).toHaveBeenCalledExactlyOnceWith('[payload-experiments] getPayload failed; serving non-exposable control')
 })

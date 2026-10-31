@@ -1,6 +1,6 @@
 import type { Config } from 'payload'
 import { expect, test, vi } from 'vitest'
-import { contentChangesHook } from '../src/hooks/contentChanges.js'
+import { contentChangesBeforeHook, contentChangesHook } from '../src/hooks/contentChanges.js'
 import { createExperimentsPlugin } from '../src/plugin.js'
 import { fakePayload } from './_fakes/payload.js'
 import { fakeReq } from './_fakes/req.js'
@@ -44,7 +44,7 @@ test('appends contentChangesHook to listed collections while preserving existing
   options.puck = { enabled: true, collections: ['pages'] }
   const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [pages, posts] })
   expect(config.collections?.[0]?.hooks?.afterChange).toEqual([previous, contentChangesHook])
-  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange])
+  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange, contentChangesBeforeHook])
   expect(config.collections?.[1]).toBe(posts)
   expect(pages.hooks.afterChange).toEqual([previous])
 })
@@ -77,4 +77,14 @@ test('fake requests default to POST only when a body is supplied', () => {
   expect(fakeReq().method).toBe('GET')
   expect(fakeReq({ body: '{}' }).method).toBe('POST')
   expect(fakeReq({ body: '{}', method: 'PATCH' }).method).toBe('PATCH')
+})
+
+test('non-Puck draft-enabled host collections get no content-change hooks (CORE-12b F5)', async () => {
+  const afterChange = vi.fn()
+  const beforeChange = vi.fn()
+  const config = await createExperimentsPlugin(sampleOptions())({ secret: 'test', db: {} as Config['db'], collections: [{
+    slug: 'asks', fields: [], versions: { drafts: {} }, hooks: { beforeChange: [beforeChange], afterChange: [afterChange] },
+  }] })
+  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange])
+  expect(config.collections?.[0]?.hooks?.afterChange).toEqual([afterChange])
 })

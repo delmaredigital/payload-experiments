@@ -8,7 +8,7 @@ test('resolves access, events and puck defaults without mutating the input', () 
   const input: ExperimentsPluginOptions = sampleOptions()
   const options = resolveOptions(input)
   expect(options.access).toEqual({ manage: input.access.manage, admin: input.access.manage, readResults: input.access.manage, readIdentities: input.access.manage })
-  expect(options.events).toEqual({ retentionDays: 180, maxBodyBytes: DEFAULT_MAX_BODY_BYTES })
+  expect(options.events).toEqual({ retentionDays: 180, maxBodyBytes: DEFAULT_MAX_BODY_BYTES, dimensions: [] })
   expect(options.puck).toEqual({ enabled: false, collections: [] })
   expect(input.access.admin).toBeUndefined()
   expect(input.events).toBeUndefined()
@@ -26,7 +26,7 @@ test('preserves overrides and defaults identities to admin', () => {
   input.puck = { enabled: true, collections: ['pages'] }
   const options = resolveOptions(input)
   expect(options.access).toEqual({ ...input.access, readIdentities: admin })
-  expect(options.events).toEqual(input.events)
+  expect(options.events).toEqual({ ...input.events, dimensions: [] })
   expect(options.puck).toEqual({ enabled: true, collections: [{ slug: 'pages', field: 'puckData' }] })
   expect(options.puck?.collections).not.toBe(input.puck.collections)
   const readIdentities = () => true
@@ -82,4 +82,12 @@ test('normalises mixed collection forms once without mutating registrations', ()
   expect(puckCollections(options)).toBe(options.puck?.collections)
   expect(puckCollections(options)).toBe(puckCollections(options))
   expect(input.puck.collections).toEqual(['pages', { slug: 'templates', field: 'content' }, { slug: 'posts' }])
+})
+
+
+test('copies configured dimension names without mutating the host options', () => {
+  const dimensions = ['registrationSource', 'loggedIn']
+  const options = resolveOptions({ ...sampleOptions(), events: { dimensions } })
+  expect(options.events?.dimensions).toEqual(dimensions)
+  expect(options.events?.dimensions).not.toBe(dimensions)
 })

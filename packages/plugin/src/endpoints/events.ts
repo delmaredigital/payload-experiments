@@ -46,7 +46,7 @@ export async function handleEvents<TUser extends { id: string | number } = { id:
       bot: isBot(req.headers.get('user-agent')), preview: isPreview(request),
     })
     if (unresolvedStaff) for (const assignment of Object.values(assignments.bySlug)) assignment.exposable = false
-    const rows = eventRows(events, manifest, assignments, options, visitorId, userId, new Date().toISOString())
+    const rows = eventRows(events, manifest, assignments, options, visitorId, userId, new Date().toISOString(), attributes)
     // §7.8 events insert / assignment lookup exception: pooled SQL and cached manifest,
     // no Local API calls (and hence no implicit overrideAccess defaults).
     if (rows.length) await insertEvents(pooledExecutor(req.payload), rows, message => req.payload.logger.error(message))

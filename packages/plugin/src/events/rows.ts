@@ -1,3 +1,4 @@
+import { exposureDimensions } from './dimensions.js'
 import type { EventRow } from '../db/events.js'
 import type { AssignmentResult } from '../runtime/assign.js'
 import type { ResolvedOptions } from '../types/contracts.js'
@@ -18,7 +19,7 @@ function attributes(value: unknown, keys: ResolvedOptions['attributeKeys']): Rec
 }
 
 export function eventRows<TUser extends { id: string | number }>(events: unknown[], manifest: Manifest, assignments: AssignmentResult,
-  options: ResolvedOptions<TUser>, visitorId: string, userId: string | undefined, ts: string): EventRow[] {
+  options: ResolvedOptions<TUser>, visitorId: string, userId: string | undefined, ts: string, requestAttributes: Readonly<Record<string, unknown>> = {}): EventRow[] {
   const rows = new Map<string, EventRow>()
   for (const event of events) {
     if (!record(event)) continue
@@ -34,6 +35,7 @@ export function eventRows<TUser extends { id: string | number }>(events: unknown
       const mismatch = event.arm !== assigned.arm
       row = { type: mismatch ? 'arm-mismatch' : 'exposure', experimentId: experiment.id, phase: experiment.phase,
         arm: event.arm, unitId, unitType: experiment.unitType, userId, ts,
+        dimensions: mismatch ? null : exposureDimensions(requestAttributes, options.events?.dimensions),
         // §5.5 / §11: diagnostics are separate rows, never exposure denominators or multi-arm counts.
         dedupeKey: mismatch ? `mismatch:${experiment.id}:${experiment.phase}:${unitId}:${ts.slice(0, 10)}`
           : `exposure:${experiment.id}:${experiment.phase}:${event.arm}:${unitId}:${ts.slice(0, 10)}` }
@@ -43,7 +45,7 @@ export function eventRows<TUser extends { id: string | number }>(events: unknown
       const source = options.metricSources?.find(source => source.id === event.eventName)
       if (source ? source.clientWritable !== true || source.kind === 'revenue' : !options.eventSources?.includes(event.eventName)) continue
       row = { type: 'conversion', eventName: event.eventName, value: 1, unitId: visitorId, unitType: 'visitor', userId, ts,
-        attributes: attributes(event.attributes, options.attributeKeys),
+        dimensions: null, attributes: attributes(event.attributes, options.attributeKeys),
         // §5.5: scoped by unit and event so one client can never pre-claim another's key.
         dedupeKey: `conversion:c:${visitorId}:${event.eventName}:${event.idempotencyKey}` }
     } else continue

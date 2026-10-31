@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { postgresAdapter } from '@payloadcms/db-postgres'
-import { BasePayload, buildConfig } from 'payload'
+import { BasePayload, buildConfig, type CollectionConfig } from 'payload'
 import pg, { Pool, type PoolClient, type PoolConfig } from 'pg'
 import { createExperimentsPlugin } from '../src/plugin.js'
 import { sampleOptions } from '../tests/collections/fixtures.js'
@@ -36,7 +36,7 @@ export async function publicTables(pool: Pool): Promise<string[]> {
 }
 
 /** One harness per test file. Forced push also supports a second boot. Train-only. */
-export async function createIntegrationHarness() {
+export async function createIntegrationHarness({ collections = [], puckCollections = [] }: { collections?: CollectionConfig[]; puckCollections?: Array<string | { slug: string; field?: string }> } = {}) {
   const connectionString = integrationConnectionString()
   const pool = new Pool({ connectionString, max: 6 })
   const schemaName = `xp_it_${randomBytes(12).toString('hex')}`
@@ -74,6 +74,7 @@ export async function createIntegrationHarness() {
     delete process.env.PAYLOAD_MIGRATING
     delete process.env.PAYLOAD_DROP_DATABASE
     const options = sampleOptions()
+    if (puckCollections.length) options.puck = { enabled: true, collections: puckCollections }
     const config = buildConfig({
       secret: 'integration-only-secret-never-use-in-production',
       db: postgresAdapter({
@@ -81,7 +82,7 @@ export async function createIntegrationHarness() {
         pg: { ...pg, Pool: AdapterPool },
         idType: process.env.XP_IT_ID_TYPE === 'uuid' ? 'uuid' : 'serial',
       }),
-      collections: [{ slug: 'users', auth: true, fields: [] }],
+      collections: [{ slug: 'users', auth: true, fields: [] }, ...collections],
       plugins: [createExperimentsPlugin(options)],
       typescript: { autoGenerate: false },
     })

@@ -41,6 +41,19 @@ test('unknown id returns a 404 not-found envelope', async () => {
   expect(response.status).toBe(404)
   expect(await response.json()).toEqual({ errors: [{ code: 'not-found', message: 'Experiment not found' }] })
 })
+
+test.each(['primary', 'secondary', 'guardrails'] as const)('preflight and start refuse a removed %s metric source before writing', async role => {
+  const { options, req, payload } = setup()
+  payload.documents['xp-metrics']!.push({ id: 3, source: 'removed' })
+  payload.documents['xp-experiments']![0]!.metrics = role === 'primary' ? { primary: 3 } : { primary: 2, [role]: [3] }
+  const response = await handlePreflight(req, { options })
+  const body = await response.json() as PreflightResult
+  expect(body.checks.find(check => !check.ok)).toEqual({ code: 'unknown-metric-source', ok: false, detail: [{ id: 3, source: 'removed' }] })
+  const { start } = await import('../../src/transitions/start.js')
+  await expect(start(req, { experimentId: 'one', options })).rejects.toMatchObject({ code: 'unknown-metric-source', status: 422 })
+  expect(payload.calls.every(call => call.method === 'find')).toBe(true)
+  expect(payload.dbCalls).toEqual([])
+})
 test('a throwing host placement hook returns a failed check with detail, not 500', async () => {
   const { options, req } = setup('flag')
   options.flagPoints![0]!.placements = async () => { throw new Error('Content adapter unavailable') }

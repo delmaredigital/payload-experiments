@@ -1,11 +1,12 @@
 import { expect, test, vi, beforeEach } from 'vitest'
-import { handleStart, handleAllocate, handleAddMetric, handleStop, handleDecide, handleReleaseHoldout, handleArchive } from '../../src/endpoints/transitions.js'
+import { handleStart, handleAllocate, handleAddMetric, handleStop, handleDecide, handleReleaseHoldout, handleArchive, handleMakeContent } from '../../src/endpoints/transitions.js'
 import * as starts from '../../src/transitions/start.js'
 import * as allocations from '../../src/transitions/allocate.js'
 import * as metrics from '../../src/transitions/addMetric.js'
 import * as stops from '../../src/transitions/stop.js'
 import * as decisions from '../../src/transitions/decide.js'
 import * as releases from '../../src/transitions/releaseHoldout.js'
+import * as contents from '../../src/transitions/makeContent.js'
 import * as archives from '../../src/transitions/archive.js'
 import { XpRefusal } from '../../src/errors.js'
 import { fakeReq } from '../_fakes/req.js'
@@ -20,6 +21,7 @@ const cases = [
   { handler: handleStop, module: stops, name: 'stop', body: {} },
   { handler: handleDecide, module: decisions, name: 'decide', body: { winnerArm: 'variantA' } },
   { handler: handleReleaseHoldout, module: releases, name: 'releaseHoldout', body: {} },
+  { handler: handleMakeContent, module: contents, name: 'makeContent', body: {} },
   { handler: handleArchive, module: archives, name: 'archive', body: { mode: 'discard' } },
 ] as const
 for (const row of cases) {
@@ -55,7 +57,7 @@ test.each([{}, { allocation: 0 }, { allocation: 101 }, { allocation: 1.5 }, { al
 test.each([{}, { metric: 2, role: 'primary' }, { metric: {}, role: 'secondary' }, { metric: '', role: 'guardrail' }])('addMetric validates %j', async body => {
   expect((await handleAddMetric(fakeReq({ body: JSON.stringify(body) }), { options: sampleOptions() })).status).toBe(400)
 })
-test.each([handleStart, handleStop])('bodyless request is accepted and missing id returns 404', async handler => {
+test.each([handleStart, handleStop, handleMakeContent])('bodyless request is accepted and missing id returns 404', async handler => {
   expect((await handler(fakeReq(), { options: sampleOptions() })).status).toBe(404)
 })
 
@@ -71,4 +73,11 @@ test.each(['undeclared-targeting-key', 'duplicate-metric', 'invalid-winner', 'co
   const response = await handleDecide(fakeReq({ body: '{"winnerArm":"variantA"}', routeParams: { id: '1' } }), { options: sampleOptions() })
   expect(response.status).toBe(422)
   expect(await response.json()).toMatchObject({ errors: [{ code }] })
+})
+
+test('make-content preserves locked-placement as a 422 refusal', async () => {
+  vi.spyOn(contents, 'makeContent').mockRejectedValue(new XpRefusal('locked-placement', 'Finish editing the page and try again.', { id: 2 }, 422))
+  const response = await handleMakeContent(fakeReq({ body: '{}', routeParams: { id: '1' } }), { options: sampleOptions() })
+  expect(response.status).toBe(422)
+  expect(await response.json()).toMatchObject({ errors: [{ code: 'locked-placement', detail: { id: 2 } }] })
 })

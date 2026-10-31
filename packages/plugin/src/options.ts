@@ -42,12 +42,13 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
   for (const [name, value] of Object.entries({ retentionDays, maxBodyBytes })) {
     if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1) throw new Error(`Experiments events.${name} must be a finite positive integer`)
   }
+  const dimensions = input.events?.dimensions === undefined ? [] : input.events.dimensions
   return {
     ...input,
     access: { manage, admin, readResults, readIdentities },
     flagPoints: [...(input.flagPoints ?? [])], metricSources: [...(input.metricSources ?? [])], eventSources: [...(input.eventSources ?? [])],
     attributeKeys: Object.fromEntries(Object.entries(input.attributeKeys ?? {}).map(([key, attribute]) => [key, { ...attribute, ...(attribute.values ? { values: [...attribute.values] } : {}) }])),
-    events: { ...input.events, retentionDays, maxBodyBytes },
+    events: { ...input.events, retentionDays, maxBodyBytes, dimensions: Array.isArray(dimensions) ? [...dimensions] : dimensions },
     puck: { ...input.puck, enabled: input.puck?.enabled ?? Boolean(input.puck?.collections?.length), collections: puckCollections(input) },
   }
 }

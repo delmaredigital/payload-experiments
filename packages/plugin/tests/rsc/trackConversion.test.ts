@@ -126,7 +126,7 @@ test.each([false, true])('getUser failure logs and preserves visitor attribution
   expect(error).toHaveBeenCalledExactlyOnceWith({ err: userError, msg: 'Experiments: trackConversion getUser failed' })
   expect(execute).toHaveBeenCalledOnce()
   expect(new PgDialect().sqlToQuery(execute.mock.calls[0]![0]).params).toEqual([
-    'conversion', null, null, null, 'visitor', 'visitor', null, 'event', 1, expect.any(String), null, 'conversion:s:key',
+    'conversion', null, null, null, 'visitor', 'visitor', null, 'event', 1, expect.any(String), null, null, 'conversion:s:key',
   ])
 })
 

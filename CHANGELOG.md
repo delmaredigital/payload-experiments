@@ -11,6 +11,17 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+**Added**
+
+- Optional frozen exposure dimensions from server-computed request attributes
+  (`events.dimensions`), and retention batches indexed by experiment, event type and time.
+
+**Migration impact**
+
+- Since rc.1: new nullable `xp-events.dimensions` JSON column and composite
+  `(experiment_id, type, ts)` retention index. The host runs `payload migrate:create`, then
+  `payload migrate` for rc.2.
+
 ## [0.1.0-rc.1] - 2026-10-31
 
 ### plugin

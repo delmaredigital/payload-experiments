@@ -1,4 +1,5 @@
 import { createManifestCache } from '../manifest/cache.js'
+import type { Attributes } from '../types/contracts.js'
 import type { Assignments } from '../types/assignments.js'
 import type { Manifest } from '../types/manifest.js'
 import type { ExperimentsProxyRuntime } from '../types/runtime.js'
@@ -10,6 +11,7 @@ interface RuntimeCache {
 const caches = new WeakMap<ExperimentsProxyRuntime, RuntimeCache>()
 // Rendering details stay server-side, outside the frozen public assignment wire shape.
 const manifests = new WeakMap<Assignments, Manifest>()
+const requestAttributeSets = new WeakMap<Assignments, Readonly<Attributes>>()
 export const emptyManifest = (): Manifest => ({ v: 1, revision: 0, experiments: [], flagDefaults: {}, archivedWinners: {}, archivedPages: {} })
 
 export async function serverManifest(runtime: ExperimentsProxyRuntime, reload = false): Promise<Manifest | null> {
@@ -40,9 +42,11 @@ export async function serverManifest(runtime: ExperimentsProxyRuntime, reload = 
   return state.forced
 }
 
-export function rememberManifest(assignments: Assignments, manifest: Manifest): Assignments {
+export function rememberManifest(assignments: Assignments, manifest: Manifest, attributes?: Attributes): Assignments {
   manifests.set(assignments, manifest)
+  if (attributes) requestAttributeSets.set(assignments, Object.freeze({ ...attributes }))
   return assignments
 }
+export const requestAttributesOf = (assignments: Assignments): Readonly<Attributes> => requestAttributeSets.get(assignments) ?? {}
 export const manifestOf = (assignments: Assignments): Manifest | undefined => manifests.get(assignments)
 export const suppressExposure = (a: Assignments): boolean => a.staff || a.bot || a.preview || ['HEAD', 'UNKNOWN'].includes(a.method.toUpperCase())
