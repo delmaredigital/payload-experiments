@@ -81,7 +81,7 @@ for (const [method, path, access] of routes) {
       reachHandler(path)
       const config = await endpoints('yes')
       const endpoint = config.endpoints.find(endpoint => endpoint.path === path)!
-      const verify = vi.spyOn(cookie, 'verifyUnitCookie').mockReturnValue(null)
+      const verify = vi.spyOn(cookie, 'readUnitCookie').mockReturnValue(null)
       expect((await endpoint.handler(fakeReq())).status).toBe(401)
       expect((await endpoint.handler(fakeReq({ user: { id: 'learner' } }))).status).toBe(401)
       verify.mockReturnValue('verified-visitor')
