@@ -1,4 +1,4 @@
-/* ADM-10 imports this stylesheet at the admin entry. */
+/* Admin styles for the experiments plugin; loaded by src/admin/styles.ts. */
 .xp-status-pill { font-weight: 600; }
 .xp-status-pill--neutral { background: var(--theme-elevation-150); color: var(--theme-elevation-800); }
 .xp-status-pill--success { background: var(--theme-success-150); color: var(--theme-success-850); }

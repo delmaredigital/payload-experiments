@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 const statsPackage = '@delmaredigital/experiments-stats'
+// Relative imports of these non-code assets are leaves: recorded in `files`, never parsed.
+const ASSET_LEAF = /\.(?:css|scss|sass|svg|png|jpe?g|gif|webp|json)$/i
 const statsEntry = fileURLToPath(new URL('../../../stats/src/index.ts', import.meta.url))
 
 /** Static value edges only; dynamic specifiers are reported separately and also walked. */
@@ -22,6 +24,7 @@ export function collectImports(entryFile: string): { bare: string[]; files: stri
         if (specifier === statsPackage) visit(statsEntry)
         return
       }
+      if (ASSET_LEAF.test(specifier)) { files.add(resolve(dirname(file), specifier)); return }
       const resolved = ts.resolveModuleName(specifier, file, options, ts.sys).resolvedModule
       if (!resolved) throw new Error(`Unresolved import ${specifier} from ${file}`)
       visit(resolved.resolvedFileName)

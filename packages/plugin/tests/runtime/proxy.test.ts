@@ -96,7 +96,7 @@ test.each(['xp_id', 'custom_id'])('consent refusal runs before reading %s and re
   expect(result.requestHeaders.get('cookie')).toBe('other=keep%3Bencoded')
   expect(result.requestCookies).toEqual([])
   expect(result.setCookies).toEqual([])
-  expect(result.rewrite).toBeUndefined()
+  expect(result.rewrite?.pathname).toBe('/original')
   expect(decode(result, m).bySlug.hero).toMatchObject({ arm: 'control', exposable: false })
 })
 test('consent false removes user identity and signs every user/session experiment as control!', async () => {
@@ -108,23 +108,104 @@ test('consent false removes user identity and signs every user/session experimen
   const result = await resolveExperiments(signedRequest(), runtime(m, {
     cookie: { consent: () => false }, getUnit: () => ({ userId: 'user-1', attributes: {}, sessionUnknown: true }),
   }))
-  expect(assign).toHaveBeenCalledTimes(1)
-  expect(assign.mock.calls[0]![1]).toMatchObject({ visitorId: undefined, userId: undefined })
+  expect(assign).not.toHaveBeenCalled()
   const decoded = decode(result, m)
   expect(decoded.deferred).toEqual([])
   expect(Object.values(decoded.bySlug)).toHaveLength(2)
   expect(Object.values(decoded.bySlug).every(entry => entry.arm === 'control' && !entry.exposable)).toBe(true)
   expect(result.requestHeaders.has('cookie')).toBe(false)
 })
-test('consent refusal suppresses preview forcing and archived winner rewrites', async () => {
+test('consent refusal suppresses preview forcing but still rewrites archived winners', async () => {
   const m = manifest([page()])
   m.archivedPages['/archived'] = { slug: 'archived', winnerPath: '/winner' }
   const token = signPreviewToken({ e: 'e1', a: 'variantA', p: 1, exp: Math.floor(Date.now() / 1000) + 60 }, secrets)
   const rt = runtime(m, { cookie: { consent: () => false } })
   const result = await resolveExperiments(signedRequest(`/original?xp_preview=${token}`), rt)
   expect(decode(result, m).bySlug.hero).toMatchObject({ arm: 'control', exposable: false })
-  expect(result.rewrite).toBeUndefined()
-  expect((await resolveExperiments(signedRequest('/archived'), rt)).rewrite).toBeUndefined()
+  expect(result.rewrite?.pathname).toBe('/original')
+  expect(decode(result, m).preview).toBe(true)
+  expect(result.responseHeaders?.get('cache-control')).toBe('no-store')
+  expect((await resolveExperiments(signedRequest('/archived'), rt)).rewrite?.pathname).toBe('/winner')
+})
+
+const consentCases = ['no cookie', 'valid xp_id', 'user unit'] as const
+const consentContent = ['running test', 'decided block', 'decided page', 'decided rollout', 'archived page', 'live on archived path'] as const
+test.each(consentCases.flatMap(identity => consentContent.map(content => ({ identity, content }))))(
+  'consent false: $identity serves $content without assignment or exposure', async ({ identity, content }) => {
+    const unitType = identity === 'user unit' ? 'user' : 'visitor'
+    const e = content === 'decided page' ? page({ status: 'decided', winnerArm: 'variantA' })
+      : content === 'live on archived path' ? page()
+      : experiment({ unitType, ...(content === 'decided block' || content === 'decided rollout' ? {
+        kind: 'block', flagPoint: 'hero-point', status: 'decided', winnerArm: 'variantA',
+        ...(content === 'decided rollout' ? { phaseKind: 'rollout', holdoutKey: 'holdout', arms: [
+          { key: 'control', kind: 'control', weight: 0 },
+          { key: 'variantA', kind: 'variant', weight: 90, params: { title: 'Winner' } },
+          { key: 'holdout', kind: 'holdout', weight: 10 },
+        ] } : { arms: [
+          { key: 'control', kind: 'control', weight: 50, slot: 'control' },
+          { key: 'variantA', kind: 'variant', weight: 50, slot: 'variantA', params: { title: 'Winner' } },
+        ] }),
+      } : {}) })
+    const m = manifest(content === 'archived page' ? [] : [e])
+    m.archivedPages['/original'] = { slug: 'old', winnerPath: '/archived-winner' }
+    const pageRequest = content === 'decided page' || content === 'archived page' || content === 'live on archived path'
+    const path = pageRequest ? '/original?q=1' : '/'
+    const req = request(path, { headers: { cookie: identity === 'no cookie' ? 'other=keep'
+      : `other=keep; xp_id=${encodeUnitCookie('visitor', secrets)}` } })
+    const assign = vi.spyOn(assignment, 'assign')
+    const verify = vi.spyOn(cookies, 'verifyUnitCookie'), mint = vi.spyOn(cookies, 'mintUnitId')
+    const result = await resolveExperiments(req, runtime(m, {
+      cookie: { consent: () => false },
+      getUnit: () => ({ userId: identity === 'user unit' ? 'user-1' : undefined, attributes: {} }),
+    }))
+    expect(assign).not.toHaveBeenCalled()
+    expect(verify).not.toHaveBeenCalled()
+    expect(mint).not.toHaveBeenCalled()
+    expect(result.requestHeaders.get('cookie')).toBe('other=keep')
+    expect(result.requestCookies).toEqual([])
+    expect(result.setCookies).toEqual([])
+    const decoded = decode(result, m)
+    expect(decoded.visitorId).toBeUndefined()
+    expect(decoded.userId).toBeUndefined()
+    expect(decoded.deferred).toEqual([])
+    expect(Object.values(decoded.bySlug).every(entry => !entry.exposable)).toBe(true)
+    expect(Object.values(decoded.flagPoints).every(entry => !entry.exposable)).toBe(true)
+    if (content === 'archived page') expect(decoded.bySlug).toEqual({})
+    else {
+      const arm = content === 'decided block' || content === 'decided page' ? 'variantA' : 'control'
+      expect(decoded.bySlug.hero).toMatchObject({ arm, exposable: false })
+      expect(result.requestHeaders.get('x-xp-assignments')).toContain(`hero=${arm}!`)
+    }
+    if (content === 'decided block') expect(decoded.flagPoints['hero-point']).toMatchObject({
+      arm: 'variantA', params: { title: 'Winner' }, exposable: false,
+    })
+    expect(result.rewrite?.href).toBe(content === 'decided page' ? 'https://example.com/variant?q=1'
+      : content === 'archived page' ? 'https://example.com/archived-winner?q=1'
+      : content === 'live on archived path' ? 'https://example.com/original?q=1' : undefined)
+  },
+)
+
+test.each([
+  { targeting: [rule('path', 'eq', '/landing')], path: '/landing?q=1', winner: true },
+  { targeting: [rule('path', 'eq', '/landing')], path: '/other', winner: false },
+  { targeting: [rule('device', 'eq', 'mobile')], winner: true },
+  { targeting: [rule('device', 'eq', 'desktop')], winner: false },
+  { targeting: [rule('missing', 'eq', 'value')], winner: false },
+  { targeting: [rule('userId', 'eq', 'user-1')], winner: false },
+  { targeting: [rule('visitorId', 'eq', 'visitor')], winner: false },
+  { targeting: [rule('loggedIn', 'eq', true)], sessionUnknown: true, winner: false },
+  { targeting: [rule('staff', 'eq', false)], sessionUnknown: true, winner: false },
+])('consent-false decided winners respect available targeting: %j', async ({ targeting, path, sessionUnknown, winner }) => {
+  const m = manifest([experiment({ status: 'decided', winnerArm: 'variantA', targeting, coverage: 0, layer: { slug: 'layer', slices: [] } })])
+  const assign = vi.spyOn(assignment, 'assign')
+  const result = await resolveExperiments(signedRequest(path ?? '/'), runtime(m, {
+    cookie: { consent: () => false },
+    getUnit: () => ({ userId: 'user-1', sessionUnknown, attributes: {
+      device: 'mobile', path: '/wrong', userId: 'user-1', visitorId: 'visitor', loggedIn: true, staff: false,
+    } }),
+  }))
+  expect(assign).not.toHaveBeenCalled()
+  expect(decode(result, m).bySlug.hero).toMatchObject({ arm: winner ? 'variantA' : 'control', exposable: false })
 })
 test.each(['sync', 'async'])('getUnit %s error logs once and defers unknown sessions', async mode => {
   const error = vi.spyOn(console, 'error').mockImplementation(() => {})

@@ -1,4 +1,5 @@
 'use client'
+import '../styles.js'
 import { useState } from 'react'
 import { Button, useAuth, useDocumentInfo, useFormFields, useFormModified } from '@payloadcms/ui'
 import type { UIFieldClientProps } from 'payload'
