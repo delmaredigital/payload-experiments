@@ -167,7 +167,7 @@ def run_cases(args, out, resolved):
             traceback.print_exc()
             failed = True
     # A script matching both patterns still runs only once.
-    for step in node_steps():
+    for step in node_steps(args.areas):
         command = ["node", str(step), "--out", str(out), "--ref", resolved]
         if args.only is not None:
             command.extend(["--only", args.only])
@@ -180,8 +180,17 @@ def run_cases(args, out, resolved):
     return 1 if failed else 0
 
 
-def node_steps():
-    return sorted(set(HERE.glob("fetch_*.mjs")) | set(HERE.glob("*_fixtures.mjs")))
+def node_steps(areas):
+    steps = []
+    for path in sorted(set(HERE.glob("fetch_*.mjs")) | set(HERE.glob("*_fixtures.mjs"))):
+        with path.open(encoding="utf-8") as source:
+            header = source.readline().rstrip("\r\n")
+        match = re.fullmatch(r"// xp-areas: ([A-Za-z0-9_]+(?:,[A-Za-z0-9_]+)*)", header)
+        if match is None:
+            raise ValueError("Node step requires a first-line // xp-areas: header: " + path.name)
+        if areas is None or areas.intersection(match.group(1).split(",")):
+            steps.append(path)
+    return steps
 
 
 def main():
@@ -201,7 +210,7 @@ def main():
         parser.error("--only selecting a _* stem requires --include-examples")
     print("Python modules: " + (", ".join(path.stem for path in case_paths(args))
                                or "none selected"), file=sys.stderr)
-    print("Node steps: " + (", ".join(step.name for step in node_steps())
+    print("Node steps: " + (", ".join(step.name for step in node_steps(args.areas))
                            or "none selected")
           + (" (not run in --list mode)" if args.list else ""), file=sys.stderr)
     if args.list:

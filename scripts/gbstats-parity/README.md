@@ -39,7 +39,8 @@ Flags:
   To select the example, use `--include-examples --only _example`.
   A `_*` stem without `--include-examples` is an error. Selected Python modules
   and discovered Node steps are printed to stderr, including `none selected`;
-  Node scripts filter the forwarded areas themselves.
+  only Node steps whose declared areas intersect the selection are run.
+  For example, `--list --only capping` selects the capping module and no Node steps.
 - `--out <dir>`: output directory; defaults to `packages/stats/fixtures`.
   Only that default destination also writes sorted `last-freeze.txt`.
 - `--ref <sha|main>`: full commit SHA, defaulting to the pin. A different ref is
@@ -107,14 +108,22 @@ After Python modules, the generator runs each discovered `fetch_*.mjs` and
 `--only <areas>` when set. Node steps always receive a 40-character sha, never
 `main`, together with `--out` and the requested `--only` selection. Drift ⇔
 sha ≠ PIN; scripts never call `ls-remote`.
-No matching files means no Node work. Scripts own their relevant-area filtering
-and upstream checks: use pinned source hashes normally, skip those source hashes
+Every Node step must declare its areas on its first line, for example
+`// xp-areas: sdk,assignment`. A missing or malformed header is an error.
+With `--only`, the generator runs only steps whose declared areas intersect
+the selection; without it, all steps run. No matching files means no Node work.
+Scripts own their upstream checks: use pinned source hashes normally, skip those source hashes
 when the resolved SHA differs from PIN. Python dependency hashes remain locked.
 Use `--ref main --out
 <temporary-dir>` to generate comparison fixtures without updating the default
 fixtures or `last-freeze.txt`.
 
-The workflow remains dispatch-only until STATS-L9 restores its schedule.
+The weekly `gbstats-parity.yml` workflow (Monday at 06:17 UTC, or manual dispatch)
+generates against `main` into a temporary directory and compares numerically
+at the parity tolerance. It opens an issue for an environment/generation failure
+or a material change, including the last 200 log lines, then fails the job.
+Successful runs create no issue. Header/platform differences do not trigger
+reports, and committed fixtures are never rewritten by the workflow.
 
 ## SDK assignment fixtures
 

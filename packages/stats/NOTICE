@@ -3,3 +3,23 @@
 Copyright (c) GrowthBook, Inc., licensed under the MIT License. The MIT notice is
 reproduced in LICENSE at the repository root. Each ported function names its
 source module in its doc comment.
+
+Pinned upstream: growthbook/growthbook@0553a68def700abbcaaca8f5096da913f197804c
+
+Upstream paths ported:
+- packages/stats/gbstats/models/statistics.py
+- packages/stats/gbstats/models/tests.py
+- packages/stats/gbstats/frequentist/tests.py
+- packages/stats/gbstats/bayesian/tests.py
+- packages/stats/gbstats/utils.py
+- packages/stats/gbstats/power/midexperimentpower.py
+- packages/stats/gbstats/messages.py
+- packages/sdk-js/src/util.ts
+- packages/shared/src/power/power.ts
+
+Statistical fixtures come from gbstats under CPython 3.12 with the upstream
+hash-pinned requirements (scripts/gbstats-parity/requirements.lock). Assignment
+fixtures use the upstream SDK cases and util.ts; pre-experiment power fixtures
+use the upstream power.ts.
+
+Code under packages/*/enterprise is not used.

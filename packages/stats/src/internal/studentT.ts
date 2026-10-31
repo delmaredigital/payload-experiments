@@ -14,8 +14,9 @@ function logBetaHalf(a: number): number {
     + r * (1 / 8 + r2 * (-1 / 192 + r2 * (1 / 640 - r2 * 17 / 14336)))
 }
 
-// Cephes incbet: power series near zero, otherwise the incomplete-beta
-// continued fraction. The caller supplies both logs to retain 1-x near 1.
+// Incomplete beta: power series near zero, otherwise a modified Lentz
+// continued fraction, with the Numerical Recipes symmetry swap in tail().
+// The caller supplies both logs to retain 1-x near 1.
 function betaLower(a: number, b: number, x: number, logX: number, log1mX: number, logBeta: number): number {
   if (b * x <= 1 && x <= 0.95) {
     let term = 1
