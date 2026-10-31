@@ -129,6 +129,8 @@ try {
   const upstreamPath = join(temporary, 'upstream.mjs')
   await writeFile(upstreamPath, code)
   const upstream = await import(pathToFileURL(upstreamPath).href)
+  const normal = requireTemporary(normalPath)
+  const stdlibPdf0 = normal.pdf(0, 0, 1)
   // Evaluate everything before touching the destination, so a failing upstream
   // call or malformed case cannot leave a partially regenerated fixture set.
   const outputs = symbols.map(symbol => {
@@ -140,7 +142,7 @@ try {
       const expected = project(symbol, upstream[symbol](...upstreamArgs(symbol, args)))
       return { name, input: { args }, expected }
     })
-    const fixture = { source: { repo: 'growthbook/growthbook', sha: ref, module, symbol, pins: { stdlib } }, cases }
+    const fixture = { source: { repo: 'growthbook/growthbook', sha: ref, module, symbol, pins: { stdlib, stdlibPdf0 } }, cases }
     return { name: `power.${symbol}.json`, json: JSON.stringify(sorted(fixture), null, 2) + '\n', count: cases.length }
   })
   await mkdir(out, { recursive: true })

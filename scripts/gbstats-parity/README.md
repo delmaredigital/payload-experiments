@@ -163,9 +163,4 @@ and weekly thresholds reached or never reached. The supplied read-only clone
 contains no upstream `shared/test/power.test.ts`, so no inputs are attributed to
 that missing test file. Expected values are computed only from upstream.
 
-Train integration note: upstream writes present `undefined` values in
-`sampleSizeAndRuntime` for metrics that never reach 80%. The port preserves
-those keys, while JSON omits them. The frozen parity harness compares keys
-strictly and does not decode an undefined sentinel. The coordinator must
-resolve that representation before activating the weekly fixture; this lane
-does not change the frozen harness or silently change upstream behavior.
+The port omits `sampleSizeAndRuntime` keys for metrics that never reach 80%, matching upstream's JSON while reads still return `undefined`.

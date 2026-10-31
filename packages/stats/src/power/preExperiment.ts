@@ -483,7 +483,10 @@ function powerMetricWeeksUpstream(
             users: powerSettings.usersPerWeek * thisSampleSizeAndRuntimeNumeric,
           }
         : undefined;
-    mySampleSizeAndRuntime[metricKey] = thisSampleSizeAndRuntime;
+    // Upstream assigns undefined here, which JSON fixtures cannot carry.
+    // Omit the key: reads still give undefined, matching upstream and its JSON.
+    if (thisSampleSizeAndRuntime !== undefined)
+      mySampleSizeAndRuntime[metricKey] = thisSampleSizeAndRuntime;
   });
   const duration = Math.max(...sampleSizeAndRuntimeNumeric);
 
@@ -778,7 +781,11 @@ function findMdeBayesianUpstream(
     return mdeResults;
   }
   const stepSizeCoarse = 1e-3;
-  const maxError = (1 / Math.sqrt(2 * Math.PI)) * stepSizeCoarse;
+  // Upstream uses normal.pdf(0, 0, 1) from @stdlib/stats 0.1.1, which may
+  // differ by one ulp. Every threshold comparison using it has a relative
+  // margin > 1e-11 (L8 review); the train records stdlib's actual value.
+  const INV_SQRT_TWO_PI = 1 / Math.sqrt(2 * Math.PI);
+  const maxError = INV_SQRT_TWO_PI * stepSizeCoarse;
   /*using integer of 5000 for stability in loop;
   combined with stepsize of 1e-3, max effectSize is 500%*/
   const numIters = 5000;

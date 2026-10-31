@@ -73,6 +73,16 @@ it('returns both upstream frequentist MDE error shapes', () => {
 })
 
 for (const method of [{ type: 'frequentist', sequentialTesting: false }, { type: 'frequentist', sequentialTesting: 5000 }, { type: 'bayesian' }] as const) {
+  it(`omits runtime keys for metrics that never reach 80% (${method.type}, ${'sequentialTesting' in method ? method.sequentialTesting : false})`, () => {
+    const result = powerMetricWeeks({
+      metrics: { conversion: { type: 'binomial', conversionRate: 0.1, effectSize: 0 } },
+      nVariations: 2, nWeeks: 4, alpha: 0.05, usersPerWeek: 500, targetPower: 0.9, method,
+    })
+    expect(result.weeks.every(week => week.metrics.conversion!.power < 0.8)).toBe(true)
+    expect('conversion' in result.sampleSizeAndRuntime).toBe(false)
+    expect(result.sampleSizeAndRuntime.conversion).toBeUndefined()
+  })
+
   it(`weekly users accumulate linearly (${method.type}, ${'sequentialTesting' in method ? method.sequentialTesting : false})`, () => {
     const input: PowerWeeksInput = {
       metrics: { conversion: metrics[0]!, revenue: metrics[1]! },

@@ -5470,7 +5470,7 @@
           "usersPerWeek": 5000
         }
       ],
-      "name": "fixed-crosses-later"
+      "name": "fixed-one-metric-never-reaches-80"
     },
     {
       "args": [
@@ -5557,7 +5557,7 @@
           "usersPerWeek": 5000
         }
       ],
-      "name": "sequential-crosses-later"
+      "name": "sequential-one-metric-never-reaches-80"
     },
     {
       "args": [
@@ -5656,7 +5656,93 @@
           "usersPerWeek": 5000
         }
       ],
-      "name": "bayesian-crosses-later"
+      "name": "bayesian-one-metric-never-reaches-80"
+    },
+    {
+      "args": [
+        {
+          "alpha": 0.05,
+          "method": {
+            "sequentialTesting": false,
+            "type": "frequentist"
+          },
+          "metrics": {
+            "conv": {
+              "conversionRate": 0.1,
+              "effectSize": 0.05,
+              "type": "binomial"
+            },
+            "rev": {
+              "effectSize": 0.01,
+              "mean": 100,
+              "standardDeviation": 30,
+              "type": "mean"
+            }
+          },
+          "nVariations": 2,
+          "nWeeks": 6,
+          "targetPower": 0.9,
+          "usersPerWeek": 40000
+        }
+      ],
+      "name": "fixed-target-90-multiweek"
+    },
+    {
+      "args": [
+        {
+          "alpha": 0.05,
+          "method": {
+            "sequentialTesting": 5000,
+            "type": "frequentist"
+          },
+          "metrics": {
+            "conv": {
+              "conversionRate": 0.1,
+              "effectSize": 0.05,
+              "type": "binomial"
+            },
+            "rev": {
+              "effectSize": 0.01,
+              "mean": 100,
+              "standardDeviation": 30,
+              "type": "mean"
+            }
+          },
+          "nVariations": 2,
+          "nWeeks": 6,
+          "targetPower": 0.9,
+          "usersPerWeek": 40000
+        }
+      ],
+      "name": "sequential-target-90-multiweek"
+    },
+    {
+      "args": [
+        {
+          "alpha": 0.05,
+          "method": {
+            "type": "bayesian"
+          },
+          "metrics": {
+            "conv": {
+              "conversionRate": 0.1,
+              "effectSize": 0.05,
+              "type": "binomial"
+            },
+            "rev": {
+              "effectSize": 0.01,
+              "mean": 100,
+              "standardDeviation": 30,
+              "type": "mean"
+            }
+          },
+          "nVariations": 2,
+          "nWeeks": 6,
+          "targetPower": 0.9,
+          "usersPerWeek": 40000
+        }
+      ],
+      "name": "bayesian-target-90-multiweek"
     }
   ]
 }
