@@ -2,7 +2,7 @@ import type { RefusalCode } from '../../types/endpoints.js'
 
 // Cover the whole union so newly added start checks cannot ship without editor copy.
 export const REVIEW_HINTS: Record<RefusalCode, string> = {
-  'recompute-failed': 'Try refreshing the results again.',
+  'recompute-failed': "Results couldn't be refreshed right now. Try Recompute again in a minute.",
   'weights-total': 'Set the group percentages to total 100.',
   'control-count': 'Keep exactly one Original group.',
   'control-first': 'Put the Original first.',
@@ -41,13 +41,13 @@ export const REVIEW_HINTS: Record<RefusalCode, string> = {
   forbidden: 'Ask an admin for permission to manage experiments.',
   unauthenticated: 'Sign in again to continue.',
   'body-too-large': 'Reduce the size of this change and try again.',
-  'too-many-ids': 'Ask for at most 100 experiments at a time.',
-  'invalid-phase': 'Choose a round this experiment has run.',
-  'invalid-ids': 'Check the experiment list and try again.',
+  'too-many-ids': 'Too many experiments were requested at once. Reload the list; if it keeps happening, contact a developer.',
+  'invalid-phase': "That round doesn't exist for this experiment. Choose another round.",
+  'invalid-ids': "The list asked for experiments it couldn't read. Reload the list.",
   'invalid-body': 'Check the values and try again.',
-  'undeclared-targeting-key': 'Targeting uses an attribute this site does not provide. Remove that rule or ask a developer to declare it.',
-  'invalid-targeting-rule': 'A targeting rule does not fit its attribute. Check the rule and try again.',
-  'duplicate-metric': 'This metric is already part of the experiment.',
+  'undeclared-targeting-key': "A rule in Who uses an attribute this site doesn't provide. Remove the rule, or ask a developer to add the attribute.",
+  'invalid-targeting-rule': "A rule in Who doesn't fit its attribute (for example, text where a number is needed). Fix the rule in Who.",
+  'duplicate-metric': 'The same metric is listed more than once. Remove the duplicate in Metrics.',
 }
 
 export const REVIEW_DONE: Record<RefusalCode, string> = {
@@ -90,13 +90,13 @@ export const REVIEW_DONE: Record<RefusalCode, string> = {
   forbidden: 'Permission to manage experiments checked',
   unauthenticated: 'Signed in',
   'body-too-large': 'Change size checked',
-  'too-many-ids': 'Experiment count checked',
+  'too-many-ids': 'List request size OK',
   'invalid-phase': 'Round found',
-  'invalid-ids': 'Experiment list checked',
+  'invalid-ids': 'List request valid',
   'invalid-body': 'Values checked',
-  'undeclared-targeting-key': 'Targeting uses known attributes',
-  'invalid-targeting-rule': 'Targeting rules are valid',
-  'duplicate-metric': 'Metric not already added',
+  'undeclared-targeting-key': 'Targeting attributes recognised',
+  'invalid-targeting-rule': 'Targeting rules look right',
+  'duplicate-metric': 'No metric listed twice',
 }
 
 export const REVIEW_COPY = {

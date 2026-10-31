@@ -2,6 +2,8 @@ export const ACTIONS_COPY = {
   start: 'Start', restart: 'Start a new round', stop: 'Stop', decide: 'Decide',
   release: 'Release holdout', makeContent: 'Make it the content', finish: 'Finish archiving',
   archive: 'Archive', discard: 'Discard winner',
+  deleteNoteArchived: "Deleting removes this experiment's records and results. A winner that was already made permanent stays in place.",
+  deleteNoteDraft: 'Deleting removes this experiment and its settings.',
   startBody: 'Start this experiment?',
   restartBody: 'Starting again begins a new round; results restart.',
   stopBody: 'Everyone will see the Original. Starting again begins a new round; results restart.',

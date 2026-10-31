@@ -9,6 +9,7 @@ import { actionGroupLabel, availableActions } from './actions.model.js'
 import type { ActionDecision, ActionGroup, ActionId } from './actions.model.js'
 import { ConfirmDialog } from './ConfirmDialog.js'
 import { DecideDialog } from './DecideDialog.js'
+import { ACTIONS_COPY } from '../copy/actions.js'
 import { AllocateDialog } from './AllocateDialog.js'
 import { AddMetricDialog } from './AddMetricDialog.js'
 import type { DocId } from '../../types/contracts.js'
@@ -53,6 +54,7 @@ export function ExperimentActions(_props: UIFieldClientProps) {
   const label = actionGroupLabel(winnerArm ?? 'control', arms.find(group => group.key === winnerArm)?.label)
   return <div className="xp-actions">
     {modified && actions.length ? <p className="xp-actions__note">{SAVE_FIRST}</p> : null}
+    {status === 'archived' || status === 'draft' ? <p className="xp-actions__note">{status === 'archived' ? ACTIONS_COPY.deleteNoteArchived : ACTIONS_COPY.deleteNoteDraft}</p> : null}
     {actions.map(item => <Button key={item.id} buttonStyle={item.tone === 'primary' ? 'primary' : 'secondary'} disabled={modified}
       className={`xp-action xp-action--${item.tone}`} onClick={() => { if (!modified) setSelected(item.id) }}>{item.label}</Button>)}
     {action?.id === 'allocate' ? <AllocateDialog key={`${id}/allocate`} id={id} allocation={allocation} onClose={() => setSelected(null)} />
