@@ -116,6 +116,14 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
   // Standard globals are never the Payload instance (no local declaration shadows them).
   const globals = new Set(['Object', 'Array', 'JSON', 'Math', 'Number', 'String', 'Promise', 'Date', 'Symbol', 'BigInt', 'Boolean', 'Intl'])
   const constructors = new Set(['Map', 'Set', 'WeakMap', 'WeakSet', 'URLSearchParams', 'Headers', 'FormData'])
+  // A global keeps its exemption only for methods that are not Local API names, except the
+  // genuine collision Object.create — so Object.assign(Object, payload); Object.find(…) stays flagged.
+  const globalExempt = (receiver: ts.Expression | undefined, method: string): boolean => {
+    if (!receiver) return true
+    const node = unwrap(receiver)
+    if (!ts.isIdentifier(node) || !globals.has(node.text)) return true
+    return !methods.has(method) || (node.text === 'Object' && method === 'create')
+  }
   const builtinValue = (expression: ts.Expression): boolean => {
     const node = unwrap(expression)
     return ts.isArrayLiteralExpression(node) || (ts.isNewExpression(node) &&
@@ -257,7 +265,7 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
         payloadReceiver(arg)) report(node, 'local-api-indirect')
       // Every matching method is suspect unless its argument or receiver syntax
       // proves it is outside the Local API. Unknown receivers stay suspect.
-      if (methods.has(method) && !nonLocalArgument(arg) && !builtinReceiver(receiver)) {
+      if (methods.has(method) && !nonLocalArgument(arg) && !(builtinReceiver(receiver) && globalExempt(receiver, method))) {
         if (!arg || !ts.isObjectLiteralExpression(arg)) {
           if (!allowed) report(node, 'local-api-nonliteral')
         } else {
@@ -631,4 +639,10 @@ describe('precision: shapes that are provably not Local API calls', () => {
     const text = 'declare const payload: any; declare const m: string; export const v = payload[m]'
     expect(scan(text, 'src/example.ts').map(v => v.rule)).toContain('local-api-indirect')
   })
+})
+
+test('a global carrying copied Local API methods stays flagged (P1)', () => {
+  const text = 'declare const payload: any; Object.assign(Object, payload); (Object as any).find({ collection: "a", overrideAccess: true })'
+  expect(scan(text, 'src/example.ts').map(v => v.rule).length).toBeGreaterThan(0)
+  expect(scan('export const a = Object.create(null)', 'src/example.ts')).toEqual([])
 })
