@@ -47,6 +47,9 @@ export const lockHook: CollectionBeforeChangeHook = async ({ data, originalDoc, 
   }
   if (operation === 'create') {
     const result: Record<string, unknown> = { ...data, status: 'draft', phase: 0 }
+    // Timestamps are Payload's: a client-sent value is never stored.
+    delete result.createdAt
+    delete result.updatedAt
     for (const field of ['seed', 'layerSlices', 'startedAt', 'stoppedAt', 'decidedAt', 'archivedAt', 'decision']) result[field] = undefined
     if (!data.arms || (Array.isArray(data.arms) && data.arms.length === 0)) {
       result.arms = [
@@ -76,8 +79,11 @@ export const lockHook: CollectionBeforeChangeHook = async ({ data, originalDoc, 
       }
     }
   }
+  // Payload owns the timestamps. It rewrites `updatedAt` on every save, but stores a
+  // client-sent `createdAt` as given, so pin it to the stored value (a Restore's
+  // version carries the same value, so Restores are unaffected).
+  if ('createdAt' in data) data.createdAt = originalDoc.createdAt
   for (const [field, value] of Object.entries(data)) {
-    // Payload owns these timestamps, including on full-version Restores.
     if (field === 'updatedAt' || field === 'createdAt') continue
     if (['analysis', 'metrics', 'decision'].includes(field) && isObject(value)) {
       for (const [key, nested] of Object.entries(value)) await check(`${field}.${key}`, nested, originalDoc[field]?.[key])

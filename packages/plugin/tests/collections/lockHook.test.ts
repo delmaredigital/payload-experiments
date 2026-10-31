@@ -51,7 +51,8 @@ test('editability table exactly matches the per-status contract', () => {
 test.each(statuses.flatMap(status => Object.entries(changes).map(([field, value]) => ({ status, field, value }))))('$status × $field', async ({ status, field, value }) => {
   if (field === 'status' && value === status) value = 'stopped'
   const result = run({ [field]: value }, fixture(status))
-  if (expected[status].includes(field) || ['createdAt', 'updatedAt'].includes(field)) await expect(result).resolves.toEqual({ [field]: value })
+  if (field === 'createdAt') await expect(result).resolves.toEqual({ createdAt: fixture(status).createdAt })
+  else if (expected[status].includes(field) || field === 'updatedAt') await expect(result).resolves.toEqual({ [field]: value })
   else await expect(result).rejects.toBeInstanceOf(XpLockedFieldError)
 })
 const nestedChanges = {
@@ -223,4 +224,14 @@ test('missing options produce a clear installation error', () => {
 test('options helper returns the installed options', () => {
   const req: PayloadRequest = request()
   expect(xpOptionsFromReq(req)).toBe(req.payload.config.custom?.xp)
+})
+
+test.each(['draft', 'running', 'archived'] as const)('client-sent createdAt is pinned to the stored value in %s', async status => {
+  const result = await run({ name: 'Original name', createdAt: '2020-01-01T00:00:00.000Z' }, fixture(status))
+  expect(result.createdAt).toBe(fixture(status).createdAt)
+})
+test('client-sent timestamps are dropped on create', async () => {
+  const result = await run({ name: 'New', kind: 'flag', createdAt: '2020-01-01T00:00:00.000Z', updatedAt: '2020-01-01T00:00:00.000Z' }, undefined as never, request(true), 'create')
+  expect(result).not.toHaveProperty('createdAt')
+  expect(result).not.toHaveProperty('updatedAt')
 })
