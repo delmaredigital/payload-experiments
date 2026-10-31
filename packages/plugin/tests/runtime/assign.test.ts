@@ -80,7 +80,7 @@ test.each([false, true])('rollout preserves holdout membership exactly and serve
   if (layered) expect(outsideSlices).toBeGreaterThan(0)
 })
 test('decided without rollout serves winner non-exposably in and outside former slices; targeting still applies', () => {
-  const e = experiment({ status: 'decided', winnerArm: 'variantA', layer: { slug: 'layer', slices: [1] }, targeting: [{ attribute: 'loggedIn', op: 'eq', value: true }] })
+  const e = experiment({ status: 'decided', winnerArm: 'variantA', layer: { slug: 'layer', slices: [1] }, targeting: [{ attribute: 'loggedIn', op: 'eq', value: true, type: 'boolean' }] })
   for (let i = 0; i < 500; i++) {
     expect(assign(manifest(e), { visitorId: String(i) }, { loggedIn: true }, { now }).bySlug.test).toMatchObject({ arm: 'variantA', exposable: false })
   }
@@ -91,7 +91,7 @@ test('user units without an id and session-dependent unknown targeting are defer
   expect(assign(manifest(user), { visitorId: 'v' }, {}, { now })).toMatchObject({ bySlug: {}, deferred: ['test'] })
   expect(assign(manifest(user), { userId: 'u' }, {}, { now }).deferred).toEqual([])
   for (const attribute of ['staff', 'loggedIn']) {
-    const e = experiment({ targeting: [{ attribute, op: 'eq', value: false }] })
+    const e = experiment({ targeting: [{ attribute, op: 'eq', value: false, type: 'boolean' }] })
     expect(assign(manifest(e), { visitorId: 'v', sessionUnknown: true }, { [attribute]: false }, { now })).toMatchObject({ bySlug: {}, deferred: ['test'], sessionUnknown: true })
   }
   expect(assign(manifest(), { visitorId: 'v', sessionUnknown: true }, {}, { now }).deferred).toEqual([])
@@ -105,7 +105,7 @@ test.each(['running', 'decided'] as const)('visitor without a cookie gets non-ex
   expect(encodeAssignmentsHeader(result, { secrets: ['key'] })).toContain('.test=control!.')
 })
 test('rollout targeting failure serves control rather than winner, and missing user id is deferred', () => {
-  const e = experiment({ status: 'decided', phaseKind: 'rollout', winnerArm: 'variantA', holdoutKey: 'holdout', targeting: [{ attribute: 'loggedIn', op: 'eq', value: true }] })
+  const e = experiment({ status: 'decided', phaseKind: 'rollout', winnerArm: 'variantA', holdoutKey: 'holdout', targeting: [{ attribute: 'loggedIn', op: 'eq', value: true, type: 'boolean' }] })
   expect(assign(manifest(e), { visitorId: 'v' }, { loggedIn: false }, { now }).bySlug.test).toMatchObject({ arm: 'control', exposable: false })
   const result = assign(manifest({ ...e, unitType: 'user' }), { visitorId: 'v' }, { loggedIn: true }, { now })
   expect(result).toMatchObject({ bySlug: {}, deferred: ['test'] })

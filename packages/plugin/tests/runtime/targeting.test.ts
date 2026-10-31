@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
-import { evaluateTargeting } from '../../src/runtime/targeting.js'
+import { evaluateTargeting, type AttributeKeys } from '../../src/runtime/targeting.js'
 import type { TargetingRule } from '../../src/types/contracts.js'
+import type { ManifestExperiment } from '../../src/types/manifest.js'
 
 test('rules are AND-ed, typed, case-insensitive for strings, and missing attributes fail even neq/nin', () => {
   const rules: TargetingRule[] = [
@@ -26,4 +27,13 @@ test('declarations constrain types and unknown attributes', () => {
   expect(evaluateTargeting([{ attribute: 'age', op: 'eq', value: '20' }], { age: '20' }, { age: { type: 'number' } })).toBe(false)
   expect(evaluateTargeting([{ attribute: 'age', op: 'eq', value: 20 }], { age: 20 }, {})).toBe(false)
   expect(evaluateTargeting([{ attribute: 'loggedIn', op: 'eq', value: true }], { loggedIn: true }, { loggedIn: { type: 'boolean' } })).toBe(true)
+})
+test('manifest rules evaluate identically with no, retyped, or removed declarations', () => {
+  const rules: ManifestExperiment['targeting'] = [{ attribute: 'age', op: 'gte', value: 18, type: 'number' }]
+  const declarations: Array<AttributeKeys | undefined> = [undefined, { age: { type: 'number' } }, { age: { type: 'string' } }, {}]
+  for (const keys of declarations) {
+    expect(evaluateTargeting(rules, { age: 20 }, keys)).toBe(true)
+    expect(evaluateTargeting(rules, { age: '20' }, keys)).toBe(false)
+    expect(evaluateTargeting(rules, {}, keys)).toBe(false)
+  }
 })

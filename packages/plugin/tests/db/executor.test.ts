@@ -122,17 +122,33 @@ test('a failed rollback destroys the connection while preserving the work error'
   expect(client.release).toHaveBeenCalledWith(rollbackError)
 })
 
-test.each(['transaction', 'pool', 'pg'])('%s normalises safe int8/numeric values, preserves precision and infinite timestamps', async route => {
-  const values = ['3', '9007199254740993', '12345678901234567890', '1e400', '0.10000000000000000001', '12.500', '1.25e-2', 'infinity', '-infinity', '2026-10-30 12:00:00']
-  const oids = [20, 20, 1700, 1700, 1700, 1700, 1700, 1184, 1114, 1114]
+test.each(['transaction', 'pool', 'pg'])('%s always returns numbers for finite numeric/safe int8, preserving nulls and infinite timestamps', async route => {
+  const values = ['3', '9007199254740991', '-9007199254740991', 3n, '12345678901234567890', '12.3333333333333333', '0.10000000000000000001', '12.500', '1.25e-2', null, null, 'infinity', '-infinity', '2026-10-30 12:00:00']
+  const oids = [20, 20, 20, 20, 1700, 1700, 1700, 1700, 1700, 20, 1700, 1184, 1114, 1114]
   const returned = { rows: [Object.fromEntries(values.map((v, i) => [`v${i}`, v]))], rowCount: 1, fields: oids.map((dataTypeID, i) => ({ name: `v${i}`, dataTypeID })) }
   const f = fake()
   f.execute.mockResolvedValue(returned)
   f.poolExecute.mockResolvedValue(returned)
   const query = vi.fn(async () => returned)
   const exec = route === 'transaction' ? txExecutor(f.req) : route === 'pool' ? pooledExecutor(f.payload) : pgPoolExecutor({ query } as unknown as Pool)
-  const expected = [3, '9007199254740993', '12345678901234567890', '1e400', '0.10000000000000000001', 12.5, 0.0125, 'infinity', '-infinity', '2026-10-30T12:00:00.000Z']
+  const expected = [3, Number.MAX_SAFE_INTEGER, -Number.MAX_SAFE_INTEGER, 3, Number('12345678901234567890'), 12.333333333333334, 0.1, 12.5, 0.0125, null, null, 'infinity', '-infinity', '2026-10-30T12:00:00.000Z']
   expect((await exec.query('SELECT values')).rows).toEqual([Object.fromEntries(expected.map((v, i) => [`v${i}`, v]))])
+})
+
+test.each(['transaction', 'pool', 'pg'])('%s throws on invalid/non-finite numeric or unsafe int8', async route => {
+  for (const [value, oid] of [
+    ['9007199254740992', 20], ['-9007199254740992', 20], [9007199254740993n, 20],
+    ['1.5', 20], ['invalid', 20], ['1e400', 1700], ['NaN', 1700], ['Infinity', 1700],
+    ['-Infinity', 1700], ['invalid', 1700], ['', 1700], [' ', 1700], ['0x10', 1700], [Infinity, 1700], [NaN, 1700],
+  ] as const) {
+    const returned = { rows: [{ value }], fields: [{ name: 'value', dataTypeID: oid }] }
+    const f = fake()
+    f.execute.mockResolvedValue(returned)
+    f.poolExecute.mockResolvedValue(returned)
+    const query = vi.fn(async () => returned)
+    const exec = route === 'transaction' ? txExecutor(f.req) : route === 'pool' ? pooledExecutor(f.payload) : pgPoolExecutor({ query } as unknown as Pool)
+    await expect(exec.query('SELECT value')).rejects.toThrow(RangeError)
+  }
 })
 
 test('pg installs per-query raw parsers so timestamp values cannot be interpreted in local time', async () => {

@@ -9,7 +9,7 @@ export interface Manifest {
 export interface ManifestExperiment {
   id: DocId; slug: string; kind: ExperimentKind; unitType: UnitType; status: 'running' | 'decided'
   phase: number; phaseKind: 'test' | 'rollout'; seed: string; flagPoint?: string
-  coverage: number; arms: Array<Omit<Arm, 'label'>>; targeting: TargetingRule[]
+  coverage: number; arms: Array<Omit<Arm, 'label'>>; targeting: Array<TargetingRule & { type: 'string' | 'number' | 'boolean' }>
   layer?: { slug: string; slices: number[] }
   exposurePolicy: ExposurePolicy; winnerArm?: string; holdoutKey?: string; deferrable: boolean
 }

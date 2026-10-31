@@ -61,28 +61,22 @@ export function scanParameters(text: string, params: unknown[]): Array<{ start: 
   return positions
 }
 
-function decimal(value: string): string | undefined {
-  const match = /^([+-]?)(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/i.exec(value)
-  if (!match || !(match[2] || match[3])) return undefined
-  const digits = `${match[2]}${match[3] ?? ''}`.replace(/^0+/, '')
-  if (!digits) return '0'
-  const trimmed = digits.replace(/0+$/, '')
-  const exponent = BigInt(match[4] ?? 0) - BigInt((match[3] ?? '').length) + BigInt(digits.length - trimmed.length)
-  return `${match[1] === '-' ? '-' : ''}${trimmed}e${exponent}`
-}
-
-function numeric(value: string): number | string {
+function numeric(value: unknown, integer: boolean): number {
+  if ((typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'bigint') ||
+    (typeof value === 'string' && !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value))) {
+    throw new RangeError('Invalid PostgreSQL numeric value')
+  }
   const number = Number(value)
-  if (!Number.isFinite(number) || (Number.isInteger(number) && !Number.isSafeInteger(number))) return value
-  // Compare canonical decimal values, including exponent notation and trailing
-  // zeros. A finite conversion alone can silently round a high-precision decimal.
-  return decimal(value) !== undefined && decimal(value) === decimal(String(number)) ? number : value
+  if (!Number.isFinite(number)) throw new RangeError('Non-finite PostgreSQL numeric value')
+  if (integer && !Number.isSafeInteger(number)) throw new RangeError('PostgreSQL int8 exceeds the safe integer range')
+  return number
 }
 
-/** Normalise top-level columns only. int8 (20) and numeric (1700) become numbers
- * only if their decimal value round-trips; integers must also be safe integers.
- * Overflow/precision loss keeps the original string. Driver bigint values follow
- * the same rule. timestamp/timestamptz (1114/1184) become UTC ISO strings; infinity
+/** Normalise top-level columns only. Finite numeric (1700) always becomes a
+ * number, accepting double precision rounding as the stats engine does. int8 (20)
+ * becomes a number only within the safe integer range; invalid/non-finite numeric
+ * and unsafe int8 values throw instead of changing a column's JS type by value.
+ * Nulls stay null. timestamp/timestamptz (1114/1184) become UTC ISO strings; infinity
  * stays a string. JSON, text and opaque IDs stay intact. Drivers must retain raw
  * numeric text (pg's default, and per-query overrides below) until this boundary.
  */
@@ -91,7 +85,7 @@ export function normalise<R>(value: unknown): { rows: R[]; rowCount: number } {
   const types = new Map(result.fields?.map(field => [field.name, field.dataTypeID]))
   const rows = result.rows.map(row => Object.fromEntries(Object.entries(row as Record<string, unknown>).map(([key, value]) => {
     const type = types.get(key)
-    if ((type === 1700 || type === 20) && (typeof value === 'string' || typeof value === 'bigint')) value = numeric(String(value))
+    if ((type === 1700 || type === 20) && value !== null) value = numeric(value, type === 20)
     else if (value instanceof Date) value = value.toISOString()
     else if (typeof value === 'string' && (type === 1114 || type === 1184) && !/^-?infinity$/i.test(value)) {
       const timestamp = type === 1114 && !/(?:Z|[+-]\d{2}(?::?\d{2})?)$/.test(value) ? `${value}Z` : value

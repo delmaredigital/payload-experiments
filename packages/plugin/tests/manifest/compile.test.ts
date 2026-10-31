@@ -2,6 +2,7 @@ import type { PayloadRequest } from 'payload'
 import { describe, expect, test, vi } from 'vitest'
 import { buildAndStoreManifest, compileManifest, loadManifestInputs, type ManifestInputExperiment, type ManifestInputs, type ManifestPhase } from '../../src/manifest/compile.js'
 import { createFakeExecutor } from '../_fakes/executor.js'
+import { evaluateTargeting } from '../../src/runtime/targeting.js'
 
 function phase(overrides: Partial<ManifestPhase> = {}): ManifestPhase {
   return { phase: 2, phaseKind: 'test', seed: 'frozen|', allocation: 40, targeting: [], arms: [
@@ -55,7 +56,7 @@ describe('pure manifest compiler', () => {
     }
   })
   test.each(['loggedIn', 'staff', 'country'])('deferrable for %s', attribute => {
-    const e = experiment({ currentPhase: phase({ targeting: [{ attribute, op: 'eq', value: true }] }) })
+    const e = experiment({ currentPhase: phase({ targeting: [{ attribute, op: 'eq', value: true, type: 'boolean' }] }) })
     expect(compileManifest(inputs([e]), 1).experiments[0]!.deferrable).toBe(attribute !== 'country')
   })
   test('archives block winners and every losing page target, omitting discarded decisions', () => {
@@ -68,6 +69,46 @@ describe('pure manifest compiler', () => {
     expect(result.experiments).toEqual([])
     expect(result.archivedWinners).toEqual({ hero: 'variantA' })
     expect(result.archivedPages).toEqual({ '/original': { slug: 'page', winnerPath: '/a' }, '/b': { slug: 'page', winnerPath: '/a' } })
+  })
+  test('archived routing keeps every losing test arm after a winner/holdout rollout', () => {
+    const testPhase = phase()
+    const rollout = phase({ phase: 3, phaseKind: 'rollout', arms: testPhase.arms.filter(arm => arm.key === 'variantA' || arm.kind === 'holdout') })
+    const archived = { status: 'archived' as const, decision: { winnerArm: 'variantA' }, currentPhase: rollout, lastTestPhase: testPhase }
+    const result = compileManifest(inputs([
+      experiment(archived), experiment({ ...archived, id: 2, slug: 'page', kind: 'page' }),
+    ]), 1)
+    expect(result.archivedWinners).toEqual({ hero: 'variantA' })
+    expect(result.archivedPages).toEqual({ '/original': { slug: 'page', winnerPath: '/a' }, '/b': { slug: 'page', winnerPath: '/a' } })
+    expect(() => compileManifest(inputs([experiment({ ...archived, lastTestPhase: null })]), 1)).toThrow('Missing last test phase')
+  })
+  test('compiles legacy rules from declarations, preserving frozen types across registry changes', () => {
+    const e = experiment({ currentPhase: phase({ targeting: [
+      { attribute: 'age', op: 'gte', value: 18 },
+      { attribute: 'source', op: 'in', value: ['EMAIL'] },
+      { attribute: 'loggedIn', op: 'eq', value: true },
+    ] }) })
+    const keys = { age: { type: 'number' }, source: { type: 'string' }, loggedIn: { type: 'boolean' } } as const
+    const targeting = compileManifest(inputs([e]), 1, { attributeKeys: keys }).experiments[0]!.targeting
+    expect(targeting.map(rule => rule.type)).toEqual(['number', 'string', 'boolean'])
+    expect(e.currentPhase!.targeting.every(rule => rule.type === undefined)).toBe(true)
+    e.currentPhase!.targeting = targeting
+    const retyped = { age: { type: 'string' } } as const
+    for (const attributeKeys of [undefined, keys, retyped, {}]) {
+      const compiled = compileManifest(inputs([e]), 2, { attributeKeys }).experiments[0]!
+      expect(compiled.targeting).toEqual(targeting)
+      expect(evaluateTargeting(compiled.targeting, { age: 20, source: 'email', loggedIn: true }, attributeKeys)).toBe(true)
+      expect(evaluateTargeting(compiled.targeting, { age: '20', source: 'email', loggedIn: true }, attributeKeys)).toBe(false)
+    }
+  })
+  test('omits an experiment if any rule has no stored or declared type, reporting onInvalid', () => {
+    const invalid = experiment({ currentPhase: phase({ targeting: [
+      { attribute: 'loggedIn', op: 'eq', value: true, type: 'boolean' },
+      { attribute: 'missing', op: 'eq', value: 'yes' },
+    ] }) })
+    const onInvalid = vi.fn()
+    const result = compileManifest(inputs([invalid, experiment({ id: 2, slug: 'valid' })]), 1, { attributeKeys: {}, onInvalid })
+    expect(result.experiments.map(e => e.slug)).toEqual(['valid'])
+    expect(onInvalid).toHaveBeenCalledExactlyOnceWith('hero', 'untyped-targeting-rule')
   })
   test('excludes IDs everywhere, copies defaults and does not retain input references', () => {
     const source = inputs([experiment(), experiment({ id: 2, slug: 'archived', status: 'archived', decision: { winnerArm: 'variantA' } }), experiment({ id: 3, kind: 'page', status: 'archived', decision: { winnerArm: 'variantA' } })], {
@@ -104,18 +145,34 @@ test('loader reads current highest phase with req, privileged access, depth 1 la
   expect(findGlobal).toHaveBeenCalledWith(expect.objectContaining({ slug: 'xp-state', req, overrideAccess: true }))
 })
 
+test('loader selects the highest-numbered test phase for archived routing', async () => {
+  const find = vi.fn(async (args: { collection: string; where?: unknown }) => {
+    if (args.collection === 'xp-experiments') return { docs: [experiment({ status: 'archived', decision: { winnerArm: 'variantA' } })] }
+    expect(args).toMatchObject({ limit: 1, sort: '-phase', depth: 0, overrideAccess: true,
+      where: { experiment: { equals: 1 }, phaseKind: { equals: 'test' } } })
+    return { docs: [phase()] }
+  })
+  const req = { payload: { find, findGlobal: vi.fn(async () => ({ flagDefaults: {} })) } } as unknown as PayloadRequest
+  const loaded = await loadManifestInputs(req)
+  expect(loaded.experiments[0]).toMatchObject({ currentPhase: null, lastTestPhase: phase() })
+  expect(find).toHaveBeenNthCalledWith(2, expect.objectContaining({ req }))
+  expect(compileManifest(loaded, 1).archivedWinners).toEqual({ hero: 'variantA' })
+})
+
 test('builder bumps before the first experiment read and stores the new revision on its transaction', async () => {
   const executor = createFakeExecutor({ results: [{ rows: [] }, { rows: [{ revision: 8 }] }, { rows: [] }] })
   const req = executor.withSession()
-  req.payload.find = vi.fn(async () => {
+  req.payload.config.custom = { xp: { attributeKeys: { age: { type: 'number' } } } }
+  req.payload.find = vi.fn(async (args: { collection: string }) => {
     expect(executor.calls).toHaveLength(2)
     expect(executor.calls[0]!.text).toContain('pg_advisory_xact_lock')
     expect(executor.calls[1]!.text).toContain('RETURNING')
-    return { docs: [] }
+    return { docs: args.collection === 'xp-experiments' ? [experiment()] : [phase({ targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })] }
   }) as unknown as typeof req.payload.find
   req.payload.findGlobal = vi.fn(async () => ({ flagDefaults: {} })) as unknown as typeof req.payload.findGlobal
   const result = await buildAndStoreManifest(req)
   expect(result.revision).toBe(8)
+  expect(result.experiments[0]!.targeting).toEqual([{ attribute: 'age', op: 'gte', value: 18, type: 'number' }])
   expect(executor.calls).toHaveLength(3)
   expect(executor.calls[0]!.text).toContain('pg_advisory_xact_lock')
   expect(executor.calls[1]!.text).toContain('RETURNING')
