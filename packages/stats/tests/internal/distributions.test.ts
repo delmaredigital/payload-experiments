@@ -189,6 +189,13 @@ describe('chi-square distribution identities', () => {
     expect(chi2Sf(1000, 1)).toBeGreaterThan(0)
   })
 
+  it('agrees with the dof=6 closed form', () => {
+    for (const x of [0.5, 3, 20, 200]) {
+      const expected = Math.exp(-x / 2) * (1 + x / 2 + x * x / 8)
+      expect(relative(chi2Sf(x, 6), expected), `x=${x}, k=6`).toBeLessThanOrEqual(1e-13)
+    }
+  })
+
   it('handles boundaries and invalid degrees of freedom', () => {
     expect(chi2Sf(-1, 2)).toBe(1)
     expect(chi2Sf(0, 2)).toBe(1)

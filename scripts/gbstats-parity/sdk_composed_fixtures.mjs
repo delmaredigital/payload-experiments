@@ -1,3 +1,4 @@
+// xp-areas: sdk,assignment
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
