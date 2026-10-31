@@ -6,6 +6,8 @@ export const editorCopy = {
   decided: (winner: string) => `Decided: ${winner}. Use 'Make it the content' on the experiment to finish.`,
   archived: 'This experiment is archived; the winning content is shown to everyone.',
   copy: (label: string) => `Copy Original → ${label}`,
+  replaceConfirm: (label: string) => `${label} already has content. Replace it with a copy of the Original?`,
+  replace: 'Replace',
   createLabel: 'Create experiment',
   creating: 'Creating…',
   cancel: 'Cancel',

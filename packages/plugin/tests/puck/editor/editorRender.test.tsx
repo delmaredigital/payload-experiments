@@ -160,3 +160,20 @@ test('decided banner uses the stored winner label', async () => {
   render(<Editor {...props()} />)
   await waitFor(() => expect(screen.getByRole('status').textContent).toBe("Decided: New headline. Use 'Make it the content' on the experiment to finish."))
 })
+
+test('copy into a variant that already has content asks first and only replaces after confirmation', async () => {
+  const original = puck.item.props.variantA
+  puck.item.props.variantA = [{ type: 'Text', props: { id: 'kept-id', text: 'Existing variant' } }] as never
+  try {
+    const Editor = ExperimentSlotEditor.render
+    render(<Editor {...props()} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy Original → New headline' }))
+    expect(puck.dispatch).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert').textContent).toContain('New headline already has content.')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(puck.dispatch).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Original → New headline' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Replace' }))
+    expect(puck.dispatch).toHaveBeenCalledTimes(1)
+  } finally { puck.item.props.variantA = original }
+})
