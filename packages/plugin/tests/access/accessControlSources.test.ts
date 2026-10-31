@@ -6,11 +6,14 @@ import { describe, expect, test } from 'vitest'
 import { OVERRIDE_ACCESS_ALLOW_LIST } from './allowList.js'
 
 const pluginRoot = fileURLToPath(new URL('../../', import.meta.url))
+// Payload 3.90.2: payload/dist/{collections,globals,auth}/operations/local/*.js.
+// Every overrideAccess reader is covered; auth/verifyEmail are conservative additions.
 const methods = new Set([
-  'find', 'findByID', 'findVersions', 'findVersionByID', 'restoreVersion',
+  'find', 'findByID', 'findDistinct', 'findVersions', 'findVersionByID', 'restoreVersion',
   'count', 'countVersions', 'create', 'update', 'updateByID', 'delete', 'deleteByID',
   'duplicate', 'findGlobal', 'updateGlobal', 'findGlobalVersions',
-  'findGlobalVersionByID', 'restoreGlobalVersion',
+  'findGlobalVersionByID', 'restoreGlobalVersion', 'countGlobalVersions',
+  'login', 'forgotPassword', 'resetPassword', 'unlock', 'verifyEmail', 'auth',
 ])
 type Violation = { file: string; line: number; rule: string }
 
@@ -66,7 +69,7 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
   const nameOf = (name: ts.PropertyName | undefined): string | undefined => {
     if (!name) return undefined
     if (ts.isIdentifier(name) || ts.isStringLiteral(name)) return name.text
-    if (ts.isComputedPropertyName(name) && ts.isStringLiteral(name.expression)) return name.expression.text
+    if (ts.isComputedPropertyName(name) && ts.isStringLiteralLike(name.expression)) return name.expression.text
     return undefined
   }
   const memberName = (expression: ts.Expression): string | undefined => {
@@ -74,6 +77,24 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
     if (ts.isPropertyAccessExpression(node)) return node.name.text
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression)) return node.argumentExpression.text
     return undefined
+  }
+  const payloadReceiver = (expression: ts.Expression | undefined, seen = new Set<ts.Symbol>()): boolean => {
+    if (!expression) return false
+    const node = unwrap(expression)
+    if (ts.isIdentifier(node)) {
+      if (node.text === 'payload') return true
+      const symbol = checker.getSymbolAtLocation(node)
+      if (!symbol || seen.has(symbol)) return false
+      seen.add(symbol)
+      return symbol.declarations?.some(declaration => ts.isVariableDeclaration(declaration) &&
+        payloadReceiver(declaration.initializer, seen)) ?? false
+    }
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      return memberName(node) === 'payload' || payloadReceiver(node.expression, seen)
+    }
+    if (ts.isAwaitExpression(node)) return payloadReceiver(node.expression, seen)
+    return ts.isCallExpression(node) && (ts.isIdentifier(unwrap(node.expression))
+      ? unwrap(node.expression).getText(source) === 'getPayload' : memberName(node.expression) === 'getPayload')
   }
   const constructors = new Set(['Map', 'Set', 'WeakMap', 'WeakSet', 'URLSearchParams', 'Headers', 'FormData'])
   const builtinValue = (expression: ts.Expression): boolean => {
@@ -178,10 +199,11 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
     if (!allowed && (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) &&
       !builtinReceiver(node.expression)) {
       const direct = ts.isCallExpression(node.parent) && node.parent.expression === node
-      const computed = capturedOrInvoked(node) && ts.isElementAccessExpression(node) &&
-        (ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)
+      const computed = ts.isElementAccessExpression(node) &&
+        ((payloadReceiver(node.expression) && !ts.isStringLiteralLike(node.argumentExpression) && !ts.isNumericLiteral(node.argumentExpression)) ||
+        (capturedOrInvoked(node) && (ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)
           ? methods.has(node.argumentExpression.text)
-          : !ts.isStringLiteral(node.argumentExpression) && !ts.isNumericLiteral(node.argumentExpression))
+          : !ts.isStringLiteral(node.argumentExpression) && !ts.isNumericLiteral(node.argumentExpression))))
       if (computed || (methods.has(memberName(node) ?? '') && !direct && !nonCallableMember(node))) {
         report(node, 'local-api-indirect')
       }
@@ -200,6 +222,10 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
       const receiver = ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee)
         ? callee.expression : alias?.receiver
       const arg = node.arguments[0] && unwrap(node.arguments[0])
+      if (!allowed && receiver && ts.isIdentifier(unwrap(receiver)) &&
+        ((unwrap(receiver).getText(source) === 'Reflect' && method === 'get') ||
+          (unwrap(receiver).getText(source) === 'Object' && ['values', 'entries', 'keys'].includes(method))) &&
+        payloadReceiver(arg)) report(node, 'local-api-indirect')
       // Every matching method is suspect unless its argument or receiver syntax
       // proves it is outside the Local API. Unknown receivers stay suspect.
       if (methods.has(method) && !nonLocalArgument(arg) && !builtinReceiver(receiver)) {
@@ -207,6 +233,8 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
           if (!allowed) report(node, 'local-api-nonliteral')
         } else {
           if (!allowed && arg.properties.some(ts.isSpreadAssignment)) report(node, 'local-api-spread')
+          if (!allowed && arg.properties.some(property => property.name && ts.isComputedPropertyName(property.name) &&
+            !ts.isStringLiteralLike(property.name.expression))) report(node, 'local-api-computed-key')
           const properties = arg.properties.filter(property => nameOf(property.name) === 'overrideAccess')
           if (!properties.length) report(node, 'local-api-override-required')
           for (const property of properties) {
@@ -240,10 +268,20 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
         (ts.isExportDeclaration(node) && sqlModule(node.moduleSpecifier) && !typeOnlyExport(node)) ||
         (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference) &&
           sqlModule(node.moduleReference.expression)) ||
-        (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-          (ts.isIdentifier(node.expression) && node.expression.text === 'require')) && sqlModule(node.arguments[0]))) {
+        (ts.isCallExpression(node) && (unwrap(node.expression).kind === ts.SyntaxKind.ImportKeyword ||
+          (ts.isIdentifier(unwrap(node.expression)) && unwrap(node.expression).getText(source) === 'require') ||
+          memberName(node.expression) === 'require') &&
+          (!node.arguments[0] || !ts.isStringLiteralLike(node.arguments[0]) || sqlModule(node.arguments[0])))) {
         report(node, 'sql-module-outside-db')
       }
+      if (((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && memberName(node) === 'createRequire') ||
+        (ts.isBindingElement(node) && nameOf(node.propertyName ?? (ts.isIdentifier(node.name) ? node.name : undefined)) === 'createRequire') ||
+        (ts.isCallExpression(node) && ts.isIdentifier(unwrap(node.expression)) && unwrap(node.expression).getText(source) === 'createRequire') ||
+        (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) &&
+          ['module', 'node:module'].includes(node.moduleSpecifier.text) && !typeOnlyImport(node.importClause) &&
+          node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings) &&
+          node.importClause.namedBindings.elements.some(element => !element.isTypeOnly &&
+            (element.propertyName ?? element.name).text === 'createRequire'))) report(node, 'sql-module-outside-db')
       // Read the complete template, including interpolations, so SQL split over
       // template spans is checked too. Capitalisation intentionally matches §7.8.
       if ((ts.isStringLiteralLike(node) || ts.isTemplateExpression(node)) &&
@@ -273,20 +311,95 @@ describe('access and SQL source boundaries', () => {
     ['variableClient.ts', 'local-api-nonliteral'],
     ['unapprovedOverride.ts', 'override-not-literal-false'],
     ['nonliteralOverride.ts', 'override-not-literal-false'],
+    ['computedOverride.ts', 'local-api-computed-key'],
     ['localApiSpread.ts', 'local-api-spread'],
     ['indirectLocalApi.ts', 'local-api-indirect'],
+    ['reflectGet.ts', 'local-api-indirect'],
+    ['objectEnumeration.ts', 'local-api-indirect'],
+    ['payloadComputedAccess.ts', 'local-api-indirect'],
     ['uncommentedOverride.ts', 'override-true-comment-required'],
     ['payloadDb.ts', 'db-outside-db'],
     ['dbAccess.ts', 'db-outside-db'],
     ['sqlTag.ts', 'sql-tag-outside-db'],
     ['drizzleImport.ts', 'sql-module-outside-db'],
     ['sqlModules.ts', 'sql-module-outside-db'],
+    ['dynamicImport.ts', 'sql-module-outside-db'],
+    ['dynamicRequire.ts', 'sql-module-outside-db'],
+    ['createRequire.ts', 'sql-module-outside-db'],
     ['sqlLiteral.ts', 'sql-literal-outside-db'],
   ] as const
   test.each(fixtures)('%s proves %s fires', (fixture, rule) => {
     const text = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '_fixtures', fixture), 'utf8')
     const file = fixture === 'uncommentedOverride.ts' ? 'src/transitions/example.ts' : 'src/example.ts'
     expect(scan(text, file).map(v => v.rule)).toContain(rule)
+  })
+
+  test.each(['findDistinct', 'countGlobalVersions', 'login', 'forgotPassword', 'resetPassword', 'unlock', 'verifyEmail', 'auth'])(
+    '%s requires an explicit Local API access posture', method => {
+      expect(scan(`payload.${method}({})`, 'src/example.ts').map(v => v.rule)).toEqual(['local-api-override-required'])
+      expect(scan(`payload.${method}({ overrideAccess: false })`, 'src/example.ts')).toEqual([])
+    },
+  )
+
+  test.each([
+    ['[k]', 'local-api-computed-key'],
+    ["['override' + 'Access']", 'local-api-computed-key'],
+    ['[`overrideAccess`]', 'override-not-literal-false'],
+  ])('checks every computed override key: %s', (key, rule) => {
+    expect(scan(`payload.find({ overrideAccess: false, ${key}: true })`, 'src/example.ts').map(v => v.rule)).toContain(rule)
+  })
+
+  test('template property keys resolve to overrideAccess and keep the allow-list comment rule', () => {
+    expect(scan('payload.find({ [`overrideAccess`]: false })', 'src/example.ts')).toEqual([])
+    expect(scan('payload.find({ [`overrideAccess`]: true })', 'src/transitions/example.ts').map(v => v.rule))
+      .toEqual(['override-true-comment-required'])
+    expect(scan('// reason\npayload.find({ [`overrideAccess`]: true })', 'src/transitions/example.ts')).toEqual([])
+    expect(scan('payload.find({ overrideAccess: false, where: { [k]: true } })', 'src/example.ts')).toEqual([])
+    expect(scan('payload.find({ overrideAccess: false, [k]: true })', 'src/transitions/example.ts')).toEqual([])
+  })
+
+  test('every computed-override fixture line is rejected', () => {
+    const text = readFileSync(new URL('./_fixtures/computedOverride.ts', import.meta.url), 'utf8')
+    expect(scan(text, 'src/example.ts').map(({ line, rule }) => ({ line, rule }))).toEqual([
+      { line: 4, rule: 'local-api-computed-key' },
+      { line: 5, rule: 'local-api-computed-key' },
+      { line: 7, rule: 'override-not-literal-false' },
+    ])
+  })
+
+  test.each([
+    "Reflect.get(payload, 'find')({})", "Reflect.get(req.payload, 'db')", 'Reflect.get(payload, key)',
+    'Object.values(payload)', 'Object.entries(req.payload)', 'Object.keys(payload.collections)',
+    "const key = 'db'; payload[key]", 'payload[`d${suffix}`]',
+    "const p = req.payload; const key = 'db'; p[key]", 'Object.values((await getPayload()))',
+  ])('rejects reflective or unresolved payload access: %s', text => {
+    expect(scan(text, 'src/example.ts').map(v => v.rule)).toContain('local-api-indirect')
+    expect(scan(text, 'src/transitions/example.ts')).toEqual([])
+  })
+
+  test('reflection over ordinary values and literal non-API payload properties remains legal', () => {
+    for (const text of [
+      'Object.values(data)', 'Object.entries(options)', 'Object.keys(value)',
+      'Reflect.get(new Map(), key)', 'payload["config"]', 'payload[`config`]',
+    ]) expect(scan(text, 'src/example.ts'), text).toEqual([])
+  })
+
+  test.each([
+    'import(moduleName)', 'import(`drizzle-${suffix}`)', "import('drizzle-' + suffix)",
+    'require(moduleName)', 'module.require(moduleName)', 'module.require("drizzle-orm")',
+    'createRequire(import.meta.url)("drizzle-orm")', 'nodeModule.createRequire(import.meta.url)',
+    'import { createRequire as makeRequire } from "node:module"; makeRequire(import.meta.url)',
+    'const { createRequire: makeRequire } = nodeModule; makeRequire(import.meta.url)',
+  ])('keeps unresolved module loads and createRequire inside src/db: %s', text => {
+    expect(scan(text, 'src/example.ts').map(v => v.rule)).toContain('sql-module-outside-db')
+    expect(scan(text, 'src/db/example.ts')).toEqual([])
+  })
+
+  test('literal non-SQL module loads and type-only createRequire imports are allowed', () => {
+    for (const text of [
+      'import("./helper.js")', 'require("node:crypto")', 'module.require("node:crypto")',
+      'import type { createRequire } from "node:module"', 'import { type createRequire } from "node:module"',
+    ]) expect(scan(text, 'src/example.ts'), text).toEqual([])
   })
 
   test.each([
