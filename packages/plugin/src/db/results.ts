@@ -7,7 +7,8 @@ import { qualifiedTable, quoteIdentifier as q } from './sql.js'
 const c = COLUMNS.events
 const batchSize = 10_000
 const iso = (ts: Timestamp): string => new Date(timestampMs(ts)).toISOString()
-const epochMs = `(extract(epoch from ${q(c.ts)}) * 1000)`
+// round()::bigint keeps exact milliseconds on servers where extract() returns a float (PG ≤ 13).
+const epochMs = `round(extract(epoch from ${q(c.ts)}) * 1000)::bigint`
 
 export interface PhaseExposureRow { unitId: string; arm: string; ts: number }
 export interface RolloutExposureRow { unitId: string; phase: number; ts: number }

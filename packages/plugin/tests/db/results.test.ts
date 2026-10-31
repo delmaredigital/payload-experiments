@@ -9,7 +9,7 @@ test('phase exposure SQL binds values in order, quotes identifiers and uses stri
   const exec = Object.assign(createFakeExecutor({ results: [{ rows: [{ unitId: 'v', arm: 'control', ts: String(+from) }] }] }), { schemaName: 'host"schema' })
   expect(await phaseExposureRows(exec, { experimentId: 'opaque-id', phase: 2, endedAt: to })).toEqual([{ unitId: 'v', arm: 'control', ts: +from }])
   expect(exec.calls).toEqual([{
-    text: 'SELECT "unit_id" AS "unitId", "arm" AS "arm", (extract(epoch from "ts") * 1000) AS "ts" FROM "host""schema"."xp_events" WHERE "experiment_id" = $1 AND "phase" = $2 AND "type" = $3 AND "ts" < $4 ORDER BY "ts", "unit_id"',
+    text: 'SELECT "unit_id" AS "unitId", "arm" AS "arm", round(extract(epoch from "ts") * 1000)::bigint AS "ts" FROM "host""schema"."xp_events" WHERE "experiment_id" = $1 AND "phase" = $2 AND "type" = $3 AND "ts" < $4 ORDER BY "ts", "unit_id"',
     params: ['opaque-id', 2, 'exposure', to],
   }])
   await phaseExposureRows(exec, { experimentId: 7, phase: 1 })
@@ -29,7 +29,7 @@ test('mismatches count distinct units separately, with the same optional phase c
 test('rollout SQL reads exposures across every phase, in timestamp/unit/phase order', async () => {
   const exec = createFakeExecutor({ results: [{ rows: [{ unitId: 'old', phase: '1', ts: String(+from) }] }] })
   expect(await rolloutExposureRows(exec, { experimentId: 4 })).toEqual([{ unitId: 'old', phase: 1, ts: +from }])
-  expect(exec.calls).toEqual([{ text: 'SELECT "unit_id" AS "unitId", "phase" AS "phase", (extract(epoch from "ts") * 1000) AS "ts" FROM "xp_events" WHERE "experiment_id" = $1 AND "type" = $2 ORDER BY "ts", "unit_id", "phase"', params: [4, 'exposure'] }])
+  expect(exec.calls).toEqual([{ text: 'SELECT "unit_id" AS "unitId", "phase" AS "phase", round(extract(epoch from "ts") * 1000)::bigint AS "ts" FROM "xp_events" WHERE "experiment_id" = $1 AND "type" = $2 ORDER BY "ts", "unit_id", "phase"', params: [4, 'exposure'] }])
 })
 
 test('metric SQL quotes type/value, binds untrusted event names, and preserves nullable user IDs', async () => {
@@ -43,7 +43,7 @@ test('metric SQL quotes type/value, binds untrusted event names, and preserves n
     { unitId: 'w', userId: null, value: 1, ts: +from },
   ])
   expect(exec.calls).toEqual([{
-    text: 'SELECT "unit_id" AS "unitId", "user_id" AS "userId", "value" AS "value", (extract(epoch from "ts") * 1000) AS "ts" FROM "xp_events" WHERE "type" = $1 AND "event_name" = $2 AND "ts" >= $3 AND "ts" < $4 ORDER BY "ts", "unit_id"',
+    text: 'SELECT "unit_id" AS "unitId", "user_id" AS "userId", "value" AS "value", round(extract(epoch from "ts") * 1000)::bigint AS "ts" FROM "xp_events" WHERE "type" = $1 AND "event_name" = $2 AND "ts" >= $3 AND "ts" < $4 ORDER BY "ts", "unit_id"',
     params: ['conversion', eventName, from.toISOString(), to],
   }])
 })

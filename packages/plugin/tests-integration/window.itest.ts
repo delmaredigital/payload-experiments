@@ -21,7 +21,7 @@ test('attribution window end and endedAt are half-open, including the exposure c
       type: 'exposure', experimentId: experiment.id, phase: 1, arm: 'control', unitId, unitType: 'visitor',
       ts: new Date(ts).toISOString(), dedupeKey: `window-${++serial}`, ...overrides,
     })
-    const conversion = (unitId: string, ts: number, value: number) => row(unitId, ts, { type: 'conversion', eventName: 'window', value })
+    const conversion = (unitId: string, ts: number, value: number) => row(unitId, ts, { type: 'conversion', eventName: 'window', value, experimentId: null, phase: null, arm: null } as unknown as Partial<EventRow>)
     await insertEvents(exec, [
       row('window-bound', start),
       row('phase-bound', start + hour + 1),
