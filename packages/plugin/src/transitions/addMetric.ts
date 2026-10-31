@@ -25,7 +25,7 @@ export async function addMetric<TUser extends { id: DocId }>(req: PayloadRequest
     const current = await readExperiment(req, experimentId)
     if (current.status !== 'running') refuse('invalid-status')
     const ids = [current.metrics?.primary, ...current.metrics?.secondary ?? [], ...current.metrics?.guardrails ?? []].map(relationshipId)
-    if (ids.some(id => id !== undefined && String(id) === String(metric))) refuse('invalid-body', { message: 'This metric is already part of the experiment.' })
+    if (ids.some(id => id !== undefined && String(id) === String(metric))) refuse('duplicate-metric', { message: 'This metric is already part of the experiment.' })
     const definition = caps.definitions[0]!
     if (current.unitType === 'user' && definition.keyedBy === 'visitor' && !definition.source.startsWith('events:')) refuse('unit-source-mismatch')
     // §7.8: phase lookup serves the access-authorised transition write.

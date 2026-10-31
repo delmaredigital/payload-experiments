@@ -93,7 +93,7 @@ test.each([
   ['no-reach-per-day', { analysis: { plannedDurationDays: 14 } }], ['page-no-targets', { kind: 'page' }],
   ['page-user-unit', { kind: 'page', unitType: 'user', arms: defaultArms('page').map(arm => ({ ...arm, pageTarget: '/x' })) }],
   ['flag-no-point', { kind: 'flag' }], ['no-placements', { kind: 'block', arms: defaultArms('block') }],
-  ['invalid-body', { targeting: [{ attribute: 'unknown', op: 'eq', value: 'x' }] }],
+  ['undeclared-targeting-key', { targeting: [{ attribute: 'unknown', op: 'eq', value: 'x' }] }],
 ])('first failing check %s is returned without opening a transaction', async (code, changes) => {
   const { req, options, experiment, executor } = fixture()
   Object.assign(experiment, changes)
@@ -106,7 +106,7 @@ test.each([
 ])('invalid typed rule %j is refused', async rule => {
   const { req, options, experiment } = fixture()
   experiment.targeting = [rule]
-  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'invalid-body' })
+  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'invalid-targeting-rule' })
 })
 test('unknown experiment is 404', async () => {
   const { req, options } = fixture()

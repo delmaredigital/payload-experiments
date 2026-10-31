@@ -40,6 +40,9 @@ export const REVIEW_HINTS: Record<RefusalCode, string> = {
   unauthenticated: 'Sign in again to continue.',
   'body-too-large': 'Reduce the size of this change and try again.',
   'invalid-body': 'Check the values and try again.',
+  'undeclared-targeting-key': 'Targeting uses an attribute this site does not provide. Remove that rule or ask a developer to declare it.',
+  'invalid-targeting-rule': 'A targeting rule does not fit its attribute. Check the rule and try again.',
+  'duplicate-metric': 'This metric is already part of the experiment.',
 }
 
 export const REVIEW_DONE: Record<RefusalCode, string> = {
@@ -81,6 +84,9 @@ export const REVIEW_DONE: Record<RefusalCode, string> = {
   unauthenticated: 'Signed in',
   'body-too-large': 'Change size checked',
   'invalid-body': 'Values checked',
+  'undeclared-targeting-key': 'Targeting uses known attributes',
+  'invalid-targeting-rule': 'Targeting rules are valid',
+  'duplicate-metric': 'Metric not already added',
 }
 
 export const REVIEW_COPY = {

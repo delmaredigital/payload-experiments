@@ -29,9 +29,10 @@ export interface ManifestInputs {
   experiments: ManifestInputExperiment[]
   flagDefaults: Manifest['flagDefaults']
   excludeIds?: DocId[]
+  pruneFlagDefaultIds?: DocId[]
 }
 
-export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [] }: { excludeIds?: DocId[] } = {}): Promise<ManifestInputs> {
+export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [], pruneFlagDefaultIds = [] }: { excludeIds?: DocId[]; pruneFlagDefaultIds?: DocId[] } = {}): Promise<ManifestInputs> {
   // §7.8 manifest reads: transitions compile all live/archived routing state.
   const result = await req.payload.find({
     collection: 'xp-experiments', req, overrideAccess: true, depth: 1, limit: 0,
@@ -47,21 +48,44 @@ export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [] 
       collection: 'xp-phases', req, overrideAccess: true, depth: 0, limit: 1,
       where: { experiment: { equals: doc.id }, ...(doc.status === 'archived' ? { phaseKind: { equals: 'test' } } : {}) }, sort: '-phase',
     })
+    const rollout = phases.docs[0]?.phaseKind === 'rollout'
+    // §7.8 manifest reads: runtime rollout ranges use the test's full weights (including their exact
+    // floating-point sum) and its control content. The rollout record has only
+    // winner + holdout; never reconstruct the holdout boundary from those weights.
+    const test = rollout ? await req.payload.find({
+      collection: 'xp-phases', req, overrideAccess: true, depth: 0, limit: 1,
+      where: { experiment: { equals: doc.id }, phaseKind: { equals: 'test' } }, sort: '-phase',
+    }) : null
+    if (rollout && !test?.docs[0]) throw new Error('Missing test phase for rollout ' + doc.id)
     experiments.push({ ...doc, currentPhase: doc.status === 'archived' ? null : phases.docs[0] ?? null,
       ...(doc.status === 'archived' ? { lastTestPhase: phases.docs[0] ?? null } : {}),
+      ...(rollout ? { lastTestPhase: test!.docs[0] } : {}),
     } as unknown as ManifestInputExperiment)
   }
   // §7.8 manifest reads: defaults are part of the private compiled manifest.
   const state = await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: true, depth: 0 })
-  return { experiments, flagDefaults: (state.flagDefaults ?? {}) as Manifest['flagDefaults'], excludeIds }
+  return { experiments, flagDefaults: (state.flagDefaults ?? {}) as Manifest['flagDefaults'], excludeIds, pruneFlagDefaultIds }
+}
+
+/** The builder has already acquired the state lock with bumpRevision. */
+async function pruneDeletedDefaults(req: PayloadRequest, inputs: ManifestInputs): Promise<void> {
+  if (!inputs.pruneFlagDefaultIds?.length) return
+  const excluded = new Set(inputs.pruneFlagDefaultIds.map(String))
+  const defaults = Object.fromEntries(Object.entries(inputs.flagDefaults).filter(([, value]) => !excluded.has(String(value.experiment))))
+  if (Object.keys(defaults).length === Object.keys(inputs.flagDefaults).length) return
+  // §7.8 transition write: keep delete exclusions durable under the state
+  // lock, so a later unrelated compilation cannot restore deleted defaults.
+  await req.payload.updateGlobal({ slug: 'xp-state', req, overrideAccess: true, data: { flagDefaults: defaults } })
+  inputs.flagDefaults = defaults
 }
 
 /** Pure compiler. Assignment config comes exclusively from the frozen phase. */
 export function compileManifest(inputs: ManifestInputs, revision: number, { attributeKeys, onInvalid }: ManifestCompileOptions = {}): Manifest {
   const excluded = new Set(inputs.excludeIds?.map(String))
+  const prunedDefaults = new Set(inputs.pruneFlagDefaultIds?.map(String))
   const manifest: Manifest = { v: 1, revision, experiments: [], flagDefaults: {}, archivedWinners: {}, archivedPages: {} }
   for (const [point, value] of Object.entries(inputs.flagDefaults)) {
-    if (!excluded.has(String(value.experiment))) manifest.flagDefaults[point] = structuredClone(value)
+    if (!prunedDefaults.has(String(value.experiment))) manifest.flagDefaults[point] = structuredClone(value)
   }
   for (const experiment of inputs.experiments) {
     if (excluded.has(String(experiment.id))) continue
@@ -106,7 +130,7 @@ export function compileManifest(inputs: ManifestInputs, revision: number, { attr
       id: experiment.id, slug: experiment.slug, kind: experiment.kind, unitType: experiment.unitType,
       status: experiment.status, phase: phase.phase, phaseKind: rollout ? 'rollout' : 'test', seed: phase.seed,
       coverage: layer || (experiment.status === 'decided' && !rollout) ? 1 : phase.allocation / 100,
-      arms: phase.arms.map(({ key, kind, weight, slot, pageTarget, params }) => ({
+      arms: (phase.phaseKind === 'rollout' ? experiment.lastTestPhase?.arms ?? phase.arms : phase.arms).map(({ key, kind, weight, slot, pageTarget, params }) => ({
         key, kind, weight, ...(slot != null ? { slot } : {}), ...(pageTarget != null ? { pageTarget } : {}), ...(params != null ? { params } : {}),
       })),
       targeting, exposurePolicy: experiment.exposurePolicy,
@@ -129,10 +153,11 @@ export function compileManifest(inputs: ManifestInputs, revision: number, { attr
  * so a later revision cannot overwrite the manifest with pre-lock input state.
  * All reads and writes join the request's transaction.
  */
-export async function buildAndStoreManifest(req: PayloadRequest, options: { excludeIds?: DocId[] } = {}): Promise<Manifest> {
+export async function buildAndStoreManifest(req: PayloadRequest, options: { excludeIds?: DocId[]; pruneFlagDefaultIds?: DocId[] } = {}): Promise<Manifest> {
   const exec = txExecutor(req)
   const revision = await bumpRevision(exec)
   const inputs = await loadManifestInputs(req, options)
+  await pruneDeletedDefaults(req, inputs)
   const manifest = compileManifest(inputs, revision, {
     attributeKeys: xpOptionsFromReq(req).attributeKeys,
     onInvalid: (slug, reason) => req.payload.logger.warn({ slug, reason }, 'Experiment omitted from manifest'),
