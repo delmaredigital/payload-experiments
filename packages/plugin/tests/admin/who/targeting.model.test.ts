@@ -39,7 +39,13 @@ test('coercion produces the exact JSON types accepted by server validation for e
     expect(JSON.parse(JSON.stringify(value))).toEqual(value)
     expect(validate(validator, value, { siblingData: { attribute: type, op } })).toBe(true)
     const additionalRaw = type === 'string' ? ['', [], [' A ', 'B']] : type === 'number' ? ['0', -2] : [true, false, 'true']
-    for (const raw of additionalRaw) expect(validate(validator, coerceValue(type, op, raw), { siblingData: { attribute: type, op } })).toBe(true)
+    for (const raw of additionalRaw) {
+      const coerced = coerceValue(type, op, raw)
+      const result = validate(validator, coerced, { siblingData: { attribute: type, op } })
+      // CORE-03b: the server refuses an empty in/nin list (it would match nobody / exclude nobody).
+      if (Array.isArray(coerced) && coerced.length === 0) expect(result).not.toBe(true)
+      else expect(result).toBe(true)
+    }
   }
   expect(coerceValue('string', 'nin', [' A ', 'B'])).toEqual(['A', 'B'])
   expect(coerceValue('number', 'gt', '0')).toBe(0)

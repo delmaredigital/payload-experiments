@@ -208,10 +208,11 @@ test.each([
   expect(screen.getByRole('alert').textContent).toBe(expected)
 })
 test('known checker server messages recover their code and use group vocabulary', () => {
-  setField({ showError: true, errorMessage: 'Arm keys must be unique.' }, 'arms')
+  // Server message from exp-core's checkArms (CORE-03b wording); the admin shows its own copy for the recovered code.
+  setField({ showError: true, errorMessage: 'Each group can appear only once.' }, 'arms')
   setup([groups[0]!, { ...groups[1]!, key: 'control' }])
   expect(screen.getAllByText(ISSUE_COPY['duplicate-key'])).toHaveLength(2)
-  expect(screen.queryByText('Arm keys must be unique.')).toBeNull()
+  expect(screen.queryByText('Each group can appear only once.')).toBeNull()
 })
 test('arm selector retains the same result across unrelated form changes', () => {
   const form = setup()
