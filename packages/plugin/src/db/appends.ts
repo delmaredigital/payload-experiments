@@ -14,11 +14,22 @@ type AppendArgs<T> = { experimentId: DocId; phase: number; entry: T }
  * error handling killing the host transaction before savepoint recovery.
  */
 export async function previousPublishedContent(req: PayloadRequest, collection: string, id: DocId): Promise<Record<string, unknown> | undefined> {
-  const doc = await req.payload.db.findOne({ collection, req, where: { id: { equals: id } },
+  const doc = await req.payload.db.findOne<Record<string, unknown> & { id: DocId }>({ collection, req, where: { id: { equals: id } },
     // Adapter reads have no access layer; document the audit's access posture.
     overrideAccess: false,
   } as Parameters<PayloadRequest['payload']['db']['findOne']>[0])
-  return doc ?? undefined
+  if (!doc) return undefined
+  // A draft created with content is already in the main table. Only the
+  // existence of a published version matters here; never use its content as
+  // the baseline (published main rows remain reliable after version pruning).
+  if (doc._status === 'draft') {
+    const published = await req.payload.db.findVersions({ collection, req, limit: 1, pagination: false,
+      where: { and: [{ parent: { equals: id } }, { 'version._status': { equals: 'published' } }] },
+      overrideAccess: false,
+    } as Parameters<PayloadRequest['payload']['db']['findVersions']>[0])
+    if (!published.docs.length) return undefined
+  }
+  return doc
 }
 
 /** Serialize flagDefaults read/modify/write before the manifest builder bumps. */

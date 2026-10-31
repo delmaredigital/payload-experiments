@@ -1,4 +1,4 @@
-import { commitTransaction, initTransaction, killTransaction, type PayloadRequest } from 'payload'
+import { commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field } from 'payload'
 import { lockContentDefaults } from '../db/appends.js'
 import { pooledExecutor, txExecutor } from '../db/executor.js'
 import { currentTxid, txidStatus } from '../db/txid.js'
@@ -37,6 +37,45 @@ function unwrap(value: unknown, slug: string, slot: string): unknown {
 function contentData(doc: Record<string, unknown>, field: string, content: unknown): Record<string, unknown> {
   const metadata = new Set(['id', 'createdAt', 'updatedAt', '_isLocked', '_userEditing'])
   return { ...Object.fromEntries(Object.entries(doc).filter(([key]) => !metadata.has(key))), [field]: content }
+}
+
+/** Refuse unsafe collection shapes before rebuilding complete host documents. */
+async function fieldRefusal(fields: Field[], req: PayloadRequest, doc: Record<string, unknown> & { id: DocId },
+  siblingData: Record<string, unknown> = doc, blockData?: Record<string, unknown>, seen = new Set<Field>()): Promise<string | undefined> {
+  for (const field of fields) {
+    if (seen.has(field)) continue
+    const branch = new Set(seen).add(field)
+    if ('localized' in field && field.localized) return 'This page is localized; update it by hand.'
+    if ('hidden' in field && field.hidden === true) return 'This page has hidden fields; update it by hand.'
+    if ('access' in field && field.access?.read && !await field.access.read({ id: doc.id, req, doc, data: doc, siblingData, blockData })) {
+      return 'This page has fields you cannot read; update it by hand.'
+    }
+    const value = 'name' in field ? siblingData[field.name] : siblingData
+    if ('tabs' in field) for (const tab of field.tabs) {
+      if ('localized' in tab && tab.localized) return 'This page is localized; update it by hand.'
+      if ('hidden' in tab && tab.hidden === true) return 'This page has hidden fields; update it by hand.'
+      if ('access' in tab && tab.access?.read && !await tab.access.read({ id: doc.id, req, doc, data: doc, siblingData, blockData })) {
+        return 'This page has fields you cannot read; update it by hand.'
+      }
+      const data = 'name' in tab && tab.name ? siblingData[tab.name] : siblingData
+      const refusal = await fieldRefusal(tab.fields, req, doc, object(data) ? data : {}, blockData, branch)
+      if (refusal) return refusal
+    }
+    if ('fields' in field) for (const data of Array.isArray(value) && value.length ? value : [value]) {
+      const refusal = await fieldRefusal(field.fields, req, doc, object(data) ? data : {}, blockData, branch)
+      if (refusal) return refusal
+    }
+    if (field.type === 'blocks') {
+      const blocks = [...field.blocks, ...(field.blockReferences ?? []).map(slug => req.payload.config.blocks?.find(block => block.slug === slug)).filter(block => block !== undefined)]
+      for (const block of blocks) {
+        const rows = Array.isArray(value) ? value.filter(row => object(row) && row.blockType === block.slug) : []
+        for (const row of rows.length ? rows : [{}]) {
+          const refusal = await fieldRefusal(block.fields, req, doc, row, row, branch)
+          if (refusal) return refusal
+        }
+      }
+    }
+  }
 }
 
 /** Each placement commits independently while the outer transition retains its
@@ -84,34 +123,73 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
     }
     if (current.kind === 'block') {
       if (!winner.slot) refuse('invalid-winner')
-      const scanned = await scanBlockPlacements(req, { slug: current.slug, puckCollections: options.puck?.collections ?? [] })
-      if (scanned.some(doc => doc.locked)) refuse('locked-placement')
       const report = decision?.contentReport as { docs?: ContentDoc[] } | undefined
+      const registrations = puckCollections(options)
+      const scanned: Awaited<ReturnType<typeof scanBlockPlacements>> = []
+      for (const registration of registrations) {
+        const transactionID = req.transactionID
+        delete req.transactionID
+        try {
+          scanned.push(...await scanBlockPlacements(req, { slug: current.slug, puckCollections: [registration] }))
+        } catch (error) {
+          // A collection made unreadable since the last attempt still has
+          // retained placements to report below. Never sacrifice the outer tx.
+          const denied = error && typeof error === 'object' && 'status' in error && error.status === 403
+          if (!denied || !report?.docs?.some(doc => doc.collection === registration.slug)) throw error
+        } finally { req.transactionID = transactionID }
+      }
+      if (scanned.some(doc => doc.locked)) refuse('locked-placement')
       const placements = new Map<string, { collection: string; id: DocId }>()
       for (const doc of [...(report?.docs ?? []), ...scanned]) placements.set(doc.collection + ':' + doc.id, doc)
-      const registrations = puckCollections(options)
-      // Refuse before any host write, including documents retained by a retry.
-      for (const { collection, id } of placements.values()) {
-        const doc = await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: true, includeLockStatus: true })
-        if (doc._isLocked === true || doc.locked === true) refuse('locked-placement', { collection, id })
+      const skipped = new Set<string>()
+      // Probe with no borrowed transaction: disableErrors handles expected
+      // NotFound/Forbidden, and even a host read hook cannot kill the outer tx.
+      for (const [key, { collection, id }] of placements) {
+        const transactionID = req.transactionID
+        delete req.transactionID
+        try {
+          const config = req.payload.config.collections.find(config => config.slug === collection)
+          const access = config?.access?.read ? await config.access.read({ id, req }) : true
+          const doc = await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: true, includeLockStatus: true, disableErrors: true })
+          if (!doc) {
+            const ok = access === true || typeof access === 'object' && access !== null && Object.keys(access).length === 0
+            const detail = ok ? 'This page no longer exists; nothing to change.' : 'You can no longer read this page.'
+            docs.push({ collection, id, ok, detail, ...(!ok ? { error: detail } : {}) })
+            skipped.add(key)
+          } else if (doc._isLocked === true || doc.locked === true) refuse('locked-placement', { collection, id })
+        } catch (error) {
+          if (error && typeof error === 'object' && 'code' in error && error.code === 'locked-placement') throw error
+          const missing = error && typeof error === 'object' && 'status' in error && error.status === 404
+          const detail = missing ? 'This page no longer exists; nothing to change.' : 'You can no longer read this page.'
+          docs.push({ collection, id, ok: Boolean(missing), detail, ...(!missing ? { error: detail } : {}) })
+          skipped.add(key)
+        } finally { req.transactionID = transactionID }
       }
-      for (const { collection, id } of placements.values()) await attempt(collection, id, async () => {
-        const field = registrations.find(entry => entry.slug === collection)?.field
-        if (!field) throw new Error('This content collection is no longer configured.')
-        const draft = await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: true })
-        const drafts = req.payload.config.collections.some(config => config.slug === collection && config.versions && config.versions.drafts)
-        const published = drafts ? await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: false }) : draft
-        const draftContent = unwrap(draft[field], current.slug, winner.slot!)
-        const publishedContent = unwrap(published[field], current.slug, winner.slot!)
-        const changedDraft = JSON.stringify(draftContent) !== JSON.stringify(draft[field])
-        const changedPublished = JSON.stringify(publishedContent) !== JSON.stringify(published[field])
-        if (!changedDraft && !changedPublished) return
-        // Host writes are access checked with the manager's req (§7.8).
-        if (changedPublished) await req.payload.update({ collection, id, req, overrideAccess: false, draft: false,
-          data: contentData(published, field, publishedContent) })
-        if (drafts) await req.payload.update({ collection, id, req, overrideAccess: false, draft: true,
-          data: { ...contentData(draft, field, draftContent), _status: 'draft' } })
-      })
+      for (const [key, { collection, id }] of placements) {
+        if (skipped.has(key)) continue
+        await attempt(collection, id, async () => {
+          const field = registrations.find(entry => entry.slug === collection)?.field
+          if (!field) throw new Error('This content collection is no longer configured.')
+          const draft = await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: true })
+          const config = req.payload.config.collections.find(config => config.slug === collection)
+          const drafts = Boolean(config?.versions && config.versions.drafts)
+          const published = drafts ? await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: false }) : draft
+          for (const doc of [draft, published]) {
+            const refusal = await fieldRefusal(config?.fields ?? [], req, doc)
+            if (refusal) throw new Error(refusal)
+          }
+          const draftContent = unwrap(draft[field], current.slug, winner.slot!)
+          const publishedContent = unwrap(published[field], current.slug, winner.slot!)
+          const changedDraft = JSON.stringify(draftContent) !== JSON.stringify(draft[field])
+          const changedPublished = JSON.stringify(publishedContent) !== JSON.stringify(published[field])
+          if (!changedDraft && !changedPublished) return
+          // Host writes are access checked with the manager's req (§7.8).
+          if (changedPublished) await req.payload.update({ collection, id, req, overrideAccess: false, overrideLock: false, draft: false,
+            data: contentData(published, field, publishedContent) })
+          if (drafts) await req.payload.update({ collection, id, req, overrideAccess: false, overrideLock: false, draft: true,
+            data: { ...contentData(draft, field, draftContent), _status: 'draft' } })
+        })
+      }
     } else if (current.kind === 'flag') {
       const point = options.flagPoints?.find(point => point.id === current.flagPoint)
       if (!point) refuse('flag-no-point')

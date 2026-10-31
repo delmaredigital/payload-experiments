@@ -1,3 +1,4 @@
+import type { Field } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { makeContent } from '../../src/transitions/makeContent.js'
 import { fakeReq } from '../_fakes/req.js'
@@ -22,7 +23,7 @@ function fixture(kind = 'block', drafts = true, field = 'puckData') {
     return { rows: rows as R[], rowCount: 1 }
   }
   let defaults: Record<string, unknown> = { other: { winnerArm: 'control', params: {}, experiment: 9 } }
-  const payload = fakePayload({ executor, config: { custom: { xp: options }, collections: [{ slug: 'pages', ...(drafts ? { versions: { drafts: {} } } : {}) }] },
+  const payload = fakePayload({ executor, config: { custom: { xp: options }, collections: [{ slug: 'pages', fields: [], ...(drafts ? { versions: { drafts: {} } } : {}) }] },
     overrides: { findGlobal: vi.fn(async () => ({ flagDefaults: defaults })), updateGlobal: vi.fn(async args => { defaults = args.data.flagDefaults; return args.data }) },
     collections: {
       'xp-experiments': [{ id: 1, slug: 'hero', status: 'decided', kind, flagPoint: 'setting', unitType: 'visitor', phase: 1, allocation: 100,
@@ -71,6 +72,7 @@ test.each(['puckData', 'content'])('nested slots unwrap in %s; published and lat
   for (const [index, call] of calls.entries()) {
     const draft = index % 2 === 1
     expect(call.args.overrideAccess).toBe(false)
+    expect(call.args.overrideLock).toBe(false)
     expect(call.args.req).toBe(f.req)
     expect(call.args.data).toEqual({ title: draft ? 'Draft outer title' : 'Published outer title', _status: draft ? 'draft' : 'published', [field]: {
       root: { props: { title: draft ? 'Draft title' : 'Published title' } }, content: [
@@ -174,4 +176,118 @@ test('Payload latest-version merge preserves published and draft fields outside 
     expect(published.get(id)).toMatchObject({ title: 'Published title', seo: { description: 'Published SEO' }, puckData: { content: [text('Winner')] } })
     expect(latest.get(id)).toMatchObject({ title: 'Unpublished title', seo: { description: 'Draft SEO' }, puckData: { content: [text('Winner')] } })
   }
+})
+
+const unsafeFields: Array<{ name: string; fields: Field[]; detail: string }> = [
+  { name: 'localized nested tab', detail: 'localized', fields: [{ type: 'tabs', tabs: [{ label: 'SEO', fields: [{ name: 'title', type: 'text', localized: true }] }] }] },
+  { name: 'hidden nested group field', detail: 'hidden fields', fields: [{ name: 'seo', type: 'group', fields: [{ name: 'secret', type: 'text', hidden: true }] }] },
+  { name: 'hidden named tab', detail: 'hidden fields', fields: [{ type: 'tabs', tabs: [{ name: 'seo', hidden: true, fields: [{ name: 'title', type: 'text' }] }] }] },
+  { name: 'unreadable named tab', detail: 'fields you cannot read', fields: [{ type: 'tabs', tabs: [{ name: 'seo', access: { read: () => false }, fields: [{ name: 'title', type: 'text' }] }] }] },
+  { name: 'localized block field outside Puck JSON', detail: 'localized', fields: [{ name: 'blocks', type: 'blocks', blocks: [{ slug: 'copy', fields: [{ name: 'title', type: 'text', localized: true }] }] }] },
+]
+test.each(unsafeFields)('$name refuses each document without changing published or draft content', async ({ fields, detail }) => {
+  const f = fixture()
+  f.payload.config.collections[0]!.fields = fields
+  const original = structuredClone(f.payload.documents.pages)
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs).toHaveLength(2)
+  for (const doc of result.docs) expect(doc).toMatchObject({ ok: false, detail: expect.stringContaining(detail) })
+  expect(result.docs.every(doc => doc.detail?.includes('update it by hand'))).toBe(true)
+  expect(hostUpdates(f)).toEqual([])
+  expect(f.payload.documents.pages).toEqual(original)
+})
+test('evaluates field read access with the manager req even when the fake returns the field', async () => {
+  const f = fixture()
+  const read = vi.fn(({ id, req }) => {
+    expect(req).toBe(f.req)
+    expect(req.user.id).toBe(42)
+    return id !== 3
+  })
+  f.payload.config.collections[0]!.fields = [{ name: 'privateTitle', type: 'text', access: { read } }]
+  f.payload.documents.pages![0]!.privateTitle = 'Returned by fake; still unreadable'
+  const original = structuredClone(f.payload.documents.pages![0])
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(read).toHaveBeenCalled()
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'This page has fields you cannot read; update it by hand.' }, { id: 4, ok: true }])
+  expect(f.payload.documents.pages![0]).toEqual(original)
+  expect(hostUpdates(f).filter(call => call.args.id === 3)).toEqual([])
+  expect(hostUpdates(f).filter(call => call.args.id === 4)).toHaveLength(2)
+})
+test.each([true, {}])('retry after a failed placement is deleted reports it ok and archives (read=%j)', async access => {
+  const f = fixture()
+  Object.assign(f.payload.config.collections[0]!, { access: { read: () => access } })
+  const update = f.payload.update.bind(f.payload)
+  vi.spyOn(f.payload, 'update').mockImplementation(async args => {
+    if (args.collection === 'pages' && args.id === 3) throw new Error('Update denied')
+    return update(args)
+  })
+  expect((await makeContent(f.req, { experimentId: 1, options: f.options })).doc.status).toBe('decided')
+  f.payload.documents.pages = f.payload.documents.pages!.filter(doc => doc.id !== 3)
+  const findByID = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    if (args.collection === 'pages' && args.id === 3) {
+      expect(args.disableErrors).toBe(true)
+      expect(f.req.transactionID).toBeUndefined()
+      return null as never
+    }
+    return findByID(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('archived')
+  expect(result.docs).toContainEqual({ collection: 'pages', id: 3, ok: true, detail: 'This page no longer exists; nothing to change.' })
+})
+test('a retained page made unreadable is reported without killing the outer transaction', async () => {
+  const f = fixture()
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
+  Object.assign(f.payload.config.collections[0]!, { access: { read: ({ id }: { id?: string | number }) => id !== 3 } })
+  const findByID = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    if (args.id === 3) { expect(args.disableErrors).toBe(true); return null as never }
+    return findByID(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'You can no longer read this page.' }, { id: 4, ok: true }])
+  expect(f.payload.dbCalls.some(call => call.method === 'rollbackTransaction')).toBe(false)
+  expect(hostUpdates(f).some(call => call.args.id === 3)).toBe(false)
+})
+test.each([false, true])('a lock acquired after pre-check fails only that document (draft write=%s)', async draftWrite => {
+  const f = fixture()
+  const update = f.payload.update.bind(f.payload)
+  vi.spyOn(f.payload, 'update').mockImplementation(async args => {
+    if (args.collection === 'pages') {
+      expect(args.overrideLock).toBe(false)
+      if (args.id === 3 && args.draft === draftWrite) throw new Error('This page is locked by another editor')
+    }
+    return update(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: expect.stringContaining('locked') }, { id: 4, ok: true }])
+  expect(f.payload.dbCalls.filter(call => call.method === 'rollbackTransaction')).toHaveLength(1)
+})
+
+test('collection read access removed since a partial run cannot abort the outer transaction during scanning', async () => {
+  const f = fixture()
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }, { collection: 'pages', id: 4, ok: true }] } }
+  Object.assign(f.payload.config.collections[0]!, { access: { read: () => false } })
+  const find = f.payload.find.bind(f.payload)
+  vi.spyOn(f.payload, 'find').mockImplementation(async args => {
+    if (args.collection === 'pages') {
+      expect(f.req.transactionID).toBeUndefined()
+      throw Object.assign(new Error('Forbidden'), { status: 403 })
+    }
+    return find(args)
+  })
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    expect(args.disableErrors).toBe(true)
+    return null as never
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'You can no longer read this page.' }, { id: 4, ok: false, detail: 'You can no longer read this page.' }])
+  expect(hostUpdates(f)).toEqual([])
+  expect(f.payload.dbCalls.some(call => call.method === 'rollbackTransaction')).toBe(false)
 })

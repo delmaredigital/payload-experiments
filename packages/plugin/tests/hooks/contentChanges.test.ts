@@ -203,7 +203,7 @@ test('a held experiment lock times out at 2s, skips the marker, logs and preserv
 
 test('a pruned version history and unpublish do not change the captured main-row baseline', async () => {
   const { args, executor } = setup()
-  const main = { ...structuredClone(args.doc), _status: 'draft' }
+  const main = { ...structuredClone(args.doc), _status: 'published' }
   await publishedBaseline(args, main)
   args.doc._status = 'published'
   args.previousDoc = { id: 1, puckData: { content: [slot('Pruned draft')] } }
@@ -233,4 +233,55 @@ test('a draft-enabled arm-select host helper uses the captured main-row baseline
   await publishedBaseline(args, published)
   await recordContentChange(args)
   expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(1)
+})
+
+test('first publish of a document created as draft records a marker despite identical slot content', async () => {
+  const { args, executor } = setup()
+  args.previousDoc = { ...structuredClone(args.doc), _status: 'draft' }
+  args.collection.versions = { drafts: {} } as typeof args.collection.versions
+  Object.assign(args.req.payload.db, { findOne: vi.fn(async () => structuredClone(args.previousDoc)) })
+  const versions = vi.fn(async () => ({ docs: [] }))
+  Object.assign(args.req.payload.db, { findVersions: versions })
+  // Re-capture using the real draft main-row shape and no published history.
+  await contentChangesBeforeHook({ ...args, originalDoc: args.previousDoc, data: args.doc, operation: 'update' })
+  args.doc._status = 'published'
+  await recordContentChange(args)
+  expect(versions).toHaveBeenCalledWith(expect.objectContaining({ limit: 1, where: { and: [{ parent: { equals: 1 } }, { 'version._status': { equals: 'published' } }] } }))
+  expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(1)
+})
+test('unpublished main row with a published history uses main content, not version content', async () => {
+  const { args, executor } = setup()
+  const main = { ...structuredClone(args.doc), _status: 'draft' }
+  args.collection.versions = { drafts: {} } as typeof args.collection.versions
+  Object.assign(args.req.payload.db, { findOne: vi.fn(async () => main), findVersions: vi.fn(async () => ({ docs: [{ version: args.previousDoc }] })) })
+  await contentChangesBeforeHook({ ...args, originalDoc: args.previousDoc, data: args.doc, operation: 'update' })
+  args.doc._status = 'published'
+  await recordContentChange(args)
+  expect(executor.calls.some(call => call.text.startsWith('UPDATE'))).toBe(false)
+})
+test('publishing an existing document preserves a pending create baseline in the same request', async () => {
+  const { args, executor } = setup()
+  await publishedBaseline(args, args.previousDoc)
+  await contentChangesBeforeHook({ ...args, originalDoc: {}, data: args.doc, operation: 'create' })
+  args.doc._status = 'published'
+  await recordContentChange(args)
+  expect(args.req.context.xpPublishedContent).toHaveProperty('pages:__create__')
+  expect(args.req.context.xpPublishedContent).not.toHaveProperty('pages:1')
+  args.doc = { ...args.doc, id: 2 }
+  args.previousDoc = {}
+  await recordContentChange(args)
+  expect(args.req.context.xpPublishedContent).not.toHaveProperty('pages:__create__')
+  expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(2)
+})
+test.each([undefined, Promise.resolve(undefined)])('transaction-disabled hooks skip quietly (%s)', async transactionID => {
+  const { args, executor, payload } = setup()
+  args.collection.versions = { drafts: {} } as typeof args.collection.versions
+  args.doc._status = 'published'
+  args.req.transactionID = transactionID as typeof args.req.transactionID
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+  expect(await contentChangesBeforeHook({ ...args, originalDoc: args.previousDoc, data: args.doc, operation: 'update' })).toBe(args.doc)
+  expect(await contentChangesHook(args)).toBe(args.doc)
+  expect(errors).not.toHaveBeenCalled()
+  expect(executor.calls).toEqual([])
+  expect(payload.logs.filter(log => log.level === 'debug')).toHaveLength(2)
 })

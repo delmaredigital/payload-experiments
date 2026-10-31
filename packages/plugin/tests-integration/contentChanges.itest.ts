@@ -16,7 +16,7 @@ beforeAll(async () => {
 }, 60_000)
 afterAll(async () => { await harness?.teardown() })
 
-async function setup(name: string) {
+async function setup(name: string, initialDraft = false) {
   const { payload } = harness
   const req = await createLocalReq({}, payload)
   const metric = await payload.create({ collection: 'xp-metrics', req, overrideAccess: true,
@@ -32,7 +32,7 @@ async function setup(name: string) {
     control: [{ type: 'Text', props: { text: value } }], variantA: [{ type: 'Text', props: { text: 'Variant' } }],
   } }] })
   const page = await payload.create({ collection: 'audit-pages', req, overrideAccess: false,
-    data: { title: name, content: content('Published'), _status: 'published' } })
+    draft: initialDraft, data: { title: name, content: content('Published'), _status: initialDraft ? 'draft' : 'published' } })
   await start(req, { experimentId: experiment.id, options: payload.config.custom!.xp as ResolvedOptions })
   const save = (value: string, draft: boolean, autosave = false) => payload.update({ collection: 'audit-pages', id: page.id,
     req, overrideAccess: false, draft, autosave, data: { content: content(value), _status: draft ? 'draft' : 'published' } })
@@ -67,4 +67,11 @@ test('unpublish then republish unchanged records no marker', async () => {
   expect(await f.markers()).toHaveLength(0)
   await f.save('Published', false)
   expect(await f.markers()).toHaveLength(0)
+})
+
+test('first publish of unchanged slots created in a draft records one marker', async () => {
+  const f = await setup('audit-first-publish', true)
+  expect(await f.markers()).toHaveLength(0)
+  await f.save('Published', false)
+  expect(await f.markers()).toHaveLength(1)
 })

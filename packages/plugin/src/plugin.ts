@@ -22,10 +22,7 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
       collections: [
         ...(config.collections ?? []).map(collection => {
           const puck = options.puck?.enabled && registrations.some(entry => entry.slug === collection.slug)
-          // Draft-enabled hosts can call recordContentChange themselves, including
-          // arm-select collections outside Puck. Capture their baseline as well.
-          const capture = puck || Boolean(collection.versions && typeof collection.versions === 'object' && collection.versions.drafts)
-          if (!capture) return collection
+          if (!puck) return collection
           return { ...collection, hooks: { ...collection.hooks,
             beforeChange: [...(collection.hooks?.beforeChange ?? []), contentChangesBeforeHook],
             ...(puck ? { afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook] } : {}),

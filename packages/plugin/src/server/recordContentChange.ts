@@ -48,6 +48,10 @@ const baselineKey = (collection: string, id: DocId) => `${collection}:${id}`
 /** Paired beforeChange capture: previousDoc may be an autosaved draft. */
 export async function capturePublishedContent({ req, collection, originalDoc, operation }: Parameters<CollectionBeforeChangeHook>[0]): Promise<void> {
   if (!collection.versions || !collection.versions.drafts) return
+  if (await req.transactionID == null) {
+    req.payload.logger?.debug('[payload-experiments] contentChanges baseline skipped without a transaction')
+    return
+  }
   const id = operation === 'create' ? '__create__' : originalDoc.id as DocId
   const baselines = (req.context.xpPublishedContent ??= {}) as Record<string, Baseline>
   const key = baselineKey(collection.slug, id)
@@ -63,6 +67,10 @@ export async function capturePublishedContent({ req, collection, originalDoc, op
 export async function recordContentChange({ doc, previousDoc, req, collection }: Pick<Parameters<CollectionAfterChangeHook>[0], 'doc' | 'previousDoc' | 'req' | 'collection'>): Promise<void> {
   const drafts = Boolean(collection.versions && collection.versions.drafts)
   if (drafts && doc._status !== 'published') return
+  if (await req.transactionID == null) {
+    req.payload.logger?.debug('[payload-experiments] contentChanges skipped without a transaction')
+    return
+  }
   const options = req.payload.config.custom?.xp as ResolvedOptions | undefined
   const registration = puckCollections(options ?? {}).find(entry => entry.slug === collection.slug)
   const after = bindings(registration ? doc[registration.field] : doc, Boolean(registration))
@@ -78,10 +86,9 @@ export async function recordContentChange({ doc, previousDoc, req, collection }:
   const executor = txExecutor(req)
   const audit = await contentChangeSavepoint(executor, async () => {
     const baselines = req.context.xpPublishedContent as Record<string, Baseline> | undefined
-    const key = baselineKey(collection.slug, doc.id)
-    const createKey = baselineKey(collection.slug, '__create__')
-    const baseline = baselines?.[key] ?? baselines?.[createKey]
-    if (baselines) { delete baselines[key]; delete baselines[createKey] }
+    const key = baselineKey(collection.slug, previousDoc?.id == null ? '__create__' : doc.id)
+    const baseline = baselines?.[key]
+    if (baselines) delete baselines[key]
     // Missing capture must never turn an unchanged publish into a false marker.
     if (drafts && !baseline) throw new Error('Published content baseline was not captured before the write')
     const changed = changes(drafts ? baseline?.doc : previousDoc)
