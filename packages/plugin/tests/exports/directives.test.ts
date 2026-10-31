@@ -2,8 +2,11 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { hasClientDirective } from '../puck/clientDirective.js'
+
+// These scans parse every src file with the TypeScript compiler; give them room under a loaded full-suite run.
+vi.setConfig({ testTimeout: 30_000 })
 
 const src = fileURLToPath(new URL('../../src/', import.meta.url))
 function files(directory: string): string[] {
