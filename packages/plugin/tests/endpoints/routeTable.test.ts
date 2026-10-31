@@ -74,13 +74,18 @@ test('manifest key is private and uses the first signing secret', async () => {
   const key = createHmac('sha256', 'first-key').update('xp:manifest-key').digest('hex')
   await assertResponse(await invoke('/xp/manifest', options(), request(false, { 'x-xp-manifest-key': key })), 501, 'not-implemented')
 })
-test('signed cookie stub is mapped to CORE-04 501', async () => {
+test('signed cookie routes refuse absent or unsigned cookies before the handler (CORE-04 verification)', async () => {
   const cookieHeaders: Array<Record<string, string>> = [{}, { cookie: 'xp_id=unsigned' }]
   for (const headers of cookieHeaders) {
-    const response = await invoke('/xp/events', options(), request(false, headers))
-    expect(response.status).toBe(501)
-    expect(await response.json()).toEqual({ errors: [{ code: 'not-implemented', message: 'CORE-04' }] })
+    await assertResponse(await invoke('/xp/events', options(), request(false, headers)), 401, 'unauthenticated')
   }
+})
+test('a validly signed cookie reaches the events handler', async () => {
+  const opts = options()
+  const cookie = unitCookie.encodeUnitCookie(unitCookie.mintUnitId(), opts.runtime.proxyRuntime.secrets)
+  const response = await invoke('/xp/events', opts, request(false, { cookie: `xp_id=${cookie}` }))
+  expect(response.status).not.toBe(401)
+  expect(response.status).not.toBe(403)
 })
 
 test('transition stubs identify their owning lanes', async () => {
