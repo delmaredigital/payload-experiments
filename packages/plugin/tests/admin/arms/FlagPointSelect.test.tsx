@@ -18,18 +18,29 @@ function setup(status: Status = 'draft') {
   const setValue = vi.fn(), dispatchFields = vi.fn(), setModified = vi.fn()
   setField({ value: 'hero', setValue }, 'flagPoint')
   setForm({ dispatchFields, setModified })
-  setFormFields({ status: { value: status }, 'arms.0.key': { value: 'control' }, 'arms.0.kind': { value: 'control' } })
+  setFormFields({ status: { value: status }, 'arms.0.key': { value: 'control' }, 'arms.0.kind': { value: 'control' },
+    'arms.1.key': { value: 'variantA' }, 'arms.1.kind': { value: 'variant' }, 'arms.1.params': { value: { oldParam: 'old value' } },
+    'arms.2.key': { value: 'variantB' }, 'arms.2.kind': { value: 'variant' }, 'arms.2.params': { value: { anotherOldParam: true } },
+    'arms.3.key': { value: 'holdout' }, 'arms.3.kind': { value: 'holdout' } })
   render(<FlagPointSelect {...{ path: 'flagPoint', field: { name: 'flagPoint', type: 'text', admin: { custom: { flagPoints: points } } } } as unknown as TextFieldClientProps} />)
   return { setValue, dispatchFields, setModified }
 }
-test('uses serialised point labels and prefills control with effective defaults on selection', () => {
+test('switching points prefills Original with new defaults, clears every variant and leaves holdout without params', () => {
   const form = setup()
   expect(screen.getByRole('option', { name: 'Hero heading' }).getAttribute('value')).toBe('hero')
   expect(screen.getByRole('option', { name: 'Footer' }).getAttribute('value')).toBe('footer')
   fireEvent.change(screen.getByRole('combobox'), { target: { value: 'footer' } })
   expect(form.setValue).toHaveBeenCalledWith('footer')
   expect(form.dispatchFields).toHaveBeenCalledWith({ type: 'UPDATE', path: 'arms.0.params', value: { title: 'Footer title' } })
+  for (const index of [1, 2]) expect(form.dispatchFields).toHaveBeenCalledWith({ type: 'UPDATE', path: `arms.${index}.params`, value: {} })
+  expect(form.dispatchFields).toHaveBeenCalledTimes(3)
   expect(form.setModified).toHaveBeenCalledWith(true)
+})
+test('reselecting the current point preserves variant params', () => {
+  const form = setup()
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'hero' } })
+  expect(form.dispatchFields).not.toHaveBeenCalled()
+  expect(form.setValue).not.toHaveBeenCalled()
 })
 test.each(['stopped', 'running', 'decided', 'archived'] as const)('disabled after draft: %s', status => {
   const form = setup(status)

@@ -38,7 +38,7 @@ test('selects accept only available values and provide option messages', () => {
   expect(paramIssue(field, 'blue')).toBe('Choose an available option for Colour.')
   expect(paramIssue(field, 'red')).toBeNull()
 })
-test('Original shows effective defaults read-only, other groups use their saved params', () => {
+test('Original shows effective defaults read-only and variants use their saved params', () => {
   const arm: Arm = { key: 'control', kind: 'control', label: 'Original', weight: 50, params: { title: 'stale' } }
   const point: SerializedFlagPoint = { id: 'hero', label: 'Hero', params: {}, defaultParams: { title: 'default' }, effectiveDefaults: { title: 'current' } }
   expect(paramsReadOnly(arm, true)).toBe(true)
@@ -50,4 +50,11 @@ test('Original shows effective defaults read-only, other groups use their saved 
   expect(paramsForArm({ ...variant, params: undefined })).toEqual({})
   expect(setParam(variant.params!, 'size', { type: 'number', label: 'Size' }, '5')).toEqual({ title: 'stale', size: 5 })
   expect(variant.params).toEqual({ title: 'stale' })
+})
+test('holdout params are read-only and show the Original defaults', () => {
+  const arm: Arm = { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 10 }
+  const point: SerializedFlagPoint = { id: 'hero', label: 'Hero', params: {}, defaultParams: {}, effectiveDefaults: { title: 'current' } }
+  expect(paramsReadOnly(arm, true)).toBe(true)
+  expect(paramsForArm(arm, point)).toEqual(point.effectiveDefaults)
+  expect(arm).not.toHaveProperty('params')
 })

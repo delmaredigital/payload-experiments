@@ -1,7 +1,39 @@
 import { expect, test } from 'vitest'
 import type { Arm } from '../../../src/types/contracts.js'
 import { checkArms } from '../../../src/collections/experiments/armInvariants.js'
-import { addHoldoutArm, addVariant, issuesByRow, readArms, removeArm, removeHoldout, setWeight, splitEvenly } from '../../../src/admin/arms/arms.model.js'
+import { createDefaults } from '../../../src/collections/experiments/createDefaults.js'
+import { addHoldoutArm, addVariant, defaultArms, issuesByRow, readArms, removeArm, removeHoldout, setWeight, splitEvenly, totalWeight, withSlotsFor } from '../../../src/admin/arms/arms.model.js'
+
+test.each(['block', 'page', 'flag', 'code'] as const)('%s client defaults match the server create hook', async kind => {
+  const data = { kind } as { kind: typeof kind; arms?: Arm[] }
+  await createDefaults({ operation: 'create', data } as unknown as Parameters<typeof createDefaults>[0])
+  expect(defaultArms(kind)).toEqual(data.arms)
+})
+test('adding a variant or holdout without an Original leaves the list unchanged', () => {
+  for (const rows of [[], groups([50, 50]).slice(1)]) {
+    expect(addVariant(rows)).toBe(rows)
+    expect(addHoldoutArm(rows)).toBe(rows)
+  }
+})
+test.each(['block', 'page', 'flag', 'code', undefined] as const)('slots follow %s including after a kind switch', kind => {
+  const rows = addHoldoutArm(groups([50, 50]))
+  const next = withSlotsFor(rows, kind)
+  if (kind === 'block') blockSlots(next)
+  else next.forEach(arm => expect(arm).not.toHaveProperty('slot'))
+  expect(withSlotsFor(next, kind)).toBe(next)
+  blockSlots(withSlotsFor(next, 'block'))
+  expect(rows).toEqual(addHoldoutArm(groups([50, 50])))
+})
+test('cleared weights count as zero in totals, even splits and holdout operations', () => {
+  const rows = groups([NaN, 50])
+  const holdout: Arm = { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: NaN }
+  expect(totalWeight(rows)).toBe(50)
+  expect(totalWeight([...rows, holdout])).toBe(50)
+  expect(splitEvenly([...rows, holdout]).map(arm => arm.weight)).toEqual([50, 50, 0])
+  expect(removeHoldout([...rows, holdout]).map(arm => arm.weight)).toEqual([0, 50])
+  expect(removeHoldout([...rows, { ...holdout, weight: 10 }]).map(arm => arm.weight)).toEqual([0, 60])
+  total100(addHoldoutArm(rows))
+})
 
 function groups(weights: number[]): Arm[] {
   const keys = ['control', 'variantA', 'variantB', 'variantC'] as const
@@ -46,7 +78,7 @@ test('seeded 2–4 group integer vectors retain totals, order and block slots th
     expect(original).toEqual(before)
   }
 })
-test('largest remainder ties go to Original, even if it is not first', () => {
+test('largest remainder ties go to Original and removal preserves the previous total', () => {
   const rows = groups([1, 1, 1])
   expect(removeHoldout([...rows, { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 97 }]).map(arm => arm.weight)).toEqual([34, 33, 33])
   expect(splitEvenly(groups([34, 33, 33])).map(arm => arm.weight)).toEqual([34, 33, 33])

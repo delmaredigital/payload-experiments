@@ -5,7 +5,28 @@ import { GROUP_LABELS } from '../copy/arms.js'
 
 const VARIANTS = ['variantA', 'variantB', 'variantC'] as const
 
+export function defaultArms(kind?: ExperimentKind): Arm[] {
+  return withSlotsFor([
+    { key: 'control', kind: 'control', label: GROUP_LABELS.control, weight: 50 },
+    { key: 'variantA', kind: 'variant', label: GROUP_LABELS.variantA, weight: 50 },
+  ], kind)
+}
+/** Keep content slots in step with the experiment kind, including an unset kind. */
+export function withSlotsFor(arms: Arm[], kind?: ExperimentKind): Arm[] {
+  const next = arms.map(arm => {
+    if (kind === 'block' && arm.kind !== 'holdout') return arm.slot === arm.key ? arm : { ...arm, slot: arm.key as Arm['slot'] }
+    if (!Object.hasOwn(arm, 'slot')) return arm
+    const { slot: _slot, ...rest } = arm
+    return rest
+  })
+  return next.every((arm, index) => arm === arms[index]) ? arms : next
+}
+const finiteWeight = (weight: number) => Number.isFinite(weight) ? weight : 0
+export function totalWeight(arms: Arm[]): number {
+  return arms.reduce((sum, arm) => sum + finiteWeight(arm.weight), 0)
+}
 export function addVariant(arms: Arm[], kind?: ExperimentKind): Arm[] {
+  if (!arms.some(arm => arm.kind === 'control')) return arms
   const key = VARIANTS.find(candidate => !arms.some(arm => arm.key === candidate))
   if (!key || arms.filter(arm => arm.kind === 'variant').length >= 3) return arms
   const block = kind === 'block' || kind === undefined && arms.some(arm => arm.slot !== undefined)
@@ -20,15 +41,18 @@ export function removeArm(arms: Arm[], key: ArmKey): Arm[] {
   if (key === 'holdout') return removeHoldout(arms)
   return arms.filter(arm => arm.key !== key)
 }
-export function addHoldoutArm(arms: Arm[]): Arm[] { return addHoldout(arms) }
+export function addHoldoutArm(arms: Arm[]): Arm[] {
+  if (!arms.some(arm => arm.kind === 'control') || arms.some(arm => arm.kind === 'holdout' || arm.key === 'holdout')) return arms
+  return addHoldout(arms.map(arm => Number.isFinite(arm.weight) ? arm : { ...arm, weight: 0 }))
+}
 
 // Largest remainder, with equal fractional remainders awarded to Original first.
 function distribute(arms: Arm[], total: number, proportional: boolean): Arm[] {
   if (!arms.length) return arms
-  const weightTotal = arms.reduce((sum, arm) => sum + arm.weight, 0)
+  const weightTotal = totalWeight(arms)
   const useWeights = proportional && weightTotal > 0
   const denominator = useWeights ? weightTotal : arms.length
-  const numerators = arms.map(arm => (useWeights ? arm.weight : 1) * total)
+  const numerators = arms.map(arm => (useWeights ? finiteWeight(arm.weight) : 1) * total)
   const weights = numerators.map(numerator => Math.floor(numerator / denominator))
   const order = arms.map((_, i) => i).sort((a, b) =>
     numerators[b]! % denominator - numerators[a]! % denominator ||
@@ -39,19 +63,20 @@ function distribute(arms: Arm[], total: number, proportional: boolean): Arm[] {
 }
 export function removeHoldout(arms: Arm[]): Arm[] {
   if (!arms.some(arm => arm.kind === 'holdout')) return arms
-  return distribute(arms.filter(arm => arm.kind !== 'holdout'), arms.reduce((sum, arm) => sum + arm.weight, 0), true)
+  return distribute(arms.filter(arm => arm.kind !== 'holdout'), totalWeight(arms), true)
 }
 export function splitEvenly(arms: Arm[]): Arm[] {
   const holdout = arms.find(arm => arm.kind === 'holdout')
-  return [...distribute(arms.filter(arm => arm.kind !== 'holdout'), 100 - (holdout?.weight ?? 0), false), ...(holdout ? [holdout] : [])]
+  const weight = finiteWeight(holdout?.weight ?? 0)
+  return [...distribute(arms.filter(arm => arm.kind !== 'holdout'), 100 - weight, false), ...(holdout ? [{ ...holdout, weight }] : [])]
 }
 export function setWeight(arms: Arm[], key: ArmKey, weight: number): Arm[] {
   return arms.map(arm => arm.key === key ? { ...arm, weight } : arm)
 }
-export function issuesByRow(arms: Arm[], kind: ExperimentKind): { rows: ArmIssue[][]; form: ArmIssue[] } {
+export function issuesByRow(arms: Arm[], kind?: ExperimentKind): { rows: ArmIssue[][]; form: ArmIssue[] } {
   const rows: ArmIssue[][] = arms.map(() => [])
   const form: ArmIssue[] = []
-  for (const issue of checkArms(arms, kind)) {
+  for (const issue of checkArms(arms, kind as ExperimentKind)) {
     const index = issue.armIndex ?? arms.findIndex(arm => arm.key === issue.armKey)
     if (index >= 0 && index < arms.length) rows[index]!.push(issue)
     else form.push(issue)
@@ -69,6 +94,9 @@ export function readArms(fields: Record<string, { value?: unknown }>, path = 'ar
     if (/^\d+$/.test(index!) && field === 'key') indices.add(Number(index))
   }
   return [...indices].sort((a, b) => a - b).map(index => Object.fromEntries(
-    ARM_FIELDS.map(field => [field, fields[`${path}.${index}.${field}`]?.value]),
+    ARM_FIELDS.flatMap(field => {
+      const value = fields[`${path}.${index}.${field}`]?.value
+      return value === undefined ? [] : [[field, value]]
+    }),
   ) as unknown as Arm)
 }

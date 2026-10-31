@@ -24,9 +24,9 @@ export function paramIssue(field: ParamField, value: unknown): string | null {
   } else if (typeof value !== 'string' || field.required && !value.trim()) return message(ARMS_COPY.paramRequired)
   return null
 }
-export function paramsReadOnly(arm: Arm, editable: boolean): boolean { return !editable || arm.kind === 'control' }
+export function paramsReadOnly(arm: Arm, editable: boolean): boolean { return !editable || arm.kind !== 'variant' }
 export function paramsForArm(arm: Arm, point?: SerializedFlagPoint): Record<string, unknown> {
-  return arm.kind === 'control' && point ? point.effectiveDefaults : arm.params ?? {}
+  return arm.kind !== 'variant' && point ? point.effectiveDefaults : arm.params ?? {}
 }
 export function setParam(params: Record<string, unknown>, key: string, field: ParamField, value: unknown): Record<string, unknown> {
   return { ...params, [key]: coerceParam(field, value) }
