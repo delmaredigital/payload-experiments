@@ -6,9 +6,12 @@ function randomVectors(n: number): number[][] {
   let state = 0x51a7e + n
   const next = () => {
     state = (Math.imul(1664525, state) + 1013904223) >>> 0
-    return state
+    return state >>> 8
   }
-  return Array.from({ length: 2000 }, () => {
+  // High bits avoid the LCG's short low-bit periods; dedupe to cover 2000 distinct vectors.
+  const vectors: number[][] = []
+  const seen = new Set<string>()
+  while (vectors.length < 2000) {
     const h = 1 + next() % 100
     let remaining = 100 - h
     const weights: number[] = []
@@ -17,14 +20,21 @@ function randomVectors(n: number): number[][] {
       weights.push(w)
       remaining -= w
     }
-    return [...weights, remaining, h]
-  })
+    const vector = [...weights, remaining, h]
+    const key = vector.join(',')
+    if (!seen.has(key)) {
+      seen.add(key)
+      vectors.push(vector)
+    }
+  }
+  return vectors
 }
 
 function checkRollout(weights: number[], coverage: number): void {
   const testRanges = getBucketRanges(weights.length, coverage, armWeightsToFractions(weights))
   const testHoldout = testRanges[weights.length - 1]!
   const rollout = rolloutBucketRanges(weights, coverage)
+  // Exact equality protects SDK float accumulation: recomputing 0.98 changes membership.
   expect(rollout.holdout).toEqual(testHoldout)
   expect(rollout.winner).toEqual([0, coverage * rollout.holdout[0]])
   // Use a tight loop instead of hundreds of millions of assertion objects.
@@ -75,6 +85,7 @@ describe('plugin assignment', () => {
     for (const n of [4, 5]) {
       const sample = randomVectors(n)
       expect(sample).toHaveLength(2000)
+      expect(new Set(sample.map(weights => weights.join(','))).size).toBe(2000)
       for (const weights of sample) {
         for (const c of [0.3, 0.5, 1]) checkRollout(weights, c)
         vectors++

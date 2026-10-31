@@ -75,7 +75,7 @@ it('keeps layer slices uniform and independent of experiment arms', { timeout: 3
   }
   // Pearson df = (100−1)(2−1) = 99. Wilson–Hilferty approximation at
   // upper-tail p=1e−6: z=4.753424308822899 (normal 0.999999 quantile),
-  // 99 * (1 − 2/(9*99) + z*sqrt(2/(9*99)))^3 = 181.0818411748755.
+  // 99 * (1 − 2/(9*99) + z*sqrt(2/(9*99)))^3 ≈ 181.08 (Wilson–Hilferty; exact ≈ 180.79), conservative.
   const critical = 99 * (1 - 2 / (9 * 99) + 4.753424308822899 * Math.sqrt(2 / (9 * 99))) ** 3
   expect(chiSquare).toBeLessThan(critical)
 })

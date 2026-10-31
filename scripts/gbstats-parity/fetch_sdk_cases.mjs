@@ -41,7 +41,10 @@ function sorted(value) {
 // Validate all fixtures before creating the output directory or writing anything.
 const outputs = Object.entries(fixtures).map(([symbol, cases]) => {
   if (!cases.length || new Set(cases.map(c => c.name)).size !== cases.length) throw new Error(`Invalid cases for ${symbol}`)
-  return [`sdk.${symbol}.json`, JSON.stringify(sorted({ source: { repo: 'growthbook/growthbook', sha: ref, module, symbol }, cases }), null, 2) + '\n', cases.length]
+  const rounded = symbol === 'getEqualWeights' || symbol === 'getBucketRanges'
+  const source = { repo: 'growthbook/growthbook', sha: ref, module, symbol }
+  if (rounded) source.compareRef = 'packages/sdk-js/test/json.test.ts:107-109'
+  return [`sdk.${symbol}.json`, JSON.stringify(sorted({ source, cases, ...(rounded ? { compare: 'upstream-floor-1e8' } : {}) }), null, 2) + '\n', cases.length]
 })
 await mkdir(out, { recursive: true })
 for (const [name, json, count] of outputs) {

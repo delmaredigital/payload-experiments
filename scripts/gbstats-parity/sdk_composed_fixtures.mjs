@@ -36,7 +36,7 @@ const declarations = []
 for (const node of ast.body) {
   const declaration = node.type === 'ExportDeclaration' ? node.declaration : node
   if (declaration.type === 'FunctionDeclaration' && wanted.delete(declaration.identifier.value)) {
-    declarations.push(bytes.subarray(node.span.start - 1, node.span.end - 1).toString('utf8'))
+    declarations.push(bytes.subarray(node.span.start - ast.span.start, node.span.end - ast.span.start).toString('utf8'))
   }
 }
 if (wanted.size) throw new Error(`Missing upstream functions: ${[...wanted].join(', ')}`)

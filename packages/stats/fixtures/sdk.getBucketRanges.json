@@ -309,7 +309,9 @@
       "name": "weights sum almost equals 1-12"
     }
   ],
+  "compare": "upstream-floor-1e8",
   "source": {
+    "compareRef": "packages/sdk-js/test/json.test.ts:107-109",
     "module": "packages/sdk-js/test/cases.json",
     "repo": "growthbook/growthbook",
     "sha": "0553a68def700abbcaaca8f5096da913f197804c",

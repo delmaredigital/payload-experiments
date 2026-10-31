@@ -6,7 +6,8 @@ import { pending } from './pending.js'
 export const FIXTURE_DIR = process.env.XP_FIXTURE_DIR ?? fileURLToPath(new URL('../../fixtures/', import.meta.url))
 
 export interface Fixture {
-  source: { repo: string; sha: string; module: string; symbol: string; pins: Record<string, unknown> }
+  source: { repo: string; sha: string; module: string; symbol: string; pins: Record<string, unknown>; compareRef?: string }
+  compare?: 'upstream-floor-1e8'
   cases: Array<{ name: string; input: { args: unknown[] }; expected: unknown }>
 }
 
