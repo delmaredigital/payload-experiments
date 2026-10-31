@@ -3,6 +3,7 @@ import type { DocId, MetricSource } from './contracts.js'
 export type VerdictCode = 'unavailable' | 'data-problem' | 'guardrail-failing' | 'collecting' | 'original-better' | 'worse-none-better' | 'winner' | 'mixed' | 'keep-running' | 'no-difference' | 'rollout-collecting' | 'rollout-readout'
 export interface Snapshot {
   experiment: DocId; phase: number; phaseKind: 'test' | 'rollout'; computedAt: string
+  winnerArm: string | null; minExposuresPerArm: number
   window: { from: string; to: string }; method: 'sequential' | 'bayesian'; alpha: number; alphaAdjusted: number; k: number
   params: {
     sequentialTuningParameter: number; prior: GaussianPrior; cupedLookbackDays: number
