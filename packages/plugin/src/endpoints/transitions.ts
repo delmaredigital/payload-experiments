@@ -10,7 +10,9 @@ const invalidBody = () => Response.json({ errors: [{ code: 'invalid-body', messa
 async function body(req: PayloadRequest): Promise<Record<string, unknown> | null> {
   try {
     if (!req.body && !req.data) return {}
-    const value: unknown = req.data ?? await req.json!()
+    // An empty body (Content-Length: 0) means no options, not a malformed request.
+    const text = req.data === undefined ? await req.text!() : ''
+    const value: unknown = req.data ?? (text.trim() ? JSON.parse(text) : {})
     return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
   } catch { return null }
 }

@@ -14,8 +14,12 @@ export async function addMetric<TUser extends { id: DocId }>(req: PayloadRequest
   if (before.status !== 'running') refuse('invalid-status')
   const found = await req.payload.find({ collection: 'xp-metrics', req, overrideAccess: false, depth: 0, limit: 1, where: { id: { equals: metric } } })
   if (!found.docs[0]) throw new XpRefusal('not-found', 'Metric not found', undefined, 404)
+  const metricId = found.docs[0].id as DocId
   const at = new Date()
-  const caps = await resolveCaps([found.docs[0] as unknown as MetricDefinition], options.metricSources ?? [], at)
+  // §5.4: cap history ends at the phase start, never inside the running phase.
+  const started = (before as unknown as { startedAt?: unknown }).startedAt
+  const startedAt = typeof started === 'string' ? new Date(started) : at
+  const caps = await resolveCaps([found.docs[0] as unknown as MetricDefinition], options.metricSources ?? [], startedAt)
   // Metrics are analysis-only; the assignment manifest is unchanged, so no bump.
   const { result } = await withTransition(req, { experimentId, bump: false }, async ({ req, exec }) => {
     const current = await readExperiment(req, experimentId)
@@ -32,13 +36,13 @@ export async function addMetric<TUser extends { id: DocId }>(req: PayloadRequest
     // §7.8: append one frozen metric definition under the experiment lock.
     const analysis = phase.analysis as Record<string, unknown> | undefined
     await req.payload.update({ collection: 'xp-phases', req, overrideAccess: true, id: phase.id, data: {
-      analysis: { ...analysis, minSampleSizes: { ...analysis?.minSampleSizes as Record<string, number>, [metric]: definition.minSampleSize ?? 150 },
-        ...(role === 'guardrail' ? { guardrailThresholds: { ...analysis?.guardrailThresholds as Record<string, number>, [metric]: definition.guardrailThreshold ?? 0.05 } } : {}),
+      analysis: { ...analysis, minSampleSizes: { ...analysis?.minSampleSizes as Record<string, number>, [metricId]: definition.minSampleSize ?? 150 },
+        ...(role === 'guardrail' ? { guardrailThresholds: { ...analysis?.guardrailThresholds as Record<string, number>, [metricId]: definition.guardrailThreshold ?? 0.05 } } : {}),
       },
-      metricDefinitions: [...(phase.metricDefinitions as Array<Record<string, unknown>> ?? []), { ...definition, metricId: metric, role, addedAt: at.toISOString() }],
+      metricDefinitions: [...(phase.metricDefinitions as Array<Record<string, unknown>> ?? []), { ...definition, metricId, role, addedAt: at.toISOString() }],
     } })
     const field = role === 'guardrail' ? 'guardrails' : 'secondary'
-    const doc = await updateExperiment(req, experimentId, { metrics: { ...current.metrics, [field]: [...current.metrics?.[field] ?? [], metric] } })
+    const doc = await updateExperiment(req, experimentId, { metrics: { ...current.metrics, [field]: [...current.metrics?.[field] ?? [], metricId] } })
     return { doc, revision: (await readState(exec))?.revision ?? 0 }
   })
   return { ...result, ...(caps.detail.length ? { detail: caps.detail } : {}) }
