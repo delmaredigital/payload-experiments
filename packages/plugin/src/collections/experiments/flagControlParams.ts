@@ -1,6 +1,24 @@
 import type { CollectionBeforeChangeHook } from 'payload'
-import { XpNotImplemented } from '../../errors.js'
+import type { Arm } from '../../types/contracts.js'
+import type { FlagDefault } from '../../types/manifest.js'
+import { xpOptionsFromReq } from '../../options/fromReq.js'
 
-export const flagControlParams: CollectionBeforeChangeHook = (_args) => {
-  throw new XpNotImplemented('CORE-03')
+export const flagControlParams: CollectionBeforeChangeHook = async ({ data, originalDoc, operation, req }) => {
+  const kind = data.kind ?? originalDoc?.kind
+  const status = operation === 'create' ? 'draft' : originalDoc?.status
+  if (kind !== 'flag' || (status !== 'draft' && status !== 'stopped')) return data
+  const pointId = data.flagPoint ?? originalDoc?.flagPoint
+  const point = xpOptionsFromReq(req).flagPoints?.find(point => point.id === pointId)
+  if (!point) return data
+  let params = point.defaultParams
+  try {
+    const state = await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: false })
+    const defaults = state.flagDefaults as Record<string, FlagDefault> | undefined
+    params = defaults?.[point.id]?.params ?? params
+  } catch {
+    // A refused state read must not prevent using the registered point defaults.
+  }
+  const arms: Arm[] | undefined = data.arms ?? originalDoc?.arms
+  if (!arms) return data
+  return { ...data, arms: arms.map(arm => arm.kind === 'control' ? { ...arm, params } : arm) }
 }
