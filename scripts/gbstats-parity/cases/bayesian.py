@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import sys
+import warnings
 
 # generate.py loads case modules by path under -I, without cases/ on sys.path.
 if "_gb" not in sys.modules:
@@ -13,6 +14,7 @@ if "_gb" not in sys.modules:
     _spec.loader.exec_module(_module)
 
 from _gb import to_gb
+from _common import raises
 
 
 def cases() -> dict:
@@ -55,7 +57,19 @@ def cases() -> dict:
                 prior_type=config.get("priorType", "relative"),
                 prior_effect=GaussianPrior(**prior),
             ))
-        return {"name": name, "input": {"args": args}, "expected": result_ts(test.compute_result())}
+        # get_risk calls truncnorm with one infinite bound. scipy's unused
+        # higher-moment multiply warns; only this exact expected warning is muted.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="invalid value encountered in multiply", category=RuntimeWarning)
+            result = test.compute_result()
+        return {"name": name, "input": {"args": args}, "expected": result_ts(result)}
+
+    def truncated_mean(args):
+        # These calls have exactly one infinite bound; scipy computes unused
+        # higher moments and emits this warning without changing the mean.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="invalid value encountered in multiply", category=RuntimeWarning)
+            return float(truncated_normal_mean(*args))
 
     # Upstream frequentist test inputs exercise the shared theta-adjusted path.
     a = mean(3407, 1396.87, 52377.9767)
@@ -105,6 +119,12 @@ def cases() -> dict:
                                    "priorEffect": {"mean": -0.1, "variance": 0.04, "proper": True}}),
     ]
     effect_rows = [effect_row("default-improper-prior", a, b)]
+    zero_prior_config = {"priorType": "absolute", "priorEffect": {"mean": 0, "variance": 0, "proper": True}}
+    effect_rows.append({"name": "zero-variance-proper-prior-raises",
+                        "input": {"args": [a, b, zero_prior_config]},
+                        "expected": raises(ZeroDivisionError, lambda: EffectBayesianABTest(
+                            [(to_gb(a), to_gb(b))], EffectBayesianConfig(
+                                prior_type="absolute", prior_effect=GaussianPrior(0, 0, True))).compute_result())})
     for name, x, y in pairs:
         for difference in ("relative", "absolute"):
             for prior_name, prior in priors:
@@ -124,7 +144,7 @@ def cases() -> dict:
                 args = [mu, sigma, lo, hi]
                 truncated_rows.append({"name": side + "-" + str(mu) + "-" + str(sigma) + "-" + str(z),
                                        "input": {"args": args},
-                                       "expected": float(truncated_normal_mean(*args))})
+                                       "expected": truncated_mean(args)})
         # At the threshold and at >= 1e9 use only the patched Mills branch;
         # never sample scipy's silent-wrong region 1e4 < |bound| < 1e9.
         for z in (1000, 2000, 1e9):
@@ -133,7 +153,7 @@ def cases() -> dict:
                 args = [mu, sigma, lo, hi]
                 truncated_rows.append({"name": side + "-" + str(mu) + "-" + str(sigma) + "-" + str(z),
                                        "input": {"args": args},
-                                       "expected": float(truncated_normal_mean(*args))})
+                                       "expected": truncated_mean(args)})
 
     return {
         "bayesian.effectBayesianABTest": {"module": "gbstats.bayesian.tests",

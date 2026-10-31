@@ -42,6 +42,11 @@ function positiveErfcx(y: number): number {
   return (INV_SQRT_PI - z * (num + P[4]!) / (den + Q[4]!)) / y
 }
 
+/** Source: Cody (1969), CALERF scaled complementary error function. Internal only. */
+export function erfcx(x: number): number {
+  return x >= 0 ? positiveErfcx(x) : 2 * Math.exp(x * x) - positiveErfcx(-x)
+}
+
 /** Source: Cody (1969), CALERF erf/erfc; used by scipy.stats.norm fixtures. */
 export function erfc(x: number): number {
   if (Number.isNaN(x)) return NaN

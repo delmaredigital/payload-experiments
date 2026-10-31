@@ -1,8 +1,8 @@
-import { erfc } from './erf.js'
+import { erfcx } from './erf.js'
 
 /**
  * Source: gbstats/utils.py truncated_normal_mean @ growthbook/growthbook 0553a68def700abbcaaca8f5096da913f197804c
- * scipy 1.13.1 one-sided mean for |standardised bound| <= 37, plus upstream's
+ * scipy 1.13.1 one-sided mean via the scaled complementary error function, plus upstream's
  * one-sided Mills branches at >= 1e3. Two finite bounds are unused and throw RangeError.
  */
 export function truncatedNormalMean(mu: number, sigma: number, a: number, b: number): number {
@@ -25,9 +25,5 @@ export function truncatedNormalMean(mu: number, sigma: number, a: number, b: num
 function millsRatio(x: number): number {
   if (x === -Infinity) return 0
   const z = x / Math.SQRT2
-  // L2's scaled Cody helper is private. In the required |x| <= 37 domain,
-  // exp(z*z) and erfc(z) are both representable, so their product gives erfcx
-  // without CDF subtraction or an underflowing normal-density/tail quotient.
-  const erfcx = Math.exp(z * z) * erfc(z)
-  return Math.sqrt(2 / Math.PI) / erfcx
+  return Math.sqrt(2 / Math.PI) / erfcx(z)
 }

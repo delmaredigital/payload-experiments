@@ -14,6 +14,13 @@ const cupedB = ra(b, { ...b, sum: 1320, sumSquares: 2500 }, 3770)
 const pairs = [[a, b], [cupedA, cupedB]] as const
 
 describe('Bayesian identities', () => {
+  it('throws for a zero-variance proper prior', () => {
+    for (const differenceType of ['absolute', 'relative'] as const) {
+      expect(() => effectBayesianABTest(a, b, { differenceType, priorType: 'absolute',
+        priorEffect: { mean: 0, variance: 0, proper: true } })).toThrow(RangeError)
+    }
+  })
+
   it('complements chance to win and negates absolute expected when arms swap', () => {
     for (const [x, y] of pairs) {
       const forward = effectBayesianABTest(x, y, { differenceType: 'absolute' })
@@ -72,11 +79,13 @@ describe('truncated normal and utils identities', () => {
   it('keeps one-sided means inside the truncation bounds, including Mills branches', () => {
     for (const mu of [0, -2, 4]) {
       for (const sigma of [0.5, 1, 3]) {
-        for (const z of [-37, -20, -10, -3, -1, -0.1, 0, 0.1, 1, 3, 10, 20, 37, 1000, 1e9]) {
+        for (const z of [-37, -20, -10, -3, -1, -0.1, 0, 0.1, 1, 3, 10, 20, 37, 38, 100, 999, 1000, 1e9]) {
           const upperBound = mu + sigma * z
           const lowerBound = mu - sigma * z
           const upper = truncatedNormalMean(mu, sigma, upperBound, Infinity)
           const lower = truncatedNormalMean(mu, sigma, -Infinity, lowerBound)
+          expect(Number.isFinite(upper)).toBe(true)
+          expect(Number.isFinite(lower)).toBe(true)
           expect(upper).toBeGreaterThanOrEqual(upperBound)
           expect(lower).toBeLessThanOrEqual(lowerBound)
           expect(upper + lower).toBeCloseTo(2 * mu, 12)

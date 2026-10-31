@@ -33,6 +33,8 @@ export function effectBayesianABTest(a: TestStatistic, b: TestStatistic, config:
     prior = { mean: prior.mean * Math.abs(baseline), variance: prior.variance * baseline ** 2, proper: prior.proper }
   }
 
+  // Python raises ZeroDivisionError at the proper prior's precision term.
+  if (prior.proper && prior.variance === 0) throw new RangeError('Proper prior variance is zero')
   const dataMean = moments.pointEstimate
   const dataVariance = moments.standardError ** 2
   let postPrec: number
