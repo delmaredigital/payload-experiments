@@ -97,8 +97,10 @@ test('row 4 uses per-arm minima and excludes holdout', () => {
   const snapshot = fixture('T4')
   const input = { snapshot, phaseKind: snapshot.phaseKind, status: 'running' as const }
   expect(collectingLine(input, { minExposuresPerArm: 1000 })).toBe('360 of 1,000 people, 37 of 150 conversions')
-  // The exposure minimum is not on today's wire type: never infer it from prose.
-  expect(collectingLine(input)).toBe('360 of — people, 37 of 150 conversions')
+  // The frozen minimum comes from the snapshot; a snapshot without one shows a dash, never inferred from prose.
+  expect(collectingLine(input)).toBe('360 of 1,000 people, 37 of 150 conversions')
+  const legacy = { ...snapshot, minExposuresPerArm: undefined as unknown as number }
+  expect(collectingLine({ ...input, snapshot: legacy })).toBe('360 of — people, 37 of 150 conversions')
   const phase = phaseFor(snapshot)
   snapshot.metrics[0]!.perArm[0]!.converters = 20
   expect(collectingLine(input, { phase, minExposuresPerArm: 1000 })).toBe('360 of 1,000 people, 20 of 150 conversions')
@@ -149,10 +151,11 @@ test('only the newest rollout borrows the current decision winner, regardless of
   const newer = { ...older, phase: older.phase + 2 }
   const testPhase = { ...phaseFor(fixture('T7')), phase: newer.phase + 1 }
   const phases = [newer, testPhase, older]
-  expect(rolloutLine(snapshot, older, phases, { winnerArm: 'variantB' })).toBe('Since shipping the winner')
-  expect(rolloutLine({ ...snapshot, phase: newer.phase }, newer, phases, { winnerArm: 'variantA' })).toBe('Since shipping Shorter form')
+  const unnamed = { ...snapshot, winnerArm: null }
+  expect(rolloutLine(unnamed, older, phases, { winnerArm: 'variantB' })).toBe('Since shipping the winner')
+  expect(rolloutLine({ ...unnamed, phase: newer.phase }, newer, phases, { winnerArm: 'variantA' })).toBe('Since shipping Shorter form')
   expect(rolloutLine({ ...snapshot, winnerArm: 'variantA' }, older, phases, { winnerArm: 'variantB' })).toBe('Since shipping Shorter form')
-  expect(rolloutLine(snapshot, older, [])).toBe('Since shipping the winner')
+  expect(rolloutLine(unnamed, older, [])).toBe('Since shipping the winner')
   expect(rolloutLine(fixture('T7'), testPhase, phases)).toBeNull()
 })
 test('a shipped Original carries its rollout comparison against holdout', () => {

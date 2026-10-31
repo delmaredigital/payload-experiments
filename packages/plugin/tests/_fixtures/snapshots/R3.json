@@ -2,6 +2,8 @@
   "experiment": "registration-form",
   "phase": 2,
   "phaseKind": "rollout",
+  "winnerArm": "variantA",
+  "minExposuresPerArm": 1000,
   "computedAt": "2026-10-30T20:00:00.000Z",
   "window": {
     "from": "2026-10-16T20:00:00.000Z",
