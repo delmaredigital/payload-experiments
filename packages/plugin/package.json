@@ -67,6 +67,7 @@
     "build": "swc ./src -d ./dist --strip-leading-paths --config-file ../../.swcrc && tsc -p tsconfig.build.json && copyfiles -u 1 \"src/**/*.css\" dist",
     "dev": "swc ./src -d ./dist --strip-leading-paths --config-file ../../.swcrc --watch",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "check:esm": "node scripts/check-node-esm.mjs",
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm build"
   },

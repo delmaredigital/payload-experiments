@@ -6,14 +6,16 @@ import type { Manifest } from './manifest.js'
 export interface ExperimentsProxyRuntimeOptions {
   secret: string | string[]
   apiRoute: string
-  cookie?: { name?: string; maxAgeDays?: number; domain?: string; consent?(req: NextRequest): boolean }
+  cookie?: { name?: string; maxAgeDays?: number; domain?: string; /** Called with a request whose URL is a placeholder outside the proxy; read cookies and headers only. */
+    consent?(req: NextRequest): boolean }
   loadManifest?: (opts?: { ifRevision?: number }) => Promise<Manifest | 'not-modified' | null>
   getUnit?: (req: NextRequest) => { userId?: string; attributes: Attributes; sessionUnknown?: boolean } | Promise<{ userId?: string; attributes: Attributes; sessionUnknown?: boolean }>
 }
 export interface ExperimentsProxyRuntime {
   readonly secrets: readonly string[]
   readonly apiRoute: string
-  readonly cookie: { name: string; maxAgeDays: number; domain?: string; consent?(req: NextRequest): boolean }
+  readonly cookie: { name: string; maxAgeDays: number; domain?: string; /** Called with a request whose URL is a placeholder outside the proxy; read cookies and headers only. */
+    consent?(req: NextRequest): boolean }
   readonly loadManifest?: ExperimentsProxyRuntimeOptions['loadManifest']
   readonly getUnit?: ExperimentsProxyRuntimeOptions['getUnit']
 }

@@ -2,12 +2,12 @@ import type { Payload } from 'payload'
 import { NextRequest } from 'next/server'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { afterEach, expect, test, vi } from 'vitest'
-import { headers as requestHeaders } from 'next/headers'
+import { headers as requestHeaders } from 'next/headers.js'
 import { trackConversion } from '../../src/server/trackConversion.js'
 import { encodeUnitCookie } from '../../src/runtime/cookie.js'
 import type { ExperimentsServerRuntime } from '../../src/types/runtime.js'
 
-vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
+vi.mock('next/headers.js', () => ({ headers: vi.fn(async () => new Headers()) }))
 afterEach(() => vi.mocked(requestHeaders).mockReset().mockResolvedValue(new Headers() as Awaited<ReturnType<typeof requestHeaders>>))
 function fixture() {
   const execute = vi.fn().mockResolvedValue({ rows: [{ id: 1 }] })

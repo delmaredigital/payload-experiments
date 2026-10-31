@@ -17,3 +17,21 @@ test('archived losing path canonical points to winner, live path takes precedenc
 test('no manifest yields empty metadata', async () => {
   expect(await experimentMetadata(runtime(undefined, { loadManifest: async () => null }).rt, '/variant')).toEqual({})
 })
+
+
+test('live page matching normalises both the target and request paths', async () => {
+  const m = manifest([page({ arms: [
+    { key: 'control', kind: 'control', weight: 0, pageTarget: '/original/' },
+    { key: 'variantA', kind: 'variant', weight: 100, pageTarget: '/variant/' },
+  ] })])
+  const { rt } = runtime(m)
+  expect(await experimentMetadata(rt, '/original')).toEqual({})
+  expect(await experimentMetadata(rt, '/variant')).toEqual({ robots: { index: false }, alternates: { canonical: '/original/' } })
+})
+
+
+test.each(['/old', '/old/'])('archived key /old/ matches normalised request %s', async path => {
+  const m = manifest([])
+  m.archivedPages['/old/'] = { slug: 'archived', winnerPath: '/winner' }
+  expect(await experimentMetadata(runtime(m).rt, path)).toEqual({ alternates: { canonical: '/winner' } })
+})

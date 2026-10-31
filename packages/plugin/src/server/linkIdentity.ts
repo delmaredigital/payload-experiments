@@ -1,5 +1,5 @@
 import type { Payload } from 'payload'
-import { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server.js'
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
 import { insertIdentityOnOwnConnection } from '../db/identities.js'
 import { verifyUnitCookie } from '../runtime/cookie.js'

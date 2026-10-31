@@ -1,19 +1,20 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import { requestState, newRequest } from './requestHarness.js'
+import { requestState, newRequest, trustedContext } from './requestHarness.js'
 import { assignments, experiment, manifest, page, runtime, secrets } from './helpers.js'
 import { getAssignments } from '../../src/server/getAssignments.js'
 import { encodeAssignmentsHeader } from '../../src/runtime/header.js'
 import { signPreviewToken } from '../../src/runtime/previewToken.js'
 import { resolveExperimentData } from '../../src/server/resolveExperimentData.js'
-import { NextRequest } from 'next/server'
-import * as requestReader from '../../src/server/request.js'
 import { assign } from '../../src/runtime/assign.js'
+import { NextRequest } from 'next/server.js'
+import { resolveExperiments } from '../../src/proxy/resolve.js'
+import type { ManifestExperiment } from '../../src/types/manifest.js'
+import { sign } from '../../src/runtime/signing.js'
+import { serverRequest } from '../../src/server/request.js'
 import { toClientAssignments } from '../../src/server/toClientAssignments.js'
 
 afterEach(() => vi.restoreAllMocks())
 const header = (a = assignments(), m = manifest()) => requestState.headers.set('x-xp-assignments', encodeAssignmentsHeader(a, { secrets, manifest: m }))
-// Explicit seam for future verified CORE-06c context; the default request has none.
-const trustedContext = (path = '/', method = 'GET') => vi.spyOn(requestReader, 'serverRequest').mockImplementation(headers => ({ request: new NextRequest(`https://example.com${path}`, { headers, method }), hasContext: true }))
 
 test('verified header is used but missing context keeps method unknown and non-exposable', async () => {
   const a = assignments(); a.userId = undefined; a.bySlug.hero!.arm = 'control'
@@ -255,4 +256,101 @@ test('getPayload failure is logged and degrades a valid variant header to contro
   const { rt } = runtime(undefined, {}, { getPayload: async () => { throw new Error('unavailable') } })
   expect(await getAssignments(rt)).toMatchObject({ bySlug: { hero: { arm: 'control', exposable: false, source: 'fallback' } } })
   expect(log).toHaveBeenCalledTimes(1)
+})
+
+
+test.each(['/courses/x', '/courses/x/'])('signed GET recomputes an exposable page with normalised path %s', async path => {
+  trustedContext(`${path}?q=1`)
+  const m = manifest([page({ targeting: [{ attribute: 'path', op: 'eq', value: '/courses/x', type: 'string' }], arms: [
+    { key: 'control', kind: 'control', weight: 0, pageTarget: '/courses/x/' },
+    { key: 'variantA', kind: 'variant', weight: 100, pageTarget: '/winner/' },
+  ] })])
+  const result = await getAssignments(runtime(m, { getUnit: () => ({ attributes: { path: '/spoof' } }) }, {
+    getUser: async () => null, attributesOf: () => ({ path: '/also-spoof' }),
+  }).rt)
+  expect(result).toMatchObject({ method: 'GET', bySlug: { hero: { arm: 'variantA', source: 'recomputed', exposable: true } } })
+  expect(toClientAssignments(result, { pathname: '/winner' }).pageviews).toEqual([{ slug: 'hero', arm: 'variantA', phase: 1 }])
+})
+test.each(['HEAD', 'TRACE', 'CONNECT', '', 'not a verb'])('signed method %s never throws and cannot expose', async method => {
+  trustedContext('/original', method)
+  const result = await getAssignments(runtime(manifest([page()])).rt)
+  expect(result.method).toBe(method === 'HEAD' ? 'HEAD' : 'UNKNOWN')
+  expect(result.bySlug.hero!.exposable).toBe(false)
+  expect(serverRequest(requestState.headers, secrets).hasContext).toBe(true)
+})
+test.each(['tampered path', 'tampered consent', 'unsigned', 'oversized', 'wrong domain'])('invalid request context (%s) fails closed', async mode => {
+  trustedContext('/original')
+  const signed = requestState.headers.get('x-xp-request')!
+  if (mode === 'tampered path') requestState.headers.set('x-xp-request', signed.replace('/original', '/variant'))
+  if (mode === 'tampered consent') requestState.headers.set('x-xp-request', signed.replace('c1', 'c0'))
+  if (mode === 'unsigned') requestState.headers.set('x-xp-request', 'GET|/original|c1')
+  if (mode === 'oversized') trustedContext('/' + 'x'.repeat(2048))
+  if (mode === 'wrong domain') {
+    const value = 'GET|/original|c1'
+    requestState.headers.set('x-xp-request', `${value}|${sign(value, secrets)}`)
+  }
+  const result = await getAssignments(runtime(manifest([page()])).rt)
+  expect(result).toMatchObject({ method: 'UNKNOWN', bySlug: { hero: { arm: 'control', exposable: false } } })
+})
+test.each([false, true])('signed c0 ignores a valid cookie and logged-in user (assignments header %s)', async withHeader => {
+  trustedContext('/original', 'GET', false)
+  const m = manifest([experiment({ kind: 'flag', flagPoint: 'point', unitType: 'user', status: 'decided', winnerArm: 'variantA' })])
+  m.archivedPages['/original'] = { slug: 'old', winnerPath: '/winner' }
+  const getUnit = vi.fn(() => ({ userId: 'private-user', attributes: {} })), getUser = vi.fn(async () => ({ id: 'private-user' }))
+  if (withHeader) header(assignments(m), m)
+  const result = await getAssignments(runtime(m, { getUnit }, { getUser }).rt, { user: { id: 'supplied-user' } })
+  expect(result).toMatchObject({ visitorId: undefined, userId: undefined, bySlug: { hero: { arm: 'variantA', exposable: false } }, flagPoints: { point: { arm: 'variantA', exposable: false } } })
+  expect(getUnit).toHaveBeenCalledTimes(1)
+  expect(getUser).not.toHaveBeenCalled()
+})
+test('signed c1 with a valid cookie recomputes normally', async () => {
+  trustedContext()
+  const result = await getAssignments(runtime().rt)
+  expect(result).toMatchObject({ visitorId: 'visitor', method: 'GET', bySlug: { hero: { arm: 'variantA', exposable: true, source: 'recomputed' } } })
+  expect(resolveExperimentData({ content: [{ type: 'ExperimentSlot', props: { id: 'slot', experiment: { id: 7, slug: 'hero' }, control: [], variantA: [] } }], root: { props: {} } }, result).rendered).toEqual([{ slug: 'hero', arm: 'variantA', phase: 1 }])
+})
+test.each([true, false])('xp_preview query is honoured only with verified request context (%s)', async valid => {
+  const token = signPreviewToken({ e: 7, a: 'control', p: 1, exp: Math.floor(Date.now() / 1000) + 60 }, secrets)
+  trustedContext(`/?xp_preview=${token}`)
+  if (!valid) requestState.headers.set('x-xp-request', requestState.headers.get('x-xp-request')!.replace('GET|', 'HEAD|'))
+  const result = await getAssignments(runtime().rt)
+  expect(result.preview).toBe(valid)
+  expect(result.bySlug.hero).toMatchObject({ exposable: false, source: valid ? 'preview' : 'fallback' })
+})
+test('old request-context secret verifies during rotation, preserving raw path and search', async () => {
+  trustedContext('/courses/%2F/?q=a|b', 'GET', true, ['old'])
+  const context = serverRequest(requestState.headers, secrets)
+  expect(context).toMatchObject({ hasContext: true, consent: true })
+  expect(context.request.url).toBe('https://xp.invalid/courses/%2F/?q=a|b')
+  expect((await getAssignments(runtime().rt)).bySlug.hero!.exposable).toBe(true)
+})
+
+
+test.each([false, true])('c0 recompute preserves proxy attributes and unknown-session handling (%s)', async sessionUnknown => {
+  const m = manifest([experiment({ status: 'decided', winnerArm: 'variantA', targeting: [
+    { attribute: 'loggedIn', op: 'eq', value: true, type: 'boolean' },
+  ] })])
+  const getUnit = vi.fn(() => ({ userId: 'must-ignore', attributes: { loggedIn: true, staff: false }, sessionUnknown }))
+  const getUser = vi.fn(async () => ({ id: 'also-ignore' }))
+  const { rt } = runtime(m, { getUnit, cookie: { consent: () => false } }, { getUser })
+  const proxied = await resolveExperiments(new NextRequest('https://example.com/', { headers: requestState.headers }), rt.proxyRuntime)
+  requestState.headers = proxied.requestHeaders
+  const proxyArm = /hero=(variantA|control)!/.exec(requestState.headers.get('x-xp-assignments')!)![1]
+  requestState.headers.delete('x-xp-assignments')
+  getUnit.mockClear()
+  const result = await getAssignments(rt)
+  expect(proxyArm).toBe(sessionUnknown ? 'control' : 'variantA')
+  expect(result).toMatchObject({ visitorId: undefined, userId: undefined, sessionUnknown,
+    bySlug: { hero: { arm: proxyArm, exposable: false } } })
+  expect(getUnit).toHaveBeenCalledTimes(1)
+  expect(getUser).not.toHaveBeenCalled()
+})
+test('c0 with corrupt arms returns empty assignments when consent fallback and controls both fail', async () => {
+  trustedContext('/', 'GET', false)
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const m = manifest([experiment({ status: 'decided', winnerArm: 'variantA', arms: null as unknown as ManifestExperiment['arms'] })])
+  const result = await getAssignments(runtime(m, {}, {}, { flagPoints: [{ id: 'point', defaultParams: {} }] }).rt)
+  expect(result).toMatchObject({ visitorId: undefined, userId: undefined, bySlug: {}, flagPoints: {}, archivedWinners: {} })
+  expect(Object.values(result.bySlug)).toEqual([])
+  expect(log).toHaveBeenCalledExactlyOnceWith('[payload-experiments] consent fallback failed; serving non-exposable control')
 })
