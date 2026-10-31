@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+scripts/gbstats-parity/.venv/
 
 # Build output
 dist/

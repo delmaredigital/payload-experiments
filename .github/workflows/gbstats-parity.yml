@@ -3,8 +3,7 @@ name: gbstats parity drift
 # Regenerates the stats fixtures with the pinned Python gbstats and fails if they
 # changed: either upstream moved or a fixture was hand-edited.
 on:
-  schedule:
-    - cron: '17 6 * * 1'
+  # schedule restored by STATS-L9
   workflow_dispatch:
 
 permissions:
