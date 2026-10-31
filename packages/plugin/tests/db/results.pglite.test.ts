@@ -91,6 +91,7 @@ test('conversion rows enforce [from,to), event name/type, and carry both identit
     { unitId: 'signed-in', userId: '42', value: 2.5, ts: end - 1 },
   ])
   expect(await metricEventRows(exec, { eventName: 'signup', unitIds: ['a'], from: start, to: end })).toEqual([rows[0]])
+  expect(await metricEventRows(exec, { eventName: 'signup', userIds: ['42'], from: start, to: end })).toEqual([rows[1]])
   const { units } = firstExposures(await phaseExposureRows(exec, { experimentId, phase: 1, endedAt: end }))
   expect([...perUnitValues(units, rows, { kind: 'binomial', windowHours: 1, endedAt: end })]).toEqual([['a', 1], ['b', 0]])
   await insertIdentity(exec, { anonymousId: 'a', userId: '42' })

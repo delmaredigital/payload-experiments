@@ -1,9 +1,43 @@
 import { expect, test } from 'vitest'
 import { armMismatchCount, identityRows, metricEventRows, phaseExposureRows, rolloutExposureRows } from '../../src/db/results.js'
 import { createFakeExecutor } from '../_fakes/executor.js'
+import type { Payload } from 'payload'
+import { resultsExecutor } from '../../src/db/snapshots.js'
 
 const from = new Date('2026-10-31T00:00:00Z')
 const to = '2026-10-31T01:00:00.000Z'
+
+test('results transport applies a timeout per query and recovers after an isolated SQL failure', async () => {
+  const calls: string[] = [], releases: unknown[] = []
+  let fail = true
+  const pool = { connect: async () => ({
+    query: async ({ text }: { text: string }) => {
+      calls.push(text)
+      if (text === 'SELECT broken' && fail) { fail = false; throw new Error('Query failed') }
+      return { rows: [], rowCount: 0 }
+    }, release: (error: unknown) => releases.push(error),
+  }) }
+  const exec = resultsExecutor({ db: { pool, schemaName: 'host' } } as unknown as Payload, () => 123)
+  await expect(exec.query('SELECT broken')).rejects.toThrow('Query failed')
+  await expect(exec.query('SELECT healthy')).resolves.toEqual({ rows: [], rowCount: 0 })
+  expect(calls).toEqual(['BEGIN', 'SET LOCAL statement_timeout = 123', 'SELECT broken', 'ROLLBACK',
+    'BEGIN', 'SET LOCAL statement_timeout = 123', 'SELECT healthy', 'COMMIT'])
+  expect(releases).toHaveLength(2)
+  expect(exec).toMatchObject({ schemaName: 'host' })
+})
+
+test('userIds filters stored user_id, batches independently, and never filters unit_id', async () => {
+  const exec = createFakeExecutor()
+  const userIds = Array.from({ length: 10_001 }, (_, n) => String(n))
+  await metricEventRows(exec, { eventName: 'signup', from, to, userIds: [...userIds, '0'] })
+  expect(exec.calls).toHaveLength(2)
+  expect(exec.calls.every(call => call.text.includes('"user_id" = ANY($5::text[])') && !call.text.includes('"unit_id" = ANY'))).toBe(true)
+  expect(exec.calls[0]!.params[4]).toHaveLength(10_000)
+  expect(exec.calls[1]!.params[4]).toEqual(['10000'])
+  await metricEventRows(exec, { eventName: 'signup', from, to, userIds: [] })
+  expect(exec.calls).toHaveLength(2)
+  await expect(metricEventRows(exec, { eventName: 'signup', from, to, userIds: [], unitIds: [] })).rejects.toThrow('Choose unitIds or userIds')
+})
 
 test('phase exposure SQL binds values in order, quotes identifiers and uses strict endedAt', async () => {
   const exec = Object.assign(createFakeExecutor({ results: [{ rows: [{ unitId: 'v', arm: 'control', ts: String(+from) }] }] }), { schemaName: 'host"schema' })
