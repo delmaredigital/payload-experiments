@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const packageRoot = fileURLToPath(new URL('..', import.meta.url))
 const statsPackage = '@delmaredigital/experiments-stats'
-const releaseVersion = '0.1.0-rc.1'
+const releaseVersion = JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8')).version
 const packageFiles = Object.freeze(['dist', 'LICENSE', 'README.md'])
 // Release contract: changes require a separately reviewed compatibility decision.
 const peerRanges = Object.freeze({

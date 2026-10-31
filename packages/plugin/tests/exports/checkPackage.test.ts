@@ -76,7 +76,7 @@ test('source check reports missing license and readme, and emitted files when re
 })
 
 function packed(specifier = '0.1.0') {
-  return { version: '0.1.0-rc.1', dependencies: { [stats]: specifier } }
+  return { version: pkg.version, dependencies: { [stats]: specifier } }
 }
 function tarball(manifest: unknown) {
   const dir = tempDir()
@@ -94,6 +94,13 @@ test('tarball CLI accepts a packed semver stats dependency', () => {
   const result = runTarball(tarball(packed()))
   expect(result.status, result.stderr).toBe(0)
   expect(result.stdout).toContain('Package check passed')
+})
+
+test('tarball CLI rejects a version that differs from the source package version', () => {
+  const result = runTarball(tarball({ ...packed(), version: '0.0.0' }))
+  expect(result.status).toBe(1)
+  expect(result.stderr).toContain('Package check failures (1)')
+  expect(result.stderr).toContain(`Packed version must be ${pkg.version}`)
 })
 
 test('tarball CLI rejects workspace references across all dependency groups and lists all failures', () => {

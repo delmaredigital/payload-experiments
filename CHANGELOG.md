@@ -11,16 +11,60 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.1.0-rc.2] - 2026-10-31
+
+### plugin
+
 **Added**
 
 - Optional frozen exposure dimensions from server-computed request attributes
   (`events.dimensions`), and retention batches indexed by experiment, event type and time.
+- Experiment actions: decide a winner, release a holdout, and archive a stopped
+  experiment or a decided experiment after making the winner permanent, discarding
+  it, or confirming that a developer has hard-coded a code experiment's winner.
+  Delete draft or archived experiments with their rounds, events and results snapshots.
+- Permanent content: make the winner permanent for block, flag and page experiments.
+  Blocks replace experiment slots with the winning content; flags keep the winning
+  defaults and can update host content; pages keep serving the winner with its
+  canonical URL. Pages that are localized, have hidden fields, or have fields the
+  manager cannot read or update are refused individually, with a report of pages
+  that still need a hand edit.
+- Results: `runResults` from `/rsc` for a host-owned cron route, with a time budget
+  that bounds waiting for hung metric sources and database connections; results,
+  experiment-summary and recompute endpoints supply the admin's results and list
+  summaries.
+- Analysis: frequentist inference with sequential testing, Bayesian comparisons,
+  CUPED variance reduction, guardrails, sample-ratio mismatch (SRM) checks, power
+  estimates and plain-English verdicts.
+- Retention: by default, events are deleted 180 days after an experiment's final
+  round ends, never while any round is open.
+- Content-change tracking: `captureContentBaseline` from `/rsc` for draft-enabled
+  host collections outside Puck; publish markers compare with the previously
+  published content, including the first publish of a page created as a draft.
+
+**Changed**
+
+- Input refusals: 400 is reserved for requests that cannot be parsed against the
+  declared schema; well-formed requests that cannot be accepted receive 422 with
+  a distinct refusal code. New codes are `undeclared-targeting-key`,
+  `invalid-targeting-rule`, `duplicate-metric`, `unknown-metric-source`,
+  `too-many-ids`, `invalid-phase`, `invalid-ids` and `recompute-failed`.
+- Verdicts recommend the variant with the larger improvement in the metric's
+  direction, including metrics where lower is better.
 
 **Migration impact**
 
 - Since rc.1: new nullable `xp-events.dimensions` JSON column and composite
   `(experiment_id, type, ts)` retention index. The host runs `payload migrate:create`, then
   `payload migrate` for rc.2.
+- Hosts that declare a `staff` attribute must create their server runtime with
+  `defineExperimentsServerRuntime` and pass an `attributesOf` function; startup
+  refuses the configuration without it.
+
+**Known gaps**
+
+- Exposure dimensions can be recorded, but results cannot yet be broken down by
+  those dimensions.
 
 ## [0.1.0-rc.1] - 2026-10-31
 
