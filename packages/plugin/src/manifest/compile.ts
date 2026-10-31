@@ -3,6 +3,7 @@ import type { Arm, DocId, ExperimentKind, ExposurePolicy, Status, TargetingRule,
 import type { Manifest, ManifestExperiment } from '../types/manifest.js'
 import { txExecutor } from '../db/executor.js'
 import { bumpRevision, writeManifest } from '../db/state.js'
+import { XpRefusal } from '../errors.js'
 
 export interface ManifestPhase {
   phase: number; phaseKind: 'test' | 'rollout'; seed: string; arms: Arm[]
@@ -55,10 +56,11 @@ export function compileManifest(inputs: ManifestInputs, revision: number): Manif
     const { decision, currentPhase: phase } = experiment
     if (experiment.status === 'archived') {
       if (!decision?.winnerArm || decision.discardedAt) continue
-      const winner = experiment.arms.find(arm => arm.key === decision.winnerArm)
+      if (!phase) throw new XpRefusal('invalid-status', `Missing last phase for experiment ${experiment.slug}`, undefined, 409)
+      const winner = phase.arms.find(arm => arm.key === decision.winnerArm)
       if (experiment.kind === 'block' && winner?.slot) manifest.archivedWinners[experiment.slug] = winner.slot
       if (experiment.kind === 'page' && winner?.pageTarget) {
-        for (const arm of experiment.arms) {
+        for (const arm of phase.arms) {
           if (arm.pageTarget && arm.pageTarget !== winner.pageTarget) {
             manifest.archivedPages[arm.pageTarget] = { slug: experiment.slug, winnerPath: winner.pageTarget }
           }
@@ -69,12 +71,17 @@ export function compileManifest(inputs: ManifestInputs, revision: number): Manif
     if (experiment.status !== 'running' && experiment.status !== 'decided') continue
     if (!phase) throw new Error(`Missing current phase for experiment ${experiment.slug}`)
     const rollout = experiment.status === 'decided' && phase.phaseKind === 'rollout' && !phase.endedAt && !decision?.holdoutReleasedAt
-    const layer = (experiment.status === 'running' || rollout) && experiment.layer && typeof experiment.layer === 'object'
-      ? { slug: experiment.layer.slug, slices: experiment.layerSlices ?? [] } : undefined
+    let layer: ManifestExperiment['layer']
+    if ((experiment.status === 'running' || rollout) && experiment.layer != null) {
+      if (typeof experiment.layer !== 'object' || typeof experiment.layer.slug !== 'string' || !experiment.layer.slug || !Array.isArray(experiment.layerSlices)) {
+        throw new XpRefusal('invalid-status', `Incomplete layer configuration for experiment ${experiment.slug}`, undefined, 409)
+      }
+      layer = { slug: experiment.layer.slug, slices: experiment.layerSlices }
+    }
     const compiled: ManifestExperiment = {
       id: experiment.id, slug: experiment.slug, kind: experiment.kind, unitType: experiment.unitType,
       status: experiment.status, phase: phase.phase, phaseKind: rollout ? 'rollout' : 'test', seed: phase.seed,
-      coverage: layer ? 1 : phase.allocation / 100,
+      coverage: layer || (experiment.status === 'decided' && !rollout) ? 1 : phase.allocation / 100,
       arms: phase.arms.map(({ key, kind, weight, slot, pageTarget, params }) => ({
         key, kind, weight, ...(slot != null ? { slot } : {}), ...(pageTarget != null ? { pageTarget } : {}), ...(params != null ? { params } : {}),
       })),
@@ -93,10 +100,15 @@ export function compileManifest(inputs: ManifestInputs, revision: number): Manif
   return manifest
 }
 
+/** Take the state lock before reading inputs. Under READ COMMITTED, a builder
+ * waiting for another transition then sees that transition's committed changes,
+ * so a later revision cannot overwrite the manifest with pre-lock input state.
+ * All reads and writes join the request's transaction.
+ */
 export async function buildAndStoreManifest(req: PayloadRequest, options: { excludeIds?: DocId[] } = {}): Promise<Manifest> {
-  const inputs = await loadManifestInputs(req, options)
   const exec = txExecutor(req)
   const revision = await bumpRevision(exec)
+  const inputs = await loadManifestInputs(req, options)
   const manifest = compileManifest(inputs, revision)
   await writeManifest(exec, manifest)
   return manifest

@@ -11,7 +11,7 @@ describe('Postgres loader (fake pg pool)', () => {
     const query = vi.fn(async () => ({ rows: [{ revision: '7', manifest, flagDefaults: {} }], rowCount: 1, fields: [{ name: 'revision', dataTypeID: 1700 }] }))
     const load = createPostgresManifestLoader({ pool: { query } as unknown as Pool, schemaName: 'xp_it_one' })
     expect(await load()).toEqual(manifest)
-    expect(query).toHaveBeenCalledWith(expect.stringContaining('FROM "xp_it_one"."xp_state"'), [])
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('FROM "xp_it_one"."xp_state"'), values: [] }))
     expect(await load({ ifRevision: 7 })).toBe('not-modified')
     expect(await load({ ifRevision: 6 })).toEqual(manifest)
   })
@@ -30,9 +30,17 @@ describe('HTTP loader', () => {
     vi.stubGlobal('fetch', fetch)
     const load = createHttpManifestLoader({ url: 'https://host.test/api/xp/manifest', key: 'test-only' })
     expect(await load()).toEqual(manifest)
-    expect(fetch).toHaveBeenLastCalledWith('https://host.test/api/xp/manifest', { headers: { 'x-xp-manifest-key': 'test-only' } })
+    expect(fetch).toHaveBeenLastCalledWith('https://host.test/api/xp/manifest', { headers: { 'x-xp-manifest-key': 'test-only' }, signal: expect.any(AbortSignal), cache: 'no-store' })
     await load({ ifRevision: 0 })
-    expect(fetch).toHaveBeenLastCalledWith('https://host.test/api/xp/manifest', { headers: { 'x-xp-manifest-key': 'test-only', 'if-none-match': '0' } })
+    expect(fetch).toHaveBeenLastCalledWith('https://host.test/api/xp/manifest', { headers: { 'x-xp-manifest-key': 'test-only', 'if-none-match': '0' }, signal: expect.any(AbortSignal), cache: 'no-store' })
+  })
+  test('HTTP timeout is configurable and passed to AbortSignal.timeout', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(manifest)))
+    try {
+      await createHttpManifestLoader({ url: 'https://host.test', key: 'test-only', refreshTimeoutMs: 123 })()
+      expect(timeout).toHaveBeenCalledWith(123)
+    } finally { timeout.mockRestore() }
   })
   test('returns not-modified on 304 without reading a body', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 304 })))

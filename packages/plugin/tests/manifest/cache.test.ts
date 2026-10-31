@@ -74,3 +74,35 @@ test('cold rejection returns null and retries after TTL', async () => {
   time = 10
   expect(await cache.get()).toEqual(manifest())
 })
+
+test('a hung cold refresh expires at 5s and the next request retries immediately', async () => {
+  const load = vi.fn<ManifestLoader>().mockImplementationOnce(() => new Promise(() => {})).mockResolvedValueOnce(manifest(2))
+  const cache = createManifestCache(load)
+  const cold = cache.get()
+  await vi.advanceTimersByTimeAsync(1500)
+  expect(await cold).toBeNull()
+  await vi.advanceTimersByTimeAsync(3500)
+  expect(await cache.get()).toEqual(manifest(2))
+  expect(load).toHaveBeenCalledTimes(2)
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+test('a hung warm refresh retains the last good manifest, retries, and ignores late settlement', async () => {
+  let finish!: (value: Manifest) => void
+  const load = vi.fn<ManifestLoader>().mockResolvedValueOnce(manifest())
+    .mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    .mockResolvedValueOnce(manifest(3))
+  const cache = createManifestCache(load, { ttlMs: 100, refreshTimeoutMs: 250 })
+  await cache.get()
+  await vi.advanceTimersByTimeAsync(100)
+  expect(await cache.get()).toEqual(manifest())
+  await vi.advanceTimersByTimeAsync(250)
+  expect(await cache.get()).toEqual(manifest())
+  await flush()
+  expect(await cache.get()).toEqual(manifest(3))
+  finish(manifest(2))
+  await flush()
+  expect(await cache.get()).toEqual(manifest(3))
+  expect(load).toHaveBeenCalledTimes(3)
+  expect(vi.getTimerCount()).toBe(0)
+})

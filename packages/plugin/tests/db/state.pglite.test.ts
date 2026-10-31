@@ -27,7 +27,9 @@ test('first bump inserts 1, next updates to 2, and stored manifest reads back', 
       await writeManifest(exec, manifest)
       expect(await readState(exec)).toEqual({ revision: 2, manifest, flagDefaults: {} })
       expect(await readManifestRow(exec)).toEqual({ revision: 2, manifest })
-      expect(locks).toHaveBeenCalledTimes(2)
+      await exec.query('UPDATE xp_state SET revision = NULL')
+      expect(await bumpRevision(exec)).toBe(1)
+      expect(locks).toHaveBeenCalledTimes(3)
       expect(locks.mock.calls[0]![0]).toContain("hashtext('xp:state'), 0")
     })
   } finally { await close() }

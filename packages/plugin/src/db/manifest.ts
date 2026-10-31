@@ -1,4 +1,4 @@
-import type { Executor } from './executor.js'
+import type { Executor } from './pgExecutor.js'
 import { readState } from './state.js'
 import type { Manifest } from '../types/manifest.js'
 

@@ -29,6 +29,17 @@ describe('pure manifest compiler', () => {
     const layered = experiment({ layer: { slug: 'marketing' }, layerSlices: [2, 4, 9] })
     expect(compileManifest(inputs([layered]), 1).experiments[0]).toMatchObject({ coverage: 1, layer: { slug: 'marketing', slices: [2, 4, 9] } })
   })
+  test.each([
+    { layer: 7, layerSlices: [2] },
+    { layer: { slug: 'marketing' } },
+    { layer: { slug: 'marketing' }, layerSlices: null },
+    { layer: { slug: '' }, layerSlices: [2] },
+  ])('refuses incomplete active layer state (%j)', configuration => {
+    for (const status of ['running', 'decided'] as const) {
+      const e = experiment({ ...configuration, status, currentPhase: phase({ phaseKind: status === 'decided' ? 'rollout' : 'test' }) })
+      expect(() => compileManifest(inputs([e]), 1)).toThrow(expect.objectContaining({ code: 'invalid-status', status: 409 }))
+    }
+  })
   test('rollout carries winner and holdout; decided without rollout drops layer and holdoutKey', () => {
     const common = { status: 'decided' as const, layer: { slug: 'layer' }, layerSlices: [2], decision: { winnerArm: 'variantA' } }
     const result = compileManifest(inputs([
@@ -38,7 +49,7 @@ describe('pure manifest compiler', () => {
     ]), 3).experiments
     expect(result[0]).toMatchObject({ phaseKind: 'rollout', holdoutKey: 'holdout', winnerArm: 'variantA', coverage: 1 })
     for (const e of result.slice(1)) {
-      expect(e).toMatchObject({ phaseKind: 'test', winnerArm: 'variantA', coverage: 0.4 })
+      expect(e).toMatchObject({ phaseKind: 'test', winnerArm: 'variantA', coverage: 1 })
       expect(e).not.toHaveProperty('layer')
       expect(e).not.toHaveProperty('holdoutKey')
     }
@@ -49,8 +60,8 @@ describe('pure manifest compiler', () => {
   })
   test('archives block winners and every losing page target, omitting discarded decisions', () => {
     const result = compileManifest(inputs([
-      experiment({ status: 'archived', decision: { winnerArm: 'variantA' } }),
-      experiment({ id: 2, slug: 'page', kind: 'page', status: 'archived', decision: { winnerArm: 'variantA' } }),
+      experiment({ status: 'archived', arms: [], decision: { winnerArm: 'variantA' } }),
+      experiment({ id: 2, slug: 'page', kind: 'page', status: 'archived', arms: phase().arms.map(arm => ({ ...arm, pageTarget: '/edited' })), decision: { winnerArm: 'variantA' } }),
       experiment({ id: 3, slug: 'discarded', status: 'archived', decision: { winnerArm: 'variantA', discardedAt: '2026-10-30Z' } }),
       experiment({ id: 4, slug: 'discarded-page', kind: 'page', status: 'archived', decision: { winnerArm: 'variantB', discardedAt: '2026-10-30Z' } }),
     ]), 1)
@@ -75,6 +86,10 @@ describe('pure manifest compiler', () => {
   test('refuses to publish live experiments with no phase', () => {
     expect(() => compileManifest(inputs([experiment({ currentPhase: null })]), 1)).toThrow('Missing current phase')
   })
+  test('refuses an archived winner with no last phase rather than using live arms', () => {
+    expect(() => compileManifest(inputs([experiment({ status: 'archived', currentPhase: null, decision: { winnerArm: 'variantA' } })]), 1))
+      .toThrow(expect.objectContaining({ code: 'invalid-status', status: 409 }))
+  })
 })
 
 test('loader reads current highest phase with req, privileged access, depth 1 layer and exclusions', async () => {
@@ -89,10 +104,15 @@ test('loader reads current highest phase with req, privileged access, depth 1 la
   expect(findGlobal).toHaveBeenCalledWith(expect.objectContaining({ slug: 'xp-state', req, overrideAccess: true }))
 })
 
-test('builder bumps before compile/write and stores the incremented revision on its transaction', async () => {
+test('builder bumps before the first experiment read and stores the new revision on its transaction', async () => {
   const executor = createFakeExecutor({ results: [{ rows: [] }, { rows: [{ revision: 8 }] }, { rows: [] }] })
   const req = executor.withSession()
-  req.payload.find = vi.fn(async () => ({ docs: [] })) as unknown as typeof req.payload.find
+  req.payload.find = vi.fn(async () => {
+    expect(executor.calls).toHaveLength(2)
+    expect(executor.calls[0]!.text).toContain('pg_advisory_xact_lock')
+    expect(executor.calls[1]!.text).toContain('RETURNING')
+    return { docs: [] }
+  }) as unknown as typeof req.payload.find
   req.payload.findGlobal = vi.fn(async () => ({ flagDefaults: {} })) as unknown as typeof req.payload.findGlobal
   const result = await buildAndStoreManifest(req)
   expect(result.revision).toBe(8)

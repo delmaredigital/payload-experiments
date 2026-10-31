@@ -1,4 +1,4 @@
-import type { Executor } from './executor.js'
+import type { Executor } from './pgExecutor.js'
 import { COLUMNS, TABLES } from './names.js'
 import type { Manifest } from '../types/manifest.js'
 
@@ -12,7 +12,7 @@ function table(exec: Executor, options: { schemaName?: string } = {}) {
 /** Always take this lock last: layer → flag point → experiment → state. */
 export async function bumpRevision(exec: Executor): Promise<number> {
   await exec.query("SELECT pg_advisory_xact_lock(hashtext('xp:state'), 0)")
-  const updated = await exec.query<{ revision: number }>(`UPDATE ${table(exec)} SET ${quote(columns.revision)} = ${quote(columns.revision)} + 1, ${quote(columns.updatedAt)} = now() RETURNING ${quote(columns.revision)}`)
+  const updated = await exec.query<{ revision: number }>(`UPDATE ${table(exec)} SET ${quote(columns.revision)} = COALESCE(${quote(columns.revision)}, 0) + 1, ${quote(columns.updatedAt)} = now() RETURNING ${quote(columns.revision)}`)
   if (updated.rows[0]) return updated.rows[0].revision
   const inserted = await exec.query<{ revision: number }>(`INSERT INTO ${table(exec)} (${quote(columns.revision)}, ${quote(columns.createdAt)}, ${quote(columns.updatedAt)}) VALUES (1, now(), now()) RETURNING ${quote(columns.revision)}`)
   return inserted.rows[0]!.revision
