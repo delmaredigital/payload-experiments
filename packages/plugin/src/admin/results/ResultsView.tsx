@@ -1,4 +1,5 @@
 'use client'
+import '../styles.js'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Form, useAuth, useDocumentInfo } from '@payloadcms/ui'

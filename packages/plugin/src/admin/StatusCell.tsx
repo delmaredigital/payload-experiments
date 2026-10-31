@@ -1,4 +1,5 @@
 'use client'
+import './styles.js'
 
 import { Pill } from '@payloadcms/ui'
 import type { DefaultCellComponentProps } from 'payload'
