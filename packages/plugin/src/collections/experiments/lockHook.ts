@@ -8,7 +8,7 @@ import { defaultArms } from './armInvariants.js'
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)
 const relationships = new Set(['layer', 'metrics.primary', 'metrics.secondary', 'metrics.guardrails', 'decision.decidedBy', 'decision.snapshotId'])
-const dates = new Set(['startedAt', 'stoppedAt', 'decidedAt', 'archivedAt', 'decision.discardedAt'])
+const dates = new Set(['startedAt', 'stoppedAt', 'decidedAt', 'archivedAt', 'decision.discardedAt', 'decision.holdoutReleasedAt'])
 
 /** Schema-aware: JSON retains its own ids and date-like strings. */
 function normalize(value: unknown, path: string, json = false): unknown {
