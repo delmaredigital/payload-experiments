@@ -11,6 +11,19 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.1.0-rc.3] - 2026-10-31
+
+### plugin
+
+**Fixed**
+
+- A content slot with no running experiment now renders exactly as it does with
+  experiments turned off, with no extra wrapper element around its content.
+
+**Migration impact**
+
+- None.
+
 ## [0.1.0-rc.2] - 2026-10-31
 
 ### plugin
