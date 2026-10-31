@@ -225,9 +225,9 @@
   "verdict": {
     "row": 7,
     "code": "winner",
-    "finding": "Both beat the Original; not tested against each other \u2014 Guided form has the larger lift.",
+    "finding": "Both beat the Original; not tested against each other \u2014 Guided form has the larger improvement.",
     "action": null,
-    "headline": "Both beat the Original; not tested against each other \u2014 Guided form has the larger lift.",
+    "headline": "Both beat the Original; not tested against each other \u2014 Guided form has the larger improvement.",
     "detail": "The main outcome improved compared with the Original.",
     "recommendedArm": "variantB",
     "guardrailLine": "No harm detected so far"
