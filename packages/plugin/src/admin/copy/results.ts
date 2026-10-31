@@ -22,6 +22,12 @@ export const RESULTS_COPY = {
   layerFull: 'The layer has fewer slices reserved than the requested allocation.',
   layerNext: 'Free slices in the layer, then raise participation from the actions panel.',
   unavailableNext: 'Recompute; if it persists, contact a developer.',
+  loading: 'Loading results…',
+  forbidden: "You don't have access to results.",
+  empty: 'No results yet — the first results appear within the hour after Start.',
+  retry: 'Retry', round: 'Round', recompute: 'Recompute', recomputing: 'Recomputing…',
+  primary: 'Primary outcome', secondary: 'Supporting (not used for the decision)', guardrail: 'Guardrails',
+  chart: 'Confidence interval over time', noHistory: 'Not enough history yet.',
 } as const
 
 export const roundLabel = (round: number, kind: string) => `Round ${round} · ${kind}`
@@ -41,3 +47,7 @@ export const exclusionCopy = (count: string, share: string) => `${count} exclude
 export const ignoredCopy = (count: string) => `${count} ignored.`
 export const conflictCopy = (share: string) => `${share} with identity conflicts.`
 export const metricUnavailable = (name: string, reason: string) => `${name} is unavailable: ${reason}`
+export const chartSummary = (metric: string, groups: string, from: string, to: string) =>
+  `${metric}: lift and confidence intervals for ${groups}, ${from} to ${to}.`
+export const contentChangeTitle = (date: string) => `Content changed ${date} by an editor`
+export const summaryLine = (exposures: string, days: string, verdict: string) => `${exposures} exposures · ${days} days · ${verdict}`
