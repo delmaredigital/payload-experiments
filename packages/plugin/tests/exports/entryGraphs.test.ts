@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -71,4 +71,16 @@ test('a relative non-code asset import is a recorded leaf, not a parse error', (
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+
+test('every Next subpath value import in src has a Node ESM extension', () => {
+  const root = fileURLToPath(new URL('../../src/', import.meta.url))
+  const imports = new Set<string>()
+  for (const file of readdirSync(root, { recursive: true })) {
+    if (!/\.tsx?$/.test(String(file))) continue
+    const graph = collectImports(join(root, String(file)))
+    for (const value of [...graph.bare, ...graph.dynamic]) if (value.startsWith('next/')) imports.add(value)
+  }
+  expect([...imports].filter(value => !/\.(?:js|mjs|cjs|json)$/.test(value))).toEqual([])
 })

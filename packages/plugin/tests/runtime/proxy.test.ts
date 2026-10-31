@@ -5,6 +5,9 @@ import { applyExperiments } from '../../src/proxy/apply.js'
 import { createExperimentProxy } from '../../src/proxy/createProxy.js'
 import { resolveExperiments, type ExperimentsProxyResult } from '../../src/proxy/resolve.js'
 import { encodeUnitCookie, verifyUnitCookie } from '../../src/runtime/cookie.js'
+import { normalisePath } from '../../src/runtime/normalisePath.js'
+import { verify } from '../../src/runtime/signing.js'
+import * as consentFallbackModule from '../../src/proxy/consentFallback.js'
 import * as header from '../../src/runtime/header.js'
 import { signPreviewToken } from '../../src/runtime/previewToken.js'
 import { defineExperimentsProxyRuntime } from '../../src/runtime/proxyRuntime.js'
@@ -47,7 +50,7 @@ afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
 
 test('strips every inbound xp header and forwards a minted signed cookie on this request', async () => {
   const m = manifest(), req = request('/', { headers: {
-    'X-XP-Assignments': 'attacker', 'x-xp-anything': 'attacker', cookie: 'other=keep%3Bencoded', 'x-host': 'keep',
+    'x-xp-request': 'attacker', 'X-XP-Assignments': 'attacker', 'x-xp-anything': 'attacker', cookie: 'other=keep%3Bencoded', 'x-host': 'keep',
   } })
   const result = await resolveExperiments(req, runtime(m))
   expect(result.setCookies).toHaveLength(1)
@@ -56,6 +59,7 @@ test('strips every inbound xp header and forwards a minted signed cookie on this
   expect(visitorId).toBeTruthy()
   expect(result.requestCookies).toEqual([{ name: 'xp_id', value: cookie.value }])
   expect(result.requestHeaders.get('cookie')).toBe(`other=keep%3Bencoded; xp_id=${cookie.value}`)
+  expect(result.requestHeaders.get('x-xp-request')).not.toBe('attacker')
   expect(result.requestHeaders.get('x-xp-anything')).toBeNull()
   expect(result.requestHeaders.get('x-host')).toBe('keep')
   expect(decode(result, m, visitorId).bySlug.hero).toMatchObject({ exposable: true })
@@ -387,12 +391,14 @@ test.each(['tampered', 'expired', 'phase', 'experiment', 'arm'])('invalid previe
   if (invalid === 'expired') vi.spyOn(Date, 'now').mockReturnValue((now + 61) * 1000)
   const result = await resolveExperiments(signedRequest(`/?xp_preview=${token}`), runtime(m))
   expect(decode(result, m, 'visitor').preview).toBe(false)
-  expect(result.responseHeaders).toBeUndefined()
+  if (invalid === 'tampered' || invalid === 'expired') expect(result.responseHeaders).toBeUndefined()
+  else expect(result.responseHeaders?.get('cache-control')).toBe('no-store')
 })
 test.each(['/admin', '/admin/collections', '/_next', '/_next/static/a', '/api', '/api/xp/events', '/logo.png', '/assets/file.woff2'])('skip %s strips xp headers and calls no adapters', async path => {
-  const loadManifest = vi.fn(), getUnit = vi.fn(), req = request(path, { headers: { 'x-xp-anything': 'attacker', 'x-xp-assignments': 'attacker', cookie: 'other=keep' } })
+  const loadManifest = vi.fn(), getUnit = vi.fn(), req = request(path, { headers: { 'x-xp-request': 'attacker', 'x-xp-anything': 'attacker', 'x-xp-assignments': 'attacker', cookie: 'other=keep' } })
   const result = await resolveExperiments(req, runtime(manifest(), { loadManifest, getUnit }))
   const expected = new Headers(req.headers)
+  expected.delete('x-xp-request')
   expected.delete('x-xp-anything')
   expected.delete('x-xp-assignments')
   expect([...result.requestHeaders]).toEqual([...expected])
@@ -483,4 +489,61 @@ test('wrapper rewrites with forwarded headers and applies preview no-store', asy
   expect(response.headers.get('cache-control')).toBe('no-store')
   expect(response.headers.get('x-middleware-request-cookie')).toContain('xp_id=')
   expect(response.cookies.has('xp_id')).toBe(true)
+})
+
+
+test.each([true, false])('request context is signed with current key and raw path/search (consent %s)', async consent => {
+  const rt = runtime(manifest(), { secret: ['new-key', ...secrets], cookie: { consent: () => consent } })
+  const result = await resolveExperiments(request('/courses/x/?q=a%2Fb'), rt)
+  const value = result.requestHeaders.get('x-xp-request')!
+  const message = `GET|/courses/x/?q=a%2Fb|${consent ? 'c1' : 'c0'}`
+  expect(value.slice(0, -44)).toBe(message)
+  expect(verify(`xp:request:${message}`, value.slice(-43), ['new-key'])).toBe(true)
+  expect(verify(`xp:request:${message}`, value.slice(-43), secrets)).toBe(false)
+  expect(verify(message, value.slice(-43), ['new-key'])).toBe(false)
+})
+test.each([2048, 2049])('request context budget counts the entire signed header (%i bytes)', async bytes => {
+  // GET + three separators + c1 + the 43-byte MAC = 51 bytes.
+  const path = '/' + 'x'.repeat(bytes - 52)
+  const result = await resolveExperiments(request(path, { headers: { 'x-xp-request': 'attacker' } }), runtime())
+  const value = result.requestHeaders.get('x-xp-request')
+  if (bytes === 2048) expect(Buffer.byteLength(value!)).toBe(2048)
+  else expect(value).toBeNull()
+})
+test('consent fallback failure logs and serves control without rewrite or throwing', async () => {
+  vi.spyOn(consentFallbackModule, 'consentFallback').mockImplementation(() => { throw new Error('corrupt manifest') })
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const m = manifest([page({ status: 'decided', winnerArm: 'variantA' })])
+  const result = await resolveExperiments(signedRequest('/original'), runtime(m, { cookie: { consent: () => false } }))
+  expect(decode(result, m).bySlug.hero).toMatchObject({ arm: 'control', exposable: false })
+  expect(result.rewrite).toBeUndefined()
+  expect(log).toHaveBeenCalledExactlyOnceWith('[payload-experiments] consent fallback failed; serving non-exposable control')
+})
+test.each(['/courses/x', '/courses/x/'].flatMap(path => ['/courses/x', '/courses/x/'].map(target => ({ path, target }))))('normalised path attributes and page targets match $path against $target', async ({ path, target }) => {
+  const m = manifest([page({ targeting: [rule('path', 'eq', '/courses/x')], arms: [
+    { key: 'control', kind: 'control', weight: 0, pageTarget: target },
+    { key: 'variantA', kind: 'variant', weight: 100, pageTarget: '/winner' },
+  ] })])
+  const result = await resolveExperiments(signedRequest(`${path}?query=keep`), runtime(m, { getUnit: () => ({ attributes: { path: '/spoof' } }) }))
+  expect(decode(result, m, 'visitor').bySlug.hero).toMatchObject({ arm: 'variantA', exposable: true })
+  expect(normalisePath(result.rewrite!.pathname)).toBe('/winner')
+  expect(result.rewrite?.search).toBe('?query=keep')
+})
+test.each(['/', '/courses/%2F/'])('path ownership preserves root and encoding: %s', async path => {
+  const normalised = path === '/' ? '/' : '/courses/%2F'
+  const m = manifest([page({ targeting: [rule('path', 'eq', normalised)], arms: [
+    { key: 'control', kind: 'control', weight: 0, pageTarget: normalised },
+    { key: 'variantA', kind: 'variant', weight: 100, pageTarget: '/winner' },
+  ] })])
+  const result = await resolveExperiments(signedRequest(path), runtime(m))
+  expect(decode(result, m, 'visitor').bySlug.hero!.exposable).toBe(true)
+  expect(normalisePath(result.rewrite!.pathname)).toBe('/winner')
+})
+
+
+test('draft preview tokens disable caching before the server resolves the draft', async () => {
+  const token = signPreviewToken({ e: 'draft', a: 'variantA', p: 0, exp: Math.floor(Date.now() / 1000) + 60 }, secrets)
+  const result = await resolveExperiments(signedRequest(`/?xp_preview=${token}`), runtime())
+  expect(result.responseHeaders?.get('cache-control')).toBe('no-store')
+  expect(result.requestHeaders.get('x-xp-request')).toContain(`/?xp_preview=${token}`)
 })

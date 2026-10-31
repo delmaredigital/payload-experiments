@@ -1,3 +1,4 @@
+import { normalisePath } from '../runtime/normalisePath.js'
 import type { AssignmentResult } from '../runtime/assign.js'
 import type { Manifest } from '../types/manifest.js'
 import type { NextRequest } from 'next/server'
@@ -16,7 +17,7 @@ function targetURL(path: string | undefined, requestURL: NextRequest['nextUrl'])
 export function pageRewrite(manifest: Manifest, assignments: AssignmentResult, requestURL: NextRequest['nextUrl']): URL | undefined {
   const experiment = manifest.experiments.find(experiment => experiment.kind === 'page'
     && (experiment.status === 'running' || experiment.status === 'decided')
-    && experiment.arms.some(arm => arm.pageTarget === requestURL.pathname))
+    && experiment.arms.some(arm => arm.pageTarget !== undefined && normalisePath(arm.pageTarget) === normalisePath(requestURL.pathname)))
   if (experiment) {
     const assignment = assignments.bySlug[experiment.slug]
     const control = experiment.arms.find(arm => arm.kind === 'control')
@@ -34,7 +35,7 @@ export function pageRewrite(manifest: Manifest, assignments: AssignmentResult, r
     }
     return targetURL(control?.pageTarget, requestURL)
   }
-  const archived = Object.hasOwn(manifest.archivedPages, requestURL.pathname)
-    ? manifest.archivedPages[requestURL.pathname] : undefined
+  const archivedPath = Object.keys(manifest.archivedPages).find(path => normalisePath(path) === normalisePath(requestURL.pathname))
+  const archived = archivedPath === undefined ? undefined : manifest.archivedPages[archivedPath]
   return targetURL(archived?.winnerPath, requestURL)
 }
