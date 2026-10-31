@@ -56,7 +56,8 @@ test.each([
   mockFetch({}, status)
   render(<ExperimentPicker value={null} onChange={vi.fn()} />)
   expect((await screen.findByRole('alert')).textContent).toBe(message)
-  expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(true)
+  // Enabled on error so an editor can still choose "No experiment" to unbind.
+  expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(false)
 })
 
 test('network failure never throws and displays the load error', async () => {

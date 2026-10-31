@@ -53,7 +53,7 @@ export function ExperimentPicker({ value, onChange }: {
 
   const selected = value ? String(value.id) : ''
   return <div>
-    <select aria-label={pickerCopy.label} value={selected} disabled={state !== 'ready'} onChange={event => {
+    <select aria-label={pickerCopy.label} value={selected} disabled={state === 'loading'} /* stays enabled on error so a saved experiment can still be unbound */ onChange={event => {
       const experiment = experiments.find(doc => String(doc.id) === event.currentTarget.value)
       onChange(experiment ? { id: experiment.id, slug: experiment.slug } : null)
     }}>
