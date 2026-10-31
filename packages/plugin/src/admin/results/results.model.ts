@@ -13,7 +13,7 @@ type Arm = Metric['perArm'][number]
 type Decision = { phase: number; winnerArm?: string }
 // The frozen wire type currently omits these two fields. Accept additive server
 // fields without casting or deriving either value from a verdict's prose.
-type DisplaySnapshot = Snapshot & { winnerArm?: string; minExposuresPerArm?: number }
+type DisplaySnapshot = Snapshot
 
 export function defaultRound({ phases, decision, status }: Pick<ResultsResponse, 'phases'> & {
   decision?: Decision | null; status: Status
