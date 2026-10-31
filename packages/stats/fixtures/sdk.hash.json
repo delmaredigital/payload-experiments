@@ -1,0 +1,307 @@
+{
+  "cases": [
+    {
+      "expected": 0.22,
+      "input": {
+        "args": [
+          "",
+          "a",
+          1
+        ]
+      },
+      "name": "hash-0"
+    },
+    {
+      "expected": 0.077,
+      "input": {
+        "args": [
+          "",
+          "b",
+          1
+        ]
+      },
+      "name": "hash-1"
+    },
+    {
+      "expected": 0.946,
+      "input": {
+        "args": [
+          "b",
+          "a",
+          1
+        ]
+      },
+      "name": "hash-2"
+    },
+    {
+      "expected": 0.652,
+      "input": {
+        "args": [
+          "ef",
+          "d",
+          1
+        ]
+      },
+      "name": "hash-3"
+    },
+    {
+      "expected": 0.549,
+      "input": {
+        "args": [
+          "asdf",
+          "8952klfjas09ujk",
+          1
+        ]
+      },
+      "name": "hash-4"
+    },
+    {
+      "expected": 0.011,
+      "input": {
+        "args": [
+          "",
+          "123",
+          1
+        ]
+      },
+      "name": "hash-5"
+    },
+    {
+      "expected": 0.563,
+      "input": {
+        "args": [
+          "",
+          "___)((*\":&",
+          1
+        ]
+      },
+      "name": "hash-6"
+    },
+    {
+      "expected": 0.0505,
+      "input": {
+        "args": [
+          "seed",
+          "a",
+          2
+        ]
+      },
+      "name": "hash-7"
+    },
+    {
+      "expected": 0.2696,
+      "input": {
+        "args": [
+          "seed",
+          "b",
+          2
+        ]
+      },
+      "name": "hash-8"
+    },
+    {
+      "expected": 0.2575,
+      "input": {
+        "args": [
+          "foo",
+          "ab",
+          2
+        ]
+      },
+      "name": "hash-9"
+    },
+    {
+      "expected": 0.2019,
+      "input": {
+        "args": [
+          "foo",
+          "def",
+          2
+        ]
+      },
+      "name": "hash-10"
+    },
+    {
+      "expected": 0.124,
+      "input": {
+        "args": [
+          "89123klj",
+          "8952klfjas09ujkasdf",
+          2
+        ]
+      },
+      "name": "hash-11"
+    },
+    {
+      "expected": 0.7516,
+      "input": {
+        "args": [
+          "90850943850283058242805",
+          "123",
+          2
+        ]
+      },
+      "name": "hash-12"
+    },
+    {
+      "expected": 0.0128,
+      "input": {
+        "args": [
+          "()**(%$##$%#$#",
+          "___)((*\":&",
+          2
+        ]
+      },
+      "name": "hash-13"
+    },
+    {
+      "expected": null,
+      "input": {
+        "args": [
+          "abc",
+          "def",
+          99
+        ]
+      },
+      "name": "hash-14"
+    },
+    {
+      "expected": 0.22,
+      "input": {
+        "args": [
+          "bucket-range-rounding",
+          "user-3436",
+          2
+        ]
+      },
+      "name": "hash-15"
+    },
+    {
+      "expected": 0.344,
+      "input": {
+        "args": [
+          "bucket-range-rounding",
+          "user-1177",
+          2
+        ]
+      },
+      "name": "hash-16"
+    },
+    {
+      "expected": 0.109,
+      "input": {
+        "args": [
+          "bucket-range-rounding",
+          "user-427",
+          2
+        ]
+      },
+      "name": "hash-17"
+    },
+    {
+      "expected": 0.818,
+      "input": {
+        "args": [
+          "bucket-range-rounding",
+          "user-68525",
+          2
+        ]
+      },
+      "name": "hash-18"
+    },
+    {
+      "expected": 0.172,
+      "input": {
+        "args": [
+          "bucket-range-rounding",
+          "user-866",
+          2
+        ]
+      },
+      "name": "hash-19"
+    },
+    {
+      "expected": 0.287,
+      "input": {
+        "args": [
+          "bucket-range-rounding",
+          "user-74",
+          1
+        ]
+      },
+      "name": "hash-20"
+    },
+    {
+      "expected": 0.344,
+      "input": {
+        "args": [
+          "bucket-range-rounding",
+          "user-549",
+          1
+        ]
+      },
+      "name": "hash-21"
+    },
+    {
+      "expected": 0.586,
+      "input": {
+        "args": [
+          "",
+          "josé",
+          1
+        ]
+      },
+      "name": "hash-22"
+    },
+    {
+      "expected": 0.1315,
+      "input": {
+        "args": [
+          "",
+          "josé",
+          2
+        ]
+      },
+      "name": "hash-23"
+    },
+    {
+      "expected": 0.3071,
+      "input": {
+        "args": [
+          "",
+          "用户123",
+          2
+        ]
+      },
+      "name": "hash-24"
+    },
+    {
+      "expected": 0.4971,
+      "input": {
+        "args": [
+          "",
+          "😀",
+          2
+        ]
+      },
+      "name": "hash-25"
+    },
+    {
+      "expected": 0.9001,
+      "input": {
+        "args": [
+          "expérience",
+          "123",
+          2
+        ]
+      },
+      "name": "hash-26"
+    }
+  ],
+  "source": {
+    "module": "packages/sdk-js/test/cases.json",
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "hash"
+  }
+}

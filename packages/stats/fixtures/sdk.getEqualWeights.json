@@ -1,0 +1,78 @@
+{
+  "cases": [
+    {
+      "expected": [],
+      "input": {
+        "args": [
+          -1
+        ]
+      },
+      "name": "equal--1-0"
+    },
+    {
+      "expected": [],
+      "input": {
+        "args": [
+          0
+        ]
+      },
+      "name": "equal-0-1"
+    },
+    {
+      "expected": [
+        1
+      ],
+      "input": {
+        "args": [
+          1
+        ]
+      },
+      "name": "equal-1-2"
+    },
+    {
+      "expected": [
+        0.5,
+        0.5
+      ],
+      "input": {
+        "args": [
+          2
+        ]
+      },
+      "name": "equal-2-3"
+    },
+    {
+      "expected": [
+        0.33333333,
+        0.33333333,
+        0.33333333
+      ],
+      "input": {
+        "args": [
+          3
+        ]
+      },
+      "name": "equal-3-4"
+    },
+    {
+      "expected": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "input": {
+        "args": [
+          4
+        ]
+      },
+      "name": "equal-4-5"
+    }
+  ],
+  "source": {
+    "module": "packages/sdk-js/test/cases.json",
+    "repo": "growthbook/growthbook",
+    "sha": "0553a68def700abbcaaca8f5096da913f197804c",
+    "symbol": "getEqualWeights"
+  }
+}

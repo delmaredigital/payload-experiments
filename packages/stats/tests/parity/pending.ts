@@ -1,13 +1,4 @@
 export const pending: ReadonlySet<string> = new Set([
-  'sdk.hash',
-  'sdk.getEqualWeights',
-  'sdk.inRange',
-  'sdk.getBucketRanges',
-  'sdk.chooseVariation',
-  'assignment.armWeightsToFractions',
-  'assignment.assignArm',
-  'assignment.layerSlice',
-  'assignment.rolloutBucketRanges',
   'statistics.statisticMean',
   'statistics.statisticUnadjustedMean',
   'statistics.statisticVariance',
