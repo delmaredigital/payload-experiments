@@ -20,6 +20,12 @@ describe('plugin package plumbing', () => {
   })
 
   test.each(entries)('%s preserves the barrel name when swc strips the leading path', (entry, name) => {
+    expect(Object.keys(manifest.exports[entry])).toEqual([
+      '@delmaredigital/source',
+      'types',
+      'import',
+      'default',
+    ])
     expect(manifest.exports[entry]).toEqual({
       '@delmaredigital/source': `./src/exports/${name}.ts`,
       types: `./dist/exports/${name}.d.ts`,
