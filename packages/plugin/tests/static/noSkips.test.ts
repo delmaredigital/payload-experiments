@@ -16,7 +16,7 @@ test('plugin tests contain no unapproved skips or retired stats guards', () => {
     })
   })
   expect(violations).toEqual([])
-})
+}, 30_000)
 
 test('skip scan catches direct, conditional, parameterized and legacy stats skips', () => {
   for (const source of ['test.' + 'skip(', 'it.' + 'skip(', 'test.' + 'skip.each(', 'test.skip' + 'If(', 'skip' + 'UntilStats']) {

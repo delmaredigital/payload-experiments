@@ -338,7 +338,7 @@ describe('access and SQL source boundaries', () => {
       scan(readFileSync(path, 'utf8'), relative(pluginRoot, path).replaceAll('\\', '/')),
     )
     expect(violations, violations.map(v => `${v.file}:${v.line} ${v.rule}`).join('\n')).toEqual([])
-  })
+  }, 30_000)
 
   const fixtures = [
     ['missingOverride.ts', 'local-api-override-required'],

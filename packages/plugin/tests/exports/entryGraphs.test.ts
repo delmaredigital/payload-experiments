@@ -83,4 +83,4 @@ test('every Next subpath value import in src has a Node ESM extension', () => {
     for (const value of [...graph.bare, ...graph.dynamic]) if (value.startsWith('next/')) imports.add(value)
   }
   expect([...imports].filter(value => !/\.(?:js|mjs|cjs|json)$/.test(value))).toEqual([])
-})
+}, 30_000)

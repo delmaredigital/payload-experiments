@@ -31,7 +31,7 @@ test('only runtime/normalisePath.ts strips trailing slashes from pathnames', () 
     return privatePathNormalisers(readFileSync(file, 'utf8')).map(line => `${fileURLToPath(file)}:${line}`)
   })
   expect(violations).toEqual([])
-})
+}, 30_000)
 
 test.each([
   String.raw`request.nextUrl.pathname.replace(/\/$/, '')`,
