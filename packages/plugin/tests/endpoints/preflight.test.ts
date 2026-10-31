@@ -98,3 +98,19 @@ test('block read failure reports a failed placement check', async () => {
   expect(response.status).toBe(200)
   expect((await response.json()).checks).toContainEqual({ code: 'no-placements', ok: false, detail: 'Page read denied' })
 })
+
+test.each([
+  [{ attribute: 'undeclared', op: 'eq', value: 'US' }, 'undeclared-targeting-key'],
+  [{ attribute: 'age', op: 'eq', value: 'wrong' }, 'invalid-targeting-rule'],
+  [{ attribute: 'country', op: 'in', value: [] }, 'invalid-targeting-rule'],
+  [{ attribute: 'age', op: 'contains', value: 2 }, 'invalid-targeting-rule'],
+] as const)('preflight and start agree on targeting refusal %j', async (rule, code) => {
+  const { options, req, payload } = setup()
+  payload.documents['xp-experiments']![0]!.targeting = [rule]
+  const response = await handlePreflight(req, { options })
+  const body = await response.json() as PreflightResult
+  expect(body.checks.find(check => !check.ok)?.code).toBe(code)
+  const { start } = await import('../../src/transitions/start.js')
+  await expect(start(req, { experimentId: 'one', options })).rejects.toMatchObject({ code })
+  expect(body.checks.some(check => check.code === 'invalid-body')).toBe(false)
+})

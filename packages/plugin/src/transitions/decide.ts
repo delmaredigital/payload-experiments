@@ -26,14 +26,13 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
     const test = await readPhaseRecord(req, experimentId, current.phase!)
     if (test.phaseKind !== 'test') refuse('invalid-status')
     const winner = test.arms.find(arm => arm.key === winnerArm && arm.kind !== 'holdout')
-    const storedWinner = current.arms.find(arm => arm.key === winnerArm && arm.kind !== 'holdout')
-    if (!winner || !storedWinner) refuse('invalid-winner')
+    if (!winner) refuse('invalid-winner')
     // §7.8: decision snapshot lookup serves the authorised transition.
     const snapshots = await req.payload.find({ collection: 'xp-results-snapshots', req, overrideAccess: true, depth: 0, limit: 1,
       where: { and: [{ experiment: { equals: experimentId } }, { phase: { equals: test.phase } }] }, sort: ['-computedAt', '-id'] })
     const snapshotDoc = snapshots.docs[0]
     const snapshot = snapshotDoc?.snapshot as Snapshot | undefined
-    if (decideGuard(snapshot ?? null, winnerArm) && (!note?.trim() || !matchesConfirm(expectedConfirm('decide', storedWinnerLabel(storedWinner)), confirmation))) refuse('confirmation-required')
+    if (decideGuard(snapshot ?? null, winnerArm) && (!note?.trim() || !matchesConfirm(expectedConfirm('decide', storedWinnerLabel(winner)), confirmation))) refuse('confirmation-required')
     const at = new Date().toISOString()
     const holdout = test.arms.find(arm => arm.kind === 'holdout')
     const rollout = holdout !== undefined && winner.kind !== 'control'

@@ -29,9 +29,10 @@ export interface ManifestInputs {
   experiments: ManifestInputExperiment[]
   flagDefaults: Manifest['flagDefaults']
   excludeIds?: DocId[]
+  pruneFlagDefaultIds?: DocId[]
 }
 
-export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [] }: { excludeIds?: DocId[] } = {}): Promise<ManifestInputs> {
+export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [], pruneFlagDefaultIds = [] }: { excludeIds?: DocId[]; pruneFlagDefaultIds?: DocId[] } = {}): Promise<ManifestInputs> {
   // §7.8 manifest reads: transitions compile all live/archived routing state.
   const result = await req.payload.find({
     collection: 'xp-experiments', req, overrideAccess: true, depth: 1, limit: 0,
@@ -63,13 +64,13 @@ export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [] 
   }
   // §7.8 manifest reads: defaults are part of the private compiled manifest.
   const state = await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: true, depth: 0 })
-  return { experiments, flagDefaults: (state.flagDefaults ?? {}) as Manifest['flagDefaults'], excludeIds }
+  return { experiments, flagDefaults: (state.flagDefaults ?? {}) as Manifest['flagDefaults'], excludeIds, pruneFlagDefaultIds }
 }
 
 /** The builder has already acquired the state lock with bumpRevision. */
 async function pruneDeletedDefaults(req: PayloadRequest, inputs: ManifestInputs): Promise<void> {
-  if (!inputs.excludeIds?.length) return
-  const excluded = new Set(inputs.excludeIds.map(String))
+  if (!inputs.pruneFlagDefaultIds?.length) return
+  const excluded = new Set(inputs.pruneFlagDefaultIds.map(String))
   const defaults = Object.fromEntries(Object.entries(inputs.flagDefaults).filter(([, value]) => !excluded.has(String(value.experiment))))
   if (Object.keys(defaults).length === Object.keys(inputs.flagDefaults).length) return
   // §7.8 transition write: keep delete exclusions durable under the state
@@ -81,9 +82,10 @@ async function pruneDeletedDefaults(req: PayloadRequest, inputs: ManifestInputs)
 /** Pure compiler. Assignment config comes exclusively from the frozen phase. */
 export function compileManifest(inputs: ManifestInputs, revision: number, { attributeKeys, onInvalid }: ManifestCompileOptions = {}): Manifest {
   const excluded = new Set(inputs.excludeIds?.map(String))
+  const prunedDefaults = new Set(inputs.pruneFlagDefaultIds?.map(String))
   const manifest: Manifest = { v: 1, revision, experiments: [], flagDefaults: {}, archivedWinners: {}, archivedPages: {} }
   for (const [point, value] of Object.entries(inputs.flagDefaults)) {
-    if (!excluded.has(String(value.experiment))) manifest.flagDefaults[point] = structuredClone(value)
+    if (!prunedDefaults.has(String(value.experiment))) manifest.flagDefaults[point] = structuredClone(value)
   }
   for (const experiment of inputs.experiments) {
     if (excluded.has(String(experiment.id))) continue
@@ -151,7 +153,7 @@ export function compileManifest(inputs: ManifestInputs, revision: number, { attr
  * so a later revision cannot overwrite the manifest with pre-lock input state.
  * All reads and writes join the request's transaction.
  */
-export async function buildAndStoreManifest(req: PayloadRequest, options: { excludeIds?: DocId[] } = {}): Promise<Manifest> {
+export async function buildAndStoreManifest(req: PayloadRequest, options: { excludeIds?: DocId[]; pruneFlagDefaultIds?: DocId[] } = {}): Promise<Manifest> {
   const exec = txExecutor(req)
   const revision = await bumpRevision(exec)
   const inputs = await loadManifestInputs(req, options)

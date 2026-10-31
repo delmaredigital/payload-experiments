@@ -48,6 +48,8 @@ function fixture(status = 'running', holdout = true, layer = false) {
   const req = executor.withSession({ payload })
   req.user = { id: 42 } as typeof req.user
   const experiment = payload.documents['xp-experiments']![0]!
+  // Model separate stored JSON values even though the fixture reused arms above.
+  experiment.arms = structuredClone(experiment.arms)
   const phase = payload.documents['xp-phases']![0]!
   return { req, payload, executor, experiment, phase, manifests, slices }
 }
@@ -110,7 +112,7 @@ test.each([
   ['', 'Variant A', true], ['   ', 'variantA', false], ['', 'Variant A ', true],
 ])('confirmation uses stored label %j, typed %j', async (label, confirmation, ok) => {
   const f = fixture()
-  ;(f.experiment.arms as Arm[])[1]!.label = label as string
+  ;(f.phase.arms as Arm[])[1]!.label = label as string
   f.payload.documents['xp-results-snapshots'] = []
   const action = decide(f.req, { experimentId: 1, winnerArm: 'variantA', confirmation: confirmation as string, note: 'Reason' })
   if (ok) await expect(action).resolves.toMatchObject({ doc: { status: 'decided' } })
@@ -138,4 +140,24 @@ test.each(['running', 'decided'])('stopped flag decision refuses a point occupie
   f.payload.documents['xp-experiments']!.push({ id: 2, kind: 'flag', flagPoint: 'cta', status })
   await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantA' })).rejects.toMatchObject({ code: 'flag-point-busy' })
   expect(f.payload.documents['xp-phases']).toHaveLength(1)
+})
+
+test('stopped decision uses the frozen winner and label after the document arm was removed', async () => {
+  const f = fixture('stopped')
+  f.experiment.arms = [(f.experiment.arms as Arm[])[0]]
+  f.payload.documents['xp-results-snapshots'] = []
+  const result = await decide(f.req, { experimentId: 1, winnerArm: 'variantA', note: 'Ship the tested group', confirmation: 'Better title' })
+  expect(result.doc).toMatchObject({ status: 'decided', decision: { winnerArm: 'variantA' } })
+  expect(f.payload.documents['xp-phases']![1]).toMatchObject({ arms: [{ key: 'variantA', label: '  Better title  ' }, { key: 'holdout' }] })
+})
+test('a renamed document label cannot substitute for the frozen test-phase label', async () => {
+  const f = fixture('stopped')
+  ;(f.experiment.arms as Arm[])[1]!.label = 'Unrelated edit'
+  f.payload.documents['xp-results-snapshots'] = []
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantA', note: 'Ship', confirmation: 'Unrelated edit' })).rejects.toMatchObject({ code: 'confirmation-required' })
+})
+test('an arm added only to the stopped document is not a test-phase winner', async () => {
+  const f = fixture('stopped')
+  ;(f.experiment.arms as Arm[]).push({ key: 'variantB', label: 'New group', kind: 'variant', weight: 0 })
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantB', note: 'Ship', confirmation: 'New group' })).rejects.toMatchObject({ code: 'invalid-winner' })
 })

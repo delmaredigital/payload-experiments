@@ -112,7 +112,7 @@ describe('pure manifest compiler', () => {
   })
   test('excludes IDs everywhere, copies defaults and does not retain input references', () => {
     const source = inputs([experiment(), experiment({ id: 2, slug: 'archived', status: 'archived', decision: { winnerArm: 'variantA' } }), experiment({ id: 3, kind: 'page', status: 'archived', decision: { winnerArm: 'variantA' } })], {
-      excludeIds: ['1', 2, 3], flagDefaults: {
+      excludeIds: ['1', 2, 3], pruneFlagDefaultIds: [1], flagDefaults: {
         excluded: { experiment: 1, winnerArm: 'variantA', params: {}, decidedAt: 'now' },
         kept: { experiment: 4, winnerArm: 'variantA', params: { n: '123' }, decidedAt: 'now' },
       },
@@ -177,4 +177,11 @@ test('builder bumps before the first experiment read and stores the new revision
   expect(executor.calls[0]!.text).toContain('pg_advisory_xact_lock')
   expect(executor.calls[1]!.text).toContain('RETURNING')
   expect(JSON.parse(executor.calls[2]!.params[0] as string)).toEqual(result)
+})
+
+test('excluding deleted experiment routing keeps its shipped flag default unless explicitly pruned', () => {
+  const defaults = { cta: { experiment: 1, winnerArm: 'variantA', params: { title: 'Shipped' }, decidedAt: 'now' } }
+  const source = inputs([experiment({ status: 'archived', decision: { winnerArm: 'variantA' } })], { excludeIds: [1], flagDefaults: defaults })
+  expect(compileManifest(source, 1)).toMatchObject({ experiments: [], archivedWinners: {}, archivedPages: {}, flagDefaults: defaults })
+  expect(compileManifest({ ...source, pruneFlagDefaultIds: [1] }, 1).flagDefaults).toEqual({})
 })
