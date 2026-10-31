@@ -9,7 +9,7 @@ import { decodeAssignmentsHeader } from '../runtime/header.js'
 import { verifyPreviewToken } from '../runtime/previewToken.js'
 import { isBot } from '../runtime/bot.js'
 import { consentFallback } from '../proxy/consentFallback.js'
-import { normalisePath } from '../runtime/normalisePath.js'
+import { normalisePath, requestAttributes } from '../runtime/normalisePath.js'
 import { controlAssignments, emptyAssignments } from '../proxy/control.js'
 import type { Attributes, ExperimentsPluginOptions } from '../types/contracts.js'
 import { emptyManifest, rememberManifest, serverManifest, suppressExposure } from './context.js'
@@ -79,14 +79,11 @@ async function readAssignments<TUser extends { id: string | number }>(runtime: E
   const mustResolveStaff = Boolean(options?.attributeKeys?.staff && (decoded?.sessionUnknown || unit.sessionUnknown))
   const needsUser = !decoded || decoded.deferred.length > 0 || mustResolveStaff || suppliedUser !== undefined
   if (needsUser && canResolveUser) await resolveUser()
-  let attributes: Attributes = { ...unit.attributes }
-  if (hasContext) attributes.path = normalisePath(request.nextUrl.pathname)
-  else delete attributes.path
+  const pathname = hasContext ? request.nextUrl.pathname : undefined
+  let attributes = requestAttributes(unit.attributes, pathname)
   if (needsUser && canResolveUser) {
     try {
-      attributes = { ...attributes, ...runtime.attributesOf(user ?? null) } as Attributes
-      if (hasContext) attributes.path = normalisePath(request.nextUrl.pathname)
-      else delete attributes.path
+      attributes = requestAttributes({ ...attributes, ...runtime.attributesOf(user ?? null) } as Attributes, pathname)
     } catch { userFailed = true }
   }
   const userId = visitorId ? (user === undefined ? unit.userId : user ? runtime.userIdOf(user) : undefined) : undefined

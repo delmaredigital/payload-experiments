@@ -6,7 +6,7 @@ import { XP_HEADER, XP_REQUEST_HEADER } from '../constants.js'
 import { createManifestCache } from '../manifest/cache.js'
 import { assign, fillFlagPoints, type AssignmentResult } from '../runtime/assign.js'
 import { sign } from '../runtime/signing.js'
-import { normalisePath } from '../runtime/normalisePath.js'
+import { normalisePath, requestAttributes } from '../runtime/normalisePath.js'
 import { isBot } from '../runtime/bot.js'
 import { cookieAttributes, encodeUnitCookie, mintUnitId, verifyUnitCookie } from '../runtime/cookie.js'
 import { encodeAssignmentsHeader } from '../runtime/header.js'
@@ -64,7 +64,7 @@ export async function resolveExperiments(request: NextRequest, proxyRuntime: Exp
   }
   const { attributes: unitAttributes, sessionUnknown } = resolvedUnit
   const userId = consent ? resolvedUnit.userId : undefined
-  const attributes: Attributes = { ...unitAttributes, path: normalisePath(request.nextUrl.pathname) }
+  const attributes = requestAttributes(unitAttributes, request.nextUrl.pathname)
   let cache = caches.get(proxyRuntime)
   if (!cache && proxyRuntime.loadManifest) {
     cache = createManifestCache(proxyRuntime.loadManifest)
