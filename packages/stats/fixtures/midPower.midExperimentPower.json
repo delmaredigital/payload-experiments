@@ -1023,7 +1023,77 @@
           }
         ]
       },
-      "name": "non-convergence-grid"
+      "name": "non-convergence-nan-target-power"
+    },
+    {
+      "expected": {
+        "$raises": "ZeroDivisionError"
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {},
+          {
+            "numGoalMetrics": 0
+          }
+        ]
+      },
+      "name": "zero-goal-metrics-raises"
+    },
+    {
+      "expected": {
+        "$raises": "ZeroDivisionError"
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": null,
+            "pairwiseSampleSize": 2300,
+            "pointEstimate": 0.10000000000000009,
+            "standardError": 0.0317623386079513
+          },
+          {
+            "errorMessage": null
+          },
+          {},
+          {
+            "numVariations": 1,
+            "pValueCorrected": true
+          }
+        ]
+      },
+      "name": "zero-tests-raises"
+    },
+    {
+      "expected": {
+        "$raises": "ZeroDivisionError"
+      },
+      "input": {
+        "args": [
+          {
+            "errorMessage": "ZERO_NEGATIVE_VARIANCE",
+            "pairwiseSampleSize": 0,
+            "pointEstimate": 0.0,
+            "standardError": 0.0
+          },
+          {
+            "errorMessage": "ZERO_NEGATIVE_VARIANCE"
+          },
+          {},
+          {
+            "numGoalMetrics": 0
+          }
+        ]
+      },
+      "name": "zero-goal-metrics-before-error-passthrough-raises"
     }
   ],
   "source": {
