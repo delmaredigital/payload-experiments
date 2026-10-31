@@ -174,12 +174,24 @@ test('oldest snapshot first, budget stops before next experiment, zero budget do
   expect(rows.map(row => row.phase.experiment)).toEqual([second.experiment, first.experiment])
   // Advance the clock after the first snapshot write, independent of driver timing.
   const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
-  const originalWrite = snapshotDb.writeSnapshot
-  vi.spyOn(snapshotDb, 'writeSnapshot').mockImplementation(async (...args) => {
+  const originalWrite = snapshotDb.writeSnapshots
+  vi.spyOn(snapshotDb, 'writeSnapshots').mockImplementation(async (...args) => {
     await originalWrite(...args)
-    clock.mockReturnValue(now + 10)
+    clock.mockReturnValue(now + 100)
   })
-  expect(await runResults(context.payload, { budgetMs: 5 })).toMatchObject({ ran: 1, skipped: 1, processedIds: [second.experiment], budgetExhausted: true })
+  expect(await runResults(context.payload, { budgetMs: 100 })).toMatchObject({ ran: 1, skipped: 1, processedIds: [second.experiment], budgetExhausted: true })
   clock.mockReturnValue(now)
-  expect(await runResults(context.payload, { budgetMs: 0 })).toEqual({ ran: 0, skipped: 0, swept: 0, processedIds: [], budgetExhausted: true })
+  expect(await runResults(context.payload, { budgetMs: 0 })).toMatchObject({ ran: 0, skipped: 0, swept: 0, processedIds: [], budgetExhausted: true })
+})
+
+test('ended phases freeze after the late-beacon grace; open phases keep running', async () => {
+  const phase = await seed('visitor', { endedAt: new Date(start + 1000).toISOString() })
+  const context = payload()
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  expect(await runResults(context.payload)).toMatchObject({ ran: 1 })
+  expect(await runResults(context.payload)).toMatchObject({ ran: 0, skipped: 0 })
+  expect(await snapshots()).toHaveLength(1)
+  await database.db.update(xp_phases).set({ endedAt: null }).where(eq(xp_phases.experiment, Number(phase.experiment)))
+  expect(await runResults(context.payload)).toMatchObject({ ran: 1 })
+  expect(await snapshots()).toHaveLength(2)
 })

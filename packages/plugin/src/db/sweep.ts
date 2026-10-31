@@ -18,10 +18,13 @@ export async function sweepEvents(exec: Executor, { now, retentionDays = 180, ba
       SELECT v.${q(c.id)} FROM ${events} v WHERE
         (v.${q(c.experimentId)} IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ${qualifiedTable(exec, TABLES.experiments)} e WHERE e.${q(e.id)} = v.${q(c.experimentId)}))
         OR (v.${q(c.experimentId)} IS NULL AND v.${q(c.type)} <> 'conversion')
-        OR EXISTS (SELECT 1 FROM ${phases} p WHERE p.${q(p.experimentId)} = v.${q(c.experimentId)} AND p.${q(p.phase)} = v.${q(c.phase)} AND p.${q(p.endedAt)} < $1)
+        OR EXISTS (SELECT 1 FROM ${phases} p WHERE p.${q(p.experimentId)} = v.${q(c.experimentId)}
+          GROUP BY p.${q(p.experimentId)} HAVING NOT bool_or(p.${q(p.endedAt)} IS NULL) AND max(p.${q(p.endedAt)}) < $1)
         OR (v.${q(c.experimentId)} IS NULL AND v.${q(c.type)} = 'conversion' AND v.${q(c.ts)} < $1
-          AND NOT EXISTS (SELECT 1 FROM ${phases} p WHERE (p.${q(p.endedAt)} IS NULL OR p.${q(p.endedAt)} >= $1)
-            AND p.${q(p.startedAt)} - interval '14 days' <= v.${q(c.ts)} AND (p.${q(p.endedAt)} IS NULL OR v.${q(c.ts)} < p.${q(p.endedAt)})))
+          AND NOT EXISTS (SELECT 1 FROM ${phases} p WHERE p.${q(p.experimentId)} IS NOT NULL
+            GROUP BY p.${q(p.experimentId)} HAVING (bool_or(p.${q(p.endedAt)} IS NULL) OR max(p.${q(p.endedAt)}) >= $1)
+            AND min(p.${q(p.startedAt)}) - interval '14 days' <= v.${q(c.ts)}
+            AND (bool_or(p.${q(p.endedAt)} IS NULL) OR v.${q(c.ts)} < max(p.${q(p.endedAt)}))))
       ORDER BY v.${q(c.id)} LIMIT $2)`, [cutoff, batchSize])
     swept += result.rowCount
     if (result.rowCount < batchSize) break

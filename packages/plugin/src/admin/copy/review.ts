@@ -2,6 +2,7 @@ import type { RefusalCode } from '../../types/endpoints.js'
 
 // Cover the whole union so newly added start checks cannot ship without editor copy.
 export const REVIEW_HINTS: Record<RefusalCode, string> = {
+  'recompute-failed': 'Try refreshing the results again.',
   'weights-total': 'Set the group percentages to total 100.',
   'control-count': 'Keep exactly one Original group.',
   'control-first': 'Put the Original first.',
@@ -46,6 +47,7 @@ export const REVIEW_HINTS: Record<RefusalCode, string> = {
 }
 
 export const REVIEW_DONE: Record<RefusalCode, string> = {
+  'recompute-failed': 'Results refreshed',
   'weights-total': 'Group percentages total 100',
   'control-count': 'One Original group chosen',
   'control-first': 'Original comes first',

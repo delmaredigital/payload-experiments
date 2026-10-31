@@ -5,7 +5,7 @@ import { pooledExecutor } from '../src/db/executor.js'
 import { createIntegrationHarness } from './harness.js'
 
 // Written for the merged-main Postgres train; never run in the feature lane.
-test('sweep removes ended-phase events in batches and preserves open-phase events', async () => {
+test('sweep keeps test history through an open rollout and deletes after the final end plus retention', async () => {
   const harness = await createIntegrationHarness()
   try {
     const { payload } = harness
@@ -20,9 +20,12 @@ test('sweep removes ended-phase events in batches and preserves open-phase event
     const exec = pooledExecutor(payload)
     await insertEvents(exec, [1, 1, 1, 2].map((phase, n) => ({ type: 'exposure' as const, experimentId: experiment.id, phase,
       arm: 'control', unitId: `retention-${n}`, unitType: 'visitor' as const, ts: '2025-01-01T00:00:00Z', dedupeKey: `retention-${n}` })))
-    expect(await sweepEvents(exec, { now: new Date('2026-10-31T00:00:00Z'), batchSize: 2 })).toBe(3)
+    const finalEnd = new Date('2026-10-31T00:00:00Z')
+    expect(await sweepEvents(exec, { now: finalEnd, batchSize: 2 })).toBe(0)
+    const phases = await payload.find({ collection: 'xp-phases', overrideAccess: true, where: { and: [{ experiment: { equals: experiment.id } }, { phase: { equals: 2 } }] } })
+    await payload.update({ collection: 'xp-phases', id: phases.docs[0]!.id, overrideAccess: true, data: { endedAt: finalEnd.toISOString() } })
+    expect(await sweepEvents(exec, { now: new Date(+finalEnd + 181 * 86_400_000), batchSize: 2 })).toBe(4)
     const { docs } = await payload.find({ collection: 'xp-events', overrideAccess: true, where: { experiment: { equals: experiment.id } } })
-    expect(docs).toHaveLength(1)
-    expect(docs[0]!.phase).toBe(2)
+    expect(docs).toHaveLength(0)
   } finally { await harness.teardown() }
 }, 60_000)

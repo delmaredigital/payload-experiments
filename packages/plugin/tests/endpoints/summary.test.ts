@@ -1,13 +1,17 @@
-import { expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
+import { newestSnapshotIds } from '../../src/db/snapshots.js'
 import { handleSummary } from '../../src/endpoints/summary.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
 import { sampleOptions } from '../collections/fixtures.js'
 import fixture from '../_fixtures/snapshots/T7.json'
 const options = sampleOptions()
+vi.mock('../../src/db/snapshots.js', async original => ({ ...await original<object>(), newestSnapshotIds: vi.fn() }))
+afterEach(() => vi.resetAllMocks())
 
 test('latest snapshot summaries preserve opaque encoded ids and return null verdict before first run', async () => {
   const id = 'opaque, /%+é'
+  vi.mocked(newestSnapshotIds).mockResolvedValue([2])
   const payload = fakePayload({ collections: { 'xp-results-snapshots': [
     { id: 1, experiment: id, phase: 1, computedAt: '2026-10-01T00:00:00Z', snapshot: { ...fixture, exposures: { total: 1 } } },
     { id: 2, experiment: id, phase: 1, computedAt: '2026-10-02T00:00:00Z', snapshot: fixture },
@@ -21,6 +25,8 @@ test('latest snapshot summaries preserve opaque encoded ids and return null verd
   expect(body.draft).toEqual({ exposures: 0, days: 0, verdict: null })
   expect(Object.hasOwn(body, '__proto__')).toBe(true)
   expect(payload.calls[0]!.args).toMatchObject({ req, overrideAccess: false, depth: 0 })
+  expect(payload.calls[0]!.args).toMatchObject({ limit: 1, where: { id: { in: [2] } } })
+  expect(newestSnapshotIds).toHaveBeenCalledWith(expect.anything(), [id, 'draft', '__proto__'], 'experiment')
 })
 
 test.each([
@@ -35,6 +41,8 @@ test.each([
 
 test('100 ids accepted, repeated ids deduplicated in the reader', async () => {
   const payload = fakePayload()
+  vi.mocked(newestSnapshotIds).mockResolvedValue([])
   expect((await handleSummary(fakeReq({ payload, url: `http://localhost/summary?ids=${Array(100).fill('one').join(',')}` }), { options })).status).toBe(200)
-  expect(payload.calls[0]!.args.where).toEqual({ experiment: { in: ['one'] } })
+  expect(newestSnapshotIds).toHaveBeenCalledWith(expect.anything(), ['one'], 'experiment')
+  expect(payload.calls).toEqual([])
 })

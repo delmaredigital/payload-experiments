@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { eq } from 'drizzle-orm'
 import { expect, test } from 'vitest'
 import { sweepEvents } from '../../src/db/sweep.js'
 import { insertEvents, type EventRow } from '../../src/db/events.js'
@@ -17,24 +18,31 @@ test('sweep batches until fewer than batchSize deleted and checks budget between
   await expect(sweepEvents(exec, { now: new Date(), batchSize: 0 })).rejects.toThrow('Invalid retention')
 })
 
-test('PGlite: retention follows endedAt, keeps open phases and sweeps NULL orphans in batches', async () => {
+test('PGlite: an old stopped test plus open rollout keeps all rows until final endedAt + 180 days', async () => {
   const database = await createPgliteDb()
   try {
     const exec = pooledExecutor({ db: { drizzle: database.db } } as unknown as Payload)
     const [experiment] = await database.db.insert(xp_experiments).values({ name: 'Sweep', slug: 'sweep', kind: 'code', exposurePolicy: 'manual' }).returning()
     const id = experiment!.id, now = new Date('2026-10-31T00:00:00Z')
-    for (const [phase, endedAt] of [[1, '2026-01-02T00:00:00Z'], [2, null], [3, '2026-10-30T00:00:00Z'], [4, '2026-05-04T00:00:00Z']] as const) {
-      await database.db.insert(xp_phases).values({ experiment: id, phase, phaseKind: 'test', seed: 'sweep|', startedAt: '2026-01-01T00:00:00Z', endedAt })
+    for (const [phase, endedAt] of [[1, '2026-01-02T00:00:00Z'], [2, null]] as const) {
+      await database.db.insert(xp_phases).values({ experiment: id, phase, phaseKind: phase === 1 ? 'test' : 'rollout', seed: 'sweep|', startedAt: '2026-01-01T00:00:00Z', endedAt })
     }
     let serial = 0
     const event = (overrides: Partial<EventRow>): EventRow => ({ type: 'exposure', experimentId: id, phase: 1, arm: 'control', unitId: 'a', unitType: 'visitor', ts: '2026-01-01T00:00:00Z', dedupeKey: `sweep-${++serial}`, ...overrides })
-    await insertEvents(exec, [event({}), event({}), event({ phase: 2 }), event({ phase: 3 }), event({ phase: 4 }),
+    await insertEvents(exec, [event({}), event({}), event({ phase: 2 }),
       event({ experimentId: undefined }), event({ experimentId: undefined, type: 'arm-mismatch' }),
       event({ experimentId: undefined, type: 'conversion', eventName: 'signup', value: 1 }),
       event({ experimentId: undefined, type: 'conversion', eventName: 'signup', value: 1, ts: '2025-12-31T00:00:00Z' })])
-    expect(await sweepEvents(exec, { now, batchSize: 2 })).toBe(4)
+    expect(await sweepEvents(exec, { now, batchSize: 2 })).toBe(2)
     const remaining = await database.db.select().from(xp_events)
-    expect(remaining.map(row => row.phase).sort()).toEqual([1, 1, 2, 3, 4])
+    expect(remaining.map(row => row.phase).sort()).toEqual([1, 1, 1, 1, 2])
     expect(remaining.filter(row => row.type === 'conversion')).toHaveLength(2)
+    // Release holdout: the final end starts the clock for every event, including
+    // the old test history needed by rollout's first-ever exposure rule.
+    await database.db.update(xp_phases).set({ endedAt: now.toISOString() }).where(eq(xp_phases.phase, 2))
+    const expires = new Date(+now + 180 * 86_400_000)
+    expect(await sweepEvents(exec, { now: expires, batchSize: 2 })).toBe(0)
+    expect(await sweepEvents(exec, { now: new Date(+expires + 1), batchSize: 2 })).toBe(5)
+    expect(await database.db.select().from(xp_events)).toEqual([])
   } finally { await database.close() }
 }, 60_000)

@@ -133,8 +133,64 @@ export async function ownConnection(pool: Pool): Promise<Executor & { release(er
   }
 }
 
-export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec: Executor) => Promise<T>): Promise<T> {
+export const RESULTS_TIMEOUT_MARGIN_MS = 10
+export class ResultsBudgetError extends Error {
+  override name = 'ResultsBudgetError'
+  constructor() { super('Results budget exhausted') }
+}
+
+/** Invoke lazily so expired work never starts. Promise.race observes late source
+ * rejections too; clearing the timer keeps successful cron calls from lingering. */
+export async function raceDeadline<T>(deadline: number, work: () => Promise<T>): Promise<T> {
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) throw new ResultsBudgetError()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([Promise.resolve().then(work), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new ResultsBudgetError()), remaining)
+    })])
+  } finally { clearTimeout(timer) }
+}
+
+export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec: Executor) => Promise<T>, deadline?: number): Promise<T> {
   if (!Number.isSafeInteger(ms) || ms <= 0) throw new RangeError('statement timeout must be a positive integer')
+  if (deadline !== undefined) {
+    if (deadline - Date.now() <= RESULTS_TIMEOUT_MARGIN_MS) throw new ResultsBudgetError()
+    let abandoned = false
+    const connection = Promise.resolve().then(() => pool.connect()).then(client => {
+      if (abandoned) { client.release(new ResultsBudgetError()); throw new ResultsBudgetError() }
+      return client
+    })
+    let client: PoolClient
+    try { client = await raceDeadline(deadline, () => connection) }
+    catch (error) { abandoned = true; throw error }
+    const exec = pgPoolExecutor(client)
+    let releaseError: Error | undefined
+    try {
+      return await raceDeadline(deadline, async () => {
+        if (deadline - Date.now() <= RESULTS_TIMEOUT_MARGIN_MS) throw new ResultsBudgetError()
+        await exec.query('BEGIN')
+        const timeout = Math.min(ms, Math.floor(deadline - Date.now() - RESULTS_TIMEOUT_MARGIN_MS))
+        if (timeout <= 0) throw new ResultsBudgetError()
+        await exec.query(`SET LOCAL statement_timeout = ${timeout}`)
+        if (deadline - Date.now() <= RESULTS_TIMEOUT_MARGIN_MS) throw new ResultsBudgetError()
+        const result = await fn(exec)
+        if (Date.now() >= deadline) throw new ResultsBudgetError()
+        await exec.query('COMMIT')
+        return result
+      })
+    } catch (error) {
+      const failure = error && typeof error === 'object' && 'code' in error && error.code === '57014' ? new ResultsBudgetError() : error
+      releaseError = failure instanceof Error ? failure : new Error('Query failed', { cause: failure })
+      // Destroy timed-out clients immediately, including BEGIN/SET/COMMIT hangs.
+      // A rollback cannot be allowed to extend the caller's deadline either.
+      if (!(failure instanceof ResultsBudgetError)) {
+        try { await raceDeadline(deadline, () => exec.query('ROLLBACK')) }
+        catch { /* release(error) discards the connection and rolls back server-side */ }
+      }
+      throw failure
+    } finally { client.release(releaseError) }
+  }
   const exec = await ownConnection(pool)
   let releaseError: Error | undefined
   try {

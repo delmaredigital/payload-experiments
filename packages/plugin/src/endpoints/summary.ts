@@ -11,7 +11,7 @@ export async function handleSummary<TUser extends { id: string | number } = { id
   } catch { return resultsError(400, 'invalid-body', 'Could not parse experiment ids') }
   if (ids.length > 100) return resultsError(422, 'too-many-ids', 'Request at most 100 experiments')
   if (ids.some(id => !id.trim())) return resultsError(422, 'invalid-ids', 'Experiment ids must be nonempty')
-  const snapshots = await readSnapshots(req, [...new Set(ids)])
+  const snapshots = await readSnapshots(req, [...new Set(ids)], { per: 'experiment' })
   const response: SummaryResponse = Object.create(null)
   for (const id of ids) {
     const snapshot = snapshots.find(row => String(typeof row.experiment === 'object' ? row.experiment.id : row.experiment) === id)?.snapshot

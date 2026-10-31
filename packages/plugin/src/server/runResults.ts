@@ -1,16 +1,18 @@
 import type { Payload } from 'payload'
 import type { DocId } from '../types/contracts.js'
 import type { ResolvedOptions } from '../types/contracts.js'
-import { resultsCandidates, resultsExecutor, writeSnapshot, type ResultsCandidate } from '../db/snapshots.js'
+import { resultsCandidates, resultsExecutor, writeSnapshots, type ResultsCandidate } from '../db/snapshots.js'
 import { sweepEvents } from '../db/sweep.js'
 import { armMismatchCount, identityRows, metricEventRows, phaseExposureRows, rolloutExposureRows } from '../db/results.js'
 import type { Executor } from '../db/executor.js'
+import { raceDeadline, ResultsBudgetError, RESULTS_TIMEOUT_MARGIN_MS } from '../db/executor.js'
 import { analysePhase, type MetricUnitData } from '../results/analyse.js'
 import { firstExposures, perUnitValues, timestampMs, type MetricEvent } from '../results/aggregate.js'
 import { rolloutAnalysisUnits } from '../results/rolloutUnits.js'
 import { creditUserEvents } from '../results/identityCredit.js'
 
-async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, options: ResolvedOptions, now: Date) {
+type UnavailableMetric = { experimentId: DocId; phase: number; metricId: DocId; reason: string }
+async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, options: ResolvedOptions, now: Date, deadline: number, unavailableMetrics: UnavailableMetric[]) {
   const { phase } = candidate
   // Rollout assignment preserves the original test ranges, but its SRM compares
   // only the shipped group against holdout with weights {100-h, h}.
@@ -44,6 +46,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
   const metricData: MetricUnitData[] = []
   for (const definition of phase.metricDefinitions) {
     try {
+      if (Date.now() >= deadline) throw new ResultsBudgetError()
       const kind = definition.kind
       const windowHours = phase.analysis.attributionWindowHours ?? definition.attributionWindowHours ?? 168
       const from = new Date([...units.values()].reduce((earliest, unit) => Math.min(earliest, +unit.firstTs), timestampMs(phase.startedAt)))
@@ -69,7 +72,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
         const userKeyed = source.keyedBy === 'user' && candidate.unitType === 'visitor'
         if (candidate.unitType === 'user' && source.keyedBy !== 'user') throw new Error('Metric unit type unavailable')
         const sourceIds = userKeyed ? userIds : ids
-        events = credit(await source.query({ from, to, unitIds: sourceIds }), userKeyed)
+        events = credit(await raceDeadline(deadline, () => source.query({ from, to, unitIds: sourceIds })), userKeyed)
         if (phase.analysis.cuped === 'auto' && source.covariate) {
           const sourceUnits = userKeyed
             ? creditUserEvents(units, identities, userIds.map(userId => ({ userId, ts: now, value: 0 }))).events.map(event => ({
@@ -77,7 +80,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
               firstExposureTs: units.get(event.unitId)!.firstTs,
             }))
             : [...units].map(([unitId, unit]) => ({ unitId, firstExposureTs: unit.firstTs }))
-          const pre = await source.covariate({ units: sourceUnits, lookbackDays: 14 })
+          const pre = await raceDeadline(deadline, () => source.covariate!({ units: sourceUnits, lookbackDays: 14 }))
           if (pre.some(row => !Number.isFinite(row.value))) throw new Error('Covariates must be finite')
           const credited = credit(pre.map(row => ({ ...row, ts: now })), userKeyed)
           covariates = new Map(credited.map(row => [row.unitId, row.value]))
@@ -86,7 +89,10 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
       if (events.some(event => !Number.isFinite(event.value))) throw new Error('Metric values must be finite')
       metricData.push({ metricId: definition.metricId, values: perUnitValues(units, events, { kind, windowHours, endedAt: to }), ...(covariates ? { covariates } : {}) })
     } catch (error) {
-      metricData.push({ metricId: definition.metricId, values: new Map(), unavailable: error instanceof Error ? error.message : 'Metric source unavailable' })
+      const reason = error instanceof Error ? error.message : 'Metric source unavailable'
+      metricData.push({ metricId: definition.metricId, values: new Map(), unavailable: reason })
+      if (unavailableMetrics.length < 100) unavailableMetrics.push({ experimentId: phase.experiment, phase: phase.phase, metricId: definition.metricId, reason })
+      if (error instanceof ResultsBudgetError || Date.now() >= deadline) throw new ResultsBudgetError()
     }
   }
   const status = phase.endedAt != null || candidate.status === 'archived' ? 'stopped' : candidate.status
@@ -95,20 +101,30 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
     identityConflictShare: userIds.length ? diagnostics.conflicts / userIds.length : 0,
     ...(phase.phaseKind === 'rollout' ? { winnerArm: phase.arms.find(arm => arm.kind !== 'holdout')!.key } : {}),
   })
-  await writeSnapshot(exec, snapshot)
+  return snapshot
 }
 
-export async function runResults(payload: Payload, { budgetMs = 20_000, experimentId }: { budgetMs?: number; experimentId?: DocId } = {}): Promise<{
-  ran: number; skipped: number; swept: number; processedIds: DocId[]; budgetExhausted: boolean
+export async function runResults(payload: Payload, { budgetMs = 20_000, experimentId, sweep = true }: { budgetMs?: number; experimentId?: DocId; sweep?: boolean } = {}): Promise<{
+  ran: number; skipped: number; swept: number; processedIds: DocId[]; budgetExhausted: boolean; unavailableMetrics?: UnavailableMetric[]; sweepAttempted?: boolean
 }> {
   if (!Number.isFinite(budgetMs) || budgetMs < 0) throw new RangeError('budgetMs must be finite and nonnegative')
   const started = Date.now(), deadline = started + budgetMs, now = new Date(started)
-  const summary = { ran: 0, skipped: 0, swept: 0, processedIds: [] as DocId[], budgetExhausted: false }
+  const summary = { ran: 0, skipped: 0, swept: 0, processedIds: [] as DocId[], budgetExhausted: false, unavailableMetrics: [] as UnavailableMetric[], sweepAttempted: false }
   if (budgetMs === 0) return { ...summary, budgetExhausted: true }
   const options = payload.config.custom?.xp as ResolvedOptions
   const retentionDays = options.events?.retentionDays ?? 180
-  const exec = resultsExecutor(payload, () => Math.min(5000, deadline - Date.now()))
-  const candidates = await resultsCandidates(exec, { cutoff: new Date(started - retentionDays * 86_400_000).toISOString(), experimentId })
+  // Reserve up to one second (25% of short runs) for retention, even when host
+  // code never settles. The safety margin also leaves time to return the summary.
+  const analysisDeadline = deadline - (sweep ? Math.min(1000, budgetMs / 4) : 0) - RESULTS_TIMEOUT_MARGIN_MS
+  const exec = resultsExecutor(payload, () => analysisDeadline - Date.now())
+  let candidates: ResultsCandidate[] = []
+  try {
+    candidates = await resultsCandidates(exec, { cutoff: new Date(started - retentionDays * 86_400_000).toISOString(), experimentId })
+  } catch (error) {
+    summary.skipped++
+    summary.budgetExhausted = error instanceof ResultsBudgetError
+    payload.logger.error({ err: error, experimentId }, 'Experiment scheduling failed')
+  }
   // Query order is oldest phase snapshot first; grouping keeps each experiment's
   // phases together while preserving that scheduling priority.
   const experiments = new Map<DocId, ResultsCandidate[]>()
@@ -117,22 +133,34 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
     experiments.set(id, [...(experiments.get(id) ?? []), candidate])
   }
   for (const [id, phases] of experiments) {
-    if (Date.now() >= deadline) { summary.skipped += experiments.size - summary.ran - summary.skipped; break }
+    if (Date.now() >= analysisDeadline) { summary.budgetExhausted = true; summary.skipped += experiments.size - summary.ran - summary.skipped; break }
     try {
+      const snapshots = []
       for (const phase of phases) {
-        if (Date.now() >= deadline) throw new Error('Results budget exhausted')
-        await analyseCandidate(exec, phase, options, now)
+        if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
+        snapshots.push(await analyseCandidate(exec, phase, options, now, analysisDeadline, summary.unavailableMetrics))
       }
+      if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
+      await writeSnapshots(exec, snapshots)
       summary.ran++
       if (summary.processedIds.length < 100) summary.processedIds.push(id)
     } catch (error) {
       summary.skipped++
+      summary.budgetExhausted ||= error instanceof ResultsBudgetError
       payload.logger.error({ err: error, experimentId: id }, 'Experiment results failed')
     }
   }
-  try {
-    summary.swept = await sweepEvents(exec, { now, retentionDays, shouldContinue: () => Date.now() < deadline })
-  } catch (error) { payload.logger.error({ err: error }, 'Experiment retention sweep failed') }
-  summary.budgetExhausted = Date.now() >= deadline
+  if (sweep) {
+    summary.sweepAttempted = true
+    const sweepDeadline = deadline - RESULTS_TIMEOUT_MARGIN_MS
+    try {
+      const sweepExec = resultsExecutor(payload, () => sweepDeadline - Date.now())
+      summary.swept = await sweepEvents(sweepExec, { now, retentionDays, shouldContinue: () => Date.now() < sweepDeadline })
+    } catch (error) {
+      summary.budgetExhausted ||= error instanceof ResultsBudgetError
+      payload.logger.error({ err: error }, 'Experiment retention sweep failed')
+    }
+  }
+  summary.budgetExhausted ||= Date.now() >= deadline
   return summary
 }
