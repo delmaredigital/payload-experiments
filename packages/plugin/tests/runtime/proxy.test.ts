@@ -8,6 +8,9 @@ import { encodeUnitCookie, verifyUnitCookie } from '../../src/runtime/cookie.js'
 import * as header from '../../src/runtime/header.js'
 import { signPreviewToken } from '../../src/runtime/previewToken.js'
 import { defineExperimentsProxyRuntime } from '../../src/runtime/proxyRuntime.js'
+import * as assignment from '../../src/runtime/assign.js'
+import * as cookies from '../../src/runtime/cookie.js'
+import { skipPath } from '../../src/proxy/skip.js'
 
 type ManifestRule = Manifest['experiments'][number]['targeting'][number]
 /** A manifest targeting rule; the compiled manifest stamps each rule with its attribute type (CORE-05b). */
@@ -80,6 +83,90 @@ test('consent false mints nothing and serves non-exposable control', async () =>
   expect(result.requestHeaders.has('cookie')).toBe(false)
   expect(decode(result, m).bySlug.hero).toMatchObject({ arm: 'control', exposable: false })
 })
+test.each(['xp_id', 'custom_id'])('consent refusal runs before reading %s and removes every forwarded identifier', async name => {
+  const m = manifest([page()]), req = request('/original', { headers: {
+    cookie: `other=keep%3Bencoded; ${name}=${encodeUnitCookie('visitor', secrets)}; ${name}=duplicate`,
+  } })
+  const verify = vi.spyOn(cookies, 'verifyUnitCookie'), mint = vi.spyOn(cookies, 'mintUnitId')
+  const consent = vi.fn(() => false)
+  const result = await resolveExperiments(req, runtime(m, { cookie: { name, consent } }))
+  expect(consent).toHaveBeenCalledExactlyOnceWith(req)
+  expect(verify).not.toHaveBeenCalled()
+  expect(mint).not.toHaveBeenCalled()
+  expect(result.requestHeaders.get('cookie')).toBe('other=keep%3Bencoded')
+  expect(result.requestCookies).toEqual([])
+  expect(result.setCookies).toEqual([])
+  expect(result.rewrite).toBeUndefined()
+  expect(decode(result, m).bySlug.hero).toMatchObject({ arm: 'control', exposable: false })
+})
+test('consent false removes user identity and signs every user/session experiment as control!', async () => {
+  const m = manifest([
+    experiment({ unitType: 'user', deferrable: true }),
+    experiment({ slug: 'session', deferrable: true, targeting: [rule('loggedIn', 'eq', true)] }),
+  ])
+  const assign = vi.spyOn(assignment, 'assign')
+  const result = await resolveExperiments(signedRequest(), runtime(m, {
+    cookie: { consent: () => false }, getUnit: () => ({ userId: 'user-1', attributes: {}, sessionUnknown: true }),
+  }))
+  expect(assign).toHaveBeenCalledTimes(1)
+  expect(assign.mock.calls[0]![1]).toMatchObject({ visitorId: undefined, userId: undefined })
+  const decoded = decode(result, m)
+  expect(decoded.deferred).toEqual([])
+  expect(Object.values(decoded.bySlug)).toHaveLength(2)
+  expect(Object.values(decoded.bySlug).every(entry => entry.arm === 'control' && !entry.exposable)).toBe(true)
+  expect(result.requestHeaders.has('cookie')).toBe(false)
+})
+test('consent refusal suppresses preview forcing and archived winner rewrites', async () => {
+  const m = manifest([page()])
+  m.archivedPages['/archived'] = { slug: 'archived', winnerPath: '/winner' }
+  const token = signPreviewToken({ e: 'e1', a: 'variantA', p: 1, exp: Math.floor(Date.now() / 1000) + 60 }, secrets)
+  const rt = runtime(m, { cookie: { consent: () => false } })
+  const result = await resolveExperiments(signedRequest(`/original?xp_preview=${token}`), rt)
+  expect(decode(result, m).bySlug.hero).toMatchObject({ arm: 'control', exposable: false })
+  expect(result.rewrite).toBeUndefined()
+  expect((await resolveExperiments(signedRequest('/archived'), rt)).rewrite).toBeUndefined()
+})
+test.each(['sync', 'async'])('getUnit %s error logs once and defers unknown sessions', async mode => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const m = manifest([
+    experiment({ slug: 'session', deferrable: true, targeting: [rule('loggedIn', 'eq', true)] }),
+    experiment(),
+  ])
+  const getUnit = mode === 'sync' ? () => { throw new Error('malformed session') }
+    : async () => { throw new Error('malformed session') }
+  const result = await resolveExperiments(signedRequest(), runtime(m, { getUnit }))
+  expect(error).toHaveBeenCalledTimes(1)
+  expect(decode(result, m, 'visitor')).toMatchObject({ sessionUnknown: true, deferred: ['session'], bySlug: { hero: { exposable: true } } })
+})
+test('consent error logs once, processes no identifier and serves control for user experiments', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const verify = vi.spyOn(cookies, 'verifyUnitCookie'), m = manifest([experiment({ unitType: 'user' })])
+  const result = await resolveExperiments(signedRequest(), runtime(m, {
+    cookie: { consent: () => { throw new Error('malformed consent') } },
+    getUnit: () => ({ userId: 'user-1', attributes: {} }),
+  }))
+  expect(error).toHaveBeenCalledTimes(1)
+  expect(verify).not.toHaveBeenCalled()
+  expect(result.requestHeaders.has('cookie')).toBe(false)
+  expect(result.setCookies).toEqual([])
+  expect(decode(result, m).bySlug.hero).toMatchObject({ arm: 'control', exposable: false })
+})
+test('assign error logs once, signs all controls, suppresses preview forcing and every rewrite', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const m = manifest([page(), experiment({ id: 'broken', slug: 'broken', seed: 'invalid-seed' })])
+  m.archivedPages['/archived'] = { slug: 'archived', winnerPath: '/winner' }
+  const token = signPreviewToken({ e: 'e1', a: 'variantA', p: 1, exp: Math.floor(Date.now() / 1000) + 60 }, secrets)
+  const rt = runtime(m)
+  const result = await resolveExperiments(signedRequest(`/original?xp_preview=${token}`), rt)
+  expect(error).toHaveBeenCalledTimes(1)
+  const decoded = decode(result, m, 'visitor')
+  expect(Object.values(decoded.bySlug)).toHaveLength(2)
+  expect(Object.values(decoded.bySlug).every(entry => entry.arm === 'control' && !entry.exposable)).toBe(true)
+  expect(decoded.deferred).toEqual([])
+  expect(result.rewrite).toBeUndefined()
+  expect((await resolveExperiments(signedRequest('/archived'), rt)).rewrite).toBeUndefined()
+  expect(error).toHaveBeenCalledTimes(2)
+})
 test.each(['http:', 'https:'])('cookie attributes use Secure only on https (%s)', async protocol => {
   const result = await resolveExperiments(new NextRequest(`${protocol}//example.com/`), runtime(manifest(), {
     cookie: { name: 'custom_id', maxAgeDays: 30, domain: '.example.com' },
@@ -145,6 +232,19 @@ test.each(['/original', '/variant'])('page request %s rewrites to assigned arm a
   const result = await resolveExperiments(signedRequest(`${path}?q=1`), runtime(manifest([page()])))
   expect(result.rewrite?.href).toBe('https://example.com/variant?q=1')
 })
+test.each(['live', 'fallback', 'archived'])('%s rewrite preserves basePath, locale and query while matching nextUrl.pathname', async mode => {
+  const m = manifest(mode === 'archived' ? [] : [page()])
+  if (mode === 'fallback') m.experiments[0]!.arms[1]!.pageTarget = undefined
+  if (mode === 'archived') m.archivedPages['/original'] = { slug: 'archived', winnerPath: '/winner' }
+  const req = new NextRequest('https://example.com/base/fr/original?q=1', {
+    headers: { cookie: `xp_id=${encodeUnitCookie('visitor', secrets)}` },
+    nextConfig: { basePath: '/base', i18n: { locales: ['en', 'fr'], defaultLocale: 'en' } },
+  })
+  expect(req.nextUrl.pathname).toBe('/original')
+  const result = await resolveExperiments(req, runtime(m))
+  expect(result.rewrite?.href).toBe(`https://example.com/base/fr/${mode === 'live' ? 'variant' : mode === 'fallback' ? 'original' : 'winner'}?q=1`)
+  expect(req.nextUrl.pathname).toBe('/original')
+})
 test('holdout page assignment serves the control page and remains measurable', async () => {
   const m = manifest([page({ arms: [
     { key: 'control', kind: 'control', weight: 0, pageTarget: '/original' }, { key: 'holdout', kind: 'holdout', weight: 100 },
@@ -208,15 +308,33 @@ test.each(['tampered', 'expired', 'phase', 'experiment', 'arm'])('invalid previe
   expect(decode(result, m, 'visitor').preview).toBe(false)
   expect(result.responseHeaders).toBeUndefined()
 })
-test.each(['/admin', '/admin/collections', '/_next', '/_next/static/a', '/api', '/api/xp/events', '/logo.png', '/assets/file.woff2'])('skip %s changes nothing and calls no adapters', async path => {
-  const loadManifest = vi.fn(), getUnit = vi.fn(), req = request(path, { headers: { 'x-xp-anything': 'untouched', cookie: 'other=keep' } })
+test.each(['/admin', '/admin/collections', '/_next', '/_next/static/a', '/api', '/api/xp/events', '/logo.png', '/assets/file.woff2'])('skip %s strips xp headers and calls no adapters', async path => {
+  const loadManifest = vi.fn(), getUnit = vi.fn(), req = request(path, { headers: { 'x-xp-anything': 'attacker', 'x-xp-assignments': 'attacker', cookie: 'other=keep' } })
   const result = await resolveExperiments(req, runtime(manifest(), { loadManifest, getUnit }))
-  expect([...result.requestHeaders]).toEqual([...req.headers])
+  const expected = new Headers(req.headers)
+  expected.delete('x-xp-anything')
+  expected.delete('x-xp-assignments')
+  expect([...result.requestHeaders]).toEqual([...expected])
   expect(result.setCookies).toEqual([])
   expect(result.requestCookies).toEqual([])
   expect(result.rewrite).toBeUndefined()
   expect(loadManifest).not.toHaveBeenCalled()
   expect(getUnit).not.toHaveBeenCalled()
+})
+test.each('js mjs css map png jpg jpeg gif webp avif svg ico woff woff2 ttf otf eot txt xml json pdf webmanifest mp4 webm mp3 wav'.split(' '))('only an explicit final asset extension is skipped (%s)', extension => {
+  expect(skipPath(`/assets/file.${extension}`, '/api')).toBe(true)
+  expect(skipPath(`/assets/file.${extension.toUpperCase()}`, '/api')).toBe(true)
+  expect(skipPath(`/assets/file.${extension}/page`, '/api')).toBe(false)
+})
+test.each(['/blog/v1.2', '/users/john.doe', '/docs/next.js'])('dotted page route %s still assigns experiments', async path => {
+  const result = await resolveExperiments(request(path), runtime())
+  expect(result.setCookies).toHaveLength(1)
+  expect(result.requestHeaders.has('x-xp-assignments')).toBe(true)
+})
+test.each(['', '/'])('API prefix %j never skips every route', async apiRoute => {
+  const result = await resolveExperiments(request('/pricing'), runtime(manifest(), { apiRoute }))
+  expect(result.setCookies).toHaveLength(1)
+  expect(result.requestHeaders.has('x-xp-assignments')).toBe(true)
 })
 test('skip respects custom API prefix and segment boundaries', async () => {
   const rt = runtime(manifest(), { apiRoute: '/backend/' })

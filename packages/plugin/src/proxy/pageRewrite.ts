@@ -1,18 +1,19 @@
 import type { AssignmentResult } from '../runtime/assign.js'
 import type { Manifest } from '../types/manifest.js'
+import type { NextRequest } from 'next/server'
 
 // Manifest targets are local paths. A malformed target must never become an open rewrite.
-function targetURL(path: string | undefined, requestURL: URL): URL | undefined {
+function targetURL(path: string | undefined, requestURL: NextRequest['nextUrl']): URL | undefined {
   if (!path?.startsWith('/') || path.startsWith('//') || /[\\\r\n?#]/.test(path)) return undefined
   try {
-    const url = new URL(path, requestURL)
+    const url = requestURL.clone()
+    url.pathname = path
     if (url.origin !== requestURL.origin) return undefined
-    url.search = requestURL.search
-    return url
+    return new URL(url.href)
   } catch { return undefined }
 }
 
-export function pageRewrite(manifest: Manifest, assignments: AssignmentResult, requestURL: URL): URL | undefined {
+export function pageRewrite(manifest: Manifest, assignments: AssignmentResult, requestURL: NextRequest['nextUrl']): URL | undefined {
   const experiment = manifest.experiments.find(experiment => experiment.kind === 'page'
     && (experiment.status === 'running' || experiment.status === 'decided')
     && experiment.arms.some(arm => arm.pageTarget === requestURL.pathname))
