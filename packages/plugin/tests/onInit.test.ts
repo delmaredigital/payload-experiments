@@ -54,3 +54,12 @@ test('default attributesOf starts when staff is not declared', async () => {
   Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
   await expect(createOnInit(options)(payload)).resolves.toBeUndefined()
 })
+
+test('the host attributesOf flag survives resolveOptions, so a configured staff host starts', async () => {
+  const base = sampleOptions()
+  const runtime = defineExperimentsServerRuntime(base.runtime.proxyRuntime, { getPayload: base.runtime.getPayload, attributesOf: user => ({ staff: Boolean(user) }) })
+  const options = resolveOptions({ ...base, runtime, attributeKeys: { ...base.attributeKeys, staff: { type: 'boolean' } } })
+  const payload = fakePayload()
+  Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
+  await expect(createOnInit(options)(payload)).resolves.toBeUndefined()
+})
