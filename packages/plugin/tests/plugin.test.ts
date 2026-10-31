@@ -55,6 +55,14 @@ test('unknown puck collection fails at config time', async () => {
   expect(() => createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'] })).toThrow('Unknown experiments puck collection: missing')
 })
 
+test('object registrations install the wrapped hook and retain the custom field', async () => {
+  const options = sampleOptions()
+  options.puck = { enabled: true, collections: [{ slug: 'templates', field: 'content' }] }
+  const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [{ slug: 'templates', fields: [] }] })
+  expect(config.collections?.[0]?.hooks?.afterChange).toEqual([contentChangesHook])
+  expect(config.custom?.xp.puck.collections).toEqual([{ slug: 'templates', field: 'content' }])
+})
+
 test('disabled puck leaves the listed collection hooks alone', async () => {
   const previous = vi.fn()
   const pages = { slug: 'pages', fields: [], hooks: { afterChange: [previous] } }

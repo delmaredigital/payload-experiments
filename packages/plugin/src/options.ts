@@ -1,6 +1,20 @@
 import { DEFAULT_MAX_BODY_BYTES } from './constants.js'
 import type { ExperimentsPluginOptions, ResolvedOptions } from './types/contracts.js'
 
+const normalisedCollections = new WeakMap<NonNullable<ExperimentsPluginOptions['puck']>['collections'], Array<{ slug: string; field: string }>>()
+
+/** Resolve once per registration list; every consumer shares the same field defaults. */
+export function puckCollections(options: Pick<ExperimentsPluginOptions, 'puck'>): Array<{ slug: string; field: string }> {
+  const entries = options.puck?.collections
+  if (!entries) return []
+  const cached = normalisedCollections.get(entries)
+  if (cached) return cached
+  const resolved = entries.map(entry => typeof entry === 'string' ? { slug: entry, field: 'puckData' } : { slug: entry.slug, field: entry.field ?? 'puckData' })
+  normalisedCollections.set(entries, resolved)
+  normalisedCollections.set(resolved, resolved)
+  return resolved
+}
+
 export function resolveOptions<TUser extends { id: string | number }>(input: ExperimentsPluginOptions<TUser>): ResolvedOptions<TUser> {
   if (typeof input?.access?.manage !== 'function') throw new Error('Experiments access.manage must be a function')
   const { manage, admin = manage, readResults = manage, readIdentities = admin } = input.access
@@ -34,6 +48,6 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
     flagPoints: [...(input.flagPoints ?? [])], metricSources: [...(input.metricSources ?? [])], eventSources: [...(input.eventSources ?? [])],
     attributeKeys: Object.fromEntries(Object.entries(input.attributeKeys ?? {}).map(([key, attribute]) => [key, { ...attribute, ...(attribute.values ? { values: [...attribute.values] } : {}) }])),
     events: { ...input.events, retentionDays, maxBodyBytes },
-    puck: { ...input.puck, enabled: input.puck?.enabled ?? Boolean(input.puck?.collections?.length), collections: [...(input.puck?.collections ?? [])] },
+    puck: { ...input.puck, enabled: input.puck?.enabled ?? Boolean(input.puck?.collections?.length), collections: puckCollections(input) },
   }
 }

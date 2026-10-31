@@ -4,12 +4,13 @@ import { buildCollections } from './collections/index.js'
 import { buildEndpoints } from './endpoints/index.js'
 import { contentChangesHook } from './hooks/contentChanges.js'
 import { createOnInit } from './onInit.js'
-import { resolveOptions } from './options.js'
+import { puckCollections, resolveOptions } from './options.js'
 
 export function createExperimentsPlugin<TUser extends { id: string | number } = { id: string | number }>(input: ExperimentsPluginOptions<TUser>): Plugin {
   const options = resolveOptions(input)
   return config => {
-    for (const slug of options.puck?.collections ?? []) {
+    const registrations = puckCollections(options)
+    for (const { slug } of registrations) {
       if (!config.collections?.some(collection => collection.slug === slug)) throw new Error(`Unknown experiments puck collection: ${slug}`)
     }
     // The frozen factories consume registration/access metadata, never TUser callbacks.
@@ -19,7 +20,7 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
     return {
       ...config,
       collections: [
-        ...(config.collections ?? []).map(collection => options.puck?.enabled && options.puck.collections.includes(collection.slug) ? {
+        ...(config.collections ?? []).map(collection => options.puck?.enabled && registrations.some(entry => entry.slug === collection.slug) ? {
           ...collection, hooks: { ...collection.hooks, afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook] },
         } : collection),
         ...collections,

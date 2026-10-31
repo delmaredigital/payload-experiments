@@ -41,7 +41,7 @@ export interface ExperimentsPluginOptions<TUser extends { id: string | number } 
   eventSources?: string[]
   flagPoints?: FlagPoint[]
   attributeKeys?: Record<string, { type: 'string' | 'number' | 'boolean'; values?: string[] }>
-  puck?: { enabled: boolean; collections: string[] }
+  puck?: { enabled: boolean; collections: Array<string | { slug: string; field?: string }> }
   events?: { retentionDays?: number; maxBodyBytes?: number; rateLimit?: RateLimiter }
 }
 /** Options required by the route table; CORE-02c resolves optional defaults. */
