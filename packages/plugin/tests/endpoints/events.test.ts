@@ -298,7 +298,7 @@ test('uses exposure and client-conversion namespaces and one batch on the pooled
   const req = f.request()
   req.transactionID = 'unrelated-transaction'
   await accepted(await f.run(req))
-  expect(stored().map(row => row.dedupeKey)).toEqual(['exposure:42:1:variantA:visitor:2026-10-31', 'conversion:c:key'])
+  expect(stored().map(row => row.dedupeKey)).toEqual(['exposure:42:1:variantA:visitor:2026-10-31', 'conversion:c:visitor:' + conversion.eventName + ':key'])
   expect(insert).toHaveBeenCalledOnce()
   const exec = insert.mock.calls[0]![0]
   await exec.query('SELECT 1')

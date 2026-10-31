@@ -44,8 +44,8 @@ export function eventRows<TUser extends { id: string | number }>(events: unknown
       if (source ? source.clientWritable !== true || source.kind === 'revenue' : !options.eventSources?.includes(event.eventName)) continue
       row = { type: 'conversion', eventName: event.eventName, value: 1, unitId: visitorId, unitType: 'visitor', userId, ts,
         attributes: attributes(event.attributes, options.attributeKeys),
-        // CORE-08b brief explicitly selects the client namespace with the supplied key.
-        dedupeKey: `conversion:c:${event.idempotencyKey}` }
+        // §5.5: scoped by unit and event so one client can never pre-claim another's key.
+        dedupeKey: `conversion:c:${visitorId}:${event.eventName}:${event.idempotencyKey}` }
     } else continue
     rows.set(row.dedupeKey, row)
   }
