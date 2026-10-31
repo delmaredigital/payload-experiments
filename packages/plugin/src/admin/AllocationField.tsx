@@ -6,6 +6,7 @@ import { EDITABLE_BY_STATUS, isEditable } from '../collections/experiments/edita
 import { lockedReason } from './lockedNotice.model.js'
 import { allocationGroups, allocationLayer, allocationSentence } from './allocation.model.js'
 import { WHO_COPY } from './copy/who.js'
+import { useLayerUsage } from './useLayerUsage.js'
 
 export function AllocationField({ path, field, readOnly }: NumberFieldClientProps) {
   const { value, setValue } = useField<number | null>({ path })
@@ -13,13 +14,17 @@ export function AllocationField({ path, field, readOnly }: NumberFieldClientProp
     status: (fields.status?.value ?? 'draft') as Status,
     unitType: (fields.unitType?.value ?? 'visitor') as UnitType,
     arms: allocationGroups(fields),
+    layerId: fields.layer?.value,
     layer: allocationLayer(fields.layer?.value) ?? allocationLayer({
       name: fields['layer.name']?.value, used: fields['layer.used']?.value, free: fields['layer.free']?.value,
     }),
   }))
   const locked = Boolean(readOnly || field.admin?.readOnly || !isEditable(form.status, 'allocation'))
   const reason = lockedReason(form.status, 'allocation', EDITABLE_BY_STATUS)
-  const sentence = allocationSentence({ ...form, allocation: value ?? NaN })
+  const layerId = typeof form.layerId === 'object' && form.layerId !== null
+    ? 'id' in form.layerId ? form.layerId.id : null : form.layerId
+  const layer = useLayerUsage(typeof layerId === 'string' || typeof layerId === 'number' ? layerId : null)
+  const sentence = allocationSentence({ ...form, allocation: value ?? NaN, layer: layer ?? form.layer })
   // position: relative anchors Payload's absolutely positioned FieldError tooltip to this field.
   return <div className="xp-allocation-field" style={{ position: 'relative' }}>
     <label htmlFor={path}>{WHO_COPY.allocation}</label>

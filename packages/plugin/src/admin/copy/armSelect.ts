@@ -1,0 +1,9 @@
+export const ARM_SELECT_COPY = {
+  experiment: 'Experiment', group: 'Group', clear: 'Clear',
+  forbidden: "You can't see experiments. Ask an admin.",
+  unavailable: "Experiments couldn't be loaded. Reload and try again.",
+  loading: 'Loading experiments…',
+  running: 'Changing this content mid-test mixes two versions in one result',
+  earlier: 'earlier experiment',
+}
+export const staleExperiment = (name: string) => `This was set for an earlier experiment (${name}) and won't be used now.`
