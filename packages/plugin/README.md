@@ -99,6 +99,16 @@ Other plugin options are `flagPoints`, `metricSources`, `eventSources`,
 - `events.retentionDays` defaults to `180`; `events.maxBodyBytes` to `8192`.
   Both must be positive integers. `events.rateLimit` is an optional host adapter,
   called with `{ req, unitId }`; return `true` to permit or `false` to drop.
+- `events.dimensions` (optional, default none) names up to 8 request attributes
+  to record on each exposure for later analysis, for example `['loggedIn']`.
+  Values come only from the attributes the server computes for that request
+  (`path`, `loggedIn`, `staff` and your `getUnit` attributes), never from what a
+  browser sends; only strings (first 64 characters), numbers and booleans are
+  kept. Names that identify a person (such as `userId`, `email` or `ip`) are
+  refused at startup, but whether an attribute you add yourself identifies
+  someone is your responsibility. For client-reported exposures `path` is the
+  page path from the request's `Referer`. Reporting by dimension is not yet
+  available.
   Supply a shared limiter suitable for your deployment; there is no built-in
   in-memory limiter.
 
@@ -172,8 +182,9 @@ true`. User-unit experiments and session-dependent targeting can then be
 resolved on the server through `getUser`. Server runtime options `userIdOf`
 (default `String(user.id)`) and `attributesOf` map the host user to the unit id
 and targeting attributes; server attributes take precedence. `attributesOf`
-defaults to `{ loggedIn: Boolean(user) }`; declaring `staff` in `attributeKeys`
-requires an explicit `attributesOf` that identifies staff. The plugin owns the
+defaults to `{ loggedIn: Boolean(user) }`. If you declare `staff` in
+`attributeKeys`, pass your own `attributesOf` that identifies staff to
+`defineExperimentsServerRuntime`; the plugin refuses to start otherwise. The plugin owns the
 normalized `path` attribute (no search, no trailing slash except `/`).
 
 Staff, bots detected by the built-in user-agent list, preview renders and `HEAD`
@@ -258,11 +269,12 @@ Other server integrations:
   from the host's authorized user-erasure flow.
 - `recordContentChange({ doc, previousDoc, req, collection })` can be called
   from a host collection's `afterChange` for content tagged with the arm-select
-  field. Supply that hook's transaction request. Puck collections get the hook
+  field; for a collection with drafts, also add `captureContentBaseline` to its
+  `beforeChange` hooks so the previously published content can be compared. Supply that hook's transaction request. Puck collections get the hook
   automatically when enabled. Markers compare published content; drafts and
   autosaves do not add markers (collections without drafts record on save).
-  The explicit helper propagates failures; the installed Puck hook catches and
-  logs them so content saves can proceed.
+  Neither the helper nor the installed hooks ever throw into your save: a
+  failure is logged and the content save proceeds.
 - `experimentMetadata(serverRuntime, path)` returns metadata to merge into the
   page's Next metadata: live variant targets get noindex and an Original
   canonical; archived losing paths point canonically to the winner.
@@ -301,7 +313,7 @@ metric unavailable. A timed-out source is reported in `unavailableMetrics`;
 that experiment's new snapshots are not written, its previous snapshots remain,
 and `budgetExhausted` signals the cutoff. Racing a host promise does not cancel
 its underlying work: give your own source clients appropriate timeouts too.
-The returned summary also includes `ran`, `skipped`, `swept` and `processedIds`.
+The returned summary also includes `ran`, `skipped`, `swept`, `sweepAttempted` and `processedIds`.
 Optional `experimentId` limits analysis to one experiment; `sweep: false`
 disables retention for that call.
 
@@ -354,7 +366,7 @@ a user-keyed source. Visitor experiments can use a user-keyed source through
 linked identities.
 
 Optional `covariate({ units: [{ unitId, firstExposureTs }], lookbackDays })`
-returns `[{ unitId, value }]` for pre-exposure CUPED adjustment. Percentile
+returns `[{ unitId, value }]` for pre-exposure CUPED adjustment (the plugin asks for a 14-day lookback). Percentile
 revenue capping reuses `query` over the 90 days before Start; the resolved cap
 is frozen for the round. Capping affects decision statistics, while results
 also show uncapped totals. Count and binomial metrics are never capped.
@@ -563,11 +575,9 @@ changes block actions**; save first so they use the saved experiment.
 - The Puck experiment picker always calls `/api`; hosts with a custom API route
   see an empty picker.
 - Making a winner permanent skips pages in collections that are localized,
-  have hidden fields, or contain fields the manager cannot read. Those pages
+  have hidden fields, or contain fields the manager cannot read or update. Those pages
   are listed with a note to update them by hand.
 - Content-change markers are recorded on publish only (on save for collections
-  without drafts). A first publish can miss a marker when the page was created
-  as a draft already containing a running experiment's slot and published without
-  further edits; this affects the chart annotation, not the results.
+  without drafts).
 - Results cover the whole round; breakdowns by segment or dimension are not
   available in v1.
