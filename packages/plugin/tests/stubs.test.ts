@@ -1,5 +1,17 @@
 import { readFileSync } from 'node:fs'
-import { expect, expectTypeOf, test } from 'vitest'
+import { expect, expectTypeOf, test, vi } from 'vitest'
+
+// Structural test: it imports every barrel only to check names and routes. The real
+// @payloadcms/ui dependency chain reaches CSS that Node's ESM loader rejects, so the
+// UI packages are replaced with stub components here (behaviour is tested elsewhere).
+vi.mock('@payloadcms/ui', () => new Proxy({}, {
+  has: () => true,
+  get: (_target, key) => key === '__esModule' ? true : key === 'then' ? undefined : () => null,
+}))
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: () => undefined, refresh: () => undefined, replace: () => undefined }),
+  usePathname: () => '/', useSearchParams: () => new URLSearchParams(), useParams: () => ({}),
+}))
 import ts from 'typescript'
 import type { Metadata } from 'next'
 import type { Assignments, ExperimentsProxyRuntimeOptions, ExperimentsServerRuntime, Manifest } from '../src/exports/index.js'
