@@ -4,6 +4,16 @@ import { XpRefusal } from '../errors.js'
 import type { DocId } from '../types/contracts.js'
 import { qualifiedTable, quoteIdentifier as quote } from './sql.js'
 
+/** Reclaim exactly the stopped test's slices while holding the layer lock. */
+export async function reclaimSlices(exec: Executor, { layerId, experimentId, slices }: { layerId: DocId; experimentId: DocId; slices: number[] }): Promise<number[]> {
+  const c = COLUMNS.experiments
+  const { rows } = await exec.query<{ slices: number[] | null }>(
+    `SELECT ${quote(c.layerSlices)} AS slices FROM ${qualifiedTable(exec, TABLES.experiments)} WHERE ${quote(c.layerId)} = $1 AND ${quote(c.status)} IN ('running', 'decided')`, [layerId])
+  const occupied = new Set(rows.flatMap(row => row.slices ?? []))
+  if (slices.some(slice => occupied.has(slice))) throw new XpRefusal('slices-taken', 'The original layer slices are now in use.', { layerId, experimentId }, 422)
+  return [...slices]
+}
+
 /** Caller holds the layer lock on this transaction executor. Returns additional
  * free slices; the caller persists them in layerSlices. Existing slices, even
  * those of experimentId itself, stay occupied until explicitly freed with [].

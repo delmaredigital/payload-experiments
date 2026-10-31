@@ -24,7 +24,9 @@ export async function allocate(req: PayloadRequest, { experimentId, allocation }
       where: { and: [{ experiment: { equals: experimentId } }, { phase: { equals: current.phase } }] } })
     if (!phases.docs[0]) throw new XpRefusal('not-found', 'The phase record was not found.', undefined, 404)
     // §7.8: transition writes the phase's widened coverage.
-    await req.payload.update({ collection: 'xp-phases', req, overrideAccess: true, id: phases.docs[0].id, data: { allocation } })
+    await req.payload.update({ collection: 'xp-phases', req, overrideAccess: true, id: phases.docs[0].id, data: {
+      allocation, analysis: { ...phases.docs[0].analysis as Record<string, unknown>, layerSlices },
+    } })
     // Preserve seed, arms and existing slices: only coverage widens.
     return updateExperiment(req, experimentId, { allocation, layerSlices })
   })

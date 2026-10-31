@@ -5,6 +5,10 @@ import { start } from '../transitions/start.js'
 import { allocate } from '../transitions/allocate.js'
 import { addMetric } from '../transitions/addMetric.js'
 import { stop } from '../transitions/stop.js'
+import { decide } from '../transitions/decide.js'
+import { releaseHoldout } from '../transitions/releaseHoldout.js'
+import { archive } from '../transitions/archive.js'
+import type { ArchiveBody } from '../types/endpoints.js'
 
 const invalidBody = () => Response.json({ errors: [{ code: 'invalid-body', message: 'Enter a valid request body.' }] } satisfies ErrorEnvelope, { status: 400 })
 async function body(req: PayloadRequest): Promise<Record<string, unknown> | null> {
@@ -22,7 +26,7 @@ async function respond(req: PayloadRequest, action: (id: string | number) => Pro
   if (typeof id !== 'string' && typeof id !== 'number') return Response.json({ errors: [{ code: 'not-found', message: 'Experiment not found' }] } satisfies ErrorEnvelope, { status: 404 })
   try { return Response.json(await action(id), { headers: { 'Cache-Control': 'no-store' } }) }
   catch (cause) {
-    if (cause instanceof XpRefusal) return Response.json({ errors: [{ code: cause.code, message: cause.message, ...(cause.detail === undefined ? {} : { detail: cause.detail }) }] } satisfies ErrorEnvelope, { status: cause.status })
+    if (cause instanceof XpRefusal) return Response.json({ errors: [{ code: cause.code, message: cause.message, ...(cause.detail === undefined ? {} : { detail: cause.detail }) }] } satisfies ErrorEnvelope, { status: cause.status === 409 ? 422 : cause.status })
     throw cause
   }
 }
@@ -48,15 +52,25 @@ export async function handleStop<TUser extends { id: string | number } = { id: s
   if (!value || !only(value, [])) return invalidBody()
   return respond(req, id => stop(req, { experimentId: id }))
 }
-export async function handleDecide<TUser extends { id: string | number } = { id: string | number }>(_req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
-  return Response.json({ errors: [{ code: 'not-implemented', message: 'CORE-11' }] } satisfies ErrorEnvelope, { status: 501 })
+export async function handleDecide<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
+  const value = await body(req)
+  if (!value || !only(value, ['winnerArm', 'note', 'confirmation']) || typeof value.winnerArm !== 'string'
+    || value.note !== undefined && typeof value.note !== 'string' || value.confirmation !== undefined && typeof value.confirmation !== 'string') return invalidBody()
+  const { winnerArm, note, confirmation } = value as { winnerArm: string; note?: string; confirmation?: string }
+  return respond(req, id => decide(req, { experimentId: id, winnerArm, note, confirmation }))
 }
-export async function handleReleaseHoldout<TUser extends { id: string | number } = { id: string | number }>(_req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
-  return Response.json({ errors: [{ code: 'not-implemented', message: 'CORE-11' }] } satisfies ErrorEnvelope, { status: 501 })
+export async function handleReleaseHoldout<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
+  const value = await body(req)
+  if (!value || !only(value, [])) return invalidBody()
+  return respond(req, id => releaseHoldout(req, { experimentId: id }))
 }
 export async function handleMakeContent<TUser extends { id: string | number } = { id: string | number }>(_req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
   return Response.json({ errors: [{ code: 'not-implemented', message: 'CORE-12' }] } satisfies ErrorEnvelope, { status: 501 })
 }
-export async function handleArchive<TUser extends { id: string | number } = { id: string | number }>(_req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
-  return Response.json({ errors: [{ code: 'not-implemented', message: 'CORE-11' }] } satisfies ErrorEnvelope, { status: 501 })
+export async function handleArchive<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
+  const value = await body(req)
+  if (!value || !only(value, ['mode', 'confirmation']) || !['stopped', 'after-content', 'discard', 'hard-coded'].includes(value.mode as string)
+    || value.confirmation !== undefined && typeof value.confirmation !== 'string') return invalidBody()
+  const { mode, confirmation } = value as ArchiveBody
+  return respond(req, id => archive(req, { experimentId: id, mode, confirmation }))
 }

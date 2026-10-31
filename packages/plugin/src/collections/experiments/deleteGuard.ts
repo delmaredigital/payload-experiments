@@ -1,10 +1,11 @@
 import type { CollectionAfterDeleteHook, CollectionBeforeDeleteHook } from 'payload'
-import { XpNotImplemented } from '../../errors.js'
+import { deleteExperiment, deleteExperimentAfter } from '../../transitions/deleteExperiment.js'
 
-export const deleteGuard: CollectionBeforeDeleteHook = (_args) => {
-  throw new XpNotImplemented('CORE-11')
+export const deleteGuard: CollectionBeforeDeleteHook = async ({ req, id }) => {
+  await deleteExperiment(req, id)
 }
 
-export const deleteGuardAfter: CollectionAfterDeleteHook = (_args) => {
-  throw new XpNotImplemented('CORE-11')
+export const deleteGuardAfter: CollectionAfterDeleteHook = async ({ req, id, doc }) => {
+  await deleteExperimentAfter(req, id)
+  return doc
 }

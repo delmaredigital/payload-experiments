@@ -1,6 +1,12 @@
 import type { DocId, UnitType } from '../types/contracts.js'
 import type { Executor } from './executor.js'
 import { COLUMNS, TABLES } from './names.js'
+import { qualifiedTable, quoteIdentifier } from './sql.js'
+
+/** Delete cascade: caller holds the experiment lock in the delete transaction. */
+export async function deleteExperimentEvents(exec: Executor, experimentId: DocId): Promise<void> {
+  await exec.query(`DELETE FROM ${qualifiedTable(exec, TABLES.events)} WHERE ${quoteIdentifier(COLUMNS.events.experimentId)} = $1`, [experimentId])
+}
 
 export interface EventRow {
   type: 'exposure' | 'conversion' | 'arm-mismatch'
