@@ -12,6 +12,7 @@ import { verifyPreviewToken } from '../runtime/previewToken.js'
 import { pageRewrite } from './pageRewrite.js'
 import { skipPath } from './skip.js'
 import { controlAssignments } from './control.js'
+import { consentFallback } from './consentFallback.js'
 
 const caches = new WeakMap<ExperimentsProxyRuntime, ReturnType<typeof createManifestCache>>()
 
@@ -77,14 +78,17 @@ export async function resolveExperiments(request: NextRequest, proxyRuntime: Exp
   }
   let assignments: AssignmentResult
   let assignmentFailed = false
-  try {
-    assignments = assign(currentManifest, { visitorId, userId, sessionUnknown }, attributes, { ...context, now })
-  } catch {
-    console.error('[payload-experiments] assign failed; serving non-exposable control')
-    assignmentFailed = true
-    assignments = controlAssignments(currentManifest, context)
+  if (!consent) {
+    assignments = consentFallback(currentManifest, attributes, context)
+  } else {
+    try {
+      assignments = assign(currentManifest, { visitorId, userId, sessionUnknown }, attributes, { ...context, now })
+    } catch {
+      console.error('[payload-experiments] assign failed; serving non-exposable control')
+      assignmentFailed = true
+      assignments = controlAssignments(currentManifest, context)
+    }
   }
-  if (!consent) assignments = controlAssignments(currentManifest, context)
   if (previewExperiment && token) {
     if (consent && !assignmentFailed) {
       assignments.deferred = assignments.deferred.filter(slug => slug !== previewExperiment.slug)
@@ -96,7 +100,7 @@ export async function resolveExperiments(request: NextRequest, proxyRuntime: Exp
     }
     result.responseHeaders = new Headers({ 'Cache-Control': 'no-store' })
   }
-  if (manifest && consent && !assignmentFailed) result.rewrite = pageRewrite(manifest, assignments, request.nextUrl)
+  if (manifest && !assignmentFailed) result.rewrite = pageRewrite(manifest, assignments, request.nextUrl)
   try {
     requestHeaders.set(XP_HEADER, encodeAssignmentsHeader(assignments, { secrets: proxyRuntime.secrets, manifest: manifest ?? undefined }))
   } catch {
