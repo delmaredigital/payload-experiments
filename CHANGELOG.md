@@ -11,6 +11,21 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.1.0-rc.6] - 2026-11-01
+
+### plugin
+
+**Fixed**
+
+- The release workflow builds the whole workspace before packing, so the plugin's
+  declaration build finds the stats package.
+- 0.1.0-rc.4 and 0.1.0-rc.5 were tagged but never reached npm; their changes first
+  ship in this version.
+
+**Migration impact**
+
+- None.
+
 ## [0.1.0-rc.5] - 2026-11-01
 
 ### plugin
