@@ -11,6 +11,21 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.1.0-rc.5] - 2026-11-01
+
+### plugin
+
+**Fixed**
+
+- CI typecheck passes on Linux; the admin arm-select test fixture now declares
+  `hideGutter`. Test-only, no runtime change.
+- 0.1.0-rc.4 was tagged but never published (the Linux typecheck failed before
+  the publish job ran); its changes first ship in this version.
+
+**Migration impact**
+
+- None.
+
 ## [0.1.0-rc.4] - 2026-11-01
 
 ### plugin
