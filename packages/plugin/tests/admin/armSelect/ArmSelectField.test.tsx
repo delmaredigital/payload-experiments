@@ -6,7 +6,7 @@ import { resetPayloadUiMock, setConfig, setField } from '../_helpers/payloadUiMo
 
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
 afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals() })
-const field = { name: 'tag', type: 'group' as const, admin: { custom: { flagPoint: 'donation ask' } }, fields: [
+const field = { name: 'tag', type: 'group' as const, admin: { custom: { flagPoint: 'donation ask' }, hideGutter: false }, fields: [
   { name: 'experiment', type: 'text' as const },
   { name: 'arm', type: 'text' as const, required: true },
 ] }
@@ -114,7 +114,7 @@ test('missing flag-point configuration renders guidance and skips every fetch', 
   fields('earlier', 'variantA')
   const fetcher = vi.fn()
   vi.stubGlobal('fetch', fetcher)
-  render(<ArmSelectField path="rows.0.tag" field={{ ...field, admin: {} }} />)
+  render(<ArmSelectField path="rows.0.tag" field={{ ...field, admin: { hideGutter: false } }} />)
   await act(async () => {})
   expect(screen.getByText('No flag point is configured for this field.')).toBeTruthy()
   expect(screen.queryByLabelText('Group')).toBeNull()
