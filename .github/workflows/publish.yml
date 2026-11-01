@@ -45,7 +45,8 @@ jobs:
           esac
         env:
           TAG: ${{ github.ref_name }}
-      - run: pnpm --filter "./$PKG" build
+      # Build the workspace because the plugin's declaration build resolves stats through its workspace link to packages/stats/dist.
+      - run: pnpm build
       # npm itself performs trusted publishing (OIDC, id-token: write) from 11.5.1;
       # `pnpm publish` was not known to, and exits 0 when the version already
       # exists. `npm publish` fails loudly on an existing version.
