@@ -372,12 +372,20 @@ is frozen for the round. Capping affects decision statistics, while results
 also show uncapped totals. Count and binomial metrics are never capped.
 
 For simple yes/no outcomes, list names in `eventSources`, for example
-`eventSources: ['signup']`. Names must match `/^[a-z0-9_]+$/`. Editors can then
-choose `events:signup` as a binomial source, backed by stored conversions with
-`eventName: 'signup'`, from either `trackConversion` or
-`trackConversionBeacon`. Only listed event names become `events:<name>`
-sources. They support visitor and user units and allow client writes; they do
-not represent counts or revenue in v1.
+`eventSources: ['signup']`. A bare string allows client writes; the object form
+sets that permission explicitly:
+
+```ts
+eventSources: ['signup', { name: 'donation_completed', clientWritable: false }]
+```
+
+Names must match `/^[a-z0-9_]+$/` and be unique across both forms. Editors can
+choose `events:signup` or `events:donation_completed` as binomial sources backed
+by stored conversions with the corresponding `eventName`. Writable sources
+accept both `trackConversion` and `trackConversionBeacon`; server-only sources
+are recorded with `trackConversion`. Beacon conversions for a non-writable name
+are dropped silently. Only listed names become `events:<name>` sources. They
+support visitor and user units and do not represent counts or revenue in v1.
 
 ## Security
 

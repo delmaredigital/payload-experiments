@@ -12,8 +12,8 @@ export function serializeMetricSources(options: ResolvedOptions): SerializedMetr
     ...(options.metricSources ?? []).map(({ id, label, kind, keyedBy, clientWritable }) => ({
       id, label, kind, keyedBy, clientWritable: clientWritable === true,
     })),
-    ...(options.eventSources ?? []).map(name => ({
-      id: `events:${name}`, label: name, kind: 'binomial' as const, keyedBy: 'visitor' as const, clientWritable: true,
+    ...(options.eventSources ?? []).map(({ name, clientWritable }) => ({
+      id: `events:${name}`, label: name, kind: 'binomial' as const, keyedBy: 'visitor' as const, clientWritable,
     })),
   ]
 }

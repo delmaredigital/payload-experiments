@@ -13,7 +13,7 @@ export function isExemptEntry(entry) {
 
 /** Pure export selection, so tests can inspect the real map without loading dist. */
 export function listExportTargets(exportsMap) {
-  return Object.entries(exportsMap).map(([entry, conditions]) => ({
+  return Object.entries(exportsMap).filter(([entry, conditions]) => !(entry === './package.json' && conditions === './package.json')).map(([entry, conditions]) => ({
     entry,
     exempt: isExemptEntry(entry),
     targets: [...new Set([conditions.import, conditions.default])],

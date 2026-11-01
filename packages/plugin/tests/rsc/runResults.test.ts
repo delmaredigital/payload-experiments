@@ -87,6 +87,22 @@ test('user-unit conversion carrying a visitor cookie is matched by user_id', asy
   expect(snapshot.metrics[0]!.perArm.find(arm => arm.arm === 'control')!.converters).toBe(1)
 })
 
+test.each(['visitor', 'user'] as const)('server-only events remain readable for %s-unit results', async unitType => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed(unitType)
+  const direct = `server-direct-${phase.experiment}`, linked = `server-linked-${phase.experiment}`, userId = `server-user-${phase.experiment}`
+  await events(phase, [{ unitId: direct, unitType }, { unitId: unitType === 'visitor' ? linked : userId, unitType },
+    { type: 'conversion', unitId: direct, userId: unitType === 'user' ? direct : undefined, eventName: 'signup', value: 1, ts: new Date(start + 2000).toISOString() },
+    { type: 'conversion', unitId: 'signed-in-cookie', userId, eventName: 'signup', value: 1, ts: new Date(start + 2000).toISOString() }])
+  const context = payload()
+  context.options.eventSources = [{ name: 'signup', clientWritable: false }]
+  if (unitType === 'visitor') await insertIdentity(pooledExecutor(context.payload), { anonymousId: linked, userId })
+  expect(await runResults(context.payload, { experimentId: phase.experiment })).toMatchObject({ ran: 1, unavailableMetrics: [] })
+  const snapshot = (await snapshots())[0]!.snapshot as import('../../src/types/snapshot.js').Snapshot
+  expect(snapshot.metrics[0]!.unavailable).toBeUndefined()
+  expect(snapshot.metrics[0]!.perArm.map(arm => arm.converters)).toEqual([1, 1])
+})
+
 test('visitor user-keyed sources credit earliest linked visitor and report cross-arm diagnostics', async () => {
   vi.spyOn(Date, 'now').mockReturnValue(now)
   const phase = await seed()

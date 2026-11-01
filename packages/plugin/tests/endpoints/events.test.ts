@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import type { PayloadRequest } from 'payload'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { DEFAULT_MAX_BODY_BYTES } from '../../src/constants.js'
+import { resolveOptions } from '../../src/options.js'
 import { insertEvents } from '../../src/db/events.js'
 import { handleEvents } from '../../src/endpoints/events.js'
 import { buildEndpoints } from '../../src/endpoints/index.js'
@@ -32,7 +33,7 @@ function fixture(patch: Partial<ManifestExperiment> = {}) {
   const load = vi.fn(async (): Promise<Manifest | null> => manifest)
   const proxy = defineExperimentsProxyRuntime({ secret: secrets, apiRoute: '/api', loadManifest: load })
   const runtime = defineExperimentsServerRuntime(proxy, { getPayload: vi.fn(), attributesOf: user => ({ loggedIn: Boolean(user) }) })
-  const options: ResolvedOptions = { runtime, access: { manage: () => false }, eventSources: ['registration'],
+  const options: ResolvedOptions = { runtime, access: { manage: () => false }, eventSources: [{ name: 'registration', clientWritable: true }],
     attributeKeys: { campaign: { type: 'string' }, amount: { type: 'number' }, member: { type: 'boolean' } } }
   const error = vi.fn()
   const execute = vi.fn(async () => ({ rows: [] }))
@@ -311,6 +312,20 @@ test.each(['private', 'revenue', 'unlisted'])('rejects %s conversion source', as
     keyedBy: 'visitor', clientWritable: mode === 'revenue', query: async () => [] }]
   await accepted(await f.run(f.request({ events: [conversion] })))
   expect(insert).not.toHaveBeenCalled()
+})
+test('server-only event conversions have the same silent response as unlisted names', async () => {
+  const f = fixture()
+  f.options.eventSources = [{ name: 'registration', clientWritable: false }]
+  await accepted(await f.run(f.request({ events: [conversion] })))
+  await accepted(await f.run(f.request({ events: [{ ...conversion, eventName: 'unlisted' }] })))
+  expect(insert).not.toHaveBeenCalled()
+})
+test.each(['registration', { name: 'registration', clientWritable: true }])('permits writable event source %j', async entry => {
+  const f = fixture()
+  f.options.eventSources = resolveOptions({ ...f.options, eventSources: [entry] }).eventSources
+  await accepted(await f.run(f.request({ events: [conversion] })))
+  expect(stored()).toMatchObject([{ type: 'conversion', eventName: 'registration', value: 1 }])
+  expect(insert).toHaveBeenCalledOnce()
 })
 test.each(['binomial', 'count'] as const)('permits clientWritable %s sources and stores 1', async kind => {
   const f = fixture()

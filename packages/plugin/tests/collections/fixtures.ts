@@ -8,7 +8,7 @@ export function sampleOptions(): ResolvedOptions {
     access: { manage: () => true },
     flagPoints: [{ id: 'cta', label: 'CTA', params: { title: { type: 'text', label: 'Title' } }, defaultParams: { title: 'Join' }, placements: async () => [], makeContent: async () => {} }],
     metricSources: ['binomial', 'count', 'revenue'].map(kind => ({ id: kind, label: kind, kind: kind as 'binomial' | 'count' | 'revenue', keyedBy: 'user', query: async () => [], covariate: async () => [] })),
-    eventSources: ['signup'], attributeKeys: { country: { type: 'string', values: ['US', 'CA'] }, age: { type: 'number' } },
+    eventSources: [{ name: 'signup', clientWritable: true }], attributeKeys: { country: { type: 'string', values: ['US', 'CA'] }, age: { type: 'number' } },
   }
 }
 

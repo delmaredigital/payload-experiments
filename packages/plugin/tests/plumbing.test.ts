@@ -15,8 +15,9 @@ const entries = [
 ] as const
 
 describe('plugin package plumbing', () => {
-  test('declares all nine public entries', () => {
-    expect(Object.keys(manifest.exports)).toEqual(entries.map(([entry]) => entry))
+  test('declares all nine public entries plus package.json', () => {
+    expect(Object.keys(manifest.exports)).toEqual([...entries.map(([entry]) => entry), './package.json'])
+    expect(manifest.exports['./package.json']).toBe('./package.json')
   })
 
   test.each(entries)('%s preserves the barrel name when swc strips the leading path', (entry, name) => {

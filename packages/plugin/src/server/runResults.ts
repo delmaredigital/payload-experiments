@@ -54,7 +54,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
       let events: MetricEvent[], covariates: Map<string, number> | undefined
       if (definition.source.startsWith('events:')) {
         const eventName = definition.source.slice(7)
-        if (!options.eventSources?.includes(eventName)) throw new Error('Metric source unavailable')
+        if (!options.eventSources?.some(source => source.name === eventName)) throw new Error('Metric source unavailable')
         const read = async (start: Date) => {
           if (candidate.unitType === 'user') return metricEventRows(exec, { eventName, userIds: ids, from: start, to })
           const direct = await metricEventRows(exec, { eventName, unitIds: ids, from: start, to })

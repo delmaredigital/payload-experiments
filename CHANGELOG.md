@@ -11,6 +11,19 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+**Added**
+
+- Object-form `eventSources` entries (`{ name, clientWritable }`) so a server-only
+  event can be a metric without accepting browser writes.
+
+**Fixed**
+
+- The plugin package now exports `./package.json`.
+
+**Migration impact**
+
+- None. Bare-string `eventSources` entries keep their existing behavior.
+
 ## [0.1.0-rc.3] - 2026-10-31
 
 ### plugin

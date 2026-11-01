@@ -43,7 +43,7 @@ export function eventRows<TUser extends { id: string | number }>(events: unknown
       if (typeof event.eventName !== 'string' || typeof event.idempotencyKey !== 'string' || !event.idempotencyKey.trim()
         || (event.value !== undefined && (typeof event.value !== 'number' || !Number.isFinite(event.value)))) continue
       const source = options.metricSources?.find(source => source.id === event.eventName)
-      if (source ? source.clientWritable !== true || source.kind === 'revenue' : !options.eventSources?.includes(event.eventName)) continue
+      if (source ? source.clientWritable !== true || source.kind === 'revenue' : !options.eventSources?.some(source => source.name === event.eventName && source.clientWritable)) continue
       row = { type: 'conversion', eventName: event.eventName, value: 1, unitId: visitorId, unitType: 'visitor', userId, ts,
         dimensions: null, attributes: attributes(event.attributes, options.attributeKeys),
         // §5.5: scoped by unit and event so one client can never pre-claim another's key.

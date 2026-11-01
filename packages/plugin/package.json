@@ -60,7 +60,8 @@
       "types": "./dist/exports/puckEditor.d.ts",
       "import": "./dist/exports/puckEditor.js",
       "default": "./dist/exports/puckEditor.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": ["dist", "LICENSE", "README.md"],
   "scripts": {

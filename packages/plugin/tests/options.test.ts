@@ -51,6 +51,36 @@ test('rejects duplicate flag ids', () => {
 
 test.each(['Signup', 'a-b', 'has space', '', 'a.b'])('rejects invalid event source %j', name => {
   expect(() => resolveOptions({ ...sampleOptions(), eventSources: [name] })).toThrow('event source names')
+  expect(() => resolveOptions({ ...sampleOptions(), eventSources: [{ name, clientWritable: false }] })).toThrow('Experiments event source names must match /^[a-z0-9_]+$/')
+})
+
+test('normalises mixed event source forms without mutating registrations', () => {
+  const input = { ...sampleOptions(), eventSources: ['signup', { name: 'donation_completed', clientWritable: false }, { name: 'checkout_2', clientWritable: true }] }
+  const options = resolveOptions(input)
+  expect(options.eventSources).toEqual([
+    { name: 'signup', clientWritable: true }, { name: 'donation_completed', clientWritable: false }, { name: 'checkout_2', clientWritable: true },
+  ])
+  expect(options.eventSources).not.toBe(input.eventSources)
+  expect(options.eventSources![1]).not.toBe(input.eventSources[1])
+  expect(input.eventSources).toEqual(['signup', { name: 'donation_completed', clientWritable: false }, { name: 'checkout_2', clientWritable: true }])
+})
+
+test.each(['false', undefined, 1])('rejects non-boolean event clientWritable (%j)', clientWritable => {
+  const input = { ...sampleOptions(), eventSources: [{ name: 'signup', clientWritable }] } as unknown as ExperimentsPluginOptions
+  expect(() => resolveOptions(input)).toThrow('event source clientWritable must be a boolean')
+})
+
+test.each([null, undefined, 1, false, [], {}])('rejects invalid event source entries (%j)', entry => {
+  const input = { ...sampleOptions(), eventSources: [entry] } as unknown as ExperimentsPluginOptions
+  expect(() => resolveOptions(input)).toThrow('event source names')
+})
+
+test.each([
+  ['signup', 'signup'],
+  ['signup', { name: 'signup', clientWritable: false }],
+  [{ name: 'signup', clientWritable: false }, { name: 'signup', clientWritable: true }],
+])('rejects duplicate event source names (%j, %j)', (...eventSources) => {
+  expect(() => resolveOptions({ ...sampleOptions(), eventSources })).toThrow('event source names must be unique')
 })
 
 test('accepts typed unique attribute keys and valid event source names', () => {

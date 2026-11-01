@@ -34,9 +34,16 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
       throw new Error(`Experiments attribute values must be strings: ${key}`)
     }
   }
-  for (const name of input.eventSources ?? []) {
+  const eventNames = new Set<string>()
+  const eventSources = (input.eventSources ?? []).map(entry => {
+    const object = entry !== null && typeof entry === 'object' && !Array.isArray(entry)
+    const name = typeof entry === 'string' ? entry : object ? entry.name : undefined
     if (typeof name !== 'string' || !/^[a-z0-9_]+$/.test(name)) throw new Error('Experiments event source names must match /^[a-z0-9_]+$/')
-  }
+    if (object && typeof entry.clientWritable !== 'boolean') throw new Error('Experiments event source clientWritable must be a boolean')
+    if (eventNames.has(name)) throw new Error('Experiments event source names must be unique')
+    eventNames.add(name)
+    return { name, clientWritable: typeof entry === 'string' ? true : entry.clientWritable }
+  })
   const retentionDays = input.events?.retentionDays ?? 180
   const maxBodyBytes = input.events?.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
   for (const [name, value] of Object.entries({ retentionDays, maxBodyBytes })) {
@@ -46,7 +53,7 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
   return {
     ...input,
     access: { manage, admin, readResults, readIdentities },
-    flagPoints: [...(input.flagPoints ?? [])], metricSources: [...(input.metricSources ?? [])], eventSources: [...(input.eventSources ?? [])],
+    flagPoints: [...(input.flagPoints ?? [])], metricSources: [...(input.metricSources ?? [])], eventSources,
     attributeKeys: Object.fromEntries(Object.entries(input.attributeKeys ?? {}).map(([key, attribute]) => [key, { ...attribute, ...(attribute.values ? { values: [...attribute.values] } : {}) }])),
     events: { ...input.events, retentionDays, maxBodyBytes, dimensions: Array.isArray(dimensions) ? [...dimensions] : dimensions },
     puck: { ...input.puck, enabled: input.puck?.enabled ?? Boolean(input.puck?.collections?.length), collections: puckCollections(input) },

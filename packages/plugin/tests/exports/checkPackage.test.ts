@@ -22,8 +22,18 @@ const tempDir = () => {
 afterEach(() => { for (const path of temporary.splice(0)) rmSync(path, { recursive: true, force: true }) })
 
 test('source export counterparts, files and frozen dependency contracts pass without dist', () => {
+  expect(pkg.exports['./package.json']).toBe('./package.json')
   expect(checkSourcePackage(pkg, root)).toEqual([])
   expect(readFileSync(join(root, 'LICENSE'))).toEqual(readFileSync(new URL('../../../../LICENSE', import.meta.url)))
+})
+
+test.each([
+  ['./other', './package.json'],
+  ['./package.json', './other.json'],
+])('source check rejects other string-valued exports (%s -> %s)', (entry, target) => {
+  const invalid = structuredClone(pkg)
+  invalid.exports[entry] = target
+  expect(checkSourcePackage(invalid, root)).toEqual(['import', 'types', 'default'].map(condition => `${entry}.${condition}: expected a path under ./dist/`))
 })
 
 test('source check reports all changed contracts, including extra and missing peers', () => {
@@ -68,6 +78,7 @@ test('source check reports missing license and readme, and emitted files when re
   expect(failures).toContain('Missing LICENSE')
   expect(failures).toContain('Missing README.md')
   for (const [entry, conditions] of Object.entries(pkg.exports) as Array<[string, Record<string, string>]>) {
+    if (entry === './package.json' && (conditions as unknown) === './package.json') continue
     for (const condition of ['import', 'types', 'default']) {
       expect(failures).toContain(`${entry}.${condition}: missing built target ${conditions[condition]}`)
       expect(failures.some(failure => failure.startsWith(`${entry}.${condition}: missing source counterpart`))).toBe(true)

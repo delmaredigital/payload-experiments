@@ -6,7 +6,7 @@ import { XpNotImplemented, XpRefusal } from '../../src/errors.js'
 import { buildEndpoints, ROUTES } from '../../src/endpoints/index.js'
 import { defineExperimentsProxyRuntime } from '../../src/runtime/proxyRuntime.js'
 import { defineExperimentsServerRuntime } from '../../src/server/serverRuntime.js'
-import type { ExperimentsPluginOptions, ExperimentsAccess } from '../../src/types/contracts.js'
+import type { ResolvedOptions, ExperimentsAccess } from '../../src/types/contracts.js'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -16,7 +16,7 @@ const paths = [
   ['get', '/xp/experiments/:id/preflight'], ['get', '/xp/experiments/:id/preview-token'],
   ['get', '/xp/experiments/:id/results'], ['post', '/xp/experiments/:id/recompute'], ['get', '/xp/experiments/summary'],
 ]
-function options(value: unknown = true, readResults?: ExperimentsAccess): ExperimentsPluginOptions {
+function options(value: unknown = true, readResults?: ExperimentsAccess): ResolvedOptions {
   return {
     runtime: defineExperimentsServerRuntime(defineExperimentsProxyRuntime({ secret: ['first-key', 'previous-key'], apiRoute: '/api' }), { getPayload: vi.fn() }),
     access: { manage: vi.fn(async () => value) as ExperimentsAccess, readResults },
@@ -25,7 +25,7 @@ function options(value: unknown = true, readResults?: ExperimentsAccess): Experi
 function request(user = true, headers: Record<string, string> = {}): PayloadRequest {
   return { user: user ? { id: 1 } : null, headers: new Headers(headers) } as PayloadRequest
 }
-async function invoke(path: string, opts: ExperimentsPluginOptions, req: PayloadRequest): Promise<Response> {
+async function invoke(path: string, opts: ResolvedOptions, req: PayloadRequest): Promise<Response> {
   const endpoint = buildEndpoints({ options: opts }).find(route => route.path === path)!
   return await endpoint.handler(req)
 }

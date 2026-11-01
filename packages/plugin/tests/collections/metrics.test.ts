@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
 import { metricsCollection } from '../../src/collections/metrics.js'
+import { serializeMetricSources } from '../../src/collections/serialize.js'
+import { resolveOptions } from '../../src/options.js'
 import { field, invoke, sampleOptions, validate } from './fixtures.js'
 
 const config = metricsCollection(sampleOptions())
@@ -28,6 +30,19 @@ test('partial updates validate capping against merged source and cap', () => {
 })
 test.each(['binomial', 'count', 'revenue', 'events:signup'])('source accepts registered %s', source => expect(validate(field(config.fields, 'source', 'text').validate, source)).toBe(true))
 test.each(['unknown', 'events:unknown', 'signup', 'toString', undefined])('source rejects unregistered %s', source => expect(validate(field(config.fields, 'source', 'text').validate, source)).not.toBe(true))
+
+test('both event source forms validate and serialize their write permissions', () => {
+  const options = resolveOptions({ ...sampleOptions(), eventSources: ['signup',
+    { name: 'donation_completed', clientWritable: false }, { name: 'checkout_2', clientWritable: true }] })
+  const config = metricsCollection(options)
+  const sources = serializeMetricSources(options).filter(source => source.id.startsWith('events:'))
+  expect(sources).toEqual([
+    { id: 'events:signup', label: 'signup', kind: 'binomial', keyedBy: 'visitor', clientWritable: true },
+    { id: 'events:donation_completed', label: 'donation_completed', kind: 'binomial', keyedBy: 'visitor', clientWritable: false },
+    { id: 'events:checkout_2', label: 'checkout_2', kind: 'binomial', keyedBy: 'visitor', clientWritable: true },
+  ])
+  for (const source of sources) expect(validate(field(config.fields, 'source', 'text').validate, source.id)).toBe(true)
+})
 
 test('attribution windows must be at least one hour (a zero window makes every results run throw)', async () => {
   const { buildCollections } = await import('../../src/collections/index.js')
