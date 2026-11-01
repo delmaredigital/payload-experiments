@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.1.0-rc.4] - 2026-11-01
+
+### plugin
+
 **Added**
 
 - Object-form `eventSources` entries (`{ name, clientWritable }`) so a server-only
