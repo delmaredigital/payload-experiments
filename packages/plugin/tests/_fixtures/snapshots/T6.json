@@ -229,7 +229,8 @@
     "action": "Decide for the Original or restart without it.",
     "headline": "Shorter form is worse; no variant is better. Decide for the Original or restart without it.",
     "detail": "At least one alternative performed worse and none improved the main outcome.",
-    "recommendedArm": "control"
+    "recommendedArm": "control",
+    "worstArm": "variantA"
   },
   "contentChanges": []
 }

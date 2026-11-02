@@ -229,6 +229,20 @@ test('guardrail failure requires both compared groups to meet its own conversion
   expect(analysePhase(input).guardrails[0]!.status).toBe('warning')
 })
 
+test('a failing guardrail carries the worse arm key in a two-variant test', () => {
+  const n = 20000
+  const input = example({ n, secondVariant: true })
+  input.phase = { ...input.phase, metricDefinitions: [metric(), metric({ metricId: 'guard', role: 'guardrail' })] }
+  const values = new Map([...input.units].map(([id, unit]) => [id,
+    Number(id.split('-')[1]) < (unit.arm === 'variantB' ? n * .1 : n * .2) ? 1 : 0,
+  ]))
+  input.metricData = [...input.metricData, { metricId: 'guard', values }]
+  const result = analysePhase(input)
+  expect(result.guardrails).toEqual([{ metricId: 'guard', status: 'failing' }])
+  expect(result.verdict).toMatchObject({ row: 3, code: 'guardrail-failing', worstArm: 'variantB',
+    finding: 'Stop: Guided form harms Completed lessons.' })
+})
+
 test('running collecting snapshots have power for the separate line, row 9 uses it in the headline; stopped/decided tests omit it', () => {
   const input = example({ rate: .2 })
   input.phase.analysis.minExposuresPerArm = 3000

@@ -229,7 +229,8 @@
     "action": "Review before deciding.",
     "headline": "Mixed: Shorter form better, Guided form worse. Review before deciding.",
     "detail": "The tested alternatives moved the main outcome in different directions.",
-    "recommendedArm": "variantA"
+    "recommendedArm": "variantA",
+    "worstArm": "variantB"
   },
   "contentChanges": []
 }

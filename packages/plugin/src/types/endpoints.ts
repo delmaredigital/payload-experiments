@@ -25,7 +25,7 @@ export interface PhaseSummary {
   arms: Array<{ key: string; label: string; kind: ArmKind }>
   metrics: Array<{ metricId: DocId; name: string; kind: MetricSource['kind']; role: 'primary' | 'secondary' | 'guardrail'; resolvedCap?: number | null; historyUnits?: number; capNotice?: 'no-history' }>
 }
-export type ResultsResponse = { phases: PhaseSummary[]; snapshot: Snapshot | null; decisionSnapshot?: Snapshot; series?: Array<{ computedAt: string; metricId: DocId; arm: string; lift: number; ci: [number | null, number | null] }> }
+export type ResultsResponse = { phases: PhaseSummary[]; snapshot: Snapshot | null; decisionSnapshot?: Snapshot; decision?: { phase: number; winnerArm: string }; series?: Array<{ computedAt: string; metricId: DocId; arm: string; lift: number; ci: [number | null, number | null] }> }
 export type SummaryResponse = Record<DocId, { ready?: boolean; exposures: number; days: number; verdict: { code: VerdictCode; headline: string } | null }>
 // Client conversion value is accepted on the wire; the server stores 1 for client conversions.
 export type EventBody = { events: Array<{ type: 'exposure'; experiment: string; phase: number; arm: string; policy: ExposurePolicy } | { type: 'conversion'; eventName: string; value?: number; idempotencyKey: string; attributes?: Record<string, string | number | boolean> }> }

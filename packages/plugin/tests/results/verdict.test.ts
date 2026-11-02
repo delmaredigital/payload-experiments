@@ -111,6 +111,24 @@ test('first match: unavailable, data problem, failing guardrail, collecting, sig
   expect(computeVerdict(value).row).toBe(4)
 })
 
+test.each([
+  ['T3', 3, 'variantA'], ['T6', 6, 'variantA'], ['T8', 8, 'variantB'],
+] as const)('%s carries the worse version key for row %s', (name, row, worstArm) => {
+  expect(computeVerdict(input(name))).toMatchObject({ row, worstArm })
+})
+
+test('row 6 carries the first worse version in the sentence, even when another has a larger decline', () => {
+  const value = input('T6')
+  addVariant(value, 'variantC', 'One-page form', 'worse', -.5)
+  expect(computeVerdict(value)).toMatchObject({ row: 6, worstArm: 'variantA' })
+  value.primary.comparisons.reverse()
+  expect(computeVerdict(value)).toMatchObject({ row: 6, worstArm: 'variantC' })
+})
+
+test.each(names.filter(name => !['T3.json', 'T6.json', 'T8.json'].includes(name)))('%s omits worstArm for other verdict rows', name => {
+  expect(computeVerdict(input(name.slice(0, -5)))).not.toHaveProperty('worstArm')
+})
+
 test.each([0.01, 0.02])('same-person multiple versions at share %s is a data problem', share => {
   const value = input()
   value.exposures.multiArmShare = share
@@ -283,14 +301,14 @@ test.each(['warning', 'insufficient'] as const)('confirmed rollout harm takes pr
   const value = input('R3')
   value.guardrails = [
     { name: 'Donations', status },
-    { name: 'Completed lessons', status: 'failing', worstArmLabel: 'Shorter form' },
+    { name: 'Completed lessons', status: 'failing', worstArmLabel: 'Shorter form', worstArm: 'variantA' },
   ]
   expect(computeVerdict(value).guardrailLine).toBe('Harm detected: Completed lessons is worse since shipping.')
 })
 
 test('rollout minimum includes the holdout and conversions, and failing guardrails do not become test verdicts', () => {
   const value = input('R3')
-  value.guardrails[0] = { name: 'Completed lessons', status: 'failing', worstArmLabel: 'Shorter form' }
+  value.guardrails[0] = { name: 'Completed lessons', status: 'failing', worstArmLabel: 'Shorter form', worstArm: 'variantA' }
   expect(computeVerdict(value)).toMatchObject({ row: 'R3', guardrailLine: 'Harm detected: Completed lessons is worse since shipping.' })
   value.exposures.perArm.find(item => item.kind === 'holdout')!.n = 999
   expect(computeVerdict(value).row).toBe('R2')

@@ -19,6 +19,8 @@ After upgrading, run `payload generate:importmap`: the Tests surface is register
 
 **Added**
 
+- `ResultsResponse.decision` lets results readers without manage access see the winner.
+- `verdict.worstArm` identifies the worse version on snapshots computed from this version.
 - Optional `admin.editorUrl`, `admin.previewUrl` and `admin.descriptions` host configuration, validated at registration and kept server-side.
 - Optional `FlagPoint.description` for setting help text.
 - `summary.ready` for draft and stopped tests when the caller can manage tests, using shared readiness reads across the batch.

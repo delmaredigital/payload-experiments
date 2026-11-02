@@ -73,7 +73,7 @@ test('guardrail harm uses the stored failing-group finding, independent of two-s
 
 test('real guardrail verdict names the harmed variant by its saved label', () => {
   const input = verdictInput('T3')
-  input.guardrails = [{ name: 'Completed lessons', status: 'failing', worstArmLabel: 'Simpler signup' }]
+  input.guardrails = [{ name: 'Completed lessons', status: 'failing', worstArmLabel: 'Simpler signup', worstArm: 'variantA' }]
   const snapshot = fixture('T3'), phase = phaseFor(snapshot)
   phase.arms.find(arm => arm.kind === 'variant')!.label = 'Simpler signup'
   snapshot.verdict = computeVerdict(input)

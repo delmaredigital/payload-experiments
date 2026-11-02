@@ -183,7 +183,8 @@
     "action": null,
     "headline": "Stop: Shorter form harms Completed lessons.",
     "detail": "An outcome that must stay safe has become worse.",
-    "recommendedArm": "control"
+    "recommendedArm": "control",
+    "worstArm": "variantA"
   },
   "contentChanges": []
 }

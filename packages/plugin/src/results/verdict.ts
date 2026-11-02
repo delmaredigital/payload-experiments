@@ -43,7 +43,7 @@ interface VerdictInputFields {
    * that triggered it. R3 uses this order, with explicit harm wording for failing;
    * no configured guardrails means no guardrailLine, never a claim of safety. */
   guardrails: Array<{ name: string } & (
-    | { status: 'failing'; worstArmLabel: string }
+    | { status: 'failing'; worstArmLabel: string; worstArm: string }
     | { status: 'ok' | 'warning' | 'insufficient'; worstArmLabel?: string }
   )>
   /** Additional days needed, rounded up by CORE-15a: 0 = already enough data,
@@ -88,10 +88,11 @@ export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
   const make = (
     row: Snapshot['verdict']['row'], code: Snapshot['verdict']['code'],
     finding: string, action: string | null, detail: string, recommendedArm: string | null,
-    line?: string,
+    line?: string, worstArm?: string,
   ): Snapshot['verdict'] => ({
     row, code, finding, action, headline: finding + (action ? ` ${action}` : ''), detail, recommendedArm,
     ...(line === undefined ? {} : { guardrailLine: line }),
+    ...(worstArm === undefined ? {} : { worstArm }),
   })
   if (input.primary.unavailable !== undefined) {
     return make(rollout ? 'R1' : 1, 'unavailable',
@@ -125,7 +126,7 @@ export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
   const failing = input.guardrails.find(item => item.status === 'failing')
   if (failing) return make(3, 'guardrail-failing',
     `Stop: ${failing.worstArmLabel} harms ${failing.name}.`, null,
-    'An outcome that must stay safe has become worse.', input.controlArm)
+    'An outcome that must stay safe has become worse.', input.controlArm, undefined, failing.worstArm)
   if (collecting) return make(4, 'collecting', input.status === 'stopped'
     ? 'Stopped before enough data was collected.'
     : `Collecting data: ${minimum} of ${input.exposures.minExposuresPerArm} people, ${minimumConverters} of ${input.primary.minSampleSize} conversions.`,
@@ -143,7 +144,7 @@ export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
   if (worst && !best) return make(6, 'worse-none-better',
     `${labels(worse)} ${worse.length === 1 ? 'is' : 'are'} worse; no variant is better.`,
     `Decide for the Original or restart without ${worse.length === 1 ? 'it' : 'them'}.`,
-    'At least one alternative performed worse and none improved the main outcome.', input.controlArm)
+    'At least one alternative performed worse and none improved the main outcome.', input.controlArm, undefined, worst.arm)
   if (best && !worst) {
     const finding = better.length >= 2
       ? `${better.length === 2 ? 'Both' : `All ${better.length} variants`} beat the Original; not tested against each other — ${best.label} has the larger improvement.`
@@ -153,7 +154,7 @@ export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
     return make(7, 'winner', finding, null, 'The main outcome improved compared with the Original.', best.arm, guardrailLine(input))
   }
   if (best && worst) return make(8, 'mixed', `Mixed: ${labels(better)} better, ${labels(worse)} worse.`,
-    'Review before deciding.', 'The tested alternatives moved the main outcome in different directions.', best.arm)
+    'Review before deciding.', 'The tested alternatives moved the main outcome in different directions.', best.arm, undefined, worst.arm)
   if (input.status === 'running' && !input.plannedDurationPassed) {
     if (input.power.feasible === false || (input.power.daysRemaining !== null && input.power.daysRemaining > 90)) {
       return make(9, 'keep-running', 'A clear answer would take more than 90 days at this traffic.',

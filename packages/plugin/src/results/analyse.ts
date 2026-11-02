@@ -154,6 +154,7 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
       cupedApplied: false, perArm: [], comparisons: [] }
     let worst: Snapshot['guardrails'][number]['status'] = 'ok'
     let worstArmLabel = compared[0]?.label ?? ''
+    let worstArm = compared[0]?.key ?? ''
     try {
       if (!data || data.unavailable !== undefined) throw new Error(data?.unavailable ?? 'Metric data was not supplied')
       const stats = new Map<string, TestStatistic>()
@@ -233,7 +234,7 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
           }
         }
         metric.comparisons.push(comparison)
-        if (severity[status] > severity[worst]) { worst = status; worstArmLabel = arm.label }
+        if (severity[status] > severity[worst]) { worst = status; worstArmLabel = arm.label; worstArm = arm.key }
       }
     } catch (error) {
       metric.unavailable = error instanceof Error ? error.message : 'Metric could not be analysed'
@@ -244,7 +245,7 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
     }
     if (definition.role === 'guardrail') {
       guardrails.push({ metricId, status: worst })
-      verdictGuardrails.push(worst === 'failing' ? { name: definition.name, status: worst, worstArmLabel }
+      verdictGuardrails.push(worst === 'failing' ? { name: definition.name, status: worst, worstArmLabel, worstArm }
         : { name: definition.name, status: worst })
     }
     return metric
