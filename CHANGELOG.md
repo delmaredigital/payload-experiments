@@ -11,6 +11,19 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.1.0-rc.7] - 2026-11-01
+
+### plugin
+
+**Fixed**
+
+- Flag experiments created by a request without manage access (migrations, scripts) no longer roll back the caller's transaction: the flag-params hook read xp-state with access checks, and Payload killed the transaction on Forbidden before the hook swallowed the error.
+- The layers beforeDelete hook reads referencing experiments without a second access check, so a refused nested read cannot kill the caller's transaction or hide a referencing experiment. Read errors propagate and abort the delete.
+
+**Migration impact**
+
+- None.
+
 ## [0.1.0-rc.6] - 2026-11-01
 
 ### plugin
