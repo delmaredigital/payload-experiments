@@ -28,3 +28,8 @@ test('the checker reports every planted forbidden import, including bare Node bu
   expect(forbiddenImports(fixtures)).toEqual(fixtures)
   expect(forbiddenImports(['@payloadcms/ui', '@payloadcms/ui/shared', 'react', 'next/navigation'])).toEqual([])
 })
+
+test('the admin entry includes the Tests surface and shell', () => {
+  const graph = collectImports(fileURLToPath(new URL('../../src/exports/adminClient.ts', import.meta.url)))
+  for (const name of ['TestsSurface', 'SurfaceShell', 'TestsHome']) expect(graph.files.some(file => file.endsWith(`/surface/${name}.tsx`))).toBe(true)
+})

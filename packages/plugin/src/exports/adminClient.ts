@@ -17,3 +17,4 @@ export { TargetingAttributeField } from '../admin/targeting/TargetingAttributeFi
 export { TargetingOpField } from '../admin/targeting/TargetingOpField.js'
 export { TargetingValueField } from '../admin/targeting/TargetingValueField.js'
 export { TestsNavLink } from '../admin/TestsNavLink.js'
+export { TestsSurface } from '../admin/surface/TestsSurface.js'

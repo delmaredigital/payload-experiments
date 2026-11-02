@@ -137,3 +137,8 @@ test('the checker reports planted imports and transitive helpers but ignores ord
     expect(checkModels([file])).toEqual([])
   } finally { rmSync(directory, { recursive: true, force: true }) }
 })
+
+test('surface access and home models are included in the purity scan', () => {
+  const entries = models(new URL('../../src/admin/', import.meta.url))
+  for (const name of ['access', 'home']) expect(entries.some(file => file.endsWith(`/${name}.model.ts`))).toBe(true)
+})

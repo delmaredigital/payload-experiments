@@ -12,6 +12,9 @@ function scan(directory: URL): string[] {
 function checkSource(file: string, text: string): string[] {
   const violations: string[] = []
   function check(specifier: string, typeOnly = false) {
+    // The server root needs the published Node-ESM-safe renderer, without the client UI barrel.
+    if (file === fileURLToPath(new URL('../../src/admin/views/ExperimentsRootView.tsx', import.meta.url))
+      && specifier === '@payloadcms/ui/elements/RenderServerComponent') return
     if (specifier.startsWith('@payloadcms/ui') && !['@payloadcms/ui', '@payloadcms/ui/shared'].includes(specifier)
       || specifier.startsWith('@payloadcms/next') || specifier.startsWith('payload/dist') || /\.scss(?:$|[?#])/.test(specifier)
       || specifier === 'payload' && !typeOnly) violations.push(`${file}: ${specifier}`)
@@ -60,4 +63,11 @@ test('the checker covers exports, inline type imports and CSS imports', () => {
     '@import url(@payloadcms/next/styles.css);', '@import "./private.scss";', '@import "./private.scss?theme=dark";',
   ]) expect(checkSource('styles.css', fixture), fixture).toHaveLength(1)
   expect(checkSource('styles.css', '/* @import "private.scss"; */ @import "./public.css";')).toEqual([])
+})
+
+test('the server renderer exception applies only to the root view', () => {
+  const text = "import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'"
+  expect(checkSource(fileURLToPath(new URL('../../src/admin/views/ExperimentsRootView.tsx', import.meta.url)), text)).toEqual([])
+  expect(checkSource('src/admin/surface/TestsSurface.tsx', text)).toHaveLength(1)
+  expect(checkSource('src/admin/views/AnotherView.tsx', text)).toHaveLength(1)
 })

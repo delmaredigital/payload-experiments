@@ -18,3 +18,4 @@ export const XP_TESTS_VIEW = '@delmaredigital/payload-experiments/rsc#Experiment
 export const XP_TESTS_LIST_REDIRECT = '@delmaredigital/payload-experiments/rsc#CollectionListRedirect'
 export const XP_TEST_EDIT_REDIRECT = '@delmaredigital/payload-experiments/rsc#CollectionEditRedirect'
 export const XP_TESTS_NAV_LINK = '@delmaredigital/payload-experiments/admin/client#TestsNavLink'
+export const XP_TESTS_SURFACE = '@delmaredigital/payload-experiments/admin/client#TestsSurface'

@@ -18,3 +18,11 @@ test.each(['rsc'])('%s value graph stays server-only and free of Puck', name => 
   expect(graph.files.filter(file => hasClientDirective(readFileSync(file, 'utf8')))).toEqual([])
   expect(graph.files).toContain(entry)
 })
+
+test('the Tests root reaches the surface only by import-map path', () => {
+  const root = fileURLToPath(new URL('../../src/admin/views/ExperimentsRootView.tsx', import.meta.url))
+  const graph = collectImports(root)
+  expect(graph.files.some(file => file.endsWith('/surface/TestsSurface.tsx'))).toBe(false)
+  expect(graph.bare).toContain('@payloadcms/ui/elements/RenderServerComponent')
+  expect(graph.bare).not.toContain('@payloadcms/ui')
+})
