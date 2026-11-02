@@ -1,5 +1,5 @@
 import type { AdminViewProps } from 'payload'
-import { redirect } from 'next/navigation'
+import { redirect } from 'next/navigation.js'
 
 type Props = Pick<AdminViewProps, 'initPageResult' | 'params' | 'docID'> & { routeSegments?: string[] }
 export async function CollectionEditRedirect({ initPageResult, params, routeSegments, docID }: Props) {

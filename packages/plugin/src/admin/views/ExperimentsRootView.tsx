@@ -1,5 +1,5 @@
 import type { AdminViewProps } from 'payload'
-import { notFound, redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation.js'
 import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'
 import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } from '../../collections/serialize.js'
 import { xpOptionsFromReq } from '../../options/fromReq.js'

@@ -1,7 +1,7 @@
 'use client'
 
 import { Link, useConfig } from '@payloadcms/ui'
-import { usePathname } from 'next/navigation'
+import { usePathname } from 'next/navigation.js'
 import { SURFACE_COPY } from './copy/surface.js'
 
 export function TestsNavLink() {
