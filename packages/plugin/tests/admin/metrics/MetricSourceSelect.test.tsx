@@ -32,3 +32,8 @@ test('honours read-only', () => {
   fireEvent.change(screen.getByRole('combobox'), { target: { value: 'events:signup' } })
   expect(setValue).not.toHaveBeenCalled()
 })
+test('shows the configured label and description', () => {
+  render(<MetricSourceSelect path="source" field={{ ...field, label: 'Goal outcome', admin: { ...field.admin, description: 'Choose the outcome this goal measures.' } }} />)
+  expect(screen.getByLabelText('Goal outcome')).toBeTruthy()
+  expect(screen.getByText('Choose the outcome this goal measures.')).toBeTruthy()
+})

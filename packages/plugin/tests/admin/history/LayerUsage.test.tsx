@@ -6,17 +6,20 @@ import { resetPayloadUiMock, setDocumentInfo } from '../_helpers/payloadUiMock.j
 
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
 afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals() })
-test('shows per-experiment slice usage and the layer total', async () => {
+test('shows the configured label and description, test percentages and group total', async () => {
   setDocumentInfo({ id: 'home', collectionSlug: 'xp-layers' })
   const fetcher = vi.fn(async () => ({ ok: true, json: async () => ({ docs: [
     { name: 'Header', status: 'running', layerSlices: [0, 1] },
     { name: 'Donation', status: 'decided', layerSlices: [2] },
   ] }) }))
   vi.stubGlobal('fetch', fetcher)
-  render(<LayerUsage path="usage" field={{ name: 'usage', type: 'ui', admin: {} }} />)
-  expect(await screen.findByText('3 of 100 slices in use; 97 free.')).toBeTruthy()
-  expect(screen.getByText('Header · Running · 2 slices')).toBeTruthy()
-  expect(screen.getByText('Donation · Decided · 1 slice')).toBeTruthy()
+  render(<LayerUsage path="usage" field={{ name: 'usage', type: 'ui', label: 'Tests using this space', admin: { description: 'See which tests use this group and how much room is left.' } }} />)
+  expect(await screen.findByText('3% of people in this group are in a test; 97% are free.')).toBeTruthy()
+  expect(screen.getByRole('region', { name: 'Tests in this group' })).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'Tests using this space' })).toBeTruthy()
+  expect(screen.getByText('See which tests use this group and how much room is left.')).toBeTruthy()
+  expect(screen.getByText('Header · Running · 2%')).toBeTruthy()
+  expect(screen.getByText('Donation · Decided · 1%')).toBeTruthy()
 })
 test.each([undefined, null])('nothing on create (%s)', id => {
   setDocumentInfo({ id })

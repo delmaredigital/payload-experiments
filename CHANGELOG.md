@@ -27,8 +27,7 @@ After upgrading, run `payload generate:importmap`: the Tests surface is register
 
 **Changed**
 
-- The old experiments edit-form components are no longer mounted, and their `/admin/client` exports are removed: `StatusCell`, `SummaryCell`, `ExperimentActions`, `LockedFieldNotice`, `FlagPointSelect`, `ArmsField`, `AllocationField`, `TargetingAttributeField`, `TargetingOpField`, `TargetingValueField`, `ReviewPanel`, `PhaseHistory`, `ResultsView`. Hosts regenerate the import map with `payload generate:importmap`, as the upgrade note above requires. Goals and Test groups fields now have plain-language labels and descriptions.
-
+- The old experiments edit-form components are no longer mounted. Goals and Test groups fields now have plain-language labels and descriptions.
 - New tests default to a 28-day planned duration. Preflight suggests a duration from power and reach even when a duration is saved.
 - Experiments list, edit and results routes hand over to the new Tests views. Experiments, layers and metrics leave the admin navigation while their routes remain reachable.
 - Metrics are labelled Goals; layers are labelled Test groups (advanced).
@@ -36,11 +35,15 @@ After upgrading, run `payload generate:importmap`: the Tests surface is register
 
 **Removed**
 
-- The `listSummary` list column and its `SummaryCell` export.
+- The `listSummary` list column and these `/admin/client` exports: `StatusCell`, `SummaryCell`, `ExperimentActions`, `LockedFieldNotice`, `FlagPointSelect`, `ArmsField`, `AllocationField`, `TargetingAttributeField`, `TargetingOpField`, `TargetingValueField`, `ReviewPanel`, `PhaseHistory`, `ResultsView`.
 
 **Migration impact**
 
 - None (no column changes). After regenerating the schema fixture and restoring its provenance header, `git diff --stat -- tests/_fixtures/generated-schema.ts` produced no output.
+
+### BREAKING
+
+- `/admin/client` no longer exports `StatusCell`, `SummaryCell`, `ExperimentActions`, `LockedFieldNotice`, `FlagPointSelect`, `ArmsField`, `AllocationField`, `TargetingAttributeField`, `TargetingOpField`, `TargetingValueField`, `ReviewPanel`, `PhaseHistory` or `ResultsView`. Run `payload generate:importmap` and commit the regenerated import map; any host code importing these names must drop them.
 
 ## [0.1.0-rc.7] - 2026-11-01
 

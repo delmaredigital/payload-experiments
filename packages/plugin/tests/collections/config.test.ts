@@ -7,6 +7,8 @@ import { deleteGuard, deleteGuardAfter } from '../../src/collections/experiments
 import { checkArms } from '../../src/collections/experiments/armInvariants.js'
 import { XpNotImplemented } from '../../src/errors.js'
 import * as paths from '../../src/admin/paths.js'
+import { METRICS_COPY, METRIC_KIND_LABELS } from '../../src/admin/copy/metrics.js'
+import { HISTORY_COPY, layerRow, layerSummary } from '../../src/admin/copy/history.js'
 import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } from '../../src/collections/serialize.js'
 import { fakeReq } from '../_fakes/req.js'
 import { field, flatten, invoke, sampleOptions, validate } from './fixtures.js'
@@ -101,7 +103,7 @@ test('experiments field tree has no components or ui fields', () => {
   }
 })
 
-const forbiddenWords = /\b(?:slug|source id|unit type|unitType|arm|phase|flag point|exposure|metric source|CUPED|percentile)\b/i
+const forbiddenWords = /\b(?:slug|source id|unit ?types?|unitType|arm|phase|flag point|exposure|metric source|CUPED|percentile|layer|slice)s?\b/i
 const plainWords = (value: unknown) => {
   expect(typeof value).toBe('string')
   expect((value as string).trim()).not.toBe('')
@@ -117,6 +119,26 @@ test.each(['xp-metrics', 'xp-layers'])('%s field labels, descriptions and option
       plainWords(typeof option === 'string' ? option : option.label)
     }
   }
+})
+
+test('retained Goals and Test groups components use plain words', () => {
+  for (const copy of [
+    ...Object.values(METRICS_COPY), ...Object.values(METRIC_KIND_LABELS),
+    layerSummary(40, 60), layerRow('A', 'Running', 5), HISTORY_COPY.layers,
+  ]) plainWords(copy)
+})
+
+test('the minimum before deciding describes completing the goal', () => {
+  const minimum = field(bySlug('xp-metrics').fields, 'minSampleSize', 'number')
+  expect(minimum.label).toBe('Minimum completions before deciding')
+  expect(minimum.admin?.description).toContain('completed the goal')
+  expect(minimum.admin?.description).not.toMatch(/seen/i)
+})
+
+test('amount limits explain past amounts and keeping all but the largest 1%', () => {
+  const capping = field(bySlug('xp-metrics').fields, 'capping', 'group').fields
+  expect(field(capping, 'type', 'select').options).toContainEqual({ label: 'Based on past amounts', value: 'percentile' })
+  expect(field(capping, 'value', 'number').admin?.description).toBe('For past amounts, enter how much of the usual range to keep, such as 0.99 to limit only the largest 1%; or enter a fixed amount.')
 })
 
 test('Goals and Test groups validation messages use plain words', () => {

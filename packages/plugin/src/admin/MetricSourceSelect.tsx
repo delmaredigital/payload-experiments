@@ -11,7 +11,7 @@ export function MetricSourceSelect({ path, field, readOnly }: TextFieldClientPro
   const hint = metricSourceHint(sources.find(source => source.id === value))
   const locked = Boolean(readOnly || field.admin?.readOnly)
   return <div>
-    <SelectInput path={path} name={path} label={METRICS_COPY.source} required={field.required}
+    <SelectInput path={path} name={path} label={field.label ?? METRICS_COPY.source} description={field.admin?.description} required={field.required}
       options={metricSourceOptions(sources)} value={value ?? ''} readOnly={locked}
       onChange={option => { if (!locked) setValue(option && !Array.isArray(option) ? option.value : null) }} />
     {hint ? <p>{hint}</p> : null}
