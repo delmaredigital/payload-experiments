@@ -79,16 +79,6 @@ test('summary requests batch at 100 ids', async () => {
   await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3))
   expect(fetch.mock.calls[2]?.[0]).toBe('/api/xp/experiments/summary?ids=100')
 })
-test.each([
-  ['new', 'New test setup is coming soon.'], ['test', 'Test setup is coming soon.'], ['results', 'Test results are coming soon.'],
-] as const)('the shell routes %s and has a home link and main region', (route, text) => {
-  const props: TestsSurfaceProps = { route, id: '123', adminRoute: '/control', apiRoute: '/data', canManage: true, canReadResults: true, flagPoints: [], metricSources: [], attributeKeys: {} }
-  render(<TestsSurface {...props} />)
-  expect(within(screen.getByRole('main')).getByText(text)).toBeTruthy()
-  expect(screen.getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/control/experiments')
-  expect(screen.getByRole('link', { name: 'Back to admin' }).getAttribute('href')).toBe('/control')
-})
-
 test('list 403 renders the load-error alert', async () => {
   const fetch = vi.fn(async () => new Response('{}', { status: 403 }))
   vi.stubGlobal('fetch', fetch)
@@ -115,7 +105,7 @@ test('missing results never render a green health dot', async () => {
 })
 test('home and shell links support the root admin route', async () => {
   fetchData([{ id: '123', name: 'Stopped test', kind: 'flag', status: 'stopped' }])
-  const props: TestsSurfaceProps = { route: 'home', adminRoute: '/', apiRoute: '/api', canManage: true, canReadResults: true, flagPoints: [], metricSources: [], attributeKeys: {} }
+  const props: TestsSurfaceProps = { route: 'home', adminRoute: '/', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: false, flagPoints: [], metricSources: [], attributeKeys: {} }
   render(<TestsSurface {...props} />)
   await screen.findByText('Stopped test')
   for (const [name, href] of [['Tests', '/experiments'], ['Back to admin', '/'], ['New test', '/experiments/new'], ['Goals', '/collections/xp-metrics'], ['View results', '/experiments/123/results']]) {

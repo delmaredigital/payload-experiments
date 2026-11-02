@@ -1,3 +1,4 @@
+import type { DocId } from './contracts.js'
 import type { SerializedAttributeKeys, SerializedFlagPoint, SerializedMetricSource } from './admin.js'
 
 export type TestsRoute = 'home' | 'new' | 'test' | 'results'
@@ -6,6 +7,8 @@ export interface TestsSurfaceProps {
   id?: string
   adminRoute: string
   apiRoute: string
+  isAdmin: boolean
+  pages?: Array<{ collection: string; collectionLabel: string; id: DocId; title: string; editorUrl: string }>
   canManage: boolean
   canReadResults: boolean
   flagPoints: SerializedFlagPoint[]

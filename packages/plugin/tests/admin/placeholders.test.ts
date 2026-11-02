@@ -28,6 +28,7 @@ const views = [
   ['XP_TESTS_VIEW', 'ExperimentsRootView'], ['XP_TESTS_LIST_REDIRECT', 'CollectionListRedirect'], ['XP_TEST_EDIT_REDIRECT', 'CollectionEditRedirect'],
 ] as const
 const files = [
+  'admin/surface/newTest/NewTest.tsx', 'admin/surface/ResultsRoute.tsx',
   ...retiredFiles, ...admin.map(([, , file]) => `admin/${file}.tsx`), 'admin/copy/tabs.ts',
   'client/ExperimentsProvider.tsx', 'client/useFlagPoint.ts', 'client/useExperiment.ts', 'client/ExperimentPageview.tsx', 'client/trackConversionBeacon.ts',
   'puck/ExperimentSlot.tsx', 'puck/experimentSlotField.ts', 'puck/editor/ExperimentSlotEditor.tsx', 'fields/armSelect.ts',

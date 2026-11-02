@@ -1,0 +1,117 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation.js'
+import { formatAdminURL } from 'payload/shared'
+import type { DocId, UnitType } from '../../../types/contracts.js'
+import type { TestsSurfaceProps } from '../../../types/surface.js'
+import type { SurfaceProps } from '../contracts.js'
+import { NEW_TEST_COPY as C } from '../../copy/newTest.js'
+import { createTest } from './createTest.js'
+import './newTest.css'
+
+type Layer = { id: DocId; name: string }
+
+export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: TestsSurfaceProps['pages'] }) {
+  const router = useRouter()
+  const [step, setStep] = useState<'kind' | 'block' | 'setting' | 'name'>('kind')
+  const [pointId, setPointId] = useState('')
+  const point = surface.flagPoints.find(item => item.id === pointId)
+  const [unitType, setUnitType] = useState<UnitType>('visitor')
+  const [name, setName] = useState('')
+  const [hypothesis, setHypothesis] = useState('')
+  const [advanced, setAdvanced] = useState(false)
+  const [layers, setLayers] = useState<Layer[]>([])
+  const [layer, setLayer] = useState<DocId>()
+  const [layerState, setLayerState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [layerRetry, setLayerRetry] = useState(0)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState('')
+  const inFlight = useRef(false)
+
+  useEffect(() => {
+    if (step !== 'setting' || !advanced) return
+    const controller = new AbortController()
+    setLayerState('loading')
+    void (async () => {
+      try {
+        const response = await fetch(`${surface.apiRoute.replace(/\/$/, '')}/xp-layers?depth=0&limit=100`, { credentials: 'include', signal: controller.signal })
+        const body = await response.json()
+        if (!response.ok || !Array.isArray(body?.docs)) throw new Error('groups')
+        if (!controller.signal.aborted) { setLayers(body.docs); setLayerState('ready') }
+      } catch { if (!controller.signal.aborted) setLayerState('error') }
+    })()
+    return () => controller.abort()
+  }, [step, advanced, surface.apiRoute, layerRetry])
+
+  async function submit() {
+    if (inFlight.current || !point || !name.trim()) return
+    inFlight.current = true
+    setPending(true)
+    setError('')
+    try {
+      const id = await createTest(surface.apiRoute, { kind: 'flag', unitType, name, flagPoint: point.id,
+        ...(layer === undefined ? {} : { layer }), ...(hypothesis.trim() ? { hypothesis } : {}) })
+      router.push(formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(id))}` }))
+    } catch (cause) {
+      setError(cause instanceof Error && cause.message ? cause.message : C.createError)
+      inFlight.current = false
+      setPending(false)
+    }
+  }
+
+  const collections = [...new Set(pages?.map(page => page.collection))]
+  return <main className="xp-new-test">
+    {step === 'kind' ? <>
+      <h1>{C.question}</h1>
+      <div className="xp-new-test-cards">
+        {pages !== undefined ? <button type="button" className="xp-new-test-card" onClick={() => setStep('block')}>
+          <strong>{C.block}</strong><span>{C.blockMeaning}</span>{surface.descriptions?.block ? <span>{surface.descriptions.block}</span> : null}
+        </button> : null}
+        {surface.flagPoints.length > 0 ? <button type="button" className="xp-new-test-card" onClick={() => setStep('setting')}>
+          <strong>{C.setting}</strong><span>{C.settingMeaning}</span>{surface.descriptions?.setting ? <span>{surface.descriptions.setting}</span> : null}
+        </button> : null}
+      </div>
+      {pages === undefined && !surface.flagPoints.length ? <p>{C.unavailable}</p> : null}
+    </> : step === 'block' ? <>
+      <h1>{C.block}</h1><p>{C.handoff}</p>
+      {!pages?.length ? <p>{C.noPages}</p> : collections.map(collection => {
+        const group = pages!.filter(page => page.collection === collection)
+        return <section key={collection}><h2>{group[0]!.collectionLabel}</h2><ul>
+          {group.map(page => <li key={`${typeof page.id}:${page.id}`}><span>{page.title}</span>{' '}<a href={page.editorUrl}>{C.open}</a></li>)}
+        </ul>{group.length === 50 ? <p>{C.recentPages}</p> : null}</section>
+      })}
+    </> : step === 'setting' ? <>
+      <h1>{C.chooseSetting}</h1>
+      <fieldset><legend>{C.setting}</legend>{surface.flagPoints.map(setting => <label key={setting.id} className="xp-new-test-choice">
+        <input type="radio" name="setting" checked={pointId === setting.id} onChange={() => {
+          if (pointId !== setting.id) { setPointId(setting.id); setName(setting.label) }
+        }} />{setting.label}{setting.description ? <span>{setting.description}</span> : null}
+      </label>)}</fieldset>
+      <fieldset aria-describedby="xp-new-people-help"><legend>{C.people}</legend>
+        <label><input type="radio" name="people" checked={unitType === 'visitor'} onChange={() => setUnitType('visitor')} />{C.visitors}</label>
+        <label><input type="radio" name="people" checked={unitType === 'user'} onChange={() => setUnitType('user')} />{C.users}</label>
+      </fieldset><p id="xp-new-people-help">{C.peopleHelp}</p>
+      <details open={advanced} onToggle={event => setAdvanced(event.currentTarget.open)}><summary>{C.advanced}</summary>
+        <label>{C.group}<select aria-describedby="xp-new-group-help" disabled={layerState !== 'ready'}
+          value={layer === undefined ? '' : layers.findIndex(item => item.id === layer)} onChange={event => setLayer(event.currentTarget.value === '' ? undefined : layers[Number(event.currentTarget.value)]?.id)}>
+          <option value="">{C.noGroup}</option>{layers.map((item, index) => <option key={index} value={index}>{item.name}</option>)}
+        </select></label><p id="xp-new-group-help">{C.groupHelp}</p>
+        {layerState === 'loading' ? <p role="status">{C.groupsLoading}</p> : layerState === 'error' ? <p role="alert">{C.groupsError}{' '}<button type="button" onClick={() => setLayerRetry(value => value + 1)}>{C.retry}</button></p> : null}
+      </details>
+    </> : <form onSubmit={event => { event.preventDefault(); void submit() }}>
+      <h1>{C.nameQuestion}</h1>
+      <label>{C.name}<input required value={name} disabled={pending} onChange={event => setName(event.currentTarget.value)} /></label>
+      <label>{C.hypothesis}<textarea value={hypothesis} disabled={pending} onChange={event => setHypothesis(event.currentTarget.value)} /></label>
+      {error ? <p role="alert">{error}</p> : null}
+      <button type="submit" disabled={pending || !name.trim()}>{pending ? C.creating : C.createTest}</button>
+    </form>}
+    <div className="xp-new-test-actions">
+      <button type="button" disabled={pending} onClick={() => {
+        if (step === 'kind') router.push(formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }))
+        else { setError(''); setStep(step === 'name' ? 'setting' : 'kind') }
+      }}>{C.back}</button>
+      {step === 'setting' ? <button type="button" disabled={!point} onClick={() => setStep('name')}>{C.next}</button> : null}
+    </div>
+  </main>
+}

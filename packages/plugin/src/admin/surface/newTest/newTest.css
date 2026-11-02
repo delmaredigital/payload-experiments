@@ -1,0 +1,9 @@
+.xp-new-test { max-width: 60rem; padding: var(--base); color: var(--theme-text); }
+.xp-new-test-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--base); }
+.xp-new-test-card { display: flex; flex-direction: column; gap: .75rem; padding: 1.5rem; border: 1px solid var(--theme-elevation-200); border-radius: .5rem; background: var(--theme-elevation-50); color: var(--theme-text); text-align: left; cursor: pointer; font: inherit; }
+.xp-new-test-card strong { font-size: 1.25rem; }
+.xp-new-test-card:hover { background: var(--theme-elevation-100); }
+.xp-new-test label { display: block; margin-block: .75rem; }
+.xp-new-test input:not([type=radio]), .xp-new-test textarea, .xp-new-test select { display: block; width: 100%; max-width: 36rem; padding: .5rem; color: var(--theme-text); background: var(--theme-input-bg); border: 1px solid var(--theme-elevation-300); font: inherit; }
+.xp-new-test-choice span { display: block; margin-left: 1.5rem; }
+.xp-new-test-actions { display: flex; gap: 1rem; margin-top: var(--base); }

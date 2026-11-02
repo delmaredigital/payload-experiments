@@ -1,0 +1,16 @@
+export const NEW_TEST_COPY = {
+  question: 'What do you want to test?', block: 'A block on a page', setting: 'A setting',
+  blockMeaning: 'Compare different versions of content on a page.',
+  settingMeaning: 'Compare different choices for a setting on your site.',
+  unavailable: 'A developer needs to set up pages or settings before you can create a test.',
+  handoff: 'Open the page, add an Experiment block where you want the test, and choose Test this block.',
+  noPages: 'There are no pages yet.', recentPages: 'Showing the 50 most recently edited.', open: 'Open',
+  chooseSetting: 'Which setting do you want to test?', people: 'Count people as:',
+  visitors: 'Visitors', users: 'Signed-in users', peopleHelp: 'Count each browser as a visitor, or each signed-in account as one person.',
+  advanced: 'Advanced', group: 'Put this test in a group (optional)', noGroup: 'No group',
+  groupHelp: "The group keeps tests from sharing the same people and can't be changed later.",
+  groupsError: "Couldn't load groups. Try again.", groupsLoading: 'Loading groups…', retry: 'Try again',
+  nameQuestion: 'What will you call this test?', name: 'Name', hypothesis: 'Why are you testing this? (optional)',
+  back: 'Back', next: 'Next', createTest: 'Create', creating: 'Creating…',
+  createError: "Couldn't create the test. Try again.",
+} as const

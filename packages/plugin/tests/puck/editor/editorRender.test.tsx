@@ -10,7 +10,7 @@ const puck = vi.hoisted(() => ({ item: {
     control: [{ type: 'Text', props: { id: 'source-id', text: 'Hello', nested: [{ type: 'Text', props: { id: 'nested-id', text: 'Nested' } }] } }],
     variantA: [], variantB: [], variantC: [],
   },
-}, dispatch: vi.fn(), getSelectorForId: vi.fn(), selectors: [] as unknown[] }))
+}, dispatch: vi.fn(), getSelectorForId: vi.fn(), selectors: [] as unknown[], title: 'Welcome page' }))
 
 vi.mock('@puckeditor/core', async importOriginal => {
   // Puck's drag library references this browser API during module evaluation.
@@ -18,7 +18,7 @@ vi.mock('@puckeditor/core', async importOriginal => {
   return {
   ...await importOriginal<typeof import('@puckeditor/core')>(),
   createUsePuck: () => (selector: (state: unknown) => unknown) => {
-    const result = selector({ selectedItem: puck.item })
+    const result = selector({ selectedItem: puck.item, appState: { data: { root: { props: { title: puck.title } } } } })
     puck.selectors.push(result)
     return result
   },
@@ -72,7 +72,7 @@ test('renders only the selected group slot, switches tabs, and has primitive sel
   fireEvent.keyDown(screen.getByRole('tab', { name: 'New headline' }), { key: 'ArrowRight' })
   expect(screen.getByRole('tab', { name: 'Original' }).getAttribute('aria-selected')).toBe('true')
   expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Original' }))
-  expect(puck.selectors.every(value => typeof value === 'boolean')).toBe(true)
+  expect(puck.selectors.every(value => typeof value === 'boolean' || typeof value === 'string')).toBe(true)
   expect(fetch).toHaveBeenCalledWith('/api/xp-experiments/1?depth=0', { credentials: 'include', signal: expect.any(AbortSignal) })
 })
 
@@ -120,16 +120,17 @@ test('never creates an observer or sends an exposure, even with xpExpose', async
 })
 
 test('unbound shows Original and create success binds the component experiment prop', async () => {
-  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ doc: { id: 'created', slug: 'new-test' } }) } as Response)
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] }))).mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'created', slug: 'new-test' } })))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props({ experiment: null })} />)
   expect(screen.getByRole('status').textContent).toBe('Choose or create an experiment to show different versions.')
   expect(screen.getAllByRole('tab')).toHaveLength(1)
   expect(fetch).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: 'Create experiment' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Test this block' }))
   expect(screen.getByLabelText('Name').closest('[data-puck-overlay-portal]')).toBeTruthy()
+  expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Welcome page')
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New test' } })
-  fireEvent.click(screen.getAllByRole('button', { name: 'Create experiment' })[1]!)
+  fireEvent.click(screen.getAllByRole('button', { name: 'Test this block' })[1]!)
   await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
   expect(puck.dispatch.mock.calls[0]![0].data.props.experiment).toEqual({ id: 'created', slug: 'new-test' })
 })
@@ -176,4 +177,14 @@ test('copy into a variant that already has content asks first and only replaces 
     fireEvent.click(screen.getByRole('button', { name: 'Replace' }))
     expect(puck.dispatch).toHaveBeenCalledTimes(1)
   } finally { puck.item.props.variantA = original }
+})
+
+test('a draft binding links to setup, while a running binding has no setup link', async () => {
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status: 'draft' })))
+  const Editor = ExperimentSlotEditor.render
+  const view = render(<Editor {...props()} />)
+  expect((await screen.findByRole('link', { name: 'Set up the test' })).getAttribute('href')).toBe('/admin/experiments/1')
+  view.rerender(<Editor {...props({ experiment: { id: 2, slug: 'running' } })} />)
+  await screen.findByRole('tab', { name: 'New headline' })
+  expect(screen.queryByRole('link', { name: 'Set up the test' })).toBeNull()
 })

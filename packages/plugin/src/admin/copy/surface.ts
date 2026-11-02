@@ -13,8 +13,7 @@ export const SURFACE_COPY = {
   ready: 'Ready to start', next: 'Next: finish setting up',
   continue: 'Continue setup', results: 'View results', open: 'Open',
   health: { red: 'Stop and check', amber: 'Check data', green: 'On track' },
-  newPlaceholder: 'New test setup is coming soon.',
-  testPlaceholder: 'Test setup is coming soon.', resultsPlaceholder: 'Test results are coming soon.',
+  backToSetup: 'Back to setup',
 } as const
 
 export function runningLine(days: string, planned: string, people: string) {

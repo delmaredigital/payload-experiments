@@ -5,7 +5,7 @@ import type { AdminViewServerProps } from 'payload'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { ExperimentsRootView } from '../../../src/admin/views/ExperimentsRootView.js'
 import { XP_TESTS_SURFACE } from '../../../src/admin/paths.js'
-import type { ExperimentsAccess } from '../../../src/types/contracts.js'
+import type { ExperimentsAccess, ExperimentsPluginOptions } from '../../../src/types/contracts.js'
 import type { TestsSurfaceProps } from '../../../src/types/surface.js'
 import { fakeReq } from '../../_fakes/req.js'
 import { fakePayload } from '../../_fakes/payload.js'
@@ -19,22 +19,29 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@payloadcms/ui/elements/RenderServerComponent', () => ({ RenderServerComponent: mocks.render }))
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect, notFound: mocks.notFound }))
 beforeEach(() => vi.clearAllMocks())
-function setup({ user = true, manage = () => true, readResults, adminRoute = '/control', loginRoute = '/login' }: {
+function setup({ user = true, manage = () => true, readResults, adminRoute = '/control', loginRoute = '/login', admin, puck, pageDocs = {}, deniedCollections = [], editorUrl = () => '/editor' }: {
+  admin?: ExperimentsAccess; puck?: ExperimentsPluginOptions['puck']; editorUrl?: NonNullable<ExperimentsPluginOptions['admin']>['editorUrl']
+  pageDocs?: Record<string, Array<{ id: string | number; title?: string; heading?: string }>>; deniedCollections?: string[]
   user?: boolean; manage?: ExperimentsAccess; readResults?: ExperimentsAccess; adminRoute?: string; loginRoute?: string
 } = {}) {
   const findGlobal = vi.fn(async () => ({ flagDefaults: { saved: { params: { text: 'Shipped' } } } }))
-  const payload = fakePayload({ config: { routes: { admin: adminRoute, api: '/data' }, admin: { routes: { login: loginRoute } }, custom: { xp: {
-    access: { manage, ...(readResults ? { readResults } : {}) },
+  const find = vi.fn(async ({ collection }: { collection: string }) => {
+    if (deniedCollections.includes(collection)) throw new Error('Forbidden')
+    return { docs: pageDocs[collection] ?? [] }
+  })
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', admin: { useAsTitle: 'title' }, labels: { plural: 'Pages' } }, { slug: 'articles', admin: { useAsTitle: 'heading' }, labels: { plural: 'Articles' } }], routes: { admin: adminRoute, api: '/data' }, admin: { routes: { login: loginRoute } }, custom: { xp: {
+    access: { manage, ...(admin ? { admin } : {}), ...(readResults ? { readResults } : {}) },
+    ...(puck ? { puck } : {}),
     flagPoints: ['saved', 'fallback'].map(id => ({ id, label: id, params: { text: { type: 'text', label: 'Text' } }, defaultParams: { text: 'Original' }, placements: () => [], makeContent: () => {} })),
     attributeKeys: { role: { type: 'string', values: ['student'] } },
     metricSources: [{ id: 'goal', label: 'Goal', kind: 'binomial', keyedBy: 'visitor', query: () => [] }],
-    admin: { descriptions: { setting: 'Choose a setting.' }, editorUrl: () => '/editor', previewUrl: () => '/preview' },
-  } } }, overrides: { findGlobal, importMap: {} } })
+    admin: { descriptions: { setting: 'Choose a setting.' }, editorUrl, previewUrl: () => '/preview' },
+  } } }, overrides: { find, findGlobal, importMap: {} } })
   const req = fakeReq({ payload, user: user ? { id: 'manager' } : null })
   const props = {
     initPageResult: fakeInitPageResult({ req }), params: {}, searchParams: {},
   } satisfies Pick<AdminViewServerProps, 'initPageResult' | 'params' | 'searchParams'>
-  return { props, req, payload, findGlobal }
+  return { props, req, payload, findGlobal, find }
 }
 const routes = [
   [[], 'home', undefined], [['new'], 'new', undefined], [['123'], 'test', '123'], [['123', 'results'], 'results', '123'],
@@ -110,4 +117,54 @@ test('missing import-map component renders the server fallback', async () => {
   const html = renderToStaticMarkup(result)
   expect(html).toContain('role="alert"')
   expect(html).toContain("The Tests screen isn&#x27;t installed yet. Run `payload generate:importmap` and reload.")
+})
+
+test.each([
+  [undefined, false], [(): boolean => true, true], [(): boolean => false, false], [() => { throw new Error('denied') }, false],
+] as const)('admin access is independently resolved with boolean-only permits', async (admin, expected) => {
+  const { props } = setup({ admin })
+  await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ isAdmin: expected }) }))
+})
+test('new route loads recent Puck pages with access checked and preserves numeric and string ids', async () => {
+  const editorUrl = vi.fn(({ id }: { id: string | number }) => `/page-editor/${id}`)
+  const { props, find, req } = setup({ puck: { enabled: true, collections: ['pages', { slug: 'articles', field: 'body' }] },
+    pageDocs: { pages: [{ id: 12, title: 'Welcome' }], articles: [{ id: 'uuid', heading: 'Story' }] }, editorUrl })
+  await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
+  expect(find.mock.calls).toEqual([
+    [{ collection: 'pages', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: true, select: { title: true } }],
+    [{ collection: 'articles', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: true, select: { heading: true } }],
+  ])
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [
+    { collection: 'pages', collectionLabel: 'Pages', id: 12, title: 'Welcome', editorUrl: '/page-editor/12' },
+    { collection: 'articles', collectionLabel: 'Articles', id: 'uuid', title: 'Story', editorUrl: '/page-editor/uuid' },
+  ] }) }))
+  expect(editorUrl).toHaveBeenCalledWith({ collection: 'pages', id: 12, draft: true })
+})
+test('failed collection reads are skipped, missing titles and editor URLs have configured-route fallbacks', async () => {
+  const { props, find } = setup({ puck: { enabled: true, collections: ['pages', 'articles', 'other'] }, deniedCollections: ['pages'],
+    pageDocs: { articles: [{ id: 'uuid' }], other: [{ id: 7 }] }, editorUrl: () => undefined as unknown as string })
+  await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
+  expect(find).toHaveBeenCalledTimes(3)
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [
+    { collection: 'articles', collectionLabel: 'Articles', id: 'uuid', title: 'uuid', editorUrl: '/control/collections/articles/uuid' },
+    { collection: 'other', collectionLabel: 'other', id: 7, title: '7', editorUrl: '/control/collections/other/7' },
+  ] }) }))
+  expect(find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'other', select: { id: true } }))
+})
+test.each([[], ['12'], ['12', 'results']].map(segments => [segments]))('pages are not loaded for route %j', async segments => {
+  const { props, find } = setup({ puck: { enabled: true, collections: ['pages'] } })
+  await ExperimentsRootView({ ...props, params: { segments } })
+  expect(find).not.toHaveBeenCalled()
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.not.objectContaining({ pages: expect.anything() }) }))
+})
+test('a results-only reader never loads pages even when Puck is configured', async () => {
+  const { props, find } = setup({ manage: () => false, readResults: () => true, puck: { enabled: true, collections: ['pages'] } })
+  await ExperimentsRootView({ ...props, params: { segments: ['12', 'results'] } })
+  expect(find).not.toHaveBeenCalled()
+})
+test('configured Puck with no readable pages still offers the block hand-off', async () => {
+  const { props } = setup({ puck: { enabled: true, collections: ['pages'] }, deniedCollections: ['pages'] })
+  await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [] }) }))
 })

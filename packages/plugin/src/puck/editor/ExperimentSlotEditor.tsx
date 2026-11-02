@@ -33,6 +33,7 @@ function EditorRender(props: RenderProps) {
   const [creating, setCreating] = useState(false)
   // A non-empty variant is only overwritten after an explicit second confirmation.
   const [confirming, setConfirming] = useState<ArmSlot | null>(null)
+  const pageTitle = usePuckSelector(state => typeof state.appState.data.root.props?.title === 'string' ? state.appState.data.root.props.title : '')
   const selected = usePuckSelector(state => state.selectedItem?.props.id === props.id)
   const originalEmpty = usePuckSelector(state => {
     const content: unknown = state.selectedItem?.props.control
@@ -100,7 +101,9 @@ function EditorRender(props: RenderProps) {
     <div ref={registerControls}>
     <p role="status">{experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}</p>
     <button type="button" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</button>
-    {creating ? <CreateExperimentDrawer onCreate={bind} onClose={() => setCreating(false)} /> : null}
+    {creating ? <CreateExperimentDrawer initialName={pageTitle} onCreate={bind} onClose={() => setCreating(false)} /> : null}
+    {/* Configurable admin routes are owed on ADM-11, alongside the existing /api prefix. */}
+    {experiment?.status === 'draft' ? <a href={`/admin/experiments/${encodeURIComponent(String(experimentId))}`}>{editorCopy.setup}</a> : null}
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBlock: 8 }}>
       {tabs.filter(tab => tab.slot !== 'control').map(tab => <button key={tab.slot} type="button" disabled={originalEmpty} onClick={() => requestCopy(tab.slot)}>{editorCopy.copy(tab.label)}</button>)}
     </div>
