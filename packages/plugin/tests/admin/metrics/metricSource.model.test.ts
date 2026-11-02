@@ -20,5 +20,5 @@ test('only revenue has a hint, with no unit warning for event or code sources', 
   expect(metricSourceHint(sources[1])).toBeNull()
   expect(metricSourceHint(sources[2])).toBeNull()
   expect(metricSourceHint()).toBeNull()
-  expect(METRICS_COPY.revenueHint).toBe('Unusually large values are capped at the 99th percentile of the 90 days before Start for the decision; totals are always shown in full.')
+  expect(METRICS_COPY.revenueHint).toBe('Very large amounts are limited to the top 1% of the 90 days before the test starts when deciding; totals are always shown in full.')
 })

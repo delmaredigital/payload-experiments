@@ -18,7 +18,7 @@ test('select stores source ids, keeps source order and shows the revenue hint on
   render(<MetricSourceSelect path="source" field={field} />)
   expect(screen.queryByText(METRICS_COPY.revenueHint)).toBeNull()
   expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['', 'Sign ups · yes/no', 'Gifts · amount'])
-  fireEvent.change(screen.getByLabelText('Outcome source'), { target: { value: 'gifts' } })
+  fireEvent.change(screen.getByLabelText('Measured by'), { target: { value: 'gifts' } })
   expect(setValue).toHaveBeenCalledWith('gifts')
   act(() => setField({ value: 'gifts', setValue }))
   expect(screen.getByText(METRICS_COPY.revenueHint)).toBeTruthy()
