@@ -11,9 +11,16 @@ const proxyForbidden = /^(payload(?:\/|$)|@payloadcms\/|react|@puckeditor\/)/
 const clientForbidden = /^(payload(?:\/|$)|@payloadcms\/|@puckeditor\/core(?:\/|$)|@delmaredigital\/experiments-stats(?:\/|$)|pg(?:\/|$)|node:)/
 
 // Route handlers import these entries; Next 16's app-route layer has no vendored app-router-context.
-test.each(['index', 'rsc', 'proxy', 'runtimeProxy', 'runtimeServer', 'client', 'puck', 'puckEditor'])('%s has no next/navigation value imports', name => {
+const adminEntries = ['adminClient', 'adminRsc']
+const routeSafeEntries = readdirSync(fileURLToPath(new URL('../../src/exports/', import.meta.url))).filter(file => file.endsWith('.ts')).map(file => file.slice(0, -3)).filter(name => !adminEntries.includes(name))
+
+test('every non-admin entry is checked for next/navigation', () => {
+  expect(routeSafeEntries.sort()).toEqual(['client', 'index', 'proxy', 'puck', 'puckEditor', 'rsc', 'runtimeProxy', 'runtimeServer'])
+})
+
+test.each(routeSafeEntries)('%s has no next/navigation value imports', name => {
   const graph = collectImports(entry(name))
-  expect([...graph.bare, ...graph.dynamic].filter(name => /^next\/navigation(?:[/.]|$)/.test(name))).toEqual([])
+  expect([...graph.bare, ...graph.dynamic].filter(name => /^next\/(?:navigation(?:[/.]|$)|dist\/)/.test(name))).toEqual([])
 })
 
 test('adminRsc stays server-only and free of Puck', () => {
