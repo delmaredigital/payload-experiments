@@ -48,24 +48,25 @@ test('a second collision stays inline and never retries a third time', async () 
   const { fetch, onCreate, onClose } = setup(collision, 400)
   fetch.mockResolvedValueOnce(response({ docs: [{ slug: 'new-test' }] })).mockResolvedValueOnce(response(collision, 400))
   create()
-  expect((await screen.findByRole('alert')).textContent).toBe('That slug is already in use.')
+  expect((await screen.findByRole('alert')).textContent).toBe('A test with this name already exists. Choose a different name.')
   expect(fetch).toHaveBeenCalledTimes(4)
   expect(onCreate).not.toHaveBeenCalled()
   expect(onClose).not.toHaveBeenCalled()
 })
 test('other Payload refusals are inline without retrying', async () => {
-  const { fetch, onCreate } = setup({ errors: [{ message: 'Name is required.' }] }, 400)
+  const { fetch, onCreate } = setup({ errors: [{ message: 'The following field is invalid: name', data: { errors: [{ message: 'Name is required.' }] } }] }, 400)
   create()
   expect((await screen.findByRole('alert')).textContent).toBe('Name is required.')
   expect(fetch).toHaveBeenCalledTimes(2)
   expect(onCreate).not.toHaveBeenCalled()
 })
-test.each(['network', 'malformed', 'lookup'])('%s failure stays in the drawer', async mode => {
+test.each(['network', 'json', 'malformed', 'lookup'])('%s failure stays in the drawer', async mode => {
   const { fetch, onCreate } = setup({ doc: {} })
   if (mode === 'network') fetch.mockReset().mockRejectedValue(new Error('offline'))
+  if (mode === 'json') fetch.mockReset().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(new Response('<html>Bad gateway</html>', { status: 502 }))
   if (mode === 'lookup') fetch.mockReset().mockResolvedValue(response({}, 403))
   create()
-  expect((await screen.findByRole('alert')).textContent).toBe("Couldn't create the experiment. Try again.")
+  expect((await screen.findByRole('alert')).textContent).toBe("Couldn't create the test. Try again.")
   expect(onCreate).not.toHaveBeenCalled()
 })
 test('pending creation blocks repeated clicks and cancel', async () => {
@@ -82,4 +83,13 @@ test('cancel closes without posting', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
   expect(onClose).toHaveBeenCalledOnce()
   expect(fetch).not.toHaveBeenCalled()
+})
+
+
+test('a refusal without an inner field message uses generic copy', async () => {
+  const { fetch, onCreate } = setup({ errors: [{ message: 'The following field is invalid: flagPoint' }] }, 400)
+  create()
+  expect((await screen.findByRole('alert')).textContent).toBe("Couldn't create the test. Try again.")
+  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(onCreate).not.toHaveBeenCalled()
 })

@@ -57,7 +57,7 @@ test('an empty page hand-off explains there are no pages', () => {
   expect(screen.getByText('There are no pages yet.')).toBeTruthy()
 })
 test('setting defaults to visitors, names from the setting, preserves answers on Back, and creates a complete body', async () => {
-  const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response({ doc: { id: 12 } }))
+  const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response({ doc: { id: 12, slug: 'a-warmer-welcome' } }))
   vi.stubGlobal('fetch', fetch)
   render(<NewTest surface={surface} />)
   settingStep()
@@ -83,7 +83,7 @@ test('setting defaults to visitors, names from the setting, preserves answers on
 })
 test.each([8, 'group-uuid'])('Advanced preserves the API layer id %s and signed-in choice', async layerId => {
   const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [{ id: layerId, name: 'Homepage tests' }] }))
-    .mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response({ doc: { id: 'uuid' } }))
+    .mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response({ doc: { id: 'uuid', slug: 'welcome-message' } }))
   vi.stubGlobal('fetch', fetch)
   render(<NewTest surface={{ ...surface, adminRoute: '/' }} />)
   settingStep()
@@ -100,7 +100,7 @@ test.each([8, 'group-uuid'])('Advanced preserves the API layer id %s and signed-
 })
 test('a selected group can be cleared and is then omitted', async () => {
   const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [{ id: 8, name: 'Group' }] }))
-    .mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response({ doc: { id: 1 } }))
+    .mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response({ doc: { id: 1, slug: 'welcome-message' } }))
   vi.stubGlobal('fetch', fetch)
   render(<NewTest surface={surface} />); settingStep()
   const details = screen.getByText('Advanced').closest('details')!
@@ -113,7 +113,7 @@ test('a selected group can be cleared and is then omitted', async () => {
   expect(JSON.parse(fetch.mock.calls[2]![1].body)).not.toHaveProperty('layer')
 })
 test('refusals stay inline and creation can be tried again', async () => {
-  const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response({ errors: [{ message: 'Choose another setting.' }] }, 400))
+  const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response({ errors: [{ message: 'The following field is invalid: flagPoint', data: { errors: [{ message: 'Choose another setting.' }] } }] }, 400))
   vi.stubGlobal('fetch', fetch)
   render(<NewTest surface={surface} />); nameStep()
   fireEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -131,4 +131,31 @@ test('pending creation disables the controls and blocks a double submit', () => 
   expect(fetch).toHaveBeenCalledOnce()
   expect((screen.getByRole('button', { name: 'Creating…' }) as HTMLButtonElement).disabled).toBe(true)
   expect((screen.getByRole('button', { name: 'Back' }) as HTMLButtonElement).disabled).toBe(true)
+})
+
+
+test.each(['network', 'json'])('%s failures show generic creation copy without navigating', async failure => {
+  const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] }))
+  if (failure === 'network') fetch.mockRejectedValueOnce(new Error('Failed to fetch'))
+  else fetch.mockResolvedValueOnce(new Response('<html>Bad gateway</html>', { status: 502 }))
+  vi.stubGlobal('fetch', fetch)
+  render(<NewTest surface={surface} />); nameStep()
+  fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+  expect((await screen.findByRole('alert')).textContent).toBe("Couldn't create the test. Try again.")
+  expect(push).not.toHaveBeenCalled()
+  expect((screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement).disabled).toBe(false)
+})
+
+test.each([
+  [{ errors: [{ message: 'The following field is invalid: flagPoint' }] }, false, "Couldn't create the test. Try again."],
+  [{ errors: [{ message: 'The following field is invalid: slug', data: { errors: [{ path: 'slug', message: 'Value must be unique' }] } }] }, true, 'A test with this name already exists. Choose a different name.'],
+])('refusals hide the outer Payload field wrapper', async (body, collision, message) => {
+  const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response(body, 400))
+  if (collision) fetch.mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response(body, 400))
+  vi.stubGlobal('fetch', fetch)
+  render(<NewTest surface={surface} />); nameStep()
+  fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+  expect((await screen.findByRole('alert')).textContent).toBe(message)
+  expect(push).not.toHaveBeenCalled()
+  expect(fetch).toHaveBeenCalledTimes(collision ? 4 : 2)
 })

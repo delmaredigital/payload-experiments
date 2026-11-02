@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState } from 'react'
 import type { ExperimentRef } from '../../types/puck.js'
-import { isSlugCollision, newTestBody, slugify, uniqueSlug } from './editor.model.js'
+import { CreateRefused, createTest } from './createTest.js'
 import { editorCopy } from './copy.js'
 
 export function CreateExperimentDrawer({ onCreate, onClose, initialName = '' }: {
@@ -22,37 +22,11 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '' }: 
     setPending(true)
     setError('')
     try {
-      const base = slugify(name) || 'test'
-      let response: Response
-      let body
-      for (let attempt = 0; ; attempt++) {
-        // Include shortened bases too, since a numeric suffix must fit within 64 characters.
-        const query = await fetch(`/api/xp-experiments?where[slug][like]=${encodeURIComponent(base.slice(0, 60))}&depth=0&limit=200&select[slug]=true`, { credentials: 'include' })
-        const found = await query.json()
-        if (!query.ok || !Array.isArray(found?.docs)) throw new Error('lookup')
-        const taken = found.docs.flatMap((doc: { slug?: unknown }) => typeof doc.slug === 'string' ? [doc.slug] : [])
-        const slug = uniqueSlug(base, taken)
-        response = await fetch('/api/xp-experiments', {
-          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newTestBody({ name, slug, kind: 'block', unitType: 'visitor' })),
-        })
-        body = await response.json()
-        if (attempt === 0 && isSlugCollision(response.status, body)) continue
-        break
-      }
-      if (!response.ok) {
-        setError(typeof body?.errors?.[0]?.message === 'string' ? body.errors[0].message : editorCopy.createError)
-        return
-      }
-      const doc = body?.doc
-      if (!doc || (typeof doc.id !== 'string' && typeof doc.id !== 'number') || typeof doc.slug !== 'string') {
-        setError(editorCopy.createError)
-        return
-      }
-      onCreate({ id: doc.id, slug: doc.slug })
+      const experiment = await createTest('/api', { name, kind: 'block', unitType: 'visitor' })
+      onCreate(experiment)
       onClose()
-    } catch {
-      setError(editorCopy.createError)
+    } catch (cause) {
+      setError(cause instanceof CreateRefused ? cause.message : editorCopy.createError)
     } finally {
       inFlight.current = false
       setPending(false)

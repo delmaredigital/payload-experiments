@@ -53,3 +53,16 @@ test('the results header setup link supports the root admin route', () => {
   render(<TestHeader {...p} view="results" surface={{ ...p.surface, adminRoute: '/' }} />)
   expect(screen.getByRole('link', { name: 'Back to setup' }).getAttribute('href')).toBe('/experiments/12')
 })
+
+
+test.each([
+  ['missing', 'This test no longer exists.'],
+  ['forbidden', "You don't have access to this test."],
+] as const)('a manager sees only the header message for %s', (loadState, message) => {
+  const p = props({}, { loadState, doc: null })
+  mocks.hook.mockReturnValue(p.test)
+  render(<ResultsRoute id="12" surface={p.surface} />)
+  expect(screen.getAllByText(message)).toHaveLength(1)
+  expect(mocks.body).not.toHaveBeenCalled()
+  expect(screen.queryByText('Results body')).toBeNull()
+})

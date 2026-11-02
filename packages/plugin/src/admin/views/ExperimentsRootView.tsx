@@ -57,11 +57,12 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     for (const point of flagPoints) point.effectiveDefaults = defaults?.[point.id]?.params ?? point.defaultParams
   }
   const registrations = puckCollections(options)
-  const pages = route === 'new' && canManage && registrations.length ? (await Promise.all(registrations.map(async ({ slug: collection }) => {
+  const pages = route === 'new' && canManage && options.puck?.enabled && registrations.length ? (await Promise.all(registrations.map(async ({ slug: collection }) => {
     try {
       const config = req.payload.config.collections.find(item => item.slug === collection)
       const useAsTitle = config?.admin.useAsTitle ?? 'id'
       const label = config?.labels.plural
+      // Keep /rsc dependency-safe: translations is not a declared runtime dependency.
       const collectionLabel = typeof label === 'string' ? label : collection
       const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0,
         limit: 50, sort: '-updatedAt', draft: true, select: { [useAsTitle]: true } })

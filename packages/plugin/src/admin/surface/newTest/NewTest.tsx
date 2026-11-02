@@ -7,7 +7,7 @@ import type { DocId, UnitType } from '../../../types/contracts.js'
 import type { TestsSurfaceProps } from '../../../types/surface.js'
 import type { SurfaceProps } from '../contracts.js'
 import { NEW_TEST_COPY as C } from '../../copy/newTest.js'
-import { createTest } from './createTest.js'
+import { CreateRefused, createTest } from '../../../puck/editor/createTest.js'
 import './newTest.css'
 
 type Layer = { id: DocId; name: string }
@@ -50,11 +50,11 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
     setPending(true)
     setError('')
     try {
-      const id = await createTest(surface.apiRoute, { kind: 'flag', unitType, name, flagPoint: point.id,
+      const { id } = await createTest(surface.apiRoute, { kind: 'flag', unitType, name, flagPoint: point.id,
         ...(layer === undefined ? {} : { layer }), ...(hypothesis.trim() ? { hypothesis } : {}) })
       router.push(formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(id))}` }))
     } catch (cause) {
-      setError(cause instanceof Error && cause.message ? cause.message : C.createError)
+      setError(cause instanceof CreateRefused ? cause.message : C.createError)
       inFlight.current = false
       setPending(false)
     }

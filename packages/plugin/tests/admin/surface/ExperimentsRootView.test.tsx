@@ -168,3 +168,24 @@ test('configured Puck with no readable pages still offers the block hand-off', a
   await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
   expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [] }) }))
 })
+
+
+test.each([
+  { enabled: false, collections: ['pages'] },
+  { enabled: true, collections: [] },
+])('block hand-off requires enabled Puck and registered collections: %j', async puck => {
+  const { props, find } = setup({ puck })
+  await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
+  expect(find).not.toHaveBeenCalled()
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.not.objectContaining({ pages: expect.anything() }) }))
+})
+
+
+test('a per-language collection label safely falls back to its slug without a translation dependency', async () => {
+  const { props, payload } = setup({ puck: { enabled: true, collections: ['pages'] }, pageDocs: { pages: [{ id: 12, title: 'Welcome' }] } })
+  payload.config.collections[0]!.labels.plural = { en: 'Pages', fr: 'Pages françaises' }
+  await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [
+    expect.objectContaining({ collectionLabel: 'pages' }),
+  ] }) }))
+})

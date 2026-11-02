@@ -24,12 +24,12 @@ test('holdout has no tab; unbound renders Original', () => {
 })
 
 test.each([
-  ['draft', 'This block shows the Original to everyone until the experiment starts.'],
-  ['stopped', 'This block shows the Original to everyone until the experiment starts.'],
+  ['draft', 'This block shows the Original to everyone until the test starts.'],
+  ['stopped', 'This block shows the Original to everyone until the test starts.'],
   ['running', 'Changing this content mid-test mixes two versions in one result'],
-  ['decided', "Decided: New headline. Use 'Make it the content' on the experiment to finish."],
-  ['archived', 'This experiment is archived; the winning content is shown to everyone.'],
-  [undefined, 'Choose or create an experiment to show different versions.'],
+  ['decided', "Decided: New headline. Use 'Make it the content' on the test to finish."],
+  ['archived', 'This test is archived; the winning content is shown to everyone.'],
+  [undefined, 'Choose or create a test to show different versions.'],
 ] as const)('banner for %s', (status, text) => {
   expect(bannerFor(status, 'New headline')).toBe(text)
 })

@@ -123,7 +123,7 @@ test('unbound shows Original and create success binds the component experiment p
   vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] }))).mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'created', slug: 'new-test' } })))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props({ experiment: null })} />)
-  expect(screen.getByRole('status').textContent).toBe('Choose or create an experiment to show different versions.')
+  expect(screen.getByRole('status').textContent).toBe('Choose or create a test to show different versions.')
   expect(screen.getAllByRole('tab')).toHaveLength(1)
   expect(fetch).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Test this block' }))
@@ -151,7 +151,7 @@ test('load errors retain Original and show a readable message', async () => {
   vi.mocked(fetch).mockRejectedValue(new Error('offline'))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props()} />)
-  await waitFor(() => expect(screen.getByRole('status').textContent).toBe("Couldn't load this experiment. Try selecting it again."))
+  await waitFor(() => expect(screen.getByRole('status').textContent).toBe("Couldn't load this test. Try selecting it again."))
   expect(screen.getByText('Original content')).toBeTruthy()
 })
 
@@ -159,7 +159,7 @@ test('decided banner uses the stored winner label', async () => {
   vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status: 'decided', decision: { winnerArm: 'variantA' } }) } as Response)
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props()} />)
-  await waitFor(() => expect(screen.getByRole('status').textContent).toBe("Decided: New headline. Use 'Make it the content' on the experiment to finish."))
+  await waitFor(() => expect(screen.getByRole('status').textContent).toBe("Decided: New headline. Use 'Make it the content' on the test to finish."))
 })
 
 test('copy into a variant that already has content asks first and only replaces after confirmation', async () => {
