@@ -18,6 +18,9 @@ type View = {
   /** Path-specific validation errors; _section is the fallback for a section-wide refusal. */
   errors: Record<string, string>
 }
+// Saves outlive their mounted reader. Reopening the same document must wait for its queue.
+const drainingSaves = new Map<string, Promise<void>>()
+
 const initialView = (): View => ({ doc: null, preflight: null, preflightError: null, hasUnsaved: false, loadState: 'loading', saving: 'idle', errors: {} })
 type Session = {
   key: string; saved: TestDocument | null; pending: TestDocumentPatch; queue: TestDocumentPatch[]
@@ -180,6 +183,8 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
     session.publish()
     void (async () => {
       try {
+        await drainingSaves.get(key)
+        if (controller.signal.aborted) return
         const response = await fetch(url, { method: 'GET', credentials: 'include', signal: controller.signal })
         if (controller.signal.aborted) return
         if (!response.ok) {
@@ -207,7 +212,15 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
         session.publish()
       }
     })()
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      if (!session.queue.length) return
+      const draining = session.tail
+      drainingSaves.set(key, draining)
+      void draining.finally(() => {
+        if (drainingSaves.get(key) === draining) drainingSaves.delete(key)
+      })
+    }
   }, [key, base, documentId, reloadCount])
 
   const stagePartial = useCallback((partial: TestDocumentPatch) => {

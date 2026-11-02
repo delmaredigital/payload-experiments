@@ -1,0 +1,60 @@
+'use client'
+import { useEffect, useRef, useState } from 'react'
+import type { Arm } from '../../../types/contracts.js'
+import type { KindParts, SectionProps } from '../contracts.js'
+import { TEST_PAGE as C } from '../../copy/testPage.js'
+import { GROUP_LABELS, issueMessage } from '../../copy/arms.js'
+import { addHoldoutArm, addVariant, issuesByRow, removeArm, splitEvenly, totalWeight, withSlotsFor } from '../../arms/arms.model.js'
+import { allocationSentence } from '../../allocation.model.js'
+import { balanceWeight, orderedVersions, trafficShares } from './testPage.model.js'
+import { FieldErrors, ReadOnly, reasonFor, save, TextEdit } from './fields.js'
+import { Section } from './Section.js'
+
+const COLOURS = ['var(--theme-success-500)', 'var(--theme-elevation-500)', 'var(--theme-warning-500)', 'var(--theme-error-500)', 'var(--theme-elevation-300)']
+export function VersionsSection({ test, surface, parts }: SectionProps & { parts: KindParts }) {
+  const doc = test.doc!
+  const [weightEdit, setWeightEdit] = useState<{ key: Arm['key']; weight: number } | null>(null)
+  const releasedAllocation = useRef<number | null>(null)
+  const [allocation, setAllocation] = useState(doc.allocation)
+  useEffect(() => setWeightEdit(null), [doc.arms])
+  useEffect(() => setAllocation(doc.allocation), [doc.allocation])
+  const reason = reasonFor(test, 'arms')
+  const live = weightEdit ? balanceWeight(doc.arms, weightEdit.key, weightEdit.weight) : doc.arms
+  const ordered = orderedVersions(live)
+  const shares = trafficShares(ordered.map(row => row.arm))
+  const issues = issuesByRow(live, doc.kind)
+  const update = (transform: (arms: Arm[]) => Arm[]) => save(test, 'arms', () => ({ arms: withSlotsFor(transform(test.doc!.arms), test.doc!.kind) }))
+  const commitAllocation = () => {
+    if (allocation === test.doc!.allocation || releasedAllocation.current === allocation) return
+    releasedAllocation.current = allocation
+    save(test, 'allocation', () => ({ allocation }))
+  }
+  return <Section test={test} sectionId="versions">
+    <div className="xp-version-rows">{ordered.map(({ arm, index }, position) => <article className="xp-version-row" key={arm.key}>
+      <h3><span style={{ background: COLOURS[position] }} className="xp-version-colour" />{GROUP_LABELS[arm.key]}</h3>
+      <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.label}`} value={arm.label} reason={reason}
+        onCommit={label => update(arms => arms.map(current => current.key === arm.key ? { ...current, label } : current))} />
+      <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.weight}`} type="number" min={0} max={100} value={doc.arms[index]!.weight} reason={reason}
+        onDraft={value => setWeightEdit({ key: arm.key, weight: Number(value) })}
+        onCommit={value => update(arms => balanceWeight(arms, arm.key, Number(value)))} />
+      <parts.VersionContent test={test} surface={surface} armIndex={index} />
+      {issues.rows[index]?.map((issue, i) => <p role="alert" key={i}>{issueMessage(issue, totalWeight(live))}</p>)}
+      <FieldErrors test={test} path={`arms.${index}`} />
+      {!reason && arm.kind !== 'control' ? <button type="button" onClick={() => update(arms => splitEvenly(removeArm(arms, arm.key)))}>{C.remove}</button> : null}
+    </article>)}</div>
+    <div className="xp-traffic-bar" role="img" aria-label={`${C.traffic}: ${ordered.map(({ arm }) => `${arm.label} ${arm.weight}%`).join(', ')}`}>
+      {ordered.map(({ arm }, i) => <span key={arm.key} style={{ width: `${shares[i]}%`, background: COLOURS[i] }} />)}</div>
+    {issues.form.map((issue, i) => <p role="alert" key={i}>{issueMessage(issue, totalWeight(live))}</p>)}
+    {test.errors.arms ? <p role="alert">{test.errors.arms}</p> : null}
+    {!reason ? <><div className="xp-section-actions">
+      <button type="button" disabled={doc.arms.filter(arm => arm.kind === 'variant').length >= 3} onClick={() => update(arms => addVariant(arms, doc.kind))}>{C.addVersion}</button>
+      <button type="button" disabled={doc.arms.some(arm => arm.kind === 'holdout')} onClick={() => update(addHoldoutArm)}>{C.addHoldout}</button>
+      <button type="button" onClick={() => update(splitEvenly)}>{C.split}</button></div><p>{C.holdout}</p><p>{C.balanceHelp}</p></> : null}
+    {reasonFor(test, 'allocation') ? <ReadOnly label={C.allocation} value={`${doc.allocation}%`} reason={reasonFor(test, 'allocation')} />
+      : <label className="xp-field">{C.allocation}<input type="range" min={1} max={100} value={allocation}
+        onChange={e => { releasedAllocation.current = null; setAllocation(Number(e.target.value)) }} onPointerUp={commitAllocation} onKeyUp={e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) commitAllocation() }}
+        onBlur={commitAllocation} /></label>}
+    <p>{allocationSentence({ allocation: reasonFor(test, 'allocation') ? doc.allocation : allocation, unitType: doc.unitType, arms: live, status: doc.status })}</p>
+    <FieldErrors test={test} path="allocation" />
+  </Section>
+}
