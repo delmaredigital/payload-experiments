@@ -21,7 +21,7 @@ function isClient(file: string): boolean {
 
 test('all admin, client and Puck editor components have a leading client directive', () => {
   const clients = [
-    ...files(join(src, 'admin')).filter(file => file.endsWith('.tsx')),
+    ...files(join(src, 'admin')).filter(file => file.endsWith('.tsx') && !file.includes('/admin/views/')),
     ...files(join(src, 'client')).filter(file => /\.(ts|tsx)$/.test(file) && file !== join(src, 'client/context.ts')),
     ...files(join(src, 'puck/editor')).filter(file => file.endsWith('.tsx')),
     ...['puck/ExperimentPicker.tsx', 'client/ViewportExposure.tsx', 'exports/client.ts', 'exports/adminClient.ts', 'exports/puckEditor.ts'].map(file => join(src, file)),
@@ -46,4 +46,9 @@ test('the prologue checker skips comments and blank lines, and rejects missing o
     writeFileSync(file, "import './helper.js'\n'use client'\n")
     expect(isClient(file)).toBe(false)
   } finally { rmSync(directory, { recursive: true, force: true }) }
+})
+
+
+test('Tests server view placeholders have no client directive', () => {
+  expect(isClient(join(src, 'admin/views/placeholders.tsx'))).toBe(false)
 })

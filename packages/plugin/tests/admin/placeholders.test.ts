@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import * as paths from '../../src/admin/paths.js'
 const admin = [
+  ['XP_TESTS_NAV_LINK', 'TestsNavLink', 'TestsNavLink'],
   ['XP_STATUS_CELL', 'StatusCell', 'StatusCell'], ['XP_SUMMARY_CELL', 'SummaryCell', 'SummaryCell'],
   ['XP_ACTIONS', 'ExperimentActions', 'actions/ExperimentActions'], ['XP_LOCKED_NOTICE', 'LockedFieldNotice', 'LockedFieldNotice'],
   ['XP_FLAG_POINT_SELECT', 'FlagPointSelect', 'FlagPointSelect'], ['XP_ARMS_FIELD', 'ArmsField', 'arms/ArmsField'],
@@ -11,6 +12,9 @@ const admin = [
   ['XP_METRIC_SOURCE_SELECT', 'MetricSourceSelect', 'MetricSourceSelect'], ['XP_REVIEW_PANEL', 'ReviewPanel', 'review/ReviewPanel'],
   ['XP_PHASE_HISTORY', 'PhaseHistory', 'PhaseHistory'], ['XP_LAYER_USAGE', 'LayerUsage', 'LayerUsage'],
   ['XP_RESULTS_VIEW', 'ResultsView', 'results/ResultsView'], ['XP_ARM_SELECT', 'ArmSelectField', 'armSelect/ArmSelectField'],
+] as const
+const views = [
+  ['XP_TESTS_VIEW', 'ExperimentsRootView'], ['XP_TESTS_LIST_REDIRECT', 'CollectionListRedirect'], ['XP_TEST_EDIT_REDIRECT', 'CollectionEditRedirect'],
 ] as const
 const files = [
   ...admin.map(([, , file]) => `admin/${file}.tsx`), 'admin/copy/tabs.ts',
@@ -33,6 +37,7 @@ for (const file of files) test(`placeholder: ${file}`, () => {
   }
 })
 test('one import-map constant for every admin component', () => {
-  expect(Object.keys(paths).sort()).toEqual(admin.map(([constant]) => constant).sort())
+  expect(Object.keys(paths).sort()).toEqual([...admin, ...views].map(([constant]) => constant).sort())
+  for (const [constant, name] of views) expect(paths[constant]).toBe(`@delmaredigital/payload-experiments/rsc#${name}`)
   for (const [constant, name] of admin) expect(paths[constant]).toBe(`@delmaredigital/payload-experiments/admin/client#${name}`)
 })

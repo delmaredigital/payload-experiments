@@ -29,6 +29,7 @@ export type {
   ExperimentsPluginOptions,
   ArmIssueCode,
   RefusalCode,
+  ReadinessCode,
   ErrorEnvelope,
   TransitionSuccess,
   AllocateBody,

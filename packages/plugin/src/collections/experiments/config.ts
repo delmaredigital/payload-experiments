@@ -29,21 +29,24 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
     ? { name, type: 'relationship', relationTo: 'xp-metrics', hasMany: true }
     : { name, type: 'relationship', relationTo: 'xp-metrics', hasMany: false }
   return {
-    slug: 'xp-experiments', graphQL: false, disableDuplicate: true, versions: { drafts: false },
+    slug: 'xp-experiments', graphQL: false, disableDuplicate: true, versions: { drafts: false, maxPerDoc: 50 },
     access: {
       ...managedAccess(options),
       delete: async ({ req }) => (await options.access.manage({ req })) === true
         ? { status: { in: ['draft', 'archived'] } } : false,
     },
     admin: {
-      useAsTitle: 'name', defaultColumns: ['name', 'status', 'kind', 'flagPoint', 'listSummary'],
-      components: { views: { edit: { results: { Component: paths.XP_RESULTS_VIEW, path: '/results', tab: { label: 'Results', href: '/results' } } } } },
+      // group:false hides navigation while keeping custom view routes reachable (hidden causes 404s).
+      group: false, useAsTitle: 'name', defaultColumns: ['name', 'status', 'kind', 'flagPoint'],
+      components: { views: { list: { Component: paths.XP_TESTS_LIST_REDIRECT }, edit: {
+        default: { Component: paths.XP_TEST_EDIT_REDIRECT },
+        results: { Component: paths.XP_TEST_EDIT_REDIRECT, path: '/results', tab: { label: 'Results', href: '/results' } },
+      } } },
     },
     hooks: { beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter] },
     fields: [
       { name: 'actions', type: 'ui', admin: { position: 'sidebar', components: { Field: paths.XP_ACTIONS } } },
       { name: 'status', type: 'select', defaultValue: 'draft', required: true, options: ['draft', 'running', 'stopped', 'decided', 'archived'], admin: { position: 'sidebar', readOnly: true, components: { Cell: paths.XP_STATUS_CELL } } },
-      { name: 'listSummary', type: 'ui', admin: { condition: () => false, components: { Cell: paths.XP_SUMMARY_CELL } } },
       { name: 'phaseHistory', type: 'ui', admin: { position: 'sidebar', components: { Field: paths.XP_PHASE_HISTORY } } },
       { type: 'tabs', tabs: [
         { label: 'What', description: TAB_DESCRIPTIONS.What, fields: [

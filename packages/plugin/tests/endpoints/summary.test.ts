@@ -1,5 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { newestSnapshotIds } from '../../src/db/snapshots.js'
+import { defaultArms } from '../../src/collections/experiments/armInvariants.js'
+import { buildEndpoints } from '../../src/endpoints/index.js'
 import { handleSummary } from '../../src/endpoints/summary.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
@@ -44,5 +46,114 @@ test('100 ids accepted, repeated ids deduplicated in the reader', async () => {
   vi.mocked(newestSnapshotIds).mockResolvedValue([])
   expect((await handleSummary(fakeReq({ payload, url: `http://localhost/summary?ids=${Array(100).fill('one').join(',')}` }), { options })).status).toBe(200)
   expect(newestSnapshotIds).toHaveBeenCalledWith(expect.anything(), ['one'], 'experiment')
+  expect(payload.calls).toHaveLength(1)
+  expect(payload.calls[0]!.args).toMatchObject({ collection: 'xp-experiments', overrideAccess: false, depth: 0, where: { id: { in: ['one'] } } })
+})
+
+function readinessSetup() {
+  const options = sampleOptions()
+  options.puck = { enabled: true, collections: ['pages'] }
+  const placements = vi.fn(async () => [{ arm: 'control', ok: true }, { arm: 'variantA', ok: true }])
+  options.flagPoints![0]!.placements = placements
+  const findGlobal = vi.fn(async () => ({ flagDefaults: {} }))
+  const draft = (id: string, kind: 'block' | 'flag' = 'block') => ({
+    id, slug: id, kind, status: 'draft', unitType: 'visitor', allocation: 100,
+    exposurePolicy: kind === 'block' ? 'render' : 'manual', flagPoint: kind === 'flag' ? 'cta' : undefined,
+    arms: defaultArms(kind), analysis: { plannedDurationDays: 28, reachPerDay: 100 }, metrics: { primary: 2 },
+  })
+  const payload = fakePayload({ overrides: { findGlobal }, collections: {
+    'xp-experiments': [draft('one'), draft('two'), draft('flag', 'flag')],
+    'xp-metrics': [{ id: 2, source: 'binomial' }],
+    pages: [{ id: 10, _status: 'published', puckData: { content: ['one', 'two'].map(experiment => ({
+      type: 'ExperimentSlot', props: { experiment, control: [{}], variantA: [{}] },
+    })) } }],
+  } })
+  vi.mocked(newestSnapshotIds).mockResolvedValue([])
+  const req = fakeReq({ payload, user: { id: 1 }, url: 'http://localhost/summary?ids=one,two,flag' })
+  return { options, payload, req, placements, findGlobal }
+}
+
+test('two block drafts share one scan; a flag draft shares metrics and state and all three are ready', async () => {
+  const { options, req, payload, placements, findGlobal } = readinessSetup()
+  const response = await handleSummary(req, { options })
+  expect(response.status).toBe(200)
+  const body = await response.json()
+  expect([body.one.ready, body.two.ready, body.flag.ready]).toEqual([true, true, true])
+  // One scan means one published read and one draft read, independent of slug count.
+  expect(payload.calls.filter(call => call.args.collection === 'pages')).toHaveLength(2)
+  expect(payload.calls.filter(call => call.args.collection === 'xp-metrics')).toHaveLength(1)
+  expect(payload.calls.filter(call => call.args.collection === 'xp-experiments')).toHaveLength(2) // ids + flag occupancy
+  expect(findGlobal).toHaveBeenCalledTimes(1)
+  expect(placements).toHaveBeenCalledTimes(1)
+  expect(payload.calls).toHaveLength(5)
+  expect(payload.calls.every(call => call.args.req === req && call.args.overrideAccess === false && call.args.depth === 0)).toBe(true)
+  expect(findGlobal).toHaveBeenCalledWith({ slug: 'xp-state', req, overrideAccess: false, depth: 0 })
+})
+
+test('a missing primary goal gives false readiness; stopped is checked and running omits the key', async () => {
+  const { options, req, payload } = readinessSetup()
+  payload.documents['xp-experiments']![0]!.metrics = {}
+  payload.documents['xp-experiments']![1]!.status = 'stopped'
+  payload.documents['xp-experiments']![2]!.status = 'running'
+  const body = await (await handleSummary(req, { options })).json()
+  expect(body.one.ready).toBe(false)
+  expect(body.two.ready).toBe(true)
+  expect(body.flag).not.toHaveProperty('ready')
+})
+
+test('readResults-only callers get no readiness and perform no setup reads', async () => {
+  const { options, req, payload, findGlobal, placements } = readinessSetup()
+  options.access = { manage: () => false, readResults: () => true }
+  const route = buildEndpoints({ options }).find(route => route.path === '/xp/experiments/summary')!
+  const body = await (await route.handler(req)).json()
+  for (const row of Object.values(body)) expect(row).not.toHaveProperty('ready')
   expect(payload.calls).toEqual([])
+  expect(findGlobal).not.toHaveBeenCalled()
+  expect(placements).not.toHaveBeenCalled()
+})
+
+test('placement and per-experiment read failures return false without failing healthy peers', async () => {
+  const { options, req, payload, placements } = readinessSetup()
+  placements.mockRejectedValue(new Error('host unavailable'))
+  payload.documents['xp-experiments']![0]!.layer = 9
+  const original = payload.find
+  vi.spyOn(payload, 'find').mockImplementation(async args => {
+    if (args.collection === 'xp-layers') throw new Error('layer unavailable')
+    return original(args)
+  })
+  const response = await handleSummary(req, { options })
+  expect(response.status).toBe(200)
+  const body = await response.json()
+  expect([body.one.ready, body.two.ready, body.flag.ready]).toEqual([false, true, false])
+})
+
+test('drafts on the same flag point and layer share occupancy and layer reads', async () => {
+  const { options, req, payload, placements, findGlobal } = readinessSetup()
+  const flag = payload.documents['xp-experiments']![2]!
+  payload.documents['xp-experiments'] = ['one', 'two', 'flag'].map(id => ({ ...flag, id, slug: id, layer: 9 }))
+  payload.documents['xp-layers'] = [{ id: 9, unitType: 'visitor' }]
+  const body = await (await handleSummary(req, { options })).json()
+  expect([body.one.ready, body.two.ready, body.flag.ready]).toEqual([true, true, true])
+  expect(payload.calls.filter(call => call.args.collection === 'xp-experiments')).toHaveLength(3) // ids, flag occupancy, layer usage
+  expect(payload.calls.filter(call => call.args.collection === 'xp-layers')).toHaveLength(1)
+  expect(findGlobal).toHaveBeenCalledTimes(1)
+  expect(placements).toHaveBeenCalledTimes(3)
+})
+
+
+test('readiness preserves raw response keys when Payload normalises a numeric id', async () => {
+  const { options, payload } = readinessSetup()
+  const req = fakeReq({ payload, user: { id: 1 }, url: 'http://localhost/summary?ids=01' })
+  const experiment = { ...payload.documents['xp-experiments']![0]!, id: 1 }
+  const original = payload.find
+  vi.spyOn(payload, 'find').mockImplementation(async args => {
+    const result = await original(args)
+    if (args.collection === 'xp-experiments') return { ...result, docs: [experiment] }
+    return result
+  })
+  const response = await handleSummary(req, { options })
+  expect(response.status).toBe(200)
+  const body = await response.json()
+  expect(body['01'].ready).toBe(true)
+  expect(body).not.toHaveProperty('1')
 })

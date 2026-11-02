@@ -13,10 +13,18 @@ const slots = ['control', 'variantA', 'variantB', 'variantC'] as const
 /** Each matching ExperimentSlot is checked separately, including multiple slots
  * in one document: content elsewhere in the document cannot hide an empty slot.
  */
-export async function scanBlockPlacements(req: PayloadRequest, { slug, puckCollections }: {
+export function scanBlockPlacements(req: PayloadRequest, args: {
   slug: string; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']
-}): Promise<BlockPlacement[]> {
-  const placements: BlockPlacement[] = []
+}): Promise<BlockPlacement[]>
+export function scanBlockPlacements(req: PayloadRequest, args: {
+  slugs: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']
+}): Promise<Map<string, BlockPlacement[]>>
+export async function scanBlockPlacements(req: PayloadRequest, args: {
+  slug?: string; slugs?: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']
+}): Promise<BlockPlacement[] | Map<string, BlockPlacement[]>> {
+  const { puckCollections } = args
+  const slugs = args.slugs ?? new Set([args.slug!])
+  const placements = new Map([...slugs].map(slug => [slug, [] as BlockPlacement[]]))
   for (const { slug: collection, field } of normalisePuckCollections({ puck: { enabled: true, collections: puckCollections } })) {
     const publishedIds = new Set<string>()
     const draftsEnabled = req.payload.config.collections?.some(config => config.slug === collection && config.versions && config.versions.drafts)
@@ -38,8 +46,8 @@ export async function scanBlockPlacements(req: PayloadRequest, { slug, puckColle
             const props = node.props as Record<string, unknown> | undefined
             const ref = props?.experiment
             const experiment = typeof ref === 'string' ? ref : ref && typeof ref === 'object' && 'slug' in ref ? ref.slug : null
-            if (node.type === 'ExperimentSlot' && props && experiment === slug) {
-              placements.push({ collection, id: doc.id, title: String(doc.title ?? doc.name ?? doc.id),
+            if (node.type === 'ExperimentSlot' && props && typeof experiment === 'string' && slugs.has(experiment)) {
+              placements.get(experiment)!.push({ collection, id: doc.id, title: String(doc.title ?? doc.name ?? doc.id),
                 published: !draft || doc._status === 'published',
                 slots: Object.fromEntries(slots.map(slot => [slot, Array.isArray(props[slot]) ? props[slot].length : 0])) as Record<ArmSlot, number>,
                 locked: doc._isLocked === true || doc.locked === true,
@@ -54,7 +62,7 @@ export async function scanBlockPlacements(req: PayloadRequest, { slug, puckColle
       }
     }
   }
-  return placements
+  return args.slugs ? placements : placements.get(args.slug!)!
 }
 
 export async function flagPlacements<TUser extends { id: DocId }>(options: ResolvedOptions<TUser>, experiment: {

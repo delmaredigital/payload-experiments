@@ -42,9 +42,9 @@ const exportsByEntry = [
   [runtimeProxy, ['defineExperimentsProxyRuntime', 'createPostgresManifestLoader', 'createHttpManifestLoader']],
   [runtimeServer, ['defineExperimentsServerRuntime']],
   [proxy, ['resolveExperiments', 'applyExperiments', 'createExperimentProxy']],
-  [rsc, ['getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments']],
+  [rsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect', 'getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments']],
   [client, ['ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
-  [adminClient, ['StatusCell', 'SummaryCell', 'ExperimentActions', 'LockedFieldNotice', 'FlagPointSelect', 'ArmsField', 'AllocationField', 'TargetingAttributeField', 'TargetingOpField', 'TargetingValueField', 'MetricSourceSelect', 'ReviewPanel', 'PhaseHistory', 'LayerUsage', 'ResultsView', 'ArmSelectField']],
+  [adminClient, ['TestsNavLink', 'StatusCell', 'SummaryCell', 'ExperimentActions', 'LockedFieldNotice', 'FlagPointSelect', 'ArmsField', 'AllocationField', 'TargetingAttributeField', 'TargetingOpField', 'TargetingValueField', 'MetricSourceSelect', 'ReviewPanel', 'PhaseHistory', 'LayerUsage', 'ResultsView', 'ArmSelectField']],
   [puck, ['ExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
   [puckEditor, ['ExperimentSlotEditor']],
 ] as const
@@ -54,7 +54,7 @@ test('root barrel keeps public types and excludes internal contracts and the Puc
   const source = ts.createSourceFile(filename.pathname, readFileSync(filename, 'utf8'), ts.ScriptTarget.Latest, true)
   const names = source.statements.flatMap(statement => ts.isExportDeclaration(statement) && statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)
     ? statement.exportClause.elements.map(element => element.name.text) : [])
-  expect(names).toEqual(expect.arrayContaining(['ExperimentsPluginOptions', 'MetricSource', 'FlagPoint', 'ParamField', 'Attributes', 'ExperimentsProxyRuntimeOptions', 'ExperimentsProxyRuntime', 'ExperimentsServerRuntimeOptions', 'ExperimentsServerRuntime', 'Manifest', 'Assignments', 'ClientAssignments', 'Snapshot', 'ResultsResponse', 'DocId']))
+  expect(names).toEqual(expect.arrayContaining(['ReadinessCode', 'ExperimentsPluginOptions', 'MetricSource', 'FlagPoint', 'ParamField', 'Attributes', 'ExperimentsProxyRuntimeOptions', 'ExperimentsProxyRuntime', 'ExperimentsServerRuntimeOptions', 'ExperimentsServerRuntime', 'Manifest', 'Assignments', 'ClientAssignments', 'Snapshot', 'ResultsResponse', 'DocId']))
   for (const name of ['ResolvedOptions', 'EndpointContext', 'AccessKind', 'Slot']) expect(names).not.toContain(name)
 })
 

@@ -121,3 +121,28 @@ test('copies configured dimension names without mutating the host options', () =
   expect(options.events?.dimensions).toEqual(dimensions)
   expect(options.events?.dimensions).not.toBe(dimensions)
 })
+
+test.each([undefined, {}, { descriptions: {} }, { descriptions: { setting: 'A setting' } }, {
+  editorUrl: () => '/editor', previewUrl: () => '/preview', descriptions: { block: 'Block', document: 'Document', setting: 'Setting' },
+}])('accepts optional admin configuration (%j)', admin => {
+  expect(resolveOptions({ ...sampleOptions(), admin }).admin).toEqual(admin)
+})
+
+test.each([
+  [null, 'admin must be an object'], [[], 'admin must be an object'], ['bad', 'admin must be an object'],
+  [{ editorUrl: '/editor' }, 'admin.editorUrl must be a function'], [{ previewUrl: null }, 'admin.previewUrl must be a function'],
+  [{ descriptions: null }, 'admin.descriptions must be an object'], [{ descriptions: [] }, 'admin.descriptions must be an object'],
+  [{ descriptions: { block: 12 } }, 'admin.descriptions.block must be a string'],
+  [{ descriptions: { document: false } }, 'admin.descriptions.document must be a string'],
+  [{ descriptions: { setting: null } }, 'admin.descriptions.setting must be a string'],
+  [{ surprise: true }, 'Unknown experiments admin option: surprise'],
+  [{ descriptions: { surprise: 'bad' } }, 'Unknown experiments admin.descriptions option: surprise'],
+])('rejects invalid admin configuration (%j)', (admin, message) => {
+  expect(() => resolveOptions({ ...sampleOptions(), admin } as unknown as ExperimentsPluginOptions)).toThrow(message)
+})
+
+test.each([null, 12, false, {}])('rejects non-string flag point description (%j)', description => {
+  const options = sampleOptions()
+  Object.assign(options.flagPoints![0]!, { description })
+  expect(() => resolveOptions(options)).toThrow('flag point description must be a string')
+})

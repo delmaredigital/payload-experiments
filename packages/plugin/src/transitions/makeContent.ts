@@ -8,7 +8,7 @@ import type { DocId, ResolvedOptions } from '../types/contracts.js'
 import { archive } from './archive.js'
 import { relationshipId } from './checkStart.js'
 import { withTransition } from './kernel.js'
-import { scanBlockPlacements } from './placements.js'
+import { scanBlockPlacements, type BlockPlacement } from './placements.js'
 import { readExperiment, refuse, updateExperiment } from './start.js'
 
 type ContentDoc = { collection: string; id: DocId; ok: boolean; detail?: string; error?: string }
@@ -126,7 +126,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
       if (!winner.slot) refuse('invalid-winner')
       const report = decision?.contentReport as { docs?: ContentDoc[] } | undefined
       const registrations = puckCollections(options)
-      const scanned: Awaited<ReturnType<typeof scanBlockPlacements>> = []
+      const scanned: BlockPlacement[] = []
       for (const registration of registrations) {
         const transactionID = req.transactionID
         delete req.transactionID

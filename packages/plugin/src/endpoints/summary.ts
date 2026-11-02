@@ -1,7 +1,9 @@
 import type { PayloadRequest } from 'payload'
 import type { EndpointContext, SummaryResponse } from '../types/endpoints.js'
+import { checkStart, type StartExperiment } from '../transitions/checkStart.js'
+import { loadStartInputsBatch } from '../transitions/preflightData.js'
 import { readSnapshots, resultsError } from './results.js'
-export async function handleSummary<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
+export async function handleSummary<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, { options }: EndpointContext<TUser>): Promise<Response> {
   let ids: string[]
   try {
     // Split before decoding: an opaque id can itself contain a comma.
@@ -18,6 +20,19 @@ export async function handleSummary<TUser extends { id: string | number } = { id
     response[id] = snapshot ? { exposures: snapshot.exposures.total,
       days: Math.max(0, (Date.parse(snapshot.window.to) - Date.parse(snapshot.window.from)) / 86_400_000),
       verdict: { code: snapshot.verdict.code, headline: snapshot.verdict.headline } } : { exposures: 0, days: 0, verdict: null }
+  }
+  if (await options.access.manage({ req }) === true) {
+    const found = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, pagination: false, limit: ids.length, where: { id: { in: [...new Set(ids)] } } })
+    const drafts = (found.docs as unknown as StartExperiment[]).filter(e => e.status === 'draft' || e.status === 'stopped')
+    const inputs = await loadStartInputsBatch(req, options, drafts, true)
+    for (const id of ids) {
+      // Payload normalises numeric ids (for example 01 to 1); preserve the requested response key.
+      const experiment = drafts.find(e => String(e.id) === id || typeof e.id === 'number' && Number(id) === e.id)
+      if (!experiment) continue
+      const input = inputs.get(String(experiment.id))
+      try { response[id]!.ready = !!input && checkStart(input).every(check => check.ok) }
+      catch { response[id]!.ready = false }
+    }
   }
   return Response.json(response, { headers: { 'Cache-Control': 'no-store' } })
 }

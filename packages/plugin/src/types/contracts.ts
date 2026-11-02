@@ -27,7 +27,7 @@ export interface MetricSource {
   covariate?(args: { units: Array<{ unitId: string; firstExposureTs: Date }>; lookbackDays: number }): Promise<Array<{ unitId: string; value: number }>>
 }
 export interface FlagPoint {
-  id: string; label: string; params: Record<string, ParamField>; defaultParams: Record<string, unknown>
+  id: string; label: string; description?: string; params: Record<string, ParamField>; defaultParams: Record<string, unknown>
   placements?(args: { experimentId: DocId; arms: string[]; req: PayloadRequest }): Promise<Array<{ arm: string; ok: boolean; detail?: string }>>
   makeContent?(args: { experimentId: DocId; winner: { arm: string; params: Record<string, unknown> }; req: PayloadRequest }): Promise<void>
 }
@@ -37,6 +37,11 @@ export type ExperimentsAccess = (args: { req: PayloadRequest }) => boolean | Pro
 export interface ExperimentsPluginOptions<TUser extends { id: string | number } = { id: string | number }> {
   runtime: ExperimentsServerRuntime<TUser>
   access: { manage: ExperimentsAccess; admin?: ExperimentsAccess; readResults?: ExperimentsAccess; readIdentities?: ExperimentsAccess }
+  admin?: {
+    editorUrl?: (args: { collection: string; id: DocId; draft?: boolean }) => string
+    previewUrl?: (args: { collection: string; id: DocId }) => string
+    descriptions?: { block?: string; document?: string; setting?: string }
+  }
   metricSources?: MetricSource[]
   eventSources?: Array<string | { name: string; clientWritable: boolean }>
   flagPoints?: FlagPoint[]

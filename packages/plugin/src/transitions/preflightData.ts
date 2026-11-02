@@ -5,7 +5,7 @@ import type { DocId, MetricSource, ResolvedOptions } from '../types/contracts.js
 import type { PreflightResult } from '../types/endpoints.js'
 import { checkStart, relationshipId } from './checkStart.js'
 import type { CheckStartInput, StartExperiment, StartMetric } from './checkStart.js'
-import { flagPlacements, scanBlockPlacements } from './placements.js'
+import { flagPlacements, scanBlockPlacements, type BlockPlacement } from './placements.js'
 
 export interface PreflightDependencies {
   now?: Date
@@ -20,70 +20,114 @@ export async function loadStartInputs<TUser extends { id: DocId }>(req: PayloadR
   const found = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 1, where: { id: { equals: experimentId } } })
   if (!found.docs[0]) return null
   const experiment = found.docs[0] as unknown as StartExperiment
-  const ids = [experiment.metrics?.primary, ...experiment.metrics?.secondary ?? [], ...experiment.metrics?.guardrails ?? []].map(relationshipId).filter((id): id is DocId => id !== undefined)
-  const metrics: StartMetric[] = []
-  if (ids.length) {
-    let page = 1
-    while (true) {
-      const result = await req.payload.find({ collection: 'xp-metrics', req, overrideAccess: false, depth: 0, limit: 100, page, where: { id: { in: ids } } })
-      metrics.push(...result.docs as unknown as StartMetric[])
-      if (!result.hasNextPage) break
-      page++
-    }
-  }
-  const input: CheckStartInput = { experiment, metrics, metricSources: options.metricSources, flagPoints: options.flagPoints, attributeKeys: options.attributeKeys }
-  if (experiment.kind === 'block') {
-    try { input.placements = await scanBlockPlacements(req, { slug: experiment.slug, puckCollections: options.puck?.collections ?? [] }) }
-    catch (cause) { input.placementError = failureDetail(cause) }
-  }
-  if (experiment.kind === 'flag') {
-    const point = options.flagPoints?.find(point => point.id === experiment.flagPoint)
-    if (point) {
-      // Match the save hook: the control always uses effective point defaults.
-      let params = point.defaultParams
-      try {
-        const state = await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: false, depth: 0 })
-        const defaults = state.flagDefaults as Record<string, { params: Record<string, unknown> }> | undefined
-        params = defaults?.[point.id]?.params ?? params
-      } catch (cause) {
-        const error = cause as { status?: unknown; name?: unknown } | null
-        if (error?.status !== 403 && error?.name !== 'Forbidden') throw cause
+  return (await loadStartInputsBatch(req, options, [experiment])).get(String(experiment.id)) ?? null
+}
+
+const metricIds = (experiment: StartExperiment) => [experiment.metrics?.primary, ...experiment.metrics?.secondary ?? [], ...experiment.metrics?.guardrails ?? []]
+  .map(relationshipId).filter((id): id is DocId => id !== undefined)
+
+/** Shared, request-scoped reads for summary; a failed row is null in tolerant mode.
+ * Preflight/Start use the same builder and retain their throwing read behaviour.
+ */
+export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: PayloadRequest, options: ResolvedOptions<TUser>, experiments: StartExperiment[], tolerateErrors = false): Promise<Map<string, CheckStartInput | null>> {
+  const ids = [...new Set(experiments.flatMap(metricIds))]
+  const metrics = (async () => {
+    if (!ids.length) return [] as StartMetric[]
+    const result = await req.payload.find({ collection: 'xp-metrics', req, overrideAccess: false, depth: 0, pagination: false, limit: ids.length, where: { id: { in: ids } } })
+    return result.docs as unknown as StartMetric[]
+  })()
+  const blockSlugs = new Set(experiments.filter(e => e.kind === 'block').map(e => e.slug))
+  // Lazy promises prevent unhandled rejections and share failed reads as well as successful ones.
+  let blocks: ReturnType<typeof scanBlockPlacements> | undefined
+  let state: Promise<Record<string, { params: Record<string, unknown> }> | undefined> | undefined
+  const busyPoints = new Map<string, Promise<Array<{ id: DocId }>>>()
+  const layers = new Map<string, Promise<CheckStartInput['layer']>>()
+  const inputs = new Map<string, CheckStartInput | null>()
+  for (const experiment of experiments) {
+    try {
+      const ownIds = new Set(metricIds(experiment).map(String))
+      const input: CheckStartInput = { experiment, metrics: (await metrics).filter(metric => ownIds.has(String(metric.id))), metricSources: options.metricSources, flagPoints: options.flagPoints, attributeKeys: options.attributeKeys }
+      if (experiment.kind === 'block') {
+        try {
+          blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, puckCollections: options.puck?.collections ?? [] })
+          input.placements = (await blocks).get(experiment.slug) ?? []
+        } catch (cause) { input.placementError = failureDetail(cause) }
       }
-      experiment.arms = experiment.arms.map(arm => arm.kind === 'control' ? { ...arm, params } : arm)
-    }
-    if (point?.placements) {
-      try {
-        const placements = await flagPlacements(options, experiment, req)
-        if (Array.isArray(placements) && placements.every(p => p && typeof p === 'object' && typeof p.arm === 'string')) input.flagPlacements = placements
-        else input.flagPlacementError = 'Placement lookup returned an invalid result.'
+      if (experiment.kind === 'flag') {
+        const point = options.flagPoints?.find(point => point.id === experiment.flagPoint)
+        if (point) {
+          state ??= (async () => {
+            try {
+              const doc = await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: false, depth: 0 })
+              return doc.flagDefaults as Record<string, { params: Record<string, unknown> }> | undefined
+            } catch (cause) {
+              const error = cause as { status?: unknown; name?: unknown } | null
+              if (error?.status !== 403 && error?.name !== 'Forbidden') throw cause
+              // Match the existing preflight fallback when the global is access-filtered.
+              return undefined
+            }
+          })()
+          const defaults = await state
+          experiment.arms = experiment.arms.map(arm => arm.kind === 'control' ? { ...arm, params: defaults?.[point.id]?.params ?? point.defaultParams } : arm)
+        }
+        if (point?.placements) {
+          try {
+            const placements = await flagPlacements(options, experiment, req)
+            if (Array.isArray(placements) && placements.every(p => p && typeof p === 'object' && typeof p.arm === 'string')) input.flagPlacements = placements
+            else input.flagPlacementError = 'Placement lookup returned an invalid result.'
+          } catch (cause) { input.flagPlacementError = failureDetail(cause) }
+        }
+        if (experiment.flagPoint) {
+          const key = experiment.flagPoint
+          if (!busyPoints.has(key)) busyPoints.set(key, (async () => {
+            // Two rows suffice to find a peer, including when the batch contains that peer.
+            const busy = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 2,
+              where: { and: [{ flagPoint: { equals: key } }, { status: { in: ['running', 'decided'] } }] } })
+            return busy.docs
+          })())
+          input.flagPointBusy = (await busyPoints.get(key)!).some(doc => String(doc.id) !== String(experiment.id))
+        }
       }
-      catch (cause) { input.flagPlacementError = failureDetail(cause) }
-    }
-    if (experiment.flagPoint) {
-      // At most one row can be this experiment; two rows suffice to find a peer.
-      const busy = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 2,
-        where: { and: [{ flagPoint: { equals: experiment.flagPoint } }, { status: { in: ['running', 'decided'] } }] },
-      })
-      input.flagPointBusy = busy.docs.some(doc => String(doc.id) !== String(experiment.id))
+      const layerId = relationshipId(experiment.layer)
+      if (layerId !== undefined) {
+        const key = String(layerId)
+        if (!layers.has(key)) layers.set(key, (async () => {
+          const result = await req.payload.find({ collection: 'xp-layers', req, overrideAccess: false, depth: 0, limit: 1, where: { id: { equals: layerId } } })
+          const layer = result.docs[0]
+          const usedSlices: number[] = []
+          let page = 1
+          while (true) {
+            const usage = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 100, page,
+              where: { and: [{ layer: { equals: layerId } }, { status: { in: ['running', 'decided'] } }] } })
+            for (const doc of usage.docs) if (Array.isArray(doc.layerSlices)) usedSlices.push(...doc.layerSlices as number[])
+            if (!usage.hasNextPage) break
+            page++
+          }
+          return layer ? { unitType: layer.unitType as 'user' | 'visitor', usedSlices } : null
+        })())
+        input.layer = await layers.get(key)!
+      }
+      inputs.set(String(experiment.id), input)
+    } catch (cause) {
+      if (!tolerateErrors) throw cause
+      inputs.set(String(experiment.id), null)
     }
   }
-  const layerId = relationshipId(experiment.layer)
-  if (layerId !== undefined) {
-    const layers = await req.payload.find({ collection: 'xp-layers', req, overrideAccess: false, depth: 0, limit: 1, where: { id: { equals: layerId } } })
-    const layer = layers.docs[0]
-    const usedSlices: number[] = []
-    let page = 1
-    while (true) {
-      const result = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 100, page,
-        where: { and: [{ layer: { equals: layerId } }, { status: { in: ['running', 'decided'] } }] },
-      })
-      for (const doc of result.docs) if (Array.isArray(doc.layerSlices)) usedSlices.push(...doc.layerSlices as number[])
-      if (!result.hasNextPage) break
-      page++
-    }
-    input.layer = layer ? { unitType: layer.unitType as 'user' | 'visitor', usedSlices } : null
-  }
-  return input
+  return inputs
+}
+
+function placementUrls<TUser extends { id: DocId }>(options: ResolvedOptions<TUser>, placement: BlockPlacement): Pick<PreflightResult['placements'][number], 'url' | 'editorUrl'> {
+  const result: Pick<PreflightResult['placements'][number], 'url' | 'editorUrl'> = {}
+  const { collection, id, published } = placement
+  try {
+    const url = options.admin?.previewUrl?.({ collection, id })
+    if (typeof url === 'string') result.url = url
+  } catch { /* Host links are optional; a broken link adapter must not block preflight. */ }
+  try {
+    const url = options.admin?.editorUrl?.({ collection, id, draft: !published })
+    if (typeof url === 'string') result.editorUrl = url
+  } catch { /* Keep the client's default editor link available. */ }
+  return result
 }
 
 async function primaryHistory(source: MetricSource | undefined, now: Date) {
@@ -126,8 +170,7 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
     const compared = e.arms.filter(arm => arm.kind !== 'holdout')
     const control = compared.find(arm => arm.kind === 'control')
     const variant = compared.find(arm => arm.kind === 'variant')
-    const savedDuration = e.analysis?.plannedDurationDays && e.analysis.plannedDurationDays > 0 ? e.analysis.plannedDurationDays : undefined
-    const planned = savedDuration ?? 14
+    const planned = 14
     const enrolled = trafficPerDay * e.allocation / 100
     const pairShare = ((control?.weight ?? 0) + (variant?.weight ?? 0)) / 100
     const tuning = enrolled * planned * pairShare
@@ -150,13 +193,11 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
         })
         let result = await estimateAt(tuning)
         let weeks = result.sampleSizeAndRuntime.primary?.weeks ?? result.weekThreshold ?? 13
-        const plannedDurationDays = savedDuration ?? Math.ceil(weeks * 7)
+        const plannedDurationDays = Math.ceil(weeks * 7)
         const sequentialTuningParameter = enrolled * plannedDurationDays * pairShare
-        if (savedDuration === undefined) {
-          // Re-evaluate using exactly the duration and tuning Review will prefill.
-          result = await estimateAt(sequentialTuningParameter)
-          weeks = result.sampleSizeAndRuntime.primary?.weeks ?? result.weekThreshold ?? 13
-        }
+        // Re-evaluate using exactly the power-derived duration and tuning Apply will save.
+        result = await estimateAt(sequentialTuningParameter)
+        weeks = result.sampleSizeAndRuntime.primary?.weeks ?? result.weekThreshold ?? 13
         power = { weeks, plannedDurationDays, sequentialTuningParameter,
           feasible: Number.isFinite(weeks) && weeks * 7 <= 90 && result.sampleSizeAndRuntime.primary !== undefined }
       } catch { /* An unavailable power estimate must not prevent Review. */ }
@@ -164,7 +205,8 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
   }
   const requiredSlots = e.arms.filter(arm => arm.kind !== 'holdout').map(arm => arm.slot)
   const placements: PreflightResult['placements'] = (input.placements ?? []).map(placement => ({
-    collection: placement.collection, id: placement.id, title: placement.title,
+    collection: placement.collection, id: placement.id, title: placement.title, slots: placement.slots,
+    ...placementUrls(options, placement),
     ok: requiredSlots.every(slot => slot && placement.slots[slot] > 0),
     detail: placement.published ? 'Published' : 'Draft',
   }))

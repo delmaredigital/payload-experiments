@@ -7,7 +7,9 @@ import { serializeMetricSources } from './serialize.js'
 export function metricsCollection(options: ResolvedOptions): CollectionConfig {
   const sources = serializeMetricSources(options)
   return {
-    slug: 'xp-metrics', graphQL: false, disableDuplicate: true, admin: { useAsTitle: 'name' }, access: managedAccess(options),
+    slug: 'xp-metrics', graphQL: false, disableDuplicate: true,
+    // group:false hides navigation while keeping collection routes reachable (hidden causes 404s).
+    labels: { singular: 'Goal', plural: 'Goals' }, admin: { group: false, useAsTitle: 'name' }, access: managedAccess(options),
     hooks: { beforeValidate: [({ data, originalDoc }) => {
       if (!data) return data
       const source = sources.find(source => source.id === (data.source ?? originalDoc?.source))

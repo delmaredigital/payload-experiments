@@ -88,3 +88,19 @@ test('non-Puck draft-enabled host collections get no content-change hooks (CORE-
   expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange])
   expect(config.collections?.[0]?.hooks?.afterChange).toEqual([afterChange])
 })
+
+test('registers the Tests root and appends its nav link without replacing host config or leaking callbacks', async () => {
+  const options = sampleOptions()
+  options.admin = { editorUrl: () => '/editor', previewUrl: () => '/preview', descriptions: { block: 'On a page' } }
+  const admin: NonNullable<Config['admin']> = { custom: { host: true }, components: {
+    views: { host: { Component: 'host#View', path: '/host' } }, afterNavLinks: ['host#Nav'],
+  } }
+  const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], admin })
+  const paths = await import('../src/admin/paths.js')
+  expect(config.admin?.components?.views).toEqual({ host: admin.components!.views!.host, xpTests: { Component: paths.XP_TESTS_VIEW, path: '/experiments/:segments*' } })
+  expect(config.admin?.components?.afterNavLinks).toEqual(['host#Nav', paths.XP_TESTS_NAV_LINK])
+  expect(config.admin?.custom).toEqual({ host: true })
+  expect(config.custom?.xp.admin).toEqual(options.admin)
+  expect(admin.components?.afterNavLinks).toEqual(['host#Nav'])
+  expect(admin.components?.views).not.toHaveProperty('xpTests')
+})

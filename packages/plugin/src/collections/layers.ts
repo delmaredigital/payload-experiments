@@ -6,7 +6,9 @@ import { managedAccess } from './access.js'
 
 export function layersCollection(options: ResolvedOptions): CollectionConfig {
   return {
-    slug: 'xp-layers', graphQL: false, disableDuplicate: true, admin: { useAsTitle: 'name' }, access: managedAccess(options),
+    slug: 'xp-layers', graphQL: false, disableDuplicate: true,
+    // group:false hides navigation while keeping collection routes reachable (hidden causes 404s).
+    labels: { singular: 'Test group', plural: 'Test groups (advanced)' }, admin: { group: false, useAsTitle: 'name' }, access: managedAccess(options),
     fields: [
       { name: 'name', type: 'text', required: true },
       { name: 'slug', type: 'text', unique: true, required: true,

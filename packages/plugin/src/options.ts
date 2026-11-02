@@ -22,9 +22,27 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
     if (typeof access !== 'function') throw new Error(`Experiments access.${name} must be a function`)
   }
 
+  if (input.admin !== undefined) {
+    const admin = input.admin
+    if (!admin || typeof admin !== 'object' || Array.isArray(admin)) throw new Error('Experiments admin must be an object')
+    for (const key of Object.keys(admin)) {
+      if (!['editorUrl', 'previewUrl', 'descriptions'].includes(key)) throw new Error(`Unknown experiments admin option: ${key}`)
+    }
+    for (const key of ['editorUrl', 'previewUrl'] as const) {
+      if (admin[key] !== undefined && typeof admin[key] !== 'function') throw new Error(`Experiments admin.${key} must be a function`)
+    }
+    if (admin.descriptions !== undefined) {
+      if (!admin.descriptions || typeof admin.descriptions !== 'object' || Array.isArray(admin.descriptions)) throw new Error('Experiments admin.descriptions must be an object')
+      for (const [key, value] of Object.entries(admin.descriptions)) {
+        if (!['block', 'document', 'setting'].includes(key)) throw new Error(`Unknown experiments admin.descriptions option: ${key}`)
+        if (value !== undefined && typeof value !== 'string') throw new Error(`Experiments admin.descriptions.${key} must be a string`)
+      }
+    }
+  }
   const ids = new Set<string>()
   for (const point of input.flagPoints ?? []) {
     if (typeof point.id !== 'string' || !point.id || ids.has(point.id)) throw new Error('Experiments flag point ids must be unique nonempty strings')
+    if (point.description !== undefined && typeof point.description !== 'string') throw new Error('Experiments flag point description must be a string')
     ids.add(point.id)
   }
   // Record keys are unique by construction; validate each declared key and type.

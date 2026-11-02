@@ -5,6 +5,7 @@ import { buildEndpoints } from './endpoints/index.js'
 import { contentChangesBeforeHook, contentChangesHook } from './hooks/contentChanges.js'
 import { createOnInit } from './onInit.js'
 import { puckCollections, resolveOptions } from './options.js'
+import * as paths from './admin/paths.js'
 
 export function createExperimentsPlugin<TUser extends { id: string | number } = { id: string | number }>(input: ExperimentsPluginOptions<TUser>): Plugin {
   const options = resolveOptions(input)
@@ -19,6 +20,10 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
     const onInit = createOnInit(options)
     return {
       ...config,
+      admin: { ...config.admin, components: { ...config.admin?.components,
+        views: { ...config.admin?.components?.views, xpTests: { Component: paths.XP_TESTS_VIEW, path: '/experiments/:segments*' } },
+        afterNavLinks: [...(config.admin?.components?.afterNavLinks ?? []), paths.XP_TESTS_NAV_LINK],
+      } },
       collections: [
         ...(config.collections ?? []).map(collection => {
           const puck = options.puck?.enabled && registrations.some(entry => entry.slug === collection.slug)

@@ -2,8 +2,8 @@ import type { ResolvedOptions } from '../types/contracts.js'
 import type { SerializedAttributeKeys, SerializedFlagPoint, SerializedMetricSource } from '../types/admin.js'
 
 export function serializeFlagPoints(options: ResolvedOptions): SerializedFlagPoint[] {
-  return (options.flagPoints ?? []).map(({ id, label, params, defaultParams }) => ({
-    id, label, params, defaultParams, effectiveDefaults: defaultParams,
+  return (options.flagPoints ?? []).map(({ id, label, description, params, defaultParams }) => ({
+    id, label, ...(description === undefined ? {} : { description }), params, defaultParams, effectiveDefaults: defaultParams,
   }))
 }
 

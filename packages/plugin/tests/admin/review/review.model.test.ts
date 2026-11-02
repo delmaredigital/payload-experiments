@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
 import type { PreflightResult, RefusalCode } from '../../../src/types/endpoints.js'
+import type { ReadinessCode } from '../../../src/transitions/checkStart.js'
+import { ARM_CHECK_ORDER } from '../../../src/transitions/checkStart.js'
 import { REVIEW_COPY, REVIEW_DONE, REVIEW_HINTS } from '../../../src/admin/copy/review.js'
 import { reviewView } from '../../../src/admin/review/review.model.js'
 
@@ -16,7 +18,7 @@ test('locked placements explain that every page must be available', () => {
 })
 test('all refusal codes have hints, including every start check', () => {
   expect(Object.keys(REVIEW_HINTS)).toHaveLength(46)
-  const codes: RefusalCode[] = ['weights-total', 'control-count', 'control-first', 'holdout-last', 'holdout-count',
+  const codes: ReadinessCode[] = ['weights-total', 'control-count', 'control-first', 'holdout-last', 'holdout-count',
     'variant-count', 'duplicate-key', 'duplicate-slot', 'slot-required', 'invalid-key', 'no-planned-duration',
     'no-primary-metric', 'no-placements', 'empty-slot', 'page-no-targets', 'page-user-unit', 'flag-no-point',
     'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'layer-full', 'layer-unit-mismatch',
@@ -28,8 +30,12 @@ test('all refusal codes have hints, including every start check', () => {
   }
 })
 test('every check has a done label, with fix hints only for failing checks', () => {
-  const codes = Object.keys(REVIEW_HINTS) as RefusalCode[]
-  expect(Object.keys(REVIEW_DONE).sort()).toEqual([...codes].sort())
+  const allCodes = Object.keys(REVIEW_HINTS) as RefusalCode[]
+  expect(Object.keys(REVIEW_DONE).sort()).toEqual([...allCodes].sort())
+  const codes: ReadinessCode[] = [...ARM_CHECK_ORDER, 'invalid-status', 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day',
+    'page-no-targets', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing',
+    'no-placements', 'empty-slot', 'layer-unit-mismatch', 'layer-full', 'unknown-metric-source', 'unit-source-mismatch',
+    'undeclared-targeting-key', 'invalid-targeting-rule']
   const view = reviewView({ ...preflight, checks: codes.map(code => ({ code, ok: true })) }, { status: 'draft' })
   for (const [index, code] of codes.entries()) {
     expect(view.checks[index]).toMatchObject({ ok: true, done: REVIEW_DONE[code], hint: undefined })
@@ -77,7 +83,7 @@ test('only draft/stopped with every check passing can start; applyValues come fr
   expect(reviewView(preflight, { status: 'draft' }).applyValues).toEqual({ plannedDurationDays: 56, sequentialTuningParameter: 500 })
 })
 test.each(['Fix the page.', { message: 'Fix the page.' }])('uses fallback detail once for a future check: %j', detail => {
-  const view = reviewView({ ...preflight, checks: [{ code: 'future-check' as RefusalCode, ok: false, detail }] }, { status: 'draft' })
+  const view = reviewView({ ...preflight, checks: [{ code: 'future-check' as ReadinessCode, ok: false, detail }] }, { status: 'draft' })
   expect(view.checks[0]).toMatchObject({ hint: 'Fix the page.', detail: undefined })
 })
 test('retains distinct server detail alongside the known fix hint', () => {

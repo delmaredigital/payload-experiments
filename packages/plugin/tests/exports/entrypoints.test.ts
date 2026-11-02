@@ -16,6 +16,7 @@ const required = {
     DEFAULT_MAX_BODY_BYTES: '../constants.js',
   },
   adminClient: {
+    TestsNavLink: '../admin/TestsNavLink.js',
     StatusCell: '../admin/StatusCell.js',
     SummaryCell: '../admin/SummaryCell.js',
     ExperimentActions: '../admin/actions/ExperimentActions.js',
@@ -38,7 +39,11 @@ const required = {
     createExperimentSlotField: '../puck/experimentSlotField.js',
     EXPERIMENT_SLOT_TYPE: '../types/puck.js',
   },
-  rsc: { captureContentBaseline: '../hooks/contentChanges.js' },
+  rsc: { captureContentBaseline: '../hooks/contentChanges.js',
+    ExperimentsRootView: '../admin/views/placeholders.js',
+    CollectionListRedirect: '../admin/views/placeholders.js',
+    CollectionEditRedirect: '../admin/views/placeholders.js',
+  },
   puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js' },
   index: { createArmSelectField: '../fields/armSelect.js' },
 } as const

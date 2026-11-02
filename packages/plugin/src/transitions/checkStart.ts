@@ -4,6 +4,26 @@ import type { Arm, DocId, ExperimentKind, ExposurePolicy, FlagPoint, MetricSourc
 import type { ArmIssueCode, PreflightResult } from '../types/endpoints.js'
 import type { BlockPlacement, FlagPlacement } from './placements.js'
 
+export type ReadinessCode = ArmIssueCode
+  | 'invalid-status'
+  | 'no-planned-duration'
+  | 'no-primary-metric'
+  | 'no-reach-per-day'
+  | 'page-no-targets'
+  | 'page-user-unit'
+  | 'flag-no-point'
+  | 'flag-params-invalid'
+  | 'flag-point-busy'
+  | 'flag-placement-missing'
+  | 'no-placements'
+  | 'empty-slot'
+  | 'layer-unit-mismatch'
+  | 'layer-full'
+  | 'unknown-metric-source'
+  | 'unit-source-mismatch'
+  | 'undeclared-targeting-key'
+  | 'invalid-targeting-rule'
+
 export interface StartExperiment {
   id: DocId; slug: string; status: Status; kind: ExperimentKind; unitType: UnitType
   arms: Arm[]; allocation: number; exposurePolicy: ExposurePolicy; flagPoint?: string | null
@@ -48,7 +68,7 @@ function invalidParams(arms: Arm[], point: FlagPoint): unknown[] {
 export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   const { experiment: e } = input
   const checks: PreflightResult['checks'] = []
-  const add = (code: PreflightResult['checks'][number]['code'], ok: boolean, detail?: unknown) => checks.push({ code, ok, ...(!ok && detail !== undefined ? { detail } : {}) })
+  const add = (code: ReadinessCode, ok: boolean, detail?: unknown) => checks.push({ code, ok, ...(!ok && detail !== undefined ? { detail } : {}) })
   add('invalid-status', e.status === 'draft' || e.status === 'stopped')
   const issues = checkArms(e.arms, e.kind)
   for (const code of ARM_CHECK_ORDER) {

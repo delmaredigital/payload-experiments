@@ -28,7 +28,7 @@ test('all collection identities, storage flags and version settings', () => {
   for (const collection of collections) {
     expect(collection.graphQL).toBe(false)
     expect(collection.disableDuplicate).toBe(true)
-    expect(collection.versions).toEqual(collection === experiments ? { drafts: false } : undefined)
+    expect(collection.versions).toEqual(collection === experiments ? { drafts: false, maxPerDoc: 50 } : undefined)
     expect(collection.admin?.hidden).toBe(['xp-phases', 'xp-events', 'xp-identities', 'xp-results-snapshots'].includes(collection.slug) ? true : undefined)
   }
   expect(globals[0]).toMatchObject({ slug: 'xp-state', dbName: 'xp_state', graphQL: false, admin: { hidden: true } })
@@ -66,7 +66,7 @@ test('unnamed editor tabs preserve document paths and hook ordering', () => {
 })
 
 test.each([undefined, []])('create defaults populate missing/empty arms (%j)', arms => {
-  expect(invoke(experiments.hooks?.beforeValidate?.[0], { data: { kind: 'block', arms }, operation: 'create' })).toEqual({ kind: 'block', arms: [
+  expect(invoke(experiments.hooks?.beforeValidate?.[0], { data: { kind: 'block', arms }, operation: 'create' })).toEqual({ kind: 'block', analysis: { plannedDurationDays: 28 }, arms: [
     { key: 'control', label: 'Original', kind: 'control', slot: 'control', weight: 50 },
     { key: 'variantA', label: 'Variant A', kind: 'variant', slot: 'variantA', weight: 50 },
   ] })
@@ -86,10 +86,10 @@ test('create defaults preserve explicit arms and updates', () => {
 
 describe('admin mounts (one case per mount)', () => {
   test('status cell', () => expect(field(experiments.fields, 'status', 'select').admin?.components?.Cell).toBe(paths.XP_STATUS_CELL))
-  test('summary is list only', () => {
-    const summary = field(experiments.fields, 'listSummary', 'ui')
-    expect(summary.admin.components?.Cell).toBe(paths.XP_SUMMARY_CELL)
-    expect(invoke(summary.admin.condition, {})).toBe(false)
+  test('list summary column is removed', () => {
+    expect(flatten(experiments.fields).some(f => 'name' in f && f.name === 'listSummary')).toBe(false)
+    expect(experiments.admin?.defaultColumns).not.toContain('listSummary')
+    expect(paths.XP_SUMMARY_CELL).toBe('@delmaredigital/payload-experiments/admin/client#SummaryCell')
   })
   test('actions is first in sidebar', () => expect(experiments.fields[0]).toMatchObject({ type: 'ui', admin: { position: 'sidebar', components: { Field: paths.XP_ACTIONS } } }))
   test.each(['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'flagPoint', 'metrics', 'analysis', 'exposurePolicy'])('locked description: %s', name => {
@@ -103,7 +103,7 @@ describe('admin mounts (one case per mount)', () => {
   test.each([['attribute', 'text', paths.XP_TARGETING_ATTRIBUTE], ['op', 'select', paths.XP_TARGETING_OP], ['value', 'json', paths.XP_TARGETING_VALUE]] as const)('targeting %s', (name, type, path) => expect(field(field(experiments.fields, 'targeting', 'array').fields, name, type).admin).toMatchObject({ components: { Field: path }, custom: { attributeKeys } }))
   test('review panel', () => expect(field(experiments.fields, 'review', 'ui').admin.components?.Field).toBe(paths.XP_REVIEW_PANEL))
   test('phase history sidebar', () => expect(field(experiments.fields, 'phaseHistory', 'ui').admin).toMatchObject({ position: 'sidebar', components: { Field: paths.XP_PHASE_HISTORY } }))
-  test('results view', () => expect(experiments.admin?.components?.views?.edit).toEqual({ results: { Component: paths.XP_RESULTS_VIEW, path: '/results', tab: { label: 'Results', href: '/results' } } }))
+  test('results view', () => expect(experiments.admin?.components?.views?.edit).toEqual({ default: { Component: paths.XP_TEST_EDIT_REDIRECT }, results: { Component: paths.XP_TEST_EDIT_REDIRECT, path: '/results', tab: { label: 'Results', href: '/results' } } }))
   test('metric source select', () => expect(field(bySlug('xp-metrics').fields, 'source', 'text').admin).toMatchObject({ components: { Field: paths.XP_METRIC_SOURCE_SELECT }, custom: { sources: serializeMetricSources(options) } }))
   test('layer usage', () => expect(field(bySlug('xp-layers').fields, 'usage', 'ui').admin.components?.Field).toBe(paths.XP_LAYER_USAGE))
 })
@@ -198,4 +198,34 @@ test('targeting values match the attribute type and operator', () => {
   expect(check('subscribed', 'eq', {})).not.toBe(true)
   expect(check('subscribed', 'contains', true)).not.toBe(true)
   expect(check('unknown', 'eq', 'value')).not.toBe(true)
+})
+
+
+test('Tests collections leave the nav while their routes and redirect views stay reachable', () => {
+  for (const slug of ['xp-experiments', 'xp-layers', 'xp-metrics']) {
+    expect(bySlug(slug).admin?.group).toBe(false)
+    expect(bySlug(slug).admin).not.toHaveProperty('hidden')
+  }
+  expect(experiments.admin?.components?.views?.list).toEqual({ Component: paths.XP_TESTS_LIST_REDIRECT })
+  expect(bySlug('xp-metrics').labels).toEqual({ singular: 'Goal', plural: 'Goals' })
+  expect(bySlug('xp-layers').labels).toEqual({ singular: 'Test group', plural: 'Test groups (advanced)' })
+})
+
+test.each([undefined, null])('create defaults add 28 days when duration is %j while preserving analysis', duration => {
+  const data = { analysis: { plannedDurationDays: duration, reachPerDay: 123, method: 'bayesian' } }
+  expect(invoke(createDefaults, { data, operation: 'create' }).analysis).toEqual({ plannedDurationDays: 28, reachPerDay: 123, method: 'bayesian' })
+  expect(invoke(createDefaults, { data: {}, operation: 'create' }).analysis).toEqual({ plannedDurationDays: 28 })
+  expect(invoke(createDefaults, { data: { analysis: { reachPerDay: 123 } }, operation: 'update' })).toEqual({ analysis: { reachPerDay: 123 } })
+  expect(invoke(createDefaults, { data: {}, operation: 'update' })).toEqual({})
+})
+
+test.each([14, 0])('create defaults preserve a given duration (%s)', plannedDurationDays => {
+  expect(invoke(createDefaults, { data: { analysis: { plannedDurationDays } }, operation: 'create' }).analysis).toEqual({ plannedDurationDays })
+})
+
+test('flag descriptions serialize only when defined', () => {
+  const options = sampleOptions()
+  expect(serializeFlagPoints(options)[0]).not.toHaveProperty('description')
+  options.flagPoints![0]!.description = 'Changes the signup prompt.'
+  expect(serializeFlagPoints(options)[0]).toHaveProperty('description', 'Changes the signup prompt.')
 })

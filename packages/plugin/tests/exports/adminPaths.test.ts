@@ -8,13 +8,15 @@ import { expect, test, vi } from 'vitest'
 vi.setConfig({ testTimeout: 30_000 })
 
 const src = fileURLToPath(new URL('../../src/', import.meta.url))
-const prefix = '@delmaredigital/payload-experiments/admin/client#'
+const prefix = '@delmaredigital/payload-experiments/'
 function parse(file: string) {
   return ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
 }
-const exports = new Set(parse(join(src, 'exports/adminClient.ts')).statements.flatMap(statement =>
+function namedExports(barrel: string) { return new Set(parse(join(src, `exports/${barrel}.ts`)).statements.flatMap(statement =>
   ts.isExportDeclaration(statement) && !statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)
-    ? statement.exportClause.elements.filter(element => !element.isTypeOnly).map(element => element.name.text) : []))
+    ? statement.exportClause.elements.filter(element => !element.isTypeOnly).map(element => element.name.text) : [])) }
+const exports = namedExports('adminClient')
+const serverExports = namedExports('rsc')
 
 function files(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
@@ -43,8 +45,10 @@ test('every XP_* path constant names a public admin export', () => {
       count++
       expect(node.initializer && ts.isStringLiteral(node.initializer), node.name.text).toBe(true)
       if (node.initializer && ts.isStringLiteral(node.initializer)) {
+        const [entry, symbol] = node.initializer.text.slice(prefix.length).split('#')
         expect(node.initializer.text.startsWith(prefix), node.name.text).toBe(true)
-        expect(exports.has(node.initializer.text.slice(prefix.length)), node.name.text).toBe(true)
+        expect(['admin/client', 'rsc'], node.name.text).toContain(entry)
+        expect((entry === 'rsc' ? serverExports : exports).has(symbol!), node.name.text).toBe(true)
       }
     }
     ts.forEachChild(node, walk)

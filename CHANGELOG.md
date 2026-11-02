@@ -11,6 +11,33 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.2.0-rc.1] - 2026-11-02
+
+### plugin
+
+**Added**
+
+- Optional `admin.editorUrl`, `admin.previewUrl` and `admin.descriptions` host configuration, validated at registration and kept server-side.
+- Optional `FlagPoint.description` for setting help text.
+- `summary.ready` for draft and stopped tests when the caller can manage tests, using shared readiness reads across the batch.
+- Block preflight placements include optional `url` and `editorUrl` host links and per-slot content counts in `slots`.
+- Public `ReadinessCode` type covering the 28 readiness checks.
+
+**Changed**
+
+- New tests default to a 28-day planned duration. Preflight suggests a duration from power and reach even when a duration is saved.
+- Experiments list, edit and results routes hand over to the new Tests views. Experiments, layers and metrics leave the admin navigation while their routes remain reachable.
+- Metrics are labelled Goals; layers are labelled Test groups (advanced).
+- Experiment versions are capped at 50 per test.
+
+**Removed**
+
+- The `listSummary` list column. The `SummaryCell` export remains available for existing host import maps.
+
+**Migration impact**
+
+- None (no column changes). After regenerating the schema fixture and restoring its provenance header, `git diff --stat -- tests/_fixtures/generated-schema.ts` produced no output.
+
 ## [0.1.0-rc.7] - 2026-11-01
 
 ### plugin

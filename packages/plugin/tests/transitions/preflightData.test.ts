@@ -56,8 +56,8 @@ test('injected estimate receives enrolled traffic, method, primary moments and p
   const result = await preflightData(req, { experimentId: 1, options }, { now, estimate })
   expect(estimate).toHaveBeenCalledWith({ metrics: { primary: { type: 'binomial', conversionRate: (3 / 28) / 100, effectSize: 0.1 } },
     usersPerWeek: 350, nVariations: 2, nWeeks: 13, alpha: 0.05, targetPower: 0.8, method: { type: 'frequentist', sequentialTesting: 700 } })
-  expect(result!.estimate).toEqual({ weeks: 3, plannedDurationDays: 14, sequentialTuningParameter: 700, feasible: true })
-  expect(estimate).toHaveBeenCalledTimes(1)
+  expect(result!.estimate).toEqual({ weeks: 3, plannedDurationDays: 21, sequentialTuningParameter: 1050, feasible: true })
+  expect(estimate).toHaveBeenCalledTimes(2)
 })
 test('unsaved duration is estimated once, then final tuning matches the returned prefill', async () => {
   const { options, req, payload } = setup()

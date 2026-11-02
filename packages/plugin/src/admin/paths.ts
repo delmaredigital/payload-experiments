@@ -14,3 +14,7 @@ export const XP_PHASE_HISTORY = '@delmaredigital/payload-experiments/admin/clien
 export const XP_LAYER_USAGE = '@delmaredigital/payload-experiments/admin/client#LayerUsage'
 export const XP_RESULTS_VIEW = '@delmaredigital/payload-experiments/admin/client#ResultsView'
 export const XP_ARM_SELECT = '@delmaredigital/payload-experiments/admin/client#ArmSelectField'
+export const XP_TESTS_VIEW = '@delmaredigital/payload-experiments/rsc#ExperimentsRootView'
+export const XP_TESTS_LIST_REDIRECT = '@delmaredigital/payload-experiments/rsc#CollectionListRedirect'
+export const XP_TEST_EDIT_REDIRECT = '@delmaredigital/payload-experiments/rsc#CollectionEditRedirect'
+export const XP_TESTS_NAV_LINK = '@delmaredigital/payload-experiments/admin/client#TestsNavLink'

@@ -387,6 +387,32 @@ are recorded with `trackConversion`. Beacon conversions for a non-writable name
 are dropped silently. Only listed names become `events:<name>` sources. They
 support visitor and user units and do not represent counts or revenue in v1.
 
+### `admin` options
+
+Host links and kind descriptions are optional. For a host using payload-puck's
+editor route and a `puck-templates` collection, pass:
+
+```ts
+admin: {
+  editorUrl: ({ collection, id, draft }) =>
+    `/admin/puck-editor/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}${draft ? '?draft=true' : ''}`,
+  previewUrl: ({ id }) => `/preview/template/${encodeURIComponent(String(id))}`,
+  descriptions: {
+    block: 'Try different content on a landing page.',
+    document: 'Try different versions of a donation ask.',
+    setting: 'Try a different signup or donation prompt.',
+  },
+}
+```
+
+Use your host's preview route for `previewUrl`. Preflight resolves both URL
+callbacks on the server for block placements; it passes only URL strings to the
+client. Missing or failed callbacks leave the URL unset, and the client uses the
+admin collection route when no editor URL is supplied. Kind descriptions are
+available to the server views through `config.custom.xp`.
+
+A flag point can also declare `description?: string` to explain the setting below its label.
+
 ## Security
 
 The unit cookie, assignments header, request-context header and preview tokens
