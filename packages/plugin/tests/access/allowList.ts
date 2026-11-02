@@ -1,4 +1,6 @@
 export const OVERRIDE_ACCESS_ALLOW_LIST: Array<{ file: string; reason: string }> = [
+  { file: "src/collections/experiments/flagControlParams.ts", reason: "§7.8: \"nested reads inside plugin hooks (CORE-21): a refused nested operation kills the caller's transaction\"" },
+  { file: "src/collections/layers.ts", reason: "§7.8: \"nested reads inside plugin hooks (CORE-21): a refused nested operation kills the caller's transaction\"" },
   { file: "src/endpoints/events.ts", reason: "§7.8: \"events endpoint insert and its assignment lookup\"" },
   { file: "src/db/events.ts", reason: "§7.8: \"events endpoint insert and its assignment lookup\"" },
   { file: "src/server/recordExposures.ts", reason: "§7.8: \"`recordExposures`\"" },

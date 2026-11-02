@@ -4,6 +4,7 @@ import { BasePayload, buildConfig, type CollectionConfig } from 'payload'
 import pg, { Pool, type PoolClient, type PoolConfig } from 'pg'
 import { createExperimentsPlugin } from '../src/plugin.js'
 import { sampleOptions } from '../tests/collections/fixtures.js'
+import type { ExperimentsAccess } from '../src/types/contracts.js'
 
 /** Pure URL refusal rules; validate before opening any connection. */
 export function validateIntegrationConnectionString(connectionString: string | undefined, hostDatabases: { DATABASE_URL?: string; CC_NXT_DATABASE_URL?: string } = {}): string {
@@ -36,7 +37,7 @@ export async function publicTables(pool: Pool): Promise<string[]> {
 }
 
 /** One harness per test file. Forced push also supports a second boot. Train-only. */
-export async function createIntegrationHarness({ collections = [], puckCollections = [] }: { collections?: CollectionConfig[]; puckCollections?: Array<string | { slug: string; field?: string }> } = {}) {
+export async function createIntegrationHarness({ collections = [], puckCollections = [], manage }: { collections?: CollectionConfig[]; puckCollections?: Array<string | { slug: string; field?: string }>; manage?: ExperimentsAccess } = {}) {
   const connectionString = integrationConnectionString()
   const pool = new Pool({ connectionString, max: 6 })
   const schemaName = `xp_it_${randomBytes(12).toString('hex')}`
@@ -74,6 +75,7 @@ export async function createIntegrationHarness({ collections = [], puckCollectio
     delete process.env.PAYLOAD_MIGRATING
     delete process.env.PAYLOAD_DROP_DATABASE
     const options = sampleOptions()
+    if (manage) options.access.manage = manage
     if (puckCollections.length) options.puck = { enabled: true, collections: puckCollections }
     const config = buildConfig({
       secret: 'integration-only-secret-never-use-in-production',

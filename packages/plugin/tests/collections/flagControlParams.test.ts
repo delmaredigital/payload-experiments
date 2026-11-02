@@ -25,15 +25,14 @@ test.each(['draft', 'stopped'])('effective flag defaults overwrite control on ev
   expect(result.arms[0].params).toEqual({ text: 'Shipped' })
   expect(result.arms[1]).toBe(doc.arms[1])
   expect(doc.arms[0]!.params).toEqual({ text: 'Tampered' })
-  expect(findGlobal).toHaveBeenCalledExactlyOnceWith({ slug: 'xp-state', req, overrideAccess: false })
+  expect(findGlobal).toHaveBeenCalledExactlyOnceWith({ slug: 'xp-state', req, overrideAccess: true })
 })
 test.each([{}, { flagDefaults: {} }, { flagDefaults: { card: { params: {} } } }])('point defaults unless effective params exist: %j', async state => {
   const result = await run({}, original(), setup(state).req)
   expect(result.arms[0].params).toEqual('flagDefaults' in state && state.flagDefaults && 'card' in state.flagDefaults ? {} : { text: 'Default' })
 })
-test.each([{ name: 'Forbidden' }, { status: 403 }])('refused read falls back to registered defaults: %j', async failure => {
-  const result = await run({}, original(), setup({}, failure).req)
-  expect(result.arms[0].params).toEqual({ text: 'Default' })
+test.each([{ name: 'Forbidden' }, { status: 403 }])('refused read propagates without replacing control params: %j', async failure => {
+  await expect(run({}, original(), setup({}, failure).req)).rejects.toBe(failure)
 })
 test('database errors propagate without replacing control params', async () => {
   const error = new Error('Database connection lost')

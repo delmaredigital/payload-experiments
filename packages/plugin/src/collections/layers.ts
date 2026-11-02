@@ -26,7 +26,8 @@ export function layersCollection(options: ResolvedOptions): CollectionConfig {
     ],
     hooks: {
       beforeDelete: [async ({ id, req }) => {
-        const references = await req.payload.find({ collection: 'xp-experiments', where: { layer: { equals: id } }, limit: 1, overrideAccess: false, req })
+        // The delete already passed layers access; a refused nested read would kill the caller's transaction (Payload killTransaction) and could hide a referencing experiment.
+        const references = await req.payload.find({ collection: 'xp-experiments', where: { layer: { equals: id } }, limit: 1, overrideAccess: true, req })
         if (references.docs.length) throw new XpRefusal('invalid-status', 'This layer is still referenced by an experiment.', undefined, 409)
       }],
     },

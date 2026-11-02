@@ -10,16 +10,10 @@ export const flagControlParams: CollectionBeforeChangeHook = async ({ data, orig
   const pointId = data.flagPoint ?? originalDoc?.flagPoint
   const point = xpOptionsFromReq(req).flagPoints?.find(point => point.id === pointId)
   if (!point) return data
-  let params = point.defaultParams
-  try {
-    const state = await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: false })
-    const defaults = state.flagDefaults as Record<string, FlagDefault> | undefined
-    params = defaults?.[point.id]?.params ?? params
-  } catch (cause) {
-    const error = cause as { status?: unknown; name?: unknown } | null | undefined
-    if (error?.status !== 403 && error?.name !== 'Forbidden') throw cause
-    // A refused state read must not prevent using the registered point defaults.
-  }
+  // the caller's write already passed experiments manage access; a second gate inside its hook would kill the caller's transaction on Forbidden (Payload killTransaction)
+  const state = await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: true })
+  const defaults = state.flagDefaults as Record<string, FlagDefault> | undefined
+  const params = defaults?.[point.id]?.params ?? point.defaultParams
   const arms: Arm[] | undefined = data.arms ?? originalDoc?.arms
   if (!arms) return data
   return { ...data, arms: arms.map(arm => arm.kind === 'control' ? { ...arm, params } : arm) }

@@ -26,8 +26,12 @@ test('delete refuses references and carries access posture and req', async () =>
   const payload = fakePayload({ collections: { 'xp-experiments': [{ id: 1, layer: 'layer-1', status: 'archived' }] } })
   const req = fakeReq({ payload })
   await expect(invoke(config.hooks?.beforeDelete?.[0], { id: 'layer-1', req })).rejects.toMatchObject({ code: 'invalid-status', status: 409 })
-  expect(payload.calls).toEqual([{ method: 'find', args: { collection: 'xp-experiments', where: { layer: { equals: 'layer-1' } }, limit: 1, overrideAccess: false, req } }])
+  expect(payload.calls).toEqual([{ method: 'find', args: { collection: 'xp-experiments', where: { layer: { equals: 'layer-1' } }, limit: 1, overrideAccess: true, req } }])
 })
 test('delete allows an unreferenced layer', async () => {
   await expect(invoke(config.hooks?.beforeDelete?.[0], { id: 2, req: fakeReq() })).resolves.toBeUndefined()
+})
+test.each([new Error('Database connection lost'), { name: 'Forbidden' }, { status: 403 }])('delete propagates a failed reference read: %j', async error => {
+  const req = fakeReq({ payload: fakePayload({ overrides: { find: async () => { throw error } } }) })
+  await expect(invoke(config.hooks?.beforeDelete?.[0], { id: 2, req })).rejects.toBe(error)
 })
