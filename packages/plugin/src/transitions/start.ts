@@ -1,8 +1,8 @@
-import { randomBytes } from 'node:crypto'
 import type { PayloadRequest } from 'payload'
 import { claimSlices } from '../db/slices.js'
 import { XpRefusal } from '../errors.js'
 import { isOpValid } from '../targeting/ops.js'
+import { newSeed } from '../runtime/seed.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 import type { RefusalCode } from '../types/endpoints.js'
 import { checkStart, relationshipId, type StartExperiment } from './checkStart.js'
@@ -83,7 +83,7 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
     const layerId = relationshipId(current.layer)
     const layerSlices = layerId === undefined ? [] : await claimSlices(exec, { layerId, experimentId, count: current.allocation })
     const phase = (current.phase ?? 0) + 1
-    const seed = `${randomBytes(16).toString('hex')}|`
+    const seed = newSeed()
     const startedAt = at.toISOString()
     const definitions = caps.definitions.map(metric => ({ ...metric, metricId: metric.id, addedAt: startedAt,
       role: String(relationshipId(current.metrics?.primary)) === String(metric.id) ? 'primary'

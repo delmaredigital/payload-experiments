@@ -1,6 +1,6 @@
 import type { Config } from 'payload'
 import { expect, test } from 'vitest'
-import { deny, isTrue, managedAccess, readOnlyAccess } from '../../src/access.js'
+import { deny, isTrue, managedAccess, readOnlyAccess } from '../../src/collections/access.js'
 import { createExperimentsPlugin } from '../../src/plugin.js'
 import type { ExperimentsAccess, ExperimentsPluginOptions } from '../../src/types/contracts.js'
 import { fakeReq } from '../_fakes/req.js'
