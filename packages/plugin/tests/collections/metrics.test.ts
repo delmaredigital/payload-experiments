@@ -8,8 +8,8 @@ const config = metricsCollection(sampleOptions())
 const cap = config.hooks?.beforeValidate?.[0]
 const capType = field(field(config.fields, 'capping', 'group').fields, 'type', 'select').validate
 test.each(['binomial', 'count', 'events:signup'])('capping is refused for %s', source => {
-  expect(validate(capType, 'absolute', { data: { source }, siblingData: { value: 10 } })).toBe('Count and conversion metrics cannot be capped.')
-  expect(validate(capType, null, { data: { source }, siblingData: { value: 10 } })).toBe('Count and conversion metrics cannot be capped.')
+  expect(validate(capType, 'absolute', { data: { source }, siblingData: { value: 10 } })).toBe('Count and yes-or-no goals cannot use a limit.')
+  expect(validate(capType, null, { data: { source }, siblingData: { value: 10 } })).toBe('Count and yes-or-no goals cannot use a limit.')
   expect(validate(capType, null, { data: { source }, siblingData: { value: null } })).toBe(true)
   expect(invoke(cap, { data: { source, capping: { type: 'absolute', value: 10 } } })).toEqual({ source, capping: { type: 'absolute', value: 10 } })
   expect(invoke(cap, { data: { source } })).toEqual({ source })
@@ -23,8 +23,8 @@ test('revenue defaults and explicit capping', () => {
   expect(validate(capType, 'unknown', { data: { source: 'revenue' }, siblingData: { value: 20 } })).not.toBe(true)
 })
 test('partial updates validate capping against merged source and cap', () => {
-  expect(validate(capType, 'absolute', { data: { source: 'count' }, siblingData: { value: 10 } })).toBe('Count and conversion metrics cannot be capped.')
-  expect(validate(capType, 'percentile', { data: { source: 'count' }, siblingData: { value: 0.99 } })).toBe('Count and conversion metrics cannot be capped.')
+  expect(validate(capType, 'absolute', { data: { source: 'count' }, siblingData: { value: 10 } })).toBe('Count and yes-or-no goals cannot use a limit.')
+  expect(validate(capType, 'percentile', { data: { source: 'count' }, siblingData: { value: 0.99 } })).toBe('Count and yes-or-no goals cannot use a limit.')
   expect(invoke(cap, { data: { name: 'Renamed' }, originalDoc: { source: 'revenue', capping: { type: 'absolute', value: 20 } } })).toEqual({ name: 'Renamed' })
   expect(invoke(cap, { data: { name: 'Renamed' }, originalDoc: { source: 'revenue' } })).toMatchObject({ capping: { type: 'percentile', value: 0.99 } })
 })

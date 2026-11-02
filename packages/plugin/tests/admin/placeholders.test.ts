@@ -5,20 +5,30 @@ import * as paths from '../../src/admin/paths.js'
 const admin = [
   ['XP_TESTS_SURFACE', 'TestsSurface', 'surface/TestsSurface'],
   ['XP_TESTS_NAV_LINK', 'TestsNavLink', 'TestsNavLink'],
-  ['XP_STATUS_CELL', 'StatusCell', 'StatusCell'], ['XP_SUMMARY_CELL', 'SummaryCell', 'SummaryCell'],
-  ['XP_ACTIONS', 'ExperimentActions', 'actions/ExperimentActions'], ['XP_LOCKED_NOTICE', 'LockedFieldNotice', 'LockedFieldNotice'],
-  ['XP_FLAG_POINT_SELECT', 'FlagPointSelect', 'FlagPointSelect'], ['XP_ARMS_FIELD', 'ArmsField', 'arms/ArmsField'],
-  ['XP_ALLOCATION_FIELD', 'AllocationField', 'AllocationField'], ['XP_TARGETING_ATTRIBUTE', 'TargetingAttributeField', 'targeting/TargetingAttributeField'],
-  ['XP_TARGETING_OP', 'TargetingOpField', 'targeting/TargetingOpField'], ['XP_TARGETING_VALUE', 'TargetingValueField', 'targeting/TargetingValueField'],
-  ['XP_METRIC_SOURCE_SELECT', 'MetricSourceSelect', 'MetricSourceSelect'], ['XP_REVIEW_PANEL', 'ReviewPanel', 'review/ReviewPanel'],
-  ['XP_PHASE_HISTORY', 'PhaseHistory', 'PhaseHistory'], ['XP_LAYER_USAGE', 'LayerUsage', 'LayerUsage'],
-  ['XP_RESULTS_VIEW', 'ResultsView', 'results/ResultsView'], ['XP_ARM_SELECT', 'ArmSelectField', 'armSelect/ArmSelectField'],
+  ['XP_METRIC_SOURCE_SELECT', 'MetricSourceSelect', 'MetricSourceSelect'],
+  ['XP_LAYER_USAGE', 'LayerUsage', 'LayerUsage'],
+  ['XP_ARM_SELECT', 'ArmSelectField', 'armSelect/ArmSelectField'],
 ] as const
+const retiredFiles = [
+  'admin/StatusCell.tsx',
+  'admin/SummaryCell.tsx',
+  'admin/actions/ExperimentActions.tsx',
+  'admin/LockedFieldNotice.tsx',
+  'admin/FlagPointSelect.tsx',
+  'admin/arms/ArmsField.tsx',
+  'admin/AllocationField.tsx',
+  'admin/targeting/TargetingAttributeField.tsx',
+  'admin/targeting/TargetingOpField.tsx',
+  'admin/targeting/TargetingValueField.tsx',
+  'admin/review/ReviewPanel.tsx',
+  'admin/PhaseHistory.tsx',
+  'admin/results/ResultsView.tsx',
+]
 const views = [
   ['XP_TESTS_VIEW', 'ExperimentsRootView'], ['XP_TESTS_LIST_REDIRECT', 'CollectionListRedirect'], ['XP_TEST_EDIT_REDIRECT', 'CollectionEditRedirect'],
 ] as const
 const files = [
-  ...admin.map(([, , file]) => `admin/${file}.tsx`), 'admin/copy/tabs.ts',
+  ...retiredFiles, ...admin.map(([, , file]) => `admin/${file}.tsx`), 'admin/copy/tabs.ts',
   'client/ExperimentsProvider.tsx', 'client/useFlagPoint.ts', 'client/useExperiment.ts', 'client/ExperimentPageview.tsx', 'client/trackConversionBeacon.ts',
   'puck/ExperimentSlot.tsx', 'puck/experimentSlotField.ts', 'puck/editor/ExperimentSlotEditor.tsx', 'fields/armSelect.ts',
 ]

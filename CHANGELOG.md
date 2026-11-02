@@ -27,6 +27,8 @@ After upgrading, run `payload generate:importmap`: the Tests surface is register
 
 **Changed**
 
+- The old experiments edit-form components are no longer mounted, and their `/admin/client` exports are removed: `StatusCell`, `SummaryCell`, `ExperimentActions`, `LockedFieldNotice`, `FlagPointSelect`, `ArmsField`, `AllocationField`, `TargetingAttributeField`, `TargetingOpField`, `TargetingValueField`, `ReviewPanel`, `PhaseHistory`, `ResultsView`. Hosts regenerate the import map with `payload generate:importmap`, as the upgrade note above requires. Goals and Test groups fields now have plain-language labels and descriptions.
+
 - New tests default to a 28-day planned duration. Preflight suggests a duration from power and reach even when a duration is saved.
 - Experiments list, edit and results routes hand over to the new Tests views. Experiments, layers and metrics leave the admin navigation while their routes remain reachable.
 - Metrics are labelled Goals; layers are labelled Test groups (advanced).
@@ -34,7 +36,7 @@ After upgrading, run `payload generate:importmap`: the Tests surface is register
 
 **Removed**
 
-- The `listSummary` list column. The `SummaryCell` export remains available for existing host import maps.
+- The `listSummary` list column and its `SummaryCell` export.
 
 **Migration impact**
 

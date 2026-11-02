@@ -7,7 +7,6 @@ import { deleteGuard, deleteGuardAfter } from '../../src/collections/experiments
 import { checkArms } from '../../src/collections/experiments/armInvariants.js'
 import { XpNotImplemented } from '../../src/errors.js'
 import * as paths from '../../src/admin/paths.js'
-import { TAB_DESCRIPTIONS } from '../../src/admin/copy/tabs.js'
 import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } from '../../src/collections/serialize.js'
 import { fakeReq } from '../_fakes/req.js'
 import { field, flatten, invoke, sampleOptions, validate } from './fixtures.js'
@@ -60,7 +59,7 @@ test('unnamed editor tabs preserve document paths and hook ordering', () => {
   const tabs = experiments.fields.filter(f => f.type === 'tabs')
   expect(tabs).toHaveLength(1)
   expect(tabs[0]).not.toHaveProperty('name')
-  expect(tabs[0]!.tabs.map(tab => ({ label: tab.label, description: tab.description }))).toEqual(Object.entries(TAB_DESCRIPTIONS).map(([label, description]) => ({ label, description })))
+  expect(tabs[0]!.tabs.map(tab => ({ label: tab.label, description: tab.description }))).toEqual(['What', 'Who', 'Groups', 'Metrics'].map(label => ({ label, description: undefined })))
   for (const tab of tabs[0]!.tabs) expect(tab).not.toHaveProperty('name')
   expect(experiments.hooks).toEqual({ beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter] })
 })
@@ -85,27 +84,59 @@ test('create defaults preserve explicit arms and updates', () => {
 })
 
 describe('admin mounts (one case per mount)', () => {
-  test('status cell', () => expect(field(experiments.fields, 'status', 'select').admin?.components?.Cell).toBe(paths.XP_STATUS_CELL))
   test('list summary column is removed', () => {
     expect(flatten(experiments.fields).some(f => 'name' in f && f.name === 'listSummary')).toBe(false)
     expect(experiments.admin?.defaultColumns).not.toContain('listSummary')
-    expect(paths.XP_SUMMARY_CELL).toBe('@delmaredigital/payload-experiments/admin/client#SummaryCell')
   })
-  test('actions is first in sidebar', () => expect(experiments.fields[0]).toMatchObject({ type: 'ui', admin: { position: 'sidebar', components: { Field: paths.XP_ACTIONS } } }))
-  test.each(['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'flagPoint', 'metrics', 'analysis', 'exposurePolicy'])('locked description: %s', name => {
-    const f = flatten(experiments.fields).find(f => 'name' in f && f.name === name)!
-    expect(f.admin?.components?.Description).toBe(paths.XP_LOCKED_NOTICE)
-    expect(f.admin?.custom?.field).toBe(name)
-  })
-  test('flag point select', () => expect(field(experiments.fields, 'flagPoint', 'text').admin).toMatchObject({ components: { Field: paths.XP_FLAG_POINT_SELECT }, custom: { flagPoints } }))
-  test('arms editor', () => expect(field(experiments.fields, 'arms', 'array').admin).toMatchObject({ components: { Field: paths.XP_ARMS_FIELD }, custom: { flagPoints } }))
-  test('allocation editor', () => expect(field(experiments.fields, 'allocation', 'number').admin?.components?.Field).toBe(paths.XP_ALLOCATION_FIELD))
-  test.each([['attribute', 'text', paths.XP_TARGETING_ATTRIBUTE], ['op', 'select', paths.XP_TARGETING_OP], ['value', 'json', paths.XP_TARGETING_VALUE]] as const)('targeting %s', (name, type, path) => expect(field(field(experiments.fields, 'targeting', 'array').fields, name, type).admin).toMatchObject({ components: { Field: path }, custom: { attributeKeys } }))
-  test('review panel', () => expect(field(experiments.fields, 'review', 'ui').admin.components?.Field).toBe(paths.XP_REVIEW_PANEL))
-  test('phase history sidebar', () => expect(field(experiments.fields, 'phaseHistory', 'ui').admin).toMatchObject({ position: 'sidebar', components: { Field: paths.XP_PHASE_HISTORY } }))
   test('results view', () => expect(experiments.admin?.components?.views?.edit).toEqual({ default: { Component: paths.XP_TEST_EDIT_REDIRECT }, results: { Component: paths.XP_TEST_EDIT_REDIRECT, path: '/results', tab: { label: 'Results', href: '/results' } } }))
   test('metric source select', () => expect(field(bySlug('xp-metrics').fields, 'source', 'text').admin).toMatchObject({ components: { Field: paths.XP_METRIC_SOURCE_SELECT }, custom: { sources: serializeMetricSources(options) } }))
   test('layer usage', () => expect(field(bySlug('xp-layers').fields, 'usage', 'ui').admin.components?.Field).toBe(paths.XP_LAYER_USAGE))
+})
+
+test('experiments field tree has no components or ui fields', () => {
+  for (const f of flatten(experiments.fields)) {
+    expect(f.admin ?? {}, 'name' in f ? f.name : f.type).not.toHaveProperty('components')
+    expect(f.type).not.toBe('ui')
+    for (const key of ['flagPoints', 'attributeKeys', 'field']) expect(f.admin?.custom ?? {}).not.toHaveProperty(key)
+  }
+})
+
+const forbiddenWords = /\b(?:slug|source id|unit type|unitType|arm|phase|flag point|exposure|metric source|CUPED|percentile)\b/i
+const plainWords = (value: unknown) => {
+  expect(typeof value).toBe('string')
+  expect((value as string).trim()).not.toBe('')
+  expect(value).not.toMatch(forbiddenWords)
+}
+
+test.each(['xp-metrics', 'xp-layers'])('%s field labels, descriptions and options use plain words', slug => {
+  for (const f of flatten(bySlug(slug).fields)) {
+    plainWords('label' in f ? f.label : undefined)
+    plainWords(f.admin && 'description' in f.admin ? f.admin.description : undefined)
+    if (f.type === 'select') for (const option of f.options) {
+      expect(typeof option).toBe('object')
+      plainWords(typeof option === 'string' ? option : option.label)
+    }
+  }
+})
+
+test('Goals and Test groups validation messages use plain words', () => {
+  const goals = bySlug('xp-metrics').fields
+  const groups = bySlug('xp-layers').fields
+  const capping = field(goals, 'capping', 'group').fields
+  const cases = [
+    [field(goals, 'source', 'text'), 'missing', {}],
+    [field(capping, 'type', 'select'), 'absolute', { data: { source: 'count' }, siblingData: { value: 10 } }],
+    [field(capping, 'type', 'select'), 'missing', { data: { source: 'revenue' }, siblingData: { value: 10 } }],
+    [field(capping, 'value', 'number'), -1, { siblingData: { type: 'absolute' } }],
+    [field(groups, 'slug', 'text'), '', { operation: 'create' }],
+    [field(groups, 'slug', 'text'), 'changed', { operation: 'update', previousValue: 'group' }],
+    [field(groups, 'unitType', 'select'), 'missing', { operation: 'create' }],
+    [field(groups, 'unitType', 'select'), 'user', { operation: 'update', previousValue: 'visitor' }],
+  ] as const
+  // Keep this exhaustive if another custom validator is added to either collection.
+  const validators = [...flatten(goals), ...flatten(groups)].filter(f => 'validate' in f && typeof f.validate === 'function')
+  expect(new Set(cases.map(([f]) => f))).toEqual(new Set(validators))
+  for (const [f, value, args] of cases) plainWords(validate(f.validate, value, args))
 })
 
 test('serialized options omit host functions and include event sources', () => {

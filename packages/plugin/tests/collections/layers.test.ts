@@ -9,7 +9,7 @@ test.each(['slug', 'unitType'] as const)('%s is immutable after create', name =>
   const validator = field(config.fields, name, name === 'slug' ? 'text' : 'select').validate
   const previousValue = name === 'slug' ? 'layer' : 'visitor'
   const nextValue = name === 'slug' ? 'changed' : 'user'
-  expect(validate(validator, nextValue, { operation: 'update', previousValue })).toBe(`${name} is set when the layer is created.`)
+  expect(validate(validator, nextValue, { operation: 'update', previousValue })).toBe(name === 'slug' ? "The short name can't change after the group is created." : "Who it counts can't change after the group is created.")
   expect(validate(validator, previousValue, { operation: 'update', previousValue })).toBe(true)
   expect(validate(validator, nextValue, { operation: 'create' })).toBe(true)
   expect(validate(validator, undefined, { operation: 'update', previousValue })).toBe(true)
