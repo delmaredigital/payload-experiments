@@ -264,14 +264,15 @@ test('targeting checkbox toggles keep other current values and rules', () => {
   fireEvent.click(screen.getByLabelText('CA'))
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 18 }] })
 })
-test('read-only goals show None selected or a friendly missing-goal label, never raw ids', async () => {
+test('read-only goals show None selected or a neutral label while goals are unavailable, never raw ids', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('Unavailable') }))
   const p = props({ status: 'running', metrics: { primary: null, guardrails: [] } })
   const view = render(<GoalSection {...p} />)
   expect(screen.getAllByText('None selected')).toHaveLength(3)
   p.test.doc!.metrics = { primary: 12345, guardrails: ['missing-uuid'] }
   view.rerender(<GoalSection {...p} />)
-  expect(screen.getAllByText('A goal that no longer exists')).toHaveLength(2)
+  expect(screen.getAllByText('Goal details unavailable')).toHaveLength(2)
+  expect(screen.queryByText('A goal that no longer exists')).toBeNull()
   expect(screen.queryByText('12345')).toBeNull()
   expect(screen.queryByText('missing-uuid')).toBeNull()
   await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
@@ -333,4 +334,10 @@ test.each([
   const p = props({ kind, exposurePolicy: kind === 'block' ? 'render' : kind === 'page' ? 'pageview' : 'manual' })
   render(<AdvancedSection {...p} />)
   expect(within(screen.getByLabelText('Exposure policy')).getAllByRole('option').map(option => option.textContent)).toEqual(labels)
+})
+test('a goal missing from a successful load reads as no longer existing', async () => {
+  metricsFetch()
+  render(<GoalSection {...props({ status: 'running', metrics: { primary: 99, guardrails: [] } })} />)
+  await waitFor(() => expect(screen.getByText('A goal that no longer exists')).toBeTruthy())
+  expect(screen.queryByText('Goal details unavailable')).toBeNull()
 })

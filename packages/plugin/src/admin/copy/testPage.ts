@@ -16,7 +16,7 @@ export const TEST_PAGE = {
   goal: 'Goal', goalHelp: 'The goal decides whether a version wins. Pick the one thing you want more of.',
   guardrails: 'Must not get worse (optional)', guardrailHelp: "If a version makes one of these worse, you'll be warned.",
   secondary: 'Also keep an eye on (optional)', manageGoals: 'Manage goals', searchGoals: 'Search goals', chooseGoal: 'Choose a goal',
-  goalsError: "Couldn't load goals. Try again.", noGoal: 'None selected', missingGoal: 'A goal that no longer exists',
+  goalsError: "Couldn't load goals. Try again.", noGoal: 'None selected', missingGoal: 'A goal that no longer exists', goalUnavailable: 'Goal details unavailable',
   everyone: 'Everyone on the pages where this appears.', rulesSummary: 'Only people matching these rules.', addRule: 'Add a rule', removeRule: 'Remove rule',
   attribute: 'Attribute', comparison: 'Comparison', value: 'Value', yes: 'Yes', no: 'No',
   reach: 'About how many people will see this per day?', reachHelp: 'A rough number is fine. It only sets the suggested length.',

@@ -12,6 +12,7 @@ export function GoalSection({ test, surface }: SectionProps) {
   const [metrics, setMetrics] = useState<Metric[]>([])
   const [query, setQuery] = useState('')
   const [failed, setFailed] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
@@ -28,7 +29,7 @@ export function GoalSection({ test, surface }: SectionProps) {
           if (!body.hasNextPage) break
           page++
         }
-        if (!controller.signal.aborted) { setMetrics(all); setFailed(false) }
+        if (!controller.signal.aborted) { setMetrics(all); setFailed(false); setLoaded(true) }
       } catch { if (!controller.signal.aborted) setFailed(true) }
     })()
     return () => controller.abort()
@@ -36,10 +37,11 @@ export function GoalSection({ test, surface }: SectionProps) {
   const doc = test.doc!
   const reason = reasonFor(test, 'metrics')
   const sources = metricSourceOptions(surface.metricSources)
+  const unknownGoal = loaded ? C.missingGoal : C.goalUnavailable
   const options = metrics.map(metric => ({ value: String(metric.id), label: `${metric.name} · ${sources.find(source => source.value === metric.source)?.badge ?? metric.source}` }))
   const chosen = [doc.metrics?.primary, ...(doc.metrics?.guardrails ?? []), ...(doc.metrics?.secondary ?? [])].filter(id => id != null).map(String)
   const visible = options.filter(option => chosen.includes(option.value) || option.label.toLowerCase().includes(query.toLowerCase()))
-  for (const id of chosen) if (!visible.some(option => option.value === id)) visible.push({ value: id, label: C.missingGoal })
+  for (const id of chosen) if (!visible.some(option => option.value === id)) visible.push({ value: id, label: unknownGoal })
   const roleOptions = (role: 'primary' | 'guardrails' | 'secondary') => {
     const blocked = new Set([...(role !== 'primary' && doc.metrics?.primary != null ? [doc.metrics.primary] : []),
       ...(role !== 'guardrails' ? doc.metrics?.guardrails ?? [] : []), ...(role !== 'secondary' ? doc.metrics?.secondary ?? [] : [])].map(String))
@@ -60,7 +62,7 @@ export function GoalSection({ test, surface }: SectionProps) {
       ? ids.some(saved => String(saved) === value) ? ids : [...ids, id]
       : ids.filter(saved => String(saved) !== value) } }
   })
-  const display = (ids: Array<string | number>) => ids.length ? ids.map(id => options.find(option => option.value === String(id))?.label ?? C.missingGoal).join(', ') : C.noGoal
+  const display = (ids: Array<string | number>) => ids.length ? ids.map(id => options.find(option => option.value === String(id))?.label ?? unknownGoal).join(', ') : C.noGoal
   const primary = metrics.find(metric => String(metric.id) === String(doc.metrics?.primary))
   const kind = surface.metricSources.find(source => source.id === primary?.source)?.kind
   const baseline = test.preflight?.baseline && String(test.preflight.baseline.metricId) === String(doc.metrics?.primary)
