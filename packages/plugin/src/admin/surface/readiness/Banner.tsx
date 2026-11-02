@@ -36,7 +36,7 @@ function BannerContent({ test, surface }: SectionProps) {
   const winner = actionGroupLabel(decision?.winnerArm ?? 'control', doc.arms.find(item => item.key === decision?.winnerArm)?.label)
   const next = nextStep(test.preflight, { ...doc, flagPoints: surface.flagPoints })
   const setup = doc.status === 'draft' || doc.status === 'stopped'
-  const ready = Boolean(test.preflight && !test.preflightError && test.preflight.checks.every(check => check.ok))
+  const ready = Boolean(test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
   const unsaved = test.hasUnsaved || test.saving === 'saving'
   const startReason = unsaved ? C.saveFirst : next?.sentence ?? (!ready ? test.preflightError ? C.checkError : C.checking : undefined)
   const actions = availableActions({ status: doc.status, kind: doc.kind, arms: doc.arms, decision, canManage: surface.canManage })

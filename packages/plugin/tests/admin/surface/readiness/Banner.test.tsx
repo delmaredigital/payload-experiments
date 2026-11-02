@@ -235,12 +235,13 @@ test.each([['idle', null], ['saving', 'Saving…'], ['saved', 'Saved'], ['error'
   if (sentence) expect(screen.getByText(sentence)).toBeTruthy()
   else expect(screen.queryByRole('status')).toBeNull()
 })
-test('preflight error has a guarded retry that refreshes through test.reload', async () => {
+test('preflight error has a guarded retry that refreshes only the readiness check', async () => {
   const p = props({}, { preflightError: 'network error' })
   render(<SaveStatus test={p.test} />)
   expect(screen.getByRole('alert').textContent).toBe("Couldn't check readiness. Try again.")
   act(() => { button('Try again').click(); button('Try again').click() })
-  await waitFor(() => expect(p.test.reload).toHaveBeenCalledTimes(1))
+  await waitFor(() => expect(p.test.refreshPreflight).toHaveBeenCalledTimes(1))
+  expect(p.test.reload).not.toHaveBeenCalled()
 })
 test('retry cannot discard staged changes', () => {
   const p = props({}, { preflightError: 'network error', hasUnsaved: true })
@@ -266,4 +267,9 @@ test('an open restart confirmation follows a later readiness refusal or refresh 
   expect(dialogButton('Start a new round').disabled).toBe(true)
   view.rerender(<Banner {...p} test={{ ...p.test, preflight: preflight([{ code: 'no-primary-metric', ok: false }]) }} />)
   expect(dialogButton('Start a new round').disabled).toBe(true)
+})
+test('Start stays disabled while the readiness check after a save is still running', () => {
+  render(<Banner {...props({}, { preflight: preflight([{ code: 'no-primary-metric', ok: true }]), preflightPending: true })} />)
+  expect(screen.getByRole('status').textContent).toBe('Checking readiness…')
+  expect(button('Start').disabled).toBe(true)
 })

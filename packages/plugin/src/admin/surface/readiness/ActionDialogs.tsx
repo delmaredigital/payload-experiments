@@ -25,7 +25,7 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
   const [content, setContent] = useState<ContentResult | null>(null)
   const transition = useTransition(test, onClose)
   const phrase = action.confirm.phrase ? expectedConfirm(action.confirm.phrase.action, winnerLabel) : null
-  const ready = action.id !== 'start' || Boolean(test.preflight && !test.preflightError && test.preflight.checks.every(check => check.ok))
+  const ready = action.id !== 'start' || Boolean(test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
   const enabled = ready && !transition.busy && !test.hasUnsaved && test.saving !== 'saving' && (!phrase || matchesConfirm(phrase, typed))
   async function submit() {
     if (!enabled || !test.doc) return
