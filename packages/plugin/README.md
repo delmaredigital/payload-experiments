@@ -1,5 +1,7 @@
 # @delmaredigital/payload-experiments
 
+> ⚠️ Upgrading to 0.2? After upgrading, run `payload generate:importmap` (the Tests surface is registered through admin.dependencies); without it the Tests routes render blank.
+
 A/B testing for Payload CMS and Next.js, with results inside the admin and data
 in your own Postgres database. Editors can test blocks, whole pages and
 registered flag points, choose a winner, and make it the permanent content.

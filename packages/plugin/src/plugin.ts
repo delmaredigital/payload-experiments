@@ -20,7 +20,9 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
     const onInit = createOnInit(options)
     return {
       ...config,
-      admin: { ...config.admin, components: { ...config.admin?.components,
+      admin: { ...config.admin,
+        dependencies: { ...config.admin?.dependencies, xpTestsSurface: { path: paths.XP_TESTS_SURFACE, type: 'component' } },
+        components: { ...config.admin?.components,
         views: { ...config.admin?.components?.views, xpTests: { Component: paths.XP_TESTS_VIEW, path: '/experiments/:segments*' } },
         afterNavLinks: [...(config.admin?.components?.afterNavLinks ?? []), paths.XP_TESTS_NAV_LINK],
       } },

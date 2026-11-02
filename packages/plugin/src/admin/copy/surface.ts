@@ -1,5 +1,8 @@
 export const SURFACE_COPY = {
   title: 'Tests', newTest: 'New test', goals: 'Goals', search: 'Search tests',
+  backToAdmin: 'Back to admin',
+  limitedList: 'Showing the 200 most recent tests.',
+  notInstalled: "The Tests screen isn't installed yet. Run `payload generate:importmap` and reload.",
   noAccess: "You don't have access to tests.",
   loading: 'Loading tests…', loadError: 'Tests could not be loaded. Please try again.',
   summaryError: 'Some test summaries could not be loaded. Please try again.', retry: 'Try again',

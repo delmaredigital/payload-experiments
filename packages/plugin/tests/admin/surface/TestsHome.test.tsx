@@ -9,8 +9,8 @@ import { TestsSurface } from '../../../src/admin/surface/TestsSurface.js'
 
 vi.mock('@payloadcms/ui', () => ({ ...payloadUiMock(), Link: (props: ComponentProps<'a'>) => <a {...props} /> }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
-function fetchData(docs: unknown[], summaries = {}) {
-  const fetch = vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('/summary?') ? summaries : { docs })))
+function fetchData(docs: unknown[], summaries = {}, totalDocs = docs.length) {
+  const fetch = vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('/summary?') ? summaries : { docs, totalDocs })))
   vi.stubGlobal('fetch', fetch)
   return fetch
 }
@@ -23,6 +23,7 @@ test('loading then empty state with the creation and Goals links', async () => {
   expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/collections/xp-metrics')
   expect(fetch.mock.calls[0]?.[0]).toBe('/data/xp-experiments?depth=0&sort=-updatedAt&limit=200')
   expect(fetch).toHaveBeenCalledOnce()
+  expect(screen.queryByText('Showing the 200 most recent tests.')).toBeNull()
 })
 test('renders ordered groups, status, verdict, actions, and collapsed archive; search filters by name', async () => {
   const docs = [
@@ -85,4 +86,39 @@ test.each([
   render(<TestsSurface {...props} />)
   expect(within(screen.getByRole('main')).getByText(text)).toBeTruthy()
   expect(screen.getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/control/experiments')
+  expect(screen.getByRole('link', { name: 'Back to admin' }).getAttribute('href')).toBe('/control')
+})
+
+test('list 403 renders the load-error alert', async () => {
+  const fetch = vi.fn(async () => new Response('{}', { status: 403 }))
+  vi.stubGlobal('fetch', fetch)
+  render(<TestsHome adminRoute="/admin" apiRoute="/api" />)
+  expect((await screen.findByRole('alert')).textContent).toContain('Tests could not be loaded.')
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+  expect(fetch).toHaveBeenCalledOnce()
+})
+test('a truncated list explains the 200-test limit', async () => {
+  const docs = Array.from({ length: 200 }, (_, index) => ({ id: String(index), name: `Test ${index}`, kind: 'flag', status: 'draft' }))
+  fetchData(docs, {}, 201)
+  render(<TestsHome adminRoute="/admin" apiRoute="/api" />)
+  expect(await screen.findByText('Showing the 200 most recent tests.')).toBeTruthy()
+})
+test('missing results never render a green health dot', async () => {
+  fetchData([
+    { id: 'missing', name: 'Missing summary', kind: 'flag', status: 'running' },
+    { id: 'null', name: 'No verdict', kind: 'flag', status: 'running' },
+  ], { null: { exposures: 0, days: 0, verdict: null } })
+  render(<TestsHome adminRoute="/admin" apiRoute="/api" />)
+  await screen.findByText('Missing summary')
+  expect(screen.queryByRole('img')).toBeNull()
+  expect(within(screen.getByRole('region', { name: 'Running' })).getAllByRole('article')).toHaveLength(2)
+})
+test('home and shell links support the root admin route', async () => {
+  fetchData([{ id: '123', name: 'Stopped test', kind: 'flag', status: 'stopped' }])
+  const props: TestsSurfaceProps = { route: 'home', adminRoute: '/', apiRoute: '/api', canManage: true, canReadResults: true, flagPoints: [], metricSources: [], attributeKeys: {} }
+  render(<TestsSurface {...props} />)
+  await screen.findByText('Stopped test')
+  for (const [name, href] of [['Tests', '/experiments'], ['Back to admin', '/'], ['New test', '/experiments/new'], ['Goals', '/collections/xp-metrics'], ['View results', '/experiments/123/results']]) {
+    expect(screen.getByRole('link', { name }).getAttribute('href')).toBe(href)
+  }
 })

@@ -12,6 +12,14 @@ function models(directory: URL): string[] {
     return entry.isDirectory() ? models(url) : entry.name.endsWith('.model.ts') ? [fileURLToPath(url)] : []
   })
 }
+function isHomeURLFormatter(file: string, node: ts.ImportDeclaration): boolean {
+  const clause = node.importClause
+  const bindings = clause?.namedBindings
+  return file === fileURLToPath(new URL('../../src/admin/surface/home.model.ts', import.meta.url))
+    && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === 'payload/shared'
+    && !clause?.name && Boolean(bindings && ts.isNamedImports(bindings) && bindings.elements.length === 1
+      && (bindings.elements[0]!.propertyName ?? bindings.elements[0]!.name).text === 'formatAdminURL')
+}
 function checkModels(entries: readonly string[]): string[] {
   const violations: string[] = []
   const visited = new Set<string>()
@@ -23,7 +31,9 @@ function checkModels(entries: readonly string[]): string[] {
       if (visited.has(file)) continue
       visited.add(file)
       const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
-      function check(specifier: string, isTypeOnly = false) {
+      function check(specifier: string, isTypeOnly = false, allowedFormatter = false) {
+        // ADM-20 fix brief requires Payload's URL formatter for home card links.
+        if (allowedFormatter) return
         // src/types/runtime.ts is frozen and type-imports NextRequest; type-only edges there are erased at build.
         if (isTypeOnly && isTypesFile(file) && !specifier.startsWith('.')) return
         if (/^(?:react(?:-dom)?(?:\/|$)|payload(?:\/|$)|@payloadcms\/|next(?:\/|$))/.test(specifier)) violations.push(`${file}: ${specifier}`)
@@ -40,7 +50,7 @@ function checkModels(entries: readonly string[]): string[] {
           const clause = node.importClause
           const bindings = clause?.namedBindings
           const onlyTypeNames = bindings && ts.isNamedImports(bindings) && bindings.elements.length > 0 && bindings.elements.every(item => item.isTypeOnly)
-          check(node.moduleSpecifier.text, clause?.isTypeOnly || Boolean(onlyTypeNames && !clause?.name))
+          check(node.moduleSpecifier.text, clause?.isTypeOnly || Boolean(onlyTypeNames && !clause?.name), isHomeURLFormatter(file, node))
         } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
           const names = node.exportClause
           const onlyTypeNames = names && ts.isNamedExports(names) && names.elements.length > 0 && names.elements.every(item => item.isTypeOnly)
@@ -141,4 +151,19 @@ test('the checker reports planted imports and transitive helpers but ignores ord
 test('surface access and home models are included in the purity scan', () => {
   const entries = models(new URL('../../src/admin/', import.meta.url))
   for (const name of ['access', 'home']) expect(entries.some(file => file.endsWith(`/${name}.model.ts`))).toBe(true)
+})
+
+test('only home card URL formatting may import Payload shared code', () => {
+  const home = fileURLToPath(new URL('../../src/admin/surface/home.model.ts', import.meta.url))
+  for (const [file, source, allowed] of [
+    [home, "import { formatAdminURL } from 'payload/shared'", true],
+    [home.replace('home.model.ts', 'other.model.ts'), "import { formatAdminURL } from 'payload/shared'", false],
+    [home, "import { other } from 'payload/shared'", false],
+    [home, "import { formatAdminURL, other } from 'payload/shared'", false],
+    [home, "import * as shared from 'payload/shared'", false],
+    [home, "import { formatAdminURL } from 'payload'", false],
+  ] as const) {
+    const node = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true).statements[0]!
+    expect(ts.isImportDeclaration(node) && isHomeURLFormatter(file, node), source).toBe(allowed)
+  }
 })

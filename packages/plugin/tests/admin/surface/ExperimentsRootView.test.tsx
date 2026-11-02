@@ -1,4 +1,6 @@
 import { isValidElement } from 'react'
+import type { ComponentType } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import type { InitPageResult } from 'payload'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { ExperimentsRootView } from '../../../src/admin/views/ExperimentsRootView.js'
@@ -9,18 +11,18 @@ import { fakeReq } from '../../_fakes/req.js'
 import { fakePayload } from '../../_fakes/payload.js'
 
 const mocks = vi.hoisted(() => ({
-  render: vi.fn(() => null),
+  render: vi.fn((..._args: unknown[]): import('react').ReactNode => null),
   redirect: vi.fn((url: string): never => { throw new Error(`redirect:${url}`) }),
   notFound: vi.fn((): never => { throw new Error('not-found') }),
 }))
 vi.mock('@payloadcms/ui/elements/RenderServerComponent', () => ({ RenderServerComponent: mocks.render }))
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect, notFound: mocks.notFound }))
 beforeEach(() => vi.clearAllMocks())
-function setup({ user = true, manage = () => true, readResults }: {
-  user?: boolean; manage?: ExperimentsAccess; readResults?: ExperimentsAccess
+function setup({ user = true, manage = () => true, readResults, adminRoute = '/control', loginRoute = '/login' }: {
+  user?: boolean; manage?: ExperimentsAccess; readResults?: ExperimentsAccess; adminRoute?: string; loginRoute?: string
 } = {}) {
   const findGlobal = vi.fn(async () => ({ flagDefaults: { saved: { params: { text: 'Shipped' } } } }))
-  const payload = fakePayload({ config: { routes: { admin: '/control', api: '/data' }, custom: { xp: {
+  const payload = fakePayload({ config: { routes: { admin: adminRoute, api: '/data' }, admin: { routes: { login: loginRoute } }, custom: { xp: {
     access: { manage, ...(readResults ? { readResults } : {}) },
     flagPoints: ['saved', 'fallback'].map(id => ({ id, label: id, params: { text: { type: 'text', label: 'Text' } }, defaultParams: { text: 'Original' }, placements: () => [], makeContent: () => {} })),
     attributeKeys: { role: { type: 'string', values: ['student'] } },
@@ -36,7 +38,7 @@ const routes = [
 test.each(routes)('%j dispatches to %s through the import map', async (tail, route, id) => {
   const { props, payload, req, findGlobal } = setup()
   await ExperimentsRootView({ ...props, params: { segments: ['experiments', ...tail] }, searchParams: {} })
-  expect(mocks.render).toHaveBeenCalledWith({ Component: XP_TESTS_SURFACE, importMap: payload.importMap, clientProps: expect.objectContaining({ route, ...(id ? { id } : {}) }) })
+  expect(mocks.render).toHaveBeenCalledWith({ Component: XP_TESTS_SURFACE, Fallback: expect.any(Function), importMap: payload.importMap, clientProps: expect.objectContaining({ route, ...(id ? { id } : {}) }) })
   const clientProps = (mocks.render.mock.calls[0] as unknown as [{ clientProps: TestsSurfaceProps }])[0].clientProps
   function noFunctions(value: unknown) {
     expect(typeof value).not.toBe('function')
@@ -86,4 +88,22 @@ test.each([['123', 'other'], ['123', 'results', 'extra']])('unknown segments %s 
   await expect(ExperimentsRootView({ ...props, params: { segments: ['experiments', ...segments] } })).rejects.toThrow('not-found')
   expect(mocks.notFound).toHaveBeenCalledOnce()
   expect(mocks.render).not.toHaveBeenCalled()
+})
+
+test.each(['/control', '/'])('login uses the configured login path with admin at %s', async adminRoute => {
+  const { props } = setup({ user: false, adminRoute, loginRoute: '/sign-in' })
+  const current = `${adminRoute === '/' ? '' : adminRoute}/experiments/123/results?locale=en`
+  await expect(ExperimentsRootView({ ...props, params: { segments: ['experiments', '123', 'results'] }, searchParams: { locale: 'en' } })).rejects.toThrow('redirect:')
+  expect(mocks.redirect).toHaveBeenCalledWith(`${adminRoute === '/' ? '' : adminRoute}/sign-in?redirect=${encodeURIComponent(current)}`)
+})
+test('missing import-map component renders the server fallback', async () => {
+  mocks.render.mockImplementationOnce((...args: unknown[]) => {
+    const { Fallback, Component, importMap } = args[0] as { Fallback: ComponentType; Component: string; importMap: Record<string, unknown> }
+    return importMap[Component] ? null : <Fallback />
+  })
+  const { props } = setup()
+  const result = await ExperimentsRootView({ ...props, params: { segments: ['experiments'] } })
+  const html = renderToStaticMarkup(result)
+  expect(html).toContain('role="alert"')
+  expect(html).toContain("The Tests screen isn&#x27;t installed yet. Run `payload generate:importmap` and reload.")
 })

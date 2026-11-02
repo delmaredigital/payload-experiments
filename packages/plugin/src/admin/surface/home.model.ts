@@ -1,4 +1,5 @@
 import type { DocId, ExperimentKind, Status } from '../../types/contracts.js'
+import { formatAdminURL } from 'payload/shared'
 import type { SummaryResponse } from '../../types/endpoints.js'
 import { armLabel } from '../labels.js'
 import { statusPill } from '../status.model.js'
@@ -13,8 +14,9 @@ export interface HomeTest {
 }
 type Summary = SummaryResponse[DocId] | undefined
 export type Health = 'red' | 'amber' | 'green'
-export function healthDot(test: HomeTest, summary: Summary): Health {
+export function healthDot(test: HomeTest, summary: Summary): Health | undefined {
   const code = summary?.verdict?.code
+  if (!code) return undefined
   if (code === 'data-problem' || code === 'guardrail-failing') return 'red'
   if (code === 'unavailable' || code === 'collecting' && test.analysis?.plannedDurationDays != null
     && summary!.days > test.analysis.plannedDurationDays) return 'amber'
@@ -26,7 +28,8 @@ export function groupTests(tests: readonly HomeTest[], summaries: SummaryRespons
   for (const test of tests) {
     if (!test.name.toLocaleLowerCase('en-US').includes(query)) continue
     const summary = summaries[test.id]
-    const index = test.status === 'running' ? healthDot(test, summary) === 'green' ? 1 : 0
+    const health = healthDot(test, summary)
+    const index = test.status === 'running' ? health === 'red' || health === 'amber' ? 0 : 1
       : test.status === 'decided' ? 4 : test.status === 'archived' ? 5 : summary?.ready === true ? 2 : 3
     groups[index]!.tests.push(test)
   }
@@ -35,8 +38,8 @@ export function groupTests(tests: readonly HomeTest[], summaries: SummaryRespons
 const number = (value: number | null | undefined) => value != null && Number.isFinite(value)
   ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value) : '—'
 export function homeCard(test: HomeTest, summary: Summary, adminRoute: string) {
-  const base = `${adminRoute}/experiments/${encodeURIComponent(test.id)}`
-  const results = ['running', 'decided'].includes(test.status)
+  const results = ['running', 'stopped', 'decided'].includes(test.status)
+  const href = formatAdminURL({ adminRoute, path: `/experiments/${encodeURIComponent(test.id)}${results ? '/results' : ''}` })
   let line = summary?.ready ? SURFACE_COPY.ready : SURFACE_COPY.next as string
   if (test.status === 'running') line = runningLine(number(summary?.days), number(test.analysis?.plannedDurationDays), number(summary?.exposures))
   if (test.status === 'decided') {
@@ -49,7 +52,7 @@ export function homeCard(test: HomeTest, summary: Summary, adminRoute: string) {
   return {
     kind: SURFACE_COPY.kinds[test.kind], pill: statusPill(test), line,
     headline: test.status === 'running' ? summary?.verdict?.headline : undefined,
-    health: healthDot(test, summary), href: results ? `${base}/results` : base,
+    health: healthDot(test, summary), href,
     action: results ? SURFACE_COPY.results : test.status === 'draft' || test.status === 'stopped' ? SURFACE_COPY.continue : SURFACE_COPY.open,
   }
 }

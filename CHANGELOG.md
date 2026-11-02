@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+After upgrading, run `payload generate:importmap` (the Tests surface is registered through admin.dependencies); without it the Tests routes render blank.
+
 ## [0.2.0-rc.1] - 2026-11-02
 
 ### plugin

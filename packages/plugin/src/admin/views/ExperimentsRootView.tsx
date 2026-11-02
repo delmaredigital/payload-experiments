@@ -1,4 +1,5 @@
 import type { AdminViewProps } from 'payload'
+import { formatAdminURL } from 'payload/shared'
 import { notFound, redirect } from 'next/navigation.js'
 import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'
 import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } from '../../collections/serialize.js'
@@ -25,13 +26,16 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
   else return notFound()
 
   if (!req.user) {
+    const { login } = req.payload.config.admin.routes
     const query = new URLSearchParams()
     for (const [key, value] of Object.entries(await searchParams ?? {})) {
       if (Array.isArray(value)) value.forEach(item => query.append(key, item))
       else if (value !== undefined) query.set(key, String(value))
     }
-    const currentPath = `${adminRoute}/experiments${tail.length ? `/${tail.map(encodeURIComponent).join('/')}` : ''}${query.size ? `?${query}` : ''}`
-    return redirect(`${adminRoute}/login?redirect=${encodeURIComponent(currentPath)}`)
+    const currentPath = formatAdminURL({ adminRoute,
+      path: `/experiments${tail.length ? `/${tail.map(encodeURIComponent).join('/')}` : ''}${query.size ? `?${query}` : ''}` })
+    return redirect(formatAdminURL({ adminRoute,
+      path: `${login}?redirect=${encodeURIComponent(currentPath)}` }))
   }
   const options = xpOptionsFromReq(req)
   async function permits(access: ExperimentsAccess): Promise<boolean> {
@@ -57,5 +61,9 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     attributeKeys: serializeAttributeKeys(options), metricSources: serializeMetricSources(options),
     ...(descriptions ? { admin: { descriptions: { ...descriptions } } } : {}),
   }
-  return RenderServerComponent({ Component: XP_TESTS_SURFACE, importMap: req.payload.importMap, clientProps })
+  return RenderServerComponent({ Component: XP_TESTS_SURFACE, Fallback: TestsSurfaceFallback, importMap: req.payload.importMap, clientProps })
+}
+
+function TestsSurfaceFallback() {
+  return <div role="alert" style={{ padding: 'var(--base)', color: 'var(--theme-text)', background: 'var(--theme-bg)' }}>{SURFACE_COPY.notInstalled}</div>
 }
