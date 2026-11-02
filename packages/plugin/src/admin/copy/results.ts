@@ -51,4 +51,3 @@ export const metricUnavailable = (name: string, reason: string) => `${name} is u
 export const chartSummary = (metric: string, groups: string, from: string, to: string, changes: string[] = []) =>
   `${metric}: lift and confidence intervals for ${groups}, ${from} to ${to}.${changes.length ? ` Content changed on ${new Intl.ListFormat('en-US', { style: 'long', type: 'conjunction' }).format(changes)}.` : ''}`
 export const contentChangeTitle = (date: string) => `Content changed ${date} by an editor`
-export const summaryLine = (exposures: string, days: string, verdict: string) => `${exposures} ${exposures === '1' ? 'exposure' : 'exposures'} · ${days} ${days === '1' ? 'day' : 'days'} · ${verdict}`

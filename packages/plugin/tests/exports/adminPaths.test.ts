@@ -63,11 +63,11 @@ test.each([
   'admin/views/ExperimentsRootView.tsx', 'admin/views/CollectionListRedirect.tsx', 'admin/views/CollectionEditRedirect.tsx',
   'client/ExperimentsProvider.tsx', 'client/context.ts', 'client/useFlagPoint.ts', 'client/useExperiment.ts',
   'client/ExperimentPageview.tsx', 'client/beacon.ts', 'client/idempotency.ts', 'client/trackConversionBeacon.ts', 'client/ViewportExposure.tsx',
-  'admin/StatusCell.tsx', 'admin/SummaryCell.tsx', 'admin/actions/ExperimentActions.tsx', 'admin/LockedFieldNotice.tsx',
-  'admin/FlagPointSelect.tsx', 'admin/arms/ArmsField.tsx', 'admin/AllocationField.tsx',
-  'admin/targeting/TargetingAttributeField.tsx', 'admin/targeting/TargetingOpField.tsx', 'admin/targeting/TargetingValueField.tsx',
-  'admin/MetricSourceSelect.tsx', 'admin/review/ReviewPanel.tsx', 'admin/PhaseHistory.tsx', 'admin/LayerUsage.tsx',
-  'admin/results/ResultsView.tsx', 'admin/armSelect/ArmSelectField.tsx', 'admin/copy/tabs.ts',
+  
+  
+  
+  'admin/MetricSourceSelect.tsx', 'admin/LayerUsage.tsx',
+  'admin/armSelect/ArmSelectField.tsx', 
   'puck/ExperimentSlot.tsx', 'puck/experimentSlotField.ts', 'puck/ExperimentPicker.tsx', 'puck/slot.model.ts', 'puck/copy.ts',
   'puck/editor/ExperimentSlotEditor.tsx', 'puck/editor/editor.model.ts', 'puck/editor/cloneSlot.ts', 'puck/editor/CreateExperimentDrawer.tsx',
   'fields/armSelect.ts',

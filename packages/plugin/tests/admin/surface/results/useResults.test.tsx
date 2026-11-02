@@ -143,11 +143,21 @@ test('results-only readers never read the manager-only document and keep the ser
   const decision = fixture('T7')
   const rollout = { ...fixture('R3'), phase: 2 }
   const fetch = vi.fn(async (url: string) => url.includes('/xp-experiments/') ? json({}, 403)
-    : json({ phases: [phaseFor(decision), phaseFor(rollout)], snapshot: decision, decisionSnapshot: decision }))
+    : json({ phases: [phaseFor(decision), phaseFor(rollout)], snapshot: decision, decisionSnapshot: decision, decision: { phase: 1, winnerArm: 'variantA' } }))
   vi.stubGlobal('fetch', fetch)
   const { result } = renderHook(() => useResults(1, { ...options, canManage: false }))
   await waitFor(() => expect(result.current.state).toBe('ready'))
   expect(result.current.round).toBe(1)
   expect(result.current.doc).toBeUndefined()
   expect(fetch.mock.calls.some(([url]) => url.includes('/xp-experiments/'))).toBe(false)
+})
+
+test('response decision takes precedence over a stale document decision when selecting the round', async () => {
+  const old = fixture('T7'), newer = { ...old, phase: 2 }
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => json(url.includes('/xp-experiments/')
+    ? { ...doc, status: 'decided', decision: { phase: 1, winnerArm: 'control' } }
+    : { phases: [phaseFor(old), phaseFor(newer)], snapshot: newer, decision: { phase: 2, winnerArm: 'variantA' } })))
+  const { result } = renderHook(() => useResults(1, options))
+  await waitFor(() => expect(result.current.state).toBe('ready'))
+  expect(result.current.round).toBe(2)
 })

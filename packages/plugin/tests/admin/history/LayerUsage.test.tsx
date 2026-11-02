@@ -21,11 +21,31 @@ test('shows the configured label and description, test percentages and group tot
   expect(screen.getByText('Header · Running · 2%')).toBeTruthy()
   expect(screen.getByText('Donation · Decided · 1%')).toBeTruthy()
 })
-test.each([undefined, null])('nothing on create (%s)', id => {
+const field = { name: 'usage', type: 'ui', label: 'Tests using this space', admin: { description: 'See which tests use this group and how much room is left.' } } as const
+function expectHelp() {
+  expect(screen.getByRole('heading', { name: field.label })).toBeTruthy()
+  expect(screen.getByText(field.admin.description)).toBeTruthy()
+  expect(screen.queryByText(/% of people in this group/)).toBeNull()
+}
+test.each([undefined, null])('shows label and help on create (%s)', id => {
   setDocumentInfo({ id })
   const fetcher = vi.fn()
   vi.stubGlobal('fetch', fetcher)
-  const { container } = render(<LayerUsage path="usage" field={{ name: 'usage', type: 'ui', admin: {} }} />)
-  expect(container.textContent).toBe('')
+  render(<LayerUsage path="usage" field={field} />)
+  expectHelp()
   expect(fetcher).not.toHaveBeenCalled()
+})
+test('shows label and help while usage is loading', () => {
+  setDocumentInfo({ id: 1 })
+  vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+  render(<LayerUsage path="usage" field={field} />)
+  expectHelp()
+})
+test('shows label and help after a usage request fails', async () => {
+  setDocumentInfo({ id: 1 })
+  const fetcher = vi.fn(async () => ({ ok: false, status: 403 }))
+  vi.stubGlobal('fetch', fetcher)
+  const { act } = await import('@testing-library/react')
+  await act(async () => { render(<LayerUsage path="usage" field={field} />) })
+  expectHelp()
 })

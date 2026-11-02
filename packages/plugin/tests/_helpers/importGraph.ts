@@ -8,8 +8,9 @@ const statsPackage = '@delmaredigital/experiments-stats'
 const ASSET_LEAF = /\.(?:css|scss|sass|svg|png|jpe?g|gif|webp|json)$/i
 const statsEntry = fileURLToPath(new URL('../../../stats/src/index.ts', import.meta.url))
 
-/** Static value edges only; dynamic specifiers are reported separately and also walked. */
-export function collectImports(entryFile: string): { bare: string[]; files: string[]; dynamic: string[] } {
+/** Value edges by default; source-inventory checks may also follow erased type edges.
+ * Dynamic specifiers are reported separately and also walked. */
+export function collectImports(entryFile: string, { includeTypes = false }: { includeTypes?: boolean } = {}): { bare: string[]; files: string[]; dynamic: string[] } {
   const bare = new Set<string>(), files = new Set<string>(), dynamic = new Set<string>()
   const options: ts.CompilerOptions = { moduleResolution: ts.ModuleResolutionKind.Bundler, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX }
   function visit(file: string) {
@@ -35,14 +36,16 @@ export function collectImports(entryFile: string): { bare: string[]; files: stri
         const clause = node.importClause
         const bindings = clause?.namedBindings
         const onlyTypeNames = bindings && ts.isNamedImports(bindings) && bindings.elements.length > 0 && bindings.elements.every(item => item.isTypeOnly)
-        if (!clause?.isTypeOnly && !(onlyTypeNames && !clause?.name)) edge(node.moduleSpecifier.text)
+        if (includeTypes || !clause?.isTypeOnly && !(onlyTypeNames && !clause?.name)) edge(node.moduleSpecifier.text)
       } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
         const names = node.exportClause
         const onlyTypeNames = names && ts.isNamedExports(names) && names.elements.length > 0 && names.elements.every(item => item.isTypeOnly)
-        if (!node.isTypeOnly && !onlyTypeNames) edge(node.moduleSpecifier.text)
-      } else if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference)) {
+        if (includeTypes || !node.isTypeOnly && !onlyTypeNames) edge(node.moduleSpecifier.text)
+      } else if (ts.isImportEqualsDeclaration(node) && (includeTypes || !node.isTypeOnly) && ts.isExternalModuleReference(node.moduleReference)) {
         const expression = node.moduleReference.expression
         if (expression && ts.isStringLiteral(expression)) edge(expression.text)
+      } else if (includeTypes && ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) {
+        edge(node.argument.literal.text)
       } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
         const argument = node.arguments[0]
         if (argument && ts.isStringLiteralLike(argument)) edge(argument.text, true)

@@ -70,16 +70,13 @@ function ResultsContent({ id, surface }: { id: DocId; surface: SurfaceProps }) {
   const snapshot = data?.snapshot
   const newestRound = defaultRound({ phases, status: 'running' })
   const latestPhase = phases.find(phase => phase.phase === newestRound)
-  const decision = doc?.decision ?? (data?.decisionSnapshot ? { phase: data.decisionSnapshot.phase, winnerArm: undefined } : undefined)
-  const status = doc?.status ?? (decision ? 'decided' : latestPhase?.phaseKind === 'test' && latestPhase.endedAt === null ? 'running' : 'stopped')
+  const decision = data?.decision ?? doc?.decision
+  const status = data?.decision ? 'decided' : doc?.status ?? (latestPhase?.phaseKind === 'test' && latestPhase.endedAt === null ? 'running' : 'stopped')
   // ADM-06b: an older round never inherits the live test's running status.
   const lineStatus = status === 'running' && round === newestRound ? 'running' : 'stopped'
   const isDecidedTestRound = status === 'decided' && phase?.phaseKind === 'test' && decision?.phase === round
   const winner = phase?.arms.find(arm => arm.key === decision?.winnerArm)?.label ?? armLabel(decision?.winnerArm ?? 'control')
   const card = snapshot ? verdictCard({ snapshot, decisionSnapshot: data?.decisionSnapshot, isDecidedTestRound, winnerLabel: winner }) : null
-  // A stored recommendation is not the editor's decision. Readers have no
-  // access to that manager-only document, so keep the title generic.
-  const cardModel = card && 'title' in card && !decision?.winnerArm ? { ...card, title: RESULTS_SURFACE_COPY.decided } : card
   const context = { phase, inLayer: doc?.layer != null, layerSlices: doc?.layerSlices, allocation: doc?.allocation }
   const primary = phase?.metrics.find(metric => metric.role === 'primary')
   // The endpoint decides the current round; historical rounds are read-only.
@@ -98,7 +95,7 @@ function ResultsContent({ id, surface }: { id: DocId; surface: SurfaceProps }) {
       <div style={{ background: 'var(--theme-elevation-50)', paddingTop: '1rem' }}>
         <p className="xp-recommendation" style={{ margin: '0 1rem' }}>{recommendation({ snapshot, phase, status: lineStatus,
           plannedDurationDays: round === newestRound ? doc?.analysis?.plannedDurationDays : undefined })}</p>
-        <VerdictCard model={cardModel!}
+        <VerdictCard model={card!}
           guardrails={guardrailChips(snapshot)} power={powerLine({ snapshot, phaseKind: phase.phaseKind, status: lineStatus })}
           collecting={collectingLine({ snapshot, phaseKind: phase.phaseKind, status: lineStatus }, context)}
           sinceShipping={rolloutLine(snapshot, phase, phases, decision ?? undefined)} />

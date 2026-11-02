@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import * as paths from '../../src/admin/paths.js'
@@ -29,7 +29,7 @@ const views = [
 ] as const
 const files = [
   'admin/surface/newTest/NewTest.tsx', 'admin/surface/ResultsRoute.tsx',
-  ...retiredFiles, ...admin.map(([, , file]) => `admin/${file}.tsx`), 'admin/copy/tabs.ts',
+  ...admin.map(([, , file]) => `admin/${file}.tsx`),
   'client/ExperimentsProvider.tsx', 'client/useFlagPoint.ts', 'client/useExperiment.ts', 'client/ExperimentPageview.tsx', 'client/trackConversionBeacon.ts',
   'puck/ExperimentSlot.tsx', 'puck/experimentSlotField.ts', 'puck/editor/ExperimentSlotEditor.tsx', 'fields/armSelect.ts',
 ]
@@ -52,4 +52,8 @@ test('one import-map constant for every admin component', () => {
   expect(Object.keys(paths).sort()).toEqual([...admin, ...views].map(([constant]) => constant).sort())
   for (const [constant, name] of views) expect(paths[constant]).toBe(`@delmaredigital/payload-experiments/rsc#${name}`)
   for (const [constant, name] of admin) expect(paths[constant]).toBe(`@delmaredigital/payload-experiments/admin/client#${name}`)
+})
+
+test.each(retiredFiles)('%s is retired', file => {
+  expect(existsSync(new URL(`../../src/${file}`, import.meta.url))).toBe(false)
 })

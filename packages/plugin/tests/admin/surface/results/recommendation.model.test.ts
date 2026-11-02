@@ -59,6 +59,7 @@ test('compared groups exclude holdout, counts round and format, and missing labe
 
 test('guardrail harm uses the stored failing-group finding, independent of two-sided significance and arm order', () => {
   const snapshot = fixture('T3'), phase = phaseFor(snapshot)
+  delete snapshot.verdict.worstArm // Older snapshots only stored the finding sentence.
   const metric = snapshot.metrics.find(metric => metric.role === 'guardrail')!
   // One-sided failure can coexist with a two-sided interval crossing zero.
   metric.comparisons[0]!.significant = 'none'
@@ -110,4 +111,11 @@ test('real stopped collecting verdict asks for no more people', () => {
   snapshot.verdict = computeVerdict(input)
   expect(snapshot.verdict.code).toBe('collecting')
   expect(recommendation({ snapshot, phase: phaseFor(snapshot), status: input.status })).toBe('Stopped before enough people took part to tell.')
+})
+
+test('stored worstArm takes precedence over the legacy finding match', () => {
+  const snapshot = fixture('T3'), phase = phaseFor(snapshot)
+  phase.arms.push({ key: 'variantB', kind: 'variant', label: 'Longer form' })
+  snapshot.verdict.worstArm = 'variantB'
+  expect(recommendation({ snapshot, phase })).toBe('Stop: Longer form is making Completed lessons worse.')
 })

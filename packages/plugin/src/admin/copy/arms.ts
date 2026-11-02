@@ -16,14 +16,9 @@ export const GROUP_LABELS = {
   control: 'Original', variantA: 'Variant A', variantB: 'Variant B', variantC: 'Variant C', holdout: 'Holdout',
 } as const
 export const ARMS_COPY = {
-  groups: 'Groups', label: 'Group label', weight: 'Weight (%)', slot: 'Content slot',
-  addVariant: 'Add a variant', addHoldout: 'Add a holdout', removeHoldout: 'Remove holdout',
-  removeVariant: 'Remove variant', splitEvenly: 'Split evenly',
   holdout: 'The holdout sees the Original and is measured but not compared during the test. After you decide, it keeps seeing the Original so the winner can be compared with it.',
-  pagePath: 'Page path', holdoutPage: "Sees the Original's page",
   pageRequired: 'Enter a page path for this group.',
   pageInvalid: 'Use a page path starting with /, without a host, query or fragment.',
-  flagPoint: 'Flag point', controlParams: "The Original uses this flag point's current defaults. These values are checked again at Start.",
   paramRequired: 'Enter a value for {label}.', paramNumber: 'Enter a number for {label}.',
   paramMin: '{label} must be at least {min}.', paramMax: '{label} must be at most {max}.',
   paramOption: 'Choose an available option for {label}.', paramCheckbox: 'Choose yes or no for {label}.',

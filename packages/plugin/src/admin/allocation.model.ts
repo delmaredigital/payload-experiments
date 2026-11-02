@@ -1,7 +1,7 @@
 import type { Arm, Status, UnitType } from '../types/contracts.js'
 import { armLabel } from './labels.js'
 import { LOCKED_MESSAGES } from './copy/common.js'
-import { eachVersion, groupShare, holdoutClause, layerSentence, participation, peopleLabel, uncounted } from './copy/who.js'
+import { eachVersion, groupShare, holdoutClause, layerSentence, participation, peopleLabel, uncounted } from './copy/audience.js'
 
 export type AllocationGroup = Pick<Arm, 'key' | 'weight' | 'kind'> & { label?: string }
 export type AllocationLayer = { name: string; used: number; free: number }

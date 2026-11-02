@@ -1,7 +1,7 @@
 import type { SerializedAttributeKeys } from '../../types/admin.js'
 import { TARGETING_OPS, isOpValid } from '../../targeting/ops.js'
 import type { TargetingOp } from '../../targeting/ops.js'
-import { NUMBER_OP_LABELS, STRING_OP_LABELS, WHO_COPY } from '../copy/who.js'
+import { NUMBER_OP_LABELS, STRING_OP_LABELS, WHO_COPY } from '../copy/audience.js'
 
 type Attribute = SerializedAttributeKeys[string]
 export type AttributeType = Attribute['type']

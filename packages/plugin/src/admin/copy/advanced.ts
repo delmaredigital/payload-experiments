@@ -1,0 +1,15 @@
+export const ADVANCED_COPY = {
+  exposurePolicy: { label: 'Exposure policy', help: 'Choose when a person is counted as seeing a version.' },
+  policies: { render: 'When rendered', viewport: 'When visible', pageview: 'On a page visit', manual: 'When the host records it' },
+  method: { label: 'Analysis method', help: 'Sequential testing supports ongoing checks; Bayesian testing compares probabilities.' },
+  cuped: { label: 'CUPED', help: 'Use earlier activity when available to reduce noise in the results.' },
+  minExposuresPerArm: { label: 'Minimum people per version', help: 'Wait for at least this many people in each version before a decision.' },
+  attributionWindowHours: { label: 'Attribution window (hours)', help: 'Count outcomes within this many hours after someone first sees a version.' },
+  sequentialTuningParameter: { label: 'Sequential tuning parameter', help: 'Set the expected sample size used to tune sequential testing.' },
+  layer: { label: 'Layer', help: 'A layer keeps tests from sharing the same people and is chosen at creation.' },
+  slug: { label: 'Slug', help: 'This permanent identifier connects the test to its content.' },
+  kind: { label: 'Kind', help: 'The kind determines where versions live and is chosen at creation.' },
+  unitType: { label: 'Unit type', help: 'Count visitors or signed-in users, as chosen at creation.' },
+  inheritedWindow: "Use each goal's window", automaticTuning: 'Automatic (5,000)',
+  sequential: 'Sequential', bayesian: 'Bayesian', auto: 'Automatic', off: 'Off', none: 'None',
+} as const

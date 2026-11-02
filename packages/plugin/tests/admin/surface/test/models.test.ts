@@ -48,7 +48,7 @@ test('editor copy avoids developer vocabulary outside Advanced', () => {
     if (typeof value === 'string') expect(value).not.toMatch(/\b(?:arms?|phases?|flag point|unit type|CUPED|exposure policy)\b/i)
     else if (typeof value === 'object' && value) Object.values(value).forEach(check)
   }
-  const { ADVANCED_COPY: _advanced, ...editor } = copy
+  const editor = copy
   check(editor)
   check(copy.suggestedWeeks(3)); check(copy.weeksHint(28))
 })

@@ -12,12 +12,8 @@ function imports(file: string) {
     .filter(ts.isImportDeclaration)
 }
 
-test.each([
-  ['admin/StatusCell.tsx', './styles.js'],
-  ['admin/actions/ExperimentActions.tsx', '../styles.js'],
-  ['admin/results/ResultsView.tsx', '../styles.js'],
-])('%s loads the shared admin stylesheet entry', (file, specifier) => {
-  expect(imports(file).some(node => !node.importClause && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === specifier)).toBe(true)
+test('results surface loads the shared admin stylesheet entry', () => {
+  expect(imports('admin/surface/results/ResultsBody.tsx').some(node => !node.importClause && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === '../../styles.js')).toBe(true)
 })
 
 test('the stylesheet entry loads CSS and no barrel has a bare side-effect import', () => {

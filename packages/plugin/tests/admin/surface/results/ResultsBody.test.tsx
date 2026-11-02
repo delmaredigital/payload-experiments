@@ -185,16 +185,20 @@ test('surface sources have no document Form or document/form hooks', () => {
   }
 })
 
-test.each(['variantA', null])('read-only decided title never treats recommendation %s as the actual shipped choice', async recommendedArm => {
+test.each(['variantA', null])('results-only readers see the actual decided winner rather than recommendation %s', async recommendedArm => {
   const decisionSnapshot = fixture('T7')
   decisionSnapshot.verdict.recommendedArm = recommendedArm
-  // The editor may have chosen another version. That choice is not in the
-  // accessible decision snapshot, so this reader cannot name it honestly.
-  setup({ phases: [phase, { ...phaseFor(fixture('R3')), phase: 2 }], snapshot: decisionSnapshot, decisionSnapshot })
+  // The editor chose another version despite the stored recommendation.
+  const data = { phases: [phase, { ...phaseFor(fixture('R3')), phase: 2 }], snapshot: decisionSnapshot, decisionSnapshot,
+    decision: { phase: 1, winnerArm: 'variantB' } }
+  const fetcher = setup(data)
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation((url, init) => url.includes('/xp-experiments/') ? Promise.resolve(json({}, 403)) : original(url, init))
   render(<ResultsBody id={1} surface={{ ...surface, canManage: false }} />)
-  await screen.findByRole('heading', { name: /^Decided$/ })
-  expect(screen.queryByRole('heading', { name: /^Decided:/ })).toBeNull()
+  await screen.findByRole('heading', { name: 'Decided: One page form' })
   expect(screen.getByText(decisionSnapshot.verdict.finding)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Decide' })).toBeNull()
+  expect(fetcher.mock.calls.some(([url]) => url.includes('/xp-experiments/'))).toBe(false)
 })
 test('a decided test whose decision round was still collecting reads as stopped, not keep running', async () => {
   const collecting = fixture('T4')

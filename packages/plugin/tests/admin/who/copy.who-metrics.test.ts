@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import * as who from '../../../src/admin/copy/who.js'
+import * as who from '../../../src/admin/copy/audience.js'
 import * as metrics from '../../../src/admin/copy/metrics.js'
 import { allocationSentence } from '../../../src/admin/allocation.model.js'
 import { metricSourceHint, metricSourceOptions } from '../../../src/admin/metricSource.model.js'

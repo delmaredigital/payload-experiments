@@ -67,10 +67,9 @@ export function useResults(id: DocId, { apiRoute, canReadResults, canManage = tr
       if (round === null) {
         // Readers cannot GET the manager-only experiment collection. The results
         // endpoint already selects the decision round (or latest test round).
-        const initial = document.data
-          ? defaultRound({ phases: result.data.phases, decision: document.data.decision, status: document.data.status })
-          : result.data.decisionSnapshot?.phase ?? result.data.snapshot?.phase
-            ?? defaultRound({ phases: result.data.phases, status: 'running' })
+        const decision = result.data.decision ?? document.data?.decision
+        const initial = defaultRound({ phases: result.data.phases, decision,
+          status: result.data.decision ? 'decided' : document.data?.status ?? 'running' })
         if (initial !== null && initial !== result.data.snapshot?.phase) {
           setView({ key, round: null, state: 'loading', doc: document.data, phases: result.data.phases, data: { ...result.data, snapshot: null } })
           setSelection({ key, round: initial })

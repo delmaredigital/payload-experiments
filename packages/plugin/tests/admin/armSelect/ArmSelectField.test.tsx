@@ -116,7 +116,7 @@ test('missing flag-point configuration renders guidance and skips every fetch', 
   vi.stubGlobal('fetch', fetcher)
   render(<ArmSelectField path="rows.0.tag" field={{ ...field, admin: { hideGutter: false } }} />)
   await act(async () => {})
-  expect(screen.getByText('No flag point is configured for this field.')).toBeTruthy()
+  expect(screen.getByText('No setting is configured for this field.')).toBeTruthy()
   expect(screen.queryByLabelText('Group')).toBeNull()
   expect(fetcher).not.toHaveBeenCalled()
 })

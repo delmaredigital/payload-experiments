@@ -33,7 +33,7 @@ export const RECOMMENDATION: Record<VerdictCode, (ctx: RecommendationContext) =>
     // Guardrail safety uses one-sided tests, distinct from comparison significance.
     // Select the group the server named; do not re-infer harm from the table.
     const group = ctx.phase?.arms.find(arm => ctx.snapshot.verdict.finding === storedGuardrailFinding(arm.label.trim() || armLabel(arm.key), metric?.name ?? C.guardrail))
-    return guardrailRecommendation(label(ctx, group?.key), metric?.name ?? C.guardrail)
+    return guardrailRecommendation(label(ctx, ctx.snapshot.verdict.worstArm ?? group?.key), metric?.name ?? C.guardrail)
   },
   collecting: ctx => {
     if (ctx.status === 'stopped') return C.stoppedCollecting
