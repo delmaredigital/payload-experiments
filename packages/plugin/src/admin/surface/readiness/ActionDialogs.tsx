@@ -36,12 +36,12 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
       if (action.id === 'stop') return api.stop(id)
       if (action.id === 'release-holdout') return api.releaseHoldout(id)
       const result = await api.makeContent(id)
-      if (result.ok && result.data?.docs.some(doc => !doc.ok)) {
+      if (result.ok && result.data) {
         setContent(result.data)
-        return { ok: false, status: 207, retryable: true, message: A.partial }
+        return result
       }
-      return result
-    })
+      return result.ok ? { ok: false, status: 0, retryable: true, message: API_MESSAGES.unreadable } : result
+    }, { reloadOnSuccess: action.id !== 'make-content' })
   }
   function close() {
     if (transition.busy) return

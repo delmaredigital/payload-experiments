@@ -80,7 +80,8 @@ test('sectionDone uses failing checks only and defaults Who and Advanced to done
 })
 test('fills both people types, direct detail messages, and missing placement groups', () => {
   expect(READINESS['unit-source-mismatch'].next(null, { ...ctx, unitType: 'user' })).toBe("This goal can't be measured for signed-in users. Choose another goal.")
-  expect(READINESS['flag-placement-missing'].next({ missing: ['control'], placements: [] }, ctx)).toBe('Add content for Original wherever this setting is used: check the content.')
+  expect(READINESS['flag-placement-missing'].next({ missing: ['control'], placements: [] }, ctx)).toBe('Add content for Original wherever this setting is used.')
+  expect(READINESS['flag-placement-missing'].next({ missing: ['variantA'], placements: [{ arm: 'variantA', ok: false }] }, ctx)).toBe('Add content for Short headline wherever this setting is used.')
   expect(READINESS['flag-placement-missing'].next('Host setup failed.', ctx)).toBe('Add content for each version wherever this setting is used: Host setup failed.')
   expect(READINESS['invalid-targeting-rule'].next({ message: 'Choose a number.' }, ctx)).toBe('Fix the rule: Choose a number.')
 })

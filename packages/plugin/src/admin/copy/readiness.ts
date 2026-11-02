@@ -4,6 +4,7 @@ export const READINESS_COPY = {
   checkError: "Couldn't check readiness. Try again.", checking: 'Checking readiness…', retry: 'Try again',
   archived: 'Archived.', running: 'Running', stopped: 'Stopped', decided: 'Decided',
   addMetric: 'Add a guardrail or something to watch', allocate: 'Let more people in',
+  everyone: 'Everyone already takes part.',
   participation: 'How many people take part (%)',
   noPlacements: 'Not on a page yet. Open a page, add an Experiment block and choose this test.',
   noPoint: 'Choose the setting to test.',
@@ -14,7 +15,7 @@ export const READINESS_COPY = {
   differentPeople: "This test's group counts different people. Create the test again without the group.",
   noTargets: 'Add a page address for each version.',
   pageVisitors: 'Whole-page tests count visitors. Create the test again counting visitors.',
-  contentFallback: 'check the content', ruleFallback: 'check the value', versionFallback: 'check the group settings',
+  ruleFallback: 'check the value', versionFallback: 'check the group settings',
   groupFallback: 'each version', parameterFallback: 'each setting', attributeFallback: 'this attribute',
 } as const
 
@@ -23,7 +24,7 @@ export const nextCopy = (sentence: string) => `Next: ${sentence}`
 export const versionsNext = (detail: string) => `Fix the versions: ${withoutPeriod(detail)}.`
 export const contentNext = (group: string) => `Add content for ${group} on the page.`
 export const parameterNext = (parameter: string, group: string) => `Set a value for ${parameter} on ${group}.`
-export const placementNext = (group: string, detail: string) => `Add content for ${group} wherever this setting is used: ${withoutPeriod(detail)}.`
+export const placementNext = (group: string, detail: string) => `Add content for ${group} wherever this setting is used${detail.trim() ? `: ${withoutPeriod(detail)}` : ''}.`
 export const goalPeopleNext = (people: string) => `This goal can't be measured for ${people}. Choose another goal.`
 export const ruleNext = (detail: string) => `Fix the rule: ${withoutPeriod(detail)}.`
 export const attributeNext = (attribute: string) => `Remove the rule on ${attribute}: it isn't available.`

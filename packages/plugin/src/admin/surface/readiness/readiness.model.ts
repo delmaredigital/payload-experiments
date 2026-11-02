@@ -45,7 +45,7 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
     const value = object(detail)
     const placement = first(value.placements)
     const missing = Array.isArray(value.missing) ? value.missing[0] : undefined
-    return placementNext(group(placement.arm ?? missing, ctx), detailText(typeof detail === 'string' ? detail : placement, C.contentFallback))
+    return placementNext(group(placement.arm ?? missing, ctx), detailText(typeof detail === 'string' ? detail : placement, ''))
   }),
   'no-primary-metric': row('win', () => C.noGoal),
   'unknown-metric-source': row('win', () => C.unknownGoal),

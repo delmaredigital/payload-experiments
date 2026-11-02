@@ -14,6 +14,6 @@ export function props(document: Partial<TestDocument> = {}, test: Partial<TestDo
   return {
     test: { doc: { ...doc, ...document }, preflight: preflight(), preflightError: null, hasUnsaved: false, saving: 'idle', loadState: 'ready', errors: {},
       stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}), ...test },
-    surface: { apiRoute: '/custom-api', adminRoute: '/admin', canManage: true, canReadResults: true, isAdmin: true, flagPoints: [], metricSources: [], attributeKeys: {} },
+    surface: { apiRoute: '/custom-api', adminRoute: '/admin', canManage: true, canReadResults: false, isAdmin: true, flagPoints: [], metricSources: [], attributeKeys: {} },
   }
 }

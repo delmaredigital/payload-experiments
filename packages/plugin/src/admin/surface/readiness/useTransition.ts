@@ -9,7 +9,7 @@ export function useTransition(test: TestDocApi, onSuccess?: () => void) {
   const inFlight = useRef(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  async function run(request: () => Promise<ApiResult<unknown>>) {
+  async function run(request: () => Promise<ApiResult<unknown>>, { reloadOnSuccess = true } = {}) {
     if (inFlight.current || test.hasUnsaved || test.saving === 'saving') return
     inFlight.current = true
     setBusy(true)
@@ -17,12 +17,13 @@ export function useTransition(test: TestDocApi, onSuccess?: () => void) {
     try {
       const result = await request()
       if (result.ok) {
-        await test.reload()
-        onSuccess?.()
-        // Keep the successful action locked until the reloaded document replaces this view.
-        return
-      }
-      setError(result.message)
+        if (reloadOnSuccess) {
+          await test.reload()
+          onSuccess?.()
+          // Keep the successful action locked until the reloaded document replaces this view.
+          return
+        }
+      } else setError(result.message)
     } catch { setError(API_MESSAGES.network) }
     inFlight.current = false
     setBusy(false)
