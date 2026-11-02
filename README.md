@@ -1,6 +1,6 @@
 # payload-experiments
 
-No-code A/B testing for [Payload CMS](https://payloadcms.com) and Next.js, with honest statistics inside the admin and no vendor.
+No-code A/B testing for [Payload CMS](https://payloadcms.com) and Next.js, with statistics inside the admin and no vendor.
 
 | Package | npm | What it is |
 |---|---|---|
