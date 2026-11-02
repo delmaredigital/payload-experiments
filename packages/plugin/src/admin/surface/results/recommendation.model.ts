@@ -61,4 +61,7 @@ export const RECOMMENDATION: Record<VerdictCode, (ctx: RecommendationContext) =>
   'rollout-readout': ctx => rolloutReadoutRecommendation(winner(ctx), formatPercent(
     primary(ctx)?.comparisons.find(comparison => comparison.arm === (ctx.snapshot.winnerArm ?? ctx.snapshot.verdict.recommendedArm))?.lift, true)),
 }
-export const recommendation = (ctx: RecommendationContext): string => RECOMMENDATION[ctx.snapshot.verdict.code](ctx)
+export const recommendation = (ctx: RecommendationContext): string => {
+  const sentence = RECOMMENDATION[ctx.snapshot.verdict.code]
+  return sentence(ctx)
+}
