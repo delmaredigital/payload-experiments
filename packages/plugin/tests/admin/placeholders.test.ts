@@ -50,7 +50,7 @@ for (const file of files) test(`placeholder: ${file}`, () => {
 })
 test('one import-map constant for every admin component', () => {
   expect(Object.keys(paths).sort()).toEqual([...admin, ...views].map(([constant]) => constant).sort())
-  for (const [constant, name] of views) expect(paths[constant]).toBe(`@delmaredigital/payload-experiments/rsc#${name}`)
+  for (const [constant, name] of views) expect(paths[constant]).toBe(`@delmaredigital/payload-experiments/admin/rsc#${name}`)
   for (const [constant, name] of admin) expect(paths[constant]).toBe(`@delmaredigital/payload-experiments/admin/client#${name}`)
 })
 

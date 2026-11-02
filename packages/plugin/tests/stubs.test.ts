@@ -25,6 +25,7 @@ import * as proxy from '../src/exports/proxy.js'
 import * as rsc from '../src/exports/rsc.js'
 import * as client from '../src/exports/client.js'
 import * as adminClient from '../src/exports/adminClient.js'
+import * as adminRsc from '../src/exports/adminRsc.js'
 import * as puck from '../src/exports/puck.js'
 import * as puckEditor from '../src/exports/puckEditor.js'
 import { XpNotImplemented } from '../src/errors.js'
@@ -42,9 +43,10 @@ const exportsByEntry = [
   [runtimeProxy, ['defineExperimentsProxyRuntime', 'createPostgresManifestLoader', 'createHttpManifestLoader']],
   [runtimeServer, ['defineExperimentsServerRuntime']],
   [proxy, ['resolveExperiments', 'applyExperiments', 'createExperimentProxy']],
-  [rsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect', 'getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments']],
+  [rsc, ['getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments']],
   [client, ['ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
   [adminClient, ['TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField']],
+  [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect']],
   [puck, ['ExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
   [puckEditor, ['ExperimentSlotEditor']],
 ] as const

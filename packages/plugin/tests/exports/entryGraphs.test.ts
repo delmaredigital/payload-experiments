@@ -1,13 +1,31 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import { collectImports } from '../_helpers/importGraph.js'
+import { hasClientDirective } from '../puck/clientDirective.js'
 
 const entry = (name: string) => fileURLToPath(new URL(`../../src/exports/${name}.ts`, import.meta.url))
 const proxyForbidden = /^(payload(?:\/|$)|@payloadcms\/|react|@puckeditor\/)/
 const clientForbidden = /^(payload(?:\/|$)|@payloadcms\/|@puckeditor\/core(?:\/|$)|@delmaredigital\/experiments-stats(?:\/|$)|pg(?:\/|$)|node:)/
+
+// Route handlers import these entries; Next 16's app-route layer has no vendored app-router-context.
+test.each(['index', 'rsc', 'proxy', 'runtimeProxy', 'runtimeServer', 'client', 'puck', 'puckEditor'])('%s has no next/navigation value imports', name => {
+  const graph = collectImports(entry(name))
+  expect([...graph.bare, ...graph.dynamic].filter(name => /^next\/navigation(?:[/.]|$)/.test(name))).toEqual([])
+})
+
+test('adminRsc stays server-only and free of Puck', () => {
+  const graph = collectImports(entry('adminRsc'))
+  expect([...graph.bare, ...graph.dynamic].filter(name => name.startsWith('@puckeditor/'))).toEqual([])
+  expect(graph.files.filter(file => hasClientDirective(readFileSync(file, 'utf8')))).toEqual([])
+  expect(graph.files).toContain(entry('adminRsc'))
+})
+
+test('rsc does not reach admin views', () => {
+  expect(collectImports(entry('rsc')).files.filter(file => file.includes('/src/admin/views/'))).toEqual([])
+})
 
 test.each(['proxy', 'runtimeProxy'])('%s has a proxy-safe value import graph', name => {
   const graph = collectImports(entry(name))

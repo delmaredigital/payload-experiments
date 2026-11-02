@@ -16,7 +16,7 @@ function namedExports(barrel: string) { return new Set(parse(join(src, `exports/
   ts.isExportDeclaration(statement) && !statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)
     ? statement.exportClause.elements.filter(element => !element.isTypeOnly).map(element => element.name.text) : [])) }
 const exports = namedExports('adminClient')
-const serverExports = namedExports('rsc')
+const serverExports = namedExports('adminRsc')
 
 function files(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
@@ -47,8 +47,8 @@ test('every XP_* path constant names a public admin export', () => {
       if (node.initializer && ts.isStringLiteral(node.initializer)) {
         const [entry, symbol] = node.initializer.text.slice(prefix.length).split('#')
         expect(node.initializer.text.startsWith(prefix), node.name.text).toBe(true)
-        expect(['admin/client', 'rsc'], node.name.text).toContain(entry)
-        expect((entry === 'rsc' ? serverExports : exports).has(symbol!), node.name.text).toBe(true)
+        expect(['admin/client', 'admin/rsc'], node.name.text).toContain(entry)
+        expect((entry === 'admin/rsc' ? serverExports : exports).has(symbol!), node.name.text).toBe(true)
       }
     }
     ts.forEachChild(node, walk)

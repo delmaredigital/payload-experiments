@@ -1,6 +1,6 @@
 {
   "name": "@delmaredigital/payload-experiments",
-  "version": "0.2.0-rc.1",
+  "version": "0.2.0-rc.2",
   "description": "No-code A/B testing for Payload CMS and Next.js: block, page and flag experiments with holdouts, layers, exposure logging and honest statistics inside the admin — no vendor",
   "type": "module",
   "license": "MIT",
@@ -48,6 +48,12 @@
       "types": "./dist/exports/adminClient.d.ts",
       "import": "./dist/exports/adminClient.js",
       "default": "./dist/exports/adminClient.js"
+    },
+    "./admin/rsc": {
+      "@delmaredigital/source": "./src/exports/adminRsc.ts",
+      "types": "./dist/exports/adminRsc.d.ts",
+      "import": "./dist/exports/adminRsc.js",
+      "default": "./dist/exports/adminRsc.js"
     },
     "./puck": {
       "@delmaredigital/source": "./src/exports/puck.ts",

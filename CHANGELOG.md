@@ -11,6 +11,19 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.2.0-rc.2] - 2026-11-02
+
+### plugin
+
+**Fixed**
+
+- Fixed `next build` failing on Next 16 for hosts whose route handlers or Payload config import `/rsc`, with "Could not parse module … app-route/vendored/contexts/app-router-context.js". In 0.2.0-rc.1, `/rsc` re-exported the Tests server views, which import `next/navigation`. The views now live on `@delmaredigital/payload-experiments/admin/rsc`; `/rsc` is route-handler-safe again and an import-graph test keeps it so.
+
+### BREAKING
+
+- `ExperimentsRootView`, `CollectionListRedirect` and `CollectionEditRedirect` moved from `/rsc` to `/admin/rsc`. Update direct imports and run `payload generate:importmap` after upgrading: the admin path constants changed.
+- Migration impact: none.
+
 ## [0.2.0-rc.1] - 2026-11-02
 
 ### plugin

@@ -10,12 +10,13 @@ const entries = [
   ['./rsc', 'rsc'],
   ['./client', 'client'],
   ['./admin/client', 'adminClient'],
+  ['./admin/rsc', 'adminRsc'],
   ['./puck', 'puck'],
   ['./puck/editor', 'puckEditor'],
 ] as const
 
 describe('plugin package plumbing', () => {
-  test('declares all nine public entries plus package.json', () => {
+  test('declares all ten public entries plus package.json', () => {
     expect(Object.keys(manifest.exports)).toEqual([...entries.map(([entry]) => entry), './package.json'])
     expect(manifest.exports['./package.json']).toBe('./package.json')
   })

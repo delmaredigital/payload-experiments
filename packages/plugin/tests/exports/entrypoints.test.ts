@@ -27,7 +27,8 @@ const required = {
     createExperimentSlotField: '../puck/experimentSlotField.js',
     EXPERIMENT_SLOT_TYPE: '../types/puck.js',
   },
-  rsc: { captureContentBaseline: '../hooks/contentChanges.js',
+  rsc: { captureContentBaseline: '../hooks/contentChanges.js' },
+  adminRsc: {
     ExperimentsRootView: '../admin/views/ExperimentsRootView.js',
     CollectionListRedirect: '../admin/views/CollectionListRedirect.js',
     CollectionEditRedirect: '../admin/views/CollectionEditRedirect.js',

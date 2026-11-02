@@ -21,10 +21,13 @@ test('real export map exempts exactly the two CSS-bearing client entries', () =>
     expect(targets).toEqual([...new Set([pkg.exports[entry].import, pkg.exports[entry].default])])
     expect(targets.every(target => target.startsWith('./dist/'))).toBe(true)
   }
-  for (const entry of ['.', './proxy', './runtime/proxy', './runtime/server', './rsc', './client', './admin', './puck']) {
+  for (const entry of ['.', './proxy', './runtime/proxy', './runtime/server', './rsc', './client', './admin/rsc', './admin', './puck']) {
     expect(isExemptEntry(entry)).toBe(false)
   }
   expect(entries.find(({ entry }) => entry === './puck')).toMatchObject({ exempt: false })
+  expect(entries.find(({ entry }) => entry === './admin/rsc')).toEqual({
+    entry: './admin/rsc', exempt: false, targets: ['./dist/exports/adminRsc.js'],
+  })
 })
 test('selection only skips the exact package.json mapping', () => {
   const entries = listExportTargets({ './other': './package.json', './package.json': './other.json' })
