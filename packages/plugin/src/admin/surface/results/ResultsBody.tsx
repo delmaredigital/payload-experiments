@@ -71,7 +71,7 @@ function ResultsContent({ id, surface }: { id: DocId; surface: SurfaceProps }) {
   const newestRound = defaultRound({ phases, status: 'running' })
   const latestPhase = phases.find(phase => phase.phase === newestRound)
   const decision = data?.decision ?? doc?.decision
-  const status = data?.decision ? 'decided' : doc?.status ?? (latestPhase?.phaseKind === 'test' && latestPhase.endedAt === null ? 'running' : 'stopped')
+  const status = doc?.status ?? (data?.decision ? 'decided' : latestPhase?.phaseKind === 'test' && latestPhase.endedAt === null ? 'running' : 'stopped')
   // ADM-06b: an older round never inherits the live test's running status.
   const lineStatus = status === 'running' && round === newestRound ? 'running' : 'stopped'
   const isDecidedTestRound = status === 'decided' && phase?.phaseKind === 'test' && decision?.phase === round

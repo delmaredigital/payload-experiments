@@ -63,11 +63,8 @@ test.each([
   'admin/views/ExperimentsRootView.tsx', 'admin/views/CollectionListRedirect.tsx', 'admin/views/CollectionEditRedirect.tsx',
   'client/ExperimentsProvider.tsx', 'client/context.ts', 'client/useFlagPoint.ts', 'client/useExperiment.ts',
   'client/ExperimentPageview.tsx', 'client/beacon.ts', 'client/idempotency.ts', 'client/trackConversionBeacon.ts', 'client/ViewportExposure.tsx',
-  
-  
-  
   'admin/MetricSourceSelect.tsx', 'admin/LayerUsage.tsx',
-  'admin/armSelect/ArmSelectField.tsx', 
+  'admin/armSelect/ArmSelectField.tsx',
   'puck/ExperimentSlot.tsx', 'puck/experimentSlotField.ts', 'puck/ExperimentPicker.tsx', 'puck/slot.model.ts', 'puck/copy.ts',
   'puck/editor/ExperimentSlotEditor.tsx', 'puck/editor/editor.model.ts', 'puck/editor/cloneSlot.ts', 'puck/editor/CreateExperimentDrawer.tsx',
   'fields/armSelect.ts',

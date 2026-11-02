@@ -1,4 +1,4 @@
-export const WHO_COPY = { emptyListNote: "Add at least one value — an empty list can't be saved." } as const
+export const AUDIENCE_COPY = { emptyListNote: "Add at least one value — an empty list can't be saved." } as const
 
 export const STRING_OP_LABELS = { eq: 'is', neq: 'is not', in: 'is one of', nin: 'is not one of', contains: 'contains' } as const
 export const NUMBER_OP_LABELS = { eq: '=', neq: '≠', gt: '>', gte: '≥', lt: '<', lte: '≤' } as const

@@ -200,6 +200,16 @@ test.each(['variantA', null])('results-only readers see the actual decided winne
   expect(screen.queryByRole('button', { name: 'Decide' })).toBeNull()
   expect(fetcher.mock.calls.some(([url]) => url.includes('/xp-experiments/'))).toBe(false)
 })
+test.each([true, false])('archived document status wins for managers; readers infer decided without a document (%s)', async canManage => {
+  const decision = { phase: snapshot.phase, winnerArm: 'variantA' }
+  const fetcher = setup({ ...response, decision, decisionSnapshot: snapshot }, { ...doc, status: 'archived' })
+  render(<ResultsBody id={1} surface={{ ...surface, canManage }} />)
+  const title = canManage ? snapshot.verdict.headline : 'Decided: Shorter form'
+  expect(await screen.findByRole('heading', { name: title })).toBeTruthy()
+  expect(screen.queryByRole('heading', { name: canManage ? 'Decided: Shorter form' : snapshot.verdict.headline })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Decide' })).toBeNull()
+  expect(fetcher.mock.calls.some(([url]) => url.includes('/xp-experiments/'))).toBe(canManage)
+})
 test('a decided test whose decision round was still collecting reads as stopped, not keep running', async () => {
   const collecting = fixture('T4')
   setup({ phases: [phaseFor(collecting)], snapshot: collecting, decisionSnapshot: collecting },

@@ -4,9 +4,7 @@ import type { TestDocument } from '../testDocument.model.js'
 import { actionGroupLabel } from '../../actions/actions.model.js'
 import { READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
 
-// contracts.ts type-imports React. Keep this model's graph pure; the contract order is checked in tests.
-const SECTION_ORDER = ['what', 'versions', 'win', 'who', 'length', 'advanced'] as const
-type SectionId = typeof SECTION_ORDER[number]
+import { SECTION_ORDER, type SectionId } from '../contracts.js'
 export type ReadinessContext = Pick<TestDocument, 'arms' | 'unitType' | 'flagPoint'> & {
   flagPoints?: readonly Pick<SerializedFlagPoint, 'id' | 'params'>[]
 }

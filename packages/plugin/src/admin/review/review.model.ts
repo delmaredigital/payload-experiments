@@ -1,10 +1,10 @@
-import type { MetricSource, Status } from '../../types/contracts.js'
+import type { MetricSource } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { REVIEW_COPY as C } from '../copy/review.js'
 
 /** Baseline shown below the selected goal, using the source's number format. */
 export function reviewView({ baseline }: PreflightResult, { primaryMetricKind }: {
-  status: Status; primaryMetricKind?: MetricSource['kind']
+  primaryMetricKind?: MetricSource['kind']
 }) {
   const formatted = baseline ? new Intl.NumberFormat('en-US', primaryMetricKind === 'binomial'
     ? { style: 'percent', maximumFractionDigits: 1 }

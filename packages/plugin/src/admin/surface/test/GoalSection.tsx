@@ -66,7 +66,7 @@ export function GoalSection({ test, surface }: SectionProps) {
   const primary = metrics.find(metric => String(metric.id) === String(doc.metrics?.primary))
   const kind = surface.metricSources.find(source => source.id === primary?.source)?.kind
   const baseline = test.preflight?.baseline && String(test.preflight.baseline.metricId) === String(doc.metrics?.primary)
-    ? reviewView(test.preflight, { status: doc.status, primaryMetricKind: kind }).baseline : null
+    ? reviewView(test.preflight, { primaryMetricKind: kind }).baseline : null
   return <Section test={test} sectionId="win">
     {!reason ? <TextEdit label={C.searchGoals} value={query} onDraft={setQuery} onCommit={setQuery} /> : null}
     {failed ? <p role="alert">{C.goalsError} <button type="button" onClick={() => setAttempt(n => n + 1)}>{C.retry}</button></p> : null}

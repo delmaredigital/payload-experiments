@@ -1,16 +1,16 @@
 import { expect, test } from 'vitest'
-import * as who from '../../../src/admin/copy/audience.js'
-import * as metrics from '../../../src/admin/copy/metrics.js'
-import { allocationSentence } from '../../../src/admin/allocation.model.js'
-import { metricSourceHint, metricSourceOptions } from '../../../src/admin/metricSource.model.js'
-import { opLabel, opsFor } from '../../../src/admin/targeting/targeting.model.js'
+import * as audience from '../../src/admin/copy/audience.js'
+import * as metrics from '../../src/admin/copy/metrics.js'
+import { allocationSentence } from '../../src/admin/allocation.model.js'
+import { metricSourceHint, metricSourceOptions } from '../../src/admin/metricSource.model.js'
+import { opLabel, opsFor } from '../../src/admin/targeting/targeting.model.js'
 
 function check(value: unknown) {
   if (typeof value === 'string') expect(value).not.toMatch(/\b(arms?|phases?)\b/i)
   else if (value && typeof value === 'object') Object.values(value).forEach(check)
 }
-test('Who and Metrics copy and model output use user vocabulary', () => {
-  check(who)
+test('Audience and goal copy and model output use user vocabulary', () => {
+  check(audience)
   check(metrics)
   for (const type of ['string', 'number', 'boolean'] as const) check(opsFor(type).map(op => opLabel(type, op)))
   for (const status of ['draft', 'stopped', 'running', 'decided', 'archived'] as const) for (const unitType of ['visitor', 'user'] as const) {

@@ -20,6 +20,18 @@ function isHomeURLFormatter(file: string, node: ts.ImportDeclaration): boolean {
     && !clause?.name && Boolean(bindings && ts.isNamedImports(bindings) && bindings.elements.length === 1
       && (bindings.elements[0]!.propertyName ?? bindings.elements[0]!.name).text === 'formatAdminURL')
 }
+function isSurfaceTypeImport(file: string, node: ts.ImportDeclaration): boolean {
+  const clause = node.importClause
+  const bindings = clause?.namedBindings
+  // The shared order is a runtime dependency, but these two imports are erased.
+  // In particular ReturnType<typeof useTestDocument> never runs the React hook.
+  return file === fileURLToPath(new URL('../../src/admin/surface/contracts.ts', import.meta.url))
+    && ts.isStringLiteral(node.moduleSpecifier)
+    && Boolean(clause?.isTypeOnly) && !clause?.name && Boolean(bindings && ts.isNamedImports(bindings)
+      && bindings.elements.length === 1 && (
+      node.moduleSpecifier.text === 'react' && (bindings.elements[0]!.propertyName ?? bindings.elements[0]!.name).text === 'ComponentType'
+      || node.moduleSpecifier.text === './useTestDocument.js' && (bindings.elements[0]!.propertyName ?? bindings.elements[0]!.name).text === 'useTestDocument'))
+}
 function checkModels(entries: readonly string[]): string[] {
   const violations: string[] = []
   const visited = new Set<string>()
@@ -50,7 +62,8 @@ function checkModels(entries: readonly string[]): string[] {
           const clause = node.importClause
           const bindings = clause?.namedBindings
           const onlyTypeNames = bindings && ts.isNamedImports(bindings) && bindings.elements.length > 0 && bindings.elements.every(item => item.isTypeOnly)
-          check(node.moduleSpecifier.text, clause?.isTypeOnly || Boolean(onlyTypeNames && !clause?.name), isHomeURLFormatter(file, node))
+          check(node.moduleSpecifier.text, clause?.isTypeOnly || Boolean(onlyTypeNames && !clause?.name),
+            isHomeURLFormatter(file, node) || isSurfaceTypeImport(file, node))
         } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
           const names = node.exportClause
           const onlyTypeNames = names && ts.isNamedExports(names) && names.elements.length > 0 && names.elements.every(item => item.isTypeOnly)
@@ -166,4 +179,21 @@ test('only home card URL formatting may import Payload shared code', () => {
     const node = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true).statements[0]!
     expect(ts.isImportDeclaration(node) && isHomeURLFormatter(file, node), source).toBe(allowed)
   }
+})
+test('only the erased surface contract imports are allowed, never React or hook value edges', () => {
+  const contract = fileURLToPath(new URL('../../src/admin/surface/contracts.ts', import.meta.url))
+  for (const [file, source, allowed] of [
+    [contract, "import type { ComponentType } from 'react'", true],
+    [contract, "import { ComponentType } from 'react'", false],
+    [contract, "import type { ComponentType, ReactNode } from 'react'", false],
+    [contract.replace('contracts.ts', 'other.ts'), "import type { ComponentType } from 'react'", false],
+    [contract, "import type { useTestDocument } from './useTestDocument.js'", true],
+    [contract, "import { useTestDocument } from './useTestDocument.js'", false],
+    [contract.replace('contracts.ts', 'other.ts'), "import type { useTestDocument } from './useTestDocument.js'", false],
+  ] as const) {
+    const node = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true).statements[0]!
+    expect(ts.isImportDeclaration(node) && isSurfaceTypeImport(file, node), source).toBe(allowed)
+  }
+  expect(collectImports(contract).bare).not.toContain('react')
+  expect(collectImports(contract).files.some(file => file.endsWith('/useTestDocument.ts'))).toBe(false)
 })
