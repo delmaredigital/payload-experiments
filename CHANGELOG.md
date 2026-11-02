@@ -11,14 +11,13 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-After upgrading, run `payload generate:importmap`: the Tests surface is registered through admin.dependencies, and without it the Tests routes show a 'not installed' message instead of the Tests screen.
-
 ## [0.2.0-rc.1] - 2026-11-02
 
 ### plugin
 
 **Added**
 
+- A full-screen Tests admin surface at `/admin/experiments`, reached from a single "Tests" navigation link: a home that groups tests (needs attention, running, ready to start, draft, decided, archived), a New test flow (a block on a page, or a setting), one test page with plain-language sections and an Advanced disclosure, a readiness banner that names the next step, and results with a recommendation sentence and Decide. Puck's Experiment block offers "Test this block" to create a test from the page.
 - `ResultsResponse.decision` lets results readers without manage access see the winner.
 - `verdict.worstArm` identifies the worse version on snapshots computed from this version.
 - Optional `admin.editorUrl`, `admin.previewUrl` and `admin.descriptions` host configuration, validated at registration and kept server-side.
@@ -35,17 +34,21 @@ After upgrading, run `payload generate:importmap`: the Tests surface is register
 - Metrics are labelled Goals; layers are labelled Test groups (advanced).
 - Experiment versions are capped at 50 per test.
 
+**Fixed**
+
+- Start stays disabled, with the reason shown, until a test can start; the readiness banner names the next step. Previously Start could be pressed and then refused without a reason.
+
 **Removed**
 
 - The `listSummary` list column and these `/admin/client` exports: `StatusCell`, `SummaryCell`, `ExperimentActions`, `LockedFieldNotice`, `FlagPointSelect`, `ArmsField`, `AllocationField`, `TargetingAttributeField`, `TargetingOpField`, `TargetingValueField`, `ReviewPanel`, `PhaseHistory`, `ResultsView`.
 
 **Migration impact**
 
-- None (no column changes). After regenerating the schema fixture and restoring its provenance header, `git diff --stat -- tests/_fixtures/generated-schema.ts` produced no output.
+- None (no column changes). At the release commit, regenerating the schema fixture and restoring its provenance header leaves `git diff --stat -- tests/_fixtures/generated-schema.ts` with no output.
 
 ### BREAKING
 
-- `/admin/client` no longer exports `StatusCell`, `SummaryCell`, `ExperimentActions`, `LockedFieldNotice`, `FlagPointSelect`, `ArmsField`, `AllocationField`, `TargetingAttributeField`, `TargetingOpField`, `TargetingValueField`, `ReviewPanel`, `PhaseHistory` or `ResultsView`. Run `payload generate:importmap` and commit the regenerated import map; any host code importing these names must drop them.
+- `/admin/client` no longer exports `StatusCell`, `SummaryCell`, `ExperimentActions`, `LockedFieldNotice`, `FlagPointSelect`, `ArmsField`, `AllocationField`, `TargetingAttributeField`, `TargetingOpField`, `TargetingValueField`, `ReviewPanel`, `PhaseHistory` or `ResultsView`. Run `payload generate:importmap` and commit the regenerated import map; any host code importing these names must drop them. The Tests surface is registered through `admin.dependencies`, so without the regenerated import map the Tests routes show a 'not installed' message instead of the Tests screen.
 
 ## [0.1.0-rc.7] - 2026-11-01
 
