@@ -11,6 +11,7 @@ type View = {
   doc: TestDocument | null
   preflight: PreflightResult | null
   preflightError: string | null
+  preflightPending: boolean
   /** Includes staged edits and all queued or in-flight PATCHes. */
   hasUnsaved: boolean
   loadState: 'loading' | 'ready' | 'forbidden' | 'missing' | 'error'
@@ -21,11 +22,22 @@ type View = {
 // Saves outlive their mounted reader. Reopening the same document must wait for its queue.
 const drainingSaves = new Map<string, Promise<void>>()
 
-const initialView = (): View => ({ doc: null, preflight: null, preflightError: null, hasUnsaved: false, loadState: 'loading', saving: 'idle', errors: {} })
+const initialView = (): View => ({ doc: null, preflight: null, preflightError: null, preflightPending: false, hasUnsaved: false, loadState: 'loading', saving: 'idle', errors: {} })
 type Session = {
   key: string; saved: TestDocument | null; pending: TestDocumentPatch; queue: TestDocumentPatch[]
   tail: Promise<void>; view: View; controller: AbortController; reloading: boolean
   publish: () => void
+  preflightReads: number
+}
+
+async function waitForDrain(draining: Promise<void> | undefined, signal: AbortSignal) {
+  if (!draining) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let release!: () => void
+  const bounded = new Promise<void>(resolve => { release = resolve; timer = setTimeout(resolve, 15_000) })
+  signal.addEventListener('abort', release, { once: true })
+  try { await Promise.race([draining, bounded]) }
+  finally { clearTimeout(timer); signal.removeEventListener('abort', release) }
 }
 
 function optimistic(session: Session): TestDocument | null {
@@ -54,7 +66,7 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
   const documentId = String(id)
   const key = JSON.stringify([base, documentId])
   const current = useRef<Session | null>(null)
-  const commitRef = useRef<{ session: Session; commit: () => Promise<void> } | null>(null)
+  const commitRef = useRef<{ session: Session; commit: () => Promise<void>; refreshPreflight: () => Promise<void> } | null>(null)
   const defaultAttempts = useRef(new Set<string>())
   const [state, setState] = useState<{ key: string; view: View }>(() => ({ key, view: initialView() }))
   const [reloadCount, setReloadCount] = useState(0)
@@ -63,19 +75,24 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
     const controller = new AbortController()
     const session: Session = {
       key, saved: null, pending: {}, queue: [], tail: Promise.resolve(), view: initialView(),
-      controller, reloading: false,
+      controller, reloading: false, preflightReads: 0,
       publish() {
         if (controller.signal.aborted) return
         session.view.doc = session.view.loadState === 'ready' ? optimistic(session) : null
         session.view.hasUnsaved = session.queue.length > 0 || Object.keys(session.pending).length > 0
+        session.view.preflightPending = session.preflightReads > 0
         setState({ key, view: { ...session.view } })
       },
     }
     current.current = session
     const url = `${base}/xp-experiments/${encodeURIComponent(documentId)}?depth=0`
 
+    let preflightRevision = 0
     async function refreshPreflight(initial = false) {
       if (controller.signal.aborted) return
+      const revision = ++preflightRevision
+      session.preflightReads++
+      session.publish()
       // createApi has no signal option; this read must abort without cancelling submitted PATCHes.
       let data: PreflightResult | undefined
       let status = 0
@@ -98,7 +115,9 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
       } catch {
         message = API_MESSAGES.network
       }
+      session.preflightReads--
       if (controller.signal.aborted) return
+      if (revision !== preflightRevision) { session.publish(); return }
       if (data) {
         session.view.preflight = data
         session.view.preflightError = null
@@ -109,6 +128,7 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
           session.view.errors = { ...session.view.errors, _section: message }
         } else session.view.preflightError = message
       }
+      session.publish()
     }
 
     async function readDocument(): Promise<TestDocument> {
@@ -150,6 +170,9 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
               // A 2xx has applied even if its response body was lost. Preserve it while re-reading.
               session.saved = readable ? doc : { ...session.saved, ...patch }
               saved = true
+              // Keep readiness pending even while recovering an unreadable successful PATCH body.
+              session.preflightReads++
+              session.publish()
               session.view.errors = clearErrors(session.view.errors, patch)
               delete session.view.errors._section
               if (!readable && !controller.signal.aborted) session.saved = await readDocument()
@@ -166,8 +189,8 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
           session.publish()
         }
         if (saved) {
-          await refreshPreflight()
-          session.publish()
+          try { await refreshPreflight() }
+          finally { session.preflightReads--; session.publish() }
         }
       }
       // Recover both the preceding tail and this step: unexpected throws must not strand later saves.
@@ -179,11 +202,11 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
       return session.tail
     }
     // Keep callbacks attached to the session, including during automatic default persistence.
-    commitRef.current = { session, commit }
+    commitRef.current = { session, commit, refreshPreflight: () => refreshPreflight() }
     session.publish()
     void (async () => {
       try {
-        await drainingSaves.get(key)
+        await waitForDrain(drainingSaves.get(key), controller.signal)
         if (controller.signal.aborted) return
         const response = await fetch(url, { method: 'GET', credentials: 'include', signal: controller.signal })
         if (controller.signal.aborted) return
@@ -239,5 +262,10 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
     await session.tail.catch(() => undefined)
     if (current.current === session && !session.controller.signal.aborted) setReloadCount(count => count + 1)
   }, [key])
-  return { ...(state.key === key ? state.view : initialView()), stage: stagePartial, commit, reload }
+  const refreshPreflight = useCallback(() => {
+    const entry = commitRef.current
+    return entry?.session.key === key && entry.session.view.loadState === 'ready' && !entry.session.reloading
+      ? entry.refreshPreflight() : Promise.resolve()
+  }, [key])
+  return { ...(state.key === key ? state.view : initialView()), stage: stagePartial, commit, reload, refreshPreflight }
 }

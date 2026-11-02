@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Arm } from '../../../types/contracts.js'
 import type { KindParts, SectionProps } from '../contracts.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
-import { GROUP_LABELS, issueMessage } from '../../copy/arms.js'
+import { ARMS_COPY, GROUP_LABELS, issueMessage } from '../../copy/arms.js'
 import { addHoldoutArm, addVariant, issuesByRow, removeArm, splitEvenly, totalWeight, withSlotsFor } from '../../arms/arms.model.js'
 import { allocationSentence } from '../../allocation.model.js'
 import { balanceWeight, orderedVersions, trafficShares } from './testPage.model.js'
@@ -35,6 +35,7 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
       <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.label}`} value={arm.label} reason={reason}
         onCommit={label => update(arms => arms.map(current => current.key === arm.key ? { ...current, label } : current))} />
       <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.weight}`} type="number" min={0} max={100} value={doc.arms[index]!.weight} reason={reason}
+        validate={raw => raw.trim() !== '' && Number.isInteger(Number(raw)) && Number(raw) >= 0 && Number(raw) <= 100} invalidMessage={C.invalidShare}
         onDraft={value => setWeightEdit({ key: arm.key, weight: Number(value) })}
         onCommit={value => update(arms => balanceWeight(arms, arm.key, Number(value)))} />
       <parts.VersionContent test={test} surface={surface} armIndex={index} />
@@ -49,7 +50,7 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
     {!reason ? <><div className="xp-section-actions">
       <button type="button" disabled={doc.arms.filter(arm => arm.kind === 'variant').length >= 3} onClick={() => update(arms => addVariant(arms, doc.kind))}>{C.addVersion}</button>
       <button type="button" disabled={doc.arms.some(arm => arm.kind === 'holdout')} onClick={() => update(addHoldoutArm)}>{C.addHoldout}</button>
-      <button type="button" onClick={() => update(splitEvenly)}>{C.split}</button></div><p>{C.holdout}</p><p>{C.balanceHelp}</p></> : null}
+      <button type="button" onClick={() => update(splitEvenly)}>{C.split}</button></div><p>{ARMS_COPY.holdout}</p><p>{C.balanceHelp}</p></> : null}
     {reasonFor(test, 'allocation') ? <ReadOnly label={C.allocation} value={`${doc.allocation}%`} reason={reasonFor(test, 'allocation')} />
       : <label className="xp-field">{C.allocation}<input type="range" min={1} max={100} value={allocation}
         onChange={e => { releasedAllocation.current = null; setAllocation(Number(e.target.value)) }} onPointerUp={commitAllocation} onKeyUp={e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) commitAllocation() }}

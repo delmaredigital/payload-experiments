@@ -4,7 +4,7 @@ import type { TargetingRule } from '../../../types/contracts.js'
 import type { TargetingOp } from '../../../targeting/ops.js'
 import { coerceValue, emptyListHint, humaniseAttribute, opLabel, opsFor, valueInput } from '../../targeting/targeting.model.js'
 import { TEST_PAGE as C, NUMBER_COMPARISONS } from '../../copy/testPage.js'
-import { FieldErrors, reasonFor, save, SelectEdit, TextEdit } from './fields.js'
+import { CheckboxList, FieldErrors, reasonFor, save, SelectEdit, TextEdit } from './fields.js'
 import { Section } from './Section.js'
 
 export function TargetingSection({ test, surface }: SectionProps) {
@@ -33,8 +33,13 @@ export function TargetingSection({ test, surface }: SectionProps) {
           onCommit={value => { const key = String(value); const type = surface.attributeKeys[key]!.type; setRule({ attribute: key, op: 'eq', value: type === 'boolean' ? false : type === 'number' ? 0 : '' }) }} />
         <SelectEdit label={C.comparison} reason={reason} value={rule.op} options={opsFor(attribute?.type).map(op => ({ value: op, label: attribute?.type === 'number' ? NUMBER_COMPARISONS[op as keyof typeof NUMBER_COMPARISONS] : opLabel(attribute!.type, op) }))}
           onCommit={value => { const op = value as TargetingOp; setRule({ op, value: coerceValue(attribute!.type, op, test.doc!.targeting?.[index]?.value) ?? '' }) }} />
-        {input.kind === 'select' || input.kind === 'multiselect' ? <SelectEdit label={C.value} reason={reason} value={input.kind === 'multiselect' ? Array.isArray(rule.value) ? rule.value : [] : String(rule.value)}
-          options={input.options ?? []} multiple={input.kind === 'multiselect'} onCommit={changeValue} />
+        {input.kind === 'multiselect' ? <CheckboxList label={C.value} reason={reason} value={Array.isArray(rule.value) ? rule.value.map(String) : []}
+          options={input.options ?? []} onToggle={(value, checked) => {
+            const current = test.doc!.targeting?.[index]?.value
+            const values = Array.isArray(current) ? current.map(String) : []
+            changeValue(checked ? [...new Set([...values, value])] : values.filter(saved => saved !== value))
+          }} />
+          : input.kind === 'select' ? <SelectEdit label={C.value} reason={reason} value={String(rule.value)} options={input.options ?? []} onCommit={changeValue} />
           : input.kind === 'boolean' ? <SelectEdit label={C.value} reason={reason} value={String(rule.value)} options={[{ value: 'true', label: C.yes }, { value: 'false', label: C.no }]} onCommit={changeValue} />
           : <TextEdit label={C.value} reason={reason} value={Array.isArray(rule.value) ? rule.value.join(', ') : String(rule.value)} type={input.kind === 'number' ? 'number' : 'text'} onCommit={changeValue} />}
         {hint ? <p>{hint}</p> : null}<FieldErrors test={test} path={`targeting.${index}`} />

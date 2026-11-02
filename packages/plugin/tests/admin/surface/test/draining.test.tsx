@@ -9,7 +9,12 @@ import { checkArms } from '../../../../src/collections/experiments/armInvariants
 import type { SurfaceProps } from '../../../../src/admin/surface/contracts.js'
 import { defaultArms } from '../../../../src/admin/arms/arms.model.js'
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
+  Banner: () => null, SaveStatus: () => null,
+  sectionDone: () => ({ what: false, versions: false, win: false, who: true, length: false, advanced: true }),
+} }))
+vi.mock('../../../../src/admin/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
 const response = (value: unknown, status = 200) => ({ ok: status === 200, status, json: async () => value }) as Response
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
 const document = (id = 'drain'): TestDocument => ({ id, name: 'Before', slug: id, kind: 'block', status: 'draft', unitType: 'visitor', arms: defaultArms('block'), allocation: 100, exposurePolicy: 'render', analysis: { plannedDurationDays: 28 } })
@@ -120,4 +125,32 @@ test('custom share blur saves a valid whole group through the real document queu
   await waitFor(() => expect((screen.getByLabelText('Variant A: Share (%)') as HTMLInputElement).value).toBe('60'))
   await waitFor(() => expect(server.arms.map(arm => arm.weight)).toEqual([40, 60]))
   expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(1)
+})
+
+test('a stuck draining save delays reopening for at most 15 seconds', async () => {
+  const save = deferred()
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/preflight')) return response(preflight)
+    if (init?.method === 'PATCH') { await save.promise; return response({ doc: document('bounded') }) }
+    return response(document('bounded'))
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const old = renderHook(() => useTestDocument('bounded', { apiRoute: '/api' }))
+  await waitFor(() => expect(old.result.current.loadState).toBe('ready'))
+  let completed!: Promise<void>
+  act(() => { old.result.current.stage({ name: 'Stuck save' }); completed = old.result.current.commit() })
+  await waitFor(() => expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(1))
+  old.unmount()
+  vi.useFakeTimers()
+  const reopened = renderHook(() => useTestDocument('bounded', { apiRoute: '/api' }))
+  const reads = () => fetcher.mock.calls.filter(([, init]) => init?.method === 'GET').length
+  expect(reads()).toBe(2)
+  await act(async () => { await vi.advanceTimersByTimeAsync(14_999) })
+  expect(reads()).toBe(2)
+  expect(reopened.result.current.loadState).toBe('loading')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+  expect(reopened.result.current.loadState).toBe('ready')
+  expect(reads()).toBe(4)
+  expect(vi.getTimerCount()).toBe(0)
+  await act(async () => { save.resolve(); await completed })
 })

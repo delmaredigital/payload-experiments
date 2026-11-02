@@ -491,6 +491,7 @@ test.each(['missing', 'invalid-json'] as const)('a 2xx PATCH with %s doc reloads
   })
   await waitFor(() => expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'GET')).toHaveLength(3))
   expect(result.current.doc?.name).toBe('Applied')
+  expect(result.current.preflightPending).toBe(true)
   await act(async () => {
     recovery.resolve(response(document({ name: 'Applied and normalized' }))); await completed
   })
@@ -531,4 +532,80 @@ test('removing a stopped arm preserves the remaining row ids unchanged in the PA
   expect(JSON.parse(patches()[0]![1]?.body as string)).toEqual({ arms: remaining })
   expect(JSON.parse(patches()[0]![1]?.body as string).arms.map((arm: { id: string }) => arm.id))
     .toEqual(['row-original', 'row-variant-b'])
+})
+
+test.each([403, 404, 500, 'throw'] as const)('refreshPreflight only reads readiness and preserves loadState on %s', async failure => {
+  const { result, fetcher, patches } = setup()
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  act(() => result.current.stage({ hypothesis: 'Still typing' }))
+  const before = result.current.doc
+  const refresh = deferred<Response>()
+  fetcher.mockImplementationOnce(async () => {
+    const ready = await refresh.promise
+    if (failure === 'throw') throw new TypeError('Failed to fetch')
+    return ready
+  })
+  let completed!: Promise<void>
+  act(() => { completed = result.current.refreshPreflight() })
+  expect(result.current.preflightPending).toBe(true)
+  expect(result.current.loadState).toBe('ready')
+  await act(async () => { refresh.resolve(response({}, typeof failure === 'number' ? failure : 500)); await completed })
+  expect(result.current.preflightPending).toBe(false)
+  expect(result.current.loadState).toBe('ready')
+  expect(result.current.doc).toEqual(before)
+  expect(result.current.preflightError).toEqual(expect.any(String))
+  expect(result.current.preflight).toEqual(preflight)
+  expect(result.current.hasUnsaved).toBe(true)
+  expect(result.current.errors).toEqual({})
+  expect(patches()).toHaveLength(0)
+  expect(fetcher.mock.calls.map(([input]) => input)).toEqual([url, preflightUrl, preflightUrl])
+  fetcher.mockImplementationOnce(async () => response({ ...preflight, trafficPerDay: 321 }))
+  await act(async () => { await result.current.refreshPreflight() })
+  expect(result.current.preflight?.trafficPerDay).toBe(321)
+  expect(result.current.preflightError).toBeNull()
+  expect(result.current.loadState).toBe('ready')
+  expect(result.current.preflightPending).toBe(false)
+})
+test('preflightPending spans a successful save through its deferred preflight refresh', async () => {
+  const saved = deferred<Response>()
+  const refresh = deferred<Response>()
+  const { result, fetcher } = setup()
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  expect(result.current.preflightPending).toBe(false)
+  fetcher.mockImplementationOnce(() => saved.promise).mockImplementationOnce(() => refresh.promise)
+  let completed!: Promise<void>
+  act(() => { result.current.stage({ name: 'Saved' }); completed = result.current.commit() })
+  expect(result.current.preflightPending).toBe(false)
+  await act(async () => { saved.resolve(response({ doc: document({ name: 'Saved' }) })) })
+  expect(result.current.saving).toBe('saved')
+  expect(result.current.hasUnsaved).toBe(false)
+  expect(result.current.preflightPending).toBe(true)
+  await act(async () => { refresh.resolve(response({ ...preflight, trafficPerDay: 123 })); await completed })
+  expect(result.current.preflightPending).toBe(false)
+  expect(result.current.preflight?.trafficPerDay).toBe(123)
+})
+test('overlapping preflight refreshes remain pending until all settle and ignore stale responses', async () => {
+  const { result, fetcher } = setup()
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  const first = deferred<Response>(); const second = deferred<Response>()
+  fetcher.mockImplementationOnce(() => first.promise).mockImplementationOnce(() => second.promise)
+  let one!: Promise<void>; let two!: Promise<void>
+  act(() => { one = result.current.refreshPreflight(); two = result.current.refreshPreflight() })
+  expect(result.current.preflightPending).toBe(true)
+  await act(async () => { second.resolve(response({ ...preflight, trafficPerDay: 200 })); await two })
+  expect(result.current.preflightPending).toBe(true)
+  expect(result.current.preflight?.trafficPerDay).toBe(200)
+  await act(async () => { first.resolve(response({}, 403)); await one })
+  expect(result.current.preflightPending).toBe(false)
+  expect(result.current.preflightError).toBeNull()
+  expect(result.current.preflight?.trafficPerDay).toBe(200)
+})
+test.each([1, 'uuid-goal'])('unchanged typed relationship ids (%s) never send an extra PATCH', async id => {
+  const { result, patches } = setup(document({ metrics: { primary: id, guardrails: [id], secondary: [] } }))
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  await act(async () => {
+    result.current.stage({ metrics: { primary: id, guardrails: [id], secondary: [] } })
+    await result.current.commit()
+  })
+  expect(patches()).toHaveLength(0)
 })

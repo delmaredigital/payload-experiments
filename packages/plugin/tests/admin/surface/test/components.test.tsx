@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/admin/surface/contracts.js'
 import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
@@ -19,12 +19,17 @@ import { lockedReason } from '../../../../src/admin/lockedNotice.model.js'
 
 const hook = vi.hoisted(() => vi.fn())
 vi.mock('../../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: hook }))
+vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
+  Banner: () => null, SaveStatus: () => null,
+  sectionDone: () => ({ what: false, versions: false, win: false, who: true, length: false, advanced: true }),
+} }))
+vi.mock('../../../../src/admin/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const doc = (partial: Partial<TestDocument> = {}): TestDocument => ({ id: 'test/1', name: 'Welcome test', slug: 'welcome', status: 'draft', kind: 'block', unitType: 'visitor', arms: defaultArms('block'), allocation: 100, exposurePolicy: 'render', analysis: { plannedDurationDays: 28, minExposuresPerArm: 200 }, ...partial })
 const surface: SurfaceProps = { adminRoute: '/cms', apiRoute: '/cms-api', canManage: true, canReadResults: true, isAdmin: true, flagPoints: [], attributeKeys: { country: { type: 'string', values: ['US', 'CA'] }, age: { type: 'number' }, member: { type: 'boolean' } }, metricSources: [{ id: 'signup', label: 'Signups', kind: 'binomial', keyedBy: 'visitor', clientWritable: true }] }
 function props(partial: Partial<TestDocument> = {}): SectionProps {
-  return { surface, test: { doc: doc(partial), preflight: { checks: [], placements: [], baseline: null, trafficPerDay: null, estimate: null }, preflightError: null,
-    hasUnsaved: false, loadState: 'ready', saving: 'saved', errors: {}, stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}) } }
+  return { surface, test: { doc: doc(partial), preflight: { checks: [], placements: [], baseline: null, trafficPerDay: null, estimate: null }, preflightError: null, preflightPending: false,
+    hasUnsaved: false, loadState: 'ready', saving: 'saved', errors: {}, stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}), refreshPreflight: vi.fn(async () => {}) } }
 }
 function blurChange(label: string, value: string) {
   const input = screen.getByLabelText(label)
@@ -77,8 +82,10 @@ test('versions keep keys fixed, preview shares locally, and commit current whole
   fireEvent.blur(weight)
   expect(p.test.stage).toHaveBeenLastCalledWith({ arms: [{ ...p.test.doc.arms[0], weight: 40 }, { ...p.test.doc.arms[1], weight: 60 }] })
   expect(screen.queryByLabelText(/key/i)).toBeNull()
+  p.test.doc = { ...p.test.doc, arms: p.test.doc.arms.map((arm, i) => ({ ...arm, weight: i ? 60 : 40 })) }
+  view.rerender(<VersionsSection {...p} parts={pageBlockParts} />)
   fireEvent.click(screen.getByText('Split evenly'))
-  expect(p.test.stage).toHaveBeenLastCalledWith({ arms: p.test.doc.arms })
+  expect(p.test.stage).toHaveBeenLastCalledWith({ arms: p.test.doc.arms.map(arm => ({ ...arm, weight: 50 })) })
   fireEvent.click(screen.getByText('Add a version'))
   const arms = vi.mocked(p.test.stage).mock.lastCall?.[0].arms
   expect(arms?.[2]).toMatchObject({ key: 'variantB', slot: 'variantB' })
@@ -144,8 +151,8 @@ test('suggestion Apply and reach blur preserve current analysis and write both s
   const p = props({ exposurePolicy: 'viewport' })
   p.test.preflight!.estimate = { weeks: 3, plannedDurationDays: 21, sequentialTuningParameter: 500, feasible: true }
   const view = render(<LengthSection {...p} />)
-  expect((screen.getByLabelText('About how many people will see this per day?') as HTMLInputElement).required).toBe(true)
-  const reach = screen.getByLabelText('About how many people will see this per day?')
+  expect((screen.getByLabelText('About how many people will see this per day? (required)') as HTMLInputElement).required).toBe(true)
+  const reach = screen.getByLabelText('About how many people will see this per day? (required)')
   fireEvent.change(reach, { target: { value: '100' } })
   expect(p.test.stage).not.toHaveBeenCalled()
   p.test.doc = { ...p.test.doc!, analysis: { ...p.test.doc!.analysis, cuped: 'off' } }
@@ -185,7 +192,7 @@ test('audience controls use typed values, word comparisons and current whole rul
 test('empty list audience rule shows the model hint', () => {
   const p = props({ targeting: [{ attribute: 'country', op: 'in', value: [] }] })
   render(<TargetingSection {...p} />)
-  expect((screen.getByLabelText('Value') as HTMLSelectElement).multiple).toBe(true)
+  expect(within(screen.getByRole('group', { name: 'Value' })).getAllByRole('checkbox')).toHaveLength(2)
   expect(screen.getByText("Add at least one value — an empty list can't be saved.")).toBeTruthy()
 })
 test('goals load via the host API and preserve the current metrics group on selection', async () => {
@@ -196,7 +203,7 @@ test('goals load via the host API and preserve the current metrics group on sele
   await waitFor(() => expect(screen.getAllByText('Registered · yes/no').length).toBeGreaterThan(0))
   expect(fetch).toHaveBeenCalledWith('/cms-api/xp-metrics?depth=0&limit=100&page=1', expect.objectContaining({ credentials: 'include' }))
   expect(screen.getByText('Registered: Over the last 28 days: 3.2%')).toBeTruthy()
-  expect(Array.from((screen.getByLabelText('Must not get worse (optional)') as HTMLSelectElement).options).map(o => o.value)).not.toContain('1')
+  expect(within(screen.getByRole('group', { name: 'Must not get worse (optional)' })).queryByLabelText('Registered · yes/no')).toBeNull()
   p.test.doc = { ...p.test.doc!, metrics: { primary: 1, guardrails: [], secondary: [2] } }
   view.rerender(<GoalSection {...p} />)
   fireEvent.change(screen.getByLabelText('Goal'), { target: { value: '' } })
@@ -209,4 +216,121 @@ test('save refusals render inline', () => {
   render(<VersionsSection {...p} parts={pageBlockParts} />)
   expect(screen.getByText('Choose another label.')).toBeTruthy()
   expect(screen.getByText('Refused share.')).toBeTruthy()
+})
+
+test.each([1, 'uuid-goal'])('goal choices preserve original ids (%s), and reselecting is a no-op', async id => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: [{ id, name: 'Selected goal', source: 'signup' }] }) })))
+  const p = props({ metrics: { primary: null, guardrails: [], secondary: [] } })
+  const view = render(<GoalSection {...p} />)
+  await waitFor(() => expect(screen.getAllByText('Selected goal · yes/no').length).toBeGreaterThan(0))
+  fireEvent.change(screen.getByLabelText('Goal'), { target: { value: String(id) } })
+  expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: id, guardrails: [], secondary: [] } })
+  p.test.doc!.metrics!.primary = id
+  view.rerender(<GoalSection {...p} />)
+  fireEvent.change(screen.getByLabelText('Goal'), { target: { value: String(id) } })
+  expect(p.test.stage).toHaveBeenCalledTimes(1)
+  expect(p.test.commit).toHaveBeenCalledTimes(1)
+})
+test.each([2, 'uuid-guardrail'])('checkboxes preserve metric ids (%s) and add to the current whole group', async id => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: [
+    { id: 1, name: 'Primary', source: 'signup' }, { id, name: 'First', source: 'signup' },
+    { id: 3, name: 'Second', source: 'signup' }, { id: 4, name: 'Watch', source: 'signup' },
+  ] }) })))
+  const p = props({ metrics: { primary: 1, guardrails: [], secondary: [] } })
+  const view = render(<GoalSection {...p} />)
+  await waitFor(() => expect(screen.getAllByText('First · yes/no').length).toBeGreaterThan(0))
+  const guardrails = () => within(screen.getByRole('group', { name: 'Must not get worse (optional)' }))
+  fireEvent.click(guardrails().getByLabelText('First · yes/no'))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [id], secondary: [] } })
+  p.test.doc!.metrics = { primary: 1, guardrails: [id], secondary: [] }
+  view.rerender(<GoalSection {...p} />)
+  // Read the current group even if another edit arrived since rendering.
+  p.test.doc!.metrics.secondary = [4]
+  fireEvent.click(guardrails().getByLabelText('Second · yes/no'))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [id, 3], secondary: [4] } })
+  p.test.doc!.metrics = { primary: 1, guardrails: [], secondary: [] }
+  view.rerender(<GoalSection {...p} />)
+  fireEvent.click(within(screen.getByRole('group', { name: 'Also keep an eye on (optional)' })).getByLabelText('First · yes/no'))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [], secondary: [id] } })
+})
+test('targeting checkbox toggles keep other current values and rules', () => {
+  const p = props({ targeting: [{ attribute: 'country', op: 'in', value: [] }] })
+  const view = render(<TargetingSection {...p} />)
+  fireEvent.click(screen.getByLabelText('US'))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US'] }] })
+  p.test.doc!.targeting![0]!.value = ['US']
+  view.rerender(<TargetingSection {...p} />)
+  p.test.doc!.targeting!.push({ attribute: 'age', op: 'gte', value: 18 })
+  fireEvent.click(screen.getByLabelText('CA'))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 18 }] })
+})
+test('read-only goals show None selected or a friendly missing-goal label, never raw ids', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('Unavailable') }))
+  const p = props({ status: 'running', metrics: { primary: null, guardrails: [] } })
+  const view = render(<GoalSection {...p} />)
+  expect(screen.getAllByText('None selected')).toHaveLength(3)
+  p.test.doc!.metrics = { primary: 12345, guardrails: ['missing-uuid'] }
+  view.rerender(<GoalSection {...p} />)
+  expect(screen.getAllByText('A goal that no longer exists')).toHaveLength(2)
+  expect(screen.queryByText('12345')).toBeNull()
+  expect(screen.queryByText('missing-uuid')).toBeNull()
+  await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
+})
+test('reach controls the no-estimate hint and required label', () => {
+  const p = props()
+  const view = render(<LengthSection {...p} />)
+  expect(screen.getByText('Enter a daily number above to get a suggestion. 4 weeks is a safe default.')).toBeTruthy()
+  expect(screen.getByLabelText('About how many people will see this per day?').hasAttribute('required')).toBe(false)
+  p.test.doc!.analysis!.reachPerDay = 100
+  view.rerender(<LengthSection {...p} />)
+  expect(screen.queryByText(/Enter a daily number above/)).toBeNull()
+  expect(screen.getByText('Choose a goal to get a suggestion.')).toBeTruthy()
+  for (const exposurePolicy of ['manual', 'viewport'] as const) {
+    p.test.doc!.exposurePolicy = exposurePolicy
+    view.rerender(<LengthSection {...p} />)
+    expect((screen.getByLabelText('About how many people will see this per day? (required)') as HTMLInputElement).required).toBe(true)
+  }
+})
+test.each(['', '0', '-1'])('required numeric edits %j revert without saving', value => {
+  const p = props()
+  render(<><LengthSection {...p} /><AdvancedSection {...p} /></>)
+  blurChange('Planned length (days)', value)
+  blurChange('Minimum people per version', value)
+  expect((screen.getByLabelText('Planned length (days)') as HTMLInputElement).value).toBe('28')
+  expect((screen.getByLabelText('Minimum people per version') as HTMLInputElement).value).toBe('200')
+  expect(p.test.stage).not.toHaveBeenCalled()
+  expect(p.test.commit).not.toHaveBeenCalled()
+})
+test.each(['150', '-1', '33.5', ''])('invalid share %j reverts without saving and explains invalid numbers', value => {
+  const p = props()
+  render(<VersionsSection {...p} parts={pageBlockParts} />)
+  blurChange('Original: Share (%)', value)
+  expect((screen.getByLabelText('Original: Share (%)') as HTMLInputElement).value).toBe('50')
+  expect(screen.getByRole('img').getAttribute('aria-label')).toContain('Original 50%')
+  expect(p.test.stage).not.toHaveBeenCalled()
+  expect(p.test.commit).not.toHaveBeenCalled()
+  if (value) expect(screen.getByText('Use a whole number from 0 to 100.')).toBeTruthy()
+})
+test('admins see the method control on editable tests and non-admins do not', () => {
+  const p = props()
+  const view = render(<AdvancedSection {...p} />)
+  expect(screen.getByLabelText('Analysis method')).toBeInstanceOf(HTMLSelectElement)
+  p.surface = { ...surface, isAdmin: false }
+  view.rerender(<AdvancedSection {...p} />)
+  expect(screen.queryByLabelText('Analysis method')).toBeNull()
+  expect(screen.queryByText('Analysis method')).toBeNull()
+})
+test('drafts have no Results link and unplaced blocks explain how to add them', () => {
+  const p = props()
+  render(<><TestHeader {...p} /><pageBlockParts.Binding {...p} /></>)
+  expect(screen.queryByRole('link', { name: 'Results' })).toBeNull()
+  expect(screen.getByText('Not on a page yet. Open a page, add an Experiment block and choose this test.')).toBeTruthy()
+})
+test.each([
+  ['block', ['When rendered', 'When visible']], ['page', ['On a page visit']],
+  ['flag', ['When the host records it']], ['code', ['When the host records it']],
+] as const)('Advanced renders exactly the allowed exposure options for %s', (kind, labels) => {
+  const p = props({ kind, exposurePolicy: kind === 'block' ? 'render' : kind === 'page' ? 'pageview' : 'manual' })
+  render(<AdvancedSection {...p} />)
+  expect(within(screen.getByLabelText('Exposure policy')).getAllByRole('option').map(option => option.textContent)).toEqual(labels)
 })
