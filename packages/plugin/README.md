@@ -395,7 +395,7 @@ editor route and a `puck-templates` collection, pass:
 ```ts
 admin: {
   editorUrl: ({ collection, id, draft }) =>
-    `/admin/puck-editor/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}${draft ? '?draft=true' : ''}`,
+    `/admin/puck-editor/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}`,
   previewUrl: ({ id }) => `/preview/template/${encodeURIComponent(String(id))}`,
   descriptions: {
     block: 'Try different content on a landing page.',

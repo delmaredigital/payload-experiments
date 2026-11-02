@@ -112,6 +112,36 @@ test('readResults-only callers get no readiness and perform no setup reads', asy
   expect(placements).not.toHaveBeenCalled()
 })
 
+test('a throwing host manage callback preserves verdicts for readResults-only callers', async () => {
+  const { options, req, payload } = readinessSetup()
+  options.access = { manage: () => { throw new Error('host manage unavailable') }, readResults: () => true }
+  vi.mocked(newestSnapshotIds).mockResolvedValue([1])
+  payload.documents['xp-results-snapshots'] = [{ id: 1, experiment: 'one', snapshot: fixture }]
+  const route = buildEndpoints({ options }).find(route => route.path === '/xp/experiments/summary')!
+  const response = await route.handler(req)
+  expect(response.status).toBe(200)
+  const body = await response.json()
+  expect(body.one).toEqual({ exposures: fixture.exposures.total,
+    days: (Date.parse(fixture.window.to) - Date.parse(fixture.window.from)) / 86_400_000,
+    verdict: { code: fixture.verdict.code, headline: fixture.verdict.headline } })
+  for (const row of Object.values(body)) expect(row).not.toHaveProperty('ready')
+  expect(payload.calls.some(call => call.args.collection === 'xp-experiments')).toBe(false)
+})
+
+test('a failing ids find for a manager omits readiness without failing the summary', async () => {
+  const { options, req, payload } = readinessSetup()
+  const original = payload.find
+  vi.spyOn(payload, 'find').mockImplementation(async args => {
+    if (args.collection === 'xp-experiments') throw new Error('ids unavailable')
+    return original(args)
+  })
+  const response = await handleSummary(req, { options })
+  expect(response.status).toBe(200)
+  const body = await response.json()
+  for (const row of Object.values(body)) expect(row).toEqual({ exposures: 0, days: 0, verdict: null })
+  expect(Object.keys(body)).toEqual(['one', 'two', 'flag'])
+})
+
 test('placement and per-experiment read failures return false without failing healthy peers', async () => {
   const { options, req, payload, placements } = readinessSetup()
   placements.mockRejectedValue(new Error('host unavailable'))

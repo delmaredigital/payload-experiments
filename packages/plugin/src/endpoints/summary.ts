@@ -21,18 +21,20 @@ export async function handleSummary<TUser extends { id: string | number } = { id
       days: Math.max(0, (Date.parse(snapshot.window.to) - Date.parse(snapshot.window.from)) / 86_400_000),
       verdict: { code: snapshot.verdict.code, headline: snapshot.verdict.headline } } : { exposures: 0, days: 0, verdict: null }
   }
-  if (await options.access.manage({ req }) === true) {
-    const found = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, pagination: false, limit: ids.length, where: { id: { in: [...new Set(ids)] } } })
-    const drafts = (found.docs as unknown as StartExperiment[]).filter(e => e.status === 'draft' || e.status === 'stopped')
-    const inputs = await loadStartInputsBatch(req, options, drafts, true)
-    for (const id of ids) {
-      // Payload normalises numeric ids (for example 01 to 1); preserve the requested response key.
-      const experiment = drafts.find(e => String(e.id) === id || typeof e.id === 'number' && Number(id) === e.id)
-      if (!experiment) continue
-      const input = inputs.get(String(experiment.id))
-      try { response[id]!.ready = !!input && checkStart(input).every(check => check.ok) }
-      catch { response[id]!.ready = false }
+  try {
+    if (await options.access.manage({ req }) === true) {
+      const found = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, pagination: false, limit: ids.length, where: { id: { in: [...new Set(ids)] } } })
+      const drafts = (found.docs as unknown as StartExperiment[]).filter(e => e.status === 'draft' || e.status === 'stopped')
+      const inputs = await loadStartInputsBatch(req, options, drafts, true)
+      for (const id of ids) {
+        // Payload normalises numeric ids (for example 01 to 1); preserve the requested response key.
+        const experiment = drafts.find(e => String(e.id) === id || typeof e.id === 'number' && Number(id) === e.id)
+        if (!experiment) continue
+        const input = inputs.get(String(experiment.id))
+        try { response[id]!.ready = !!input && checkStart(input).every(check => check.ok) }
+        catch { response[id]!.ready = false }
+      }
     }
-  }
+  } catch { /* Readiness is optional; setup failures must not hide the verdicts. */ }
   return Response.json(response, { headers: { 'Cache-Control': 'no-store' } })
 }
