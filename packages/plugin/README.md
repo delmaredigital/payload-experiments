@@ -1,6 +1,6 @@
 # @delmaredigital/payload-experiments
 
-> ⚠️ Upgrading to 0.2? After upgrading, run `payload generate:importmap`: the Tests surface is registered through admin.dependencies, and without it the Tests routes show a 'not installed' message instead of the Tests screen.
+> ⚠️ Upgrading to 0.2? After upgrading, run `payload generate:importmap`: the Tests surface is registered through admin.dependencies, and without it the Tests routes show a 'not installed' message instead of the Tests screen. The old experiments edit-form components are gone from `/admin/client`, and the `xp-experiments` admin list and edit views now redirect to the Tests surface.
 
 A/B testing for Payload CMS and Next.js, with results inside the admin and data
 in your own Postgres database. Editors can test blocks, whole pages and

@@ -35,7 +35,7 @@ export function metricsCollection(options: ResolvedOptions): CollectionConfig {
           } },
         { name: 'value', label: 'Limit value', type: 'number', min: 0, admin: { description: 'For past amounts, enter how much of the usual range to keep, such as 0.99 to limit only the largest 1%; or enter a fixed amount.' }, validate: (value: number | null | undefined, { siblingData }: { siblingData?: { type?: unknown } }) => {
           if (value == null && !siblingData?.type) return true
-          return (typeof value === 'number' && Number.isFinite(value) && value >= 0 && (siblingData?.type === 'absolute' || (siblingData?.type === 'percentile' && value > 0 && value <= 1))) || 'Enter a valid limit (for a top percentage, use a number greater than 0 and at most 1).'
+          return (typeof value === 'number' && Number.isFinite(value) && value >= 0 && (siblingData?.type === 'absolute' || (siblingData?.type === 'percentile' && value > 0 && value <= 1))) || 'Enter a valid limit (for past amounts, use a number greater than 0 and at most 1).'
         } },
       ] },
       { name: 'minSampleSize', label: 'Minimum completions before deciding', type: 'number', defaultValue: 150, min: 1, admin: { description: 'Wait until each version has at least this many people who completed the goal before showing a result.' } },
