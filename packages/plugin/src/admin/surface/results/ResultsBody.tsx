@@ -19,7 +19,7 @@ import { CiChart } from '../../results/CiChart.js'
 import { armRows, collectingLine, dataQuality, defaultRound, guardrailChips, powerLine, rolloutLine, roundOptions, verdictCard } from '../../results/results.model.js'
 import { recommendation } from './recommendation.model.js'
 import { useResults } from './useResults.js'
-import { DecideDialog } from './DecideDialog.js'
+import { DecideDialog } from '../../actions/DecideDialog.js'
 
 export function ResultsBody({ id, surface }: { id: DocId; surface: SurfaceProps }) {
   // A different test owns an independent selection and action lifecycle.
@@ -96,7 +96,7 @@ function ResultsContent({ id, surface }: { id: DocId; surface: SurfaceProps }) {
       : null}
     {phase && snapshot ? <>
       <div style={{ background: 'var(--theme-elevation-50)', paddingTop: '1rem' }}>
-        <p className="xp-recommendation" style={{ margin: '0 1rem' }}>{recommendation({ snapshot, phase,
+        <p className="xp-recommendation" style={{ margin: '0 1rem' }}>{recommendation({ snapshot, phase, status,
           plannedDurationDays: round === newestRound ? doc?.analysis?.plannedDurationDays : undefined })}</p>
         <VerdictCard model={cardModel!}
           guardrails={guardrailChips(snapshot)} power={powerLine({ snapshot, phaseKind: phase.phaseKind, status: lineStatus })}
@@ -118,8 +118,7 @@ function ResultsContent({ id, surface }: { id: DocId; surface: SurfaceProps }) {
     {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retryPreview}</Button></> : null}
     {manage ? <Button disabled={busy || deciding} onClick={() => { void recompute() }}>{busy ? C.recomputing : C.recompute}</Button> : null}
     {canDecide ? <Button disabled={busy || deciding} onClick={() => setDeciding(true)}>{ACTIONS_COPY.decide}</Button> : null}
-    {deciding && canDecide && snapshot && phase ? <DecideDialog id={id} api={api} snapshot={snapshot} arms={phase.arms}
-      onClose={() => setDeciding(false)} onSuccess={() => { setDeciding(false); results.reload() }} onRefresh={results.reload} /> : null}
+    {deciding && manage && phase ? <DecideDialog id={id} arms={phase.arms} onClose={() => setDeciding(false)} /> : null}
     {actionError ? <p role="alert">{actionError}</p> : null}
   </div>
 }

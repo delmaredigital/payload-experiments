@@ -2,9 +2,11 @@ export const RECOMMENDATION_COPY = {
   unavailable: "Results aren't available right now. Recompute, and ask a developer if it keeps happening.",
   dataProblem: 'Stop: the data looks unbalanced, check the setup.',
   collecting: 'Too early to tell. Keep it running.',
+  stoppedCollecting: 'Stopped before enough people took part to tell.',
   originalBetter: 'The Original is best. Keep the Original.',
   noDifference: 'No difference found. Keep the Original, or test a bigger change.',
   keepRunning: 'No difference so far. Keep running.',
+  longDuration: 'No clear difference, and a clear answer would take more than 3 months at this traffic. Consider a bigger change.',
   group: 'Variant', guardrail: 'an important outcome', winner: 'the winner',
 } as const
 export const guardrailRecommendation = (group: string, guardrail: string) => `Stop: ${group} is making ${guardrail} worse.`
@@ -19,3 +21,4 @@ export const RESULTS_SURFACE_COPY = { missing: "This test couldn't be found.", d
 
 /** Matches the stored server finding; it is not a new statistical decision. */
 export const storedGuardrailFinding = (group: string, guardrail: string) => `Stop: ${group} harms ${guardrail}.`
+export const storedLongDurationFinding = 'A clear answer would take more than 90 days at this traffic.'

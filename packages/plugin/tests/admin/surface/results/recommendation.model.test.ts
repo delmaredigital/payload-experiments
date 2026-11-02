@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import type { VerdictCode } from '../../../../src/types/snapshot.js'
 import { RECOMMENDATION, recommendation } from '../../../../src/admin/surface/results/recommendation.model.js'
+import { computeVerdict, type VerdictInput } from '../../../../src/results/verdict.js'
 import { fixture, phaseFor } from '../../results/fixtures.js'
+
+function verdictInput(name: string): VerdictInput {
+  return JSON.parse(readFileSync(new URL(`../../../_fixtures/snapshots/inputs/${name}.json`, import.meta.url), 'utf8')) as VerdictInput
+}
 
 const cases: Record<VerdictCode, [string, string]> = {
   unavailable: ['T1', "Results aren't available right now. Recompute, and ask a developer if it keeps happening."],
@@ -64,4 +69,45 @@ test('guardrail harm uses the stored failing-group finding, independent of two-s
   metric.comparisons.push({ ...metric.comparisons[0]!, arm: 'variantB', significant: 'none' })
   snapshot.verdict.finding = 'Stop: One page form harms Completed lessons.'
   expect(recommendation({ snapshot, phase })).toBe('Stop: One page form is making Completed lessons worse.')
+})
+
+test('real guardrail verdict names the harmed variant by its saved label', () => {
+  const input = verdictInput('T3')
+  input.guardrails = [{ name: 'Completed lessons', status: 'failing', worstArmLabel: 'Simpler signup' }]
+  const snapshot = fixture('T3'), phase = phaseFor(snapshot)
+  phase.arms.find(arm => arm.kind === 'variant')!.label = 'Simpler signup'
+  snapshot.verdict = computeVerdict(input)
+  expect(snapshot.verdict.code).toBe('guardrail-failing')
+  expect(recommendation({ snapshot, phase })).toBe('Stop: Simpler signup is making Completed lessons worse.')
+})
+
+test.each(['T6', 'T8'])('%s skips worse holdout and control comparisons ahead of the harmful variant', name => {
+  const snapshot = fixture(name), phase = phaseFor(snapshot)
+  const primary = snapshot.metrics.find(metric => metric.role === 'primary')!
+  const harmful = primary.comparisons.find(comparison => comparison.significant === 'worse')!
+  primary.comparisons.unshift({ ...harmful, arm: 'holdout' }, { ...harmful, arm: 'control' })
+  expect(recommendation({ snapshot, phase })).toBe(cases[snapshot.verdict.code][1])
+})
+
+test.each([
+  { daysRemaining: 91, feasible: true },
+  { daysRemaining: 2, feasible: false },
+])('real long-duration verdict uses the bigger-change sentence (%j)', power => {
+  const input = verdictInput('T9')
+  input.power = power
+  const snapshot = fixture('T9')
+  snapshot.power = { ...snapshot.power, ...power }
+  snapshot.verdict = computeVerdict(input)
+  expect(snapshot.verdict.code).toBe('keep-running')
+  expect(recommendation({ snapshot, phase: phaseFor(snapshot), plannedDurationDays: 28 })).toBe(
+    'No clear difference, and a clear answer would take more than 3 months at this traffic. Consider a bigger change.')
+})
+
+test('real stopped collecting verdict asks for no more people', () => {
+  const input = verdictInput('T4')
+  input.status = 'stopped'
+  const snapshot = fixture('T4')
+  snapshot.verdict = computeVerdict(input)
+  expect(snapshot.verdict.code).toBe('collecting')
+  expect(recommendation({ snapshot, phase: phaseFor(snapshot), status: input.status })).toBe('Stopped before enough people took part to tell.')
 })

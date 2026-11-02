@@ -2,6 +2,7 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { useResults } from '../../../../src/admin/surface/results/useResults.js'
+import { API_MESSAGES } from '../../../../src/admin/copy/common.js'
 import { fixture, phaseFor } from '../../results/fixtures.js'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -21,7 +22,7 @@ function fetcher() {
   vi.stubGlobal('fetch', fetch)
   return fetch
 }
-test('loads the document and results, chooses newest round and requests its series', async () => {
+test('loads the document and newest round with series only once when the default already matches', async () => {
   const fetch = fetcher()
   const { result } = renderHook(() => useResults('xp/one', options))
   await waitFor(() => expect(result.current.state).toBe('ready'))
@@ -29,13 +30,37 @@ test('loads the document and results, chooses newest round and requests its seri
   expect(result.current.doc?.status).toBe('running')
   expect(result.current.data?.snapshot?.phase).toBe(2)
   expect(fetch.mock.calls.map(([url]) => url)).toContain('/custom-api/xp-experiments/xp%2Fone?depth=0')
-  expect(fetch.mock.calls.map(([url]) => url)).toContain('/custom-api/xp/experiments/xp%2Fone/results?phase=2&series=1')
+  expect(fetch.mock.calls.map(([url]) => url)).toContain('/custom-api/xp/experiments/xp%2Fone/results?series=1')
+  expect(fetch.mock.calls).toHaveLength(2)
+  expect(fetch.mock.calls.filter(([url]) => url.includes('/results'))).toHaveLength(1)
 })
 test('decided tests default to the decision round rather than the rollout round', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => json(url.includes('/xp-experiments/') ? { ...doc, status: 'decided', decision: { phase: 1 } } : data(1))))
   const { result } = renderHook(() => useResults(1, options))
   await waitFor(() => expect(result.current.state).toBe('ready'))
   expect(result.current.round).toBe(1)
+})
+test('fetches the wanted default round when the first snapshot belongs to another round', async () => {
+  const fetch = vi.fn(async (url: string) => json(url.includes('/xp-experiments/')
+    ? { ...doc, status: 'decided', decision: { phase: 1 } } : data(url.includes('phase=1') ? 1 : 2)))
+  vi.stubGlobal('fetch', fetch)
+  const { result } = renderHook(() => useResults(1, options))
+  await waitFor(() => expect(result.current.state).toBe('ready'))
+  expect(result.current.round).toBe(1)
+  expect(result.current.data?.snapshot?.phase).toBe(1)
+  expect(fetch.mock.calls.filter(([url]) => url.includes('/results')).map(([url]) => url)).toEqual([
+    '/custom-api/xp/experiments/1/results?series=1', '/custom-api/xp/experiments/1/results?phase=1&series=1',
+  ])
+})
+test.each([
+  [501, undefined, API_MESSAGES.notImplemented],
+  [409, 'commit-unverified', API_MESSAGES.commitUnverified],
+] as const)('results refusal %s uses the shared API message for code %s', async (status, code, message) => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('/xp-experiments/') ? json(doc)
+    : json({ errors: [{ code, message: 'Raw server message' }] }, status)))
+  const { result } = renderHook(() => useResults(1, options))
+  await waitFor(() => expect(result.current.state).toBe('error'))
+  expect(result.current.error).toBe(message)
 })
 test('round switching clears stale content, preserves options and ignores a late response', async () => {
   const fetch = fetcher()
@@ -99,13 +124,19 @@ test('denied readers make no reads and an id change never leaks previous content
   expect(result.current.data).toBeUndefined()
   expect(result.current.doc).toBeUndefined()
 })
-test('unmount aborts both pending reads', () => {
+test('unmount aborts the document read and ignores a late shared results response', async () => {
   const signals: AbortSignal[] = []
-  vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => { signals.push(init.signal as AbortSignal); return new Promise(() => {}) }))
-  const { unmount } = renderHook(() => useResults(1, options))
-  expect(signals).toHaveLength(2)
+  const pending = deferred()
+  vi.stubGlobal('fetch', vi.fn((url: string, init: RequestInit) => {
+    if (init.signal) signals.push(init.signal as AbortSignal)
+    return url.includes('/xp-experiments/') ? Promise.resolve(json(doc)) : pending.promise
+  }))
+  const { result, unmount } = renderHook(() => useResults(1, options))
+  expect(signals).toHaveLength(1)
   unmount()
   expect(signals.every(signal => signal.aborted)).toBe(true)
+  await act(async () => pending.resolve(json(data())))
+  expect(result.current.state).toBe('loading')
 })
 
 test('results-only readers never read the manager-only document and keep the server-selected decision round', async () => {

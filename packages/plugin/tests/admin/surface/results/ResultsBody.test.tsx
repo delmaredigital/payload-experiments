@@ -4,10 +4,13 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { URL as NodeURL } from 'node:url'
 import { ResultsBody } from '../../../../src/admin/surface/results/ResultsBody.js'
+import * as resultsHook from '../../../../src/admin/surface/results/useResults.js'
+import { reloadPage } from '../../../../src/admin/reload.js'
 import type { SurfaceProps } from '../../../../src/admin/surface/contracts.js'
 import { fixture, phaseFor } from '../../results/fixtures.js'
 import type { ResultsResponse } from '../../../../src/types/endpoints.js'
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
+vi.mock('../../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
 const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: false, flagPoints: [], attributeKeys: {}, metricSources: [] }
 const snapshot = fixture('T7')
 const phase = phaseFor(snapshot)
@@ -25,7 +28,7 @@ function setup(data: ResultsResponse = response, saved = doc) {
   vi.stubGlobal('fetch', fetcher)
   return fetcher
 }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks() })
 test('composes recommendation above the headline, tables, chart, data quality, round and previews', async () => {
   setup({ ...response, snapshot: { ...snapshot, exposures: { ...snapshot.exposures, armMismatch: 1 } } })
   const { container } = render(<ResultsBody id="xp/one" surface={surface} />)
@@ -68,19 +71,24 @@ test('Recompute posts once during rapid clicks and refreshes the selected round'
   act(() => { button.click(); button.click() })
   expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
   await act(async () => { finish(json({ snapshotId: 'updated' })) })
-  await waitFor(() => expect(fetcher.mock.calls.filter(([url]) => url.includes('phase=1'))).toHaveLength(2))
+  await waitFor(() => expect(fetcher.mock.calls.filter(([url]) => url.includes('phase=1'))).toHaveLength(1))
 })
-test('Decide uses stored labels, posts once, and reloads the body on success', async () => {
-  const fetcher = setup()
+test('Decide opens the shared dialog with newest round labels, posts once, and reloads the page on success', async () => {
+  const newest = { ...snapshot, phase: 2 }
+  const newestPhase = phaseFor(newest)
+  newestPhase.arms.find(arm => arm.key === 'variantA')!.label = 'Newest shorter form'
+  const fetcher = setup({ phases: [phase, newestPhase], snapshot: newest })
   let finish!: (response: Response) => void
   const original = fetcher.getMockImplementation()!
   fetcher.mockImplementation((url, init) => init?.method === 'POST' ? new Promise(resolve => { finish = resolve }) : original(url, init))
   render(<ResultsBody id={1} surface={surface} />)
   fireEvent.click(await screen.findByRole('button', { name: 'Decide' }))
   const dialog = screen.getByRole('dialog')
-  expect((within(dialog).getByRole('combobox', { name: 'Group' }) as HTMLSelectElement).value).toBe('variantA')
-  expect(within(dialog).getByRole('option', { name: 'Shorter form' })).toBeTruthy()
+  await waitFor(() => expect((within(dialog).getByRole('combobox', { name: 'Group' }) as HTMLSelectElement).value).toBe('variantA'))
+  expect(within(dialog).getByRole('option', { name: 'Newest shorter form' })).toBeTruthy()
+  expect(within(dialog).queryByRole('option', { name: 'Shorter form' })).toBeNull()
   expect(within(dialog).queryByRole('option', { name: 'Unchanged form' })).toBeNull()
+  expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/results'))).toHaveLength(1)
   const button = within(dialog).getByRole('button', { name: 'Decide' })
   act(() => { button.click(); button.click() })
   expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
@@ -88,14 +96,44 @@ test('Decide uses stored labels, posts once, and reloads the body on success', a
   expect(url).toBe('/api/xp/experiments/1/decide')
   expect(JSON.parse(request!.body as string)).toEqual({ winnerArm: 'variantA' })
   await act(async () => { finish(json({ status: 'decided' })) })
-  await waitFor(() => expect(fetcher.mock.calls.filter(([url]) => url.includes('phase=1'))).toHaveLength(2))
-  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(reloadPage).toHaveBeenCalledTimes(1)
+})
+test('the shared Decide dialog keeps its selection and note while the body refreshes', async () => {
+  const realUseResults = resultsHook.useResults
+  let reload!: () => void
+  vi.spyOn(resultsHook, 'useResults').mockImplementation((...args) => {
+    const results = realUseResults(...args)
+    reload = results.reload
+    return results
+  })
+  const fetcher = setup()
+  render(<ResultsBody id={1} surface={surface} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Decide' }))
+  const dialog = screen.getByRole('dialog')
+  const group = within(dialog).getByRole('combobox', { name: 'Group' }) as HTMLSelectElement
+  await waitFor(() => expect(group.value).toBe('variantA'))
+  fireEvent.change(group, { target: { value: 'control' } })
+  fireEvent.change(within(dialog).getByLabelText('Decision note'), { target: { value: 'Keep this note' } })
+  let finish!: (response: Response) => void
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation((url, init) => url.includes('phase=1') ? new Promise(resolve => { finish = resolve }) : original(url, init))
+  act(() => reload())
+  await screen.findByText('Refreshing…')
+  expect(screen.getByRole('dialog')).toBe(dialog)
+  expect(group.value).toBe('control')
+  expect((within(dialog).getByLabelText('Decision note') as HTMLTextAreaElement).value).toBe('Keep this note')
+  await act(async () => finish(json(response)))
+  await screen.findByText('Shorter form is most likely to be best.')
+  expect(screen.getByRole('dialog')).toBe(dialog)
+  expect(group.value).toBe('control')
+  expect((within(dialog).getByLabelText('Decision note') as HTMLTextAreaElement).value).toBe('Keep this note')
 })
 test('guarded decisions require a note and typed confirmation', async () => {
   setup({ phases: [phaseFor(fixture('T4'))], snapshot: fixture('T4') })
   render(<ResultsBody id={1} surface={surface} />)
   fireEvent.click(await screen.findByRole('button', { name: 'Decide' }))
   const dialog = screen.getByRole('dialog')
+  await waitFor(() => expect(within(dialog).queryByRole('status')).toBeNull())
   fireEvent.change(within(dialog).getByRole('combobox', { name: 'Group' }), { target: { value: 'variantA' } })
   const submit = within(dialog).getByRole('button', { name: 'Decide' }) as HTMLButtonElement
   expect(submit.disabled).toBe(true)
@@ -141,7 +179,7 @@ test('errors, missing and empty results render distinct states', async () => {
   expect(await screen.findByText(/No results yet/)).toBeTruthy()
 })
 test('surface sources have no document Form or document/form hooks', () => {
-  for (const name of ['ResultsBody.tsx', 'DecideDialog.tsx', 'useResults.ts']) {
+  for (const name of ['ResultsBody.tsx', 'useResults.ts']) {
     const source = readFileSync(new NodeURL(`../../../../src/admin/surface/results/${name}`, import.meta.url), 'utf8')
     expect(source).not.toMatch(/\b(useDocumentInfo|useFormFields|Form)\b/)
   }

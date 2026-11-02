@@ -19,8 +19,7 @@ export interface ResultsDocument {
 export type ResultsLoadState = 'loading' | 'ready' | 'empty' | 'forbidden' | 'missing' | 'error'
 type View = { key: string; round: number | null; state: ResultsLoadState; data?: ResultsResponse; doc?: ResultsDocument; error?: string; phases?: PhaseSummary[] }
 
-// The shared API has no AbortSignal parameter. Keep abortable GETs local to this
-// owned surface rather than changing the shared API contract in this lane.
+// The shared API has no collection-document read.
 async function read<T>(url: string, signal: AbortSignal): Promise<ApiResult<T>> {
   try {
     const response = await fetch(url, { method: 'GET', credentials: 'include', signal })
@@ -52,11 +51,10 @@ export function useResults(id: DocId, { apiRoute, canReadResults, canManage = tr
     setView(previous => ({ key, round, state: 'loading',
       ...(previous.key === key ? { doc: previous.doc, phases: previous.phases, ...(previous.round === round ? { data: previous.data } : {}) } : {}) }))
     const encoded = encodeURIComponent(id)
-    const query = new URLSearchParams({ ...(round === null ? {} : { phase: String(round) }), series: '1' })
     void Promise.all([
       canManage ? read<ResultsDocument>(`${base}/xp-experiments/${encoded}?depth=0`, signal)
         : Promise.resolve<ApiResult<ResultsDocument>>({ ok: true, data: undefined }),
-      read<ResultsResponse>(`${base}/xp/experiments/${encoded}/results?${query}`, signal),
+      api.results(id, { phase: round ?? undefined, series: true }),
     ]).then(([document, result]) => {
       if (signal.aborted) return
       const failure = !document.ok ? document : !result.ok ? result : undefined
@@ -73,27 +71,28 @@ export function useResults(id: DocId, { apiRoute, canReadResults, canManage = tr
           ? defaultRound({ phases: result.data.phases, decision: document.data.decision, status: document.data.status })
           : result.data.decisionSnapshot?.phase ?? result.data.snapshot?.phase
             ?? defaultRound({ phases: result.data.phases, status: 'running' })
-        if (initial !== null) {
+        if (initial !== null && initial !== result.data.snapshot?.phase) {
           setView({ key, round: null, state: 'loading', doc: document.data, phases: result.data.phases, data: { ...result.data, snapshot: null } })
           setSelection({ key, round: initial })
           return
         }
       }
-      setView({ key, round, state: result.data.snapshot ? 'ready' : 'empty', doc: document.data, phases: result.data.phases, data: result.data })
+      setView({ key, round: round ?? result.data.snapshot?.phase ?? null, state: result.data.snapshot ? 'ready' : 'empty', doc: document.data, phases: result.data.phases, data: result.data })
     })
     return () => controller.abort()
-  }, [base, id, key, canReadResults, canManage, round, refresh])
+  }, [api, base, id, key, canReadResults, canManage, round, refresh])
 
   const current = view.key === key
-  const matching = current && view.round === round
+  const matching = current && (round === null || view.round === round)
+  const selectedRound = round ?? (current ? view.round : null)
   const state = !canReadResults ? 'forbidden' : matching ? view.state : 'loading'
   const data = matching && canReadResults ? view.data : undefined
   // Preserve options while another round loads; its snapshot is never displayed.
   const phases: PhaseSummary[] = current && canReadResults ? view.phases ?? [] : []
   return {
-    api, state, data, phases, round, doc: current && canReadResults ? view.doc : undefined,
+    api, state, data, phases, round: selectedRound, doc: current && canReadResults ? view.doc : undefined,
     error: matching ? view.error : undefined,
     setRound: (next: number) => setSelection({ key, round: next }),
-    reload: () => setRefresh(value => value + 1),
+    reload: () => { setSelection({ key, round: selectedRound }); setRefresh(value => value + 1) },
   }
 }
