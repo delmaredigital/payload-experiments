@@ -1,7 +1,7 @@
 import { isValidElement } from 'react'
 import type { ComponentType } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { InitPageResult } from 'payload'
+import type { AdminViewServerProps } from 'payload'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { ExperimentsRootView } from '../../../src/admin/views/ExperimentsRootView.js'
 import { XP_TESTS_SURFACE } from '../../../src/admin/paths.js'
@@ -9,6 +9,7 @@ import type { ExperimentsAccess } from '../../../src/types/contracts.js'
 import type { TestsSurfaceProps } from '../../../src/types/surface.js'
 import { fakeReq } from '../../_fakes/req.js'
 import { fakePayload } from '../../_fakes/payload.js'
+import { fakeInitPageResult } from '../_helpers/fakeInitPageResult.js'
 
 const mocks = vi.hoisted(() => ({
   render: vi.fn((..._args: unknown[]): import('react').ReactNode => null),
@@ -30,7 +31,10 @@ function setup({ user = true, manage = () => true, readResults, adminRoute = '/c
     admin: { descriptions: { setting: 'Choose a setting.' }, editorUrl: () => '/editor', previewUrl: () => '/preview' },
   } } }, overrides: { findGlobal, importMap: {} } })
   const req = fakeReq({ payload, user: user ? { id: 'manager' } : null })
-  return { props: { initPageResult: { req } as InitPageResult }, req, payload, findGlobal }
+  const props = {
+    initPageResult: fakeInitPageResult({ req }), params: {}, searchParams: {},
+  } satisfies Pick<AdminViewServerProps, 'initPageResult' | 'params' | 'searchParams'>
+  return { props, req, payload, findGlobal }
 }
 const routes = [
   [[], 'home', undefined], [['new'], 'new', undefined], [['123'], 'test', '123'], [['123', 'results'], 'results', '123'],

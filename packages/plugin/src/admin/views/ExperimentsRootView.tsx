@@ -1,4 +1,4 @@
-import type { AdminViewProps } from 'payload'
+import type { AdminViewServerProps } from 'payload'
 import { formatAdminURL } from 'payload/shared'
 import { notFound, redirect } from 'next/navigation.js'
 import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'
@@ -11,7 +11,7 @@ import { XP_TESTS_SURFACE } from '../paths.js'
 import { SURFACE_COPY } from '../copy/surface.js'
 import { routeAccess } from './access.model.js'
 
-export async function ExperimentsRootView({ initPageResult, params, searchParams }: Pick<AdminViewProps, 'initPageResult' | 'params' | 'searchParams'>) {
+export async function ExperimentsRootView({ initPageResult, params, searchParams }: Pick<AdminViewServerProps, 'initPageResult' | 'params' | 'searchParams'>) {
   const { req } = initPageResult
   const adminRoute = req.payload.config.routes.admin
   const segments = (await params)?.segments
