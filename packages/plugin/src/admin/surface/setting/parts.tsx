@@ -19,19 +19,20 @@ function Binding({ test, surface }: SectionProps) {
   const editable = surface.canManage && isEditable(doc.status, 'flagPoint')
   const reason = lockedReason(doc.status, 'flagPoint', EDITABLE_BY_STATUS)
   return <div className="xp-setting-binding">
-    {editable ? <label htmlFor={id}>{SETTING_COPY.setting}: {point?.label}
-      <select id={id} value={point?.id ?? ''} aria-describedby={`${id}-description`} onChange={event => {
+    {editable ? <label htmlFor={id}>{SETTING_COPY.setting}
+      <select id={id} value={point?.id ?? ''} aria-describedby={point ? `${id}-description` : undefined} onChange={event => {
         const current = test.doc
         if (!current || !surface.canManage || !isEditable(current.status, 'flagPoint') || event.target.value === current.flagPoint) return
         const next = surface.flagPoints.find(point => point.id === event.target.value)
-        test.stage({ flagPoint: next?.id ?? '', arms: bindSetting(current.arms, next) })
+        if (!next) return
+        test.stage({ flagPoint: next.id, arms: bindSetting(current.arms, next) })
         void test.commit()
       }}>
-        <option value="">{SETTING_COPY.choose}</option>
+        {!point ? <option value="">{SETTING_COPY.choose}</option> : null}
         {surface.flagPoints.map(point => <option key={point.id} value={point.id}>{point.label}</option>)}
       </select>
     </label> : <p title={reason ?? undefined}>{SETTING_COPY.setting}: {point?.label ?? SETTING_COPY.choose}</p>}
-    <p id={`${id}-description`}>{point?.description ?? point?.label ?? SETTING_COPY.choose}</p>
+    {point ? <p id={`${id}-description`}>{point.description ?? point.label}</p> : null}
     {reason ? <p className="xp-setting-lock">{reason}</p> : null}
     {test.errors.flagPoint ? <p role="alert">{test.errors.flagPoint}</p> : null}
   </div>
@@ -43,6 +44,7 @@ function Parameter({ test, surface, armIndex, paramKey, field }: ValueProps) {
   const id = useId()
   // Only the edited scalar stays local; the complete group is rebuilt on commit.
   const [draft, setDraft] = useState<{ value: unknown } | null>(null)
+  const [touched, setTouched] = useState(false)
   const doc = test.doc
   const arm = doc?.arms[armIndex]
   if (!doc || !arm) return null
@@ -52,15 +54,16 @@ function Parameter({ test, surface, armIndex, paramKey, field }: ValueProps) {
   const editable = surface.canManage && isEditable(doc.status, 'arms')
   const reason = lockedReason(doc.status, 'arms', EDITABLE_BY_STATUS)
   const failed = test.preflight?.checks.find(check => check.code === 'flag-params-invalid' && !check.ok)
-  const error = test.errors[path] ?? test.errors[`arms.${armIndex}.params`] ?? test.errors.arms
-  const issue = (error === 'flag-params-invalid' ? SETTING_COPY.invalid.replace('{label}', field.label) : error)
-    ?? paramIssue(field, draft ? coerceParam(field, value) : value) ?? paramCheckMessage(failed?.detail, arm.key, paramKey, field)
+  const error = test.errors[path] ?? test.errors[`arms.${armIndex}.params`]
+  const preflightIssue = paramCheckMessage(failed?.detail, arm.key, paramKey, field)
+  const issue = error ?? (touched || preflightIssue ? paramIssue(field, draft ? coerceParam(field, value) : value) : null) ?? preflightIssue
 
   const save = (next: unknown) => {
     const current = test.doc
     const currentArm = current?.arms[armIndex]
     if (!current || currentArm?.kind !== 'variant' || currentArm.key !== arm.key || !surface.canManage ||
       !isEditable(current.status, 'arms') || current.flagPoint !== point?.id) return
+    setTouched(true)
     const arms = current.arms.map((item, index) => index === armIndex
       ? { ...item, params: setParam(paramsForArm(item, point), paramKey, field, next) } : item)
     test.stage({ arms })
@@ -70,7 +73,9 @@ function Parameter({ test, surface, armIndex, paramKey, field }: ValueProps) {
     if (draft) { save(draft.value); setDraft(null) }
   }
   const control = paramControl(field)
-  const shared = { id, path: id, label: field.label, required: field.required }
+  const shared = { path: id, label: field.label, required: field.required }
+  const inlineError = issue ? <p id={`${id}-error`} role="alert">{issue}</p> : null
+  const editDraft = (value: string) => { setTouched(true); setDraft({ value }) }
   const text = typeof value === 'string' ? value : ''
   return <div className="xp-setting-parameter" onBlur={blur}>
     {arm.kind === 'control' || !editable ? <div title={reason ?? undefined}>
@@ -79,7 +84,7 @@ function Parameter({ test, surface, armIndex, paramKey, field }: ValueProps) {
         ? SETTING_COPY.current.replace('{value}', displayParam(field, point?.effectiveDefaults[paramKey]))
         : displayParam(field, value)}</p>
       {reason ? <p className="xp-setting-lock">{reason}</p> : null}
-    </div> : control === 'checkbox' ? <CheckboxInput {...shared} name={id} checked={value === true}
+    </div> : control === 'checkbox' ? <CheckboxInput {...shared} id={id} name={id} checked={value === true}
       onToggle={event => save(event.target.checked)} />
       : control === 'segmented' ? <fieldset aria-describedby={issue ? `${id}-error` : undefined}>
         <legend>{field.label}</legend>
@@ -96,10 +101,10 @@ function Parameter({ test, surface, armIndex, paramKey, field }: ValueProps) {
       </select></label>
       : control === 'number' ? <label htmlFor={id}>{field.label}<input id={id} type="number" min={field.min} max={field.max}
         step="any" required={field.required} value={typeof value === 'number' && Number.isFinite(value) || typeof value === 'string' ? value : ''}
-        aria-invalid={!!issue} aria-describedby={issue ? `${id}-error` : undefined} onChange={event => setDraft({ value: event.target.value })} /></label>
-      : control === 'textarea' ? <TextareaInput {...shared} showError={!!issue} value={text} onChange={event => setDraft({ value: event.target.value })} />
-      : <TextInput {...shared} showError={!!issue} hasMany={false} value={text} onChange={event => setDraft({ value: event.target.value })} />}
-    {issue ? <p id={`${id}-error`} role="alert">{issue}</p> : null}
+        aria-invalid={!!issue} aria-describedby={issue ? `${id}-error` : undefined} onChange={event => editDraft(event.target.value)} /></label>
+      : control === 'textarea' ? <TextareaInput {...shared} Error={inlineError} showError={!!issue} value={text} onChange={event => editDraft(event.target.value)} />
+      : <TextInput {...shared} Error={inlineError} showError={!!issue} hasMany={false} value={text} onChange={event => editDraft(event.target.value)} />}
+    {arm.kind === 'control' || !editable || control !== 'text' && control !== 'textarea' ? inlineError : null}
   </div>
 }
 

@@ -45,13 +45,18 @@ type InputProps = {
   disabled?: boolean; readOnly?: boolean; required?: boolean; placeholder?: string;
   onChange?: (event: ChangeEvent<HTMLInputElement>) => void
 }
-function TextInput({ label, path, name, id, ...props }: InputProps) {
-  return <label>{label}<input {...props} name={name ?? path} id={id ?? path} /></label>
+function TextInput({ label, path, name, id: _id, Error, showError: _showError, hasMany: _hasMany, ...props }: InputProps & {
+  Error?: ReactNode; showError?: boolean; hasMany?: boolean
+}) {
+  const inputId = `field-${path?.replace(/\./g, '__')}`
+  return <div><label htmlFor={inputId}>{label}</label>{Error}<input {...props} name={name ?? path} id={inputId} /></div>
 }
-function TextareaInput({ label, path, name, id, ...props }: Omit<InputProps, 'onChange'> & {
+function TextareaInput({ label, path, name, id: _id, Error, showError: _showError, ...props }: Omit<InputProps, 'onChange'> & {
+  Error?: ReactNode; showError?: boolean
   onChange?: (event: ChangeEvent<HTMLTextAreaElement>) => void
 }) {
-  return <label>{label}<textarea {...props} name={name ?? path} id={id ?? path} /></label>
+  const inputId = `field-${path?.replace(/\./g, '__')}`
+  return <div><label htmlFor={inputId}>{label}</label>{Error}<textarea {...props} name={name ?? path} id={inputId} /></div>
 }
 // Mirrors @payloadcms/ui 3.90.2: CheckboxInput takes `onToggle` (no `onChange`) and `readOnly` disables it.
 function CheckboxInput({ label, path, name, id, checked, onToggle, readOnly, disabled, required }: {

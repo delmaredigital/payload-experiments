@@ -56,7 +56,7 @@ test('picker shows setting labels, the description and defaults fallback without
   expect(screen.getByRole('option', { name: 'Footer message' })).toBeTruthy()
   expect(screen.getByText('The message above the signup form.')).toBeTruthy()
   expect(view.container.textContent).not.toContain('internal-')
-  expect(view.container.textContent).toContain('Setting: Welcome message')
+  expect(screen.getByRole('combobox', { name: 'Setting' })).toBeTruthy()
   api.doc = { ...doc, flagPoint: points[1]!.id }
   view.rerender(<Binding {...props} />)
   expect(screen.getByText('Footer message', { selector: 'p' })).toBeTruthy()
@@ -76,16 +76,32 @@ test('choosing a setting commits its id and the entire current versions array on
   expect(vi.mocked(api.stage).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(api.commit).mock.invocationCallOrder[0]!)
 })
 
-test('reselecting a setting preserves values; clearing removes the old values', () => {
+test('a bound setting offers no blank option and never stages an unbind', () => {
   const { props, api } = setup()
   render(<Binding {...props} />)
+  expect(screen.queryByRole('option', { name: 'Choose the setting first.' })).toBeNull()
+  expect(Array.from(screen.getByRole('combobox').querySelectorAll('option')).map(option => option.value)).not.toContain('')
   fireEvent.change(screen.getByRole('combobox'), { target: { value: points[0]!.id } })
   expect(api.stage).not.toHaveBeenCalled()
   fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } })
-  expect(api.stage).toHaveBeenCalledWith({ flagPoint: '', arms: [
-    { ...api.doc!.arms[0], params: {} }, { ...api.doc!.arms[1], params: {} }, api.doc!.arms[2],
-  ] })
-  expect(api.commit).toHaveBeenCalledTimes(1)
+  expect(api.stage).not.toHaveBeenCalledWith(expect.objectContaining({ flagPoint: '' }))
+  expect(api.stage).not.toHaveBeenCalled()
+  expect(api.commit).not.toHaveBeenCalled()
+})
+
+test.each(['draft', 'running'] as const)('unbound %s binding shows one prompt and no description', status => {
+  const { props, api, doc } = setup(status)
+  api.doc = { ...doc, flagPoint: null }
+  const view = render(<Binding {...props} />)
+  expect(screen.getAllByText(/Choose the setting first\./)).toHaveLength(1)
+  expect(view.container.querySelector('[id$="-description"]')).toBeNull()
+  if (status === 'draft') {
+    const picker = screen.getByRole('combobox', { name: 'Setting' })
+    expect(picker.getAttribute('aria-describedby')).toBeNull()
+    fireEvent.change(picker, { target: { value: points[0]!.id } })
+    expect(api.stage).toHaveBeenCalledWith(expect.objectContaining({ flagPoint: points[0]!.id }))
+    expect(api.commit).toHaveBeenCalledTimes(1)
+  }
 })
 
 test.each(['stopped', 'running', 'decided', 'archived'] as const)('binding is read-only after draft: %s', status => {
@@ -179,25 +195,92 @@ test('stopped versions remain editable and readers cannot stage anything', () =>
   expect(screen.queryByRole('combobox')).toBeNull()
 })
 
-test('parameter validation, preflight detail and refused-save messages render inline without raw codes', () => {
+test('only parameter-specific refused-save messages render inline', () => {
+  const { props, api } = setup()
+  api.errors = { arms: 'The weights must total 100.', 'arms.1.params.title': 'Use a shorter heading.' }
+  render(<VersionContent {...props} armIndex={1} />)
+  expect(screen.queryByText('The weights must total 100.')).toBeNull()
+  expect(screen.getAllByRole('alert').map(node => node.textContent)).toEqual(['Use a shorter heading.'])
+})
+
+test.each(['Heading', 'Message'] as const)('%s uses the Payload input id and supported error channel', label => {
+  const { props, api } = setup()
+  const key = label === 'Heading' ? 'title' : 'copy'
+  api.errors = { [`arms.1.params.${key}`]: 'Use a shorter message.' }
+  render(<VersionContent {...props} armIndex={1} />)
+  const input = screen.getByRole('textbox', { name: label })
+  expect(input.id).toMatch(/^field-/)
+  // The mock renders Error in the input wrapper, matching Payload's Error channel.
+  expect(input.parentElement?.querySelector('[role="alert"]')?.textContent).toBe('Use a shorter message.')
+  expect(screen.getAllByText('Use a shorter message.')).toHaveLength(1)
+})
+
+test.each([0, 1])('read-only text values retain their inline preflight errors: version %s', armIndex => {
+  const { props, api } = setup('running')
+  api.preflight = { checks: [{ code: 'flag-params-invalid', ok: false,
+    detail: [{ arm: api.doc!.arms[armIndex]!.key, field: 'title' }] }], placements: [], baseline: null, trafficPerDay: null, estimate: null }
+  render(<VersionContent {...props} armIndex={armIndex} />)
+  expect(screen.queryByRole('textbox')).toBeNull()
+  expect(screen.getAllByRole('alert').map(node => node.textContent)).toEqual(['Set a value for Heading.'])
+})
+
+test('parameter validation appears after editing, while preflight and refused-save details appear immediately', () => {
   const { props, api, doc } = setup()
   api.preflight = { checks: [{ code: 'flag-params-invalid', ok: false, detail: [{ arm: 'variantA', field: 'layout' }] }], placements: [], baseline: null, trafficPerDay: null, estimate: null }
   api.errors = { 'arms.1.params.title': 'Use a shorter heading.' }
   api.doc = { ...doc, arms: doc.arms.map((arm, index) => index === 1 ? { ...arm, params: { ...arm.params, amount: 20 } } : arm) }
   render(<VersionContent {...props} armIndex={1} />)
-  expect(screen.getByText('Amount must be at most 10.')).toBeTruthy()
+  expect(screen.queryByText('Amount must be at most 10.')).toBeNull()
   expect(screen.getByText('Set a value for Layout.')).toBeTruthy()
   expect(screen.getByText('Use a shorter heading.')).toBeTruthy()
   expect(screen.queryByText('flag-params-invalid')).toBeNull()
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Amount' }), { target: { value: '11' } })
+  expect(screen.getByText('Amount must be at most 10.')).toBeTruthy()
+  expect(api.stage).not.toHaveBeenCalled()
+  fireEvent.blur(screen.getByRole('spinbutton', { name: 'Amount' }))
+  expect(api.commit).toHaveBeenCalledTimes(1)
 })
 
-test('an unset required checkbox is invalid, while an explicit false is valid', () => {
+test('newly bound required values stay quiet until that value is edited', () => {
   const { props, api, doc } = setup()
+  api.doc = { ...doc, arms: doc.arms.map((arm, index) => index === 1 ? { ...arm, params: {} } : arm) }
+  render(<VersionContent {...props} armIndex={1} />)
+  expect(screen.queryByRole('alert')).toBeNull()
+  const heading = screen.getByRole('textbox', { name: 'Heading' })
+  fireEvent.change(heading, { target: { value: ' ' } })
+  expect(screen.getAllByRole('alert').map(node => node.textContent)).toEqual(['Enter a value for Heading.'])
+  fireEvent.change(heading, { target: { value: 'A heading' } })
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
+test('current failing preflight reveals only the named version and parameter', () => {
+  const { props, api, doc } = setup()
+  api.doc = { ...doc, arms: doc.arms.map((arm, index) => index === 1 ? { ...arm, params: {} } : arm) }
   const view = render(<VersionContent {...props} armIndex={1} />)
-  expect(screen.queryByText('Enter a value for Show message.')).toBeNull()
-  api.doc = { ...doc, arms: doc.arms.map((arm, index) => index === 1 ? { ...arm, params: { ...arm.params, enabled: undefined } } : arm) }
+  expect(screen.queryByRole('alert')).toBeNull()
+  const preflight: NonNullable<TestDocApi['preflight']> = { checks: [{ code: 'flag-params-invalid', ok: true,
+    detail: [{ arm: 'variantA', field: 'title' }, { arm: 'variantB', field: 'amount' }] }], placements: [], baseline: null, trafficPerDay: null, estimate: null }
+  api.preflight = preflight
   view.rerender(<VersionContent {...props} armIndex={1} />)
+  expect(screen.queryByRole('alert')).toBeNull()
+  api.preflight = { ...preflight, checks: preflight.checks.map(check => ({ ...check, ok: false })) }
+  view.rerender(<VersionContent {...props} armIndex={1} />)
+  expect(screen.getAllByRole('alert').map(node => node.textContent)).toEqual(['Enter a value for Heading.'])
+  api.preflight = null
+  view.rerender(<VersionContent {...props} armIndex={1} />)
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
+test('preflight flags an unset required checkbox, while an explicit false is valid', () => {
+  const { props, api, doc } = setup()
+  api.preflight = { checks: [{ code: 'flag-params-invalid', ok: false, detail: [{ arm: 'variantA', field: 'enabled' }] }], placements: [], baseline: null, trafficPerDay: null, estimate: null }
+  api.doc = { ...doc, arms: doc.arms.map((arm, index) => index === 1 ? { ...arm, params: { ...arm.params, enabled: undefined } } : arm) }
+  const view = render(<VersionContent {...props} armIndex={1} />)
   expect(screen.getByText('Enter a value for Show message.')).toBeTruthy()
+  api.doc = doc
+  api.preflight = null
+  view.rerender(<VersionContent {...props} armIndex={1} />)
+  expect(screen.queryByRole('alert')).toBeNull()
 })
 
 test('a status lock discards local typing and shows the saved document value', () => {
