@@ -7,7 +7,16 @@ import type { TestDocument } from '../../../src/admin/surface/testDocument.model
 import type { PreflightResult } from '../../../src/types/endpoints.js'
 import type { Status } from '../../../src/types/contracts.js'
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+const stateUpdates = vi.hoisted(() => vi.fn())
+vi.mock('react', async importOriginal => {
+  const react = await importOriginal<typeof import('react')>()
+  return { ...react, useState: ((initial: unknown) => {
+    const [value, setValue] = react.useState(initial)
+    return [value, (next: unknown) => { stateUpdates(); setValue(next) }]
+  }) as typeof react.useState }
+})
+
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); stateUpdates.mockClear() })
 
 const preflight: PreflightResult = { checks: [], placements: [], baseline: null, trafficPerDay: null, estimate: null }
 const document = (partial: Partial<TestDocument> = {}): TestDocument => ({
@@ -26,9 +35,27 @@ const deferred = <T,>() => {
 const url = '/cms-api/xp-experiments/one%2Ftwo?depth=0'
 const preflightUrl = '/cms-api/xp/experiments/one%2Ftwo/preflight'
 
+/** Wrap mock implementations too, so deferred reads really reject when their signal aborts. */
+function stubFetch(handler: (input: string, init?: RequestInit) => Promise<Response>) {
+  const fetcher = Object.assign(vi.fn(handler), { aborted: vi.fn() })
+  vi.stubGlobal('fetch', (input: string, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
+    const signal = init?.signal
+    const abort = () => {
+      const error = new DOMException('The operation was aborted.', 'AbortError')
+      fetcher.aborted(error)
+      reject(error)
+    }
+    if (signal?.aborted) { abort(); return }
+    signal?.addEventListener('abort', abort, { once: true })
+    Promise.resolve().then(() => fetcher(input, init)).then(resolve, reject)
+      .finally(() => signal?.removeEventListener('abort', abort))
+  }))
+  return fetcher
+}
+
 function setup(doc = document(), patcher?: (patch: Partial<TestDocument>) => Promise<Response>) {
   let serverDoc = doc
-  const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
+  const fetcher = stubFetch(async (input: string, init?: RequestInit) => {
     if (input.endsWith('/preflight')) return response(preflight)
     if (init?.method === 'PATCH') {
       const patch = JSON.parse(init.body as string) as Partial<TestDocument>
@@ -38,7 +65,6 @@ function setup(doc = document(), patcher?: (patch: Partial<TestDocument>) => Pro
     }
     return response(serverDoc)
   })
-  vi.stubGlobal('fetch', fetcher)
   const hook = renderHook(() => useTestDocument(doc.id, { apiRoute: '/cms-api/' }))
   return { ...hook, fetcher, patches: () => fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH') }
 }
@@ -216,18 +242,19 @@ test('StrictMode does not persist the duration twice', async () => {
 })
 
 test.each([[403, 'forbidden'], [404, 'missing'], [500, 'error']] as const)('collection %s maps to %s without preflight', async (status, state) => {
-  const fetcher = vi.fn(async () => response({}, status))
-  vi.stubGlobal('fetch', fetcher)
+  const fetcher = stubFetch(async () => response({}, status))
   const { result } = renderHook(() => useTestDocument(1, { apiRoute: '/api' }))
   await waitFor(() => expect(result.current.loadState).toBe(state))
   expect(result.current.doc).toBeNull()
   expect(fetcher).toHaveBeenCalledTimes(1)
 })
 
-test('preflight failure is surfaced; reload fetches fresh document and preflight', async () => {
+test.each([[403, 'forbidden'], [404, 'missing']] as const)('initial preflight %s hides the document; reload recovers', async (status, state) => {
   const { result, fetcher } = setup()
-  fetcher.mockImplementationOnce(async () => response({}, 403))
-  await waitFor(() => expect(result.current.loadState).toBe('forbidden'))
+  fetcher.mockImplementationOnce(async () => response(document()))
+    .mockImplementationOnce(async () => response({}, status))
+  await waitFor(() => expect(result.current.loadState).toBe(state))
+  expect(result.current.doc).toBeNull()
   expect(result.current.preflight).toBeNull()
   await act(async () => { await result.current.reload() })
   await waitFor(() => expect(result.current.loadState).toBe('ready'))
@@ -239,7 +266,7 @@ test('reload waits for queued commits before fetching and accepts no edits durin
   const first = deferred<Response>()
   let serverDoc = document()
   let count = 0
-  const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
+  const fetcher = stubFetch(async (input: string, init?: RequestInit) => {
     if (input.endsWith('/preflight')) return response(preflight)
     if (init?.method === 'PATCH') {
       const patch = JSON.parse(init.body as string) as Partial<TestDocument>
@@ -249,7 +276,6 @@ test('reload waits for queued commits before fetching and accepts no edits durin
     }
     return response(serverDoc)
   })
-  vi.stubGlobal('fetch', fetcher)
   const { result } = renderHook(() => useTestDocument('one/two', { apiRoute: '/cms-api' }))
   await waitFor(() => expect(result.current.loadState).toBe('ready'))
   let reloaded!: Promise<void>
@@ -280,15 +306,16 @@ test('a refused automatic duration default is attempted only once across reloads
 
 test('changing document id ignores late responses from the old document', async () => {
   const old = deferred<Response>()
-  const fetcher = vi.fn(async (input: string) => input.includes('old?') ? old.promise
+  const fetcher = stubFetch(async (input: string) => input.includes('old?') ? old.promise
     : response(input.endsWith('/preflight') ? preflight : document({ id: 'new', name: 'New document' })))
-  vi.stubGlobal('fetch', fetcher)
   const { result, rerender } = renderHook(({ id }) => useTestDocument(id, { apiRoute: '/api' }), { initialProps: { id: 'old' } })
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
   rerender({ id: 'new' })
   await waitFor(() => expect(result.current.doc?.id).toBe('new'))
   await act(async () => { old.resolve(response(document({ id: 'old' }))) })
   expect(result.current.doc?.name).toBe('New document')
   expect(fetcher.mock.calls.some(([input]) => input.includes('/old/preflight'))).toBe(false)
+  expect(fetcher.aborted).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: 'AbortError' }))
 })
 
 test('network failure rolls back and leaves commit usable', async () => {
@@ -305,4 +332,203 @@ test('network failure rolls back and leaves commit usable', async () => {
   await act(async () => { result.current.stage({ name: 'Retry' }); await result.current.commit() })
   expect(result.current.doc?.name).toBe('Retry')
   expect(result.current.errors).toEqual({})
+})
+
+test.each([403, 404, 500, 'throw'] as const)('preflight refresh failure %s keeps the editor usable and clears on success', async failure => {
+  const { result, fetcher } = setup()
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  fetcher.mockImplementationOnce(async () => response({ doc: document({ name: 'Saved name' }) }))
+    .mockImplementationOnce(async () => {
+      if (failure === 'throw') throw new TypeError('Failed to fetch')
+      return response({}, failure)
+    })
+  await act(async () => { result.current.stage({ name: 'Saved name' }); await result.current.commit() })
+  expect(result.current.loadState).toBe('ready')
+  expect(result.current.preflight).toEqual(preflight)
+  expect(result.current.preflightError).toEqual(expect.any(String))
+  expect(result.current.saving).toBe('saved')
+  expect(result.current.errors).toEqual({})
+  await act(async () => { result.current.stage({ hypothesis: 'Keep editing' }); await result.current.commit() })
+  expect(result.current.doc?.hypothesis).toBe('Keep editing')
+  expect(result.current.preflightError).toBeNull()
+})
+
+test('hasUnsaved covers staged, queued and in-flight changes until all PATCHes finish', async () => {
+  const first = deferred<Response>()
+  const second = deferred<Response>()
+  let count = 0
+  const { result, patches } = setup(document(), () => ++count === 1 ? first.promise : second.promise)
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  expect(result.current.hasUnsaved).toBe(false)
+  act(() => result.current.stage({ name: 'First' }))
+  expect(result.current.hasUnsaved).toBe(true)
+  let completed!: Promise<void>
+  act(() => {
+    void result.current.commit()
+    result.current.stage({ hypothesis: 'Second' }); completed = result.current.commit()
+  })
+  await waitFor(() => expect(patches()).toHaveLength(1))
+  expect(result.current.hasUnsaved).toBe(true)
+  expect(result.current.saving).toBe('saving')
+  await act(async () => { first.resolve(response({ doc: document({ name: 'First' }) })) })
+  await waitFor(() => expect(patches()).toHaveLength(2))
+  expect(result.current.hasUnsaved).toBe(true)
+  await act(async () => {
+    second.resolve(response({ doc: document({ name: 'First', hypothesis: 'Second' }) })); await completed
+  })
+  expect(result.current.hasUnsaved).toBe(false)
+})
+
+test('unmount drains both submitted saves without aborting PATCHes or publishing state', async () => {
+  const first = deferred<Response>()
+  const second = deferred<Response>()
+  let count = 0
+  const { result, patches, fetcher, unmount } = setup(document(), () => ++count === 1 ? first.promise : second.promise)
+  const warnings = vi.spyOn(console, 'error').mockImplementation(() => {})
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  let completed!: Promise<void>
+  act(() => {
+    result.current.stage({ name: 'First' }); void result.current.commit()
+    result.current.stage({ hypothesis: 'Second' }); completed = result.current.commit()
+  })
+  await waitFor(() => expect(patches()).toHaveLength(1))
+  expect(result.current.hasUnsaved).toBe(true)
+  unmount()
+  const updates = stateUpdates.mock.calls.length
+  first.resolve(response({ doc: document({ name: 'First' }) }))
+  await waitFor(() => expect(patches()).toHaveLength(2))
+  expect(JSON.parse(patches()[1]![1]?.body as string)).toEqual({ hypothesis: 'Second' })
+  expect(patches().every(([, init]) => init?.signal == null)).toBe(true)
+  expect(stateUpdates).toHaveBeenCalledTimes(updates)
+  second.resolve(response({ doc: document({ name: 'First', hypothesis: 'Second' }) }))
+  await completed
+  expect(stateUpdates).toHaveBeenCalledTimes(updates)
+  expect(warnings).not.toHaveBeenCalled()
+  expect(fetcher.aborted).not.toHaveBeenCalled()
+  expect(fetcher.mock.calls.filter(([input]) => input === preflightUrl)).toHaveLength(1)
+})
+
+test('unmount aborts an outstanding document read with a real AbortError and no state publication', async () => {
+  const read = deferred<Response>()
+  const fetcher = stubFetch(() => read.promise)
+  const { unmount } = renderHook(() => useTestDocument(1, { apiRoute: '/api' }))
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+  unmount()
+  const updates = stateUpdates.mock.calls.length
+  expect(fetcher.aborted).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: 'AbortError' }))
+  await act(async () => { read.resolve(response(document())) })
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  expect(stateUpdates).toHaveBeenCalledTimes(updates)
+})
+
+test('unmount releases a pending preflight read so the next PATCH can drain', async () => {
+  const refresh = deferred<Response>()
+  const { result, fetcher, patches, unmount } = setup()
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  fetcher.mockImplementationOnce(async () => response({ doc: document({ name: 'First' }) }))
+    .mockImplementationOnce(() => refresh.promise)
+  let completed!: Promise<void>
+  act(() => {
+    result.current.stage({ name: 'First' }); void result.current.commit()
+    result.current.stage({ hypothesis: 'Second' }); completed = result.current.commit()
+  })
+  await waitFor(() => expect(fetcher.mock.calls.filter(([input]) => input === preflightUrl)).toHaveLength(2))
+  expect(patches()).toHaveLength(1)
+  expect(result.current.hasUnsaved).toBe(true)
+  unmount()
+  const updates = stateUpdates.mock.calls.length
+  await completed
+  expect(patches()).toHaveLength(2)
+  expect(fetcher.aborted).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: 'AbortError' }))
+  expect(JSON.parse(patches()[1]![1]?.body as string)).toEqual({ hypothesis: 'Second' })
+  expect(stateUpdates).toHaveBeenCalledTimes(updates)
+  await act(async () => { refresh.resolve(response(preflight)) })
+  expect(stateUpdates).toHaveBeenCalledTimes(updates)
+})
+
+test('a synchronously throwing fetch cannot strand a queued commit or reject reload', async () => {
+  const { result, fetcher, patches } = setup()
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  fetcher.mockImplementationOnce(() => { throw new TypeError('Failed to fetch') })
+  await act(async () => {
+    result.current.stage({ name: 'Refused' }); void result.current.commit()
+    result.current.stage({ hypothesis: 'Second' }); await result.current.commit()
+  })
+  expect(patches()).toHaveLength(2)
+  expect(result.current.doc).toMatchObject({ name: 'Original test', hypothesis: 'Second' })
+  expect(result.current.hasUnsaved).toBe(false)
+  fetcher.mockImplementationOnce(() => { throw new TypeError('Failed to fetch') })
+  await act(async () => { await expect(result.current.reload()).resolves.toBeUndefined() })
+  await waitFor(() => expect(result.current.loadState).toBe('error'))
+})
+
+test('an unexpected throw before fetch cannot wedge the queue', async () => {
+  const { result, patches } = setup()
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  const analysis = { plannedDurationDays: 35, get reachPerDay(): number { throw new Error('Unexpected diff failure') } }
+  await act(async () => {
+    result.current.stage({ analysis }); void result.current.commit()
+    result.current.stage({ name: 'Next save' }); await result.current.commit()
+  })
+  expect(patches()).toHaveLength(1)
+  expect(result.current.doc?.name).toBe('Next save')
+  expect(result.current.hasUnsaved).toBe(false)
+  await act(async () => { await expect(result.current.reload()).resolves.toBeUndefined() })
+})
+
+test.each(['missing', 'invalid-json'] as const)('a 2xx PATCH with %s doc reloads instead of rolling back', async kind => {
+  const recovery = deferred<Response>()
+  const { result, fetcher } = setup()
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  fetcher.mockImplementationOnce(async () => kind === 'missing' ? response({ message: 'Updated' })
+    : { ...response(undefined), json: async () => { throw new SyntaxError('Invalid JSON') } } as Response)
+    .mockImplementationOnce(() => recovery.promise)
+    .mockImplementationOnce(async () => response({ ...preflight, trafficPerDay: 456 }))
+  let completed!: Promise<void>
+  act(() => {
+    result.current.stage({ name: 'Applied' }); completed = result.current.commit()
+    result.current.stage({ hypothesis: 'Still typing' })
+  })
+  await waitFor(() => expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'GET')).toHaveLength(3))
+  expect(result.current.doc?.name).toBe('Applied')
+  await act(async () => {
+    recovery.resolve(response(document({ name: 'Applied and normalized' }))); await completed
+  })
+  expect(result.current.doc).toMatchObject({ name: 'Applied and normalized', hypothesis: 'Still typing' })
+  expect(result.current.preflight?.trafficPerDay).toBe(456)
+  expect(result.current.saving).toBe('saved')
+  expect(result.current.errors).toEqual({})
+  expect(fetcher.mock.calls.map(([, init]) => init?.method)).toEqual(['GET', 'GET', 'PATCH', 'GET', 'GET'])
+})
+
+test('stage clears only its field errors; section errors last until a successful commit', async () => {
+  const { result } = setup(document(), async patch => patch.name === '' ? response({ errors: [{
+    data: { errors: [{ message: 'Could not save this section.' }, { path: 'name', message: 'Enter a name.' },
+      { path: 'analysis.plannedDurationDays', message: 'Enter a duration.' }] },
+  }] }, 400) : response({ doc: document(patch) }))
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  await act(async () => { result.current.stage({ name: '' }); await result.current.commit() })
+  act(() => result.current.stage({ hypothesis: 'Other section' }))
+  expect(result.current.errors).toEqual({ _section: 'Could not save this section.', name: 'Enter a name.',
+    'analysis.plannedDurationDays': 'Enter a duration.' })
+  act(() => result.current.stage({ name: 'Valid' }))
+  expect(result.current.errors).toEqual({ _section: 'Could not save this section.', 'analysis.plannedDurationDays': 'Enter a duration.' })
+  await act(async () => { await result.current.commit() })
+  expect(result.current.errors).toEqual({ 'analysis.plannedDurationDays': 'Enter a duration.' })
+})
+
+test('removing a stopped arm preserves the remaining row ids unchanged in the PATCH body', async () => {
+  const original = document({ status: 'stopped' })
+  const arms = [
+    { ...original.arms[0]!, id: 'row-original', weight: 34 },
+    { ...original.arms[1]!, id: 'row-variant-a', weight: 33 },
+    { ...original.arms[1]!, key: 'variantB' as const, id: 'row-variant-b', weight: 33 },
+  ]
+  const { result, patches } = setup({ ...original, arms })
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  const remaining = [ { ...arms[0]!, weight: 50 }, { ...arms[2]!, weight: 50 } ]
+  await act(async () => { result.current.stage({ arms: remaining }); await result.current.commit() })
+  expect(JSON.parse(patches()[0]![1]?.body as string)).toEqual({ arms: remaining })
+  expect(JSON.parse(patches()[0]![1]?.body as string).arms.map((arm: { id: string }) => arm.id))
+    .toEqual(['row-original', 'row-variant-b'])
 })

@@ -2,6 +2,9 @@ import { describe, expect, test } from 'vitest'
 import { changedPatch, editablePatch, payloadFieldErrors } from '../../../src/admin/surface/testDocument.model.js'
 import type { TestDocument, TestDocumentPatch } from '../../../src/admin/surface/testDocument.model.js'
 import type { Status } from '../../../src/types/contracts.js'
+import { EDITABLE_BY_STATUS } from '../../../src/collections/experiments/editability.js'
+import { lockedReason } from '../../../src/admin/lockedNotice.model.js'
+import { XpLockedFieldError } from '../../../src/errors.js'
 
 const doc: TestDocument = {
   id: 1, name: 'Test', slug: 'test', status: 'draft', kind: 'flag', unitType: 'visitor', allocation: 100,
@@ -59,9 +62,25 @@ test('maps Payload nested validation details to paths', () => {
 })
 
 test('keeps section messages and handles missing or malformed envelopes', () => {
-  expect(payloadFieldErrors({ errors: [{ message: 'analysis is locked in running' }] })).toEqual({ _section: 'analysis is locked in running' })
+  expect(payloadFieldErrors({ errors: [{ message: 'Save refused' }] })).toEqual({ _section: 'Save refused' })
   expect(payloadFieldErrors({ errors: [{ data: { errors: [{ message: 'Fix the versions.' }] } }] }, 'arms')).toEqual({ arms: 'Fix the versions.' })
   for (const envelope of [undefined, null, 'not JSON', { errors: [null] }, { errors: [{ data: { errors: [null, 3] } }] }]) {
     expect(payloadFieldErrors(envelope, 'analysis', 'Try again.')).toEqual({ analysis: 'Try again.' })
+  }
+})
+
+test.each<[Status, string]>([
+  ['running', 'analysis.method'], ['running', 'allocation'], ['running', 'metrics'],
+  ['stopped', 'arms.key'], ['decided', 'arms'], ['archived', 'name'], ['draft', 'slug'],
+])('maps lock-hook refusal for %s %s to inline user copy', (status, field) => {
+  const error = new XpLockedFieldError(field, status)
+  expect(payloadFieldErrors({ errors: [{ message: error.message }] })).toEqual({
+    [field]: lockedReason(status, field, EDITABLE_BY_STATUS),
+  })
+})
+
+test('does not reinterpret other refusal messages or unknown statuses', () => {
+  for (const message of ['analysis is locked in unknown', 'Other refusal: analysis is locked in running']) {
+    expect(payloadFieldErrors({ errors: [{ message }] })).toEqual({ _section: message })
   }
 })

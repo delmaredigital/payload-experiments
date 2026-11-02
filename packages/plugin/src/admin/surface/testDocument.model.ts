@@ -1,4 +1,5 @@
-import { isEditable } from '../../collections/experiments/editability.js'
+import { EDITABLE_BY_STATUS, isEditable } from '../../collections/experiments/editability.js'
+import { lockedReason } from '../lockedNotice.model.js'
 import type { EditableField } from '../../types/admin.js'
 import type { Arm, DocId, ExperimentKind, ExposurePolicy, Status, TargetingRule, UnitType } from '../../types/contracts.js'
 
@@ -64,6 +65,15 @@ export function payloadFieldErrors(envelope: unknown, section = '_section', fall
   }
   addDetails(root?.data)
   for (const error of errors) addDetails(object(error)?.data)
-  if (Object.keys(result).length === 0) result[section] = typeof first?.message === 'string' ? first.message : fallback
+  if (Object.keys(result).length === 0) {
+    const message = typeof first?.message === 'string' ? first.message : fallback
+    const locked = /^(\S+) is locked in (\w+)$/.exec(message)
+    const field = locked?.[1]
+    const status = locked?.[2]
+    const reason = field && status && Object.hasOwn(EDITABLE_BY_STATUS, status)
+      ? lockedReason(status as Status, field, EDITABLE_BY_STATUS) : null
+    if (field && reason) result[field] = reason
+    else result[section] = message
+  }
   return result
 }

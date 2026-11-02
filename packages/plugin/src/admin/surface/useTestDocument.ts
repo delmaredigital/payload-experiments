@@ -3,20 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
-import { createApi } from '../api.js'
-import { API_MESSAGES } from '../copy/common.js'
+import { API_MESSAGES, refusalMessage } from '../copy/common.js'
 import { changedPatch, editablePatch, payloadFieldErrors } from './testDocument.model.js'
 import type { TestDocument, TestDocumentPatch } from './testDocument.model.js'
 
 type View = {
   doc: TestDocument | null
   preflight: PreflightResult | null
+  preflightError: string | null
+  /** Includes staged edits and all queued or in-flight PATCHes. */
+  hasUnsaved: boolean
   loadState: 'loading' | 'ready' | 'forbidden' | 'missing' | 'error'
   saving: 'idle' | 'saving' | 'saved' | 'error'
   /** Path-specific validation errors; _section is the fallback for a section-wide refusal. */
   errors: Record<string, string>
 }
-const initialView = (): View => ({ doc: null, preflight: null, loadState: 'loading', saving: 'idle', errors: {} })
+const initialView = (): View => ({ doc: null, preflight: null, preflightError: null, hasUnsaved: false, loadState: 'loading', saving: 'idle', errors: {} })
 type Session = {
   key: string; saved: TestDocument | null; pending: TestDocumentPatch; queue: TestDocumentPatch[]
   tail: Promise<void>; view: View; controller: AbortController; reloading: boolean
@@ -30,8 +32,7 @@ function optimistic(session: Session): TestDocument | null {
 }
 
 function clearErrors(errors: Record<string, string>, patch: TestDocumentPatch): Record<string, string> {
-  return Object.fromEntries(Object.entries(errors).filter(([path]) => path !== '_section' &&
-    !Object.hasOwn(patch, path.split('.')[0]!)))
+  return Object.fromEntries(Object.entries(errors).filter(([path]) => !Object.hasOwn(patch, path.split('.')[0]!)))
 }
 
 function stage(session: Session, partial: TestDocumentPatch) {
@@ -62,26 +63,57 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
       controller, reloading: false,
       publish() {
         if (controller.signal.aborted) return
-        session.view.doc = optimistic(session)
+        session.view.doc = session.view.loadState === 'ready' ? optimistic(session) : null
+        session.view.hasUnsaved = session.queue.length > 0 || Object.keys(session.pending).length > 0
         setState({ key, view: { ...session.view } })
       },
     }
     current.current = session
-    const api = createApi(base)
     const url = `${base}/xp-experiments/${encodeURIComponent(documentId)}?depth=0`
 
-    async function refreshPreflight() {
-      const result = await api.preflight(documentId)
+    async function refreshPreflight(initial = false) {
       if (controller.signal.aborted) return
-      if (result.ok && result.data) {
-        session.view.preflight = result.data
-        session.view.loadState = 'ready'
-      } else {
-        session.view.preflight = null
-        session.view.loadState = !result.ok && result.status === 403 ? 'forbidden'
-          : !result.ok && result.status === 404 ? 'missing' : 'error'
-        session.view.errors = { ...session.view.errors, _section: result.ok ? API_MESSAGES.unreadable : result.message }
+      // createApi has no signal option; this read must abort without cancelling submitted PATCHes.
+      let data: PreflightResult | undefined
+      let status = 0
+      let message: string = API_MESSAGES.network
+      try {
+        const response = await fetch(`${base}/xp/experiments/${encodeURIComponent(documentId)}/preflight`, {
+          method: 'GET', credentials: 'include', signal: controller.signal,
+        })
+        status = response.status
+        const body: unknown = await response.json().catch(() => undefined)
+        if (response.ok) {
+          data = body as PreflightResult | undefined
+          message = API_MESSAGES.unreadable
+        } else {
+          const envelope = body as { errors?: Array<{ code?: string; message?: string }> } | undefined
+          const error = Array.isArray(envelope?.errors) ? envelope.errors[0] : undefined
+          message = refusalMessage(status === 501 ? 'not-implemented' : error?.code, status,
+            typeof error?.message === 'string' ? error.message : undefined)
+        }
+      } catch {
+        message = API_MESSAGES.network
       }
+      if (controller.signal.aborted) return
+      if (data) {
+        session.view.preflight = data
+        session.view.preflightError = null
+        if (initial) session.view.loadState = 'ready'
+      } else {
+        if (initial) {
+          session.view.loadState = status === 403 ? 'forbidden' : status === 404 ? 'missing' : 'error'
+          session.view.errors = { ...session.view.errors, _section: message }
+        } else session.view.preflightError = message
+      }
+    }
+
+    async function readDocument(): Promise<TestDocument> {
+      const response = await fetch(url, { method: 'GET', credentials: 'include', signal: controller.signal })
+      if (!response.ok) throw new Error(API_MESSAGES.unreadable)
+      const doc = await response.json() as TestDocument | null
+      if (!doc || doc.id == null || !doc.status) throw new Error(API_MESSAGES.unreadable)
+      return doc
     }
 
     // Capture each commit now, then diff against the latest server document when its turn arrives.
@@ -92,41 +124,54 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
       session.queue.push(queued)
       session.view.saving = 'saving'
       session.publish()
-      session.tail = session.tail.then(async () => {
-        if (controller.signal.aborted || !session.saved) return
-        const patch = changedPatch(session.saved, queued)
+      const step = async () => {
         let saved = false
-        if (Object.keys(patch).length) {
-          try {
+        let changed = false
+        let failed = false
+        try {
+          if (!session.saved) return
+          const patch = changedPatch(session.saved, queued)
+          changed = Object.keys(patch).length > 0
+          if (changed) {
             const response = await fetch(url, {
-              method: 'PATCH', credentials: 'include', signal: controller.signal,
+              // Submitted saves belong to the queue, not the mounted reader's lifetime.
+              method: 'PATCH', credentials: 'include',
               headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
             })
             const body: unknown = await response.json().catch(() => undefined)
-            if (controller.signal.aborted) return
             if (!response.ok) session.view.errors = { ...session.view.errors, ...payloadFieldErrors(body) }
             else {
               // Payload collection PATCH returns { doc, message }; GET returns the doc itself.
               const doc = (body as { doc?: TestDocument } | undefined)?.doc
-              if (!doc || doc.id == null || !doc.status) throw new Error(API_MESSAGES.unreadable)
-              session.saved = doc
-              session.view.errors = clearErrors(session.view.errors, patch)
+              const readable = doc && doc.id != null && doc.status
+              // A 2xx has applied even if its response body was lost. Preserve it while re-reading.
+              session.saved = readable ? doc : { ...session.saved, ...patch }
               saved = true
+              session.view.errors = clearErrors(session.view.errors, patch)
+              delete session.view.errors._section
+              if (!readable && !controller.signal.aborted) session.saved = await readDocument()
             }
-          } catch (error) {
-            if (controller.signal.aborted) return
-            session.view.errors = { ...session.view.errors, _section: error instanceof Error && error.message === API_MESSAGES.unreadable
-              ? API_MESSAGES.unreadable : API_MESSAGES.network }
           }
+        } catch (error) {
+          failed = true
+          session.view.errors = { ...session.view.errors, _section: error instanceof Error && error.message === API_MESSAGES.unreadable
+            ? API_MESSAGES.unreadable : API_MESSAGES.network }
+        } finally {
+          session.queue.shift()
+          // Roll back only a refused commit. Later queued or uncommitted edits remain optimistic.
+          session.view.saving = session.queue.length ? 'saving' : saved ? 'saved' : changed || failed ? 'error' : 'idle'
+          session.publish()
         }
-        session.queue.shift()
-        // Roll back only this commit. Later queued or uncommitted edits remain optimistic.
-        session.view.saving = session.queue.length ? 'saving' : saved ? 'saved' : Object.keys(patch).length ? 'error' : 'idle'
-        session.publish()
         if (saved) {
           await refreshPreflight()
           session.publish()
         }
+      }
+      // Recover both the preceding tail and this step: unexpected throws must not strand later saves.
+      session.tail = session.tail.then(step, step).catch(() => {
+        session.view.errors = { ...session.view.errors, _section: API_MESSAGES.network }
+        session.view.saving = session.queue.length ? 'saving' : 'error'
+        session.publish()
       })
       return session.tail
     }
@@ -146,7 +191,7 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
         if (controller.signal.aborted) return
         if (doc.id == null || !doc.status) throw new Error(API_MESSAGES.unreadable)
         session.saved = doc
-        await refreshPreflight()
+        await refreshPreflight(true)
         if (controller.signal.aborted) return
         session.publish()
         if (!defaultAttempts.current.has(key) && session.view.loadState === 'ready' &&
@@ -176,9 +221,9 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
   const reload = useCallback(async () => {
     const session = current.current
     if (session?.key !== key || session.reloading || session.controller.signal.aborted) return
-    // A submitted PATCH can still commit after fetch is aborted. Finish the queue before reading again.
+    // Finish submitted saves before reading again; even an unexpected tail failure cannot reject reload.
     session.reloading = true
-    await session.tail
+    await session.tail.catch(() => undefined)
     if (current.current === session && !session.controller.signal.aborted) setReloadCount(count => count + 1)
   }, [key])
   return { ...(state.key === key ? state.view : initialView()), stage: stagePartial, commit, reload }
