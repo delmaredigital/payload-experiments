@@ -148,7 +148,7 @@ test.each(['network', 'json'])('%s failures show generic creation copy without n
 
 test.each([
   [{ errors: [{ message: 'The following field is invalid: flagPoint' }] }, false, "Couldn't create the test. Try again."],
-  [{ errors: [{ message: 'The following field is invalid: slug', data: { errors: [{ path: 'slug', message: 'Value must be unique' }] } }] }, true, 'A test with this name already exists. Choose a different name.'],
+  [{ errors: [{ message: 'The following field is invalid: slug', data: { errors: [{ path: 'slug', message: 'Value must be unique' }] } }] }, true, 'This name is too close to an existing test. Choose a different name.'],
 ])('refusals hide the outer Payload field wrapper', async (body, collision, message) => {
   const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response(body, 400))
   if (collision) fetch.mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response(body, 400))

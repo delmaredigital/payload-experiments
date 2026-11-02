@@ -20,7 +20,7 @@ test('a second collision and ordinary refusals never trigger another retry', asy
   const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response(collision, 400))
     .mockResolvedValueOnce(response({ docs: [{ slug: 'welcome' }] })).mockResolvedValueOnce(response(collision, 400))
   vi.stubGlobal('fetch', fetch)
-  await expect(createTest('/api', input)).rejects.toThrow('A test with this name already exists. Choose a different name.')
+  await expect(createTest('/api', input)).rejects.toThrow('This name is too close to an existing test. Choose a different name.')
   expect(fetch).toHaveBeenCalledTimes(4)
 })
 test.each([{}, { doc: {} }])('malformed responses cannot navigate to an absent id', async body => {

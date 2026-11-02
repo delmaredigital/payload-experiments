@@ -24,6 +24,7 @@ function ManagedResults({ id, surface }: { id: DocId; surface: SurfaceProps }) {
     {test.loadState === 'error' ? <button type="button" onClick={() => void test.reload()}>{C.retry}</button> : null}
     {test.errors._section ? <p role="alert">{test.errors._section}</p> : null}
     {test.preflightError ? <p role="alert">{test.preflightError}</p> : null}
-    {test.loadState !== 'missing' && test.loadState !== 'forbidden' ? <ResultsBody key={bodyKey} id={id} surface={surface} /> : null}
+    {/* Wait for the header document so the body mounts once with its final key. */}
+    {test.loadState !== 'loading' && test.loadState !== 'missing' && test.loadState !== 'forbidden' ? <ResultsBody key={bodyKey} id={id} surface={surface} /> : null}
   </main>
 }

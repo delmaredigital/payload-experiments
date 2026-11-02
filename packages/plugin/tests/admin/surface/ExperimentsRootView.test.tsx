@@ -181,11 +181,11 @@ test.each([
 })
 
 
-test('a per-language collection label safely falls back to its slug without a translation dependency', async () => {
+test('a per-language collection label picks a readable string without a translation dependency', async () => {
   const { props, payload } = setup({ puck: { enabled: true, collections: ['pages'] }, pageDocs: { pages: [{ id: 12, title: 'Welcome' }] } })
   payload.config.collections[0]!.labels.plural = { en: 'Pages', fr: 'Pages françaises' }
   await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
   expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [
-    expect.objectContaining({ collectionLabel: 'pages' }),
+    expect.objectContaining({ collectionLabel: 'Pages' }),
   ] }) }))
 })

@@ -62,8 +62,11 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
       const config = req.payload.config.collections.find(item => item.slug === collection)
       const useAsTitle = config?.admin.useAsTitle ?? 'id'
       const label = config?.labels.plural
-      // Keep /rsc dependency-safe: translations is not a declared runtime dependency.
-      const collectionLabel = typeof label === 'string' ? label : collection
+      // Keep /rsc dependency-safe: translations is not a declared runtime dependency,
+      // so a per-language label picks the request language, then English, then any string.
+      const byLanguage: Record<string, unknown> = label && typeof label === 'object' ? label : {}
+      const collectionLabel = typeof label === 'string' ? label
+        : [byLanguage[req.i18n?.language ?? 'en'], byLanguage.en, ...Object.values(byLanguage)].find((value): value is string => typeof value === 'string') ?? collection
       const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0,
         limit: 50, sort: '-updatedAt', draft: true, select: { [useAsTitle]: true } })
       return result.docs.map(doc => {
