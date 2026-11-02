@@ -96,7 +96,7 @@ function ResultsContent({ id, surface }: { id: DocId; surface: SurfaceProps }) {
       : null}
     {phase && snapshot ? <>
       <div style={{ background: 'var(--theme-elevation-50)', paddingTop: '1rem' }}>
-        <p className="xp-recommendation" style={{ margin: '0 1rem' }}>{recommendation({ snapshot, phase, status,
+        <p className="xp-recommendation" style={{ margin: '0 1rem' }}>{recommendation({ snapshot, phase, status: lineStatus,
           plannedDurationDays: round === newestRound ? doc?.analysis?.plannedDurationDays : undefined })}</p>
         <VerdictCard model={cardModel!}
           guardrails={guardrailChips(snapshot)} power={powerLine({ snapshot, phaseKind: phase.phaseKind, status: lineStatus })}

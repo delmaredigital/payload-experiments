@@ -196,3 +196,11 @@ test.each(['variantA', null])('read-only decided title never treats recommendati
   expect(screen.queryByRole('heading', { name: /^Decided:/ })).toBeNull()
   expect(screen.getByText(decisionSnapshot.verdict.finding)).toBeTruthy()
 })
+test('a decided test whose decision round was still collecting reads as stopped, not keep running', async () => {
+  const collecting = fixture('T4')
+  setup({ phases: [phaseFor(collecting)], snapshot: collecting, decisionSnapshot: collecting },
+    { ...doc, status: 'decided', decision: { phase: phaseFor(collecting).phase, winnerArm: 'control' } } as typeof doc)
+  render(<ResultsBody id="xp/one" surface={surface} />)
+  expect(await screen.findByText('Stopped before enough people took part to tell.')).toBeTruthy()
+  expect(screen.queryByText(/Keep it running|more people needed/)).toBeNull()
+})

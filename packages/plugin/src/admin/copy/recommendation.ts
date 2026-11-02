@@ -21,4 +21,3 @@ export const RESULTS_SURFACE_COPY = { missing: "This test couldn't be found.", d
 
 /** Matches the stored server finding; it is not a new statistical decision. */
 export const storedGuardrailFinding = (group: string, guardrail: string) => `Stop: ${group} harms ${guardrail}.`
-export const storedLongDurationFinding = 'A clear answer would take more than 90 days at this traffic.'

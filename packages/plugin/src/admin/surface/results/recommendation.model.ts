@@ -5,7 +5,7 @@ import { armLabel } from '../../labels.js'
 import { formatCount, formatPercent } from '../../results/format.js'
 import {
   RECOMMENDATION_COPY as C, collectingRecommendation, guardrailRecommendation, mixedRecommendation,
-  rolloutCollectingRecommendation, rolloutReadoutRecommendation, runningRecommendation, winnerRecommendation, worseRecommendation, storedGuardrailFinding, storedLongDurationFinding,
+  rolloutCollectingRecommendation, rolloutReadoutRecommendation, runningRecommendation, winnerRecommendation, worseRecommendation, storedGuardrailFinding,
 } from '../../copy/recommendation.js'
 
 export interface RecommendationContext {
@@ -46,9 +46,9 @@ export const RECOMMENDATION: Record<VerdictCode, (ctx: RecommendationContext) =>
   winner: ctx => winnerRecommendation(label(ctx, ctx.snapshot.verdict.recommendedArm)),
   mixed: ctx => mixedRecommendation(label(ctx, ctx.snapshot.verdict.recommendedArm), label(ctx, worse(ctx))),
   'keep-running': ctx => {
-    // The verdict has no structured long-duration discriminator. Match its
-    // stored finding; a real computeVerdict regression test guards this bridge.
-    if (ctx.snapshot.verdict.finding === storedLongDurationFinding) return C.longDuration
+    // Same condition as the server's long-duration branch (src/results/verdict.ts).
+    const power = ctx.snapshot.power
+    if (!power.feasible || (power.daysRemaining !== null && power.daysRemaining > 90)) return C.longDuration
     const days = ctx.plannedDurationDays
     const start = Date.parse(ctx.phase?.startedAt ?? '')
     const end = days != null && Number.isFinite(days) && days > 0 ? start + days * 86_400_000 : NaN
