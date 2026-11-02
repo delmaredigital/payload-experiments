@@ -17,7 +17,7 @@ function ManagedResults({ id, surface }: { id: DocId; surface: SurfaceProps }) {
   const test = useTestDocument(id, { apiRoute: surface.apiRoute })
   // Add-goal changes metrics while status, phase and allocation stay the same.
   const bodyKey = test.doc ? JSON.stringify([test.doc.status, test.doc.phase, test.doc.allocation, test.doc.metrics]) : 'loading'
-  // Shared DecideDialog reloads the page; Recompute keeps status; the surface Decide adapter refresh is owed.
+  // ResultsBody's Decide is the shared DecideDialog, which reloads the page; Recompute keeps status.
   return <main className="xp-test-page">
     {test.loadState === 'ready' && test.doc ? <TestHeader test={test} surface={surface} view="results" />
       : <p role="status">{test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading}</p>}
