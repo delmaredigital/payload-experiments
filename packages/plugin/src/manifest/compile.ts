@@ -80,6 +80,10 @@ async function pruneDeletedDefaults(req: PayloadRequest, inputs: ManifestInputs)
 }
 
 /** Pure compiler. Assignment config comes exclusively from the frozen phase. */
+/**
+ * Pure manifest builder (exported from `/rsc` for host tests). Pass the same `attributeKeys` as the plugin options,
+ * or legacy untyped targeting rules are dropped. Its input shape may change in a pre-1.0 minor.
+ */
 export function compileManifest(inputs: ManifestInputs, revision: number, { attributeKeys, onInvalid }: ManifestCompileOptions = {}): Manifest {
   const excluded = new Set(inputs.excludeIds?.map(String))
   const prunedDefaults = new Set(inputs.pruneFlagDefaultIds?.map(String))

@@ -1,3 +1,4 @@
+import { XpAnalysisError } from '../errors.js'
 import type { Snapshot } from '../types/snapshot.js'
 
 /** JSON cannot represent unbounded confidence limits. */
@@ -60,13 +61,13 @@ const shape = object({
  * This also accepts the shared CORE-13/admin fixtures without any I/O.
  */
 export function validateSnapshot(value: unknown): asserts value is Snapshot {
-  if (!shape(value)) throw new TypeError('Invalid Snapshot shape (all numbers must be finite)')
+  if (!shape(value)) throw new XpAnalysisError('snapshot-shape')
   const snapshot = value as Snapshot
   if ((snapshot.phaseKind === 'test' && snapshot.winnerArm !== null)
     || (snapshot.phaseKind === 'rollout' && (snapshot.winnerArm === null || !(snapshot.winnerArm in snapshot.exposures.perArm)))
     || snapshot.verdict.headline !== snapshot.verdict.finding + (snapshot.verdict.action ? ` ${snapshot.verdict.action}` : '')
     || new Date(snapshot.window.to).getTime() < new Date(snapshot.window.from).getTime()) {
-    throw new TypeError('Invalid Snapshot invariants')
+    throw new XpAnalysisError('snapshot-invariants')
   }
 }
 

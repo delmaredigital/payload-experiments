@@ -1,3 +1,4 @@
+import { XpAnalysisError } from '../errors.js'
 import { safeError } from '../log.js'
 import { createLocalReq, type Payload } from 'payload'
 import type { MetricUnavailableReason } from '../types/reasons.js'
@@ -47,7 +48,6 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
   const diagnostics = creditUserEvents(units, identities, [])
   const metricData: MetricUnitData[] = []
   for (const definition of phase.metricDefinitions) {
-    let reason: MetricUnavailableReason = 'source-failed'
     try {
       if (Date.now() >= deadline) throw new ResultsBudgetError()
       const kind = definition.kind
@@ -57,7 +57,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
       let events: MetricEvent[], covariates: Map<string, number> | undefined
       if (definition.source.startsWith('events:')) {
         const eventName = definition.source.slice(7)
-        if (!options.eventSources?.some(source => source.name === eventName)) { reason = 'source-unavailable'; throw new Error('Metric source unavailable') }
+        if (!options.eventSources?.some(source => source.name === eventName)) throw new XpAnalysisError('source-unavailable')
         const read = async (start: Date) => {
           if (candidate.unitType === 'user') return metricEventRows(exec, { eventName, userIds: ids, from: start, to })
           const direct = await metricEventRows(exec, { eventName, unitIds: ids, from: start, to })
@@ -71,9 +71,9 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
         }
       } else {
         const source = options.metricSources?.find(source => source.id === definition.source)
-        if (!source || source.kind !== kind || definition.keyedBy && source.keyedBy !== definition.keyedBy) { reason = 'source-unavailable'; throw new Error('Metric source unavailable') }
+        if (!source || source.kind !== kind || definition.keyedBy && source.keyedBy !== definition.keyedBy) throw new XpAnalysisError('source-unavailable')
         const userKeyed = source.keyedBy === 'user' && candidate.unitType === 'visitor'
-        if (candidate.unitType === 'user' && source.keyedBy !== 'user') { reason = 'unit-type-unavailable'; throw new Error('Metric unit type unavailable') }
+        if (candidate.unitType === 'user' && source.keyedBy !== 'user') throw new XpAnalysisError('unit-type-unavailable')
         const sourceIds = userKeyed ? userIds : ids
         events = credit(await raceDeadline(deadline, () => source.query({ from, to, unitIds: sourceIds })), userKeyed)
         if (phase.analysis.cuped === 'auto' && source.covariate) {
@@ -84,15 +84,23 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
             }))
             : [...units].map(([unitId, unit]) => ({ unitId, firstExposureTs: unit.firstTs }))
           const pre = await raceDeadline(deadline, () => source.covariate!({ units: sourceUnits, lookbackDays: 14 }))
-          if (pre.some(row => !Number.isFinite(row.value))) { reason = 'non-finite-covariates'; throw new Error('Covariates must be finite') }
+          if (pre.some(row => !Number.isFinite(row.value))) throw new XpAnalysisError('non-finite-covariates')
           const credited = credit(pre.map(row => ({ ...row, ts: now })), userKeyed)
           covariates = new Map(credited.map(row => [row.unitId, row.value]))
         }
       }
-      if (events.some(event => !Number.isFinite(event.value))) { reason = 'non-finite-values'; throw new Error('Metric values must be finite') }
+      if (events.some(event => !Number.isFinite(event.value))) throw new XpAnalysisError('non-finite-values')
       metricData.push({ metricId: definition.metricId, values: perUnitValues(units, events, { kind, windowHours, endedAt: to }), ...(covariates ? { covariates } : {}) })
     } catch (error) {
-      if (error instanceof ResultsBudgetError) reason = 'budget'
+      let reason: MetricUnavailableReason = error instanceof ResultsBudgetError ? 'budget' : 'source-failed'
+      if (error instanceof XpAnalysisError) {
+        switch (error.code) {
+          case 'source-unavailable':
+          case 'unit-type-unavailable':
+          case 'non-finite-values':
+          case 'non-finite-covariates': reason = error.code; break
+        }
+      }
       logger.error({ err: safeError(error), experimentId: phase.experiment, metricId: definition.metricId }, 'Experiment metric source failed')
       metricData.push({ metricId: definition.metricId, values: new Map(), unavailable: reason })
       if (unavailableMetrics.length < 100) unavailableMetrics.push({ experimentId: phase.experiment, phase: phase.phase, metricId: definition.metricId, reason })

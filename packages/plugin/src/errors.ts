@@ -19,3 +19,50 @@ export class XpRefusal extends Error {
   readonly isPublic = true
   constructor(public readonly code: RefusalCode, message: string, public readonly detail: unknown | undefined, public readonly status: 409 | 422 | 500 | 404) { super(message) }
 }
+
+/** Fixed analysis diagnostics: callers can choose a code, never supply log text. */
+export type AnalysisErrorCode =
+  | 'no-baseline'
+  | 'primary-metric-count'
+  | 'duplicate-metric'
+  | 'window-before-start'
+  | 'unknown-arm'
+  | 'metric-not-supplied'
+  | 'non-finite-values'
+  | 'non-finite-covariates'
+  | 'source-unavailable'
+  | 'unit-type-unavailable'
+  | 'srm-weights'
+  | 'cuped-non-finite'
+  | 'cuped-binomial'
+  | 'seed-format'
+  | 'snapshot-shape'
+  | 'snapshot-invariants'
+
+export const ANALYSIS_ERROR_MESSAGES: Readonly<Record<AnalysisErrorCode, string>> = Object.freeze({
+  'no-baseline': 'Phase comparison baseline or shipped arm is missing',
+  'primary-metric-count': 'Phase must have exactly one primary metric',
+  'duplicate-metric': 'Duplicate metric id',
+  'window-before-start': 'Analysis window ends before the phase starts',
+  'unknown-arm': 'Exposed unit has an unknown arm',
+  'metric-not-supplied': 'Metric data was not supplied',
+  'non-finite-values': 'Metric values must be finite',
+  'non-finite-covariates': 'Covariates must be finite',
+  'source-unavailable': 'Metric source unavailable',
+  'unit-type-unavailable': 'Metric unit type unavailable',
+  'srm-weights': 'SRM requires positive weights',
+  'cuped-non-finite': 'Metric values and covariates must be finite',
+  'cuped-binomial': 'Binomial values and covariates must be 0 or 1',
+  'seed-format': 'Assignment seed must end in |',
+  'snapshot-shape': 'Invalid Snapshot shape (all numbers must be finite)',
+  'snapshot-invariants': 'Invalid Snapshot invariants',
+})
+
+export class XpAnalysisError extends Error {
+  override name = 'XpAnalysisError'
+  readonly code: AnalysisErrorCode
+  constructor(code: AnalysisErrorCode) {
+    super(ANALYSIS_ERROR_MESSAGES[code])
+    this.code = code
+  }
+}

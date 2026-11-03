@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { safeError } from '../src/log.js'
-import { XpLockedFieldError, XpNoTransactionError, XpNotImplemented, XpRefusal } from '../src/errors.js'
+import { XpAnalysisError, XpLockedFieldError, XpNoTransactionError, XpNotImplemented, XpRefusal } from '../src/errors.js'
 import { ResultsBudgetError } from '../src/db/pgExecutor.js'
 import { EventsBodyError } from '../src/events/body.js'
 
@@ -84,4 +84,21 @@ test.each(['Error: different\n    at SECRET', 'Unknown header\n    at SECRET', '
 test('an empty-message header still preserves real frames', () => {
   const error = Object.assign(new Error(), { stack: 'Error\n    at insert (/app/events.js:1:2)' })
   expect(safeError(error)).toEqual({ name: 'Error', stack: '    at insert (/app/events.js:1:2)' })
+})
+
+test('analysis errors retain their fixed code, message and frames as a plain logged object', () => {
+  const error = new XpAnalysisError('no-baseline')
+  expect(safeError(error)).toEqual({ name: 'XpAnalysisError', code: 'no-baseline',
+    message: 'Phase comparison baseline or shipped arm is missing', stack: expect.stringContaining('at ') })
+  expect(safeError(error)).not.toBeInstanceOf(Error)
+})
+
+test('an analysis error logs the fixed table text even if its message or code was tampered with', () => {
+  const mutated = new XpAnalysisError('no-baseline')
+  mutated.message += ' secret-value row'
+  expect(safeError(mutated)).toMatchObject({ code: 'no-baseline', message: 'Phase comparison baseline or shipped arm is missing' })
+  expect(JSON.stringify(safeError(mutated))).not.toContain('secret-value')
+  const forged = Object.assign(new XpAnalysisError('no-baseline'), { code: 'secret-value' })
+  expect(safeError(forged)).not.toHaveProperty('code')
+  expect(safeError(forged)).not.toHaveProperty('message')
 })
