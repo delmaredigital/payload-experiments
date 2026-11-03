@@ -11,6 +11,13 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: the Original's page is never marked noindex during or after a whole-page test; version pages reached at their own URL are noindex with a canonical to the Original while running or decided. Archived paths keep their canonical to the winner.
+- Fixed: a whole-page test cannot start while a version page is unpublished (hosts that set the new `pages` option).
+- Added: optional `pages` option (`pathOf`, `findByPath`) so the plugin can check version pages; see the README option table. Page protection hooks are not included.
+- Fixed: readiness checks no longer show raw error text from the site's code.
+
+Migration impact: none.
+
 - Fixed: results and make-content reports no longer store or show raw error text; they carry a reason code shown as plain copy, and the details go to the server log. Migration impact: none.
 
 ## [0.2.0-rc.7] - 2026-11-03

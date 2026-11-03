@@ -146,3 +146,17 @@ test.each([null, 12, false, {}])('rejects non-string flag point description (%j)
   Object.assign(options.flagPoints![0]!, { description })
   expect(() => resolveOptions(options)).toThrow('flag point description must be a string')
 })
+
+
+test('pages is optional and preserves the public callback contract', () => {
+  const pages = { collections: [{ slug: 'pages', pathOf: (doc: Record<string, unknown>) => `/${doc.slug}`, findByPath: async () => ({ id: 1, published: true }) }] }
+  expect(resolveOptions({ ...sampleOptions(), pages }).pages).toEqual(pages)
+  expect(resolveOptions(sampleOptions()).pages).toBeUndefined()
+})
+test.each([null, [], {}, { collections: null }, { collections: [null] }, { collections: [{ slug: '' }] },
+  { collections: [{ slug: 'pages', pathOf: '/path', findByPath: (): null => null }] },
+  { collections: [{ slug: 'pages', pathOf: (): null => null }] },
+  { collections: [1, 2].map(() => ({ slug: 'pages', pathOf: (): null => null, findByPath: (): null => null })) },
+])('rejects malformed pages option %j', pages => {
+  expect(() => resolveOptions({ ...sampleOptions(), pages } as unknown as ExperimentsPluginOptions)).toThrow(/pages.collections/)
+})

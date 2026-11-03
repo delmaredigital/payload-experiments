@@ -1,5 +1,6 @@
 import type { PayloadRequest } from 'payload'
 import { claimSlices } from '../db/slices.js'
+import { unpublishedPageCopy } from '../admin/copy/readiness.js'
 import { XpRefusal } from '../errors.js'
 import { isOpValid } from '../targeting/ops.js'
 import { newSeed } from '../runtime/seed.js'
@@ -23,6 +24,7 @@ export async function readExperiment(req: PayloadRequest, id: DocId): Promise<Tr
 }
 export function refuse(code: RefusalCode, detail?: unknown): never {
   const messages: Partial<Record<RefusalCode, string>> = {
+    'page-target-unpublished': unpublishedPageCopy(typeof detail === 'string' ? detail : 'This page'),
     'invalid-status': 'This action is not available in the current status.',
     'stale-draft': 'The experiment changed. Review it again before starting.',
     'flag-point-busy': 'Another experiment is running or decided on this flag point.',
@@ -49,7 +51,7 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
   // Review reads respect field access; internal writes must preserve hidden config.
   input.experiment = { ...input.experiment, kind: full.kind, analysis: full.analysis }
   const failed = checkStart(input).find(check => !check.ok)
-  if (failed) refuse(failed.code, failed.detail)
+  if (failed && failed.code !== 'page-targets-unchecked') refuse(failed.code, failed.detail)
   const before = input.experiment as TransitionExperiment
   const updatedAt = before.updatedAt
   const at = new Date()
@@ -69,7 +71,7 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
       const defaults = state.flagDefaults as Record<string, { params: Record<string, unknown> }> | undefined
       current.arms = current.arms.map(arm => arm.kind === 'control' ? { ...arm, params: defaults?.[point.id]?.params ?? point.defaultParams } : arm)
       const recheck = checkStart({ ...input, experiment: current }).find(check => !check.ok)
-      if (recheck) refuse(recheck.code, recheck.detail)
+      if (recheck && recheck.code !== 'page-targets-unchecked') refuse(recheck.code, recheck.detail)
     }
     const targeting = (current.targeting ?? []).map(rule => {
       const type = Object.hasOwn(options.attributeKeys ?? {}, rule.attribute) ? options.attributeKeys![rule.attribute]!.type : undefined

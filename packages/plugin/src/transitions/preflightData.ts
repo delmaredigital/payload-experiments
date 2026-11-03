@@ -1,17 +1,22 @@
-import type { PayloadRequest } from 'payload'
+import { Forbidden, NotFound, type PayloadRequest } from 'payload'
+import { safeError } from '../log.js'
 import { powerMetricWeeks } from '@delmaredigital/experiments-stats'
 import type { PowerMetricParams, PowerWeeksInput, PowerWeeksResult } from '@delmaredigital/experiments-stats'
 import type { DocId, MetricSource, ResolvedOptions } from '../types/contracts.js'
 import type { PreflightResult } from '../types/endpoints.js'
 import { checkStart, relationshipId } from './checkStart.js'
-import type { CheckStartInput, StartExperiment, StartMetric } from './checkStart.js'
+import type { CheckStartInput, PlacementFailure, StartExperiment, StartMetric } from './checkStart.js'
 import { flagPlacements, scanBlockPlacements, type BlockPlacement } from './placements.js'
 
 export interface PreflightDependencies {
   now?: Date
   estimate?: (input: PowerWeeksInput) => PowerWeeksResult | Promise<PowerWeeksResult>
 }
-const failureDetail = (cause: unknown) => cause instanceof Error ? cause.message : 'Placement lookup failed.'
+const failureDetail = (cause: unknown): PlacementFailure => {
+  const name = cause instanceof Error ? cause.name : undefined
+  return cause instanceof Forbidden || name === 'Forbidden' ? 'forbidden'
+    : cause instanceof NotFound || name === 'NotFound' ? 'not-found' : 'placements-failed'
+}
 
 /** Read-only inputs shared with Start's pre-transaction checks. Start must re-read
  * the document and lock-sensitive facts inside its transition (CORE-10b).
@@ -47,11 +52,34 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
     try {
       const ownIds = new Set(metricIds(experiment).map(String))
       const input: CheckStartInput = { experiment, metrics: (await metrics).filter(metric => ownIds.has(String(metric.id))), metricSources: options.metricSources, flagPoints: options.flagPoints, attributeKeys: options.attributeKeys }
+      const placementFailure = (cause: unknown): PlacementFailure => {
+        const collection = experiment.flagPoint ?? 'xp-experiments'
+        req.payload.logger.error({ err: safeError(cause), experimentId: experiment.id, collection, id: experiment.id }, 'Experiment placement lookup failed')
+        return failureDetail(cause)
+      }
+      if (experiment.kind === 'page') {
+        input.pageTargetsUnchecked = options.pages === undefined
+        if (options.pages) {
+          input.unpublishedPageTargets = []
+          for (const arm of experiment.arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget?.trim())) {
+            let published = false
+            for (const collection of options.pages.collections) {
+              try {
+                const page = await collection.findByPath(arm.pageTarget!, req)
+                if (page?.published === true) published = true
+              } catch (cause) {
+                req.payload.logger.error({ err: safeError(cause), experimentId: experiment.id, collection: collection.slug, id: arm.pageTarget }, 'Experiment page lookup failed')
+              }
+            }
+            if (!published) input.unpublishedPageTargets.push(arm.pageTarget!)
+          }
+        }
+      }
       if (experiment.kind === 'block') {
         try {
           blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, puckCollections: options.puck?.collections ?? [] })
           input.placements = (await blocks).get(experiment.slug) ?? []
-        } catch (cause) { input.placementError = failureDetail(cause) }
+        } catch (cause) { input.placementError = placementFailure(cause) }
       }
       if (experiment.kind === 'flag') {
         const point = options.flagPoints?.find(point => point.id === experiment.flagPoint)
@@ -74,8 +102,8 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
           try {
             const placements = await flagPlacements(options, experiment, req)
             if (Array.isArray(placements) && placements.every(p => p && typeof p === 'object' && typeof p.arm === 'string')) input.flagPlacements = placements
-            else input.flagPlacementError = 'Placement lookup returned an invalid result.'
-          } catch (cause) { input.flagPlacementError = failureDetail(cause) }
+            else input.flagPlacementError = placementFailure(new Error('Invalid placement result'))
+          } catch (cause) { input.flagPlacementError = placementFailure(cause) }
         }
         if (experiment.flagPoint) {
           const key = experiment.flagPoint

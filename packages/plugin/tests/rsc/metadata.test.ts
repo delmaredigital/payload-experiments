@@ -1,3 +1,4 @@
+import { requestState, trustedContext } from './requestHarness.js'
 import { expect, test } from 'vitest'
 import { manifest, page, runtime } from './helpers.js'
 import { experimentMetadata } from '../../src/server/metadata.js'
@@ -34,4 +35,49 @@ test.each(['/old', '/old/'])('archived key /old/ matches normalised request %s',
   const m = manifest([])
   m.archivedPages['/old/'] = { slug: 'archived', winnerPath: '/winner' }
   expect(await experimentMetadata(runtime(m).rt, path)).toEqual({ alternates: { canonical: '/winner' } })
+})
+
+// Metadata receives route params after rewriting, while the proxy signs the original URL.
+import { NextRequest } from 'next/server.js'
+import { resolveExperiments } from '../../src/proxy/resolve.js'
+import { encodeUnitCookie } from '../../src/runtime/cookie.js'
+import { secrets } from './helpers.js'
+
+for (const original of ['/', '/original']) {
+  for (const status of ['running', 'decided', 'archived'] as const) {
+    test.each(['control', 'variant', 'bot-variant'] as const)(`${original} stays indexable when ${status}, assigned %s`, async visitor => {
+      const variant = visitor !== 'control'
+      const e = page({ status: status === 'archived' ? 'decided' : status, winnerArm: variant ? 'variantA' : 'control', arms: [
+        { key: 'control', kind: 'control', weight: variant ? 0 : 100, pageTarget: original },
+        { key: 'variantA', kind: 'variant', weight: variant ? 100 : 0, pageTarget: '/variant' },
+      ] })
+      const m = manifest(status === 'archived' ? [] : [e])
+      if (status === 'archived') m.archivedPages[original] = { slug: e.slug, winnerPath: '/variant' }
+      const { rt } = runtime(m)
+      const result = await resolveExperiments(new NextRequest(`https://example.test${original}?campaign=test`, { headers: {
+        cookie: `xp_id=${encodeUnitCookie('visitor', secrets)}`,
+        'user-agent': visitor === 'bot-variant' ? 'Googlebot' : 'Mozilla/5.0',
+      } }), rt.proxyRuntime)
+      requestState.headers = result.requestHeaders
+      const served = result.rewrite ? new URL(result.rewrite).pathname : original
+      if (variant) expect(served).toBe('/variant')
+      expect(await experimentMetadata(rt, served)).toEqual(status === 'archived' ? { alternates: { canonical: '/variant' } } : {})
+    })
+  }
+}
+
+test('a signed version URL gets noindex even when route params name the Original', async () => {
+  trustedContext('/variant/?search=yes', 'GET', true, ['old'])
+  expect(await experimentMetadata(runtime(manifest([page()])).rt, '/original')).toEqual({ robots: { index: false }, alternates: { canonical: '/original' } })
+})
+test('an archived version URL canonicalises to the winner without noindexing the Original', async () => {
+  const m = manifest([])
+  m.archivedPages = { '/variant': { slug: 'old', winnerPath: '/winner' }, '/original': { slug: 'old', winnerPath: '/winner' } }
+  trustedContext('/variant?search=yes')
+  expect(await experimentMetadata(runtime(m).rt, '/winner')).toEqual({ alternates: { canonical: '/winner' } })
+})
+test('a forged request header is ignored in favour of the path argument', async () => {
+  trustedContext('/original')
+  requestState.headers.set('x-xp-request', requestState.headers.get('x-xp-request')!.replace('/original', '/variant'))
+  expect(await experimentMetadata(runtime(manifest([page()])).rt, '/original')).toEqual({})
 })

@@ -53,6 +53,7 @@ function BannerContent({ test, surface, resultsVersion }: SectionProps) {
     style={{ padding: '1rem', border: `1px solid ${theme.color.borderStrong}`, borderRadius: theme.radius.small,
       background: setup && ready ? theme.color.successSurface : theme.color.surface, color: theme.color.text }}>
     <p role="status">{setup && next && !ready && next.section !== 'header' ? <a href={`#section-${next.section}`}>{sentence}</a> : sentence}</p>
+    {setup && test.preflight?.checks.some(check => check.code === 'page-targets-unchecked' && check.warning) ? <p>{C.uncheckedPages}</p> : null}
     {doc.status === 'stopped' ? <p>{stoppedCopy(displayDate(doc.stoppedAt))}</p> : null}
     <div className="xp-readiness__actions" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
       {actions.map(item => {

@@ -23,6 +23,8 @@ const fixtures = {
   'layer-full': ['versions', undefined, "This test's group is full. Lower how many people take part, or create the test again without the group."],
   'layer-unit-mismatch': ['header', undefined, "This test's group counts different people. Create the test again without the group."],
   'page-no-targets': ['versions', undefined, 'Add a page address for each version.'],
+  'page-target-unpublished': ['versions', '/variant', "/variant isn't a published page. Publish it, or pick another page."],
+  'page-targets-unchecked': ['versions', undefined, "Version pages aren't checked; make sure each one is published."],
   'page-user-unit': ['header', undefined, 'Whole-page tests count visitors. Create the test again counting visitors.'],
   'invalid-targeting-rule': ['who', { attributes: ['country'] }, 'Fix the rule: country.'],
   'undeclared-targeting-key': ['who', { attributes: ['country'] }, "Remove the rule on country: it isn't available."],
@@ -39,16 +41,16 @@ const fixtures = {
 } satisfies Record<ReadinessCode, Fixture>
 const ctx = { ...doc, flagPoint: 'ask', flagPoints: [{ id: 'ask', params: { headline: { type: 'text' as const, label: 'Headline text' } } }] }
 
-test('covers every literal start check and every member of both source unions (28)', () => {
+test('covers every literal start check and every member of both source unions (30)', () => {
   const source = readFileSync(new URL('../../../../src/transitions/checkStart.ts', import.meta.url), 'utf8')
   const endpoints = readFileSync(new URL('../../../../src/types/endpoints.ts', import.meta.url), 'utf8')
   const literals = [...source.matchAll(/add\('([^']+)'/g)].map(match => match[1])
   const readinessUnion = source.split('export type ReadinessCode = ArmIssueCode')[1]!.split('export interface')[0]!
   const armUnion = endpoints.split('export type ArmIssueCode =')[1]!.split('\n')[0]!
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(18)
+  expect(literals).toHaveLength(20)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(28)
+  expect(members).toHaveLength(30)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
   expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())
@@ -82,7 +84,7 @@ test('fills both people types, direct detail messages, and missing placement gro
   expect(READINESS['unit-source-mismatch'].next(null, { ...ctx, unitType: 'user' })).toBe("This goal can't be measured for signed-in users. Choose another goal.")
   expect(READINESS['flag-placement-missing'].next({ missing: ['control'], placements: [] }, ctx)).toBe('Add content for Original wherever this setting is used.')
   expect(READINESS['flag-placement-missing'].next({ missing: ['variantA'], placements: [{ arm: 'variantA', ok: false }] }, ctx)).toBe('Add content for Short headline wherever this setting is used.')
-  expect(READINESS['flag-placement-missing'].next('Host setup failed.', ctx)).toBe('Add content for each version wherever this setting is used: Host setup failed.')
+  expect(READINESS['flag-placement-missing'].next('Host setup failed.', ctx)).toBe("Couldn't check where this test is used. Try again.")
   expect(READINESS['invalid-targeting-rule'].next({ message: 'Choose a number.' }, ctx)).toBe('Fix the rule: Choose a number.')
 })
 test('status helpers omit unknown dates and duration, clamp a finished duration', () => {

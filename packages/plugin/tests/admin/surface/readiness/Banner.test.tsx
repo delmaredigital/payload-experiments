@@ -299,3 +299,10 @@ test('Start stays disabled while the readiness check after a save is still runni
   expect(screen.getByRole('status').textContent).toBe('Checking readiness…')
   expect(button('Start').disabled).toBe(true)
 })
+
+
+test('unchecked version pages warn while Start stays enabled', () => {
+  render(<Banner {...props({}, { preflight: preflight([{ code: 'page-targets-unchecked', ok: true, warning: true }]) })} />)
+  expect(screen.getByText("Version pages aren't checked; make sure each one is published.")).toBeTruthy()
+  expect(button('Start').disabled).toBe(false)
+})

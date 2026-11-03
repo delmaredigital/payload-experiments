@@ -46,6 +46,12 @@ export interface ExperimentsPluginOptions<TUser extends { id: string | number } 
   eventSources?: Array<string | { name: string; clientWritable: boolean }>
   flagPoints?: FlagPoint[]
   attributeKeys?: Record<string, { type: 'string' | 'number' | 'boolean'; values?: string[] }>
+  pages?: { collections: Array<{
+    slug: string
+    pathOf: (doc: Record<string, unknown>) => string | null
+    /** Published-only lookup using the manager's req and overrideAccess: false. */
+    findByPath: (path: string, req: PayloadRequest) => Promise<{ id: string | number; published: boolean } | null>
+  }> }
   puck?: { enabled: boolean; collections: Array<string | { slug: string; field?: string }> }
   events?: { retentionDays?: number; maxBodyBytes?: number; rateLimit?: RateLimiter; dimensions?: string[] }
 }
