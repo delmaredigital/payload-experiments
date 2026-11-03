@@ -1,4 +1,5 @@
 import type { PayloadRequest } from 'payload'
+import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
 import { reclaimSlices } from '../db/slices.js'
 import { decideGuard } from '../results/decideGuard.js'
 import type { Arm, DocId } from '../types/contracts.js'
@@ -48,7 +49,11 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
       const arms: Arm[] = [{ ...winner, weight: 100 - holdout!.weight }, { ...holdout!, weight: holdout!.weight }]
       await writePhaseRecord(req, { experiment: experimentId, phase, phaseKind: 'rollout', startedAt: at, seed: test.seed,
         arms, allocation: test.allocation, allocationChanges: [], targeting: test.targeting,
-        metricDefinitions: test.metricDefinitions, analysis: test.analysis, contentChanges: [] })
+        metricDefinitions: test.metricDefinitions,
+        analysis: { ...test.analysis,
+          // Older test phases may predate freezing the effective tuning value.
+          sequentialTuningParameter: test.analysis?.sequentialTuningParameter ?? DEFAULT_SEQUENTIAL_TUNING_PARAMETER,
+        }, contentChanges: [] })
     }
     return updateExperiment(req, experimentId, { status: 'decided', phase, seed: test.seed, decidedAt: at, layerSlices: rollout ? slices : [],
       decision: { winnerArm, verdictCode: snapshot?.verdict.code ?? 'unavailable', note: note?.trim() ?? null,
