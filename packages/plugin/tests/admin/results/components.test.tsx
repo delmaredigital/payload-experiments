@@ -11,6 +11,15 @@ import { fixture, fixtures, phaseFor, revenueSnapshot } from './fixtures.js'
 
 afterEach(cleanup)
 
+test.each(['T4', 'T4-stopped'])('%s verdict card omits the old duplicate counts', name => {
+  const snapshot = fixture(name)
+  const collecting = collectingLine({ snapshot, phaseKind: 'test', status: name === 'T4' ? 'running' : 'stopped' })
+  const { container } = render(<VerdictCard model={verdictCard({ snapshot, isDecidedTestRound: false, winnerLabel: '' })} collecting={collecting} />)
+  expect(screen.getByText(snapshot.verdict.detail)).toBeTruthy()
+  expect(container.querySelector('.xp-collecting')).toBeNull()
+  expect(container.textContent).not.toContain('360 of 1,000 people, 37 of 150 conversions')
+})
+
 test.each(Object.keys(fixtures))('%s verdict card renders the exact server headline and model lines', name => {
   const snapshot = fixture(name)
   const model = verdictCard({ snapshot, isDecidedTestRound: false, winnerLabel: 'Shorter form' })

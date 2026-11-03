@@ -27,9 +27,10 @@ function BannerContent({ test, surface, resultsVersion }: SectionProps) {
     // The id/status key resets the count; refreshes retain it while loading.
     if (surface.canReadResults && doc.status === 'running') {
       void createApi(surface.apiRoute).summary([doc.id]).then(result => {
-        const count = result.ok ? result.data?.[doc.id]?.exposures : undefined
+        if (!result.ok) return
+        const count = result.data?.[doc.id]?.exposures
         if (active) setPeople(typeof count === 'number' && Number.isFinite(count) ? count : null)
-      })
+      }).catch(() => { /* Keep the last successful count when a refresh fails. */ })
     }
     return () => { active = false }
   }, [doc.id, doc.status, surface.apiRoute, surface.canReadResults, resultsVersion])

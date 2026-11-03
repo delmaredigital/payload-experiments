@@ -1,4 +1,5 @@
 import type { Snapshot } from '../types/snapshot.js'
+import { slotLabels } from '../puck/copy.js'
 
 /** Already-computed results. Rollouts require the shipped winner's key and label;
  * R3 reads that winner's comparison, regardless of comparison order. */
@@ -129,12 +130,24 @@ export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
     'An outcome that must stay safe has become worse.', input.controlArm, undefined, failing.worstArm)
   if (collecting) {
     const smallest = compared.find(item => item.n === minimum)
-    const smallestLabel = smallest?.kind === 'control' ? 'Original' : smallest?.label ?? 'Original'
+    const fewest = converters.find(item => item.converters === minimumConverters)
+    const groupLabel = (group: { arm: string; kind: string } | undefined): string => {
+      if (!group || group.kind === 'control') return 'Original'
+      const label = input.exposures.perArm.find(item => item.arm === group.arm)?.label
+        ?? input.primary.comparisons.find(item => item.arm === group.arm)?.label
+      return label?.trim() || slotLabels[group.arm as keyof typeof slotLabels] || group.arm
+    }
+    const detail = [
+      minimum < input.exposures.minExposuresPerArm
+        ? `Smallest group so far: ${groupLabel(smallest)}, ${minimum} of the ${input.exposures.minExposuresPerArm} people it needs.` : '',
+      minimumConverters < input.primary.minSampleSize
+        ? `Fewest conversions so far: ${groupLabel(fewest)}, ${minimumConverters} of the ${input.primary.minSampleSize} needed.` : '',
+    ].filter(Boolean).join(' ') || 'More people or conversions are needed before drawing a conclusion.'
     return make(4, 'collecting', input.status === 'stopped'
       ? 'Stopped before enough data was collected.'
       : 'Collecting data.', null, input.status === 'stopped'
       ? 'More people or conversions are needed before drawing a conclusion.'
-      : `Smallest group so far: ${smallestLabel}, ${minimum} of the ${input.exposures.minExposuresPerArm} people it needs. Conversions so far: ${minimumConverters} of ${input.primary.minSampleSize} needed.`, null)
+      : detail, null)
   }
 
   const variantKeys = new Set(compared.filter(item => item.kind === 'variant').map(item => item.arm))

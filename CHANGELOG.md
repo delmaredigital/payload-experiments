@@ -12,7 +12,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### plugin
 
 - Added: edits to a test made from two places at once no longer overwrite each other: a save based on an outdated copy is refused with "Someone else changed this test. Reload to see their changes." (clients opt in with the `x-xp-if-updated-at` header).
-- Fixed: while a test is collecting data, results name the smallest group and how many people it still needs, instead of a count that read as the total.
+- Fixed: while a test is collecting data, results say which group is smallest and which has the fewest conversions, and how many each still needs, instead of counts that read as totals.
 - Fixed: after Recompute, the results page's status line shows the updated number of people.
 
 ## [0.2.0-rc.6] - 2026-11-03

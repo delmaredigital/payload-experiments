@@ -29,6 +29,14 @@ function setup(data: ResultsResponse = response, saved = doc) {
   return fetcher
 }
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks() })
+test.each(['running', 'stopped'])('collecting results show the stored detail without duplicate counts when %s', async status => {
+  const collecting = fixture(status === 'running' ? 'T4' : 'T4-stopped')
+  setup({ phases: [phaseFor(collecting)], snapshot: collecting }, { ...doc, status })
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  expect(await screen.findByText(collecting.verdict.detail)).toBeTruthy()
+  expect(container.querySelector('.xp-collecting')).toBeNull()
+  expect(container.textContent).not.toContain('360 of 1,000 people, 37 of 150 conversions')
+})
 test('composes recommendation above the headline, tables, chart, data quality, round and previews', async () => {
   setup({ ...response, snapshot: { ...snapshot, exposures: { ...snapshot.exposures, armMismatch: 1 } } })
   const { container } = render(<ResultsBody id="xp/one" surface={surface} />)

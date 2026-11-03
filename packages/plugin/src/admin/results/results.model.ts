@@ -129,9 +129,8 @@ function smallest(values: Array<number | undefined>): number | undefined {
 }
 
 /** Only selects stored counts; never estimates sample sizes or power in the UI. */
-export function collectingLine({ snapshot, phaseKind, status }: RoundLineInput, ctx: ResultsContext = {}): string | null {
-  if (phaseKind === 'test' && status === 'decided') return null
-  if (snapshot.verdict.code !== (phaseKind === 'rollout' ? 'rollout-collecting' : 'collecting')) return null
+export function collectingLine({ snapshot, phaseKind }: RoundLineInput, ctx: ResultsContext = {}): string | null {
+  if (phaseKind !== 'rollout' || snapshot.verdict.code !== 'rollout-collecting') return null
   const keys = comparedKeys(snapshot, ctx.phase)
   const primary = snapshot.metrics.find(metric => metric.role === 'primary')
   return collectingCopy(

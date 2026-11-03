@@ -149,7 +149,7 @@ test('holdout is excluded from the collecting minimum', () => {
   value.exposures.perArm[1]!.n = 999
   expect(computeVerdict(value)).toMatchObject({
     finding: 'Collecting data.', headline: 'Collecting data.', action: null,
-    detail: `Smallest group so far: Shorter form, 999 of the 1000 people it needs. Conversions so far: ${Math.min(...value.primary.convertersPerArm.filter(group => group.kind !== 'holdout').map(group => group.converters))} of 150 needed.`,
+    detail: 'Smallest group so far: Shorter form, 999 of the 1000 people it needs.',
   })
 })
 
@@ -157,21 +157,50 @@ test('collecting names the first compared group when exposure counts tie', () =>
   const value = input('T4')
   addVariant(value, 'variantB', 'Guided form', 'none', 0)
   value.exposures.perArm.find(group => group.arm === 'variantB')!.n = 360
-  expect(computeVerdict(value).detail).toBe('Smallest group so far: Shorter form, 360 of the 1000 people it needs. Conversions so far: 37 of 150 needed.')
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Shorter form, 360 of the 1000 people it needs. Fewest conversions so far: Shorter form, 37 of the 150 needed.')
   value.exposures.perArm.reverse()
-  expect(computeVerdict(value).detail).toBe('Smallest group so far: Guided form, 360 of the 1000 people it needs. Conversions so far: 37 of 150 needed.')
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Guided form, 360 of the 1000 people it needs. Fewest conversions so far: Shorter form, 37 of the 150 needed.')
 })
 
 test('collecting names the smallest control group Original', () => {
   const value = input('T4')
   Object.assign(value.exposures.perArm[0]!, { label: 'Old form', n: 100 })
-  expect(computeVerdict(value).detail).toBe('Smallest group so far: Original, 100 of the 1000 people it needs. Conversions so far: 37 of 150 needed.')
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Original, 100 of the 1000 people it needs. Fewest conversions so far: Shorter form, 37 of the 150 needed.')
 })
 
 test('collecting uses the smallest group label rather than its key or comparison label', () => {
   const value = input('T4')
   value.exposures.perArm[1]!.label = 'One-page signup'
-  expect(computeVerdict(value).detail).toBe('Smallest group so far: One-page signup, 360 of the 1000 people it needs. Conversions so far: 37 of 150 needed.')
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: One-page signup, 360 of the 1000 people it needs. Fewest conversions so far: One-page signup, 37 of the 150 needed.')
+})
+
+test('collecting names different groups for the smallest people count and fewest conversions', () => {
+  const value = input('T4')
+  value.primary.convertersPerArm[0]!.converters = 20
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Shorter form, 360 of the 1000 people it needs. Fewest conversions so far: Original, 20 of the 150 needed.')
+})
+
+test('collecting names the first converter group on a tie, independently of exposure order', () => {
+  const value = input('T4')
+  value.primary.convertersPerArm[0]!.converters = 37
+  expect(computeVerdict(value).detail).toContain('Fewest conversions so far: Original, 37 of the 150 needed.')
+  value.primary.convertersPerArm.reverse()
+  expect(computeVerdict(value).detail).toContain('Fewest conversions so far: Shorter form, 37 of the 150 needed.')
+})
+
+test.each(['', '   '])('collecting falls back from blank group label %j to the slot label', label => {
+  const value = input('T4')
+  value.exposures.perArm[1]!.label = label
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Variant A, 360 of the 1000 people it needs. Fewest conversions so far: Variant A, 37 of the 150 needed.')
+})
+
+test('collecting trims stored labels and can find a converter label in the comparison list', () => {
+  const value = input('T4')
+  value.exposures.perArm[1]!.label = '  One-page signup  '
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: One-page signup, 360 of the 1000 people it needs. Fewest conversions so far: One-page signup, 37 of the 150 needed.')
+  value.exposures.perArm = value.exposures.perArm.filter(group => group.arm !== 'variantA')
+  value.primary.comparisons[0]!.label = '  Short signup  '
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Original, 380 of the 1000 people it needs. Fewest conversions so far: Short signup, 37 of the 150 needed.')
 })
 
 test.each(['T5', 'T6', 'T7', 'T8'])('holdout comparisons cannot alter %s', name => {
@@ -199,7 +228,7 @@ test('conversion minimum is per group, even when the total exceeds the minimum',
   value.primary.convertersPerArm[0]!.converters = 149
   expect(computeVerdict(value)).toMatchObject({
     row: 4, finding: 'Collecting data.', headline: 'Collecting data.', action: null,
-    detail: 'Smallest group so far: Shorter form, 1980 of the 1000 people it needs. Conversions so far: 149 of 150 needed.',
+    detail: 'Fewest conversions so far: Original, 149 of the 150 needed.',
   })
   value.primary.convertersPerArm[0]!.converters = 150
   value.primary.convertersPerArm.find(group => group.kind === 'holdout')!.converters = 0
