@@ -28,7 +28,7 @@ test.each([stored, '2026-11-03T07:00:00.123-05:00'])('compares instants and lock
   f.req.payload.db.drizzle = { execute: pool.execute } as typeof f.req.payload.db.drizzle
   await expect(run(f.req)).resolves.toMatchObject({ name: 'After' })
   expect(f.executor.calls).toEqual([{
-    text: 'SELECT "updated_at" AS "updatedAt" FROM "xp_experiments" WHERE "id" = $1 FOR UPDATE', params: [17],
+    text: 'SELECT "updated_at" AS "updatedAt" FROM "xp_experiments" WHERE "id" = $1 FOR NO KEY UPDATE', params: [17],
   }])
   expect(pool.calls).toEqual([])
 })
@@ -40,7 +40,7 @@ test.each(['2026-11-03T12:00:00.122Z', '2026-11-03T12:00:00.124Z', 'invalid', ''
     code: 'stale-edit', status: 409, isPublic: true,
     message: 'Someone else changed this test. Reload to see their changes.',
   })
-  expect(f.executor.calls[0]!.text).toContain('FOR UPDATE')
+  expect(f.executor.calls[0]!.text).toContain('FOR NO KEY UPDATE')
 })
 test('a missing row is refused instead of matching an absent timestamp', async () => {
   await expect(run(fixture(stored, null).req)).rejects.toMatchObject({ code: 'stale-edit', status: 409 })

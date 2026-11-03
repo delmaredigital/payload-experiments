@@ -9,7 +9,7 @@ export async function lockExperimentUpdatedAt(exec: Executor & { schemaName?: st
   const table = `${exec.schemaName ? `${quote(exec.schemaName)}.` : ''}${quote(TABLES.experiments)}`
   const columns = COLUMNS.experiments
   const result = await exec.query<{ updatedAt: Date | string | null }>(
-    `SELECT ${quote(columns.updatedAt)} AS "updatedAt" FROM ${table} WHERE ${quote(columns.id)} = $1 FOR UPDATE`, [id],
+    `SELECT ${quote(columns.updatedAt)} AS "updatedAt" FROM ${table} WHERE ${quote(columns.id)} = $1 FOR NO KEY UPDATE`, [id],
   )
   return result.rows[0]?.updatedAt ?? null
 }
