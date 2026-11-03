@@ -21,14 +21,24 @@ test('manage recompute runs in process for exactly the authorised experiment', a
   expect(payload.calls[0]!.args).toMatchObject({ req, overrideAccess: false })
 })
 
-test.each(['failed', 'budget', 'throws', 'no-phase'])('recompute %s returns a distinct non-2xx error, never a null success', async outcome => {
-  if (outcome === 'throws') vi.mocked(runResults).mockRejectedValue(new Error('Failure'))
-  else vi.mocked(runResults).mockResolvedValue({ ran: 0, skipped: outcome === 'failed' ? 1 : 0, swept: 0, processedIds: [], budgetExhausted: outcome === 'budget' })
+test.each(['failed', 'budget', 'no-phase'])('recompute %s returns a distinct non-2xx error, never a null success', async outcome => {
+  vi.mocked(runResults).mockResolvedValue({ ran: 0, skipped: outcome === 'failed' ? 1 : 0, swept: 0, processedIds: [], budgetExhausted: outcome === 'budget' })
   vi.mocked(newestSnapshotIds).mockResolvedValue([])
   const req = fakeReq({ payload: fakePayload({ collections: { 'xp-experiments': [{ id: 'exp' }] } }), routeParams: { id: 'exp' } })
   const response = await handleRecompute(req, { options: sampleOptions() })
   expect(response.status).toBe(outcome === 'no-phase' ? 422 : 503)
   expect(await response.json()).toMatchObject({ errors: [{ code: 'recompute-failed' }] })
+})
+
+test('a thrown analysis error is logged with its experiment and returns analysis-failed with HTTP 500', async () => {
+  const error = new TypeError('Invalid Snapshot shape (all numbers must be finite)')
+  vi.mocked(runResults).mockRejectedValue(error)
+  const payload = fakePayload({ collections: { 'xp-experiments': [{ id: 'exp' }] } })
+  const response = await handleRecompute(fakeReq({ payload, routeParams: { id: 'exp' } }), { options: sampleOptions() })
+  expect(response.status).toBe(500)
+  expect(await response.json()).toEqual({ errors: [{ code: 'analysis-failed', message: 'Results could not be computed; this has been logged.' }] })
+  expect(payload.logs).toContainEqual({ level: 'error', args: [{ err: error, experimentId: 'exp' }, expect.any(String)] })
+  expect(newestSnapshotIds).not.toHaveBeenCalled()
 })
 
 test('missing experiment is 404 and does not run analysis', async () => {

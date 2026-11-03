@@ -45,7 +45,7 @@ export interface AnalysisPhase {
   analysis: {
     method: 'sequential' | 'bayesian'
     alpha?: number
-    sequentialTuningParameter: number
+    sequentialTuningParameter?: number | null
     cuped: 'auto' | 'off'
     cupedLookbackDays?: number
     minExposuresPerArm: number
@@ -91,6 +91,9 @@ const severity = { ok: 0, insufficient: 1, warning: 2, failing: 3 } as const
 export function analysePhase(input: AnalysePhaseInput): Snapshot {
   const { phase, units } = input
   const { analysis } = phase
+  // Start freezes this optional collection field as-is. Match the stats engine's
+  // default and record the effective value in every snapshot, including n = 0.
+  const sequentialTuningParameter = analysis.sequentialTuningParameter ?? 5000
   const alpha = analysis.alpha ?? 0.05
   const prior = analysis.prior ?? DEFAULT_GAUSSIAN_PRIOR
   const bayesian = analysis.bayesian ?? { ctw: 0.95, risk: 0.0125 }
@@ -132,7 +135,7 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
     armMismatch: input.armMismatch ?? 0, identityConflictShare: input.identityConflictShare ?? 0, capped: {},
   }
   const params: Snapshot['params'] = {
-    sequentialTuningParameter: analysis.sequentialTuningParameter, prior: { ...prior },
+    sequentialTuningParameter, prior: { ...prior },
     cupedLookbackDays: analysis.cupedLookbackDays ?? 14, bayesian: { ...bayesian },
     caps: {}, attributionWindows: {}, guardrailThresholds: {}, minSampleSizes: {},
   }
@@ -186,7 +189,7 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
       for (const arm of compared) {
         const [a, b] = createThetaAdjustedStatistics(stats.get(baselineArm.key)!, stats.get(arm.key)!)
         metric.cupedApplied ||= a.type === 'regressionAdjusted' && b.type === 'regressionAdjusted'
-        const config = { alpha, sequentialTuningParameter: analysis.sequentialTuningParameter }
+        const config = { alpha, sequentialTuningParameter }
         const inverse = definition.direction === 'decrease'
         let comparison: Comparison
         let status: Snapshot['guardrails'][number]['status'] = 'insufficient'
@@ -273,7 +276,7 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
   if (input.status === 'running' && !rollout && (verdict.row === 4 || verdict.row === 9) && primaryStatistics) {
     power = remainingPower({ baseline: primaryStatistics.get(baselineArm.key)!,
       variants: compared.map(arm => primaryStatistics!.get(arm.key)!), elapsedDays: (to - from) / 86_400_000,
-      alpha: alphaAdjusted, method: analysis.method, prior, sequentialTuningParameter: analysis.sequentialTuningParameter })
+      alpha: alphaAdjusted, method: analysis.method, prior, sequentialTuningParameter })
     verdict = computeVerdict({ ...verdictInput, power })
   }
   return assembleSnapshot({ experiment: phase.experiment, phase: phase.phase, phaseKind: phase.phaseKind,

@@ -8,8 +8,12 @@ import * as snapshotDb from '../../src/db/snapshots.js'
 import { insertEvents, type EventRow } from '../../src/db/events.js'
 import { insertIdentity } from '../../src/db/identities.js'
 import { runResults } from '../../src/server/runResults.js'
+import { handleRecompute } from '../../src/endpoints/recompute.js'
+import type { Snapshot } from '../../src/types/snapshot.js'
+import * as snapshotAnalysis from '../../src/results/snapshot.js'
 import type { ResultsPhase } from '../../src/db/snapshots.js'
 import { fakePayload } from '../_fakes/payload.js'
+import { fakeReq } from '../_fakes/req.js'
 import { sampleOptions } from '../collections/fixtures.js'
 import { createPgliteDb } from '../_helpers/pglite.js'
 import { xp_experiments, xp_phases, xp_results_snapshots } from '../_fixtures/generated-schema.js'
@@ -49,6 +53,75 @@ async function events(phase: ResultsPhase, rows: Partial<EventRow>[]) {
     arm: i % 2 ? 'variantA' : 'control', unitId: `unit-${phase.experiment}-${i}`, unitType: 'visitor', ts: new Date(start + 1000).toISOString(), dedupeKey: `run-${++serial}`, ...row })))
 }
 async function snapshots() { return database.db.select().from(xp_results_snapshots) }
+
+async function freshBlockTest(tuning: number | null | undefined) {
+  vi.spyOn(Date, 'now').mockReturnValue(now + 3 * 3_600_000)
+  const phase = await seed('visitor', { startedAt: new Date(now).toISOString(),
+    arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 45 },
+      { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 45 },
+      { key: 'variantB', label: 'Variant B', kind: 'variant', weight: 10 }],
+  })
+  await database.db.update(xp_experiments).set({ kind: 'block', exposurePolicy: 'render', allocation: 100, analysis_method: 'sequential' })
+    .where(eq(xp_experiments.id, Number(phase.experiment)))
+  // Start copies the optional collection field as-is into the frozen JSON.
+  // Unlike the existing fixture's explicit 5000, a new test can have no tuning.
+  const { sequentialTuningParameter: _fixtureTuning, ...analysis } = phase.analysis
+  await database.db.update(xp_phases).set({ analysis: { ...analysis,
+    ...(tuning === undefined ? {} : { sequentialTuningParameter: tuning }),
+  } }).where(eq(xp_phases.experiment, Number(phase.experiment)))
+  expect(await snapshots()).toHaveLength(0)
+  return phase
+}
+
+function expectFiniteNumbers(value: unknown, path = 'snapshot'): void {
+  if (typeof value === 'number') expect(Number.isFinite(value), path).toBe(true)
+  else if (value !== null && typeof value === 'object') {
+    for (const [key, child] of Object.entries(value)) expectFiniteNumbers(child, `${path}.${key}`)
+  }
+}
+
+async function expectCollectingSnapshot(tuning: number | null | undefined) {
+  const rows = await snapshots()
+  expect(rows).toHaveLength(1)
+  const snapshot = rows[0]!.snapshot as Snapshot
+  expect(snapshot).toMatchObject({ verdict: { code: 'collecting' }, exposures: { total: 0, perArm: { control: 0, variantA: 0, variantB: 0 } } })
+  expectFiniteNumbers(snapshot)
+  expect(snapshot.params.sequentialTuningParameter).toBe(tuning ?? 5000)
+  return rows[0]!
+}
+
+test.each([undefined, null, 1234])('hourly run stores a collecting snapshot for a fresh three-arm block test with no data and tuning %s', async tuning => {
+  const phase = await freshBlockTest(tuning)
+  const context = payload()
+  const assembled = vi.spyOn(snapshotAnalysis, 'assembleSnapshot')
+  const result = await runResults(context.payload)
+  // Inspect before JSON serialization too: JSON.stringify turns NaN into null.
+  const candidate = assembled.mock.calls[0]![0]
+  expectFiniteNumbers(candidate)
+  expect(candidate.params.sequentialTuningParameter).toBe(tuning ?? 5000)
+  expect(result).toMatchObject({ ran: 1, skipped: 0, processedIds: [phase.experiment], budgetExhausted: false })
+  expect(context.payload.logs.filter(log => log.level === 'error')).toEqual([])
+  await expectCollectingSnapshot(tuning)
+})
+
+test.each([undefined, null, 1234])('recompute returns 200 and stores a finite collecting snapshot before the first exposure with tuning %s', async tuning => {
+  const phase = await freshBlockTest(tuning)
+  const context = payload()
+  Object.assign(context.payload.db, { defaultIDType: 'number' })
+  context.payload.documents['xp-experiments'] = [{ id: phase.experiment }]
+  const find = context.payload.find.bind(context.payload)
+  // Local API reads remain access-checked; their documents come from the same
+  // in-process database used by real scheduling, analysis and snapshot writes.
+  vi.spyOn(context.payload, 'find').mockImplementation(async args => {
+    if (args.collection === 'xp-results-snapshots') context.payload.documents[args.collection] = await snapshots()
+    return find(args)
+  })
+  const req = fakeReq({ payload: context.payload, routeParams: { id: String(phase.experiment) }, method: 'POST' })
+  const response = await handleRecompute(req, { options: context.options })
+  expect(response.status).toBe(200)
+  const stored = await expectCollectingSnapshot(tuning)
+  expect(await response.json()).toEqual({ snapshotId: stored.id })
+})
 
 test('frozen config, exposure denominator, multi-arm exclusion and strict endedAt survive live edits', async () => {
   vi.spyOn(Date, 'now').mockReturnValue(now)

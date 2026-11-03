@@ -14,7 +14,8 @@ export async function handleRecompute<TUser extends { id: string | number } = { 
     const latest = (await readSnapshots(req, [docs[0].id], { per: 'experiment' }))[0]
     if (!latest) return resultsError(422, 'recompute-failed', 'There is no round to analyse yet.')
     return Response.json({ snapshotId: latest.id }, { headers: { 'Cache-Control': 'no-store' } })
-  } catch {
-    return resultsError(503, 'recompute-failed', 'Results could not be recomputed. Try again.')
+  } catch (error) {
+    req.payload.logger.error({ err: error, experimentId: docs[0].id }, 'Experiment recompute failed')
+    return resultsError(500, 'analysis-failed', 'Results could not be computed; this has been logged.')
   }
 }

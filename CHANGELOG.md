@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: newly started tests can show collecting results before anyone has seen a version; failures when computing results are logged and reported separately from a busy results run. Migration impact: none.
+
 ## [0.2.0-rc.5] - 2026-11-03
 
 ### plugin
