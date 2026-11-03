@@ -3,6 +3,7 @@ import type { ResolvedOptions } from '../types/contracts.js'
 import { XP_METRIC_SOURCE_SELECT } from '../admin/paths.js'
 import { managedAccess } from './access.js'
 import { serializeMetricSources } from './serialize.js'
+import { validateCappingType, validateCappingValue } from './metricValidation.js'
 
 export function metricsCollection(options: ResolvedOptions): CollectionConfig {
   const sources = serializeMetricSources(options)
@@ -28,14 +29,11 @@ export function metricsCollection(options: ResolvedOptions): CollectionConfig {
       { name: 'capping', label: 'Limit very large values', type: 'group', admin: { description: 'Limit unusually large amounts when comparing results while keeping totals in full.' }, fields: [
         { name: 'type', label: 'Limit by', type: 'select', options: [{ label: 'Based on past amounts', value: 'percentile' }, { label: 'Fixed amount', value: 'absolute' }], admin: { description: 'Choose whether the limit comes from past amounts or a fixed amount.' },
           validate: (value: unknown, { data, siblingData }: { data?: { source?: string }; siblingData?: { value?: unknown } }) => {
-            const hasCapping = value != null || siblingData?.value != null
             const source = sources.find(source => source.id === data?.source)
-            if (hasCapping && source && source.kind !== 'revenue') return 'Count and yes-or-no goals cannot use a limit.'
-            return !hasCapping || value === 'percentile' || value === 'absolute' || 'Choose how to set the limit.'
+            return validateCappingType(value, siblingData?.value, source?.kind)
           } },
         { name: 'value', label: 'Limit value', type: 'number', min: 0, admin: { description: 'For past amounts, enter how much of the usual range to keep, such as 0.99 to limit only the largest 1%; or enter a fixed amount.' }, validate: (value: number | null | undefined, { siblingData }: { siblingData?: { type?: unknown } }) => {
-          if (value == null && !siblingData?.type) return true
-          return (typeof value === 'number' && Number.isFinite(value) && value >= 0 && (siblingData?.type === 'absolute' || (siblingData?.type === 'percentile' && value > 0 && value <= 1))) || 'Enter a valid limit (for past amounts, use a number greater than 0 and at most 1).'
+          return validateCappingValue(value, siblingData?.type)
         } },
       ] },
       { name: 'minSampleSize', label: 'Minimum completions before deciding', type: 'number', defaultValue: 150, min: 1, admin: { description: 'Wait until each version has at least this many people who completed the goal before showing a result.' } },

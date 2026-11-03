@@ -1,0 +1,14 @@
+.xp-goals { display: grid; gap: var(--xp-space-4); }
+.xp-goals-breadcrumb { display: flex; flex-wrap: wrap; gap: var(--xp-space-2); align-items: center; }
+.xp-goals-table { overflow-x: auto; }
+.xp-goals-table table { width: 100%; border-collapse: collapse; text-align: left; }
+.xp-goals-table th, .xp-goals-table td { padding: var(--xp-space-3); border-bottom: 1px solid var(--xp-border); }
+.xp-goal-form { max-width: 48rem; display: grid; gap: var(--xp-space-4); }
+.xp-goal-form fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: var(--xp-space-3); }
+.xp-goal-form .xp-field { display: grid; gap: var(--xp-space-2); }
+.xp-goal-form input, .xp-goal-form select {
+  padding: var(--xp-space-3); color: var(--xp-text); background: var(--xp-input-bg); border: 1px solid var(--xp-input-border);
+}
+.xp-goal-form input[readonly] { background: var(--xp-surface); }
+.xp-goal-form details { padding: var(--xp-space-4); border: 1px solid var(--xp-border); }
+.xp-goal-form summary { cursor: pointer; margin-bottom: var(--xp-space-3); }

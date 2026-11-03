@@ -45,7 +45,7 @@ export function TestsHome({ adminRoute, apiRoute }: { adminRoute: string; apiRou
     <div className="xp-tests-toolbar">
       <h1>{SURFACE_COPY.title}</h1>
       <label>{SURFACE_COPY.search}<input type="search" value={search} onChange={event => setSearch(event.target.value)} /></label>
-      {newTest}<Link href={formatAdminURL({ adminRoute, path: '/collections/xp-metrics' })}>{SURFACE_COPY.goals}</Link>
+      {newTest}<Link href={formatAdminURL({ adminRoute, path: '/experiments/goals' })}>{SURFACE_COPY.goals}</Link>
     </div>
     {state.loading ? <p role="status">{SURFACE_COPY.loading}</p>
       : state.error ? <div role="alert">{SURFACE_COPY.loadError} {retry}</div>

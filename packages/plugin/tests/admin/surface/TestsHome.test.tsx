@@ -20,7 +20,7 @@ test('loading then empty state with the creation and Goals links', async () => {
   expect(screen.getByRole('status').textContent).toBe('Loading tests…')
   expect(await screen.findByText('Test a change to see what works best for the people who visit your pages.')).toBeTruthy()
   expect(screen.getAllByRole('link', { name: 'New test' }).every(link => link.getAttribute('href') === '/control/experiments/new')).toBe(true)
-  expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/collections/xp-metrics')
+  expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/experiments/goals')
   expect(fetch.mock.calls[0]?.[0]).toBe('/data/xp-experiments?depth=0&sort=-updatedAt&limit=200')
   expect(fetch).toHaveBeenCalledOnce()
   expect(screen.queryByText('Showing the 200 most recent tests.')).toBeNull()
@@ -108,7 +108,7 @@ test('home and shell links support the root admin route', async () => {
   const props: TestsSurfaceProps = { route: 'home', adminRoute: '/', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: false, flagPoints: [], metricSources: [], attributeKeys: {} }
   render(<TestsSurface {...props} />)
   await screen.findByText('Stopped test')
-  for (const [name, href] of [['Tests', '/experiments'], ['Back to admin', '/'], ['New test', '/experiments/new'], ['Goals', '/collections/xp-metrics'], ['View results', '/experiments/123/results']]) {
+  for (const [name, href] of [['Tests', '/experiments'], ['Back to admin', '/'], ['New test', '/experiments/new'], ['Goals', '/experiments/goals'], ['View results', '/experiments/123/results']]) {
     expect(screen.getByRole('link', { name }).getAttribute('href')).toBe(href)
   }
 })

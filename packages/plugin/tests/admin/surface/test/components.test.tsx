@@ -37,6 +37,29 @@ function blurChange(label: string, value: string) {
 }
 const metricsFetch = () => vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: [{ id: 1, name: 'Registered', source: 'signup' }, { id: 2, name: 'Completed', source: 'signup' }], hasNextPage: false }) })))
 
+test.each([7, 'goal-uuid'])('returning with goal %s stages its API id without committing and removes only the goal param', async id => {
+  window.history.replaceState(null, '', '/cms/experiments/test?goal=' + id + '&locale=en#section-win')
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: [{ id, name: 'New goal', source: 'signup' }] }) })))
+  const p = props({ metrics: { primary: null, guardrails: [2], secondary: [3] } })
+  render(<GoalSection {...p} />)
+  await waitFor(() => expect(p.test.stage).toHaveBeenCalledWith({ metrics: { primary: id, guardrails: [2], secondary: [3] } }))
+  expect(p.test.commit).not.toHaveBeenCalled()
+  expect(window.location.search).toBe('?locale=en')
+  expect(window.location.hash).toBe('#section-win')
+  window.history.replaceState(null, '', '/')
+})
+test.each(['running', 'draft'] as const)('returned goals do not replace an existing primary or edit a %s test', async status => {
+  window.history.replaceState(null, '', '/cms/experiments/test?goal=2')
+  metricsFetch()
+  const p = props({ status, metrics: { primary: status === 'draft' ? 1 : null } })
+  render(<GoalSection {...p} />)
+  await waitFor(() => expect(window.location.search).toBe(''))
+  expect(p.test.stage).not.toHaveBeenCalled()
+  expect(p.test.commit).not.toHaveBeenCalled()
+  expect(screen.getByText('Manage goals').getAttribute('href')).toBe(status === 'draft' ? '/cms/experiments/goals?return=test%2F1' : '/cms/experiments/goals')
+  window.history.replaceState(null, '', '/')
+})
+
 test('page load states are clear and the ready view has stacked anchored sections', async () => {
   metricsFetch()
   const p = props()
@@ -209,7 +232,7 @@ test('goals load via the host API and preserve the current metrics group on sele
   view.rerender(<GoalSection {...p} />)
   fireEvent.change(screen.getByLabelText('Goal'), { target: { value: '' } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: null, guardrails: [], secondary: [2] } })
-  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/collections/xp-metrics')
+  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/experiments/goals?return=test%2F1')
 })
 test('save refusals render inline', () => {
   const p = props()

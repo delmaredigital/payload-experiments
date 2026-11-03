@@ -22,6 +22,8 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
   let id: string | undefined
   if (tail.length === 0) route = 'home'
   else if (tail.length === 1 && tail[0] === 'new') route = 'new'
+  else if (tail.length === 1 && tail[0] === 'goals') route = 'goals'
+  else if (tail.length === 2 && tail[0] === 'goals') { route = tail[1] === 'new' ? 'goalNew' : 'goal'; if (route === 'goal') id = tail[1] }
   else if (tail.length === 1) { route = 'test'; id = tail[0] }
   else if (tail.length === 2 && tail[1] === 'results') { route = 'results'; id = tail[0] }
   else return notFound()
@@ -81,7 +83,9 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     } catch { return [] }
   }))).flat() : undefined
   const descriptions = options.admin?.descriptions
+  const returnToTest = (await searchParams)?.return
   const clientProps: TestsSurfaceProps = {
+    ...(typeof returnToTest === 'string' && returnToTest ? { returnToTest } : {}),
     route, ...(id === undefined ? {} : { id }), adminRoute, apiRoute: req.payload.config.routes.api,
     canManage, canReadResults, isAdmin, flagPoints, ...(pages === undefined ? {} : { pages }),
     attributeKeys: serializeAttributeKeys(options), metricSources: serializeMetricSources(options),

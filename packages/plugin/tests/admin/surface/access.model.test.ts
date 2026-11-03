@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { routeAccess } from '../../../src/admin/views/access.model.js'
 import type { TestsRoute } from '../../../src/types/surface.js'
 
-const routes: TestsRoute[] = ['home', 'new', 'test', 'results']
+const routes: TestsRoute[] = ['home', 'new', 'test', 'results', 'goals', 'goalNew', 'goal']
 test.each(routes)('%s requires a user and the appropriate permission', route => {
   expect(routeAccess({ route, hasUser: false, canManage: true, canReadResults: true })).toBe('login')
   expect(routeAccess({ route, hasUser: true, canManage: false, canReadResults: false })).toBe('unauthorized')

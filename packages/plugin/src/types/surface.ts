@@ -1,10 +1,11 @@
 import type { DocId } from './contracts.js'
 import type { SerializedAttributeKeys, SerializedFlagPoint, SerializedMetricSource } from './admin.js'
 
-export type TestsRoute = 'home' | 'new' | 'test' | 'results'
+export type TestsRoute = 'home' | 'new' | 'test' | 'results' | 'goals' | 'goalNew' | 'goal'
 export interface TestsSurfaceProps {
   route: TestsRoute
   id?: string
+  returnToTest?: string
   adminRoute: string
   apiRoute: string
   isAdmin: boolean

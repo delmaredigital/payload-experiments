@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { formatAdminURL } from 'payload/shared'
 import type { SectionProps } from '../contracts.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
 import { metricSourceOptions } from '../../metricSource.model.js'
@@ -36,6 +37,19 @@ export function GoalSection({ test, surface }: SectionProps) {
   }, [surface.apiRoute, attempt])
   const doc = test.doc!
   const reason = reasonFor(test, 'metrics')
+  useEffect(() => {
+    if (!loaded) return
+    const url = new URL(window.location.href)
+    const goalId = url.searchParams.get('goal')
+    if (goalId == null) return
+    url.searchParams.delete('goal')
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+    const goal = metrics.find(metric => String(metric.id) === goalId)
+    if (!reason && doc.metrics?.primary == null && goal) {
+      test.stage({ metrics: { ...doc.metrics, primary: goal.id,
+        guardrails: doc.metrics?.guardrails?.filter(id => id !== goal.id), secondary: doc.metrics?.secondary?.filter(id => id !== goal.id) } })
+    }
+  }, [loaded, metrics, reason, doc.metrics, test.stage])
   const sources = metricSourceOptions(surface.metricSources)
   const unknownGoal = loaded ? C.missingGoal : C.goalUnavailable
   const options = metrics.map(metric => ({ value: String(metric.id), label: `${metric.name} · ${sources.find(source => source.value === metric.source)?.badge ?? metric.source}` }))
@@ -71,7 +85,7 @@ export function GoalSection({ test, surface }: SectionProps) {
     {!reason ? <TextEdit label={C.searchGoals} value={query} onDraft={setQuery} onCommit={setQuery} /> : null}
     {failed ? <p role="alert">{C.goalsError} <button type="button" onClick={() => setAttempt(n => n + 1)}>{C.retry}</button></p> : null}
     <SelectEdit label={C.goal} value={String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
-    <p>{C.goalHelp}</p><a href={`${surface.adminRoute}/collections/xp-metrics`}>{C.manageGoals}</a>
+    <p>{C.goalHelp}</p><a href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${!reason ? `?${new URLSearchParams({ return: String(doc.id) })}` : ''}` })}>{C.manageGoals}</a>
     <FieldErrors test={test} path="metrics.primary" />
     <CheckboxList label={C.guardrails} value={(doc.metrics?.guardrails ?? []).map(String)} options={roleOptions('guardrails')} reason={reason} readOnlyValue={display(doc.metrics?.guardrails ?? [])} onToggle={(value, checked) => toggle('guardrails', value, checked)} />
     <p>{C.guardrailHelp}</p><FieldErrors test={test} path="metrics.guardrails" />

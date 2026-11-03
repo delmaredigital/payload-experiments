@@ -44,8 +44,14 @@ function setup({ user = true, manage = () => true, readResults, adminRoute = '/c
   return { props, req, payload, findGlobal, find }
 }
 const routes = [
+  [['goals'], 'goals', undefined], [['goals', 'new'], 'goalNew', undefined], [['goals', 'goal-1'], 'goal', 'goal-1'],
   [[], 'home', undefined], [['new'], 'new', undefined], [['123'], 'test', '123'], [['123', 'results'], 'results', '123'],
 ] as const
+test('goals return context is serialized for the client surface', async () => {
+  const { props } = setup()
+  await ExperimentsRootView({ ...props, params: { segments: ['experiments', 'goals', 'new'] }, searchParams: { return: 'test/1' } })
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ route: 'goalNew', returnToTest: 'test/1' }) }))
+})
 test.each(routes)('%j dispatches to %s through the import map', async (tail, route, id) => {
   const { props, payload, req, findGlobal } = setup()
   await ExperimentsRootView({ ...props, params: { segments: ['experiments', ...tail] }, searchParams: {} })
