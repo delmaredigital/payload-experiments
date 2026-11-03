@@ -41,7 +41,7 @@ test('HTTP handlers accept string route ids and a re-encoded summary list', asyn
     expect(phases.docs).toHaveLength(1)
     expect(phases.docs[0]).toMatchObject({ experiment: draft.id, phase: 1, endedAt: expect.any(String) })
     await payload.create({ collection: 'xp-results-snapshots', req, overrideAccess: true,
-      data: { experiment: draft.id, phase: 1, computedAt: new Date().toISOString(), snapshot: fixture } })
+      data: { experiment: draft.id, phase: 1, computedAt: new Date().toISOString(), window: fixture.window, snapshot: fixture } })
   }
   const summaryReq = await createLocalReq({ req: {
     url: `http://localhost/api/xp/experiments/summary?ids=${encodeURIComponent([...ids].reverse().join(','))}`,
