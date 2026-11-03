@@ -2,7 +2,7 @@ import type { ReadinessCode, PreflightResult } from '../../../types/endpoints.js
 import type { SerializedFlagPoint } from '../../../types/admin.js'
 import type { TestDocument } from '../testDocument.model.js'
 import { actionGroupLabel } from '../../actions/actions.model.js'
-import { READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
+import { placementFailureCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
 
 import { SECTION_ORDER, type SectionId } from '../contracts.js'
 export type ReadinessContext = Pick<TestDocument, 'arms' | 'unitType' | 'flagPoint'> & {
@@ -22,7 +22,7 @@ const versions = row('versions', detail => versionsNext(detailText(detail, C.ver
 /** Exhaustive mapping of the checkStart ReadinessCode union, including all ten invariant checks. */
 export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; next(detail: unknown, ctx: ReadinessContext): string | null }> = {
   'invalid-status': row('header', () => null),
-  'no-placements': row('what', () => C.noPlacements),
+  'no-placements': row('what', detail => detail === undefined ? C.noPlacements : placementFailureCopy(detail)),
   'empty-slot': row('versions', (detail, ctx) => {
     const placements = Array.isArray(detail) ? detail : []
     const missing = ctx.arms.find(item => item.kind !== 'holdout' && placements.some(placement => {
@@ -40,6 +40,7 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   }),
   'flag-point-busy': row('what', () => C.busy),
   'flag-placement-missing': row('versions', (detail, ctx) => {
+    if (typeof detail === 'string') return placementFailureCopy(detail)
     const value = object(detail)
     const placement = first(value.placements)
     const missing = Array.isArray(value.missing) ? value.missing[0] : undefined
@@ -53,6 +54,8 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'layer-full': row('versions', () => C.full),
   'layer-unit-mismatch': row('header', () => C.differentPeople),
   'page-no-targets': row('versions', () => C.noTargets),
+  'page-target-unpublished': row('versions', detail => unpublishedPageCopy(text(detail, 'This page'))),
+  'page-targets-unchecked': row('versions', () => C.uncheckedPages),
   'page-user-unit': row('header', () => C.pageVisitors),
   'invalid-targeting-rule': row('who', detail => {
     const attributes = object(detail).attributes

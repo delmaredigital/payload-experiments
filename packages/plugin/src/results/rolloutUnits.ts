@@ -1,3 +1,4 @@
+import { XpAnalysisError } from '../errors.js'
 import { hash, layerSlice, rolloutBucketRanges } from '@delmaredigital/experiments-stats'
 import { timestampMs } from './aggregate.js'
 import type { Timestamp } from './aggregate.js'
@@ -11,7 +12,7 @@ export function rolloutAnalysisUnits({ exposuresAllPhases, rolloutPhase, seed, t
   coverage: number
   layer?: { slug: string; slices: readonly number[] }
 }): Set<string> {
-  if (!seed.endsWith('|')) throw new RangeError('Assignment seed must end in |')
+  if (!seed.endsWith('|')) throw new XpAnalysisError('seed-format')
   const first = new Map<string, { phase: number; ts: number }>()
   for (const row of exposuresAllPhases) {
     const ts = timestampMs(row.ts)

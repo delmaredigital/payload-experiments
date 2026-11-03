@@ -40,6 +40,16 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
       }
     }
   }
+  if (input.pages !== undefined) {
+    if (!input.pages || !Array.isArray(input.pages.collections) || input.pages.collections.length === 0) throw new Error('Experiments pages.collections must be a non-empty array')
+    const slugs = new Set<string>()
+    for (const entry of input.pages.collections) {
+      if (!entry || typeof entry.slug !== 'string' || !entry.slug.trim() || slugs.has(entry.slug) || typeof entry.pathOf !== 'function' || typeof entry.findByPath !== 'function') {
+        throw new Error('Experiments pages.collections requires unique slugs, pathOf and findByPath functions')
+      }
+      slugs.add(entry.slug)
+    }
+  }
   if (input.theme !== undefined) {
     if (!input.theme || typeof input.theme !== 'object' || Array.isArray(input.theme)) throw new Error('Experiments theme must be an object')
     for (const key of Object.keys(input.theme)) if (key !== 'accent') throw new Error(`Unknown experiments theme option: ${key}`)

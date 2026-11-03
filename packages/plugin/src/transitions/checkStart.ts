@@ -10,6 +10,8 @@ export type ReadinessCode = ArmIssueCode
   | 'no-primary-metric'
   | 'no-reach-per-day'
   | 'page-no-targets'
+  | 'page-target-unpublished'
+  | 'page-targets-unchecked'
   | 'page-user-unit'
   | 'flag-no-point'
   | 'flag-params-invalid'
@@ -32,10 +34,12 @@ export interface StartExperiment {
   analysis?: { plannedDurationDays?: number | null; reachPerDay?: number | null; sequentialTuningParameter?: number | null; method?: string | null } | null
 }
 export interface StartMetric { id: DocId; source: string }
+export type PlacementFailure = 'placements-failed' | 'forbidden' | 'not-found'
 export interface CheckStartInput {
   experiment: StartExperiment; metrics: StartMetric[]; metricSources?: Pick<MetricSource, 'id' | 'keyedBy'>[]
   flagPoints?: FlagPoint[]; placements?: BlockPlacement[]; flagPlacements?: FlagPlacement[]
-  placementError?: string; flagPlacementError?: string; flagPointBusy?: boolean
+  placementError?: PlacementFailure; flagPlacementError?: PlacementFailure; flagPointBusy?: boolean
+  unpublishedPageTargets?: string[]; pageTargetsUnchecked?: boolean
   layer?: { unitType: UnitType; usedSlices: number[] } | null
   attributeKeys?: ResolvedOptions['attributeKeys']
 }
@@ -80,6 +84,9 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('no-primary-metric', primary !== undefined && input.metrics.some(metric => String(metric.id) === String(primary)))
   add('no-reach-per-day', !['manual', 'viewport'].includes(e.exposurePolicy) || positive(e.analysis?.reachPerDay))
   add('page-no-targets', e.kind !== 'page' || e.arms.filter(arm => arm.kind !== 'holdout').every(arm => typeof arm.pageTarget === 'string' && arm.pageTarget.trim().length > 0))
+  add('page-target-unpublished', !input.unpublishedPageTargets?.length, input.unpublishedPageTargets?.[0])
+  add('page-targets-unchecked', true)
+  if (input.pageTargetsUnchecked) checks[checks.length - 1]!.warning = true
   add('page-user-unit', e.kind !== 'page' || e.unitType === 'visitor')
   const point = input.flagPoints?.find(point => point.id === e.flagPoint)
   add('flag-no-point', e.kind !== 'flag' || !!point)

@@ -87,7 +87,7 @@ permission is granted only for `true`. Optional `access.admin` and
 `access.readResults` default to `manage`; `access.readIdentities` defaults to
 `admin`. Use `admin` for code experiments and changing the analysis method.
 Other plugin options are `flagPoints`, `metricSources`, `eventSources`,
-`attributeKeys`, `puck` and `events`:
+`attributeKeys`, `pages`, `puck` and `events`:
 
 - `attributeKeys` declares targeting attributes as `{ type, values? }`, with
   `type` one of `string`, `number`, `boolean`; optional string `values` supplies
@@ -279,7 +279,11 @@ Other server integrations:
   failure is logged and the content save proceeds.
 - `experimentMetadata(serverRuntime, path)` returns metadata to merge into the
   page's Next metadata: live variant targets get noindex and an Original
-  canonical; archived losing paths point canonically to the winner.
+  canonical; archived losing paths point canonically to the winner. It reads
+  the signed request context via `headers()`, so it decides from the URL the
+  visitor requested, not the rewritten route, and the Original's URL is never
+  noindex. Call it only from a dynamic `generateMetadata`, never inside
+  `'use cache'`; `path` is the fallback when the proxy did not run.
   `experimentSitemapFilter(path, manifest)` is a synchronous build-time filter:
   pass a privately server-loaded manifest and keep paths for which it returns
   `true`, excluding live variants and archived losing paths.
@@ -388,6 +392,39 @@ accept both `trackConversion` and `trackConversionBeacon`; server-only sources
 are recorded with `trackConversion`. Beacon conversions for a non-writable name
 are dropped silently. Only listed names become `events:<name>` sources. They
 support visitor and user units and do not represent counts or revenue in v1.
+
+### Whole-page options
+
+| Option | Purpose |
+| --- | --- |
+| `pages.collections` | Optional array of `{ slug, pathOf, findByPath }`. `pathOf(doc)` derives a public path from the slug (reserved for page protection; not used yet); `findByPath(path, req)` resolves a published page to `{ id, published: true }`, or returns `null`. Start and readiness check every non-holdout version, including the Original. Without this option, readiness warns that pages are unchecked and Start keeps its existing behaviour. |
+
+For a collection with drafts enabled, use a published-only slug lookup with the
+manager's request and `overrideAccess: false`:
+
+```ts
+pages: {
+  collections: [{
+    slug: 'pages',
+    pathOf: doc => typeof doc.slug === 'string' ? `/${doc.slug}` : null,
+    findByPath: async (path, req) => {
+      const { docs } = await req.payload.find({
+        collection: 'pages', req, overrideAccess: false, draft: false, depth: 0, limit: 1,
+        where: { and: [
+          { slug: { equals: path.slice(1) } },
+          { _status: { equals: 'published' } },
+        ] },
+      })
+      return docs[0] ? { id: docs[0].id, published: true } : null
+    },
+  }],
+},
+```
+
+Adapt both callbacks for the site's homepage path. These checks run before Start;
+they do not protect pages from later deletion, unpublishing or renaming. Keep an
+archived winner published at the same address: archived test URLs still point to it.
+No migration is needed.
 
 ### `admin` options
 

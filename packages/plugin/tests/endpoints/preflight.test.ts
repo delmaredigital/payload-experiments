@@ -59,7 +59,7 @@ test('a throwing host placement hook returns a failed check with detail, not 500
   options.flagPoints![0]!.placements = async () => { throw new Error('Content adapter unavailable') }
   const response = await handlePreflight(req, { options })
   expect(response.status).toBe(200)
-  expect((await response.json()).checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'Content adapter unavailable' })
+  expect((await response.json()).checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'placements-failed' })
 })
 test.each([null, undefined, {}, 'invalid', 42, [null], [{ ok: true }]])('a non-array placement result (%j) reports a failed check instead of 500', async value => {
   const { options, req } = setup('flag')
@@ -67,7 +67,7 @@ test.each([null, undefined, {}, 'invalid', 42, [null], [{ ok: true }]])('a non-a
   const response = await handlePreflight(req, { options })
   expect(response.status).toBe(200)
   const body = await response.json() as PreflightResult
-  expect(body.checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'Placement lookup returned an invalid result.' })
+  expect(body.checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'placements-failed' })
   expect(body.placements).toEqual([])
 })
 test.each([null, undefined])('a synchronously returned %j placement result preserves the invalid-result detail', async value => {
@@ -75,7 +75,7 @@ test.each([null, undefined])('a synchronously returned %j placement result prese
   options.flagPoints![0]!.placements = vi.fn().mockReturnValue(value)
   const response = await handlePreflight(req, { options })
   expect(response.status).toBe(200)
-  expect((await response.json() as PreflightResult).checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'Placement lookup returned an invalid result.' })
+  expect((await response.json() as PreflightResult).checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'placements-failed' })
 })
 test('flag preflight with a holdout passes when host content covers the non-holdout arms', async () => {
   const { options, req, payload } = setup('flag')
@@ -109,7 +109,7 @@ test('block read failure reports a failed placement check', async () => {
   })
   const response = await handlePreflight(req, { options })
   expect(response.status).toBe(200)
-  expect((await response.json()).checks).toContainEqual({ code: 'no-placements', ok: false, detail: 'Page read denied' })
+  expect((await response.json()).checks).toContainEqual({ code: 'no-placements', ok: false, detail: 'placements-failed' })
 })
 
 test.each([
@@ -194,4 +194,25 @@ test('saved duration does not replace the power-derived suggestion', async () =>
   const body = await response.json() as PreflightResult
   expect(body.estimate).toEqual({ weeks: 3, plannedDurationDays: 21, sequentialTuningParameter: 2100, feasible: true })
   expect(estimate).toHaveBeenCalledTimes(2)
+})
+
+
+test('placement failures expose closed codes in preflight, start and logs', async () => {
+  const { options, req, payload } = setup('flag')
+  options.flagPoints![0]!.placements = async () => { throw new Error('secret-value database password') }
+  const body = await (await handlePreflight(req, { options })).json()
+  expect(body.checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'placements-failed' })
+  const { start } = await import('../../src/transitions/start.js')
+  const refusal = await start(req, { experimentId: 'one', options }).catch(error => error)
+  expect(refusal).toMatchObject({ code: 'flag-placement-missing', detail: 'placements-failed' })
+  expect(JSON.stringify([body, refusal, payload.logs])).not.toContain('secret-value')
+  expect(payload.logs).toContainEqual(expect.objectContaining({ level: 'error', args: [expect.objectContaining({ experimentId: 'one', collection: 'cta', id: 'one', err: expect.objectContaining({ name: 'Error' }) }), 'Experiment placement lookup failed'] }))
+})
+
+test.each(['Forbidden', 'NotFound'])(`placement %s is classified by name`, async name => {
+  const { options, req } = setup('flag')
+  options.flagPoints![0]!.placements = async () => { const error = new Error('secret-value'); error.name = name; throw error }
+  const body = await (await handlePreflight(req, { options })).json()
+  expect(body.checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: name === 'Forbidden' ? 'forbidden' : 'not-found' })
+  expect(JSON.stringify(body)).not.toContain('secret-value')
 })

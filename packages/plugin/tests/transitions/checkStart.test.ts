@@ -53,7 +53,7 @@ describe('checkStart', () => {
   })
   test('all checks pass and remain in fixed order even when many checks fail', () => {
     const input = ready()
-    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'empty-slot', 'layer-unit-mismatch', 'layer-full', 'unknown-metric-source', 'unit-source-mismatch', 'undeclared-targeting-key', 'invalid-targeting-rule']
+    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-target-unpublished', 'page-targets-unchecked', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'empty-slot', 'layer-unit-mismatch', 'layer-full', 'unknown-metric-source', 'unit-source-mismatch', 'undeclared-targeting-key', 'invalid-targeting-rule']
     expect(checkStart(input)).toEqual(order.map(code => ({ code, ok: true })))
     for (const [, mutate] of cases) {
       const changed = ready(); mutate(changed)
@@ -99,8 +99,8 @@ describe('checkStart', () => {
   })
   test('hook errors retain detail and failed rows cannot be masked by successful duplicates', () => {
     const input = ready(); flag(input)
-    input.flagPlacementError = 'Host lookup unavailable'
-    expect(checkStart(input)).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'Host lookup unavailable' })
+    input.flagPlacementError = 'placements-failed'
+    expect(checkStart(input)).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: 'placements-failed' })
     delete input.flagPlacementError
     input.flagPlacements = [{ arm: 'control', ok: true }, { arm: 'variantA', ok: true }, { arm: 'variantA', ok: false, detail: 'Missing published content' }]
     expect(checkStart(input).find(check => check.code === 'flag-placement-missing')?.ok).toBe(false)

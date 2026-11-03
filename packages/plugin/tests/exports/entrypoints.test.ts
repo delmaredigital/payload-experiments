@@ -29,7 +29,7 @@ const required = {
     createExperimentSlotField: '../puck/experimentSlotField.js',
     EXPERIMENT_SLOT_TYPE: '../types/puck.js',
   },
-  rsc: { captureContentBaseline: '../hooks/contentChanges.js' },
+  rsc: { captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
   adminRsc: {
     ExperimentsRootView: '../admin/views/ExperimentsRootView.js',
     CollectionListRedirect: '../admin/views/CollectionListRedirect.js',
@@ -39,7 +39,7 @@ const required = {
   index: { createArmSelectField: '../fields/armSelect.js' },
 } as const
 const requiredTypes = {
-  rsc: { MetricUnavailableReason: '../types/reasons.js', ContentReportReason: '../types/reasons.js' },
+  rsc: { MetricUnavailableReason: '../types/reasons.js', ContentReportReason: '../types/reasons.js', ManifestInputs: '../manifest/compile.js', ManifestInputExperiment: '../manifest/compile.js', ManifestPhase: '../manifest/compile.js', ManifestCompileOptions: '../manifest/compile.js', Manifest: '../types/manifest.js', ManifestExperiment: '../types/manifest.js' },
   index: { MetricUnavailableReason: '../types/index.js', ContentReportReason: '../types/index.js' },
   client: { ClientAssignments: '../types/assignments.js' },
   puck: {

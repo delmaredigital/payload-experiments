@@ -186,3 +186,48 @@ test('manager field access does not strip the frozen analysis method or leak hid
     guardrailThresholds: {}, bayesian: { ctw: 0.95, risk: 0.0125 },
   } })
 })
+
+
+import { preflightData } from '../../src/transitions/preflightData.js'
+function pageFixture() {
+  const f = fixture()
+  Object.assign(f.experiment, { kind: 'page', arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/variant' : '/original' })) })
+  return f
+}
+test.each(['missing', 'draft', 'throws'] as const)('unpublished page target (%s) refuses both preflight and start', async mode => {
+  const { options, req, experiment, executor, payload } = pageFixture()
+  const findByPath = vi.fn(async (path: string, _req: import('payload').PayloadRequest) => {
+    if (path === '/original') return { id: 10, published: true }
+    if (mode === 'throws') throw new Error('secret-value')
+    return mode === 'missing' ? null : { id: 11, published: false }
+  })
+  options.pages = { collections: [{ slug: 'pages', pathOf: doc => `/${doc.slug}`, findByPath }] }
+  const result = await preflightData(req, { experimentId: 1, options })
+  expect(result!.checks).toContainEqual({ code: 'page-target-unpublished', ok: false, detail: '/variant' })
+  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-target-unpublished', message: "/variant isn't a published page. Publish it, or pick another page." })
+  expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant', '/original', '/variant'])
+  for (const call of findByPath.mock.calls) expect(call[1]).toBe(req)
+  expect(experiment.status).toBe('draft')
+  expect(executor.calls).toEqual([])
+  expect(JSON.stringify(payload.logs)).not.toContain('secret-value')
+})
+test('published targets start; holdouts are not looked up, multiple collections resolve paths', async () => {
+  const { options, req, experiment } = pageFixture()
+  const arms = experiment.arms as import('../../src/types/contracts.js').Arm[]
+  arms.forEach(arm => { arm.weight = 45 })
+  arms.push({ key: 'holdout', label: 'Holdout', kind: 'holdout', weight: 10, pageTarget: '/unused' })
+  const findByPath = vi.fn(async (path: string) => ({ id: path, published: true }))
+  options.pages = { collections: [
+    { slug: 'articles', pathOf: () => null, findByPath: async () => null },
+    { slug: 'pages', pathOf: doc => `/${doc.slug}`, findByPath },
+  ] }
+  expect((await start(req, { experimentId: 1, options })).doc.status).toBe('running')
+  expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant'])
+})
+test('without pages, preflight warns without refusing and start preserves existing behaviour', async () => {
+  const { options, req } = pageFixture()
+  const result = await preflightData(req, { experimentId: 1, options })
+  expect(result!.checks).toContainEqual({ code: 'page-targets-unchecked', ok: true, warning: true })
+  expect(result!.checks.every(check => check.ok)).toBe(true)
+  expect((await start(req, { experimentId: 1, options })).doc.status).toBe('running')
+})
