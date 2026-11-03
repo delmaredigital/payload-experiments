@@ -15,8 +15,11 @@ import { groupTests, homeCard } from './home.model.js'
 import type { HomeTest } from './home.model.js'
 import type { ReadinessContext } from './readiness/readiness.model.js'
 
-const HOME_SELECT = ['name', 'kind', 'status', 'analysis', 'arms', 'decidedAt', 'decision', 'unitType', 'flagPoint']
-  .map(field => `select[${field}]=true`).join('&')
+const HOME_FIELDS = ['name', 'kind', 'status', 'analysis', 'arms', 'decidedAt', 'decision', 'unitType', 'flagPoint'] as const
+// Typecheck fails if HomeTest gains a field the list request does not select (Payload always returns id).
+const homeFieldsComplete: Exclude<keyof HomeTest, 'id'> extends (typeof HOME_FIELDS)[number] ? true : never = true
+void homeFieldsComplete
+const HOME_SELECT = HOME_FIELDS.map(field => `select[${field}]=true`).join('&')
 
 type State = { loading: true } | { loading: false; error: true } | {
   loading: false; error: false; tests: HomeTest[]; summaries: SummaryResponse; summaryError: boolean; limited: boolean
