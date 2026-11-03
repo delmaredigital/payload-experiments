@@ -57,6 +57,24 @@ import { decide } from '../../src/transitions/decide.js'
 import { assign } from '../../src/runtime/assign.js'
 import { compileManifest, loadManifestInputs } from '../../src/manifest/compile.js'
 
+test.each(['running', 'stopped'])('rollout copies the test phase tuning instead of the %s document tuning', async status => {
+  const f = fixture(status)
+  ;(f.phase.analysis as Record<string, unknown>).sequentialTuningParameter = 1234
+  f.experiment.analysis = { sequentialTuningParameter: 9876 }
+  await decide(f.req, { experimentId: 1, winnerArm: 'variantA' })
+  expect(f.payload.documents['xp-phases']![1]).toMatchObject({ phaseKind: 'rollout', analysis: { sequentialTuningParameter: 1234 } })
+  expect(f.phase.analysis).toMatchObject({ sequentialTuningParameter: 1234 })
+  expect(f.experiment.analysis).toEqual({ sequentialTuningParameter: 9876 })
+})
+
+test('rollout freezes 5000 for an old test phase without frozen tuning', async () => {
+  const f = fixture()
+  f.experiment.analysis = { sequentialTuningParameter: 9876 }
+  await decide(f.req, { experimentId: 1, winnerArm: 'variantA' })
+  expect(f.payload.documents['xp-phases']![1]).toMatchObject({ phaseKind: 'rollout', analysis: { sequentialTuningParameter: 5000 } })
+  expect(f.phase.analysis).not.toHaveProperty('sequentialTuningParameter')
+})
+
 test.each([false, true])('decide preserves holdout membership at 50% allocation (layer=%s)', async layer => {
   const f = fixture('running', true, layer)
   const before = compileManifest(await loadManifestInputs(f.req), 8)

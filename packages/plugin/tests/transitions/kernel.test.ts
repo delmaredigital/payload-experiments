@@ -252,7 +252,8 @@ describe('ordered transition kernel', () => {
 test('phase record creation keeps the request and explicit privileged access', async () => {
   const payload = fakePayload()
   const req = fakeReq({ payload })
-  const record: PhaseRecord = { experiment: 4, phase: 2, phaseKind: 'test', startedAt: '2026-10-30T00:00:00Z', seed: 'seed|', arms: [], allocation: 50, targeting: [] }
+  const record = { experiment: 4, phase: 2, phaseKind: 'test', startedAt: '2026-10-30T00:00:00Z', seed: 'seed|', arms: [], allocation: 50, targeting: [],
+    analysis: { sequentialTuningParameter: 5000 } } satisfies PhaseRecord
   expect(await writePhaseRecord(req, record)).toMatchObject(record)
   expect(payload.calls[0]!.args).toMatchObject({ collection: 'xp-phases', req, overrideAccess: true, data: record })
 })

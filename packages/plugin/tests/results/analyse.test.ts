@@ -46,6 +46,16 @@ function direct(input: AnalysePhaseInput, arm = 'variantA') {
     buildStatistic(input.phase.metricDefinitions[0]!.kind, summarizeUnits(values(arm)))] as const
 }
 
+test('an old phase without frozen tuning still analyses with 5000', () => {
+  const input = example()
+  delete input.phase.analysis.sequentialTuningParameter
+  const result = analysePhase(input)
+  const expected = sequentialTwoSidedTTest(...direct(input), { alpha: 0.05, sequentialTuningParameter: 5000 })
+  expect(result.params.sequentialTuningParameter).toBe(5000)
+  expect(result.metrics[0]!.comparisons[0]).toMatchObject({ ci: expected.ci, pValue: expected.pValue })
+  validateSnapshot(result)
+})
+
 test('sequential primary matches direct raw and Bonferroni-adjusted stats; holdout is measured only', () => {
   const input = example({ secondVariant: true })
   const result = analysePhase(input)

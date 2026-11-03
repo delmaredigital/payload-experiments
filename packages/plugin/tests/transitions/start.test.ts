@@ -53,6 +53,39 @@ function fixture(status = 'draft', layer = false) {
 import { start } from '../../src/transitions/start.js'
 import { stop } from '../../src/transitions/stop.js'
 
+test.each([undefined, null])('blank tuning %s is frozen as 5000 without changing the experiment', async tuning => {
+  const { req, options, payload, experiment } = fixture()
+  const analysis = experiment.analysis as Record<string, unknown>
+  if (tuning === null) analysis.sequentialTuningParameter = null
+  const before = structuredClone(analysis)
+  await start(req, { experimentId: 1, options })
+  expect(payload.documents['xp-phases']![0]).toMatchObject({ analysis: { sequentialTuningParameter: 5000 } })
+  expect(experiment.analysis).toEqual(before)
+})
+
+test('explicit tuning is frozen as 1234 without changing the experiment', async () => {
+  const { req, options, payload, experiment } = fixture()
+  ;(experiment.analysis as Record<string, unknown>).sequentialTuningParameter = 1234
+  await start(req, { experimentId: 1, options })
+  expect(payload.documents['xp-phases']![0]).toMatchObject({ analysis: { sequentialTuningParameter: 1234 } })
+  expect(experiment.analysis).toMatchObject({ sequentialTuningParameter: 1234 })
+})
+
+test('restart from stopped freezes the live tuning without changing the previous round', async () => {
+  const { req, options, payload, experiment } = fixture()
+  await start(req, { experimentId: 1, options })
+  await stop(req, { experimentId: 1 })
+  ;(experiment.analysis as Record<string, unknown>).sequentialTuningParameter = 1234
+  await start(req, { experimentId: 1, options })
+  await stop(req, { experimentId: 1 })
+  ;(experiment.analysis as Record<string, unknown>).sequentialTuningParameter = null
+  await start(req, { experimentId: 1, options })
+  expect(payload.documents['xp-phases']!.map(phase => phase.analysis)).toMatchObject([
+    { sequentialTuningParameter: 5000 }, { sequentialTuningParameter: 1234 }, { sequentialTuningParameter: 5000 },
+  ])
+  expect(experiment.analysis).toMatchObject({ sequentialTuningParameter: null })
+})
+
 test('starts with frozen metrics and typed targeting; retyping the registry does not change the manifest', async () => {
   const { req, options, payload, manifests, executor } = fixture()
   const result = await start(req, { experimentId: 1, options })
