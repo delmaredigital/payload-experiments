@@ -24,6 +24,14 @@ if [ "$VER" != "$PACKAGE_VER" ]; then
   exit 1
 fi
 NPM_TAG=$("$SCRIPT_DIR/dist-tag.sh" "$VER")
+# Minors at or above this belong to the Payload 4 line, which may publish only under `next`.
+# Lift when the Payload 4 line becomes latest.
+PAYLOAD4_MIN_MINOR=20
+MINOR=${VER#*.}; MINOR=${MINOR%%.*}
+if [ "$((10#$MINOR))" -ge "$PAYLOAD4_MIN_MINOR" ] && [ "$NPM_TAG" != next ]; then
+  echo "::error::Version '$VER' is on the Payload 4 line (minor >= $PAYLOAD4_MIN_MINOR) and must publish under 'next', not '$NPM_TAG'." >&2
+  exit 1
+fi
 PRERELEASE_ARG=
 if [[ "$VER" == *-* ]]; then
   PRERELEASE_ARG=--prerelease
@@ -37,6 +45,11 @@ awk -v ver="$VER" '
 ' CHANGELOG.md > release-notes.md
 if ! grep -q '[^[:space:]]' release-notes.md; then
   echo "::error::No non-empty CHANGELOG section found for [$VER]. Add one before tagging." >&2
+  exit 1
+fi
+# The CHANGELOG is shared: this package's own subsection must be present and non-empty.
+if ! awk -v want="### ${PKG#packages/}" '$0 == want {flag=1; next} flag && /^### / {flag=0} flag && /[^[:space:]]/ {found=1} END {exit !found}' release-notes.md; then
+  echo "::error::CHANGELOG section [$VER] has no non-empty '### ${PKG#packages/}' subsection." >&2
   exit 1
 fi
 

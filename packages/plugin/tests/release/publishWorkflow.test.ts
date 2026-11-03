@@ -118,6 +118,26 @@ describe('release validation against an isolated repository fixture', () => {
     expect(result.stderr).toContain('::error::Unknown release tag')
   })
 
+  test.each([
+    ['0.20.0-rc.0', 1, ''],
+    ['0.20.0', 1, ''],
+    ['0.20.0-next.0', 0, 'NPM_TAG=next\n'],
+  ])('Payload 4 line %s publishes only under next', (version, status, output) => {
+    writeFileSync(join(root, 'packages/plugin/package.json'), JSON.stringify({ version }))
+    writeFileSync(join(root, 'CHANGELOG.md'), `## [${version}]\n${notes}`)
+    const result = validate(`plugin-v${version}`)
+    expect(result.status, result.stderr).toBe(status)
+    expect(result.stdout).toContain(output)
+    if (status) expect(result.stderr).toContain('Payload 4 line')
+  })
+
+  test('rejects a shared section that has only the other package subsection', () => {
+    writeFileSync(join(root, 'CHANGELOG.md'), `## [${pluginVersion}]\n\n### stats\n\n- Stats only.\n\n### plugin\n\n`)
+    const result = validate(`plugin-v${pluginVersion}`)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain("no non-empty '### plugin' subsection")
+  })
+
   test('accepts a stable stats tag with latest and no prerelease argument', () => {
     const result = validate(`stats-v${statsVersion}`)
     expect(result.status, result.stderr).toBe(0)

@@ -35,3 +35,6 @@ AGENTS.md
 CLAUDE.md
 /docs/
 /.claude/
+
+# Release notes written by scripts/release/validate-release.sh
+/release-notes.md
