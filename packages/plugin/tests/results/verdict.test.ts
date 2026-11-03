@@ -147,7 +147,31 @@ test('holdout is excluded from the collecting minimum', () => {
   value.exposures.perArm.find(item => item.kind === 'holdout')!.n = 0
   expect(computeVerdict(value).row).toBe(7)
   value.exposures.perArm[1]!.n = 999
-  expect(computeVerdict(value).finding).toBe(`Collecting data: 999 of 1000 people, ${Math.min(...value.primary.convertersPerArm.filter(group => group.kind !== 'holdout').map(group => group.converters))} of 150 conversions.`)
+  expect(computeVerdict(value)).toMatchObject({
+    finding: 'Collecting data.', headline: 'Collecting data.', action: null,
+    detail: `Smallest group so far: Shorter form, 999 of the 1000 people it needs. Conversions so far: ${Math.min(...value.primary.convertersPerArm.filter(group => group.kind !== 'holdout').map(group => group.converters))} of 150 needed.`,
+  })
+})
+
+test('collecting names the first compared group when exposure counts tie', () => {
+  const value = input('T4')
+  addVariant(value, 'variantB', 'Guided form', 'none', 0)
+  value.exposures.perArm.find(group => group.arm === 'variantB')!.n = 360
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Shorter form, 360 of the 1000 people it needs. Conversions so far: 37 of 150 needed.')
+  value.exposures.perArm.reverse()
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Guided form, 360 of the 1000 people it needs. Conversions so far: 37 of 150 needed.')
+})
+
+test('collecting names the smallest control group Original', () => {
+  const value = input('T4')
+  Object.assign(value.exposures.perArm[0]!, { label: 'Old form', n: 100 })
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Original, 100 of the 1000 people it needs. Conversions so far: 37 of 150 needed.')
+})
+
+test('collecting uses the smallest group label rather than its key or comparison label', () => {
+  const value = input('T4')
+  value.exposures.perArm[1]!.label = 'One-page signup'
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: One-page signup, 360 of the 1000 people it needs. Conversions so far: 37 of 150 needed.')
 })
 
 test.each(['T5', 'T6', 'T7', 'T8'])('holdout comparisons cannot alter %s', name => {
@@ -163,14 +187,19 @@ test('conversion minimum alone collects, with stopped wording', () => {
   const value = input()
   value.primary.convertersPerArm[0]!.converters = 149
   value.status = 'stopped'
-  expect(computeVerdict(value)).toMatchObject({ row: 4, finding: 'Stopped before enough data was collected.' })
+  expect(computeVerdict(value)).toMatchObject({
+    row: 4, finding: 'Stopped before enough data was collected.',
+    headline: 'Stopped before enough data was collected.', action: null,
+    detail: 'More people or conversions are needed before drawing a conclusion.',
+  })
 })
 
 test('conversion minimum is per group, even when the total exceeds the minimum', () => {
   const value = input()
   value.primary.convertersPerArm[0]!.converters = 149
   expect(computeVerdict(value)).toMatchObject({
-    row: 4, finding: 'Collecting data: 1980 of 1000 people, 149 of 150 conversions.',
+    row: 4, finding: 'Collecting data.', headline: 'Collecting data.', action: null,
+    detail: 'Smallest group so far: Shorter form, 1980 of the 1000 people it needs. Conversions so far: 149 of 150 needed.',
   })
   value.primary.convertersPerArm[0]!.converters = 150
   value.primary.convertersPerArm.find(group => group.kind === 'holdout')!.converters = 0

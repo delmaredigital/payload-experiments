@@ -127,10 +127,15 @@ export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
   if (failing) return make(3, 'guardrail-failing',
     `Stop: ${failing.worstArmLabel} harms ${failing.name}.`, null,
     'An outcome that must stay safe has become worse.', input.controlArm, undefined, failing.worstArm)
-  if (collecting) return make(4, 'collecting', input.status === 'stopped'
-    ? 'Stopped before enough data was collected.'
-    : `Collecting data: ${minimum} of ${input.exposures.minExposuresPerArm} people, ${minimumConverters} of ${input.primary.minSampleSize} conversions.`,
-  null, 'More people or conversions are needed before drawing a conclusion.', null)
+  if (collecting) {
+    const smallest = compared.find(item => item.n === minimum)
+    const smallestLabel = smallest?.kind === 'control' ? 'Original' : smallest?.label ?? 'Original'
+    return make(4, 'collecting', input.status === 'stopped'
+      ? 'Stopped before enough data was collected.'
+      : 'Collecting data.', null, input.status === 'stopped'
+      ? 'More people or conversions are needed before drawing a conclusion.'
+      : `Smallest group so far: ${smallestLabel}, ${minimum} of the ${input.exposures.minExposuresPerArm} people it needs. Conversions so far: ${minimumConverters} of ${input.primary.minSampleSize} needed.`, null)
+  }
 
   const variantKeys = new Set(compared.filter(item => item.kind === 'variant').map(item => item.arm))
   const variants = input.primary.comparisons.filter(item => variantKeys.has(item.arm))

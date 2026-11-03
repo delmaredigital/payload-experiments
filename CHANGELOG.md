@@ -11,6 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: while a test is collecting data, results name the smallest group and how many people it still needs, instead of a count that read as the total.
 - Fixed: after Recompute, the results page's status line shows the updated number of people.
 
 ## [0.2.0-rc.6] - 2026-11-03

@@ -179,10 +179,10 @@
   "verdict": {
     "row": 4,
     "code": "collecting",
-    "finding": "Collecting data: 360 of 1000 people, 37 of 150 conversions.",
+    "finding": "Collecting data.",
     "action": null,
-    "headline": "Collecting data: 360 of 1000 people, 37 of 150 conversions.",
-    "detail": "More people or conversions are needed before drawing a conclusion.",
+    "headline": "Collecting data.",
+    "detail": "Smallest group so far: Shorter form, 360 of the 1000 people it needs. Conversions so far: 37 of 150 needed.",
     "recommendedArm": null
   },
   "contentChanges": []
