@@ -10,13 +10,16 @@ import { Banner, EmptyState, StatusChip } from '../../ui/Feedback.js'
 import { Button } from '../../ui/Button.js'
 import { SearchInput } from '../../ui/Inputs.js'
 import { SurfaceShell } from './SurfaceShell.js'
+import type { SurfaceShellProps } from './SurfaceShell.js'
 import { groupTests, homeCard } from './home.model.js'
 import type { HomeTest } from './home.model.js'
 
 type State = { loading: true } | { loading: false; error: true } | {
   loading: false; error: false; tests: HomeTest[]; summaries: SummaryResponse; summaryError: boolean; limited: boolean
 }
-export function TestsHome({ adminRoute, apiRoute, canManage = false }: { adminRoute: string; apiRoute: string; canManage?: boolean }) {
+export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs }: {
+  adminRoute: string; apiRoute: string; canManage?: boolean; crumbs?: SurfaceShellProps['crumbs']
+}) {
   const api = useMemo(() => createApi(apiRoute), [apiRoute])
   const [state, setState] = useState<State>({ loading: true })
   const [search, setSearch] = useState('')
@@ -45,7 +48,7 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false }: { adminRo
   }, [api, apiRoute, attempt])
   const retry = <Button size="sm" onClick={() => setAttempt(value => value + 1)}>{SURFACE_COPY.retry}</Button>
   const newTest = <Button variant="primary" href={formatAdminURL({ adminRoute, path: '/experiments/new' })}>{SURFACE_COPY.newTest}</Button>
-  return <SurfaceShell adminRoute={adminRoute} actions={<>
+  return <SurfaceShell adminRoute={adminRoute} crumbs={crumbs} actions={<>
     <div className="xp-tests-search">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3.5 3.5" /></svg>
       <SearchInput id="xp-tests-search" label={SURFACE_COPY.search} placeholder={SURFACE_COPY.search}

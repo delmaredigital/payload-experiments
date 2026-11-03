@@ -61,7 +61,7 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
   }
 
   const collections = [...new Set(pages?.map(page => page.collection))]
-  return <main className="xp-new-test">
+  return <div className="xp-new-test">
     {step === 'kind' ? <>
       <h1>{C.question}</h1>
       <div className="xp-new-test-cards">
@@ -113,5 +113,5 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
       }}>{C.back}</button>
       {step === 'setting' ? <button type="button" disabled={!point} onClick={() => setStep('name')}>{C.next}</button> : null}
     </div>
-  </main>
+  </div>
 }

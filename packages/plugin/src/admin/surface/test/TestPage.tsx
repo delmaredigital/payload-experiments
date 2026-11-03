@@ -24,7 +24,7 @@ export function TestPage({ id, surface }: { id: DocId; surface: SurfaceProps }) 
   </div>
   const parts = test.doc.kind === 'block' ? pageBlockParts : test.doc.kind === 'page' ? pageParts : settingParts
   const props = { test, surface }
-  return <main className="xp-test-page"><TestHeader {...props} />
+  return <div className="xp-test-page"><TestHeader {...props} />
     {test.errors._section ? <div role="alert"><p>{test.errors._section}</p>
       {test.stale ? <button type="button" onClick={() => void test.reload()}>{C.reload}</button> : null}
     </div> : null}
@@ -32,5 +32,5 @@ export function TestPage({ id, surface }: { id: DocId; surface: SurfaceProps }) 
     <Section test={test} sectionId="what"><parts.Binding {...props} /><Hypothesis {...props} /></Section>
     <VersionsSection {...props} parts={parts} /><GoalSection {...props} /><TargetingSection {...props} />
     <LengthSection {...props} /><AdvancedSection {...props} />
-  </main>
+  </div>
 }
