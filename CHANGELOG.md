@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.2.0-rc.5] - 2026-11-03
+
+### plugin
+
 - Changed: the sidebar shows a Tests group (All tests, Goals) to users who can manage tests; the dashboard shows All tests and Goals cards to users who can manage tests. Hosts must run `payload generate:importmap` after upgrading to register the new dashboard component.
 - Every plugin collection and global now states `versions` explicitly (`false`, except Tests, which keep their version history). No schema change on Payload 3; prevents default versioning tables on Payload 4.
 - Fixed: preview links list each page once, even when it has a published version and a newer draft; a page holding the test more than once shows how many times.

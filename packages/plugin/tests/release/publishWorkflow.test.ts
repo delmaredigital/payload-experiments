@@ -142,6 +142,12 @@ describe('release validation against an isolated repository fixture', () => {
     expect(result.stderr).toContain("no non-empty '### plugin' subsection")
   })
 
+  test('accepts fourth-level subheadings inside the package subsection', () => {
+    writeFileSync(join(root, 'CHANGELOG.md'), `## [${pluginVersion}]\n\n### plugin\n\n#### Fixed\n\n- A fix.\n`)
+    const result = validate(`plugin-v${pluginVersion}`)
+    expect(result.status, result.stderr).toBe(0)
+  })
+
   test('accepts a stable stats tag with latest and no prerelease argument', () => {
     const result = validate(`stats-v${statsVersion}`)
     expect(result.status, result.stderr).toBe(0)
