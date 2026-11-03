@@ -181,7 +181,8 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           if (error && typeof error === 'object' && 'code' in error && error.code === 'locked-placement') throw error
           const missing = error && typeof error === 'object' && 'status' in error && error.status === 404
           req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content read failed')
-          const detail = contentFailureReason(error)
+          // A 404 means the placement is gone: nothing to update, so ok and detail must agree.
+          const detail: ContentReportReason = missing ? 'not-found' : contentFailureReason(error)
           docs.push({ collection, id, ok: Boolean(missing), detail, ...(!missing ? { error: detail } : {}) })
           skipped.add(key)
         } finally { req.transactionID = transactionID }

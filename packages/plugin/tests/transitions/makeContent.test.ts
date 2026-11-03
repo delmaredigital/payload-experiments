@@ -410,6 +410,19 @@ test.each([
 })
 
 
+test('a retained page read that fails with a plain 404 reports ok with not-found, never update-failed', async () => {
+  const f = fixture()
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
+  const findByID = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    if (args.collection === 'pages' && args.id === 3 && args.disableErrors) throw Object.assign(new Error('secret-value gone'), { status: 404 })
+    return findByID(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs).toContainEqual({ collection: 'pages', id: 3, ok: true, detail: 'not-found' })
+  expect(JSON.stringify(result)).not.toContain('secret-value')
+})
+
 test('a retained page read-hook failure is update-failed, stays decided, and keeps row data private', async () => {
   const f = fixture()
   f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
