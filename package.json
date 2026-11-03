@@ -17,7 +17,8 @@
     "fixtures:admin-nav": "vitest run --config vitest.fixtures.config.ts packages/plugin/tests-fixtures/admin",
     "generate:editor-css": "node scripts/generate-editor-css.mjs",
     "fixtures:admin-home": "vitest run --config vitest.fixtures.config.ts packages/plugin/tests-fixtures/admin/renderHomeFixtures.fixture.tsx",
-    "fixtures:ui": "vitest run --config vitest.fixtures.config.ts packages/plugin/tests-fixtures/ui"
+    "fixtures:ui": "vitest run --config vitest.fixtures.config.ts packages/plugin/tests-fixtures/ui",
+    "fixtures:admin-test": "vitest run --config vitest.fixtures.config.ts packages/plugin/tests-fixtures/admin/renderTestPageFixtures.fixture.tsx"
   },
   "devDependencies": {
     "@swc/cli": "^0.8.1",

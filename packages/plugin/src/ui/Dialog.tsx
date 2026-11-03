@@ -13,12 +13,12 @@ function focusable(node: HTMLDialogElement): HTMLElement[] {
   })
 }
 /** Native modal stays in its rendering document, including a Puck canvas iframe. */
-export function Dialog({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
+export function Dialog({ open, title, onClose, children, dismissible = true }: { open: boolean; dismissible?: boolean; title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null)
   const heading = useId()
   const closeRequested = useRef(false)
   const requestClose = () => {
-    if (!open || closeRequested.current) return
+    if (!open || !dismissible || closeRequested.current) return
     closeRequested.current = true
     onClose()
   }

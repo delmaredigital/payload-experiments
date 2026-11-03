@@ -10,6 +10,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### stats
 
 ### plugin
+- Changed: the test page has a step list, numbered sections and a readiness bar with Start at the bottom.
+
 
 - Changed: the Tests home shows tests as compact rows grouped by what needs doing, with a health label and one-line status for each.
 - Added: `compileManifest` and its input/output types are exported from `/rsc`, so host tests can build a manifest without importing from `dist/` (a test helper: pass the same `attributeKeys` as the plugin options; its input shape may change in a pre-1.0 minor). Migration impact: none.

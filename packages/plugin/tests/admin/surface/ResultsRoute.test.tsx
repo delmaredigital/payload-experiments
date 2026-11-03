@@ -33,12 +33,6 @@ test('results-only readers render the body without requesting the manager docume
   expect(screen.queryByLabelText('Test name')).toBeNull()
   expect(screen.queryByText(/access/)).toBeNull()
 })
-test('the default setup header retains its Results link', () => {
-  const p = props({ status: 'running' })
-  render(<TestHeader {...p} surface={{ ...p.surface, canReadResults: true }} />)
-  expect(screen.getByRole('link', { name: 'Results' }).getAttribute('href')).toBe('/admin/experiments/xp1/results')
-  expect(screen.queryByRole('link', { name: 'Back to setup' })).toBeNull()
-})
 test('a manager can retry a failed document read while results remain available', () => {
   const p = props({}, { loadState: 'error', doc: null })
   mocks.hook.mockReturnValue(p.test)

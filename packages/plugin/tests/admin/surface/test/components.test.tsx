@@ -17,6 +17,7 @@ import { pageBlockParts } from '../../../../src/admin/surface/pageBlock/parts.js
 import { EDITABLE_BY_STATUS } from '../../../../src/collections/experiments/editability.js'
 import { lockedReason } from '../../../../src/admin/lockedNotice.model.js'
 
+vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
 const hook = vi.hoisted(() => vi.fn())
 vi.mock('../../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: hook }))
 vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
@@ -138,7 +139,6 @@ test('running sections show read-only values and the exact lock reason', async (
   expect(screen.queryByLabelText('Goal')).toBeNull()
   expect(screen.queryByText('Add a version')).toBeNull()
   expect(screen.getAllByText(lockedReason('running', 'arms', EDITABLE_BY_STATUS)! as string).length).toBeGreaterThan(0)
-  expect(screen.getByText('Results').getAttribute('href')).toBe('/cms/experiments/test%2F1/results')
   expect(p.test.stage).not.toHaveBeenCalled()
   await waitFor(() => expect(screen.getByText('Goal')).toBeTruthy())
 })
@@ -381,6 +381,7 @@ test.each([
 ] as const)('Advanced renders exactly the allowed exposure options for %s', (kind, labels) => {
   const p = props({ kind, exposurePolicy: kind === 'block' ? 'render' : kind === 'page' ? 'pageview' : 'manual' })
   render(<AdvancedSection {...p} />)
+  fireEvent.click(screen.getByText('Advanced settings · for developers'))
   expect(within(screen.getByLabelText('Exposure policy')).getAllByRole('option').map(option => option.textContent)).toEqual(labels)
 })
 test('a goal missing from a successful load reads as no longer existing', async () => {
@@ -423,4 +424,23 @@ test('deleting a list rule cannot transfer its unfinished chip draft to the next
   fireEvent.keyDown(remaining, { key: 'Enter' })
   expect(p.test.stage).toHaveBeenCalledTimes(1)
   expect(p.test.doc!.targeting).toEqual([{ attribute: 'path', op: 'in', value: ['CA'] }])
+})
+
+test('real Shell owns the setup title, name breadcrumb, chips and Results link with Start only at the bottom', async () => {
+  metricsFetch()
+  const p = props({ status: 'running' })
+  hook.mockReturnValue(p.test)
+  const view = render(<TestPage id={p.test.doc!.id} surface={surface} />)
+  const shell = view.container.querySelector<HTMLElement>('.xp-tests-shell-header')!
+  expect(within(shell).getByRole('heading', { name: 'Welcome test', level: 1 })).toBeTruthy()
+  expect(within(within(shell).getByRole('navigation', { name: 'Breadcrumb' })).getByText('Welcome test').getAttribute('aria-current')).toBe('page')
+  expect(within(shell).getByText('Page block')).toBeTruthy()
+  expect(within(shell).getByText('Running')).toBeTruthy()
+  expect(within(shell).getByRole('link', { name: 'Results' }).getAttribute('href')).toBe('/cms/experiments/test%2F1/results')
+  expect(within(shell).queryByRole('button', { name: /^Start/ })).toBeNull()
+  expect(screen.getByRole('region', { name: 'Readiness' }).contains(screen.getByRole('button', { name: 'Stop' }))).toBe(true)
+  expect(view.container.querySelectorAll('.xp-ui-section')).toHaveLength(5)
+  expect(view.container.querySelectorAll('.xp-ui-section-number')).toHaveLength(5)
+  expect(view.container.querySelector('.xp-test-page--setup')?.getAttribute('style')).toContain('padding-bottom: 0px')
+  await waitFor(() => expect(screen.getByText('Goal')).toBeTruthy())
 })

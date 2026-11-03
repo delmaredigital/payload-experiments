@@ -1,5 +1,6 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { formatAdminURL } from 'payload/shared'
 import type { DocId } from '../../../types/contracts.js'
 import type { SurfaceProps } from '../contracts.js'
 import { useTestDocument } from '../useTestDocument.js'
@@ -15,24 +16,36 @@ import { GoalSection } from './GoalSection.js'
 import { TargetingSection } from './TargetingSection.js'
 import { LengthSection } from './LengthSection.js'
 import { AdvancedSection } from './AdvancedSection.js'
+import { SurfaceShell } from '../SurfaceShell.js'
+import { Button } from '../../../ui/Button.js'
+import { Banner, StatusChip } from '../../../ui/Feedback.js'
+import { Rail } from './Rail.js'
+import { ReadinessBar } from './ReadinessBar.js'
 import './testPage.css'
 
 export function TestPage({ id, surface, onTitleChange }: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {
+  const [barHeight, setBarHeight] = useState<number>()
   const test = useTestDocument(id, { apiRoute: surface.apiRoute })
   useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
-  if (test.loadState !== 'ready' || !test.doc) return <div className="xp-test-page" role={test.loadState === 'error' ? 'alert' : 'status'}>
+  if (test.loadState !== 'ready' || !test.doc) return <SurfaceShell adminRoute={surface.adminRoute} title="Test"><div className="xp-test-page" role={test.loadState === 'error' ? 'alert' : 'status'}>
     <p>{test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading}</p>
-    {test.loadState === 'error' ? <button type="button" onClick={() => void test.reload()}>{C.retry}</button> : null}
-  </div>
+    {test.loadState === 'error' ? <Button onClick={() => void test.reload()}>{C.retry}</Button> : null}
+  </div></SurfaceShell>
   const parts = test.doc.kind === 'block' ? pageBlockParts : test.doc.kind === 'page' ? pageParts : settingParts
   const props = { test, surface }
-  return <div className="xp-test-page"><TestHeader {...props} />
-    {test.errors._section ? <div role="alert"><p>{test.errors._section}</p>
-      {test.stale ? <button type="button" onClick={() => void test.reload()}>{C.reload}</button> : null}
-    </div> : null}
-    {test.preflightError ? <p role="alert">{test.preflightError}</p> : null}
+  return <SurfaceShell adminRoute={surface.adminRoute} title={test.doc.name}
+    crumbs={[{ label: 'Tests', href: formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }) }, { label: test.doc.name }]}
+    status={<><span className="xp-tests-kind">{C.kinds[test.doc.kind]}</span><StatusChip status={test.doc.status} /></>}
+    actions={surface.canReadResults && ['running', 'stopped', 'decided'].includes(test.doc.status)
+      ? <Button variant="secondary" href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(test.doc.id))}/results` })}>{C.results}</Button> : undefined}>
+    <div className="xp-test-page xp-test-page--setup" style={{ paddingBottom: barHeight === undefined ? undefined : `${barHeight}px` }}>
+    <TestHeader {...props} />
+    <div className="xp-test-layout"><Rail test={test} /><div className="xp-test-content">
+    {test.errors._section ? <Banner tone="error" action={test.stale ? <Button onClick={() => void test.reload()}>{C.reload}</Button> : undefined}>{test.errors._section}</Banner> : null}
     <Section test={test} sectionId="what"><parts.Binding {...props} /><Hypothesis {...props} /></Section>
     <VersionsSection {...props} parts={parts} /><GoalSection {...props} /><TargetingSection {...props} />
     <LengthSection {...props} /><AdvancedSection {...props} />
-  </div>
+    </div></div>
+    <ReadinessBar {...props} onHeightChange={setBarHeight} />
+  </div></SurfaceShell>
 }

@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
 import { Button } from '../../src/ui/Button.js'
-import { TextInput, NumberInput, SearchInput, Select, Toggle } from '../../src/ui/Inputs.js'
+import { TextInput, NumberInput, SearchInput, Select, Toggle, Textarea, Checkbox, CheckboxList, Range } from '../../src/ui/Inputs.js'
 import { ChipsInput } from '../../src/ui/ChipsInput.js'
 import { Card, SectionCard } from '../../src/ui/Card.js'
 import { Tabs } from '../../src/ui/Tabs.js'
@@ -44,6 +44,15 @@ function Primitives() {
       <ChipsInput id="chips" label="Page paths" value={['/registration', '/thank-you']} onChange={noop} description="Add one value per chip." placeholder="Type a value and press Enter" />
       <ChipsInput id="chips-error" label="Chips with error" value={[]} onChange={noop} error="Add at least one value." />
       <ChipsInput id="chips-disabled" label="Chips disabled" value={['/registration']} onChange={noop} disabled />
+    </Group>
+    <Group title="New controls">
+      <Textarea id="why" label="Why are you testing this?" defaultValue="We believe a shorter ask will raise donations." help="A sentence for your team." />
+      <Textarea id="why-error" label="Notes with error" error="Add a sentence." /><Textarea id="why-disabled" label="Notes disabled" disabled />
+      <Checkbox id="include" label="Include this goal" defaultChecked help="Track this alongside the main goal." />
+      <Checkbox id="check-error" label="Checkbox with error" error="Choose this option." /><Checkbox id="check-disabled" label="Checkbox disabled" disabled />
+      <CheckboxList id="watch" label="Also watch" value={['donation']} options={[{ value: 'donation', label: 'Donation amount' }, { value: 'register', label: 'Registrations' }]} onChange={noop} help="Pick the goals to watch." />
+      <Range id="range" label="How many people take part" min={1} max={100} defaultValue={40} help="40% of visitors take part." />
+      <Range id="range-error" label="Range with error" error="Choose a share." /><Range id="range-disabled" label="Range disabled" disabled />
     </Group>
     <Group title="Containers"><Card>A plain card.</Card><SectionCard number={1} title="What you're testing" complete>Ready to go.</SectionCard>
       <SectionCard number={2} title="What counts as a win">Choose a goal.</SectionCard>

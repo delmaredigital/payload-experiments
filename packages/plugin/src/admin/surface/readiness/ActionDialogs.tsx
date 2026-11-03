@@ -1,12 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { Button, TextInput } from '@payloadcms/ui'
+import { Button } from '../../../ui/Button.js'
+import { TextInput } from '../../../ui/Inputs.js'
+import { Dialog } from '../../../ui/Dialog.js'
 import type { AddMetricBody, MakeContentResult as ContentResult } from '../../../types/endpoints.js'
 import type { DocId } from '../../../types/contracts.js'
 import type { SectionProps } from '../contracts.js'
 import type { ExperimentAction } from '../../actions/actions.model.js'
-import { DialogFrame } from '../../actions/ConfirmDialog.js'
 import { MakeContentResult } from '../../actions/MakeContentResult.js'
 import { expectedConfirm, matchesConfirm } from '../../../transitions/confirmPhrases.js'
 import { ACTIONS_COPY as A } from '../../copy/actions.js'
@@ -48,17 +49,17 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
     if (content) void test.reload()
     onClose()
   }
-  return <DialogFrame title={action.confirm.title} onClose={close}>
+  return <Dialog open dismissible={!transition.busy} title={action.confirm.title} onClose={close}>
     {content ? <MakeContentResult result={content} onRetry={submit} busy={transition.busy} /> : <>
       <p>{action.confirm.body}</p>
       {phrase ? <><p>{A.typePhrase} <strong>{phrase}</strong></p>
-        <TextInput path="xp-confirmation" label={A.confirmation} value={typed} readOnly={transition.busy} onChange={(event: ChangeEvent<HTMLInputElement>) => setTyped(event.target.value)} />
+        <TextInput id="xp-confirmation" label={A.confirmation} value={typed} readOnly={transition.busy} onChange={(event: ChangeEvent<HTMLInputElement>) => setTyped(event.target.value)} />
       </> : null}
     </>}
     {transition.error ? <p role="alert">{transition.error}</p> : null}
     {!content ? <Button disabled={!enabled} onClick={() => { void submit() }}>{action.label}</Button> : null}
     <Button disabled={transition.busy} onClick={close}>{content ? A.done : A.cancel}</Button>
-  </DialogFrame>
+  </Dialog>
 }
 
 /** AllocateDialog's validation and copy, with data supplied by the test document. */
@@ -69,7 +70,7 @@ export function AllocateAction({ test, surface, onClose }: Props) {
   const allocation = Number(value)
   const valid = value.trim() !== '' && Number.isInteger(allocation) && allocation > current && allocation <= 100
   const disabled = transition.busy || test.hasUnsaved || test.saving === 'saving'
-  return <DialogFrame title={C.allocate} onClose={() => { if (!transition.busy) onClose() }}>
+  return <Dialog open dismissible={!transition.busy} title={C.allocate} onClose={() => { if (!transition.busy) onClose() }}>
     <p>{R.allocationBody}</p>
     <label>{C.participation}<input type="number" min={current + 1} max={100} step={1} value={value} disabled={disabled}
       onChange={event => setValue(event.target.value)} /></label>
@@ -79,7 +80,7 @@ export function AllocateAction({ test, surface, onClose }: Props) {
       if (valid && test.doc) void transition.run(() => createApi(surface.apiRoute).allocate(test.doc!.id, { allocation }))
     }}>{C.allocate}</Button>
     <Button disabled={transition.busy} onClick={onClose}>{A.cancel}</Button>
-  </DialogFrame>
+  </Dialog>
 }
 
 /** AddMetricDialog adapter; the primary goal is deliberately absent from the role picker. */
@@ -109,7 +110,7 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
   const available = metrics.filter(item => !attached.has(String(item.id)))
   const selected = available.find(item => String(item.id) === metric)
   const disabled = transition.busy || test.hasUnsaved || test.saving === 'saving'
-  return <DialogFrame title={C.addMetric} onClose={() => { if (!transition.busy) onClose() }}>
+  return <Dialog open dismissible={!transition.busy} title={C.addMetric} onClose={() => { if (!transition.busy) onClose() }}>
     {loading ? <p role="status">{R.loadingMetrics}</p> : null}
     <label>{R.role}<select value={role} disabled={disabled} onChange={event => setRole(event.target.value as AddMetricBody['role'])}>
       <option value="secondary">{R.supporting}</option><option value="guardrail">{R.guardrail}</option>
@@ -124,5 +125,5 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
       if (selected && test.doc) void transition.run(() => createApi(surface.apiRoute).addMetric(test.doc!.id, { metric: selected.id, role }))
     }}>{C.addMetric}</Button>
     <Button disabled={transition.busy} onClick={onClose}>{A.cancel}</Button>
-  </DialogFrame>
+  </Dialog>
 }

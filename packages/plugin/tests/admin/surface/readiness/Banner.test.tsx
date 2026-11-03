@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { ACTIONS_COPY } from '../../../../src/admin/copy/actions.js'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { Banner } from '../../../../src/admin/surface/readiness/Banner.js'
 import * as adminApi from '../../../../src/admin/api.js'
 import { SaveStatus } from '../../../../src/admin/surface/readiness/SaveStatus.js'
@@ -11,6 +11,10 @@ import { resetPayloadUiMock } from '../../_helpers/payloadUiMock.js'
 import { props, preflight, doc } from './fixtures.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+})
 afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks() })
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status })
 const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement
@@ -256,7 +260,7 @@ test.each(['secondary', 'guardrail'])('metric adapter excludes attached goals an
   expect(fetcher.mock.calls[1]?.[0]).toBe('/custom-api/xp/experiments/xp1/add-metric')
   expect(JSON.parse(fetcher.mock.calls[1]?.[1].body)).toEqual({ metric: 4, role })
 })
-test.each([['idle', null], ['saving', 'Saving…'], ['saved', 'Saved'], ['error', "Couldn't save — see the highlighted field"]] as const)('SaveStatus %s', (saving, sentence) => {
+test.each([['idle', 'Saved'], ['saving', 'Saving…'], ['saved', 'Saved'], ['error', "Couldn't save — see the highlighted field"]] as const)('SaveStatus %s', (saving, sentence) => {
   render(<SaveStatus test={props({}, { saving }).test} />)
   if (sentence) expect(screen.getByText(sentence)).toBeTruthy()
   else expect(screen.queryByRole('status')).toBeNull()
@@ -305,4 +309,18 @@ test('unchecked version pages warn while Start stays enabled', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'page-targets-unchecked', ok: true, warning: true }]) })} />)
   expect(screen.getByText("Version pages aren't checked; make sure each one is published.")).toBeTruthy()
   expect(button('Start').disabled).toBe(false)
+})
+
+test('Escape during a busy transition does not prevent dismissal after its refusal', async () => {
+  let resolve!: (value: Response) => void
+  vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise<Response>(done => { resolve = done })))
+  render(<Banner {...props({ status: 'running' })} />)
+  fireEvent.click(button('Stop'))
+  fireEvent.click(dialogButton('Stop'))
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+  expect(screen.getByRole('dialog')).toBeTruthy()
+  await act(async () => { resolve(response({ errors: [{ message: 'Refused.' }] }, 409)) })
+  expect(await screen.findByRole('alert')).toBeTruthy()
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+  expect(screen.queryByRole('dialog')).toBeNull()
 })

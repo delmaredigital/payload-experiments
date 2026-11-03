@@ -14,11 +14,11 @@ export function TestHeader({ test, surface, resultsVersion, view = 'setup' }: Se
   return <header className="xp-test-header">
     <TextEdit label={C.name} value={doc.name} reason={reasonFor(test, 'name')} onCommit={value => save(test, 'name', () => ({ name: value }))} />
     <FieldErrors test={test} path="name" />
-    <div className="xp-header-meta"><span className="xp-kind-chip">{C.kinds[doc.kind]}</span>
+    {view === 'results' ? <><div className="xp-header-meta"><span className="xp-kind-chip">{C.kinds[doc.kind]}</span>
       <span className={`xp-status-pill xp-status-pill--${pill.tone}`} title={pill.tooltip}>{pill.label}</span>
       <readinessParts.SaveStatus test={test} />
       {view === 'results' ? <a href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(doc.id))}` })}>{SURFACE_COPY.backToSetup}</a> : surface.canReadResults && ['running', 'stopped', 'decided'].includes(doc.status)
         ? <a href={`${surface.adminRoute}/experiments/${encodeURIComponent(String(doc.id))}/results`}>{C.results}</a> : null}</div>
-    <readinessParts.Banner test={test} surface={surface} resultsVersion={resultsVersion} />
+    <readinessParts.Banner test={test} surface={surface} resultsVersion={resultsVersion} /></> : null}
   </header>
 }
