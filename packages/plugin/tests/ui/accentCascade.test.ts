@@ -13,7 +13,7 @@ test.each(['light', 'dark'] as const)('host %s accent wins even when theme.css l
   // jsdom does not implement selector specificity in its custom property cascade.
   // Compare matching selector specificity directly; the override has two classes/
   // pseudo-classes, theme.css has one, so source order cannot undo it.
-  const matching = (text: string) => [...text.matchAll(/([^{}]+)\{[^{}]*--xp-accent:/g)].flatMap(m => m[1]!.trim().split(',')).map(s => s.trim()).filter(s => document.documentElement.matches(s))
+  const matching = (text: string) => [...text.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{[^{}]*--xp-accent:/g)].flatMap(m => m[1]!.trim().split(',')).map(s => s.trim()).filter(s => document.documentElement.matches(s))
   const specificity = (s: string) => (s.match(/\[[^\]]+\]|:(?!:)[\w-]+/g) ?? []).length
   const overrides = matching(host.textContent)
   const defaults = matching(base.textContent)

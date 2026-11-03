@@ -16,19 +16,26 @@ function focusable(node: HTMLDialogElement): HTMLElement[] {
 export function Dialog({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null)
   const heading = useId()
+  const closeRequested = useRef(false)
+  const requestClose = () => {
+    if (!open || closeRequested.current) return
+    closeRequested.current = true
+    onClose()
+  }
   useEffect(() => {
     const node = ref.current
     if (!node || !open) return
     const doc = node.ownerDocument
     const previous = doc.activeElement as HTMLElement | null
+    closeRequested.current = false
     node.showModal()
     const first = focusable(node)[0]
     ;(first ?? node).focus()
     return () => { node.close(); if (previous?.isConnected) previous.focus() }
   }, [open])
-  return <dialog ref={ref} aria-labelledby={heading} className="xp-ui-dialog" tabIndex={-1} onCancel={event => { event.preventDefault(); onClose() }}
+  return <dialog ref={ref} aria-labelledby={heading} className="xp-ui-dialog" tabIndex={-1} onCancel={event => { event.preventDefault(); requestClose() }}
     onKeyDown={event => {
-      if (event.key === 'Escape') { event.preventDefault(); onClose(); return }
+      if (event.key === 'Escape') { event.preventDefault(); requestClose(); return }
       if (event.key !== 'Tab') return
       const node = event.currentTarget
       const elements = focusable(node)

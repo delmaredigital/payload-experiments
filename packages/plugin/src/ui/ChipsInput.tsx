@@ -31,7 +31,7 @@ export function ChipsInput({ value, onChange, label, description, help = descrip
   }
   return <div className="xp-ui-chips" role="group" aria-labelledby={`${id}-label`} aria-disabled={disabled}>
     <label id={`${id}-label`} htmlFor={id}>{label}</label>
-    <div className="xp-ui-chips-control">
+    <div className={`xp-ui-chips-control${error ? ' xp-ui-chips-control--invalid' : ''}`}>
       {value.map((item, index) => <span className="xp-ui-chips-item" key={item}>
         <span>{item}</span>
         <button type="button" disabled={disabled} aria-label={`Remove ${item}`} onClick={() => remove(index)}>{'×'}</button>

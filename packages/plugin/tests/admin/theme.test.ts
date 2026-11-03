@@ -3,6 +3,8 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
+import { referencePalette } from '../../../../scripts/generate-editor-css.mjs'
+import { contrast } from '../../src/ui/accent.js'
 
 const src = fileURLToPath(new URL('../../src/', import.meta.url))
 const themePath = join(src, 'admin/theme.css')
@@ -82,7 +84,7 @@ test('the design vocabulary is complete and mirrored by theme.ts', () => {
   const css = readFileSync(themePath, 'utf8')
   const ts = readFileSync(join(src, 'admin/theme.ts'), 'utf8')
   const names = ['bg', 'surface', 'surface-2', 'surface-3', 'border', 'border-strong', 'text', 'text-2', 'text-3',
-    'accent', 'accent-hover', 'accent-active', 'accent-subtle', 'accent-fg', 'focus', 'series-a', 'series-b', 'series-muted',
+    'accent', 'accent-text', 'accent-hover', 'accent-active', 'accent-subtle', 'accent-fg', 'focus', 'series-a', 'series-b', 'series-muted',
     'radius-control', 'radius-card', 'radius-chip', 'font', 'mono', 'text-display', 'text-title', 'text-body', 'text-small', 'motion',
     ...Array.from({ length: 8 }, (_, index) => `space-${index + 1}`),
     ...['success', 'warning', 'error'].flatMap(name => [name, `${name}-bg`, `${name}-border`])]
@@ -90,4 +92,41 @@ test('the design vocabulary is complete and mirrored by theme.ts', () => {
     expect(css).toContain(`--xp-${name}:`)
     expect(ts).toContain(`var(--xp-${name})`)
   }
+})
+
+function themeTokens(mode: 'light' | 'dark') {
+  const css = readFileSync(themePath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+  const split = css.indexOf('[data-theme="dark"]')
+  const parse = (source: string): Record<string, string> => Object.fromEntries(
+    [...source.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map(m => [m[1]!, m[2]!.trim()]))
+  const tokens = { ...parse(css.slice(0, split)), ...(mode === 'dark' ? parse(css.slice(split)) : {}) }
+  const palette = referencePalette(mode)
+  const resolve = (value: string): string => value.replace(/var\((--[\w-]+)\)/g, (_, name: string) => resolve(tokens[name] ?? palette[name]!))
+  return { tokens, resolve }
+}
+
+test.each(['light', 'dark'] as const)('%s semantic literals contrast with their backgrounds and the reference surface', mode => {
+  const { tokens, resolve } = themeTokens(mode)
+  const expected = mode === 'light'
+    ? { success: ['#1a6a3a', '#e8f4ec', '#bddfc9'], warning: ['#8a5a0b', '#fbf3e1', '#ecd6a2'], error: ['#a63030', '#fbeaea', '#efc3c3'] }
+    : { success: ['#7fd49c', '#142b1d', '#23492f'], warning: ['#e7bd5c', '#2b2312', '#4d3d17'], error: ['#f09494', '#2f1717', '#5a2626'] }
+  for (const [name, literals] of Object.entries(expected)) {
+    const [fg, bg, border] = ['', '-bg', '-border'].map(suffix => tokens[`--xp-${name}${suffix}`]!)
+    expect([fg, bg, border]).toEqual(literals)
+    expect(contrast(fg!, bg!)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(fg!, resolve(tokens['--xp-surface']!).replace(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/, (_, ...channels: string[]) => '#' + channels.slice(0, 3).map(v => Number(v).toString(16).padStart(2, '0')).join('')))).toBeGreaterThanOrEqual(4.5)
+    // Borders are decorative; they carry no text and are not text-contrast gated.
+    for (const suffix of ['text', 'text-strong']) {
+      if (tokens[`--xp-${name}-${suffix}`]) expect(resolve(tokens[`--xp-${name}-${suffix}`]!)).toBe(fg)
+    }
+  }
+})
+
+test.each(['light', 'dark'] as const)('%s has five distinct reference surface steps and neutral default accent text', mode => {
+  const { tokens, resolve } = themeTokens(mode)
+  const surfaces = ['bg', 'surface', 'surface-2', 'surface-3', 'accent-subtle'].map(name => resolve(tokens[`--xp-${name}`]!))
+  expect(new Set(surfaces).size).toBe(5)
+  expect(resolve(tokens['--xp-accent-text']!)).toBe(resolve(tokens['--xp-text']!))
+  expect(tokens['--xp-accent-text-decoration']).toBe('none')
+  expect([tokens['--xp-series-a'], tokens['--xp-series-b']]).toEqual(mode === 'light' ? ['#2a78d6', '#eb6834'] : ['#3987e5', '#d95926'])
 })

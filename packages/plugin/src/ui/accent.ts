@@ -1,4 +1,4 @@
-export interface AccentSet { accent: string; hover: string; active: string; subtle: string; fg: string; focus: string }
+export interface AccentSet { accent: string; hover: string; active: string; subtle: string; fg: string; focus: string; accentText: string; accentTextDecoration: 'none' | 'underline' }
 type RGB = [number, number, number]
 function rgb(hex: string): RGB {
   if (!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) throw new Error(`Invalid accent hex colour: ${hex}`)
@@ -27,35 +27,45 @@ function lighten(hex: string, amount: number): string {
   const scale = l === 1 ? 0 : (1 - Math.abs(2 * next - 1)) / (1 - Math.abs(2 * l - 1) || 1)
   return hexOf(channels.map(v => (next + (v - l) * scale) * 255) as RGB)
 }
-function set(accent: string, surface: string): AccentSet {
+/** Bounded, quantised search toward the surface's opposite. */
+function againstSurface(accent: string, surface: string, minimum: number): string | undefined {
+  const opposite = luminance(surface) > 0.179 ? '#000000' : '#ffffff'
+  for (let step = 0; step <= 1000; step++) {
+    const candidate = mix(accent, opposite, step / 1000)
+    if (contrast(candidate, surface) >= minimum) return candidate
+  }
+  return undefined
+}
+function set(accent: string, surface: string, dark = false): AccentSet {
   const fg = contrast(accent, '#ffffff') >= contrast(accent, '#141414') ? '#ffffff' : '#141414'
-  // Keep one foreground across all interaction states. Clamp darkening near the
-  // text-contrast boundary; a colour exactly at that boundary may stay unchanged.
+  // Light fills with dark text lighten on interaction. Dark-theme fills follow
+  // the default dark tokens and also lighten. Clamp to preserve one foreground.
+  const target = dark || fg === '#141414' ? '#ffffff' : '#000000'
   let low = 0, high = 0.24
   for (let i = 0; i < 24; i++) {
     const amount = (low + high) / 2
-    if (contrast(mix(accent, '#000000', amount), fg) >= 4.5) low = amount
+    if (contrast(mix(accent, target, amount), fg) >= 4.5) low = amount
     else high = amount
   }
-  const amount = contrast(mix(accent, '#000000', 0.24), fg) >= 4.5 ? 0.24 : low
-  let focus = accent
-  for (let step = 1; contrast(focus, surface) < 3 && step <= 1000; step++) focus = mix(accent, '#000000', step / 1000)
-  return { accent, hover: mix(accent, '#000000', amount / 2), active: mix(accent, '#000000', amount),
-    subtle: mix(surface, accent, 0.08), fg, focus }
+  const amount = contrast(mix(accent, target, 0.24), fg) >= 4.5 ? 0.24 : low
+  const accentText = againstSurface(accent, surface, 4.5)
+  return { accent, hover: mix(accent, target, amount / 2), active: mix(accent, target, amount),
+    subtle: mix(surface, accent, 0.08), fg, focus: againstSurface(accent, surface, 3) ?? 'var(--xp-text)',
+    accentText: accentText ?? 'var(--xp-text)', accentTextDecoration: accentText ? 'none' : 'underline' }
 }
 /** Pure shared host-accent derivation. Reference surfaces match theme.css's Payload
  * 3.90.2 white / elevation-50 dark. Dark adjustment increases HSL lightness until
- * the quantised hex reaches 3:1. Hover/active darken up to 12/24%, clamped to preserve text contrast; subtle is 8% tint. */
+ * the quantised hex reaches 3:1. Hover/active move up to 12/24% in the interaction direction, clamped to preserve text contrast; subtle is 8% tint. */
 export function deriveAccent(input: string): { light: AccentSet; dark: AccentSet } {
   const accent = hexOf(rgb(input))
   let dark = accent
   for (let step = 1; contrast(dark, '#222222') < 3 && step <= 1000; step++) dark = lighten(accent, step / 1000)
-  return { light: set(accent, '#ffffff'), dark: set(dark, '#222222') }
+  return { light: set(accent, '#ffffff'), dark: set(dark, '#222222', true) }
 }
 /** Validated hex values only; specificity exceeds theme.css regardless of load order. */
 export function accentStyles(input?: string): string | undefined {
   if (!input) return undefined
   const sets = deriveAccent(input)
-  const declarations = (s: AccentSet) => Object.entries(s).map(([name, value]) => `--xp-${name === 'focus' ? name : name === 'accent' ? name : `accent-${name}`}:${value};`).join('')
+  const declarations = (s: AccentSet) => Object.entries(s).map(([name, value]) => `--xp-${name === 'accentText' ? 'accent-text' : name === 'accentTextDecoration' ? 'accent-text-decoration' : name === 'focus' || name === 'accent' ? name : `accent-${name}`}:${value};`).join('')
   return `:root:root, [data-theme="light"][data-theme="light"]{${declarations(sets.light)}}\n[data-theme="dark"][data-theme="dark"]{${declarations(sets.dark)}}`
 }

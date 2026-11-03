@@ -88,3 +88,13 @@ test('composition Enter does not commit; paste respects the current selection', 
   fireEvent.paste(input, { clipboardData: { getData: () => 'a, b' } })
   expect(changed).toHaveBeenLastCalledWith(['a', 'b'])
 })
+
+test('error marks the control and announces the error message', () => {
+  render(<ChipsInput id="invalid" label="Page paths" value={[]} onChange={() => {}} error="Add a path." />)
+  const input = screen.getByRole('textbox')
+  expect(input.getAttribute('aria-invalid')).toBe('true')
+  expect(input.parentElement?.classList.contains('xp-ui-chips-control--invalid')).toBe(true)
+  const message = screen.getByRole('alert')
+  expect(message.classList.contains('xp-ui-error')).toBe(true)
+  expect(input.getAttribute('aria-describedby')).toBe(message.id)
+})

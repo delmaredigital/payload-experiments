@@ -1,15 +1,17 @@
 /* The only Payload token boundary. Reference: Payload 3.90.2; nearest neutral
-   elevation by RGB distance to the approved mockup (light / dark):
-   bg 50/0; surface 0/50; surface-2 50/50; surface-3 100/100;
+   elevation by RGB distance to the approved mockup, advancing toward the mockup
+   on collision so all five surface steps stay distinct (light / dark):
+   bg 50/0; surface 0/50; surface-2 100/100; surface-3 150/150;
+   accent-subtle 200/200;
    border 100/100; border-strong 250/200; text 850/800;
    text-2 650/550; text-3 450/350; accent 800/800; hover 900/900;
    accent-fg 0/0; focus 800/800; series-muted 300/250.
-   Semantic hues deliberately inherit the host's Payload families. */
+   Semantic and series hues are fixed mockup literals; only neutrals use Payload. */
 :root, [data-theme] {
   --xp-bg: var(--theme-elevation-50);
   --xp-surface: var(--theme-elevation-0);
-  --xp-surface-2: var(--theme-elevation-50);
-  --xp-surface-3: var(--theme-elevation-100);
+  --xp-surface-2: var(--theme-elevation-100);
+  --xp-surface-3: var(--theme-elevation-150);
   --xp-border: var(--theme-elevation-100);
   --xp-border-strong: var(--theme-elevation-250);
   --xp-text: var(--theme-elevation-850);
@@ -18,21 +20,23 @@
   --xp-accent: var(--theme-elevation-800);
   --xp-accent-hover: var(--theme-elevation-900);
   --xp-accent-active: var(--theme-elevation-950);
-  --xp-accent-subtle: var(--theme-elevation-50);
+  --xp-accent-subtle: var(--theme-elevation-200);
   --xp-accent-fg: var(--theme-elevation-0);
+  --xp-accent-text: var(--xp-text);
+  --xp-accent-text-decoration: none;
   --xp-focus: var(--theme-elevation-800);
   --xp-series-muted: var(--theme-elevation-300);
-  --xp-success: var(--theme-success-650);
-  --xp-success-bg: var(--theme-success-50);
-  --xp-success-border: var(--theme-success-200);
-  --xp-warning: var(--theme-warning-650);
-  --xp-warning-bg: var(--theme-warning-50);
-  --xp-warning-border: var(--theme-warning-200);
-  --xp-error: var(--theme-error-650);
-  --xp-error-bg: var(--theme-error-50);
-  --xp-error-border: var(--theme-error-200);
-  --xp-series-a: var(--theme-success-500);
-  --xp-series-b: var(--theme-warning-500);
+  --xp-success: #1a6a3a;
+  --xp-success-bg: #e8f4ec;
+  --xp-success-border: #bddfc9;
+  --xp-warning: #8a5a0b;
+  --xp-warning-bg: #fbf3e1;
+  --xp-warning-border: #ecd6a2;
+  --xp-error: #a63030;
+  --xp-error-bg: #fbeaea;
+  --xp-error-border: #efc3c3;
+  --xp-series-a: #2a78d6;
+  --xp-series-b: #eb6834;
   --xp-radius-control: 8px;
   --xp-radius-card: 12px;
   --xp-radius-chip: 6px;
@@ -60,14 +64,14 @@
   --xp-text-emphasis: var(--xp-text);
   --xp-input-bg: var(--theme-input-bg);
   --xp-overlay: var(--theme-overlay);
-  --xp-success-surface: var(--theme-success-100);
-  --xp-success-text: var(--theme-success-600);
-  --xp-success-text-strong: var(--theme-success-850);
-  --xp-warning-surface: var(--theme-warning-100);
-  --xp-warning-text: var(--theme-warning-600);
-  --xp-warning-text-strong: var(--theme-warning-850);
-  --xp-error-surface: var(--theme-error-100);
-  --xp-error-text: var(--theme-error-600);
+  --xp-success-surface: var(--xp-success-bg);
+  --xp-success-text: var(--xp-success);
+  --xp-success-text-strong: var(--xp-success);
+  --xp-warning-surface: var(--xp-warning-bg);
+  --xp-warning-text: var(--xp-warning);
+  --xp-warning-text-strong: var(--xp-warning);
+  --xp-error-surface: var(--xp-error-bg);
+  --xp-error-text: var(--xp-error);
   --xp-radius: var(--xp-radius-control);
   --xp-radius-large: var(--xp-radius-card);
   --xp-dash-card-gap: 12px;
@@ -79,8 +83,8 @@
 [data-theme="dark"] {
   --xp-bg: var(--theme-elevation-0);
   --xp-surface: var(--theme-elevation-50);
-  --xp-surface-2: var(--theme-elevation-50);
-  --xp-surface-3: var(--theme-elevation-100);
+  --xp-surface-2: var(--theme-elevation-100);
+  --xp-surface-3: var(--theme-elevation-150);
   --xp-border: var(--theme-elevation-100);
   --xp-border-strong: var(--theme-elevation-200);
   --xp-text: var(--theme-elevation-800);
@@ -89,11 +93,19 @@
   --xp-accent: var(--theme-elevation-800);
   --xp-accent-hover: var(--theme-elevation-900);
   --xp-accent-active: var(--theme-elevation-1000);
-  --xp-accent-subtle: var(--theme-elevation-100);
+  --xp-accent-subtle: var(--theme-elevation-200);
   --xp-accent-fg: var(--theme-elevation-0);
   --xp-focus: var(--theme-elevation-800);
   --xp-series-muted: var(--theme-elevation-250);
-  --xp-success: var(--theme-success-750);
-  --xp-warning: var(--theme-warning-750);
-  --xp-error: var(--theme-error-750);
+  --xp-success: #7fd49c;
+  --xp-success-bg: #142b1d;
+  --xp-success-border: #23492f;
+  --xp-warning: #e7bd5c;
+  --xp-warning-bg: #2b2312;
+  --xp-warning-border: #4d3d17;
+  --xp-error: #f09494;
+  --xp-error-bg: #2f1717;
+  --xp-error-border: #5a2626;
+  --xp-series-a: #3987e5;
+  --xp-series-b: #d95926;
 }

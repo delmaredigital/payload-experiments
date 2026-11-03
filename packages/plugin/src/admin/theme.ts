@@ -1,3 +1,11 @@
+/** Host accent rules (reference surfaces are defined by theme.css):
+ * (i) Foreground on accent, hover and active fills reaches 4.5:1 in both themes.
+ * (ii) Accent text moves toward the surface's opposite to reach 4.5:1; if the
+ * bounded search fails, use the neutral text token and underline it.
+ * (iii) Focus reaches 3:1 against the surface: darken on light, lighten on dark.
+ */
+export { deriveAccent } from '../ui/accent.js'
+
 /** every Payload token reference lives in theme.css; porting to Payload 4 edits that file only */
 export const theme = {
   color: {
@@ -7,7 +15,7 @@ export const theme = {
     surface2: 'var(--xp-surface-2)', surface3: 'var(--xp-surface-3)',
     text2: 'var(--xp-text-2)', text3: 'var(--xp-text-3)',
     accentHover: 'var(--xp-accent-hover)', accentActive: 'var(--xp-accent-active)',
-    accentSubtle: 'var(--xp-accent-subtle)', accentFg: 'var(--xp-accent-fg)', focus: 'var(--xp-focus)',
+    accentText: 'var(--xp-accent-text)', accentSubtle: 'var(--xp-accent-subtle)', accentFg: 'var(--xp-accent-fg)', focus: 'var(--xp-focus)',
     successBorder: 'var(--xp-success-border)', warningBorder: 'var(--xp-warning-border)',
     errorBg: 'var(--xp-error-bg)', errorBorder: 'var(--xp-error-border)',
     seriesA: 'var(--xp-series-a)', seriesB: 'var(--xp-series-b)', seriesMuted: 'var(--xp-series-muted)',

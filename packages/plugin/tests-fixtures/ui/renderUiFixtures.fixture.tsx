@@ -70,7 +70,7 @@ test('writes the complete UI, accent, dialog and isolated editor fixtures in bot
       <meta charSet="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>{kind} — {theme}</title>
       {links.map(path => <link key={path} rel="stylesheet" href={pathToFileURL(path).href} />)}
       {kind === 'ui-accent' ? <style>{accentStyles('#1f3a68')}</style> : null}
-      <style>{`body { margin: 0; } main { padding: 32px; background: var(--xp-bg); color: var(--xp-text); font: var(--xp-text-body); min-height: 100vh; } .fixture-group { margin-bottom: 32px; max-width: 960px; } .fixture-group > h2 { font: var(--xp-text-title); margin: 0 0 16px; } .fixture-items { display: grid; gap: 16px; } .fixture-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }`}</style>
+      <style>{`body { margin: 0; } main { box-sizing: border-box; width: 100%; min-width: 0; padding: 32px; background: var(--xp-bg); color: var(--xp-text); font: var(--xp-text-body); min-height: 100vh; } .fixture-group { margin-bottom: 32px; max-width: 960px; } .fixture-group > h2 { font: var(--xp-text-title); margin: 0 0 16px; } .fixture-items { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; } .fixture-row { min-width: 0; max-width: 100%; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }`}</style>
     </head><body><main className={editor ? 'xp-slot-root' : undefined}>{kind === 'ui-dialog'
       ? <Dialog open title="Stop the test?" onClose={noop}><p>Everyone will see the Original.</p><Button>Keep running</Button><Button variant="danger">Stop test</Button></Dialog>
       : <>{editor ? <Chrome /> : null}<Primitives /></>}</main></body></html>)

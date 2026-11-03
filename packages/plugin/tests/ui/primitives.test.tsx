@@ -108,3 +108,17 @@ test('tabs retain a keyboard entry when the selected item is removed', () => {
   expect(screen.getByRole('tab').tabIndex).toBe(0)
   expect(screen.getByRole('tabpanel').textContent).toBe('Second')
 })
+
+test.each(['keydown-first', 'cancel-first'])('dialog requests one close per opening with %s', order => {
+  const close = vi.fn()
+  const { rerender } = render(<Dialog open title="Close once" onClose={close}><button>Cancel</button></Dialog>)
+  const dialog = screen.getByRole('dialog')
+  const escape = () => fireEvent.keyDown(dialog, { key: 'Escape' })
+  const cancel = () => fireEvent(dialog, new Event('cancel', { cancelable: true }))
+  if (order === 'keydown-first') { escape(); cancel() } else { cancel(); escape() }
+  expect(close).toHaveBeenCalledTimes(1)
+  rerender(<Dialog open={false} title="Close once" onClose={close}>Closed</Dialog>)
+  rerender(<Dialog open title="Close once" onClose={close}><button>Cancel</button></Dialog>)
+  escape(); cancel()
+  expect(close).toHaveBeenCalledTimes(2)
+})
