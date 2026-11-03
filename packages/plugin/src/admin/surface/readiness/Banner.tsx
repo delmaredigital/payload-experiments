@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Button } from '../../../ui/Button.js'
-import { SaveStatus } from './SaveStatus.js'
+import { SaveStatus, saveStatusMessage } from './SaveStatus.js'
 import { jumpToSection } from '../test/jumpToSection.js'
 import type { SectionProps } from '../contracts.js'
 import type { ActionDecision, ActionId } from '../../actions/actions.model.js'
@@ -45,18 +45,18 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
   const actions = availableActions({ status: doc.status, kind: doc.kind, arms: doc.arms, decision, canManage: surface.canManage })
     .filter(action => setup ? action.id === 'start' : doc.status === 'running' ? RUNNING_ACTIONS.includes(action.id) : true)
     .sort((a, b) => doc.status === 'running' ? RUNNING_ACTIONS.indexOf(a.id) - RUNNING_ACTIONS.indexOf(b.id) : 0)
-    .map(action => action.id === 'add-metric' ? { ...action, label: bar ? 'Add a goal' : C.addMetric } : action.id === 'allocate' ? { ...action, label: C.allocate } : action)
+    .map(action => action.id === 'add-metric' ? { ...action, label: C.addGoal } : action.id === 'allocate' ? { ...action, label: C.allocate } : action)
   const action = actions.find(item => item.id === selected)
-  const sentence = setup ? ready ? C.ready : next ? nextCopy(next.sentence) : test.preflightError ? C.checkError : C.checking
+  const sentence = setup ? bar && test.preflightError ? null : ready ? C.ready : next ? nextCopy(next.sentence) : test.preflightError ? C.checkError : C.checking
     : doc.status === 'running' ? runningCopy(displayDate(doc.startedAt), people, daysRemaining(doc, Date.now()))
       : doc.status === 'decided' ? decidedCopy(displayDate(doc.decidedAt), winner) : C.archived
   return <div className={`xp-readiness xp-readiness--${setup && ready ? 'ready' : 'neutral'}${bar ? ' xp-readiness--bar xp-tests-container' : ''}`}>
     <div className="xp-readiness__state">
-      {bar ? <><SaveStatus test={test} /><span className="xp-readiness__separator" aria-hidden="true">·</span></> : null}
-      <p role="status">{setup && next && !ready && next.section !== 'header' ? <a href={`#section-${next.section}`} onClick={event => {
+      {bar ? <><SaveStatus test={test} />{sentence && (saveStatusMessage(test) || test.preflightError) ? <span className="xp-readiness__separator" aria-hidden="true">·</span> : null}</> : null}
+      {sentence ? <p role="status">{setup && next && !ready && next.section !== 'header' ? <a href={`#section-${next.section}`} onClick={event => {
         event.preventDefault()
         if (next.section !== 'header') jumpToSection(next.section)
-      }}>{sentence}</a> : sentence}</p>
+      }}>{sentence}</a> : sentence}</p> : null}
     </div>
     {setup && test.preflight?.checks.some(check => check.code === 'page-targets-unchecked' && check.warning) ? <p>{C.uncheckedPages}</p> : null}
     {doc.status === 'stopped' ? <p>{stoppedCopy(displayDate(doc.stoppedAt))}</p> : null}

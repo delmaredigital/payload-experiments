@@ -6,7 +6,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { Rail } from '../../../../src/admin/surface/test/Rail.js'
 import { Section } from '../../../../src/admin/surface/test/Section.js'
 import { ReadinessBar } from '../../../../src/admin/surface/test/ReadinessBar.js'
-import { TestHeader } from '../../../../src/admin/surface/test/TestHeader.js'
+import { TestName } from '../../../../src/admin/surface/test/fields.js'
 import { props, preflight } from '../readiness/fixtures.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
@@ -14,7 +14,7 @@ vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMoc
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 const bar = (p = props()) => <ReadinessBar {...p} onHeightChange={() => {}} />
 
-test('rail has six marked jump links, a muted advanced item and a clicked-item fallback', () => {
+test('rail has five marked jump links and an unmarked Advanced link, a muted advanced item and a clicked-item fallback', () => {
   const p = props({}, { preflight: preflight([{ code: 'no-primary-metric', ok: false }]) })
   render(<Rail test={p.test} />)
   const links = within(screen.getByRole('navigation', { name: 'Sections' })).getAllByRole('link')
@@ -76,11 +76,10 @@ test('readiness bar links and focuses its blocking section heading; Advanced is 
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Start' }).disabled).toBe(true)
   expect(screen.getByRole('button', { name: 'Start' }).closest('[title]')?.getAttribute('title')).toBe('Choose a goal.')
 })
-test('header retains name editing and never contains Start; save state lives in the bar', () => {
+test('name field retains editing; save state lives in the bar', () => {
   const p = props({}, { saving: 'saving' })
-  const view = render(<TestHeader {...p} />)
+  const view = render(<TestName {...p} />)
   expect(screen.getByLabelText('Test name')).toBeTruthy()
-  expect(view.container.querySelector('header button')).toBeNull()
   expect(screen.queryByText('Saving…')).toBeNull()
   view.rerender(bar(p))
   expect(screen.getByText('Saving…')).toBeTruthy()
@@ -100,9 +99,41 @@ test('bar measures wrapped height and releases its resize observer', () => {
   view.unmount(); expect(disconnect).toHaveBeenCalledOnce()
 })
 
-test('setup-only clearance and header alignment do not apply to the results page', () => {
+test('setup-only clearance does not apply to the results page', () => {
   const css = readFileSync(new NodeURL('../../../../src/admin/surface/test/testPage.css', import.meta.url), 'utf8')
   expect(css).toMatch(/\.xp-test-page--setup \{[^}]*padding: 0 0 160px/)
-  expect(css).toMatch(/\.xp-test-page--setup > \.xp-test-header \{[^}]*max-width: 760px/)
   expect(css).not.toMatch(/\.xp-test-page > \.xp-test-header/)
+})
+
+test.each([false, true])('Advanced has no mark or completion announcement in the rail/chip row (mobile: %s) or summary', mobile => {
+  vi.stubGlobal('matchMedia', () => ({ matches: mobile }))
+  const p = props()
+  const view = render(<><Rail test={p.test} /><Section test={p.test} sectionId="advanced">Developer controls</Section></>)
+  const advanced = screen.getByRole('link', { name: 'Advanced settings · for developers' })
+  expect(advanced.textContent).toBe('Advanced settings · for developers')
+  expect(advanced.querySelector('.xp-test-rail-mark')).toBeNull()
+  expect(advanced.querySelector('.xp-test-sr-only')).toBeNull()
+  const summary = view.container.querySelector('#section-advanced > summary')!
+  expect(summary.textContent).toBe('Advanced settings · for developers')
+  expect(summary.querySelector('[aria-label]')).toBeNull()
+})
+
+test('bar shows the specific preflight error once in SaveStatus with Retry and no generic check message', () => {
+  const message = 'The readiness service is temporarily unavailable.'
+  const view = render(bar(props({}, { preflightError: message })))
+  expect(screen.getAllByText(message)).toHaveLength(1)
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(view.container.querySelector('.xp-save-status')?.contains(screen.getByText(message))).toBe(true)
+  expect(screen.queryByText("Couldn't check readiness. Try again.")).toBeNull()
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Start' }).disabled).toBe(true)
+})
+
+test.each([
+  [{}, true],
+  [{ saving: 'error' as const, stale: true }, false],
+  [{ preflightError: 'Offline' }, false],
+])('readiness separator requires content on both sides: %j', (state, separator) => {
+  const view = render(bar(props({}, state)))
+  expect(Boolean(view.container.querySelector('.xp-readiness__separator'))).toBe(separator)
 })

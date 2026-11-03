@@ -62,7 +62,6 @@ export function CheckboxList({ value, options, onChange, disabled, ...field }: C
     <legend>{field.label}</legend>
     {options.map((option, index) => <Checkbox key={option.value} id={`${field.id}-${index}`} label={option.label}
       checked={value.includes(option.value)} disabled={disabled || option.disabled}
-      aria-invalid={Boolean(field.error) || undefined} aria-describedby={described(field, field['aria-describedby'])}
       onChange={event => onChange(event.target.checked ? [...value, option.value] : value.filter(item => item !== option.value))} />)}
     {field.help ? <p className="xp-ui-help" id={`${field.id}-help`}>{field.help}</p> : null}
     {field.error ? <p className="xp-ui-error" id={`${field.id}-error`} role="alert">{field.error}</p> : null}

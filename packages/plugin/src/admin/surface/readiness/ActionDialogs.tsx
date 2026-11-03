@@ -49,7 +49,7 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
     if (content) void test.reload()
     onClose()
   }
-  return <Dialog open dismissible={!transition.busy} title={action.confirm.title} onClose={close}>
+  return <Dialog open initialFocus={action.id === 'start' ? undefined : 'cancel'} dismissible={!transition.busy} title={action.confirm.title} onClose={close}>
     {content ? <MakeContentResult result={content} onRetry={submit} busy={transition.busy} /> : <>
       <p>{action.confirm.body}</p>
       {phrase ? <><p>{A.typePhrase} <strong>{phrase}</strong></p>
@@ -58,7 +58,7 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
     </>}
     {transition.error ? <p role="alert">{transition.error}</p> : null}
     {!content ? <Button disabled={!enabled} onClick={() => { void submit() }}>{action.label}</Button> : null}
-    <Button disabled={transition.busy} onClick={close}>{content ? A.done : A.cancel}</Button>
+    <Button data-dialog-cancel disabled={transition.busy} onClick={close}>{content ? A.done : A.cancel}</Button>
   </Dialog>
 }
 
@@ -110,7 +110,8 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
   const available = metrics.filter(item => !attached.has(String(item.id)))
   const selected = available.find(item => String(item.id) === metric)
   const disabled = transition.busy || test.hasUnsaved || test.saving === 'saving'
-  return <Dialog open dismissible={!transition.busy} title={C.addMetric} onClose={() => { if (!transition.busy) onClose() }}>
+  return <Dialog open dismissible={!transition.busy} title={C.addGoal} onClose={() => { if (!transition.busy) onClose() }}>
+    <p>{C.addMetric}</p>
     {loading ? <p role="status">{R.loadingMetrics}</p> : null}
     <label>{R.role}<select value={role} disabled={disabled} onChange={event => setRole(event.target.value as AddMetricBody['role'])}>
       <option value="secondary">{R.supporting}</option><option value="guardrail">{R.guardrail}</option>
@@ -123,7 +124,7 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
     {loadError || transition.error ? <p role="alert">{loadError ?? transition.error}</p> : null}
     <Button disabled={disabled || loading || !!loadError || !selected} onClick={() => {
       if (selected && test.doc) void transition.run(() => createApi(surface.apiRoute).addMetric(test.doc!.id, { metric: selected.id, role }))
-    }}>{C.addMetric}</Button>
+    }}>{C.addGoal}</Button>
     <Button disabled={transition.busy} onClick={onClose}>{A.cancel}</Button>
   </Dialog>
 }

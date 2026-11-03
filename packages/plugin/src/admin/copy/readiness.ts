@@ -5,6 +5,7 @@ export const PLACEMENT_FAILURE_COPY = {
 } as const
 
 export const READINESS_COPY = {
+  label: 'Readiness', addGoal: 'Add a goal',
   ready: 'Ready to start.', saveFirst: 'Save your changes first.',
   saving: 'Saving…', saved: 'Saved', saveError: "Couldn't save — see the highlighted field",
   checkError: "Couldn't check readiness. Try again.", checking: 'Checking readiness…', retry: 'Try again',

@@ -1,6 +1,7 @@
 'use client'
 import { useLayoutEffect, useRef } from 'react'
 import type { SectionProps } from '../contracts.js'
+import { READINESS_COPY as C } from '../../copy/readiness.js'
 import { ReadinessContent } from '../readiness/Banner.js'
 
 /** Measure wrapping actions/copy so the final section always clears the fixed bar. */
@@ -16,7 +17,7 @@ export function ReadinessBar({ onHeightChange, ...props }: SectionProps & { onHe
     window.addEventListener('resize', measure)
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
   }, [onHeightChange])
-  return <div ref={ref} className="xp-test-readiness-bar" role="region" aria-label="Readiness">
+  return <div ref={ref} className="xp-test-readiness-bar" role="region" aria-label={C.label}>
     {props.test.doc ? <ReadinessContent key={`${props.test.doc.id}/${props.test.doc.status}`} {...props} bar /> : null}
   </div>
 }

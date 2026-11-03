@@ -1,6 +1,7 @@
 import type { ReadinessCode, PreflightResult } from '../../../types/endpoints.js'
 import type { SerializedFlagPoint } from '../../../types/admin.js'
 import type { TestDocument } from '../testDocument.model.js'
+import { formatDate } from '../../format/date.js'
 import { actionGroupLabel } from '../../actions/actions.model.js'
 import { placementFailureCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
 
@@ -91,7 +92,7 @@ export function sectionDone(test: { preflight: PreflightResult | null }): Record
 
 export function displayDate(value: unknown): string | null {
   if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) return null
-  return new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(value))
+  return formatDate(value)
 }
 
 export function daysRemaining(doc: TestDocument, now: number): number | null {

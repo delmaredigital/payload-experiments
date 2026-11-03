@@ -29,7 +29,7 @@ test('guarded submit requires note and exact typed label; sends wire body and re
   render(<DecideDialog id="xp1" arms={arms} onClose={vi.fn()} />)
   expect(submitButton().disabled).toBe(true)
   await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
-  expect(screen.getByRole('dialog')).toBe(document.activeElement)
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBe(document.activeElement)
   expect(screen.queryByRole('option', { name: 'Holdout' })).toBeNull()
   fireEvent.change(screen.getByLabelText('Group'), { target: { value: 'variantA' } })
   expect(submitButton().disabled).toBe(true)

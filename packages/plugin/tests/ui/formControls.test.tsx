@@ -25,13 +25,18 @@ test('textarea supports typing and native read-only and disabled states', () => 
 test('checkbox list labels each option, toggles a controlled selection and respects disabled options', () => {
   function Example() {
     const [value, setValue] = useState(['one'])
-    return <CheckboxList id="goals" label="Goals" help="Pick goals." error="Check goals." value={value} onChange={setValue}
+    return <CheckboxList id="goals" label="Goals" aria-describedby="external" help="Pick goals." error="Check goals." value={value} onChange={setValue}
       options={[{ value: 'one', label: 'First' }, { value: 'two', label: 'Second' }, { value: 'three', label: 'Unavailable', disabled: true }]} />
   }
   render(<Example />)
   const group = screen.getByRole('group', { name: 'Goals' })
-  expect(group.getAttribute('aria-describedby')).toBe('goals-help goals-error')
+  expect(group.getAttribute('aria-describedby')).toBe('external goals-help goals-error')
+  expect(group.getAttribute('aria-invalid')).toBe('true')
   const [first, second, disabled] = within(group).getAllByRole<HTMLInputElement>('checkbox')
+  for (const checkbox of [first!, second!, disabled!]) {
+    expect(checkbox.hasAttribute('aria-describedby')).toBe(false)
+    expect(checkbox.hasAttribute('aria-invalid')).toBe(false)
+  }
   expect(first!.checked).toBe(true)
   fireEvent.click(first!); expect(first!.checked).toBe(false)
   fireEvent.click(second!); expect(second!.checked).toBe(true)

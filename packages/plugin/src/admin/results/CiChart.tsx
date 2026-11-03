@@ -6,10 +6,10 @@ import type { PhaseSummary, ResultsResponse } from '../../types/endpoints.js'
 import type { Snapshot } from '../../types/snapshot.js'
 import { RESULTS_COPY as C, chartSummary, contentChangeTitle } from '../copy/results.js'
 import { chartModel } from './chart.model.js'
+import { formatDate } from '../format/date.js'
 import { formatPercent } from './format.js'
 
 const colors = [theme.color.textStrong, theme.color.textMuted, theme.color.borderAccent]
-const date = (t: number) => new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' }).format(t)
 
 export function CiChart({ series, metricId, metricName, phase, contentChanges }: {
   series?: ResultsResponse['series']; metricId: DocId; metricName: string; phase: PhaseSummary
@@ -23,12 +23,12 @@ export function CiChart({ series, metricId, metricName, phase, contentChanges }:
   return <section className="xp-ci-chart" style={{ color: theme.color.text }}>
     <h2>{C.chart}</h2>
     <svg viewBox="0 0 760 280" style={{ width: '100%', height: 'auto' }} role="img"
-      aria-label={chartSummary(metricName, model.variants.map(variant => variant.label).join(', '), date(from), date(to),
-        [...new Set(model.markers.map(marker => date(marker.t)))])}>
+      aria-label={chartSummary(metricName, model.variants.map(variant => variant.label).join(', '), formatDate(from), formatDate(to),
+        [...new Set(model.markers.map(marker => formatDate(marker.t)))])}>
       <line x1={80} x2={680} y1={y(0)} y2={y(0)} stroke={theme.color.accent} strokeDasharray="4 4" />
       {[high, low].map((value, index) => <text key={index} x={72} y={y(value) + 4} textAnchor="end" fill="currentColor" fontSize={12}>{formatPercent(value, true)}</text>)}
-      <text x={80} y={260} fill="currentColor" fontSize={12}>{date(from)}</text>
-      <text x={680} y={260} textAnchor="end" fill="currentColor" fontSize={12}>{date(to)}</text>
+      <text x={80} y={260} fill="currentColor" fontSize={12}>{formatDate(from)}</text>
+      <text x={680} y={260} textAnchor="end" fill="currentColor" fontSize={12}>{formatDate(to)}</text>
       {model.variants.map((variant, index) => {
         const path = (points: Array<{ t: number; value: number | null }>) => {
           let connected = false
@@ -51,7 +51,7 @@ export function CiChart({ series, metricId, metricName, phase, contentChanges }:
         </g>
       })}
       {model.markers.map((marker, index) => <g key={`${marker.at}/${index}`}>
-        <title>{contentChangeTitle(date(marker.t))}</title>
+        <title>{contentChangeTitle(formatDate(marker.t))}</title>
         <line x1={x(marker.t)} x2={x(marker.t)} y1={20} y2={230} stroke={theme.color.text} strokeDasharray="2 4" />
       </g>)}
     </svg>

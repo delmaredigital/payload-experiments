@@ -30,12 +30,12 @@ export function Rail({ test }: { test: TestDocApi }) {
       ref.current?.querySelector<HTMLElement>('[aria-current]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
     }
   }, [active])
-  return <nav ref={ref} className="xp-test-rail" aria-label="Sections"><ol className="xp-test-rail-list">
+  return <nav ref={ref} className="xp-test-rail" aria-label={C.navigation}><ol className="xp-test-rail-list">
     {SECTION_ORDER.map(id => <li key={id}><a href={`#section-${id}`}
       className={`xp-test-rail-item${id === 'advanced' ? ' xp-test-rail-item--advanced' : ''}${active === id ? ' is-active' : ''}`}
       aria-current={active === id ? 'location' : undefined} onClick={event => {
         event.preventDefault(); setActive(id); jumpToSection(id)
-      }}><span aria-hidden="true" className={done[id] ? 'xp-test-rail-mark xp-test-rail-mark--done' : 'xp-test-rail-mark'}>{done[id] ? C.completeMark : C.incompleteMark}</span>
-      <span className="xp-test-sr-only">{done[id] ? 'Complete: ' : 'Incomplete: '}</span>{C.sections[id]}</a></li>)}
+      }}>{id !== 'advanced' ? <><span aria-hidden="true" className={done[id] ? 'xp-test-rail-mark xp-test-rail-mark--done' : 'xp-test-rail-mark'}>{done[id] ? C.completeMark : C.incompleteMark}</span>
+      <span className="xp-test-sr-only">{done[id] ? C.completePrefix : C.incompletePrefix}</span></> : null}{C.sections[id]}</a></li>)}
   </ol></nav>
 }

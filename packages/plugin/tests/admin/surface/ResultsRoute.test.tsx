@@ -44,7 +44,7 @@ test('a manager can retry a failed document read while results remain available'
 
 test('the results header setup link supports the root admin route', () => {
   const p = props({ id: 12, status: 'running' })
-  render(<TestHeader {...p} view="results" surface={{ ...p.surface, adminRoute: '/' }} />)
+  render(<TestHeader {...p} surface={{ ...p.surface, adminRoute: '/' }} />)
   expect(screen.getByRole('link', { name: 'Back to setup' }).getAttribute('href')).toBe('/experiments/12')
 })
 

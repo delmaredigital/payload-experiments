@@ -12,8 +12,10 @@ function focusable(node: HTMLDialogElement): HTMLElement[] {
     return true
   })
 }
-/** Native modal stays in its rendering document, including a Puck canvas iframe. */
-export function Dialog({ open, title, onClose, children, dismissible = true }: { open: boolean; dismissible?: boolean; title: string; onClose: () => void; children: ReactNode }) {
+/** Native modal stays in its rendering document, including a Puck canvas iframe.
+ * `initialFocus="cancel"` targets the focusable control marked `data-dialog-cancel`.
+ */
+export function Dialog({ open, title, onClose, children, dismissible = true, initialFocus }: { open: boolean; dismissible?: boolean; initialFocus?: 'cancel'; title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null)
   const heading = useId()
   const closeRequested = useRef(false)
@@ -29,10 +31,11 @@ export function Dialog({ open, title, onClose, children, dismissible = true }: {
     const previous = doc.activeElement as HTMLElement | null
     closeRequested.current = false
     node.showModal()
-    const first = focusable(node)[0]
-    ;(first ?? node).focus()
+    const elements = focusable(node)
+    const preferred = initialFocus === 'cancel' ? elements.find(element => element.hasAttribute('data-dialog-cancel')) : undefined
+    ;(preferred ?? elements[0] ?? node).focus()
     return () => { node.close(); if (previous?.isConnected) previous.focus() }
-  }, [open])
+  }, [open, initialFocus])
   return <dialog ref={ref} aria-labelledby={heading} className="xp-ui-dialog" tabIndex={-1} onCancel={event => { event.preventDefault(); requestClose() }}
     onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); requestClose(); return }

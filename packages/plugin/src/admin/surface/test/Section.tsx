@@ -9,8 +9,7 @@ import { TEST_PAGE as C } from '../../copy/testPage.js'
 export function Section({ test, sectionId, children }: { test: TestDocApi; sectionId: SectionId; children: ReactNode }) {
   const done = readinessParts.sectionDone(test)[sectionId]
   if (sectionId === 'advanced') return <details className="xp-test-advanced" id="section-advanced">
-    <summary><h2 id="title-advanced" tabIndex={-1}>{C.sections.advanced}</h2>
-      <span aria-label={done ? C.complete : C.incomplete}>{done ? C.completeMark : C.incompleteMark}</span></summary>
+    <summary><h2 id="title-advanced" tabIndex={-1}>{C.sections.advanced}</h2></summary>
     <div className="xp-ui-section-body">{children}</div>
   </details>
   return <SectionCard number={SECTION_ORDER.indexOf(sectionId) + 1} title={C.sections[sectionId]} complete={done}

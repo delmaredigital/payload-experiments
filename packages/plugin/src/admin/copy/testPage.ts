@@ -2,6 +2,7 @@ export const TEST_PAGE = {
   staleEdit: 'Someone else changed this test. Reload to see their changes.', reload: 'Reload',
   loading: 'Loading test…', forbidden: "You don't have access to this test.", missing: 'This test no longer exists.',
   error: "Couldn't load this test.", retry: 'Try again', name: 'Test name', results: 'Results',
+  tests: 'Tests', test: 'Test', navigation: 'Sections', completePrefix: 'Complete: ', incompletePrefix: 'Incomplete: ',
   complete: 'Complete', incomplete: 'Incomplete', completeMark: '✓', incompleteMark: '○',
   kinds: { block: 'Page block', page: 'Whole page', flag: 'Setting', code: 'Setting' },
   sections: { what: "What you're testing", versions: 'Versions', win: 'What counts as a win', who: 'Who takes part (optional)', length: 'How long', advanced: 'Advanced settings · for developers' },
