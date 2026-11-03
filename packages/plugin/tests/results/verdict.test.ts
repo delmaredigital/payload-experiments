@@ -199,6 +199,10 @@ test.each(['', '   '])('blank holdout label %j falls back to Holdout', label => 
   expect(verdictGroupLabel('holdout', label)).toBe('Holdout')
 })
 
+test('inherited object keys never become a label', () => {
+  expect(verdictGroupLabel('toString')).toBe('This group')
+})
+
 test('collecting uses This group for an unknown key with a blank label', () => {
   const value = input('T4')
   Object.assign(value.exposures.perArm[1]!, { arm: 'future-group', label: '   ' })
