@@ -256,6 +256,19 @@ test('only the selected variant has a copy action', async () => {
   expect(puck.dispatch.mock.calls[0]![0].data.props.variantB[0].props.text).toBe('Hello')
 })
 
+test.each([
+  ['draft', 'Set up the test', '/admin/experiments/1'],
+  ['running', 'View results', '/admin/experiments/1/results'],
+] as const)('%s binding opens %s in a new tab', async (status, label, href) => {
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status })))
+  const Editor = ExperimentSlotEditor.render
+  render(<Editor {...props()} />)
+  const link = await screen.findByRole('link', { name: label })
+  expect(link.getAttribute('href')).toBe(href)
+  expect(link.getAttribute('target')).toBe('_blank')
+  expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+})
+
 test('a draft binding links to setup, a running binding links to results, and neither offers to create a test', async () => {
   vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status: 'draft' })))
   const Editor = ExperimentSlotEditor.render
