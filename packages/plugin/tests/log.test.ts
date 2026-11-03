@@ -5,7 +5,7 @@ import { ResultsBudgetError } from '../src/db/pgExecutor.js'
 import { EventsBodyError } from '../src/events/body.js'
 
 test('pg errors retain only name, SQLSTATE and frames, including multi-line messages', () => {
-  const error = Object.assign(new Error('duplicate key value violates unique constraint: secret-value'), {
+  const error = Object.assign(new Error('duplicate key secret-value\nmore secret-value'), {
     name: 'error', code: '23505', detail: 'Key (dedupe_key)=(secret-value) already exists.',
     where: 'secret-value', table: 'private_table', column: 'private_column', constraint: 'private_constraint',
     data: 'secret-value', cause: new Error('secret-value'),
@@ -50,4 +50,38 @@ test('unknown and body error classes never retain messages or spoof trusted name
 test('missing string name and stack fall back without following cause', () => {
   const error = Object.assign(new Error('secret-value'), { name: 42, stack: undefined, cause: new Error('secret-value') })
   expect(safeError(error)).toEqual({ name: 'Error' })
+})
+
+test.each(['name', 'code', 'message', 'stack'] as const)('a throwing %s getter cannot escape safeError', property => {
+  const error = new Error('secret-value')
+  // Materialize V8's lazy stack before installing hostile header getters.
+  error.stack = 'Error: secret-value\n    at insert (/app/events.js:1:2)'
+  Object.defineProperty(error, property, { get() { throw new Error('host getter failed') } })
+  expect(safeError(error)).toEqual({ name: 'Error' })
+})
+
+test.each(['get', 'has', 'getPrototypeOf'] as const)('a throwing Proxy %s trap cannot escape safeError', trap => {
+  const error = new Proxy(new Error('secret-value'), { [trap]() { throw new Error('host trap failed') } })
+  expect(safeError(error)).toEqual({ name: 'Error' })
+})
+
+test('does not read a non-Error object stack getter', () => {
+  const error = { get stack() { throw new Error('host getter failed') } }
+  expect(safeError(error)).toEqual({ name: 'object' })
+})
+
+test('removes a multi-line V8 header before retaining real frames', () => {
+  const error = new Error('a\n    at SECRET')
+  const result = safeError(error)
+  expect(result.stack).toContain('at ')
+  expect(JSON.stringify(result)).not.toContain('SECRET')
+})
+
+test.each(['Error: different\n    at SECRET', 'Unknown header\n    at SECRET', 'Error: secret-value suffix\n    at SECRET'])('omits an unrecognized stack header: %s', stack => {
+  expect(safeError(Object.assign(new Error('secret-value'), { stack }))).toEqual({ name: 'Error' })
+})
+
+test('an empty-message header still preserves real frames', () => {
+  const error = Object.assign(new Error(), { stack: 'Error\n    at insert (/app/events.js:1:2)' })
+  expect(safeError(error)).toEqual({ name: 'Error', stack: '    at insert (/app/events.js:1:2)' })
 })

@@ -1,12 +1,12 @@
 import { readFileSync, readdirSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { dirname, join, normalize, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { describe, expect, test } from 'vitest'
 
 const pluginRoot = fileURLToPath(new URL('../../', import.meta.url))
 const levels = new Set(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
-const consoleLevels = new Set(['error', 'warn', 'log', 'info', 'debug', 'trace'])
+const consoleLevels = new Set(['error', 'warn', 'log', 'info', 'debug', 'trace', 'dir', 'table', 'assert'])
 const contextKeys = new Set(['experimentId', 'snapshotId', 'metricId', 'flagPoint', 'slug', 'collection', 'id', 'phase', 'operation'])
 
 // Reviewed string parameters, bound by declaration (not merely by identifier text).
@@ -55,20 +55,56 @@ function scan(text: string, file: string): Violation[] {
   }
   const isLogger = (value: ts.Expression): boolean => {
     value = unwrap(value)
-    return (ts.isIdentifier(value) && value.text === 'logger') || member(value)?.name === 'logger'
+    return (ts.isIdentifier(value) && value.text === 'logger') || member(value)?.name === 'logger' ||
+      (ts.isCallExpression(value) && member(value.expression)?.name === 'child' && isLogger(member(value.expression)!.receiver))
   }
-  const isConsole = (value: ts.Expression): boolean => ts.isIdentifier(unwrap(value)) && unwrap(value).getText(source) === 'console'
+  const isConsole = (value: ts.Expression): boolean => (ts.isIdentifier(unwrap(value)) && unwrap(value).getText(source) === 'console') || member(value)?.name === 'console'
+  const isProcessStream = (value: ts.Expression): boolean => {
+    const access = member(value)
+    return !!access && (access.name === 'stderr' || access.name === 'stdout') && ts.isIdentifier(access.receiver) && access.receiver.text === 'process'
+  }
   const loggingMethod = (value: ts.Expression): boolean => {
     const access = member(value)
-    return !!access && ((isLogger(access.receiver) && (access.name === undefined || levels.has(access.name))) ||
-      (isConsole(access.receiver) && (access.name === undefined || consoleLevels.has(access.name))))
+    return !!access && ((isLogger(access.receiver) && (access.name === undefined || access.name === 'child' || levels.has(access.name))) ||
+      (isConsole(access.receiver) && (access.name === undefined || consoleLevels.has(access.name))) ||
+      (isProcessStream(access.receiver) && (access.name === undefined || access.name === 'write')))
+  }
+  const identifierSymbol = (value: ts.Identifier) => ts.isShorthandPropertyAssignment(value.parent)
+    ? checker.getShorthandAssignmentValueSymbol(value.parent) : checker.getSymbolAtLocation(value)
+  const safeImport = (declaration: ts.Declaration): boolean => {
+    if (!ts.isImportSpecifier(declaration) || (declaration.propertyName ?? declaration.name).text !== 'safeError') return false
+    const imported = declaration.parent.parent.parent
+    return ts.isImportDeclaration(imported) && ts.isStringLiteral(imported.moduleSpecifier) &&
+      normalize(join(dirname(file), imported.moduleSpecifier.text)).replaceAll('\\', '/').replace(/\.js$/, '.ts') === 'src/log.ts'
   }
   const safeCall = (value: ts.Expression): boolean => {
     value = unwrap(value)
-    return ts.isCallExpression(value) && ts.isIdentifier(value.expression) && value.expression.text === 'safeError' && value.arguments.length === 1
+    return ts.isCallExpression(value) && ts.isIdentifier(value.expression) && value.expression.text === 'safeError' && value.arguments.length === 1 &&
+      !!identifierSymbol(value.expression)?.declarations?.some(safeImport)
+  }
+  const catchBound = (value: ts.Identifier): boolean => {
+    return !!identifierSymbol(value)?.declarations?.some(declaration => {
+      let binding: ts.Node = declaration
+      while (ts.isBindingElement(binding) || ts.isObjectBindingPattern(binding) || ts.isArrayBindingPattern(binding)) binding = binding.parent
+      return ts.isVariableDeclaration(binding) && ts.isCatchClause(binding.parent)
+    })
+  }
+  const checkCatchReferences = (node: ts.Node): void => {
+    // Only a direct safeError(catchBinding) may consume the raw caught value.
+    if (ts.isCallExpression(node) && safeCall(node) && ts.isIdentifier(unwrap(node.arguments[0]!))) return
+    if (ts.isIdentifier(node) && catchBound(node)) report(node, 'catch-bound-log-value')
+    ts.forEachChild(node, checkCatchReferences)
+  }
+  const contextValue = (value: ts.Expression): boolean => {
+    value = unwrap(value)
+    if (ts.isIdentifier(value) || ts.isStringLiteralLike(value) || ts.isNumericLiteral(value) || ts.isBigIntLiteral(value) ||
+      value.kind === ts.SyntaxKind.TrueKeyword || value.kind === ts.SyntaxKind.FalseKeyword || value.kind === ts.SyntaxKind.NullKeyword) return true
+    if (ts.isElementAccessExpression(value) && (ts.isStringLiteralLike(value.argumentExpression) || ts.isNumericLiteral(value.argumentExpression))) return contextValue(value.expression)
+    const access = member(value)
+    return !!access && access.name !== undefined && (ts.isIdentifier(access.receiver) || !!member(access.receiver) && contextValue(access.receiver))
   }
   const allowedParameter = (value: ts.Identifier): boolean => {
-    const symbol = ts.isShorthandPropertyAssignment(value.parent) ? checker.getShorthandAssignmentValueSymbol(value.parent) : checker.getSymbolAtLocation(value)
+    const symbol = identifierSymbol(value)
     const declaration = symbol?.valueDeclaration
     if (!declaration || !ts.isParameter(declaration) || !ts.isIdentifier(declaration.name)) return false
     const fn = declaration.parent
@@ -90,6 +126,7 @@ function scan(text: string, file: string): Violation[] {
     return false
   }
   const checkArgument = (argument: ts.Expression) => {
+    checkCatchReferences(argument)
     const value = unwrap(argument)
     if (safeCall(value) || stringValue(value)) return
     if (!ts.isObjectLiteralExpression(value)) { report(argument, 'unsafe-log-argument'); return }
@@ -105,13 +142,22 @@ function scan(text: string, file: string): Violation[] {
       } else if (!name || !contextKeys.has(name)) {
         // Rule 3 preserves this exact string-only manifest callback, including reason.
         if (!(file === 'src/manifest/compile.ts' && name === 'reason' && ts.isIdentifier(initializer) && allowedParameter(initializer))) report(property, 'log-context-key')
+      } else if (!contextValue(initializer)) {
+        report(property, 'unsafe-log-context-value')
       }
     }
   }
   const walk = (node: ts.Node) => {
     if (ts.isCallExpression(node) && loggingMethod(node.expression)) node.arguments.forEach(checkArgument)
-    if (ts.isVariableDeclaration(node) && node.initializer && isLogger(node.initializer)) report(node, 'logger-alias')
-    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && isLogger(node.right)) report(node, 'logger-alias')
+    if (ts.isIdentifier(node) && node.text === 'safeError') {
+      const declarations = identifierSymbol(node)?.declarations ?? []
+      for (const declaration of declarations) {
+        const ownDefinition = file === 'src/log.ts' && ts.isFunctionDeclaration(declaration) && declaration.name === node
+        if ((declaration as ts.NamedDeclaration).name === node && !safeImport(declaration) && !ownDefinition) report(node, 'untrusted-safeError-binding')
+      }
+    }
+    if (ts.isVariableDeclaration(node) && node.initializer && (isLogger(node.initializer) || isConsole(node.initializer))) report(node, 'logger-alias')
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && (isLogger(node.right) || isConsole(node.right))) report(node, 'logger-alias')
     if (ts.isBindingElement(node)) {
       const name = key(node.propertyName ?? node.name as ts.PropertyName)
       if (name === 'logger' && (!ts.isIdentifier(node.name) || node.name.text !== 'logger')) report(node, 'logger-alias')
@@ -156,6 +202,15 @@ describe('logging source boundary', () => {
     'const { error: report } = logger', 'const { log } = console',
     '(payload.logger.error as Function)(error)', 'payload["logger"]["error"](error)', 'console["error"](error)',
     'payload.logger[level](error)', 'console[level](error)', 'logger.error(...args)', 'logger.error(format(error))',
+    'console.dir(error)', 'console.table(error)', 'console.assert(false, error)', 'globalThis.console.error(error)',
+    'logger.child({}).error(error)', 'payload.logger.child({}).warn(error)',
+    'process.stderr.write(String(error))', 'process.stdout.write(error.message)',
+    'const c = console; c.error(error)', 'let c; c = globalThis.console',
+    'const safeError = e => e; logger.error({ err: safeError(error) })',
+    'function safeError(e) { return e }; logger.error({ err: safeError(error) })',
+    'import { safeError } from "./other.js"; logger.error({ err: safeError(error) })',
+    'import safeError from "./log.js"; logger.error({ err: safeError(error) })',
+    'function f(safeError) { logger.error({ err: safeError(error) }) }',
     'insertEvents(exec, rows, message => payload.logger.error(message))',
   ])('rejects unsafe snippet: %s', text => expect(scan(text, 'src/example.ts').length).toBeGreaterThan(0))
 
@@ -166,14 +221,49 @@ describe('logging source boundary', () => {
     'console.error("Failure", safeError(error))', 'console.warn("Fixed warning")', 'logger?.debug("Fixed debug")',
     'logger.error({ msg: "Fixed", err: safeError(error) })', 'logger.error({ ["err"]: safeError(error) })',
     '(payload.logger.error as Function)({ err: safeError(error) }, "Failure")',
-  ])('accepts safe snippet: %s', text => expect(scan(text, 'src/example.ts')).toEqual([]))
+    'try {} catch (error) { logger.error({ err: safeError(error), experimentId: id }, "Failure") }',
+    'try {} catch (caught) { console.error(safeError(caught)) }',
+    'logger.child({}).info("Fixed")', 'globalThis.console.dir({ id })',
+    'process.stderr.write("Fixed")', 'process.stdout.write("Fixed")',
+    'logger.info({ id: doc.id, experimentId: docs[0].id, phase: 1, operation: "save" })',
+  ])('accepts safe snippet: %s', text => expect(scan(`import { safeError } from './log.js';\n${text}`, 'src/example.ts')).toEqual([]))
+
+  test.each([
+    'try {} catch (error) { logger.error({ id: error }, "x") }',
+    'try {} catch (error) { logger.error({ slug: error.message, experimentId: String(error) }, "x") }',
+    'try {} catch (error) { logger.error({ operation: `${error}` }, "x") }',
+    'try {} catch (caught) { logger.error({ id: caught }, "x") }',
+    'try {} catch (id) { logger.error({ id }, "x") }',
+    'try {} catch ({ message: id }) { logger.error({ id }, "x") }',
+    'try {} catch (error) { logger.error({ err: safeError(error), id: error }, "x") }',
+    'try {} catch (error) { logger.error({ err: safeError(error.message) }, "x") }',
+    'try {} catch (error) { logger.error({ err: safeError(JSON.stringify(error)) }, "x") }',
+    'try {} catch (error) { logger.child({ id: error }).error("Fixed") }',
+    'logger.error({ id: String(value) }, "x")',
+    'logger.error({ slug: `${value}` }, "x")',
+    'logger.error({ id: get().id }, "x")',
+  ])('rejects unsafe context values with the real sanitizer imported: %s', text => {
+    expect(scan(`import { safeError } from './log.js';\n${text}`, 'src/example.ts').length).toBeGreaterThan(0)
+  })
+
+  test('catch references bind to the declaration rather than the identifier text', () => {
+    const text = 'try {} catch (error) { function report(error) { logger.error({ id: error }, "x") } }'
+    expect(scan(text, 'src/example.ts')).toEqual([])
+  })
+
+  test.each([
+    'const safeError = e => e', 'function safeError(e) { return e }',
+    'import { safeError } from "./other.js"', 'import { other as safeError } from "./log.js"',
+  ])('rejects an untrusted safeError declaration even without a log: %s', text => {
+    expect(scan(text, 'src/example.ts').some(violation => violation.rule === 'untrusted-safeError-binding')).toBe(true)
+  })
 
   test('reviewed string parameters are tied to the right declaration and file', () => {
     const text = 'insertEvents(exec, rows, message => payload.logger.error(message))'
     expect(scan(text, 'src/server/recordExposures.ts')).toEqual([])
     expect(scan('other(exec, rows, message => payload.logger.error(message))', 'src/server/recordExposures.ts').length).toBeGreaterThan(0)
     expect(scan('insertEvents(exec, rows, message => { function f(message) { payload.logger.error(message) } })', 'src/server/recordExposures.ts').length).toBeGreaterThan(0)
-    expect(scan('function neverThrow(name: string) { console.error(`hook ${name}`, safeError(error)) }', 'src/hooks/hostHook.ts')).toEqual([])
+    expect(scan('import { safeError } from "../log.js"; function neverThrow(name: string) { console.error(`hook ${name}`, safeError(error)) }', 'src/hooks/hostHook.ts')).toEqual([])
     expect(scan('function neverThrow(name: string) { console.error(`hook ${error}`, safeError(error)) }', 'src/hooks/hostHook.ts').length).toBeGreaterThan(0)
   })
 
