@@ -1,4 +1,5 @@
 'use client'
+import { theme } from '../../theme.js'
 import { useEffect, useState } from 'react'
 import { Button } from '@payloadcms/ui'
 import type { SectionProps } from '../contracts.js'
@@ -48,8 +49,8 @@ function BannerContent({ test, surface }: SectionProps) {
     : doc.status === 'running' ? runningCopy(displayDate(doc.startedAt), people, daysRemaining(doc, Date.now()))
       : doc.status === 'decided' ? decidedCopy(displayDate(doc.decidedAt), winner) : C.archived
   return <div className={`xp-readiness xp-readiness--${setup && ready ? 'ready' : 'neutral'}`}
-    style={{ padding: '1rem', border: '1px solid var(--theme-elevation-200)', borderRadius: 'var(--style-radius-s)',
-      background: setup && ready ? 'var(--theme-success-100)' : 'var(--theme-elevation-50)', color: 'var(--theme-text)' }}>
+    style={{ padding: '1rem', border: `1px solid ${theme.color.borderStrong}`, borderRadius: theme.radius.small,
+      background: setup && ready ? theme.color.successSurface : theme.color.surface, color: theme.color.text }}>
     <p role="status">{setup && next && !ready && next.section !== 'header' ? <a href={`#section-${next.section}`}>{sentence}</a> : sentence}</p>
     {doc.status === 'stopped' ? <p>{stoppedCopy(displayDate(doc.stoppedAt))}</p> : null}
     <div className="xp-readiness__actions" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>

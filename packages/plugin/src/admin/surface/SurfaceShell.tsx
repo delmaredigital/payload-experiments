@@ -1,5 +1,6 @@
 'use client'
 
+import '../theme.css'
 import type { ReactNode } from 'react'
 import { Link } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'

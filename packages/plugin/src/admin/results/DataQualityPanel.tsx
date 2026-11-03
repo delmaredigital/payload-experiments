@@ -1,11 +1,12 @@
 'use client'
+import { theme } from '../theme.js'
 
 import type { DataQualityItem } from './results.model.js'
 import { RESULTS_COPY } from '../copy/results.js'
 
 export function DataQualityPanel({ items }: { items: DataQualityItem[] }) {
   if (items.length === 0) return null
-  return <section className="xp-data-quality" aria-label={RESULTS_COPY.quality} style={{ color: 'var(--theme-text)', background: 'var(--theme-elevation-50)', padding: '1rem' }}>
+  return <section className="xp-data-quality" aria-label={RESULTS_COPY.quality} style={{ color: theme.color.text, background: theme.color.surface, padding: '1rem' }}>
     <h2>{RESULTS_COPY.quality}</h2>
     <ul>{items.map(item => <li key={item.id}>
       <p>{item.message}</p>

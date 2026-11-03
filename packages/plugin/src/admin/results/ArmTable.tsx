@@ -1,4 +1,5 @@
 'use client'
+import { theme } from '../theme.js'
 
 import type { ArmRow } from './results.model.js'
 import { RESULTS_COPY } from '../copy/results.js'
@@ -16,7 +17,7 @@ export function ArmTable({ rows, caption, method, metricKind }: ArmTableProps) {
   const showAdjustedCI = sequential && rows.some(row => row.comparison?.method === 'sequential' && row.comparison.adjustedCI !== undefined)
   const showAdjustedPValue = sequential && rows.some(row => row.comparison?.method === 'sequential' && row.comparison.pValueAdjusted !== undefined)
   const columns = 4 + Number(showAdjustedCI) + Number(showAdjustedPValue)
-  return <div className="xp-arm-table" style={{ color: 'var(--theme-text)', overflowX: 'auto' }}>
+  return <div className="xp-arm-table" style={{ color: theme.color.text, overflowX: 'auto' }}>
     <table>
       <caption>{caption}</caption>
       <thead><tr>

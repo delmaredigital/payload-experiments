@@ -5,14 +5,14 @@
   width: 100%;
   padding: 0.65rem;
   margin-top: 0.4rem;
-  border: 1px solid var(--theme-elevation-150);
-  border-radius: var(--style-radius-s);
-  background: var(--theme-input-bg);
-  color: var(--theme-text);
+  border: 1px solid var(--xp-border);
+  border-radius: var(--xp-radius);
+  background: var(--xp-input-bg);
+  color: var(--xp-text);
 }
 .xp-setting-values { display: grid; gap: 1rem; }
 .xp-setting-value { white-space: pre-wrap; }
-.xp-setting-lock { color: var(--theme-elevation-600); }
+.xp-setting-lock { color: var(--xp-text-muted); }
 .xp-setting-parameter fieldset { border: 0; padding: 0; margin: 0; }
 .xp-setting-segments { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
 .xp-setting-segments label { position: relative; }
@@ -20,10 +20,10 @@
 .xp-setting-segments span {
   display: block;
   padding: 0.5rem 0.8rem;
-  border: 1px solid var(--theme-elevation-150);
-  border-radius: var(--style-radius-s);
-  background: var(--theme-input-bg);
-  color: var(--theme-text);
+  border: 1px solid var(--xp-border);
+  border-radius: var(--xp-radius);
+  background: var(--xp-input-bg);
+  color: var(--xp-text);
 }
-.xp-setting-segments input:checked + span { background: var(--theme-elevation-150); border-color: var(--theme-text); }
-.xp-setting-segments input:focus-visible + span { outline: 2px solid var(--theme-text); outline-offset: 2px; }
+.xp-setting-segments input:checked + span { background: var(--xp-border); border-color: var(--xp-text); }
+.xp-setting-segments input:focus-visible + span { outline: 2px solid var(--xp-text); outline-offset: 2px; }

@@ -192,7 +192,7 @@ test('audience controls use typed values, word comparisons and current whole rul
 test('empty list audience rule shows the model hint', () => {
   const p = props({ targeting: [{ attribute: 'country', op: 'in', value: [] }] })
   render(<TargetingSection {...p} />)
-  expect(within(screen.getByRole('group', { name: 'Value' })).getAllByRole('checkbox')).toHaveLength(2)
+  expect(within(screen.getByRole('group', { name: 'Value' })).getByRole('textbox')).toBeTruthy()
   expect(screen.getByText("Add at least one value — an empty list can't be saved.")).toBeTruthy()
 })
 test('goals load via the host API and preserve the current metrics group on selection', async () => {
@@ -253,15 +253,17 @@ test.each([2, 'uuid-guardrail'])('checkboxes preserve metric ids (%s) and add to
   fireEvent.click(within(screen.getByRole('group', { name: 'Also keep an eye on (optional)' })).getByLabelText('First · yes/no'))
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [], secondary: [id] } })
 })
-test('targeting checkbox toggles keep other current values and rules', () => {
+test('targeting chips keep other current rules and save arrays', () => {
   const p = props({ targeting: [{ attribute: 'country', op: 'in', value: [] }] })
   const view = render(<TargetingSection {...p} />)
-  fireEvent.click(screen.getByLabelText('US'))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'US' } })
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Value' }), { key: 'Enter' })
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US'] }] })
   p.test.doc!.targeting![0]!.value = ['US']
   view.rerender(<TargetingSection {...p} />)
   p.test.doc!.targeting!.push({ attribute: 'age', op: 'gte', value: 18 })
-  fireEvent.click(screen.getByLabelText('CA'))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'CA' } })
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Value' }), { key: 'Enter' })
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 18 }] })
 })
 test('read-only goals show None selected or a neutral label while goals are unavailable, never raw ids', async () => {
@@ -340,4 +342,39 @@ test('a goal missing from a successful load reads as no longer existing', async 
   render(<GoalSection {...props({ status: 'running', metrics: { primary: 99, guardrails: [] } })} />)
   await waitFor(() => expect(screen.getByText('A goal that no longer exists')).toBeTruthy())
   expect(screen.queryByText('Goal details unavailable')).toBeNull()
+})
+
+test.each(['in', 'nin'] as const)('legacy %s lists load as chips and save arrays; running lists stay disabled', op => {
+  const p = props({ targeting: [{ attribute: 'country', op, value: 'US, CA' }] })
+  const view = render(<TargetingSection {...p} />)
+  expect(screen.getByRole('button', { name: 'Remove US' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Remove CA' }))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op, value: ['US'] }] })
+  p.test.doc!.status = 'running'
+  view.rerender(<TargetingSection {...p} />)
+  expect((screen.getByRole('textbox', { name: 'Value' }) as HTMLInputElement).disabled).toBe(true)
+  expect((screen.getByRole('button', { name: 'Remove US' }) as HTMLButtonElement).disabled).toBe(true)
+})
+
+test('switching a legacy list operator and editing another row normalize whole-group writes', () => {
+  const p = props({ targeting: [{ attribute: 'country', op: 'in', value: 'US, CA' }, { attribute: 'age', op: 'gte', value: 18 }] })
+  render(<TargetingSection {...p} />)
+  fireEvent.change(screen.getAllByLabelText('Comparison')[0]!, { target: { value: 'nin' } })
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'nin', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 18 }] })
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Value' }), { target: { value: '21' } })
+  fireEvent.blur(screen.getByRole('spinbutton', { name: 'Value' }))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 21 }] })
+})
+test('deleting a list rule cannot transfer its unfinished chip draft to the next rule', () => {
+  const p = props({ targeting: [{ attribute: 'country', op: 'in', value: ['US'] }, { attribute: 'country', op: 'in', value: ['CA'] }] })
+  vi.mocked(p.test.stage).mockImplementation(patch => { p.test.doc = { ...p.test.doc!, ...patch } })
+  const view = render(<TargetingSection {...p} />)
+  fireEvent.change(screen.getAllByRole('textbox', { name: 'Value' })[0]!, { target: { value: 'draft' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Remove rule' })[0]!)
+  view.rerender(<TargetingSection {...p} />)
+  const remaining = screen.getByRole('textbox', { name: 'Value' }) as HTMLInputElement
+  expect(remaining.value).toBe('')
+  fireEvent.keyDown(remaining, { key: 'Enter' })
+  expect(p.test.stage).toHaveBeenCalledTimes(1)
+  expect(p.test.doc!.targeting).toEqual([{ attribute: 'country', op: 'in', value: ['CA'] }])
 })

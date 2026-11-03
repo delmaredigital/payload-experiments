@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test } from 'vitest'
+import { theme } from '../../../src/admin/theme.js'
 import { CiChart } from '../../../src/admin/results/CiChart.js'
 import { fixture, phaseFor } from './fixtures.js'
 
@@ -35,13 +36,13 @@ test('series use neutral theme colours and legends use text colour with matching
   const legend = screen.getAllByRole('listitem')
   groups.forEach((group, index) => {
     const color = group.getAttribute('stroke')!
-    expect(color).toMatch(/^var\(--theme-elevation-\d+\)$/)
-    expect(legend[index]!.style.color).toBe('var(--theme-text)')
+    expect([theme.color.textStrong, theme.color.textMuted, theme.color.borderAccent]).toContain(color)
+    expect(legend[index]!.style.color).toBe(theme.color.text)
     const swatch = legend[index]!.querySelector('span')!
     expect(swatch.style.backgroundColor).toBe(color)
     expect(swatch.getAttribute('aria-hidden')).toBe('true')
   })
-  expect(container.innerHTML).not.toMatch(/--theme-(success|warning|error)/)
+  expect(container.innerHTML).not.toMatch(/--xp-(success|warning|error)/)
 })
 test('empty history renders the given message', () => {
   render(<CiChart series={series.slice(0, 1)} metricId="registrations" metricName="Registrations" phase={phase} />)

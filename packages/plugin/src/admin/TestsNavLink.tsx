@@ -1,5 +1,6 @@
 'use client'
 
+import './theme.css'
 import { Link, useConfig } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
 import { usePathname } from 'next/navigation.js'

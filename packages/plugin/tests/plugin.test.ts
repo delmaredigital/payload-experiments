@@ -93,12 +93,14 @@ test('registers the Tests root and appends its nav link without replacing host c
   const options = sampleOptions()
   options.admin = { editorUrl: () => '/editor', previewUrl: () => '/preview', descriptions: { block: 'On a page' } }
   const admin: NonNullable<Config['admin']> = { custom: { host: true }, components: {
-    views: { host: { Component: 'host#View', path: '/host' } }, afterNavLinks: ['host#Nav'],
+    views: { host: { Component: 'host#View', path: '/host' } }, beforeNavLinks: ['host#BeforeNav'], afterNavLinks: ['host#Nav'],
   } }
   const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], admin })
   const paths = await import('../src/admin/paths.js')
   expect(config.admin?.components?.views).toEqual({ host: admin.components!.views!.host, xpTests: { Component: paths.XP_TESTS_VIEW, path: '/experiments/:segments*' } })
-  expect(config.admin?.components?.afterNavLinks).toEqual(['host#Nav', paths.XP_TESTS_NAV_LINK])
+  expect(config.admin?.components?.beforeNavLinks).toEqual(['host#BeforeNav', paths.XP_TESTS_NAV_LINK])
+  expect(config.admin?.components?.afterNavLinks).toEqual(['host#Nav'])
+  expect(admin.components?.beforeNavLinks).toEqual(['host#BeforeNav'])
   expect(config.admin?.custom).toEqual({ host: true })
   expect(config.custom?.xp.admin).toEqual(options.admin)
   expect(admin.components?.afterNavLinks).toEqual(['host#Nav'])

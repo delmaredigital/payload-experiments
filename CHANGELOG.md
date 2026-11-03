@@ -11,6 +11,11 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Centralized admin theme tokens and moved Tests above collection groups, after any host-provided leading navigation links.
+- Audience list rules now use keyboard-accessible chips and save arrays; existing comma-separated values remain readable.
+
+Migration impact: none. The Tests import-map path is unchanged.
+
 ## [0.2.0-rc.3] - 2026-11-02
 
 ### plugin

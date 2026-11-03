@@ -1,4 +1,5 @@
 'use client'
+import { theme } from '../../theme.js'
 import '../../styles.js'
 
 import { useEffect, useRef, useState } from 'react'
@@ -82,7 +83,7 @@ function ResultsContent({ id, surface }: { id: DocId; surface: SurfaceProps }) {
   // The endpoint decides the current round; historical rounds are read-only.
   const canDecide = manage && (status === 'running' || status === 'stopped') && phase?.phaseKind === 'test'
     && round === newestRound && state === 'ready' && Boolean(snapshot)
-  return <div className="xp-results" style={{ color: 'var(--theme-text)' }}>
+  return <div className="xp-results" style={{ color: theme.color.text }}>
     {phases.length > 0 ? <label>{C.round}<select disabled={deciding} value={round ?? ''} onChange={event => results.setRound(Number(event.target.value))}>
       {roundOptions(phases).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select></label> : null}
@@ -92,7 +93,7 @@ function ResultsContent({ id, surface }: { id: DocId; surface: SurfaceProps }) {
       : state === 'error' ? <><p role="alert">{results.error}</p><Button onClick={results.reload}>{C.retry}</Button></>
       : null}
     {phase && snapshot ? <>
-      <div style={{ background: 'var(--theme-elevation-50)', paddingTop: '1rem' }}>
+      <div style={{ background: theme.color.surface, paddingTop: '1rem' }}>
         <p className="xp-recommendation" style={{ margin: '0 1rem' }}>{recommendation({ snapshot, phase, status: lineStatus,
           plannedDurationDays: round === newestRound ? doc?.analysis?.plannedDurationDays : undefined })}</p>
         <VerdictCard model={card!}

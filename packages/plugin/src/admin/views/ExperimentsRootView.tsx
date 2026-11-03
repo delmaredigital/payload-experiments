@@ -1,3 +1,4 @@
+import { theme } from '../theme.js'
 import type { AdminViewServerProps } from 'payload'
 import { formatAdminURL } from 'payload/shared'
 import { notFound, redirect } from 'next/navigation.js'
@@ -46,7 +47,7 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
   const isAdmin = options.access.admin ? await permits(options.access.admin) : false
   const canReadResults = options.access.readResults ? await permits(options.access.readResults) : canManage
   if (routeAccess({ route, hasUser: true, canManage, canReadResults }) !== 'ok') {
-    return <div style={{ padding: 'var(--base)', color: 'var(--theme-text)', background: 'var(--theme-bg)' }}>{SURFACE_COPY.noAccess}</div>
+    return <div style={{ padding: theme.space[4], color: theme.color.text, background: theme.color.bg }}>{SURFACE_COPY.noAccess}</div>
   }
 
   const flagPoints = serializeFlagPoints(options)
@@ -89,5 +90,5 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
 }
 
 function TestsSurfaceFallback() {
-  return <div role="alert" style={{ padding: 'var(--base)', color: 'var(--theme-text)', background: 'var(--theme-bg)' }}>{SURFACE_COPY.notInstalled}</div>
+  return <div role="alert" style={{ padding: theme.space[4], color: theme.color.text, background: theme.color.bg }}>{SURFACE_COPY.notInstalled}</div>
 }

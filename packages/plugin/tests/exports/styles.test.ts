@@ -17,7 +17,7 @@ test('results surface loads the shared admin stylesheet entry', () => {
 })
 
 test('the stylesheet entry loads CSS and no barrel has a bare side-effect import', () => {
-  expect(imports('admin/styles.ts').map(node => node.moduleSpecifier.getText())).toEqual(["'./styles.css'"])
+  expect(imports('admin/styles.ts').map(node => node.moduleSpecifier.getText())).toEqual(["'./theme.css'", "'./styles.css'"])
   for (const file of readdirSync(new URL('exports/', src)).filter(file => file.endsWith('.ts'))) {
     expect(imports(`exports/${file}`).filter(node => !node.importClause), file).toEqual([])
   }

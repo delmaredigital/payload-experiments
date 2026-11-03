@@ -1,0 +1,42 @@
+/* The Payload token boundary. Recompute aliases for either admin theme. */
+:root, [data-theme] {
+  --xp-bg: var(--theme-bg);
+  --xp-text: var(--theme-text);
+  --xp-surface: var(--theme-elevation-50);
+  --xp-surface-raised: var(--theme-elevation-100);
+  --xp-border: var(--theme-elevation-150);
+  --xp-border-strong: var(--theme-elevation-200);
+  --xp-border-control: var(--theme-elevation-250);
+  --xp-input-border: var(--theme-elevation-300);
+  --xp-border-accent: var(--theme-elevation-400);
+  --xp-accent: var(--theme-elevation-500);
+  --xp-text-muted: var(--theme-elevation-600);
+  --xp-text-strong: var(--theme-elevation-800);
+  --xp-text-emphasis: var(--theme-elevation-900);
+  --xp-input-bg: var(--theme-input-bg);
+  --xp-overlay: var(--theme-overlay);
+  --xp-success-surface: var(--theme-success-100);
+  --xp-success-bg: var(--theme-success-150);
+  --xp-success: var(--theme-success-500);
+  --xp-success-text: var(--theme-success-600);
+  --xp-success-text-strong: var(--theme-success-850);
+  --xp-warning-surface: var(--theme-warning-100);
+  --xp-warning-bg: var(--theme-warning-150);
+  --xp-warning: var(--theme-warning-500);
+  --xp-warning-text: var(--theme-warning-600);
+  --xp-warning-text-strong: var(--theme-warning-850);
+  --xp-error-surface: var(--theme-error-100);
+  --xp-error: var(--theme-error-500);
+  --xp-error-text: var(--theme-error-600);
+  --xp-radius: var(--style-radius-s);
+  --xp-radius-large: var(--style-radius-m);
+  --xp-space-1: calc(var(--base) * 0.25);
+  --xp-space-2: calc(var(--base) * 0.5);
+  --xp-space-3: calc(var(--base) * 0.75);
+  --xp-space-4: calc(var(--base) * 1);
+  --xp-space-5: calc(var(--base) * 1.5);
+  --xp-space-6: calc(var(--base) * 2);
+  --xp-font-body: var(--font-body);
+  --xp-font-size-small: calc(var(--base) * 0.65);
+  --xp-font-size-body: calc(var(--base) * 0.75);
+}

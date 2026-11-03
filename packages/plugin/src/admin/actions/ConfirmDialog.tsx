@@ -1,4 +1,5 @@
 'use client'
+import { theme } from '../theme.js'
 
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -23,10 +24,10 @@ export function DialogFrame({ title, onClose, children }: { title: string; onClo
     ref.current?.focus()
     return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus() }
   }, [])
-  return createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--theme-overlay)', display: 'grid', placeItems: 'center' }}>
+  return createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: theme.color.overlay, display: 'grid', placeItems: 'center' }}>
     <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={heading} tabIndex={-1}
-      style={{ background: 'var(--theme-bg)', color: 'var(--theme-text)', border: '1px solid var(--theme-elevation-200)',
-        padding: '2rem', width: 'min(36rem, 90vw)', maxHeight: '90vh', overflow: 'auto', borderRadius: 'var(--style-radius-s)' }}
+      style={{ background: theme.color.bg, color: theme.color.text, border: `1px solid ${theme.color.borderStrong}`,
+        padding: '2rem', width: 'min(36rem, 90vw)', maxHeight: '90vh', overflow: 'auto', borderRadius: theme.radius.small }}
       onKeyDown={event => {
         if (event.defaultPrevented) return
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }

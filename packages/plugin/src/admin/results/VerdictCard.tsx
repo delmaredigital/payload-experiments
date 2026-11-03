@@ -1,4 +1,5 @@
 'use client'
+import { theme } from '../theme.js'
 
 import type { VerdictCardModel, guardrailChips } from './results.model.js'
 
@@ -11,7 +12,7 @@ export interface VerdictCardProps {
 }
 
 export function VerdictCard({ model, guardrails = [], power, collecting, sinceShipping }: VerdictCardProps) {
-  return <section className="xp-verdict-card" style={{ color: 'var(--theme-text)', background: 'var(--theme-elevation-50)', padding: '1rem' }}>
+  return <section className="xp-verdict-card" style={{ color: theme.color.text, background: theme.color.surface, padding: '1rem' }}>
     {sinceShipping ? <p className="xp-since-shipping">{sinceShipping}</p> : null}
     <h2>{'title' in model ? model.title : model.headline}</h2>
     {'finding' in model && model.finding ? <p>{model.finding}</p> : null}

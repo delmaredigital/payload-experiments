@@ -1,4 +1,5 @@
 'use client'
+import { theme } from '../../theme.js'
 import { useEffect, useRef, useState } from 'react'
 import type { Arm } from '../../../types/contracts.js'
 import type { KindParts, SectionProps } from '../contracts.js'
@@ -10,7 +11,7 @@ import { balanceWeight, orderedVersions, trafficShares } from './testPage.model.
 import { FieldErrors, ReadOnly, reasonFor, save, TextEdit } from './fields.js'
 import { Section } from './Section.js'
 
-const COLOURS = ['var(--theme-success-500)', 'var(--theme-elevation-500)', 'var(--theme-warning-500)', 'var(--theme-error-500)', 'var(--theme-elevation-300)']
+const COLOURS = [theme.color.success, theme.color.accent, theme.color.warning, theme.color.error, theme.color.inputBorder]
 export function VersionsSection({ test, surface, parts }: SectionProps & { parts: KindParts }) {
   const doc = test.doc!
   const [weightEdit, setWeightEdit] = useState<{ key: Arm['key']; weight: number } | null>(null)
