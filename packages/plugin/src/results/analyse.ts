@@ -1,3 +1,4 @@
+import { XpAnalysisError } from '../errors.js'
 import {
   DEFAULT_GAUSSIAN_PRIOR, bonferroniAlpha, capValues, createThetaAdjustedStatistics,
   effectBayesianABTest, sequentialOneSidedTreatmentGreaterTTest,
@@ -104,7 +105,7 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
   const rollout = phase.phaseKind === 'rollout'
   const baselineArm = phase.arms.find(arm => arm.kind === (rollout ? 'holdout' : 'control'))
   const winner = rollout ? phase.arms.find(arm => arm.key === input.winnerArm && arm.kind !== 'holdout') : undefined
-  if (!baselineArm || (rollout && (!winner || phase.arms.length !== 2))) throw new RangeError('Phase comparison baseline or shipped arm is missing')
+  if (!baselineArm || (rollout && (!winner || phase.arms.length !== 2))) throw new XpAnalysisError('no-baseline')
   const compared = phase.arms.filter(arm => rollout ? arm.key === winner!.key : arm.kind === 'variant')
   const k = compared.length
   const alphaAdjusted = analysis.method === 'sequential' ? bonferroniAlpha(alpha, k) : alpha
@@ -115,20 +116,20 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
   }))
   const primaryDefinition = definitions.find(metric => metric.role === 'primary')
   if (!primaryDefinition || phase.metricDefinitions.filter(metric => metric.role === 'primary').length !== 1) {
-    throw new RangeError('Phase must have exactly one primary metric')
+    throw new XpAnalysisError('primary-metric-count')
   }
   if (new Set(phase.metricDefinitions.map(metric => String(metric.metricId))).size !== phase.metricDefinitions.length
     || new Set(input.metricData.map(metric => String(metric.metricId))).size !== input.metricData.length) {
-    throw new RangeError('Duplicate metric id')
+    throw new XpAnalysisError('duplicate-metric')
   }
   const from = timestampMs(phase.startedAt)
   const now = timestampMs(input.now)
   const to = Math.min(now, phase.endedAt == null ? now : timestampMs(phase.endedAt))
-  if (to < from) throw new RangeError('Analysis window ends before the phase starts')
+  if (to < from) throw new XpAnalysisError('window-before-start')
   const byArm = new Map(phase.arms.map(arm => [arm.key as string, [] as string[]]))
   for (const [id, unit] of units) {
     const ids = byArm.get(unit.arm)
-    if (!ids) throw new RangeError('Exposed unit has an unknown arm')
+    if (!ids) throw new XpAnalysisError('unknown-arm')
     ids.push(id)
   }
   const perArm = Object.fromEntries([...byArm].map(([arm, ids]) => [arm, ids.length]))
@@ -162,11 +163,9 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
     let worst: Snapshot['guardrails'][number]['status'] = 'ok'
     let worstArmLabel = compared[0]?.label ?? ''
     let worstArm = compared[0]?.key ?? ''
-    let reason: MetricUnavailableReason = 'analysis-failed'
     try {
       if (!data || data.unavailable !== undefined) {
-        reason = data?.unavailable ?? 'not-supplied'
-        throw new Error('Metric data was not supplied')
+        throw new XpAnalysisError('metric-not-supplied')
       }
       const stats = new Map<string, TestStatistic>()
       const cap = kind === 'revenue' ? definition.resolvedCap ?? null : null
@@ -174,10 +173,10 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
       for (const arm of phase.arms) {
         const ids = byArm.get(arm.key)!
         const values = ids.map(id => data.values.get(id) ?? 0)
-        if (!values.every(Number.isFinite)) { reason = 'non-finite-values'; throw new RangeError('Metric values must be finite') }
+        if (!values.every(Number.isFinite)) throw new XpAnalysisError('non-finite-values')
         const capped = capValues(values, cap)
         const rawPre = useCovariates ? ids.map(id => data.covariates!.get(id) ?? 0) : undefined
-        if (rawPre && !rawPre.every(Number.isFinite)) { reason = 'non-finite-covariates'; throw new RangeError('Covariates must be finite') }
+        if (rawPre && !rawPre.every(Number.isFinite)) throw new XpAnalysisError('non-finite-covariates')
         const pre = rawPre && capValues(rawPre, cap).values
         const built = outcomeStatistic(kind, capped.values, pre)
         stats.set(arm.key, built.statistic)
@@ -249,6 +248,14 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
       }
     } catch (error) {
       input.onMetricError?.(error, metricId)
+      let reason: MetricUnavailableReason = 'analysis-failed'
+      if (error instanceof XpAnalysisError) {
+        switch (error.code) {
+          case 'metric-not-supplied': reason = data?.unavailable ?? 'not-supplied'; break
+          case 'non-finite-values':
+          case 'non-finite-covariates': reason = error.code; break
+        }
+      }
       metric.unavailable = reason
       metric.perArm = []; metric.comparisons = []; metric.cupedApplied = false
       exposures.capped[metricId] = 0

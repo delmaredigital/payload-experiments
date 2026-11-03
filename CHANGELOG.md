@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: when results can't be computed, the server log now names the reason (a fixed code and message) instead of only the error type. Migration impact: none.
+
 - Added: optional `theme.accent` plugin option with derived light/dark fills, accessible accent text and focus rings, and foreground contrast validation.
 - Changed: admin design tokens and shared interface components for the 0.3.0 screens; Running and Ready use fixed green status colours, and the Puck editor stylesheet is generated from the same tokens.
 - Fixed: the Original's page is never marked noindex during or after a whole-page test; version pages reached at their own URL are noindex with a canonical to the Original while running or decided. Archived paths keep their canonical to the winner. `experimentMetadata` now reads the signed request context via `headers()`: call it only from a dynamic `generateMetadata`, never inside `'use cache'`.

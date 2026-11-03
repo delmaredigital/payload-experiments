@@ -206,6 +206,8 @@ function scan(text: string, file: string): Violation[] {
     }
   }
   const walk = (node: ts.Node) => {
+    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'XpAnalysisError'
+      && (node.arguments?.length !== 1 || !ts.isStringLiteral(node.arguments[0]!))) report(node, 'analysis-error-literal-code')
     if (ts.isCallExpression(node) && loggingMethod(node.expression)) node.arguments.forEach(checkArgument)
     if (ts.isIdentifier(node) && node.text === 'safeError') {
       const declarations = identifierSymbol(node)?.declarations ?? []
@@ -388,4 +390,19 @@ describe('logging source boundary', () => {
     expect(scan('function insertEvents(exec, rows, log = console.error) {}', 'src/db/events.ts')).toEqual([])
     expect(scan('function other(exec, rows, log = console.error) {}', 'src/db/events.ts').length).toBeGreaterThan(0)
   })
+})
+
+// These messages are retained by safeError, so construction must stay closed.
+test.each([
+  "new XpAnalysisError('no-baseline', storedMessage)",
+  'new XpAnalysisError(code)',
+  'new XpAnalysisError(`no-baseline`)',
+  'new XpAnalysisError(...codes)',
+  'new XpAnalysisError()',
+])('analysis error construction rejects unsafe arguments: %s', text => {
+  expect(scan(text, 'src/example.ts')).toContainEqual({ file: 'src/example.ts', line: 1, rule: 'analysis-error-literal-code' })
+})
+
+test('analysis error construction accepts one string literal code', () => {
+  expect(scan("throw new XpAnalysisError('no-baseline')", 'src/example.ts')).toEqual([])
 })
