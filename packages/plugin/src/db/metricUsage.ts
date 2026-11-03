@@ -11,7 +11,7 @@ export async function findMetricUsage(exec: Executor, id: DocId): Promise<{ name
       SELECT e.${q(e.name)} AS name, e.${q(e.status)} AS status
       FROM ${qualifiedTable(exec, TABLES.phases)} p
       LEFT JOIN ${qualifiedTable(exec, TABLES.experiments)} e ON e.${q(e.id)} = p.${q(p.experimentId)}
-      WHERE EXISTS (
+      WHERE jsonb_typeof(p.${q(p.metricDefinitions)}) = 'array' AND EXISTS (
         SELECT 1 FROM jsonb_array_elements(p.${q(p.metricDefinitions)}) definition
         WHERE definition->>'metricId' = $1::text
       )

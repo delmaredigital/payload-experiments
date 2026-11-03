@@ -10,7 +10,8 @@ export class XpGoalInUseError extends Error {
 }
 
 async function executor(req: PayloadRequest) {
-  return await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
+  const transactionID = await req.transactionID
+  return transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
 }
 
 export const metricDeleteGuard: CollectionBeforeDeleteHook = async ({ req, id }) => {
