@@ -2,10 +2,13 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { TestPage } from '../../../../src/admin/surface/test/TestPage.js'
+import { SaveStatus } from '../../../../src/admin/surface/readiness/SaveStatus.js'
+import { READINESS_COPY } from '../../../../src/admin/copy/readiness.js'
 import { doc, preflight, props } from '../readiness/fixtures.js'
 
-vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
-  Banner: () => null, SaveStatus: () => null,
+vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
+vi.mock('../../../../src/admin/surface/readiness/parts.js', async () => ({ readinessParts: {
+  Banner: () => null, SaveStatus: (await import('../../../../src/admin/surface/readiness/SaveStatus.js')).SaveStatus,
   sectionDone: () => ({ what: false, versions: false, win: false, who: true, length: false, advanced: true }),
 } }))
 vi.mock('../../../../src/admin/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
@@ -23,7 +26,7 @@ test('a stale edit shows one alert with Reload, preserves typed values, and Relo
     return response({ ...doc, updatedAt: `2026-11-03T10:0${reads}:00.000Z`, name: ++reads === 1 ? 'Loaded name' : 'Newer saved name' })
   })
   vi.stubGlobal('fetch', fetcher)
-  render(<TestPage id={doc.id} surface={props().surface} />)
+  await act(async () => { render(<TestPage id={doc.id} surface={props().surface} />) })
   await waitFor(() => expect(screen.getByLabelText<HTMLInputElement>('Test name').value).toBe('Loaded name'))
   fireEvent.change(screen.getByLabelText('Test name'), { target: { value: 'My typed name' } })
   fireEvent.blur(screen.getByLabelText('Test name'))
@@ -36,6 +39,7 @@ test('a stale edit shows one alert with Reload, preserves typed values, and Relo
   const notice = await screen.findByRole('alert')
   expect(screen.getAllByRole('alert')).toHaveLength(1)
   expect(within(notice).getByText(message)).toBeTruthy()
+  expect(screen.queryByText(READINESS_COPY.saveError)).toBeNull()
   expect(screen.getByLabelText<HTMLInputElement>('Test name').value).toBe('My typed name')
   expect(screen.getByLabelText<HTMLTextAreaElement>('Why are you testing this? (optional)').value).toBe('Queued hypothesis')
   fireEvent.change(screen.getByLabelText('Test name'), { target: { value: 'Still typing' } })
@@ -49,4 +53,9 @@ test('a stale edit shows one alert with Reload, preserves typed values, and Relo
   expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull()
   expect(screen.getByLabelText<HTMLTextAreaElement>('Why are you testing this? (optional)').value).toBe('')
   expect(patches()).toHaveLength(1)
+})
+
+test('a normal save error still shows the SaveStatus alert', () => {
+  render(<SaveStatus test={props({}, { saving: 'error' }).test} />)
+  expect(screen.getByRole('alert').textContent).toBe(READINESS_COPY.saveError)
 })
