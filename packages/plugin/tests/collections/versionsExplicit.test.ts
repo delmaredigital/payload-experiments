@@ -21,22 +21,20 @@ test('Tests retain their existing version history settings', () => {
     .toEqual({ drafts: false, maxPerDoc: 50 })
 })
 
-test('the versions gate covers every xp- collection and global registered by the plugin', async () => {
-  const config = await createExperimentsPlugin(options)({
+test.each([false, true])('the versions gate covers every collection and global the plugin adds (puck %s)', async puck => {
+  const pluginOptions = sampleOptions()
+  if (puck) pluginOptions.puck = { enabled: true, collections: ['pages'] }
+  const config = await createExperimentsPlugin(pluginOptions)({
     secret: 'test', db: {} as Config['db'],
     collections: [{ slug: 'pages', fields: [] }],
     globals: [{ slug: 'settings', fields: [] }],
   })
-  const xpCollections = config.collections!.filter(collection => collection.slug.startsWith('xp-'))
-  const xpGlobals = config.globals!.filter(global => global.slug.startsWith('xp-'))
-  expect(xpCollections.map(collection => collection.slug).sort())
-    .toEqual(collections.map(collection => collection.slug).sort())
-  expect(xpGlobals.map(global => global.slug).sort())
-    .toEqual(globals.map(global => global.slug).sort())
-  for (const config of [...xpCollections, ...xpGlobals]) {
-    expect(Object.prototype.hasOwnProperty.call(config, 'versions'), config.slug).toBe(true)
-    expect(config.versions, config.slug).toEqual(
-      config.slug === 'xp-experiments' ? { drafts: false, maxPerDoc: 50 } : false,
-    )
+  // Everything the plugin adds, whatever its slug: the built config minus the host's own entries.
+  const added = [...config.collections!.filter(c => c.slug !== 'pages'), ...config.globals!.filter(g => g.slug !== 'settings')]
+  expect(added.map(entry => entry.slug).sort()).toEqual(pluginConfigs.map(entry => entry.slug).sort())
+  for (const entry of added) {
+    expect(Object.prototype.hasOwnProperty.call(entry, 'versions'), entry.slug).toBe(true)
+    expect(entry.versions, entry.slug).toEqual(entry.slug === 'xp-experiments' ? { drafts: false, maxPerDoc: 50 } : false)
   }
+  expect(config.collections!.find(c => c.slug === 'pages')).not.toHaveProperty('versions')
 })
