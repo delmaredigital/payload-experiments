@@ -1,4 +1,5 @@
 'use client'
+import { useEffect } from 'react'
 import type { DocId } from '../../../types/contracts.js'
 import type { SurfaceProps } from '../contracts.js'
 import { useTestDocument } from '../useTestDocument.js'
@@ -16,15 +17,16 @@ import { LengthSection } from './LengthSection.js'
 import { AdvancedSection } from './AdvancedSection.js'
 import './testPage.css'
 
-export function TestPage({ id, surface }: { id: DocId; surface: SurfaceProps }) {
+export function TestPage({ id, surface, onTitleChange }: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {
   const test = useTestDocument(id, { apiRoute: surface.apiRoute })
+  useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
   if (test.loadState !== 'ready' || !test.doc) return <div className="xp-test-page" role={test.loadState === 'error' ? 'alert' : 'status'}>
     <p>{test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading}</p>
     {test.loadState === 'error' ? <button type="button" onClick={() => void test.reload()}>{C.retry}</button> : null}
   </div>
   const parts = test.doc.kind === 'block' ? pageBlockParts : test.doc.kind === 'page' ? pageParts : settingParts
   const props = { test, surface }
-  return <main className="xp-test-page"><TestHeader {...props} />
+  return <div className="xp-test-page"><TestHeader {...props} />
     {test.errors._section ? <div role="alert"><p>{test.errors._section}</p>
       {test.stale ? <button type="button" onClick={() => void test.reload()}>{C.reload}</button> : null}
     </div> : null}
@@ -32,5 +34,5 @@ export function TestPage({ id, surface }: { id: DocId; surface: SurfaceProps }) 
     <Section test={test} sectionId="what"><parts.Binding {...props} /><Hypothesis {...props} /></Section>
     <VersionsSection {...props} parts={parts} /><GoalSection {...props} /><TargetingSection {...props} />
     <LengthSection {...props} /><AdvancedSection {...props} />
-  </main>
+  </div>
 }

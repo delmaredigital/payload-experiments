@@ -190,7 +190,7 @@
 .xp-ui-tab[aria-selected='true'] { color: var(--xp-accent-text); text-decoration: var(--xp-accent-text-decoration); border-bottom-color: var(--xp-accent-text); font-weight: 600; }
 .xp-ui-tab:disabled { opacity: .5; cursor: not-allowed; }
 .xp-ui-tabpanel { padding-block: 16px; }
-.xp-ui-status { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: var(--xp-radius-chip); border: 1px solid var(--xp-border); background: var(--xp-surface-2); color: var(--xp-text-2); font: 500 12px/18px var(--xp-font); white-space: nowrap; }
+.xp-ui-status { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: var(--xp-radius-chip); border: 1px solid var(--xp-border-strong); background: var(--xp-surface-2); color: var(--xp-text-2); font: 500 12px/18px var(--xp-font); white-space: nowrap; }
 .xp-ui-status--running, .xp-ui-status--ready { background: var(--xp-success-bg); color: var(--xp-success); border-color: var(--xp-success-border); }
 .xp-ui-status--needs-attention { background: var(--xp-warning-bg); color: var(--xp-warning); border-color: var(--xp-warning-border); }
 .xp-ui-status--decided { background: var(--xp-text); color: var(--xp-surface); border-color: var(--xp-text); }

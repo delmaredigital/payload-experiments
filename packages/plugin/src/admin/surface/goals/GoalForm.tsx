@@ -19,11 +19,12 @@ type Draft = Omit<Goal, 'id' | 'capping' | 'guardrailThreshold'> & {
 const empty = (): Draft => ({ name: '', slug: '', source: '', direction: 'increase', attributionWindowHours: 168,
   minSampleSize: 150, capType: '', capValue: '', warningPercent: '5' })
 
-export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps; id?: string; returnToTest?: string }) {
+export function GoalForm({ surface, id, returnToTest, onTitleChange }: { surface: SurfaceProps; id?: string; returnToTest?: string; onTitleChange?: (title: string) => void }) {
   const router = useRouter()
   const base = surface.apiRoute.replace(/\/$/, '')
   const [draft, setDraft] = useState<Draft>(empty)
   const [goal, setGoal] = useState<Goal>()
+  useEffect(() => { if (goal?.name) onTitleChange?.(goal.name) }, [goal?.name, onTitleChange])
   const [usedBy, setUsedBy] = useState(0)
   const [ready, setReady] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -99,8 +100,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
     } catch (cause) { setError(cause instanceof Error ? cause.message : C.deleteError); inFlight.current = false; setPending(null) }
   }
   return <div className="xp-goals">
-    <GoalsBreadcrumb adminRoute={surface.adminRoute} name={goal?.name ?? (id === undefined ? C.newGoal : undefined)} returnQuery={returnQuery} />
-    <h1>{goal?.name ?? (id === undefined ? C.newGoal : C.title)}</h1>
+    <GoalsBreadcrumb adminRoute={surface.adminRoute} name={goal?.name ?? (id === undefined ? C.newGoal : C.goal)} returnQuery={returnQuery} />
     {loadError ? <p role="alert">{loadError}{' '}<button type="button" onClick={() => setAttempt(n => n + 1)}>{C.retry}</button></p>
       : !ready ? <p role="status">{C.loading}</p> : <form className="xp-goal-form" onSubmit={event => { event.preventDefault(); void submit() }}>
         <fieldset disabled={pending !== null}>
