@@ -108,9 +108,10 @@ function EditorRender(props: RenderProps) {
       <h3 className="xp-slot-title">{experiment?.name ?? pickerCopy.label}</h3>
       {experiment ? <span className="xp-slot-status" data-status={experiment.status}>{pickerCopy.statuses[experiment.status]}</span> : null}
       <div className="xp-slot-actions">
-        <button className="xp-slot-button xp-slot-button-primary" type="button" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</button>
+        {/* Creating a test replaces the binding, so it is offered only on an unbound block. */}
+        {experimentId === undefined ? <button className="xp-slot-button xp-slot-button-primary" type="button" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</button> : null}
         {/* Configurable admin routes are owed on ADM-11, alongside the existing /api prefix. */}
-        {experiment?.status === 'draft' ? <a className="xp-slot-button" href={`/admin/experiments/${encodeURIComponent(String(experimentId))}`}>{editorCopy.setup}</a> : null}
+        {experiment ? <a className="xp-slot-button xp-slot-button-primary" href={`/admin/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`}>{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</a> : null}
       </div>
     </header>
     <p className={experiment?.status === 'running' ? 'xp-slot-notice xp-slot-warning' : 'xp-slot-notice'} role="status">

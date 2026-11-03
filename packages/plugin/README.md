@@ -532,7 +532,7 @@ components: { ExperimentSlot: ExperimentSlotEditor }
 
 Load the editor stylesheet inside the Puck iframe. With Tailwind v4, add the
 package import **after** Tailwind in the CSS that builds your editor iframe
-stylesheet (in cc-lms, `src/styles/globals.css`, the input to `build:puck-css`):
+stylesheet (the stylesheet listed in payload-puck's `editorStylesheets`):
 
 ```css
 @import "tailwindcss";
@@ -542,7 +542,7 @@ stylesheet (in cc-lms, `src/styles/globals.css`, the input to `build:puck-css`):
 Alternatively, serve the exported `puck/editor.css` file from a public URL and
 append that URL to payload-puck's `editorStylesheets`, after the host stylesheet.
 The editor CSS includes its own light and dark palette, selected by
-`data-theme` on the iframe's `<html>`. The client component's CSS import alone
+`data-theme="dark"` or the `dark` class on the iframe's `<html>`. The client component's CSS import alone
 does not reach an iframe configured with `syncHostStyles: false`.
 
 Resolve the Puck data on the server with `resolveExperimentData` before

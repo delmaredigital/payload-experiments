@@ -16,6 +16,7 @@ export const editorCopy = {
   cancel: 'Cancel',
   name: 'Name',
   setup: 'Set up the test',
+  viewResults: 'View results',
   nameExists: "This name is too close to an existing test. Choose a different name.",
   createError: "Couldn't create the test. Try again.",
   loading: 'Loading test…',

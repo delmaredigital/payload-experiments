@@ -256,12 +256,15 @@ test('only the selected variant has a copy action', async () => {
   expect(puck.dispatch.mock.calls[0]![0].data.props.variantB[0].props.text).toBe('Hello')
 })
 
-test('a draft binding links to setup, while a running binding has no setup link', async () => {
+test('a draft binding links to setup, a running binding links to results, and neither offers to create a test', async () => {
   vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status: 'draft' })))
   const Editor = ExperimentSlotEditor.render
   const view = render(<Editor {...props()} />)
   expect((await screen.findByRole('link', { name: 'Set up the test' })).getAttribute('href')).toBe('/admin/experiments/1')
+  expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
   view.rerender(<Editor {...props({ experiment: { id: 2, slug: 'running' } })} />)
   await screen.findByRole('tab', { name: 'New headline' })
   expect(screen.queryByRole('link', { name: 'Set up the test' })).toBeNull()
+  expect(screen.getByRole('link', { name: 'View results' }).getAttribute('href')).toBe('/admin/experiments/2/results')
+  expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
 })
