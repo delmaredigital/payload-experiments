@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: results and make-content reports no longer store or show raw error text; they carry a reason code shown as plain copy, and the details go to the server log. Migration impact: none.
+
 - Added: edits to a test made from two places at once no longer overwrite each other: a save based on an outdated copy is refused with "Someone else changed this test. Reload to see their changes." (clients opt in with the `x-xp-if-updated-at` header).
 - Fixed: while a test is collecting data, results say which group is smallest and which has the fewest conversions, and how many each still needs, instead of counts that read as totals.
 - Fixed: after Recompute, the results page's status line shows the updated number of people.

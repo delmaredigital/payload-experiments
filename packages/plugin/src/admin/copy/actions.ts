@@ -1,3 +1,5 @@
+import type { ContentReportReason } from '../../types/reasons.js'
+
 export const ACTIONS_COPY = {
   start: 'Start', restart: 'Start a new round', stop: 'Stop', decide: 'Decide',
   release: 'Release holdout', makeContent: 'Make it the content', finish: 'Finish archiving',
@@ -13,6 +15,14 @@ export const ACTIONS_COPY = {
   group: 'Group', note: 'Decision note', confirmation: 'Confirmation',
   typePhrase: 'Type the following to confirm:', cancel: 'Cancel', retry: 'Retry', done: 'Done',
   loading: 'Loading results…', updated: 'Updated', failed: 'Failed',
+  contentReasons: {
+    locked: 'Someone is editing this page. Wait for them to finish, then retry.',
+    forbidden: "You can't read or update this page. Ask someone with access to update it by hand. If it was deleted, discard the winner to archive this test.",
+    'not-found': 'This page could not be found. Check whether it was deleted.',
+    validation: "This page couldn't be saved automatically. Update it by hand, then retry.",
+    'update-failed': "This page couldn't be updated this time. Retry; if it keeps happening, ask a developer.",
+  } satisfies Record<ContentReportReason, string>,
+  missingContent: 'This page no longer exists; nothing to change.',
   partial: "Some pages couldn't be updated. Fix them and retry.",
 } as const
 
@@ -24,3 +34,7 @@ export const makeContentCopy = (winner: string, kind: 'block' | 'page' | 'flag')
   ? `Saves ${winner}'s settings as the new defaults so the experiment can be archived.`
   : `Copies ${winner} into the page content so the experiment can be archived.`
 export const hardCodedLabel = (winner: string) => `The developer has hard-coded ${winner}`
+
+/** Old reports can contain host error text: never interpolate an unknown string. */
+export const contentReportCopy = (reason: string | undefined, ok = false) => reason === 'not-found' && ok ? ACTIONS_COPY.missingContent
+  : ACTIONS_COPY.contentReasons[reason !== undefined && Object.hasOwn(ACTIONS_COPY.contentReasons, reason) ? reason as ContentReportReason : 'update-failed']

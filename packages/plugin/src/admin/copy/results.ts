@@ -1,3 +1,5 @@
+import type { MetricUnavailableReason } from '../../types/reasons.js'
+
 export const RESULTS_COPY = {
   group: 'Group', people: 'People', conversions: 'Conversions', mean: 'Mean',
   lift: 'Lift', ci: 'Confidence interval', adjustedCI: 'Adjusted confidence interval',
@@ -21,6 +23,16 @@ export const RESULTS_COPY = {
   tooFewNext: 'Keep collecting results until each compared group reaches the planned minimum.',
   layerFull: 'The layer has fewer slices reserved than the requested allocation.',
   layerNext: 'Free slices in the layer, then raise participation from the actions panel.',
+  unavailable: {
+    'source-failed': "couldn't be read this time; the next results run will try again.",
+    'source-unavailable': "can't be read because its data source is no longer available. Ask a developer to check this goal.",
+    'unit-type-unavailable': "can't be read for the people counted in this test. Ask a developer to check this goal.",
+    'non-finite-values': "has values that can't be used. Ask a developer to check this goal's data.",
+    'non-finite-covariates': "has earlier values that can't be used. Ask a developer to check this goal's data.",
+    budget: "couldn't finish in time; the next results run will try again.",
+    'not-supplied': "has no data for this results run; the next results run will try again.",
+    'analysis-failed': "couldn't be calculated this time; the next results run will try again.",
+  } satisfies Record<MetricUnavailableReason, string>,
   unavailableNext: 'Recompute; if it persists, contact a developer.',
   loading: 'Loading results…',
   refreshing: 'Refreshing…', retryPreview: 'Retry preview links',
@@ -47,7 +59,7 @@ export const shareCopy = (label: string, expected: string, observed: string) => 
 export const exclusionCopy = (count: string, share: string) => `${count} excluded (${share}).`
 export const ignoredCopy = (count: string) => `${count} ignored.`
 export const conflictCopy = (share: string) => `${share} with identity conflicts.`
-export const metricUnavailable = (name: string, reason: string) => `${name} is unavailable: ${reason}`
+export const metricUnavailable = (name: string, reason: string) => `${name} ${RESULTS_COPY.unavailable[Object.hasOwn(RESULTS_COPY.unavailable, reason) ? reason as MetricUnavailableReason : 'source-failed']}`
 export const chartSummary = (metric: string, groups: string, from: string, to: string, changes: string[] = []) =>
   `${metric}: lift and confidence intervals for ${groups}, ${from} to ${to}.${changes.length ? ` Content changed on ${new Intl.ListFormat('en-US', { style: 'long', type: 'conjunction' }).format(changes)}.` : ''}`
 export const contentChangeTitle = (date: string) => `Content changed ${date} by an editor`

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
+import { ACTIONS_COPY } from '../../../src/admin/copy/actions.js'
 import { MakeContentResult } from '../../../src/admin/actions/MakeContentResult.js'
 import { ConfirmDialog } from '../../../src/admin/actions/ConfirmDialog.js'
 import { availableActions } from '../../../src/admin/actions/actions.model.js'
@@ -12,13 +13,13 @@ vi.mock('../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
 afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const partial = { doc: {}, revision: 2, docs: [
   { collection: 'pages', id: 1, ok: true, title: 'Home' },
-  { collection: 'pages', id: 2, ok: false, error: 'Locked by an editor' },
+  { collection: 'pages', id: 2, ok: false, error: 'locked' },
 ] }
 test('partial failure lists document titles or references, results and retry', () => {
   const retry = vi.fn()
   render(<MakeContentResult result={partial} onRetry={retry} />)
   expect(screen.getByText('Home: Updated')).toBeTruthy()
-  expect(screen.getByText('pages/2: Failed — Locked by an editor')).toBeTruthy()
+  expect(screen.getByText(`pages/2: Failed — ${ACTIONS_COPY.contentReasons.locked}`)).toBeTruthy()
   expect(screen.getByText("Some pages couldn't be updated. Fix them and retry.")).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   expect(retry).toHaveBeenCalledTimes(1)
@@ -80,4 +81,24 @@ test('make-content and Retry each POST once on rapid clicks with pending control
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull())
   expect(fetcher).toHaveBeenCalledTimes(2)
   expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(false)
+})
+
+
+test.each(['detail', 'error'] as const)('legacy %s never displays stored free text, including on successful entries', field => {
+  const { container } = render(<MakeContentResult result={{ doc: {}, revision: 2, docs: [false, true].map((ok, id) => ({
+    collection: 'pages', id, ok, [field]: 'secret-value row data',
+  })) }} onRetry={vi.fn()} />)
+  expect(container.textContent).not.toContain('secret-value')
+  expect(screen.getAllByText(new RegExp(ACTIONS_COPY.contentReasons['update-failed'].replaceAll('.', '\\.')))).toHaveLength(2)
+})
+test.each(Object.keys(ACTIONS_COPY.contentReasons))('report code %s renders authored copy', reason => {
+  const { container } = render(<MakeContentResult result={{ doc: {}, revision: 2, docs: [
+    { collection: 'pages', id: 1, ok: false, detail: reason, error: 'secret-value legacy duplicate' },
+  ] }} onRetry={vi.fn()} />)
+  expect(container.textContent).toContain(ACTIONS_COPY.contentReasons[reason as keyof typeof ACTIONS_COPY.contentReasons])
+  expect(container.textContent).not.toContain('secret-value')
+})
+test('an absent page already counted as done explains that no change is needed', () => {
+  render(<MakeContentResult result={{ doc: {}, revision: 2, docs: [{ collection: 'pages', id: 1, ok: true, detail: 'not-found' }] }} onRetry={vi.fn()} />)
+  expect(screen.getByText(`pages/1: Updated — ${ACTIONS_COPY.missingContent}`)).toBeTruthy()
 })

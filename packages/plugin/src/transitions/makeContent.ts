@@ -1,4 +1,7 @@
-import { commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field } from 'payload'
+import { Forbidden, NotFound, ValidationError, Locked, commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field } from 'payload'
+import { safeError } from '../log.js'
+import { XpRefusal } from '../errors.js'
+import type { ContentReportReason } from '../types/reasons.js'
 import { lockContentDefaults } from '../db/appends.js'
 import { pooledExecutor, txExecutor } from '../db/executor.js'
 import { currentTxid, txidStatus } from '../db/txid.js'
@@ -11,7 +14,19 @@ import { withTransition } from './kernel.js'
 import { scanBlockPlacements, type BlockPlacement } from './placements.js'
 import { readExperiment, refuse, updateExperiment } from './start.js'
 
-type ContentDoc = { collection: string; id: DocId; ok: boolean; detail?: string; error?: string }
+type ContentDoc = { collection: string; id: DocId; ok: boolean; detail?: ContentReportReason; error?: ContentReportReason }
+
+/** Classify by type/name only; host error messages can contain row data. */
+function contentFailureReason(error: unknown): ContentReportReason {
+  // Payload classes may use APIError as their name, so check instances too.
+  const name = error instanceof Error ? error.name : undefined
+  if (error instanceof Forbidden || name === 'Forbidden') return 'forbidden'
+  if (error instanceof NotFound || name === 'NotFound') return 'not-found'
+  if (error instanceof ValidationError || name === 'ValidationError') return 'validation'
+  if (error instanceof Locked || name === 'Locked' || error instanceof XpRefusal && error.code === 'locked-placement') return 'locked'
+  return 'update-failed'
+}
+
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
 
 /** Flatten selected slots in every content array, including nested selected slots. */
@@ -118,7 +133,8 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
     const attempt = async (collection: string, id: DocId, fn: () => Promise<void>) => {
       try { await hostTransaction(req, fn); docs.push({ collection, id, ok: true }) }
       catch (error) {
-        const detail = error instanceof Error ? error.message : 'The content could not be updated.'
+        const detail = contentFailureReason(error)
+        req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content update failed')
         docs.push({ collection, id, ok: false, detail, error: detail })
       }
     }
@@ -135,6 +151,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
         } catch (error) {
           // A collection made unreadable since the last attempt still has
           // retained placements to report below. Never sacrifice the outer tx.
+          req.payload.logger.error({ err: safeError(error), experimentId, collection: registration.slug }, 'Experiment content scan failed')
           const denied = error && typeof error === 'object' && 'status' in error && error.status === 403
           if (!denied || !report?.docs?.some(doc => doc.collection === registration.slug)) throw error
         } finally { req.transactionID = transactionID }
@@ -156,15 +173,15 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
             // Fail closed (exp-orch 16:20): only an unfiltered read proves the page is gone;
             // a Where-filtered miss may be a page this manager cannot see.
             const ok = access === true || (typeof access === 'object' && access !== null && Object.keys(access).length === 0)
-            const detail = ok ? 'This page no longer exists; nothing to change.' : access === false ? 'You can no longer read this page.'
-              : 'You can no longer read this page. If it was deleted, archive this experiment with discard or hard-coded instead.'
+            const detail: ContentReportReason = ok ? 'not-found' : 'forbidden'
             docs.push({ collection, id, ok, detail, ...(!ok ? { error: detail } : {}) })
             skipped.add(key)
           } else if (doc._isLocked === true || doc.locked === true) refuse('locked-placement', { collection, id })
         } catch (error) {
           if (error && typeof error === 'object' && 'code' in error && error.code === 'locked-placement') throw error
           const missing = error && typeof error === 'object' && 'status' in error && error.status === 404
-          const detail = missing ? 'This page no longer exists; nothing to change.' : 'You can no longer read this page.'
+          req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content read failed')
+          const detail = contentFailureReason(error)
           docs.push({ collection, id, ok: Boolean(missing), detail, ...(!missing ? { error: detail } : {}) })
           skipped.add(key)
         } finally { req.transactionID = transactionID }
@@ -191,18 +208,18 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           if (contentReadable && !changedDraft && !changedPublished) return
           for (const doc of [draft, published]) {
             const refusal = await fieldRefusal(config?.fields ?? [], req, doc)
-            if (refusal) throw new Error(refusal)
+            if (refusal) throw new ValidationError({ errors: [{ message: refusal, path: field }] })
           }
           const publishedData = contentData(published, field, publishedContent)
           const draftData = { ...contentData(draft, field, draftContent), _status: 'draft' }
           // Payload beforeValidate receives the latest version as doc, and the
           // proposed write as data/siblingData (blockData is the proposed row).
           const publicationRefusal = await fieldRefusal(config?.fields ?? [], req, draft, 'update', publishedData)
-          if (publicationRefusal) throw new Error(publicationRefusal)
+          if (publicationRefusal) throw new ValidationError({ errors: [{ message: publicationRefusal, path: field }] })
           if (drafts) {
             const draftOriginal = changedPublished ? { ...published, ...publishedData } : draft
             const draftRefusal = await fieldRefusal(config?.fields ?? [], req, draftOriginal, 'update', draftData)
-            if (draftRefusal) throw new Error(draftRefusal)
+            if (draftRefusal) throw new ValidationError({ errors: [{ message: draftRefusal, path: field }] })
           }
           // Host writes are access checked with the manager's req (§7.8).
           if (changedPublished) await req.payload.update({ collection, id, req, overrideAccess: false, overrideLock: false, draft: false,

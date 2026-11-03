@@ -233,5 +233,15 @@ test.each(Object.keys(fixtures))('%s too-few diagnostic follows the frozen verdi
 test('an unavailable metric with an empty error still has a diagnostic and next step', () => {
   const snapshot = fixture('T1')
   snapshot.metrics[0]!.unavailable = ''
-  expect(dataQuality(snapshot)).toContainEqual({ id: 'metric-registrations', message: 'Registrations is unavailable: ', nextStep: RESULTS_COPY.unavailableNext })
+  expect(dataQuality(snapshot)).toContainEqual({ id: 'metric-registrations', message: `Registrations ${RESULTS_COPY.unavailable['source-failed']}`, nextStep: RESULTS_COPY.unavailableNext })
+})
+
+
+test.each([...Object.keys(RESULTS_COPY.unavailable), 'secret-value row data', '', 'toString', '__proto__'])('metric reason %s renders only authored copy', reason => {
+  const snapshot = fixture('T1')
+  snapshot.metrics[0]!.unavailable = reason
+  const message = dataQuality(snapshot).find(item => item.id === 'metric-registrations')!.message
+  const code = Object.hasOwn(RESULTS_COPY.unavailable, reason) ? reason as keyof typeof RESULTS_COPY.unavailable : 'source-failed'
+  expect(message).toBe(`Registrations ${RESULTS_COPY.unavailable[code]}`)
+  expect(message).not.toContain('secret-value')
 })

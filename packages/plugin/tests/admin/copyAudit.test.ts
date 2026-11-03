@@ -22,6 +22,8 @@ const samples: Record<string, unknown[][]> = {
   refusalMessage: [[undefined, 400], [undefined, 400, 'Example'], ['not-found', 404], ['forbidden', 403], ['unauthenticated', 401], ['commit-unverified', 409], ['not-implemented', 501]],
   decideCopy: [['Example', false, false], ['Example', true, false], ['Example', false, true]],
   makeContentCopy: [['Example', 'flag'], ['Example', 'block'], ['Example', 'page']],
+  metricUnavailable: ['source-failed', 'source-unavailable', 'unit-type-unavailable', 'non-finite-values', 'non-finite-covariates', 'budget', 'not-supplied', 'analysis-failed', 'secret-value'].map(reason => ['Example', reason]),
+  contentReportCopy: ['locked', 'forbidden', 'not-found', 'validation', 'update-failed', 'secret-value'].flatMap(reason => [[reason, false], [reason, true]]),
   runningCopy: [['Example', 100, 10], [null, null, null]],
 }
 function strings(value: unknown, name = '', skipAdvanced = false): string[] {
