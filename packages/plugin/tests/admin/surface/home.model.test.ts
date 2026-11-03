@@ -29,7 +29,7 @@ test('card copy, kind labels and actions are user-facing', () => {
   expect(homeCard(testDoc('draft'), undefined, '/admin')).toMatchObject({ line: 'Next: finish setting up', action: 'Continue setup' })
   expect(homeCard(testDoc('stopped', 'stopped'), undefined, '/admin')).toMatchObject({ action: 'View results', href: '/admin/experiments/stopped/results' })
   expect(homeCard({ ...testDoc('decided', 'decided'), decidedAt: '2026-11-02T12:00:00Z', decision: { winnerArm: 'variantA' } }, undefined, '/admin').line).toBe('Decided 2 Nov 2026: Variant A')
-  expect(homeCard(testDoc('archive', 'archived'), undefined, '/admin').action).toBe('Open')
+  expect(homeCard(testDoc('archive', 'archived'), undefined, '/admin')).toMatchObject({ action: 'View results', href: '/admin/experiments/archive/results' })
   for (const [kind, label] of [['block', 'Page block'], ['flag', 'Setting'], ['code', 'Setting'], ['page', 'Whole page']] as const) {
     expect(homeCard({ ...testDoc('x'), kind }, undefined, '/admin').kind).toBe(label)
   }
@@ -46,7 +46,7 @@ test('missing summaries and null verdicts stay in Running without a health claim
   for (const doc of docs) expect(homeCard(doc, summaries[doc.id as 'null'], '/admin').health).toBeUndefined()
 })
 test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('root admin card URL for %s has no double slash', status => {
-  expect(homeCard(testDoc('x/y', status), undefined, '/').href).toBe(`/experiments/x%2Fy${['running', 'stopped', 'decided'].includes(status) ? '/results' : ''}`)
+  expect(homeCard(testDoc('x/y', status), undefined, '/').href).toBe(`/experiments/x%2Fy${['running', 'stopped', 'decided', 'archived'].includes(status) ? '/results' : ''}`)
 })
 
 test('decided sentence uses the stored label and UTC calendar day', () => {

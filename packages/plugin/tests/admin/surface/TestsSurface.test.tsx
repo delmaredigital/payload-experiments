@@ -59,7 +59,8 @@ test.each(['/control', '/'])('dispatches real home / new / test / results pages 
         else expect(within(main).getByRole('region', { name: /What you're testing/ })).toBeTruthy()
       }
     }
-    expect(within(header).getByRole('heading', { level: 1, name: 'Tests' })).toBeTruthy()
+    expect(within(header).getByRole('heading', { level: 1, name: route === 'home' ? 'Tests' : route === 'new' ? 'New test' : 'Headline' })).toBeTruthy()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(within(header).getByRole('link', { name: 'Back to admin' }).getAttribute('href')).toBe(adminRoute)
     view.unmount()
   }
@@ -70,5 +71,40 @@ test('results-only readers retain the shared main and the Tests breadcrumb link'
   expect(screen.getAllByRole('main')).toHaveLength(1)
   expect(within(screen.getByRole('main')).getByText('Results body')).toBeTruthy()
   expect(screen.getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/control/experiments')
+  expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Test')
   expect(hook).not.toHaveBeenCalled()
+})
+
+test.each(['test', 'results'] as const)('%s has a single fallback title until the test name loads, and resets for another test', async route => {
+  hook.mockReturnValue(testProps({}, { doc: null, loadState: 'loading' }).test)
+  const view = render(<TestsSurface {...props} route={route} />)
+  expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Test')
+  hook.mockReturnValue(testProps({ name: 'Loaded name' }).test)
+  view.rerender(<TestsSurface {...props} route={route} />)
+  await act(async () => {})
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Loaded name')
+  hook.mockReturnValue(testProps({}, { doc: null, loadState: 'loading' }).test)
+  view.rerender(<TestsSurface {...props} route={route} id="another" />)
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Test')
+})
+
+test('new test keeps one shell title through every wizard step with h2 step headings', async () => {
+  const view = render(<TestsSurface {...props} route="new" flagPoints={[{ id: 'choice', label: 'Site choice', params: {}, defaultParams: {}, effectiveDefaults: {} }]} />)
+  const check = (step: string) => {
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('New test')
+    expect(screen.getByRole('heading', { level: 2, name: step })).toBeTruthy()
+  }
+  check('What do you want to test?')
+  fireEvent.click(screen.getByRole('button', { name: /A block on a page/ }))
+  check('A block on a page')
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+  fireEvent.click(screen.getByRole('button', { name: /A setting/ }))
+  check('Which setting do you want to test?')
+  fireEvent.click(screen.getByRole('radio', { name: 'Site choice' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+  check('What will you call this test?')
+  view.unmount()
 })

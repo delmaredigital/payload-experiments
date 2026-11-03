@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { DocId } from '../../types/contracts.js'
 import type { SurfaceProps } from './contracts.js'
 import { useTestDocument } from './useTestDocument.js'
@@ -9,13 +9,14 @@ import { ResultsBody } from './results/ResultsBody.js'
 import { TEST_PAGE as C } from '../copy/testPage.js'
 import './test/testPage.css'
 
-export function ResultsRoute(props: { id: DocId; surface: SurfaceProps }) {
+export function ResultsRoute(props: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {
   // Results-only readers cannot load the manager-only experiment or preflight.
   return props.surface.canManage ? <ManagedResults {...props} /> : <ResultsBody {...props} />
 }
 
-function ManagedResults({ id, surface }: { id: DocId; surface: SurfaceProps }) {
+function ManagedResults({ id, surface, onTitleChange }: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {
   const test = useTestDocument(id, { apiRoute: surface.apiRoute })
+  useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
   const [resultsVersion, setResultsVersion] = useState(0)
   // Add-goal changes metrics while status, phase and allocation stay the same.
   const bodyKey = test.doc ? JSON.stringify([test.doc.status, test.doc.phase, test.doc.allocation, test.doc.metrics]) : 'loading'

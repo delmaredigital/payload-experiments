@@ -1,4 +1,5 @@
 'use client'
+import { useEffect } from 'react'
 import type { DocId } from '../../../types/contracts.js'
 import type { SurfaceProps } from '../contracts.js'
 import { useTestDocument } from '../useTestDocument.js'
@@ -16,8 +17,9 @@ import { LengthSection } from './LengthSection.js'
 import { AdvancedSection } from './AdvancedSection.js'
 import './testPage.css'
 
-export function TestPage({ id, surface }: { id: DocId; surface: SurfaceProps }) {
+export function TestPage({ id, surface, onTitleChange }: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {
   const test = useTestDocument(id, { apiRoute: surface.apiRoute })
+  useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
   if (test.loadState !== 'ready' || !test.doc) return <div className="xp-test-page" role={test.loadState === 'error' ? 'alert' : 'status'}>
     <p>{test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading}</p>
     {test.loadState === 'error' ? <button type="button" onClick={() => void test.reload()}>{C.retry}</button> : null}

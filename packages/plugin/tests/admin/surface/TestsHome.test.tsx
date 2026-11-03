@@ -102,9 +102,10 @@ test('missing results never render a green health dot', async () => {
     { id: 'missing', name: 'Missing summary', kind: 'flag', status: 'running' },
     { id: 'null', name: 'No verdict', kind: 'flag', status: 'running' },
   ], { null: { exposures: 0, days: 0, verdict: null } })
-  render(<TestsHome adminRoute="/admin" apiRoute="/api" canManage />)
+  const { container } = render(<TestsHome adminRoute="/admin" apiRoute="/api" canManage />)
   await screen.findByText('Missing summary')
-  expect(screen.queryByRole('img')).toBeNull()
+  expect(container.querySelector('.xp-tests-health')).toBeNull()
+  expect(screen.queryByText('On track')).toBeNull()
   expect(within(screen.getByRole('region', { name: 'Running' })).getAllByRole('article')).toHaveLength(2)
 })
 test('home and shell links support the root admin route', async () => {
@@ -155,7 +156,7 @@ test('compact rows show all health labels, sentences and custom-route links', as
   for (const [name, id, action, suffix] of [
     ['Data trouble', 'red', 'View results', '/results'], ['Ready test', 'ready', 'Continue setup', ''],
     ['Setup test', 'next', 'Continue setup', ''], ['Decided test', 'decided', 'View results', '/results'],
-    ['Archived test', 'old', 'Open', ''],
+    ['Archived test', 'old', 'View results', '/results'],
   ] as const) {
     const link = screen.getByText(name).closest('a')!
     expect(link.getAttribute('href')).toBe(`/control/experiments/${id}${suffix}`)

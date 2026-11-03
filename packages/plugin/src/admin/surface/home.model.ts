@@ -38,7 +38,7 @@ export function groupTests(tests: readonly HomeTest[], summaries: SummaryRespons
 const number = (value: number | null | undefined) => value != null && Number.isFinite(value)
   ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value) : '—'
 export function homeCard(test: HomeTest, summary: Summary, adminRoute: string) {
-  const results = ['running', 'stopped', 'decided'].includes(test.status)
+  const results = ['running', 'stopped', 'decided', 'archived'].includes(test.status)
   const href = formatAdminURL({ adminRoute, path: `/experiments/${encodeURIComponent(test.id)}${results ? '/results' : ''}` })
   let line = summary?.ready ? SURFACE_COPY.ready : SURFACE_COPY.next as string
   if (test.status === 'running') line = runningLine(number(summary?.days), number(test.analysis?.plannedDurationDays), number(summary?.exposures))

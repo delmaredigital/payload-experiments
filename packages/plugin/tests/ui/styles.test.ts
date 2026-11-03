@@ -47,3 +47,9 @@ test('text accents use the accessible text token and its fallback decoration tog
   expect(rule('.xp-ui-status--running')).toContain('color: var(--xp-success)')
   expect(rule('.xp-ui-status--ready')).toContain('color: var(--xp-success)')
 })
+
+test('plain surface links use neutral text and underline on hover without overriding UI buttons', () => {
+  const surface = readFileSync(new URL('../../src/admin/surface/surface.css', import.meta.url), 'utf8')
+  expect(surface).toMatch(/\.xp-tests-surface a:not\(\.xp-ui-button\) \{[^}]*color: var\(--xp-text\)/)
+  expect(surface).toMatch(/\.xp-tests-surface a:not\(\.xp-ui-button\):hover \{[^}]*text-decoration: underline/)
+})

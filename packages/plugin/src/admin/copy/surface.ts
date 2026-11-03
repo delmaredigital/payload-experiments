@@ -1,5 +1,5 @@
 export const SURFACE_COPY = {
-  title: 'Tests', newTest: 'New test', goals: 'Goals', search: 'Search tests',
+  title: 'Tests', test: 'Test', resultsTitle: 'Results', newTest: 'New test', goals: 'Goals', search: 'Search tests',
   navAllTests: 'All tests', navGoals: 'Goals',
   dashShowTests: 'Show all tests', dashShowGoals: 'Show all goals',
   backToAdmin: 'Back to admin',
