@@ -1,9 +1,10 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import {
   abTestMoments, bonferroniAlpha, buildStatistic, capValues, createThetaAdjustedStatistics,
   effectBayesianABTest, sequentialOneSidedTreatmentGreaterTTest,
   sequentialOneSidedTreatmentLesserTTest, sequentialTwoSidedTTest, statisticVariance, summarizeUnits,
 } from '@delmaredigital/experiments-stats'
+import { safeError } from '../../src/log.js'
 import { analysePhase } from '../../src/results/analyse.js'
 import type { AnalysePhaseInput, FrozenMetric } from '../../src/results/analyse.js'
 import { outcomeStatistic } from '../../src/results/cuped.js'
@@ -172,12 +173,12 @@ test('empty, zero variance, source errors and invalid values never claim a resul
   const input = example({ n: 0 })
   expect(analysePhase(input)).toMatchObject({ verdict: { code: 'collecting' }, exposures: { total: 0 }, srm: { p: 1 } })
   input.phase = { ...input.phase, metricDefinitions: [metric(), metric({ metricId: 'guard', role: 'guardrail' })] }
-  input.metricData = [{ metricId: 'primary', values: new Map(), unavailable: 'Offline' }]
+  input.metricData = [{ metricId: 'primary', values: new Map(), unavailable: 'source-failed' }]
   expect(analysePhase(input)).toMatchObject({ verdict: { code: 'unavailable' }, guardrails: [{ metricId: 'guard', status: 'insufficient' }] })
   const invalid = example()
   const values = new Map(invalid.metricData[0]!.values); values.set('control-0', NaN)
   invalid.metricData = [{ metricId: 'primary', values }]
-  expect(analysePhase(invalid).metrics[0]!.unavailable).toMatch(/finite/)
+  expect(analysePhase(invalid).metrics[0]!.unavailable).toBe('non-finite-values')
   const zeros = example({ rate: 0, controlRate: 0 })
   expect(analysePhase(zeros).metrics[0]!.comparisons[0]).toMatchObject({ ci: [null, null], significant: 'none' })
 })
@@ -317,4 +318,24 @@ test('P2: adjusted sequential p-value uses the alpha/k test and agrees with the 
   expect(comparison.ciAdjusted[1]).toBeGreaterThanOrEqual(0)
   expect(comparison.pValueAdjusted).toBeGreaterThanOrEqual(.05)
   expect(comparison.significant).toBe('none')
+})
+
+
+test('metric analysis failures return a code and log only sanitized error context', () => {
+  const input = example()
+  const error = new Error('secret-value host row')
+  const logger = { error: vi.fn() }
+  const onMetricError = (caught: unknown, metricId: string | number) => logger.error({ err: safeError(caught), experimentId: input.phase.experiment, metricId }, 'Experiment metric analysis failed')
+  const values = { get: () => { throw error } } as unknown as ReadonlyMap<string, number>
+  const snapshot = analysePhase({ ...input, onMetricError, metricData: [{ metricId: 'primary', values }] })
+  expect(snapshot.metrics[0]!.unavailable).toBe('analysis-failed')
+  expect(JSON.stringify(snapshot)).not.toContain('secret-value')
+  expect(logger.error).toHaveBeenCalledWith(expect.objectContaining({ experimentId: 'test', metricId: 'primary' }), 'Experiment metric analysis failed')
+  expect(JSON.stringify(logger.error.mock.calls)).not.toContain('secret-value')
+})
+test('missing metric data and invalid earlier values have their own codes', () => {
+  const input = example(), onMetricError = vi.fn()
+  expect(analysePhase({ ...input, onMetricError, metricData: [] }).metrics[0]!.unavailable).toBe('not-supplied')
+  input.metricData = [{ ...input.metricData[0]!, covariates: new Map([['control-0', NaN]]) }]
+  expect(analysePhase({ ...input, onMetricError }).metrics[0]!.unavailable).toBe('non-finite-covariates')
 })

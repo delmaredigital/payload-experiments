@@ -1,4 +1,4 @@
-import type { Field } from 'payload'
+import { Forbidden, Locked, NotFound, ValidationError, type Field } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { makeContent } from '../../src/transitions/makeContent.js'
 import { fakeReq } from '../_fakes/req.js'
@@ -110,13 +110,13 @@ test('manager denied update access on one doc: others commit; retry converges an
       expect(f.req.user?.id).toBe(42)
       expect(f.req.context.xpTransition).toBeUndefined()
       hostTransactions.push(await f.req.transactionID)
-      if (args.id === 3 && denied) throw new Error('You do not have access to update this document.')
+      if (args.id === 3 && denied) throw new Forbidden()
     }
     return update(args)
   })
   const first = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(first.doc.status).toBe('decided')
-  expect(first.docs).toMatchObject([{ id: 3, ok: false, detail: expect.stringContaining('access') }, { id: 4, ok: true }])
+  expect(first.docs).toMatchObject([{ id: 3, ok: false, detail: 'forbidden' }, { id: 4, ok: true }])
   expect(f.experiment.decision).toMatchObject({ contentReport: { docs: first.docs } })
   expect(hostTransactions[0]).not.toBe(hostTransactions[1])
   expect(f.payload.dbCalls.filter(call => call.method === 'rollbackTransaction')).toHaveLength(1)
@@ -185,15 +185,14 @@ const unsafeFields: Array<{ name: string; fields: Field[]; detail: string }> = [
   { name: 'unreadable named tab', detail: 'fields you cannot read', fields: [{ type: 'tabs', tabs: [{ name: 'seo', access: { read: () => false }, fields: [{ name: 'title', type: 'text' }] }] }] },
   { name: 'localized block field outside Puck JSON', detail: 'localized', fields: [{ name: 'blocks', type: 'blocks', blocks: [{ slug: 'copy', fields: [{ name: 'title', type: 'text', localized: true }] }] }] },
 ]
-test.each(unsafeFields)('$name refuses each document without changing published or draft content', async ({ fields, detail }) => {
+test.each(unsafeFields)('$name refuses each document without changing published or draft content', async ({ fields }) => {
   const f = fixture()
   f.payload.config.collections[0]!.fields = fields
   const original = structuredClone(f.payload.documents.pages)
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('decided')
   expect(result.docs).toHaveLength(2)
-  for (const doc of result.docs) expect(doc).toMatchObject({ ok: false, detail: expect.stringContaining(detail) })
-  expect(result.docs.every(doc => doc.detail?.includes('update it by hand'))).toBe(true)
+  for (const doc of result.docs) expect(doc).toMatchObject({ ok: false, detail: 'validation' })
   expect(hostUpdates(f)).toEqual([])
   expect(f.payload.documents.pages).toEqual(original)
 })
@@ -210,7 +209,7 @@ test('evaluates field read access with the manager req even when the fake return
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('decided')
   expect(read).toHaveBeenCalled()
-  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'This page has fields you cannot read; update it by hand.' }, { id: 4, ok: true }])
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'validation' }, { id: 4, ok: true }])
   expect(f.payload.documents.pages![0]).toEqual(original)
   expect(hostUpdates(f).filter(call => call.args.id === 3)).toEqual([])
   expect(hostUpdates(f).filter(call => call.args.id === 4)).toHaveLength(2)
@@ -236,7 +235,7 @@ test.each([true, {}])('retry after a failed placement is deleted reports it ok a
   })
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('archived')
-  expect(result.docs).toContainEqual({ collection: 'pages', id: 3, ok: true, detail: 'This page no longer exists; nothing to change.' })
+  expect(result.docs).toContainEqual({ collection: 'pages', id: 3, ok: true, detail: 'not-found' })
 })
 test('a retained page made unreadable is reported without killing the outer transaction', async () => {
   const f = fixture()
@@ -249,7 +248,7 @@ test('a retained page made unreadable is reported without killing the outer tran
   })
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('decided')
-  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'You can no longer read this page.' }, { id: 4, ok: true }])
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'forbidden' }, { id: 4, ok: true }])
   expect(f.payload.dbCalls.some(call => call.method === 'rollbackTransaction')).toBe(false)
   expect(hostUpdates(f).some(call => call.args.id === 3)).toBe(false)
 })
@@ -259,13 +258,13 @@ test.each([false, true])('a lock acquired after pre-check fails only that docume
   vi.spyOn(f.payload, 'update').mockImplementation(async args => {
     if (args.collection === 'pages') {
       expect(args.overrideLock).toBe(false)
-      if (args.id === 3 && args.draft === draftWrite) throw new Error('This page is locked by another editor')
+      if (args.id === 3 && args.draft === draftWrite) throw new Locked('secret-value locked row')
     }
     return update(args)
   })
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('decided')
-  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: expect.stringContaining('locked') }, { id: 4, ok: true }])
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'locked' }, { id: 4, ok: true }])
   expect(f.payload.dbCalls.filter(call => call.method === 'rollbackTransaction')).toHaveLength(1)
 })
 
@@ -287,7 +286,7 @@ test('collection read access removed since a partial run cannot abort the outer 
   })
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('decided')
-  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'You can no longer read this page.' }, { id: 4, ok: false, detail: 'You can no longer read this page.' }])
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'forbidden' }, { id: 4, ok: false, detail: 'forbidden' }])
   expect(hostUpdates(f)).toEqual([])
   expect(f.payload.dbCalls.some(call => call.method === 'rollbackTransaction')).toBe(false)
 })
@@ -314,7 +313,7 @@ test.each(['field', 'tab'] as const)('readable admin-only %s update access refus
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('decided')
   expect(updateAccess).toHaveBeenCalledTimes(2)
-  for (const doc of result.docs) expect(doc).toMatchObject({ ok: false, detail: 'This page has fields you cannot update; update it by hand.' })
+  for (const doc of result.docs) expect(doc).toMatchObject({ ok: false, detail: 'validation' })
   expect(hostUpdates(f)).toEqual([])
   expect(published).toEqual(originalPublished)
   expect(drafts).toEqual(originalDrafts)
@@ -350,7 +349,7 @@ test('a Where-filtered miss fails closed: not done, stays decided, and says how 
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('decided')
   expect(result.docs).toContainEqual(expect.objectContaining({ collection: 'pages', id: 3, ok: false,
-    detail: 'You can no longer read this page. If it was deleted, archive this experiment with discard or hard-coded instead.' }))
+    detail: 'forbidden' }))
   expect(hostUpdates(f).some(call => call.args.id === 3)).toBe(false)
 })
 test('a page already fixed by hand is done even if it would be refused for a write (review F1)', async () => {
@@ -385,4 +384,58 @@ test.each([
   expect(result.doc.status).toBe('decided')
   expect(result.docs.filter(doc => doc.ok)).toEqual([])
   expect(hostUpdates(f)).toEqual([])
+})
+
+
+test.each([
+  ['update-failed', (): unknown => new Error('secret-value pg row')],
+  ['update-failed', (): unknown => 'secret-value thrown string'],
+  ['forbidden', (): unknown => new Forbidden()],
+  ['not-found', (): unknown => new NotFound()],
+  ['validation', (): unknown => new ValidationError({ errors: [{ path: 'title', message: 'secret-value invalid row' }] })],
+  ['locked', (): unknown => new Locked('secret-value locked row')],
+  ...['Forbidden', 'NotFound', 'ValidationError', 'Locked'].map((name, i) => [
+    ['forbidden', 'not-found', 'validation', 'locked'][i], (): unknown => Object.assign(new Error('secret-value host text'), { name }),
+  ] as const),
+] as const)('host failure maps to %s without storing or returning its message', async (reason, failure) => {
+  const f = fixture('flag')
+  const error = failure()
+  f.options.flagPoints = [{ id: 'setting', label: 'Setting', defaultParams: {}, params: {}, makeContent: async () => { throw error } }]
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs).toEqual([{ collection: 'xp-experiments', id: 1, ok: false, detail: reason, error: reason }])
+  expect(JSON.stringify(result)).not.toContain('secret-value')
+  expect(JSON.stringify(f.experiment.decision)).not.toContain('secret-value')
+  expect(f.payload.logs).toContainEqual({ level: 'error', args: [expect.objectContaining({ experimentId: 1, collection: 'xp-experiments', id: 1 }), 'Experiment content update failed'] })
+  expect(JSON.stringify(f.payload.logs)).not.toContain('secret-value')
+})
+
+
+test('a retained page read that fails with a plain 404 reports ok with not-found, never update-failed', async () => {
+  const f = fixture()
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
+  const findByID = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    if (args.collection === 'pages' && args.id === 3 && args.disableErrors) throw Object.assign(new Error('secret-value gone'), { status: 404 })
+    return findByID(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs).toContainEqual({ collection: 'pages', id: 3, ok: true, detail: 'not-found' })
+  expect(JSON.stringify(result)).not.toContain('secret-value')
+})
+
+test('a retained page read-hook failure is update-failed, stays decided, and keeps row data private', async () => {
+  const f = fixture()
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
+  const findByID = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    if (args.collection === 'pages' && args.id === 3 && args.disableErrors) throw new Error('secret-value read row')
+    return findByID(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs[0]).toMatchObject({ id: 3, ok: false, detail: 'update-failed', error: 'update-failed' })
+  expect(JSON.stringify(result)).not.toContain('secret-value')
+  expect(JSON.stringify(f.experiment.decision)).not.toContain('secret-value')
+  expect(f.payload.logs).toContainEqual({ level: 'error', args: [expect.objectContaining({ experimentId: 1, id: 3 }), 'Experiment content read failed'] })
+  expect(JSON.stringify(f.payload.logs)).not.toContain('secret-value')
 })

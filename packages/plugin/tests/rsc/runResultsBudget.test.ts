@@ -43,7 +43,7 @@ test.each(['query', 'covariate', 'connect', 'all-connections'] as const)('real e
   expect(Date.now() - start).toBeLessThan(budgetMs + RESULTS_TIMEOUT_MARGIN_MS)
   expect(result).toMatchObject({ ran: 0, skipped: 1, failed: 0, budgetExhausted: true, sweepAttempted: true })
   if (hang === 'query' || hang === 'covariate') expect(result.unavailableMetrics).toEqual([
-    { experimentId: 'budget', phase: 1, metricId: 'primary', reason: 'Results budget exhausted' },
+    { experimentId: 'budget', phase: 1, metricId: 'primary', reason: 'budget' },
   ])
   expect(context.pool.connect.mock.calls.length).toBeGreaterThanOrEqual(2)
   if (hang !== 'all-connections') {

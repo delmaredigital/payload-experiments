@@ -39,6 +39,8 @@ const required = {
   index: { createArmSelectField: '../fields/armSelect.js' },
 } as const
 const requiredTypes = {
+  rsc: { MetricUnavailableReason: '../types/reasons.js', ContentReportReason: '../types/reasons.js' },
+  index: { MetricUnavailableReason: '../types/index.js', ContentReportReason: '../types/index.js' },
   client: { ClientAssignments: '../types/assignments.js' },
   puck: {
     ExperimentSlotProps: '../types/puck.js',
