@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: edits to a test made from two places at once no longer overwrite each other: a save based on an outdated copy is refused with "Someone else changed this test. Reload to see their changes." (clients opt in with the `x-xp-if-updated-at` header).
+
 ## [0.2.0-rc.6] - 2026-11-03
 
 ### plugin

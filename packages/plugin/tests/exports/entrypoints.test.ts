@@ -16,6 +16,7 @@ const required = {
     DEFAULT_MAX_BODY_BYTES: '../constants.js',
   },
   adminClient: {
+    XP_IF_UPDATED_AT_HEADER: '../constants.js',
     TestsSurface: '../admin/surface/TestsSurface.js',
     TestsDashboardCards: '../admin/TestsDashboardCards.js',
     TestsNavLink: '../admin/TestsNavLink.js',
