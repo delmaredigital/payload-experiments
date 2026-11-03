@@ -41,7 +41,7 @@ test.each(['query', 'covariate', 'connect', 'all-connections'] as const)('real e
   const context = setup(hang), budgetMs = 200, start = Date.now()
   const result = await runResults(context.payload, { budgetMs, experimentId: 'budget' })
   expect(Date.now() - start).toBeLessThan(budgetMs + RESULTS_TIMEOUT_MARGIN_MS)
-  expect(result).toMatchObject({ ran: 0, skipped: 1, budgetExhausted: true, sweepAttempted: true })
+  expect(result).toMatchObject({ ran: 0, skipped: 1, failed: 0, budgetExhausted: true, sweepAttempted: true })
   if (hang === 'query' || hang === 'covariate') expect(result.unavailableMetrics).toEqual([
     { experimentId: 'budget', phase: 1, metricId: 'primary', reason: 'Results budget exhausted' },
   ])
@@ -64,7 +64,7 @@ test.each(['query', 'covariate', 'connect', 'all-connections'] as const)('real e
 test('sweep:false leaves all of the bounded run for analysis and never starts retention', async () => {
   const context = setup('query')
   const result = await runResults(context.payload, { budgetMs: 100, sweep: false })
-  expect(result).toMatchObject({ skipped: 1, sweepAttempted: false })
+  expect(result).toMatchObject({ skipped: 1, failed: 0, sweepAttempted: false })
   expect(context.calls.some(text => text.startsWith('DELETE'))).toBe(false)
 })
 
@@ -74,7 +74,7 @@ test('a timeout in the second phase does not persist the completed first phase',
   let queries = 0
   context.options.metricSources![0]!.query = () => ++queries === 1 ? Promise.resolve([]) : new Promise(() => {})
   const result = await runResults(context.payload, { budgetMs: 200 })
-  expect(result).toMatchObject({ ran: 0, skipped: 1, sweepAttempted: true,
+  expect(result).toMatchObject({ ran: 0, skipped: 1, failed: 0, sweepAttempted: true,
     unavailableMetrics: [{ experimentId: 'budget', phase: 2, metricId: 'primary' }] })
   expect(context.calls.some(text => text.startsWith('INSERT'))).toBe(false)
 })
