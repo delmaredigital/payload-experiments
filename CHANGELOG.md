@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.2.0-rc.6] - 2026-11-03
+
+### plugin
+
 - Fixed: the Puck outline names an Experiment block's versions (Original, Variant A, Variant B, Variant C) and lists the Original first.
 - Fixed: "Set up the test" and "View results" in the Puck editor open in a new tab, so the editor keeps unsaved changes and hosts that deny framing no longer break the canvas.
 - Fixed: newly started tests can show collecting results before anyone has seen a version; analysis failures report “Results could not be computed; this has been logged.” instead of “Try again”. Migration impact: none.
