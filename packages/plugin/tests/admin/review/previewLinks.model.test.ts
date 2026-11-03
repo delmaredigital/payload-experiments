@@ -2,6 +2,19 @@ import { expect, test } from 'vitest'
 import { previewPages } from '../../../src/admin/previewLinks.model.js'
 import type { PreflightResult } from '../../../src/types/endpoints.js'
 
+test.each([
+  { name: 'one Published and one Draft placement', details: ['Published', 'Draft'], slotCount: 1 },
+  { name: 'two Published and one Draft placement', details: ['Published', 'Draft', 'Published'], slotCount: 2 },
+  { name: 'two placements without detail', details: [undefined, undefined], slotCount: 2 },
+])('counts the largest version for $name', ({ details, slotCount }) => {
+  const placements: PreflightResult['placements'] = details.map(detail => ({
+    collection: 'pages', id: 1, title: 'Home', ok: true, detail,
+  }))
+  const pages = previewPages(placements)
+  expect(pages).toHaveLength(1)
+  expect(pages[0]?.slotCount).toBe(slotCount)
+})
+
 test('keeps first-seen order and titles, merges numeric/string ids, and separates collections', () => {
   const placements: PreflightResult['placements'] = [
     { collection: 'pages', id: 2, title: 'About', ok: true },

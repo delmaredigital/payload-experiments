@@ -15,7 +15,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Preview links list each page once, with a placement count when the page appears more than once, including published and draft versions.
+- Preview links list each page once, even when it has a published version and a newer draft; a page holding the test more than once shows how many times.
 
 Migration impact: none.
 
