@@ -4,6 +4,7 @@ import {
   sequentialOneSidedTreatmentLesserTTest, sequentialTwoSidedTTest, statisticMean, statisticVariance,
 } from '@delmaredigital/experiments-stats'
 import type { GaussianPrior, TestStatistic } from '@delmaredigital/experiments-stats'
+import type { MetricUnavailableReason } from '../types/reasons.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
 import type { Arm, DocId, MetricSource } from '../types/contracts.js'
 import type { Snapshot } from '../types/snapshot.js'
@@ -66,11 +67,13 @@ export interface MetricUnitData {
   values: ReadonlyMap<string, number>
   /** Host pre-period outcomes; absent entries in a supplied map mean zero. */
   covariates?: ReadonlyMap<string, number>
-  unavailable?: string
+  unavailable?: MetricUnavailableReason
 }
 
 export type AnalysePhaseInput = {
   phase: AnalysisPhase
+  /** The runner logs failures; injecting this keeps analysis free of I/O imports. */
+  onMetricError?: (error: unknown, metricId: DocId) => void
   status: 'running' | 'stopped' | 'decided'
   now: Timestamp
   /** CORE-14a firstExposures output; same-unit multi-arm units already excluded. */
@@ -159,18 +162,22 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
     let worst: Snapshot['guardrails'][number]['status'] = 'ok'
     let worstArmLabel = compared[0]?.label ?? ''
     let worstArm = compared[0]?.key ?? ''
+    let reason: MetricUnavailableReason = 'analysis-failed'
     try {
-      if (!data || data.unavailable !== undefined) throw new Error(data?.unavailable ?? 'Metric data was not supplied')
+      if (!data || data.unavailable !== undefined) {
+        reason = data?.unavailable ?? 'not-supplied'
+        throw new Error('Metric data was not supplied')
+      }
       const stats = new Map<string, TestStatistic>()
       const cap = kind === 'revenue' ? definition.resolvedCap ?? null : null
       const useCovariates = analysis.cuped === 'auto' && data.covariates !== undefined && data.covariates.size > 0
       for (const arm of phase.arms) {
         const ids = byArm.get(arm.key)!
         const values = ids.map(id => data.values.get(id) ?? 0)
-        if (!values.every(Number.isFinite)) throw new RangeError('Metric values must be finite')
+        if (!values.every(Number.isFinite)) { reason = 'non-finite-values'; throw new RangeError('Metric values must be finite') }
         const capped = capValues(values, cap)
         const rawPre = useCovariates ? ids.map(id => data.covariates!.get(id) ?? 0) : undefined
-        if (rawPre && !rawPre.every(Number.isFinite)) throw new RangeError('Covariates must be finite')
+        if (rawPre && !rawPre.every(Number.isFinite)) { reason = 'non-finite-covariates'; throw new RangeError('Covariates must be finite') }
         const pre = rawPre && capValues(rawPre, cap).values
         const built = outcomeStatistic(kind, capped.values, pre)
         stats.set(arm.key, built.statistic)
@@ -241,7 +248,8 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
         if (severity[status] > severity[worst]) { worst = status; worstArmLabel = arm.label; worstArm = arm.key }
       }
     } catch (error) {
-      metric.unavailable = error instanceof Error ? error.message : 'Metric could not be analysed'
+      input.onMetricError?.(error, metricId)
+      metric.unavailable = reason
       metric.perArm = []; metric.comparisons = []; metric.cupedApplied = false
       exposures.capped[metricId] = 0
       if (definition.role === 'primary') primaryStatistics = undefined

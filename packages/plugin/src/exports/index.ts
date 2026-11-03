@@ -55,4 +55,6 @@ export type {
   ExperimentsServerRuntime,
   VerdictCode,
   Snapshot,
+  MetricUnavailableReason,
+  ContentReportReason,
 } from '../types/index.js'

@@ -1,4 +1,5 @@
 import type { ArmKind, DocId, ExposurePolicy, MetricSource, ResolvedOptions } from './contracts.js'
+import type { ContentReportReason } from './reasons.js'
 import type { ArmSlot } from './puck.js'
 import type { ReadinessCode } from '../transitions/checkStart.js'
 export type { ReadinessCode } from '../transitions/checkStart.js'
@@ -11,7 +12,7 @@ export type AllocateBody = { allocation: number }
 export type AddMetricBody = { metric: DocId; role: 'secondary' | 'guardrail' }
 export type DecideBody = { winnerArm: string; note?: string; confirmation?: string }
 export type ArchiveBody = { mode: 'stopped' | 'after-content' | 'discard' | 'hard-coded'; confirmation?: string }
-export type MakeContentResult = TransitionSuccess & { docs: Array<{ collection: string; id: DocId; ok: boolean; error?: string }> }
+export type MakeContentResult = TransitionSuccess & { docs: Array<{ collection: string; id: DocId; ok: boolean; detail?: ContentReportReason | string; error?: ContentReportReason | string }> }
 export type PreflightResult = {
   checks: Array<{ code: ReadinessCode; ok: boolean; detail?: unknown }>
   placements: Array<{ collection: string; id: DocId; title: string; url?: string; editorUrl?: string; slots?: Record<ArmSlot, number>; ok: boolean; detail?: string }>

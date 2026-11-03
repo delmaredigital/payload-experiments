@@ -1,5 +1,6 @@
 import { safeError } from '../log.js'
 import type { Payload } from 'payload'
+import type { MetricUnavailableReason } from '../types/reasons.js'
 import type { DocId } from '../types/contracts.js'
 import type { ResolvedOptions } from '../types/contracts.js'
 import { resultsCandidates, resultsExecutor, writeSnapshots, type ResultsCandidate } from '../db/snapshots.js'
@@ -12,8 +13,8 @@ import { firstExposures, perUnitValues, timestampMs, type MetricEvent } from '..
 import { rolloutAnalysisUnits } from '../results/rolloutUnits.js'
 import { creditUserEvents } from '../results/identityCredit.js'
 
-type UnavailableMetric = { experimentId: DocId; phase: number; metricId: DocId; reason: string }
-async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, options: ResolvedOptions, now: Date, deadline: number, unavailableMetrics: UnavailableMetric[]) {
+type UnavailableMetric = { experimentId: DocId; phase: number; metricId: DocId; reason: MetricUnavailableReason }
+async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, options: ResolvedOptions, now: Date, deadline: number, unavailableMetrics: UnavailableMetric[], logger: Payload['logger']) {
   const { phase } = candidate
   // Rollout assignment preserves the original test ranges, but its SRM compares
   // only the shipped group against holdout with weights {100-h, h}.
@@ -46,6 +47,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
   const diagnostics = creditUserEvents(units, identities, [])
   const metricData: MetricUnitData[] = []
   for (const definition of phase.metricDefinitions) {
+    let reason: MetricUnavailableReason = 'source-failed'
     try {
       if (Date.now() >= deadline) throw new ResultsBudgetError()
       const kind = definition.kind
@@ -55,7 +57,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
       let events: MetricEvent[], covariates: Map<string, number> | undefined
       if (definition.source.startsWith('events:')) {
         const eventName = definition.source.slice(7)
-        if (!options.eventSources?.some(source => source.name === eventName)) throw new Error('Metric source unavailable')
+        if (!options.eventSources?.some(source => source.name === eventName)) { reason = 'source-unavailable'; throw new Error('Metric source unavailable') }
         const read = async (start: Date) => {
           if (candidate.unitType === 'user') return metricEventRows(exec, { eventName, userIds: ids, from: start, to })
           const direct = await metricEventRows(exec, { eventName, unitIds: ids, from: start, to })
@@ -69,9 +71,9 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
         }
       } else {
         const source = options.metricSources?.find(source => source.id === definition.source)
-        if (!source || source.kind !== kind || definition.keyedBy && source.keyedBy !== definition.keyedBy) throw new Error('Metric source unavailable')
+        if (!source || source.kind !== kind || definition.keyedBy && source.keyedBy !== definition.keyedBy) { reason = 'source-unavailable'; throw new Error('Metric source unavailable') }
         const userKeyed = source.keyedBy === 'user' && candidate.unitType === 'visitor'
-        if (candidate.unitType === 'user' && source.keyedBy !== 'user') throw new Error('Metric unit type unavailable')
+        if (candidate.unitType === 'user' && source.keyedBy !== 'user') { reason = 'unit-type-unavailable'; throw new Error('Metric unit type unavailable') }
         const sourceIds = userKeyed ? userIds : ids
         events = credit(await raceDeadline(deadline, () => source.query({ from, to, unitIds: sourceIds })), userKeyed)
         if (phase.analysis.cuped === 'auto' && source.covariate) {
@@ -82,15 +84,16 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
             }))
             : [...units].map(([unitId, unit]) => ({ unitId, firstExposureTs: unit.firstTs }))
           const pre = await raceDeadline(deadline, () => source.covariate!({ units: sourceUnits, lookbackDays: 14 }))
-          if (pre.some(row => !Number.isFinite(row.value))) throw new Error('Covariates must be finite')
+          if (pre.some(row => !Number.isFinite(row.value))) { reason = 'non-finite-covariates'; throw new Error('Covariates must be finite') }
           const credited = credit(pre.map(row => ({ ...row, ts: now })), userKeyed)
           covariates = new Map(credited.map(row => [row.unitId, row.value]))
         }
       }
-      if (events.some(event => !Number.isFinite(event.value))) throw new Error('Metric values must be finite')
+      if (events.some(event => !Number.isFinite(event.value))) { reason = 'non-finite-values'; throw new Error('Metric values must be finite') }
       metricData.push({ metricId: definition.metricId, values: perUnitValues(units, events, { kind, windowHours, endedAt: to }), ...(covariates ? { covariates } : {}) })
     } catch (error) {
-      const reason = error instanceof Error ? error.message : 'Metric source unavailable'
+      if (error instanceof ResultsBudgetError) reason = 'budget'
+      logger.error({ err: safeError(error), experimentId: phase.experiment, metricId: definition.metricId }, 'Experiment metric source failed')
       metricData.push({ metricId: definition.metricId, values: new Map(), unavailable: reason })
       if (unavailableMetrics.length < 100) unavailableMetrics.push({ experimentId: phase.experiment, phase: phase.phase, metricId: definition.metricId, reason })
       if (error instanceof ResultsBudgetError || Date.now() >= deadline) throw new ResultsBudgetError()
@@ -98,6 +101,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
   }
   const status = phase.endedAt != null || candidate.status === 'archived' ? 'stopped' : candidate.status
   const snapshot = analysePhase({ phase: analysisPhase, now, units, metricData, status,
+    onMetricError: (error, metricId) => logger.error({ err: safeError(error), experimentId: phase.experiment, metricId }, 'Experiment metric analysis failed'),
     excludedMultiArm: exposed.excludedMultiArm, armMismatch: await armMismatchCount(exec, query),
     identityConflictShare: userIds.length ? diagnostics.conflicts / userIds.length : 0,
     ...(phase.phaseKind === 'rollout' ? { winnerArm: phase.arms.find(arm => arm.kind !== 'holdout')!.key } : {}),
@@ -140,7 +144,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
       const snapshots = []
       for (const phase of phases) {
         if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
-        snapshots.push(await analyseCandidate(exec, phase, options, now, analysisDeadline, summary.unavailableMetrics))
+        snapshots.push(await analyseCandidate(exec, phase, options, now, analysisDeadline, summary.unavailableMetrics, payload.logger))
       }
       if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
       await writeSnapshots(exec, snapshots)

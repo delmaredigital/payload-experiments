@@ -269,12 +269,18 @@ test('throwing source makes only that metric unavailable; broken experiment does
   await database.db.update(xp_phases).set({ metricDefinitions: definitions }).where(eq(xp_phases.experiment, Number(good.experiment)))
   await events(good, [{}, {}, {}, {}])
   const context = payload()
-  context.options.metricSources![1]!.query = async () => { throw new Error('Source failed') }
-  expect(await runResults(context.payload)).toMatchObject({ ran: 1, skipped: 1, failed: 1, processedIds: [good.experiment] })
+  context.options.metricSources![1]!.query = async () => { throw new Error('secret-value source row') }
+  const summary = await runResults(context.payload)
+  expect(summary).toMatchObject({ ran: 1, skipped: 1, failed: 1, processedIds: [good.experiment] })
   expect(context.payload.logs).toEqual(expect.arrayContaining([expect.objectContaining({ level: 'error', args: [expect.objectContaining({ experimentId: broken.experiment }), expect.any(String)] })]))
   const snapshot = (await snapshots())[0]!.snapshot as import('../../src/types/snapshot.js').Snapshot
   expect(snapshot.metrics[0]!.unavailable).toBeUndefined()
-  expect(snapshot.metrics[1]!.unavailable).toBe('Source failed')
+  expect(snapshot.metrics[1]!.unavailable).toBe('source-failed')
+  expect(JSON.stringify(snapshot)).not.toContain('secret-value')
+  expect(JSON.stringify(summary)).not.toContain('secret-value')
+  expect(summary.unavailableMetrics).toEqual([{ experimentId: good.experiment, phase: good.phase, metricId: 'failing', reason: 'source-failed' }])
+  expect(context.payload.logs).toContainEqual({ level: 'error', args: [expect.objectContaining({ experimentId: good.experiment, metricId: 'failing' }), 'Experiment metric source failed'] })
+  expect(JSON.stringify(context.payload.logs)).not.toContain('secret-value')
 })
 
 test('CUPED requests the pre-period per exposed unit, and frozen revenue cap also caps covariates', async () => {
@@ -350,4 +356,21 @@ test('ended phases freeze after the late-beacon grace; open phases keep running'
   await database.db.update(xp_phases).set({ endedAt: null }).where(eq(xp_phases.experiment, Number(phase.experiment)))
   expect(await runResults(context.payload)).toMatchObject({ ran: 1 })
   expect(await snapshots()).toHaveLength(2)
+})
+
+
+test.each(['source-unavailable', 'unit-type-unavailable', 'non-finite-values', 'non-finite-covariates'] as const)('fixed plugin metric failures carry %s', async reason => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const source = reason === 'source-unavailable' ? 'missing' : 'binomial'
+  const phase = await seed('user', {
+    analysis: { method: 'sequential', cuped: 'auto', minExposuresPerArm: 200, plannedDurationDays: 14 },
+    metricDefinitions: [{ metricId: 'primary', name: 'Goal', kind: 'binomial', role: 'primary', source, direction: 'increase', attributionWindowHours: 168, minSampleSize: 150 }],
+  })
+  const context = payload(), metric = context.options.metricSources![0]!
+  if (reason === 'unit-type-unavailable') metric.keyedBy = 'visitor'
+  if (reason === 'non-finite-values') metric.query = async () => [{ unitId: 'a', value: NaN, ts: new Date(start) }]
+  if (reason === 'non-finite-covariates') metric.covariate = async () => [{ unitId: 'a', value: Infinity }]
+  const summary = await runResults(context.payload, { sweep: false })
+  expect(summary).toMatchObject({ ran: 1, unavailableMetrics: [{ experimentId: phase.experiment, metricId: 'primary', reason }] })
+  expect(((await snapshots())[0]!.snapshot as Snapshot).metrics[0]!.unavailable).toBe(reason)
 })

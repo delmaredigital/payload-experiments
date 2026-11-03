@@ -13,6 +13,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added: optional `theme.accent` plugin option with derived light/dark fills, accessible accent text and focus rings, and foreground contrast validation.
 - Changed: admin design tokens and shared interface components for the 0.3.0 screens; Running and Ready use fixed green status colours, and the Puck editor stylesheet is generated from the same tokens.
+- Fixed: results and make-content reports no longer store or show raw error text; they carry a reason code shown as plain copy, and the details go to the server log. Migration impact: none.
 
 ## [0.2.0-rc.7] - 2026-11-03
 

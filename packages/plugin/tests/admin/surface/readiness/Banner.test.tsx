@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { ACTIONS_COPY } from '../../../../src/admin/copy/actions.js'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { Banner } from '../../../../src/admin/surface/readiness/Banner.js'
@@ -199,7 +200,7 @@ test.each([true, false])('make-content shows its per-document report until Done,
   fireEvent.click(button('Make it the content'))
   act(() => { dialogButton('Make it the content').click(); dialogButton('Make it the content').click() })
   expect(await screen.findByText('pages/1: Updated')).toBeTruthy()
-  expect(screen.getByText(ok ? 'pages/2: Updated' : 'pages/2: Failed — Locked by another editor.')).toBeTruthy()
+  expect(screen.getByText(ok ? 'pages/2: Updated' : `pages/2: Failed — ${ACTIONS_COPY.contentReasons['update-failed']}`)).toBeTruthy()
   expect(fetcher).toHaveBeenCalledTimes(1)
   expect(fetcher.mock.calls[0]?.[0]).toBe('/custom-api/xp/experiments/xp1/make-content')
   expect(p.test.reload).not.toHaveBeenCalled()

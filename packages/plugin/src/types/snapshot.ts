@@ -1,5 +1,6 @@
 import type { GaussianPrior } from '@delmaredigital/experiments-stats'
 import type { DocId, MetricSource } from './contracts.js'
+import type { MetricUnavailableReason } from './reasons.js'
 export type VerdictCode = 'unavailable' | 'data-problem' | 'guardrail-failing' | 'collecting' | 'original-better' | 'worse-none-better' | 'winner' | 'mixed' | 'keep-running' | 'no-difference' | 'rollout-collecting' | 'rollout-readout'
 export interface Snapshot {
   experiment: DocId; phase: number; phaseKind: 'test' | 'rollout'; computedAt: string
@@ -13,7 +14,7 @@ export interface Snapshot {
   exposures: { total: number; perArm: Record<string, number>; excludedMultiArm: number; multiArmShare: number; armMismatch: number; identityConflictShare: number; capped: Record<DocId, number> }
   srm: { p: number; flagged: boolean; expected: Record<string, number> }
   metrics: Array<{
-    metricId: DocId; name: string; kind: MetricSource['kind']; role: 'primary' | 'secondary' | 'guardrail'; cupedApplied: boolean; unavailable?: string
+    metricId: DocId; name: string; kind: MetricSource['kind']; role: 'primary' | 'secondary' | 'guardrail'; cupedApplied: boolean; unavailable?: MetricUnavailableReason | string
     perArm: Array<{ arm: string; n: number; converters: number; sum: number; sumSquares: number; mean: number; variance: number; covariate?: { preSum: number; preSumSquares: number; postPreSumOfProducts: number }; capped?: { resolvedCap: number; uncappedTotal: number; cappedCount: number } }>
     // Null CI bounds are unbounded or unavailable; JSON snapshots never store ±Infinity.
     comparisons: Array<{ arm: string; lift: number; ci: [number | null, number | null]; ciAdjusted: [number | null, number | null]; pValue?: number; pValueAdjusted?: number; chanceToWin?: number; risk?: number; significant: 'better' | 'worse' | 'none' }>
