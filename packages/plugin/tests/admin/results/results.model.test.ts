@@ -93,17 +93,19 @@ test('several winners retain their own comparisons and server headline', () => {
   expect(rows.filter(row => row.comparison?.significance === 'Better').map(row => row.key)).toEqual(['variantA', 'variantB'])
   expect(verdictCard({ snapshot, isDecidedTestRound: false, winnerLabel: '' })).toHaveProperty('headline', snapshot.verdict.headline)
 })
-test('row 4 uses per-arm minima and excludes holdout', () => {
-  const snapshot = fixture('T4')
-  const input = { snapshot, phaseKind: snapshot.phaseKind, status: 'running' as const }
-  expect(collectingLine(input, { minExposuresPerArm: 1000 })).toBe('360 of 1,000 people, 37 of 150 conversions')
-  // The frozen minimum comes from the snapshot; a snapshot without one shows a dash, never inferred from prose.
-  expect(collectingLine(input)).toBe('360 of 1,000 people, 37 of 150 conversions')
+test.each(['running', 'stopped'] as const)('row 4 omits duplicate counts when %s', status => {
+  const snapshot = fixture(status === 'stopped' ? 'T4-stopped' : 'T4')
+  expect(collectingLine({ snapshot, phaseKind: 'test', status })).toBeNull()
+})
+test('rollout collecting counts retain the frozen minimum and include the holdout', () => {
+  const snapshot = fixture('R2')
+  const input = { snapshot, phaseKind: snapshot.phaseKind, status: 'decided' as const }
+  expect(collectingLine(input, { minExposuresPerArm: 2000 })).toBe('360 of 1,000 people, 144 of 150 conversions')
   const legacy = { ...snapshot, minExposuresPerArm: undefined as unknown as number }
-  expect(collectingLine({ ...input, snapshot: legacy })).toBe('360 of — people, 37 of 150 conversions')
+  expect(collectingLine({ ...input, snapshot: legacy })).toBe('360 of — people, 144 of 150 conversions')
   const phase = phaseFor(snapshot)
-  snapshot.metrics[0]!.perArm[0]!.converters = 20
-  expect(collectingLine(input, { phase, minExposuresPerArm: 1000 })).toBe('360 of 1,000 people, 20 of 150 conversions')
+  snapshot.metrics[0]!.perArm.find(group => group.arm === 'holdout')!.converters = 20
+  expect(collectingLine(input, { phase })).toBe('360 of 1,000 people, 20 of 150 conversions')
 })
 test.each([
   [null, RESULTS_COPY.plannedEnd], [0, RESULTS_COPY.plannedEnd], [0.25, RESULTS_COPY.plannedEnd],
@@ -123,7 +125,7 @@ test.each(Object.keys(fixtures))('%s only renders lines appropriate to its verdi
   const snapshot = fixture(name)
   const input = { snapshot, phaseKind: snapshot.phaseKind, status: name === 'T4-stopped' ? 'stopped' as const : snapshot.phaseKind === 'rollout' ? 'decided' as const : 'running' as const }
   expect(powerLine(input) !== null).toBe(name === 'T4')
-  expect(collectingLine(input) !== null).toBe(['T4', 'T4-stopped', 'R2'].includes(name))
+  expect(collectingLine(input) !== null).toBe(name === 'R2')
 })
 test.each(['draft', 'stopped', 'decided', 'archived'] as const)('collecting test power is absent when %s', status => {
   const snapshot = fixture('T4')

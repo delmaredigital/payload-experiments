@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { Banner } from '../../../../src/admin/surface/readiness/Banner.js'
+import * as adminApi from '../../../../src/admin/api.js'
 import { SaveStatus } from '../../../../src/admin/surface/readiness/SaveStatus.js'
 import { readinessParts } from '../../../../src/admin/surface/readiness/parts.js'
 import { expectedConfirm } from '../../../../src/transitions/confirmPhrases.js'
@@ -9,7 +10,7 @@ import { resetPayloadUiMock } from '../../_helpers/payloadUiMock.js'
 import { props, preflight, doc } from './fixtures.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
-afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.clearAllMocks() })
+afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks() })
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status })
 const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement
 const dialogButton = (name: string) => within(screen.getByRole('dialog')).getByRole('button', { name }) as HTMLButtonElement
@@ -120,6 +121,30 @@ test.each(['forbidden', 'missing', 'missing count', 'no body'])('running omits u
   expect(fetcher).toHaveBeenCalledTimes(1)
   expect(screen.getByRole('status').textContent).toBe('Running')
   expect(screen.queryByRole('alert')).toBeNull()
+})
+test.each(['failed response', 'rejection'])('running keeps the successful count after a summary refresh %s', async failure => {
+  const p = props({ status: 'running', analysis: null })
+  p.surface.canReadResults = true
+  const api = adminApi.createApi(p.surface.apiRoute)
+  const summary = vi.fn<typeof api.summary>().mockResolvedValueOnce({ ok: true, data: { xp1: { exposures: 1200, days: 1, verdict: null } } })
+  if (failure === 'rejection') summary.mockRejectedValueOnce(new Error('Offline'))
+  else summary.mockResolvedValueOnce({ ok: false, status: 503, message: 'Unavailable', retryable: true })
+  vi.spyOn(adminApi, 'createApi').mockReturnValue({ ...api, summary })
+  const view = render(<Banner {...p} resultsVersion={1} />)
+  await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Running · 1,200 people so far'))
+  await act(async () => { view.rerender(<Banner {...p} resultsVersion={2} />) })
+  expect(summary).toHaveBeenCalledTimes(2)
+  expect(screen.getByRole('status').textContent).toBe('Running · 1,200 people so far')
+})
+test('a rejected summary on first load leaves the count unknown', async () => {
+  const p = props({ status: 'running', analysis: null })
+  p.surface.canReadResults = true
+  const api = adminApi.createApi(p.surface.apiRoute)
+  const summary = vi.fn<typeof api.summary>().mockRejectedValue(new Error('Offline'))
+  vi.spyOn(adminApi, 'createApi').mockReturnValue({ ...api, summary })
+  await act(async () => { render(<Banner {...p} />) })
+  expect(summary).toHaveBeenCalledTimes(1)
+  expect(screen.getByRole('status').textContent).toBe('Running')
 })
 test('running allocation at 100% is disabled with an explanation', () => {
   render(<Banner {...props({ status: 'running', allocation: 100 })} />)
