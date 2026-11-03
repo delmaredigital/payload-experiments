@@ -12,3 +12,4 @@
 .xp-goal-form input[readonly] { background: var(--xp-surface); }
 .xp-goal-form details { padding: var(--xp-space-4); border: 1px solid var(--xp-border); }
 .xp-goal-form summary { cursor: pointer; margin-bottom: var(--xp-space-3); }
+.xp-goal-cancel { padding: var(--xp-space-2) var(--xp-space-4); color: var(--xp-text); }

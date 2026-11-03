@@ -140,7 +140,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
         </fieldset>
         {error ? <p role="alert">{error}</p> : null}
         <div className="xp-tests-toolbar"><button type="submit" disabled={pending !== null}>{pending === 'save' ? C.saving : C.save}</button>
-          <Link className="xp-tests-primary" href={listUrl}>{C.cancel}</Link>
+          <Link className="xp-goal-cancel" href={listUrl}>{C.cancel}</Link>
           {id === undefined ? null : <><button type="button" disabled={pending !== null || usedBy > 0} aria-describedby={usedBy ? 'xp-goal-used' : undefined} onClick={() => void remove()}>{pending === 'delete' ? C.deleting : C.remove}</button>
             {usedBy ? <span id="xp-goal-used">{goalUsedBy(usedBy)}</span> : null}</>}
         </div>
