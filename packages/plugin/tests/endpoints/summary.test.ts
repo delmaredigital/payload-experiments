@@ -12,7 +12,7 @@ vi.mock('../../src/db/snapshots.js', async original => ({ ...await original<obje
 afterEach(() => vi.resetAllMocks())
 
 test('latest snapshot summaries preserve opaque encoded ids and return null verdict before first run', async () => {
-  const id = 'opaque, /%+é'
+  const id = 'opaque /%+é'
   vi.mocked(newestSnapshotIds).mockResolvedValue([2])
   const payload = fakePayload({ collections: { 'xp-results-snapshots': [
     { id: 1, experiment: id, phase: 1, computedAt: '2026-10-01T00:00:00Z', snapshot: { ...fixture, exposures: { total: 1 } } },
@@ -174,6 +174,7 @@ test('drafts on the same flag point and layer share occupancy and layer reads', 
 test('readiness preserves raw response keys when Payload normalises a numeric id', async () => {
   const { options, payload } = readinessSetup()
   const req = fakeReq({ payload, user: { id: 1 }, url: 'http://localhost/summary?ids=01' })
+  Object.assign(payload.db, { defaultIDType: 'number' })
   const experiment = { ...payload.documents['xp-experiments']![0]!, id: 1 }
   const original = payload.find
   vi.spyOn(payload, 'find').mockImplementation(async args => {
@@ -186,4 +187,42 @@ test('readiness preserves raw response keys when Payload normalises a numeric id
   const body = await response.json()
   expect(body['01'].ready).toBe(true)
   expect(body).not.toHaveProperty('1')
+})
+
+test.each(['?ids=2%2C1', '?ids=2&ids=1', '?ids=+2+%2C%2C+1+,'])('summary parses and coerces numeric ids from %s', async query => {
+  const payload = fakePayload({ collections: { 'xp-results-snapshots': [
+    { id: 3, experiment: 2, computedAt: '2026-10-02T00:00:00Z', snapshot: fixture },
+  ] } })
+  Object.assign(payload.db, { defaultIDType: 'number' })
+  vi.mocked(newestSnapshotIds).mockResolvedValue([3])
+  const response = await handleSummary(fakeReq({ payload, url: `http://localhost/summary${query}` }), { options })
+  expect(response.status).toBe(200)
+  const body = await response.json()
+  expect(Object.keys(body).sort()).toEqual(['1', '2'])
+  expect(body['2'].exposures).toBe(fixture.exposures.total)
+  expect(body['1'].verdict).toBeNull()
+  expect(newestSnapshotIds).toHaveBeenCalledWith(expect.anything(), [2, 1], 'experiment')
+  expect(payload.calls.find(call => call.args.collection === 'xp-experiments')?.args).toMatchObject({ where: { id: { in: [2, 1] } } })
+})
+
+test('numeric summary drops nonnumeric ids and preserves requested keys for snapshots', async () => {
+  const payload = fakePayload({ collections: { 'xp-results-snapshots': [
+    { id: 3, experiment: 1, computedAt: '2026-10-02T00:00:00Z', snapshot: fixture },
+  ] } })
+  Object.assign(payload.db, { defaultIDType: 'number' })
+  vi.mocked(newestSnapshotIds).mockResolvedValue([3])
+  const response = await handleSummary(fakeReq({ payload, url: 'http://localhost/summary?ids=abc,01,1' }), { options })
+  const body = await response.json()
+  expect(Object.keys(body).sort()).toEqual(['01', '1'])
+  expect(body['01'].exposures).toBe(fixture.exposures.total)
+  expect(body['01']).toEqual(body['1'])
+  expect(newestSnapshotIds).toHaveBeenCalledWith(expect.anything(), [1], 'experiment')
+})
+
+test('entirely nonnumeric summary on a numeric host is empty without database reads', async () => {
+  const payload = fakePayload()
+  Object.assign(payload.db, { defaultIDType: 'number' })
+  expect(await (await handleSummary(fakeReq({ payload, url: 'http://localhost/summary?ids=abc' }), { options })).json()).toEqual({})
+  expect(payload.calls).toEqual([])
+  expect(newestSnapshotIds).not.toHaveBeenCalled()
 })

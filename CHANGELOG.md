@@ -11,6 +11,17 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.2.0-rc.3] - 2026-11-02
+
+### plugin
+
+**Fixed**
+
+- Start and the other actions failed with 'The following field is invalid: Experiment' on hosts with numeric ids.
+- The Tests home failed to load summaries when the browser or server encoded the comma in the ids list.
+
+Migration impact: none. Host step: update the package pin; no other action is needed when upgrading from rc.2. The importMap is unchanged.
+
 ## [0.2.0-rc.2] - 2026-11-02
 
 ### plugin

@@ -5,6 +5,7 @@ import type { Snapshot } from '../types/snapshot.js'
 import type { ResultsPhase } from '../db/snapshots.js'
 import { resultsMetadata, newestSnapshotIds } from '../db/snapshots.js'
 import { pooledExecutor } from '../db/executor.js'
+import { routeId } from './routeId.js'
 
 const headers = { 'Cache-Control': 'no-store' }
 export function resultsError(status: number, code: RefusalCode, message: string): Response {
@@ -26,8 +27,8 @@ export async function readSnapshots(req: PayloadRequest, ids: DocId[], { per = '
 }
 
 export async function handleResults<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
-  const id = req.routeParams?.id
-  if (typeof id !== 'string' && typeof id !== 'number') return resultsError(404, 'not-found', 'Experiment not found')
+  const id = routeId(req)
+  if (id === undefined) return resultsError(404, 'not-found', 'Experiment not found')
   const params = new URL(req.url ?? 'http://localhost').searchParams
   const selected = params.get('phase')
   if (selected !== null && (!/^\d+$/.test(selected) || !Number.isSafeInteger(Number(selected)) || Number(selected) < 1)) return resultsError(400, 'invalid-body', 'Choose a valid round')

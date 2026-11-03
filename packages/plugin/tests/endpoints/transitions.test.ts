@@ -81,3 +81,26 @@ test('make-content preserves locked-placement as a 422 refusal', async () => {
   expect(response.status).toBe(422)
   expect(await response.json()).toMatchObject({ errors: [{ code: 'locked-placement', detail: { id: 2 } }] })
 })
+
+for (const row of cases) {
+  test.each([
+    ['number', '1', 1], ['number', '01', 1], ['text', '1', '1'],
+    ['uuid', '8b5ac9a6-2cb0-4e75-9aca-387069d8a981', '8b5ac9a6-2cb0-4e75-9aca-387069d8a981'],
+  ])(`${row.name}: route id follows %s id type`, async (defaultIDType, id, expected) => {
+    const payload = fakePayload()
+    Object.assign(payload.db, { defaultIDType })
+    const req = fakeReq({ payload, routeParams: { id }, body: JSON.stringify(row.body) })
+    const spy = vi.spyOn(row.module as typeof starts, row.name as 'start').mockResolvedValue({ doc: { id: expected }, revision: 1 } as Awaited<ReturnType<typeof starts.start>>)
+    expect((await row.handler(req, { options: sampleOptions() })).status).toBe(200)
+    expect(spy).toHaveBeenCalledWith(req, expect.objectContaining({ experimentId: expected }))
+  })
+  test(`${row.name}: a nonnumeric route id on a numeric host returns 404`, async () => {
+    const payload = fakePayload()
+    Object.assign(payload.db, { defaultIDType: 'number' })
+    const spy = vi.spyOn(row.module as typeof starts, row.name as 'start')
+    const response = await row.handler(fakeReq({ payload, routeParams: { id: 'abc' }, body: JSON.stringify(row.body) }), { options: sampleOptions() })
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({ errors: [{ code: 'not-found' }] })
+    expect(spy).not.toHaveBeenCalled()
+  })
+}

@@ -10,6 +10,7 @@ import { releaseHoldout } from '../transitions/releaseHoldout.js'
 import { makeContent } from '../transitions/makeContent.js'
 import { archive } from '../transitions/archive.js'
 import type { ArchiveBody } from '../types/endpoints.js'
+import { routeId } from './routeId.js'
 
 const invalidBody = () => Response.json({ errors: [{ code: 'invalid-body', message: 'Enter a valid request body.' }] } satisfies ErrorEnvelope, { status: 400 })
 async function body(req: PayloadRequest): Promise<Record<string, unknown> | null> {
@@ -23,8 +24,8 @@ async function body(req: PayloadRequest): Promise<Record<string, unknown> | null
 }
 const only = (value: Record<string, unknown>, keys: string[]) => Object.keys(value).every(key => keys.includes(key))
 async function respond(req: PayloadRequest, action: (id: string | number) => Promise<unknown>) {
-  const id = req.routeParams?.id
-  if (typeof id !== 'string' && typeof id !== 'number') return Response.json({ errors: [{ code: 'not-found', message: 'Experiment not found' }] } satisfies ErrorEnvelope, { status: 404 })
+  const id = routeId(req)
+  if (id === undefined) return Response.json({ errors: [{ code: 'not-found', message: 'Experiment not found' }] } satisfies ErrorEnvelope, { status: 404 })
   try { return Response.json(await action(id), { headers: { 'Cache-Control': 'no-store' } }) }
   catch (cause) {
     if (cause instanceof XpRefusal) return Response.json({ errors: [{ code: cause.code, message: cause.message, ...(cause.detail === undefined ? {} : { detail: cause.detail }) }] } satisfies ErrorEnvelope, { status: cause.status === 409 ? 422 : cause.status })

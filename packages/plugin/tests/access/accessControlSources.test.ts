@@ -290,7 +290,11 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
     }
     if (!inDb) {
       if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && memberName(node) === 'db') {
-        report(node, 'db-outside-db')
+        // HTTP IDs need the adapter's ID-type metadata, never its executor or sessions.
+        const idTypeMetadata = file === 'src/endpoints/routeId.ts' &&
+          ts.isPropertyAccessExpression(node.parent) && node.parent.expression === node &&
+          node.parent.name.text === 'defaultIDType' && !invokedOrBound(node.parent)
+        if (!idTypeMetadata) report(node, 'db-outside-db')
       }
       if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent) && !node.dotDotDotToken &&
         (nameOf(node.propertyName) ?? (ts.isIdentifier(node.name) ? node.name.text : undefined)) === 'db') {
@@ -492,6 +496,14 @@ describe('access and SQL source boundaries', () => {
   ])('keeps all db receivers and binding patterns inside src/db: %s', text => {
     expect(scan(text, 'src/example.ts').map(v => v.rule)).toContain('db-outside-db')
     expect(scan(text, 'src/db/example.ts')).toEqual([])
+  })
+
+  test('route ID coercion may read only adapter ID-type metadata outside src/db', () => {
+    expect(scan('const idType = req.payload.db.defaultIDType', 'src/endpoints/routeId.ts')).toEqual([])
+    for (const text of ['req.payload.db', 'req.payload.db.pool.query()', 'req.payload.db.sessions', 'req.payload.db.defaultIDType()']) {
+      expect(scan(text, 'src/endpoints/routeId.ts').map(v => v.rule)).toContain('db-outside-db')
+    }
+    expect(scan('req.payload.db.defaultIDType', 'src/example.ts').map(v => v.rule)).toContain('db-outside-db')
   })
 
   test('ordinary db object properties are not destructuring', () => {

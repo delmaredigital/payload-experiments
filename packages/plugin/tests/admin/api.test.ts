@@ -127,8 +127,8 @@ test('empty summary resolves without a request', async () => {
 })
 test('summary encodes each id before joining with comma separators', async () => {
   respond({})
-  await api.summary(['id,with,commas', 'id /?'])
-  expect(fetchMock).toHaveBeenCalledWith('/custom/api/xp/experiments/summary?ids=id%2Cwith%2Ccommas,id%20%2F%3F', { method: 'GET', credentials: 'include' })
+  await api.summary(['id &x', 'id /?'])
+  expect(fetchMock).toHaveBeenCalledWith('/custom/api/xp/experiments/summary?ids=id%20%26x,id%20%2F%3F', { method: 'GET', credentials: 'include' })
 })
 test('summary batches at 100 ids and merges every result', async () => {
   const ids = Array.from({ length: 201 }, (_, index) => String(index))

@@ -1,13 +1,14 @@
 import type { PayloadRequest } from 'payload'
 import type { EndpointContext, ErrorEnvelope } from '../types/endpoints.js'
 import { signPreviewToken } from '../runtime/previewToken.js'
+import { routeId } from './routeId.js'
 
 export async function handlePreviewToken<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, { options }: EndpointContext<TUser>): Promise<Response> {
   const headers = { 'Cache-Control': 'no-store' }
   const refuse = (status: number, code: 'not-found' | 'invalid-body' | 'invalid-status', message: string) =>
     Response.json({ errors: [{ code, message }] } satisfies ErrorEnvelope, { status, headers })
-  const id = req.routeParams?.id
-  if (typeof id !== 'string' && typeof id !== 'number') return refuse(404, 'not-found', 'Experiment not found')
+  const id = routeId(req)
+  if (id === undefined) return refuse(404, 'not-found', 'Experiment not found')
   const result = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 1, where: { id: { equals: id } } })
   const experiment = result.docs[0]
   if (!experiment) return refuse(404, 'not-found', 'Experiment not found')
