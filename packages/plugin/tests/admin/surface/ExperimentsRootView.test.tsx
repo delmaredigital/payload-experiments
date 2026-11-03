@@ -47,10 +47,16 @@ const routes = [
   [['goals'], 'goals', undefined], [['goals', 'new'], 'goalNew', undefined], [['goals', 'goal-1'], 'goal', 'goal-1'],
   [[], 'home', undefined], [['new'], 'new', undefined], [['123'], 'test', '123'], [['123', 'results'], 'results', '123'],
 ] as const
-test('goals return context is serialized for the client surface', async () => {
+test.each(['123', 'test-uuid_1'])('valid goals return context %s is serialized for the client surface', async returnToTest => {
   const { props } = setup()
-  await ExperimentsRootView({ ...props, params: { segments: ['experiments', 'goals', 'new'] }, searchParams: { return: 'test/1' } })
-  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ route: 'goalNew', returnToTest: 'test/1' }) }))
+  await ExperimentsRootView({ ...props, params: { segments: ['experiments', 'goals', 'new'] }, searchParams: { return: returnToTest } })
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ route: 'goalNew', returnToTest }) }))
+})
+test.each(['..', 'test/1', '', ['123']])('invalid goals return context %j is ignored', async returnToTest => {
+  const { props } = setup()
+  await ExperimentsRootView({ ...props, params: { segments: ['experiments', 'goals', 'new'] }, searchParams: { return: returnToTest } })
+  const { clientProps } = mocks.render.mock.calls[0]![0] as { clientProps: TestsSurfaceProps }
+  expect(clientProps).not.toHaveProperty('returnToTest')
 })
 test.each(routes)('%j dispatches to %s through the import map', async (tail, route, id) => {
   const { props, payload, req, findGlobal } = setup()

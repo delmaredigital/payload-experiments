@@ -46,10 +46,10 @@ export function GoalSection({ test, surface }: SectionProps) {
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
     const goal = metrics.find(metric => String(metric.id) === goalId)
     if (!reason && doc.metrics?.primary == null && goal) {
-      test.stage({ metrics: { ...doc.metrics, primary: goal.id,
-        guardrails: doc.metrics?.guardrails?.filter(id => id !== goal.id), secondary: doc.metrics?.secondary?.filter(id => id !== goal.id) } })
+      save(test, 'metrics', () => ({ metrics: { ...doc.metrics, primary: goal.id,
+        guardrails: doc.metrics?.guardrails?.filter(id => id !== goal.id), secondary: doc.metrics?.secondary?.filter(id => id !== goal.id) } }))
     }
-  }, [loaded, metrics, reason, doc.metrics, test.stage])
+  }, [loaded, metrics, reason, doc.metrics, test])
   const sources = metricSourceOptions(surface.metricSources)
   const unknownGoal = loaded ? C.missingGoal : C.goalUnavailable
   const options = metrics.map(metric => ({ value: String(metric.id), label: `${metric.name} · ${sources.find(source => source.value === metric.source)?.badge ?? metric.source}` }))

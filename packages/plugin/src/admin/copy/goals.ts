@@ -9,8 +9,9 @@ export const GOALS_COPY = {
   noCap: 'No limit', percentile: 'Based on past amounts', absolute: 'Fixed amount',
   capHelp: 'For past amounts, enter a number such as 0.99 to limit only the largest 1%; or enter a fixed amount.',
   threshold: 'Warn when it gets worse by (%)', save: 'Save', saving: 'Saving…', cancel: 'Cancel', remove: 'Delete',
+  thresholdError: 'Enter a percentage of zero or more, or leave blank for 5%.',
   deleting: 'Deleting…', saveError: "Couldn't save the goal. Try again.", deleteError: "Couldn't delete the goal. Try again.",
   breadcrumb: 'Breadcrumb', missing: 'This goal could not be found.',
 } as const
 
-export function goalUsedBy(count: number) { return `Used by ${count} tests` }
+export function goalUsedBy(count: number) { return `Used by ${count} ${count === 1 ? 'test' : 'tests'}` }

@@ -88,6 +88,7 @@ test('revenue defaults and shared capping validation match the collection', asyn
   fireEvent.change(screen.getByLabelText('Limit value'), { target: { value: '2' } })
   fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form')!)
   expect(screen.getByRole('alert').textContent).toBe('Enter a valid limit (for past amounts, use a number greater than 0 and at most 1).')
+  expect(screen.getByLabelText('Limit value').getAttribute('aria-invalid')).toBe('true')
   expect(fetch).not.toHaveBeenCalled()
   fireEvent.change(screen.getByLabelText('Limit by'), { target: { value: 'absolute' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -100,6 +101,43 @@ test('existing revenue goals without a cap show the same default the server appl
   expect((screen.getByLabelText('Limit by') as HTMLSelectElement).value).toBe('percentile')
   expect((screen.getByLabelText('Limit value') as HTMLInputElement).value).toBe('0.99')
   expect(screen.queryByRole('option', { name: 'No limit' })).toBeNull()
+})
+test.each([[0.07, '7'], [0.29, '29']] as const)('threshold %s displays as %s without float noise', async (guardrailThreshold, display) => {
+  await loadForm([], { ...goal, guardrailThreshold })
+  expect((screen.getByLabelText('Warn when it gets worse by (%)') as HTMLInputElement).value).toBe(display)
+})
+test('threshold can be cleared and saves the default', async () => {
+  const fetch = await loadForm([], { ...goal, guardrailThreshold: 0.29 })
+  const input = screen.getByLabelText('Warn when it gets worse by (%)') as HTMLInputElement
+  fireEvent.change(input, { target: { value: '' } })
+  expect(input.value).toBe('')
+  fetch.mockResolvedValueOnce(response({ doc: goal }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(push).toHaveBeenCalledOnce())
+  expect(fetch).toHaveBeenLastCalledWith('/data/xp-metrics/7', expect.objectContaining({ body: expect.stringContaining('"guardrailThreshold":0.05') }))
+})
+test('invalid threshold shows an associated field error without saving', async () => {
+  const fetch = await loadForm()
+  const input = screen.getByLabelText('Warn when it gets worse by (%)')
+  fireEvent.change(input, { target: { value: '-1' } })
+  fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form')!)
+  const error = screen.getByRole('alert')
+  expect(error.textContent).toBe('Enter a percentage of zero or more, or leave blank for 5%.')
+  expect(input.getAttribute('aria-invalid')).toBe('true')
+  expect(input.getAttribute('aria-describedby')).toBe(error.id)
+  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(push).not.toHaveBeenCalled()
+})
+test('existing goal shows Goals while loading and on load failure', async () => {
+  let finish!: (response: Response) => void
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { finish = resolve })))
+  render(<GoalForm surface={surface} id="7" />)
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Goals')
+  expect(screen.getByRole('navigation').textContent).toBe('Tests›Goals')
+  finish(response({ errors: [{ message: 'Unable to load this goal.' }] }, 500))
+  await screen.findByRole('alert')
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Goals')
+  expect(screen.queryByText('New goal')).toBeNull()
 })
 test('a used goal locks its short name and disables Delete with its usage count', async () => {
   const fetch = await loadForm([{ id: 1, metrics: { secondary: [7], primary: 7 } }, { id: 2, metrics: { guardrails: [7] } }])
@@ -115,6 +153,7 @@ test('usage on later pages also locks the short name', async () => {
     ? { docs: [], hasNextPage: true } : { docs: [{ id: 1, metrics: { primary: 7 } }] })))
   render(<GoalForm surface={surface} id="7" />)
   expect((await screen.findByLabelText('Short name') as HTMLInputElement).readOnly).toBe(true)
+  expect(screen.getByText('Used by 1 test')).toBeTruthy()
 })
 test('an unused goal can be edited and deleted through REST', async () => {
   const fetch = await loadForm()
@@ -146,7 +185,7 @@ test.each(['save', 'delete', 'load'] as const)('server %s refusals display the s
   expect((await screen.findByRole('alert')).textContent).toContain('You may not change goals.')
   expect(push).not.toHaveBeenCalled()
 })
-test('pending submit prevents a duplicate POST and disables Cancel', async () => {
+test('pending submit prevents a duplicate POST and Cancel remains a navigation link', async () => {
   const fetch = vi.fn(() => new Promise(() => {}))
   vi.stubGlobal('fetch', fetch)
   render(<GoalForm surface={surface} />)
@@ -154,7 +193,7 @@ test('pending submit prevents a duplicate POST and disables Cancel', async () =>
   const form = screen.getByRole('button', { name: 'Save' }).closest('form')!
   fireEvent.submit(form); fireEvent.submit(form)
   expect(fetch).toHaveBeenCalledOnce()
-  expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true)
+  expect(screen.getByRole('link', { name: 'Cancel' }).getAttribute('href')).toBe('/control/experiments/goals')
 })
 test('surface dispatches goals and form routes with sources and the shared shell', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url.includes('/7?') ? goal : { docs: [] })))
@@ -164,8 +203,7 @@ test('surface dispatches goals and form routes with sources and the shared shell
   view.rerender(<TestsSurface {...surface} route="goalNew" returnToTest="abc" />)
   await screen.findByLabelText('Name')
   expect(screen.getByRole('option', { name: 'Registrations · yes/no' })).toBeTruthy()
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-  expect(push).toHaveBeenLastCalledWith('/control/experiments/goals?return=abc')
+  expect(screen.getByRole('link', { name: 'Cancel' }).getAttribute('href')).toBe('/control/experiments/goals?return=abc')
   view.rerender(<TestsSurface {...surface} route="goal" id="7" />)
   await screen.findByDisplayValue('Register')
 })

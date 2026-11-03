@@ -85,7 +85,7 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
   const descriptions = options.admin?.descriptions
   const returnToTest = (await searchParams)?.return
   const clientProps: TestsSurfaceProps = {
-    ...(typeof returnToTest === 'string' && returnToTest ? { returnToTest } : {}),
+    ...(typeof returnToTest === 'string' && /^[\w-]+$/.test(returnToTest) ? { returnToTest } : {}),
     route, ...(id === undefined ? {} : { id }), adminRoute, apiRoute: req.payload.config.routes.api,
     canManage, canReadResults, isAdmin, flagPoints, ...(pages === undefined ? {} : { pages }),
     attributeKeys: serializeAttributeKeys(options), metricSources: serializeMetricSources(options),

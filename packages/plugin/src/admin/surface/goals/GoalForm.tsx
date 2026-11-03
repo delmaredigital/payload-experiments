@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation.js'
+import { Link } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
 import type { SurfaceProps } from '../contracts.js'
 import { GOALS_COPY as C, goalUsedBy } from '../../copy/goals.js'
@@ -13,10 +14,10 @@ import { GoalsBreadcrumb } from './GoalsBreadcrumb.js'
 import './goals.css'
 
 type Draft = Omit<Goal, 'id' | 'capping' | 'guardrailThreshold'> & {
-  capType: '' | 'percentile' | 'absolute'; capValue: string; warningPercent: number
+  capType: '' | 'percentile' | 'absolute'; capValue: string; warningPercent: string
 }
 const empty = (): Draft => ({ name: '', slug: '', source: '', direction: 'increase', attributionWindowHours: 168,
-  minSampleSize: 150, capType: '', capValue: '', warningPercent: 5 })
+  minSampleSize: 150, capType: '', capValue: '', warningPercent: '5' })
 
 export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps; id?: string; returnToTest?: string }) {
   const router = useRouter()
@@ -27,6 +28,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
   const [ready, setReady] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<'capType' | 'capValue' | 'warningPercent', string>>>({})
   const [pending, setPending] = useState<'save' | 'delete' | null>(null)
   const [slugEdited, setSlugEdited] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -50,7 +52,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
             && loaded.capping?.type == null && loaded.capping?.value == null
           setGoal(loaded); setUsedBy(goalUsage(tests).get(loaded.id) ?? 0)
           setDraft({ ...empty(), ...loaded, capType: loaded.capping?.type ?? (defaultCap ? 'percentile' : ''), capValue: loaded.capping?.value == null ? defaultCap ? '0.99' : '' : String(loaded.capping.value),
-            warningPercent: (loaded.guardrailThreshold ?? 0.05) * 100 })
+            warningPercent: String(Number(((loaded.guardrailThreshold ?? 0.05) * 100).toPrecision(12))) })
           setSlugEdited(true)
         }
         if (!controller.signal.aborted) setReady(true)
@@ -67,13 +69,17 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
     const capValue = draft.capValue.trim() === '' ? null : Number(draft.capValue)
     const typeError = validateCappingType(draft.capType || null, capValue, source?.kind)
     const valueError = validateCappingValue(capValue, draft.capType || null)
-    if (typeError !== true || valueError !== true) { setError(typeError !== true ? typeError : valueError as string); return }
+    const warningPercent = draft.warningPercent.trim() === '' ? 5 : Number(draft.warningPercent)
+    const errors = { ...(typeError !== true ? { capType: typeError } : {}), ...(valueError !== true ? { capValue: valueError } : {}),
+      ...(!Number.isFinite(warningPercent) || warningPercent < 0 ? { warningPercent: C.thresholdError } : {}) }
+    setFieldErrors(errors)
+    if (Object.keys(errors).length) return
     inFlight.current = true; setPending('save'); setError('')
     try {
       // Use an explicit body: loaded metadata and presentation fields never go back to Payload.
       const body = { name: draft.name, slug: usedBy && goal ? goal.slug : draft.slug, source: draft.source, direction: draft.direction,
         attributionWindowHours: draft.attributionWindowHours, minSampleSize: draft.minSampleSize,
-        capping: { type: draft.capType || null, value: capValue }, guardrailThreshold: draft.warningPercent / 100 }
+        capping: { type: draft.capType || null, value: capValue }, guardrailThreshold: warningPercent / 100 }
       const response = await fetch(`${base}/xp-metrics${id === undefined ? '' : `/${encodeURIComponent(id)}`}`, {
         method: id === undefined ? 'POST' : 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
@@ -93,8 +99,8 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
     } catch (cause) { setError(cause instanceof Error ? cause.message : C.deleteError); inFlight.current = false; setPending(null) }
   }
   return <div className="xp-goals">
-    <GoalsBreadcrumb adminRoute={surface.adminRoute} name={goal?.name ?? C.newGoal} returnQuery={returnQuery} />
-    <h1>{goal?.name ?? C.newGoal}</h1>
+    <GoalsBreadcrumb adminRoute={surface.adminRoute} name={goal?.name ?? (id === undefined ? C.newGoal : undefined)} returnQuery={returnQuery} />
+    <h1>{goal?.name ?? (id === undefined ? C.newGoal : C.title)}</h1>
     {loadError ? <p role="alert">{loadError}{' '}<button type="button" onClick={() => setAttempt(n => n + 1)}>{C.retry}</button></p>
       : !ready ? <p role="status">{C.loading}</p> : <form className="xp-goal-form" onSubmit={event => { event.preventDefault(); void submit() }}>
         <fieldset disabled={pending !== null}>
@@ -119,18 +125,22 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
           <label className="xp-field">{C.minimum}<input required type="number" min="1" step="any" value={draft.minSampleSize ?? ''} onChange={event => set('minSampleSize', event.currentTarget.value === '' ? null : Number(event.currentTarget.value))} /></label>
           <details><summary>{C.advanced}</summary>
             <fieldset><legend>{C.capping}</legend>
-              <label className="xp-field">{C.capType}<select required={source?.kind === 'revenue'} value={draft.capType} onChange={event => {
+              <label className="xp-field">{C.capType}<select required={source?.kind === 'revenue'} value={draft.capType} aria-invalid={fieldErrors.capType ? true : undefined} aria-describedby={fieldErrors.capType ? 'xp-goal-cap-type-error' : undefined} onChange={event => {
                 const capType = event.currentTarget.value as Draft['capType']
                 setDraft(current => ({ ...current, capType, capValue: capType ? current.capValue : '' }))
               }}>{source?.kind !== 'revenue' ? <option value="">{C.noCap}</option> : null}<option value="percentile">{C.percentile}</option><option value="absolute">{C.absolute}</option></select></label>
-              <label className="xp-field">{C.capValue}<input type="number" step="any" min="0" disabled={!draft.capType} value={draft.capValue} onChange={event => set('capValue', event.currentTarget.value)} /></label><p>{C.capHelp}</p>
+              {fieldErrors.capType ? <p id="xp-goal-cap-type-error" role="alert">{fieldErrors.capType}</p> : null}
+              <label className="xp-field">{C.capValue}<input type="number" step="any" min="0" disabled={!draft.capType} value={draft.capValue} aria-invalid={fieldErrors.capValue ? true : undefined} aria-describedby={fieldErrors.capValue ? 'xp-goal-cap-value-error' : undefined} onChange={event => set('capValue', event.currentTarget.value)} /></label><p>{C.capHelp}</p>
+              {fieldErrors.capValue ? <p id="xp-goal-cap-value-error" role="alert">{fieldErrors.capValue}</p> : null}
             </fieldset>
-            <label className="xp-field">{C.threshold}<input required type="number" min="0" step="any" value={draft.warningPercent} onChange={event => set('warningPercent', Number(event.currentTarget.value))} /></label>
+            <label className="xp-field">{C.threshold}<input type="number" min="0" step="any" value={draft.warningPercent} aria-invalid={fieldErrors.warningPercent ? true : undefined} aria-describedby={fieldErrors.warningPercent ? 'xp-goal-threshold-error' : undefined}
+              onInvalid={() => setFieldErrors(current => ({ ...current, warningPercent: C.thresholdError }))} onChange={event => set('warningPercent', event.currentTarget.value)} /></label>
+            {fieldErrors.warningPercent ? <p id="xp-goal-threshold-error" role="alert">{fieldErrors.warningPercent}</p> : null}
           </details>
         </fieldset>
         {error ? <p role="alert">{error}</p> : null}
         <div className="xp-tests-toolbar"><button type="submit" disabled={pending !== null}>{pending === 'save' ? C.saving : C.save}</button>
-          <button type="button" disabled={pending !== null} onClick={() => router.push(listUrl)}>{C.cancel}</button>
+          <Link className="xp-tests-primary" href={listUrl}>{C.cancel}</Link>
           {id === undefined ? null : <><button type="button" disabled={pending !== null || usedBy > 0} aria-describedby={usedBy ? 'xp-goal-used' : undefined} onClick={() => void remove()}>{pending === 'delete' ? C.deleting : C.remove}</button>
             {usedBy ? <span id="xp-goal-used">{goalUsedBy(usedBy)}</span> : null}</>}
         </div>

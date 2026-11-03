@@ -37,13 +37,15 @@ function blurChange(label: string, value: string) {
 }
 const metricsFetch = () => vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: [{ id: 1, name: 'Registered', source: 'signup' }, { id: 2, name: 'Completed', source: 'signup' }], hasNextPage: false }) })))
 
-test.each([7, 'goal-uuid'])('returning with goal %s stages its API id without committing and removes only the goal param', async id => {
+test.each([7, 'goal-uuid'])('returning with goal %s saves its API id exactly once and removes only the goal param', async id => {
   window.history.replaceState(null, '', '/cms/experiments/test?goal=' + id + '&locale=en#section-win')
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: [{ id, name: 'New goal', source: 'signup' }] }) })))
   const p = props({ metrics: { primary: null, guardrails: [2], secondary: [3] } })
-  render(<GoalSection {...p} />)
+  const view = render(<GoalSection {...p} />)
   await waitFor(() => expect(p.test.stage).toHaveBeenCalledWith({ metrics: { primary: id, guardrails: [2], secondary: [3] } }))
-  expect(p.test.commit).not.toHaveBeenCalled()
+  view.rerender(<GoalSection {...p} />)
+  expect(p.test.stage).toHaveBeenCalledOnce()
+  expect(p.test.commit).toHaveBeenCalledOnce()
   expect(window.location.search).toBe('?locale=en')
   expect(window.location.hash).toBe('#section-win')
   window.history.replaceState(null, '', '/')
