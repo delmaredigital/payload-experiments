@@ -1,3 +1,4 @@
+import { safeError } from '../log.js'
 import { isDeepStrictEqual } from 'node:util'
 import type { CollectionAfterChangeHook, CollectionBeforeChangeHook } from 'payload'
 import { appendContentChange, contentChangeSavepoint, previousPublishedContent, runningContentExperiment } from '../db/appends.js'
@@ -67,7 +68,7 @@ type ContentChangeArgs = Pick<Parameters<CollectionAfterChangeHook>[0], 'doc' | 
 export async function recordContentChange(args: ContentChangeArgs): Promise<void> {
   try { await auditContentChange(args) }
   catch (error) {
-    console.error('[payload-experiments] contentChanges failed; the document was saved without it', error)
+    console.error('[payload-experiments] contentChanges failed; the document was saved without it', safeError(error))
   }
 }
 

@@ -1,3 +1,4 @@
+import { safeError } from '../log.js'
 import type { Payload } from 'payload'
 import type { DocId } from '../types/contracts.js'
 import type { ResolvedOptions } from '../types/contracts.js'
@@ -124,7 +125,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
     summary.skipped++
     if (!(error instanceof ResultsBudgetError)) summary.failed++
     summary.budgetExhausted = error instanceof ResultsBudgetError
-    payload.logger.error({ err: error, experimentId }, 'Experiment scheduling failed')
+    payload.logger.error({ err: safeError(error), experimentId }, 'Experiment scheduling failed')
   }
   // Query order is oldest phase snapshot first; grouping keeps each experiment's
   // phases together while preserving that scheduling priority.
@@ -149,7 +150,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
       summary.skipped++
       if (!(error instanceof ResultsBudgetError)) summary.failed++
       summary.budgetExhausted ||= error instanceof ResultsBudgetError
-      payload.logger.error({ err: error, experimentId: id }, 'Experiment results failed')
+      payload.logger.error({ err: safeError(error), experimentId: id }, 'Experiment results failed')
     }
   }
   if (sweep) {
@@ -161,7 +162,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
     } catch (error) {
       if (!(error instanceof ResultsBudgetError)) summary.failed++
       summary.budgetExhausted ||= error instanceof ResultsBudgetError
-      payload.logger.error({ err: error }, 'Experiment retention sweep failed')
+      payload.logger.error({ err: safeError(error) }, 'Experiment retention sweep failed')
     }
   }
   summary.budgetExhausted ||= Date.now() >= deadline

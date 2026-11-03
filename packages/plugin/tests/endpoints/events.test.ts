@@ -381,7 +381,7 @@ test('DB failures are logged and return exactly 202 {}, even if logging also fai
   const f = fixture()
   insert.mockRejectedValueOnce(new Error('database down'))
   await accepted(await f.run(f.request()))
-  expect(f.error).toHaveBeenCalledWith(expect.objectContaining({ msg: 'Experiments: events endpoint failed', err: expect.any(Error) }))
+  expect(f.error).toHaveBeenCalledWith({ err: { name: 'Error', stack: expect.stringContaining('at ') } }, 'Experiments: events endpoint failed')
   f.error.mockImplementation(() => { throw new Error('logger down') })
   insert.mockRejectedValueOnce(new Error('database down'))
   await accepted(await f.run(f.request()))

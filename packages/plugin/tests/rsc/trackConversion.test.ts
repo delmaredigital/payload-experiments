@@ -1,3 +1,4 @@
+import { safeError } from '../../src/log.js'
 import type { Payload } from 'payload'
 import { NextRequest } from 'next/server'
 import { PgDialect } from 'drizzle-orm/pg-core'
@@ -123,7 +124,7 @@ test.each([false, true])('getUser failure logs and preserves visitor attribution
   vi.mocked(runtime.getUser!).mockRejectedValue(userError)
   if (loggerThrows) error.mockImplementation(() => { throw new Error('logger unavailable') })
   await expect(trackConversion(runtime, { eventName: 'event', idempotencyKey: 'key', headers: new Headers({ cookie: `xp_id=${encodeUnitCookie('visitor', ['secret'])}` }) })).resolves.toBeUndefined()
-  expect(error).toHaveBeenCalledExactlyOnceWith({ err: userError, msg: 'Experiments: trackConversion getUser failed' })
+  expect(error).toHaveBeenCalledExactlyOnceWith({ err: safeError(userError) }, 'Experiments: trackConversion getUser failed')
   expect(execute).toHaveBeenCalledOnce()
   expect(new PgDialect().sqlToQuery(execute.mock.calls[0]![0]).params).toEqual([
     'conversion', null, null, null, 'visitor', 'visitor', null, 'event', 1, expect.any(String), null, null, 'conversion:s:key',
