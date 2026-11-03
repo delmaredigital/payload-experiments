@@ -108,3 +108,14 @@ test('registers the Tests root and appends its nav link without replacing host c
   expect(admin.components?.afterNavLinks).toEqual(['host#Nav'])
   expect(admin.components?.views).not.toHaveProperty('xpTests')
 })
+
+test('applying the plugin twice registers one Tests dashboard and nav component', async () => {
+  const plugin = createExperimentsPlugin(sampleOptions())
+  const first = await plugin({ secret: 'test', db: {} as Config['db'], admin: { components: {
+    beforeDashboard: ['host#Dashboard'], beforeNavLinks: ['host#BeforeNav'],
+  } } })
+  const second = await plugin(first)
+  const paths = await import('../src/admin/paths.js')
+  expect(second.admin?.components?.beforeDashboard).toEqual(['host#Dashboard', paths.XP_TESTS_DASHBOARD_CARDS])
+  expect(second.admin?.components?.beforeNavLinks).toEqual(['host#BeforeNav', paths.XP_TESTS_NAV_LINK])
+})

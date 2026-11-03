@@ -1,5 +1,3 @@
-@import './theme.css';
-
 .xp-dash-group {
   display: flex;
   flex-direction: column;
@@ -26,4 +24,12 @@
 
 @media (max-width: 1024px) {
   .xp-dash-card-list { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .xp-dash-card-list { gap: var(--xp-dash-card-gap-small); }
+}
+
+@media (max-width: 400px) {
+  .xp-dash-card-list { grid-template-columns: repeat(1, 1fr); }
 }

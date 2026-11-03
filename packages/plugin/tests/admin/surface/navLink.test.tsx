@@ -30,11 +30,17 @@ test('manager sees both links inside a Tests group, with stable ids and labels',
   expect(group.hasAttribute('data-is-open')).toBe(false)
 })
 
-test.each([false, undefined, { where: {} }])('non-manager with update=%j sees only All tests', update => {
+test.each([false, undefined, { where: {} }])('non-manager with update=%j sees no Tests group', update => {
   setAuth({ permissions: { collections: { 'xp-experiments': { update } } } })
   setNextNavigation({ pathname: '/admin' })
-  render(<TestsNavLink />)
-  expect(screen.getAllByRole('link').map(link => link.textContent)).toEqual(['All tests'])
+  const { container } = render(<TestsNavLink />)
+  expect(container.innerHTML).toBe('')
+})
+
+test('missing permissions render no Tests group', () => {
+  setAuth({ permissions: undefined })
+  const { container } = render(<TestsNavLink />)
+  expect(container.innerHTML).toBe('')
 })
 
 test.each([

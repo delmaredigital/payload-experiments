@@ -18,14 +18,16 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
     // Erase the user subtype only at this non-generic factory boundary.
     const { collections, globals } = buildCollections(options as unknown as Parameters<typeof buildCollections>[0])
     const onInit = createOnInit(options)
+    const beforeDashboard = config.admin?.components?.beforeDashboard ?? []
+    const beforeNavLinks = config.admin?.components?.beforeNavLinks ?? []
     return {
       ...config,
       admin: { ...config.admin,
         dependencies: { ...config.admin?.dependencies, xpTestsSurface: { path: paths.XP_TESTS_SURFACE, type: 'component' } },
         components: { ...config.admin?.components,
         views: { ...config.admin?.components?.views, xpTests: { Component: paths.XP_TESTS_VIEW, path: '/experiments/:segments*' } },
-        beforeDashboard: [...(config.admin?.components?.beforeDashboard ?? []), paths.XP_TESTS_DASHBOARD_CARDS],
-        beforeNavLinks: [...(config.admin?.components?.beforeNavLinks ?? []), paths.XP_TESTS_NAV_LINK],
+        beforeDashboard: beforeDashboard.includes(paths.XP_TESTS_DASHBOARD_CARDS) ? beforeDashboard : [...beforeDashboard, paths.XP_TESTS_DASHBOARD_CARDS],
+        beforeNavLinks: beforeNavLinks.includes(paths.XP_TESTS_NAV_LINK) ? beforeNavLinks : [...beforeNavLinks, paths.XP_TESTS_NAV_LINK],
       } },
       collections: [
         ...(config.collections ?? []).map(collection => {

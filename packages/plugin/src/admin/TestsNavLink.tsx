@@ -18,9 +18,10 @@ function TestsNav() {
   const testsActive = !goalsActive && (pathname === base || Boolean(pathname?.startsWith(`${base}/`)))
   const testPermissions: { update?: boolean } | undefined = permissions?.collections?.['xp-experiments']
   const canManage = testPermissions?.update === true
+  if (!canManage) return null
   const entries = [
     { id: 'nav-xp-tests', href, label: SURFACE_COPY.navAllTests, active: testsActive },
-    ...(canManage ? [{ id: 'nav-xp-goals', href: goalsHref, label: SURFACE_COPY.navGoals, active: goalsActive }] : []),
+    { id: 'nav-xp-goals', href: goalsHref, label: SURFACE_COPY.navGoals, active: goalsActive },
   ]
   // getPreference is async and can fetch; let NavGroup default to open.
   return <NavGroup label={SURFACE_COPY.title}>

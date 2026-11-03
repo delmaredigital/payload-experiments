@@ -86,7 +86,7 @@ test('writes real Payload nav and dashboard comparisons in light and dark', () =
   const paths: string[] = []
   for (const manager of [true, false]) {
     fixture.manager = manager
-    for (const route of ['tests', 'goals'] as const) {
+    for (const route of (manager ? ['tests', 'goals'] : ['tests']) as Array<'tests' | 'goals'>) {
       fixture.pathname = route === 'tests' ? '/admin/experiments' : '/admin/experiments/goals/new'
       for (const theme of ['light', 'dark']) {
         const html = '<!DOCTYPE html>' + renderToStaticMarkup(<html lang="en" data-theme={theme}>
@@ -95,20 +95,26 @@ test('writes real Payload nav and dashboard comparisons in light and dark', () =
             <title>{`Tests navigation — ${manager ? 'manager' : 'reader'} — ${route} — ${theme}`}</title>
             <link rel="stylesheet" href={pathToFileURL(adminCss).href} />
             <link rel="stylesheet" href={pathToFileURL(payloadCss).href} />
+            <link rel="stylesheet" href={pathToFileURL(join(source, 'theme.css')).href} />
             <link rel="stylesheet" href={pathToFileURL(join(source, 'dashboard.css')).href} />
             <style>{collectionCss}</style>
-            <style>{`body { margin: 0; background: var(--theme-bg); color: var(--theme-text); } .fixture-dashboard { margin-left: var(--nav-width); padding: 40px; }`}</style>
+            <style>{`body { display: flex; margin: 0; background: var(--theme-bg); color: var(--theme-text); } aside.nav { position: sticky; top: 0; flex-shrink: 0; } .fixture-dashboard { flex: 1; min-width: 0; padding: 40px; }`}</style>
           </head>
           <body><Comparison /></body>
         </html>)
         expect(html).toContain('nav-group__content')
         expect(html).toContain('card__click')
+        if (!manager) {
+          expect(html).not.toContain('nav-xp-tests')
+          expect(html).not.toContain('xp-dash-group')
+          expect(html).toContain('nav-users')
+        }
         const path = join(output, `admin-nav-${manager ? 'manager' : 'reader'}-${route}-${theme}.html`)
         writeFileSync(path, html)
         paths.push(path)
       }
     }
   }
-  expect(paths).toHaveLength(8)
+  expect(paths).toHaveLength(6)
   console.log(paths.join('\n'))
 })
