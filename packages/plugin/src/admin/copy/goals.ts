@@ -1,5 +1,5 @@
 export const GOALS_COPY = {
-  title: 'Goals', newGoal: 'New goal', name: 'Name', source: 'Measured by', directionColumn: 'Better when',
+  title: 'Goals', goal: 'Goal', newGoal: 'New goal', name: 'Name', source: 'Measured by', directionColumn: 'Better when',
   direction: 'Better when it goes', increase: 'Goes up', decrease: 'Goes down', usedBy: 'Used by', status: 'Status',
   inUse: 'In use', unused: 'Not used', empty: 'A goal is an outcome you want a test to improve, such as a registration or a gift.',
   loading: 'Loading goals…', loadError: "Couldn't load goals. Try again.", retry: 'Try again',
