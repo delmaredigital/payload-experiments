@@ -10,7 +10,7 @@ vi.mock('../../src/db/snapshots.js', async original => ({ ...await original<obje
 afterEach(() => vi.resetAllMocks())
 
 test('manage recompute runs in process for exactly the authorised experiment', async () => {
-  const summary = { ran: 1, skipped: 0, swept: 0, processedIds: ['exp'], budgetExhausted: false }
+  const summary = { ran: 1, skipped: 0, failed: 0, swept: 0, processedIds: ['exp'], budgetExhausted: false }
   vi.mocked(runResults).mockResolvedValue(summary)
   vi.mocked(newestSnapshotIds).mockResolvedValue(['snapshot'])
   const payload = fakePayload({ collections: { 'xp-experiments': [{ id: 'exp' }], 'xp-results-snapshots': [{ id: 'snapshot', experiment: 'exp', phase: 1, computedAt: '2026-10-31T00:00:00Z' }] } })
@@ -21,8 +21,8 @@ test('manage recompute runs in process for exactly the authorised experiment', a
   expect(payload.calls[0]!.args).toMatchObject({ req, overrideAccess: false })
 })
 
-test.each(['failed', 'budget', 'no-phase'])('recompute %s returns a distinct non-2xx error, never a null success', async outcome => {
-  vi.mocked(runResults).mockResolvedValue({ ran: 0, skipped: outcome === 'failed' ? 1 : 0, swept: 0, processedIds: [], budgetExhausted: outcome === 'budget' })
+test.each(['skipped', 'budget', 'no-phase'])('recompute %s returns a distinct non-2xx error, never a null success', async outcome => {
+  vi.mocked(runResults).mockResolvedValue({ ran: 0, skipped: outcome === 'skipped' ? 1 : 0, failed: 0, swept: 0, processedIds: [], budgetExhausted: outcome === 'budget' })
   vi.mocked(newestSnapshotIds).mockResolvedValue([])
   const req = fakeReq({ payload: fakePayload({ collections: { 'xp-experiments': [{ id: 'exp' }] } }), routeParams: { id: 'exp' } })
   const response = await handleRecompute(req, { options: sampleOptions() })
@@ -30,15 +30,15 @@ test.each(['failed', 'budget', 'no-phase'])('recompute %s returns a distinct non
   expect(await response.json()).toMatchObject({ errors: [{ code: 'recompute-failed' }] })
 })
 
-test('a thrown analysis error is logged with its experiment and returns analysis-failed with HTTP 500', async () => {
-  const error = new TypeError('Invalid Snapshot shape (all numbers must be finite)')
-  vi.mocked(runResults).mockRejectedValue(error)
+test('a snapshot read error is logged with its experiment and returns recompute-failed with HTTP 503', async () => {
+  const error = new Error('Snapshot database unavailable')
+  vi.mocked(runResults).mockResolvedValue({ ran: 1, skipped: 0, failed: 0, swept: 0, processedIds: ['exp'], budgetExhausted: false })
+  vi.mocked(newestSnapshotIds).mockRejectedValue(error)
   const payload = fakePayload({ collections: { 'xp-experiments': [{ id: 'exp' }] } })
   const response = await handleRecompute(fakeReq({ payload, routeParams: { id: 'exp' } }), { options: sampleOptions() })
-  expect(response.status).toBe(500)
-  expect(await response.json()).toEqual({ errors: [{ code: 'analysis-failed', message: 'Results could not be computed; this has been logged.' }] })
+  expect(response.status).toBe(503)
+  expect(await response.json()).toEqual({ errors: [{ code: 'recompute-failed', message: 'Results could not be recomputed. Try again.' }] })
   expect(payload.logs).toContainEqual({ level: 'error', args: [{ err: error, experimentId: 'exp' }, expect.any(String)] })
-  expect(newestSnapshotIds).not.toHaveBeenCalled()
 })
 
 test('missing experiment is 404 and does not run analysis', async () => {

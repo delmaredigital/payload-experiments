@@ -4,6 +4,7 @@ import {
   sequentialOneSidedTreatmentLesserTTest, sequentialTwoSidedTTest, statisticMean, statisticVariance,
 } from '@delmaredigital/experiments-stats'
 import type { GaussianPrior, TestStatistic } from '@delmaredigital/experiments-stats'
+import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
 import type { Arm, DocId, MetricSource } from '../types/contracts.js'
 import type { Snapshot } from '../types/snapshot.js'
 import type { ExposedUnit, Timestamp } from './aggregate.js'
@@ -93,7 +94,7 @@ export function analysePhase(input: AnalysePhaseInput): Snapshot {
   const { analysis } = phase
   // Start freezes this optional collection field as-is. Match the stats engine's
   // default and record the effective value in every snapshot, including n = 0.
-  const sequentialTuningParameter = analysis.sequentialTuningParameter ?? 5000
+  const sequentialTuningParameter = analysis.sequentialTuningParameter ?? DEFAULT_SEQUENTIAL_TUNING_PARAMETER
   const alpha = analysis.alpha ?? 0.05
   const prior = analysis.prior ?? DEFAULT_GAUSSIAN_PRIOR
   const bayesian = analysis.bayesian ?? { ctw: 0.95, risk: 0.0125 }

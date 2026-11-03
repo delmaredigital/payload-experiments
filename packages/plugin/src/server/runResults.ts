@@ -105,11 +105,11 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
 }
 
 export async function runResults(payload: Payload, { budgetMs = 20_000, experimentId, sweep = true }: { budgetMs?: number; experimentId?: DocId; sweep?: boolean } = {}): Promise<{
-  ran: number; skipped: number; swept: number; processedIds: DocId[]; budgetExhausted: boolean; unavailableMetrics?: UnavailableMetric[]; sweepAttempted?: boolean
+  ran: number; skipped: number; failed: number; swept: number; processedIds: DocId[]; budgetExhausted: boolean; unavailableMetrics?: UnavailableMetric[]; sweepAttempted?: boolean
 }> {
   if (!Number.isFinite(budgetMs) || budgetMs < 0) throw new RangeError('budgetMs must be finite and nonnegative')
   const started = Date.now(), deadline = started + budgetMs, now = new Date(started)
-  const summary = { ran: 0, skipped: 0, swept: 0, processedIds: [] as DocId[], budgetExhausted: false, unavailableMetrics: [] as UnavailableMetric[], sweepAttempted: false }
+  const summary = { ran: 0, skipped: 0, failed: 0, swept: 0, processedIds: [] as DocId[], budgetExhausted: false, unavailableMetrics: [] as UnavailableMetric[], sweepAttempted: false }
   if (budgetMs === 0) return { ...summary, budgetExhausted: true }
   const options = payload.config.custom?.xp as ResolvedOptions
   const retentionDays = options.events?.retentionDays ?? 180
@@ -122,6 +122,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
     candidates = await resultsCandidates(exec, { cutoff: new Date(started - retentionDays * 86_400_000).toISOString(), experimentId })
   } catch (error) {
     summary.skipped++
+    if (!(error instanceof ResultsBudgetError)) summary.failed++
     summary.budgetExhausted = error instanceof ResultsBudgetError
     payload.logger.error({ err: error, experimentId }, 'Experiment scheduling failed')
   }
@@ -146,6 +147,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
       if (summary.processedIds.length < 100) summary.processedIds.push(id)
     } catch (error) {
       summary.skipped++
+      if (!(error instanceof ResultsBudgetError)) summary.failed++
       summary.budgetExhausted ||= error instanceof ResultsBudgetError
       payload.logger.error({ err: error, experimentId: id }, 'Experiment results failed')
     }
@@ -157,6 +159,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
       const sweepExec = resultsExecutor(payload, () => sweepDeadline - Date.now())
       summary.swept = await sweepEvents(sweepExec, { now, retentionDays, shouldContinue: () => Date.now() < sweepDeadline, logger: payload.logger })
     } catch (error) {
+      if (!(error instanceof ResultsBudgetError)) summary.failed++
       summary.budgetExhausted ||= error instanceof ResultsBudgetError
       payload.logger.error({ err: error }, 'Experiment retention sweep failed')
     }

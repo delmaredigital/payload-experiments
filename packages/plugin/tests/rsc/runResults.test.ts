@@ -7,6 +7,7 @@ import { resultsCandidates } from '../../src/db/snapshots.js'
 import * as snapshotDb from '../../src/db/snapshots.js'
 import { insertEvents, type EventRow } from '../../src/db/events.js'
 import { insertIdentity } from '../../src/db/identities.js'
+import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../../src/constants.js'
 import { runResults } from '../../src/server/runResults.js'
 import { handleRecompute } from '../../src/endpoints/recompute.js'
 import type { Snapshot } from '../../src/types/snapshot.js'
@@ -40,7 +41,7 @@ async function seed(unitType: 'visitor' | 'user' = 'visitor', overrides: Partial
     analysis_method: 'bayesian', analysis_attributionWindowHours: 1 }).returning()
   const phase: ResultsPhase = { experiment: experiment!.id, phase: 1, phaseKind: 'test', startedAt: new Date(start).toISOString(), seed: 'frozen|', allocation: 100,
     arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 50 }, { key: 'variantA', label: 'Variant', kind: 'variant', weight: 50 }],
-    analysis: { method: 'sequential', cuped: 'off', sequentialTuningParameter: 5000, plannedDurationDays: 14, minExposuresPerArm: 200 },
+    analysis: { method: 'sequential', cuped: 'off', sequentialTuningParameter: DEFAULT_SEQUENTIAL_TUNING_PARAMETER, plannedDurationDays: 14, minExposuresPerArm: 200 },
     metricDefinitions: [{ metricId: 'signup', name: 'Frozen signup', kind: 'binomial', role: 'primary', source: 'events:signup', direction: 'increase', attributionWindowHours: 168, minSampleSize: 150 }],
     ...overrides,
   }
@@ -86,7 +87,7 @@ async function expectCollectingSnapshot(tuning: number | null | undefined) {
   const snapshot = rows[0]!.snapshot as Snapshot
   expect(snapshot).toMatchObject({ verdict: { code: 'collecting' }, exposures: { total: 0, perArm: { control: 0, variantA: 0, variantB: 0 } } })
   expectFiniteNumbers(snapshot)
-  expect(snapshot.params.sequentialTuningParameter).toBe(tuning ?? 5000)
+  expect(snapshot.params.sequentialTuningParameter).toBe(tuning ?? DEFAULT_SEQUENTIAL_TUNING_PARAMETER)
   return rows[0]!
 }
 
@@ -98,8 +99,8 @@ test.each([undefined, null, 1234])('hourly run stores a collecting snapshot for 
   // Inspect before JSON serialization too: JSON.stringify turns NaN into null.
   const candidate = assembled.mock.calls[0]![0]
   expectFiniteNumbers(candidate)
-  expect(candidate.params.sequentialTuningParameter).toBe(tuning ?? 5000)
-  expect(result).toMatchObject({ ran: 1, skipped: 0, processedIds: [phase.experiment], budgetExhausted: false })
+  expect(candidate.params.sequentialTuningParameter).toBe(tuning ?? DEFAULT_SEQUENTIAL_TUNING_PARAMETER)
+  expect(result).toMatchObject({ ran: 1, skipped: 0, failed: 0, processedIds: [phase.experiment], budgetExhausted: false })
   expect(context.payload.logs.filter(log => log.level === 'error')).toEqual([])
   await expectCollectingSnapshot(tuning)
 })
@@ -123,6 +124,70 @@ test.each([undefined, null, 1234])('recompute returns 200 and stores a finite co
   expect(await response.json()).toEqual({ snapshotId: stored.id })
 })
 
+test('runResults counts a real analysis failure separately from budget exhaustion', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { metricDefinitions: [] })
+  const context = payload()
+  expect(await runResults(context.payload, { experimentId: phase.experiment, sweep: false })).toMatchObject({
+    ran: 0, skipped: 1, failed: 1, processedIds: [], budgetExhausted: false,
+  })
+  expect(context.payload.logs).toContainEqual({ level: 'error', args: [
+    { err: expect.any(RangeError), experimentId: phase.experiment }, 'Experiment results failed',
+  ] })
+  const error = context.payload.logs.find(log => log.level === 'error')!.args[0] as { err: Error }
+  expect(error.err.message).toBe('Phase must have exactly one primary metric')
+  expect(await snapshots()).toHaveLength(0)
+})
+
+test('runResults counts a non-budget scheduling failure', async () => {
+  const context = payload(), error = new Error('Scheduling database unavailable')
+  vi.spyOn(database.db, 'execute').mockRejectedValueOnce(error)
+  expect(await runResults(context.payload, { experimentId: 42, sweep: false })).toMatchObject({
+    ran: 0, skipped: 1, failed: 1, budgetExhausted: false,
+  })
+  expect(context.payload.logs).toContainEqual({ level: 'error', args: [
+    { err: error, experimentId: 42 }, 'Experiment scheduling failed',
+  ] })
+})
+
+test('recompute returns analysis-failed with HTTP 500 for a real analysis failure', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { metricDefinitions: [] })
+  const context = payload()
+  Object.assign(context.payload.db, { defaultIDType: 'number' })
+  context.payload.documents['xp-experiments'] = [{ id: phase.experiment }]
+  const response = await handleRecompute(fakeReq({ payload: context.payload,
+    routeParams: { id: String(phase.experiment) }, method: 'POST' }), { options: context.options })
+  expect(response.status).toBe(500)
+  expect(await response.json()).toEqual({ errors: [{ code: 'analysis-failed', message: 'Results could not be computed; this has been logged.' }] })
+  expect(context.payload.logs).toContainEqual({ level: 'error', args: [
+    { err: expect.any(RangeError), experimentId: phase.experiment }, 'Experiment results failed',
+  ] })
+  expect(await snapshots()).toHaveLength(0)
+})
+
+test('recompute returns recompute-failed with HTTP 503 when the real run exhausts its budget', async () => {
+  const phase = await seed(), context = payload()
+  Object.assign(context.payload.db, { defaultIDType: 'number' })
+  context.payload.documents['xp-experiments'] = [{ id: phase.experiment }]
+  // Scheduling uses real SQL; advance time once it returns to exhaust the
+  // endpoint's default 20-second budget before analysis can start.
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+  const originalCandidates = snapshotDb.resultsCandidates
+  vi.spyOn(snapshotDb, 'resultsCandidates').mockImplementation(async (...args) => {
+    const candidates = await originalCandidates(...args)
+    expect(candidates).toHaveLength(1)
+    clock.mockReturnValue(now + 20_000)
+    return candidates
+  })
+  const response = await handleRecompute(fakeReq({ payload: context.payload,
+    routeParams: { id: String(phase.experiment) }, method: 'POST' }), { options: context.options })
+  expect(response.status).toBe(503)
+  expect(await response.json()).toEqual({ errors: [{ code: 'recompute-failed', message: 'Results could not be recomputed. Try again.' }] })
+  expect(await snapshots()).toHaveLength(0)
+  expect(context.payload.logs.filter(log => log.level === 'error')).toEqual([])
+})
+
 test('frozen config, exposure denominator, multi-arm exclusion and strict endedAt survive live edits', async () => {
   vi.spyOn(Date, 'now').mockReturnValue(now)
   const phase = await seed('visitor', { endedAt: new Date(start + 86_400_000).toISOString() })
@@ -131,7 +196,7 @@ test('frozen config, exposure denominator, multi-arm exclusion and strict endedA
     { type: 'conversion', unitId: 'a', eventName: 'signup', value: 1, ts: new Date(start + 2 * 3_600_000).toISOString() },
     { type: 'conversion', unitId: 'b', eventName: 'signup', value: 1, ts: String(phase.endedAt) }])
   const context = payload()
-  expect(await runResults(context.payload)).toMatchObject({ ran: 1, skipped: 0, processedIds: [phase.experiment], budgetExhausted: false })
+  expect(await runResults(context.payload)).toMatchObject({ ran: 1, skipped: 0, failed: 0, processedIds: [phase.experiment], budgetExhausted: false })
   const snapshot = (await snapshots())[0]!.snapshot as import('../../src/types/snapshot.js').Snapshot
   expect(snapshot).toMatchObject({ method: 'sequential', exposures: { total: 2, excludedMultiArm: 1 }, window: { to: phase.endedAt } })
   expect(snapshot.metrics[0]).toMatchObject({ name: 'Frozen signup' })
@@ -203,7 +268,7 @@ test('throwing source makes only that metric unavailable; broken experiment does
   await events(good, [{}, {}, {}, {}])
   const context = payload()
   context.options.metricSources![1]!.query = async () => { throw new Error('Source failed') }
-  expect(await runResults(context.payload)).toMatchObject({ ran: 1, skipped: 1, processedIds: [good.experiment] })
+  expect(await runResults(context.payload)).toMatchObject({ ran: 1, skipped: 1, failed: 1, processedIds: [good.experiment] })
   expect(context.payload.logs).toEqual(expect.arrayContaining([expect.objectContaining({ level: 'error', args: [expect.objectContaining({ experimentId: broken.experiment }), expect.any(String)] })]))
   const snapshot = (await snapshots())[0]!.snapshot as import('../../src/types/snapshot.js').Snapshot
   expect(snapshot.metrics[0]!.unavailable).toBeUndefined()
@@ -212,7 +277,7 @@ test('throwing source makes only that metric unavailable; broken experiment does
 
 test('CUPED requests the pre-period per exposed unit, and frozen revenue cap also caps covariates', async () => {
   vi.spyOn(Date, 'now').mockReturnValue(now)
-  const phase = await seed('user', { analysis: { method: 'sequential', cuped: 'auto', sequentialTuningParameter: 5000, minExposuresPerArm: 200, plannedDurationDays: 14 },
+  const phase = await seed('user', { analysis: { method: 'sequential', cuped: 'auto', sequentialTuningParameter: DEFAULT_SEQUENTIAL_TUNING_PARAMETER, minExposuresPerArm: 200, plannedDurationDays: 14 },
     metricDefinitions: [{ metricId: 'revenue', name: 'Revenue', kind: 'revenue', role: 'primary', source: 'revenue', keyedBy: 'user', direction: 'increase', attributionWindowHours: 168, minSampleSize: 150,
       capping: { type: 'absolute', value: 10 }, resolvedCap: 10 }] })
   const ids = ['cap-a', 'cap-b', 'cap-c', 'cap-d']
@@ -268,9 +333,9 @@ test('oldest snapshot first, budget stops before next experiment, zero budget do
     await originalWrite(...args)
     clock.mockReturnValue(now + 100)
   })
-  expect(await runResults(context.payload, { budgetMs: 100 })).toMatchObject({ ran: 1, skipped: 1, processedIds: [second.experiment], budgetExhausted: true })
+  expect(await runResults(context.payload, { budgetMs: 100 })).toMatchObject({ ran: 1, skipped: 1, failed: 0, processedIds: [second.experiment], budgetExhausted: true })
   clock.mockReturnValue(now)
-  expect(await runResults(context.payload, { budgetMs: 0 })).toMatchObject({ ran: 0, skipped: 0, swept: 0, processedIds: [], budgetExhausted: true })
+  expect(await runResults(context.payload, { budgetMs: 0 })).toMatchObject({ ran: 0, skipped: 0, failed: 0, swept: 0, processedIds: [], budgetExhausted: true })
 })
 
 test('ended phases freeze after the late-beacon grace; open phases keep running', async () => {

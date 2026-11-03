@@ -1,6 +1,8 @@
 import { readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
+import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../../src/constants.js'
+import { ADVANCED_COPY } from '../../src/admin/copy/advanced.js'
 import * as labels from '../../src/admin/labels.js'
 import { STATUS_TOOLTIPS } from '../../src/admin/copy/status.js'
 import { refusalMessage } from '../../src/admin/copy/common.js'
@@ -47,4 +49,8 @@ test('labels cover the type vocabulary', () => {
 test('status tooltips are verbatim', () => {
   expect(STATUS_TOOLTIPS).toEqual({ draft: 'Draft', running: 'Running', stopped: 'Stopped — everyone sees the Original',
     decided: 'Decided — everyone sees the winner', decidedWithHoldout: 'Decided — everyone sees the winner, except the holdout', archived: 'Archived' })
+})
+
+test('automatic sequential tuning copy matches the analysis default', () => {
+  expect(ADVANCED_COPY.automaticTuning).toBe(`Automatic (${DEFAULT_SEQUENTIAL_TUNING_PARAMETER.toLocaleString('en-US')})`)
 })

@@ -1,3 +1,4 @@
+export const DEFAULT_SEQUENTIAL_TUNING_PARAMETER = 5000
 export const MAX_EVENTS_PER_BODY = 20
 export const DEFAULT_MAX_BODY_BYTES = 8192
 export const XP_COOKIE = 'xp_id'
