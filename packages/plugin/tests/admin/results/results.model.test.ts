@@ -254,3 +254,8 @@ test('page health reuses data quality rendering with needs-attention and recover
     { id: 'version-page-unchecked:/other', message: 'Needs attention', nextStep: "Couldn't check whether /other is published. Check the page, or stop the test." },
   ]))
 })
+
+test('decided page health names the available discard action', () => {
+  const snapshot = makeSnapshot({ health: [{ code: 'version-page-unavailable', path: '/page' }] })
+  expect(dataQuality(snapshot, { status: 'decided' })[0]?.nextStep).toContain('discard the winner.')
+})

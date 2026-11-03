@@ -226,3 +226,14 @@ test('entirely nonnumeric summary on a numeric host is empty without database re
   expect(payload.calls).toEqual([])
   expect(newestSnapshotIds).not.toHaveBeenCalled()
 })
+
+test('summary carries bounded page health without copying arbitrary detail', async () => {
+  vi.mocked(newestSnapshotIds).mockResolvedValue([1])
+  const payload = fakePayload({ collections: { 'xp-results-snapshots': [{ id: 1, experiment: 'page', snapshot: { ...fixture,
+    health: Array.from({ length: 101 }, () => ({ code: 'version-page-unavailable', path: '/' + 'a'.repeat(600), secret: 'secret-value' })),
+  } }] } })
+  const body = await (await handleSummary(fakeReq({ payload, url: 'http://localhost/summary?ids=page' }), { options })).json()
+  expect(body.page.health).toHaveLength(100)
+  expect(body.page.health[0]).toEqual({ code: 'version-page-unavailable', path: '/' + 'a'.repeat(127) })
+  expect(JSON.stringify(body)).not.toContain('secret-value')
+})

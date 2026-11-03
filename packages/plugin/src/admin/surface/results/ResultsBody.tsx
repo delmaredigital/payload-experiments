@@ -83,7 +83,7 @@ function ResultsContent({ id, surface, onRecomputed }: ResultsBodyProps) {
   const isDecidedTestRound = status === 'decided' && phase?.phaseKind === 'test' && decision?.phase === round
   const winner = phase?.arms.find(arm => arm.key === decision?.winnerArm)?.label ?? armLabel(decision?.winnerArm ?? 'control')
   const card = snapshot ? verdictCard({ snapshot, decisionSnapshot: data?.decisionSnapshot, isDecidedTestRound, winnerLabel: winner }) : null
-  const context = { phase, inLayer: doc?.layer != null, layerSlices: doc?.layerSlices, allocation: doc?.allocation }
+  const context = { status, phase, inLayer: doc?.layer != null, layerSlices: doc?.layerSlices, allocation: doc?.allocation }
   const primary = phase?.metrics.find(metric => metric.role === 'primary')
   // The endpoint decides the current round; historical rounds are read-only.
   const canDecide = manage && (status === 'running' || status === 'stopped') && phase?.phaseKind === 'test'

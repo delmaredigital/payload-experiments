@@ -1,6 +1,7 @@
-import type { CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook } from 'payload'
+import type { CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook } from 'payload'
 import { describe, expect, test, vi } from 'vitest'
-import { pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from '../../src/hooks/pageGuard.js'
+import { pageGuardAfterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from '../../src/hooks/pageGuard.js'
+import { pageGuardCopy } from '../../src/admin/copy/readiness.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
 import { sampleOptions } from './fixtures.js'
@@ -20,13 +21,17 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
   const read = vi.fn(async () => published)
   Object.assign(payload.db, { findOne: read })
   const req = fakeReq({ payload })
-  const collection = { slug: 'pages', versions: drafts ? { drafts: {} } : false }
+  const collection = { trash: true, slug: 'pages', versions: drafts ? { drafts: {} } : false }
   const remove = () => pageGuardBeforeDelete({ req, collection, id: 1 } as Parameters<CollectionBeforeDeleteHook>[0])
+  const begin = async (draft = false, operation: 'update' | 'restoreVersion' = 'update') => pageGuardBeforeOperation({ args: { req, draft, collection: { config: collection } }, operation } as Parameters<CollectionBeforeOperationHook>[0])
+  const end = async (operation: 'update' | 'restoreVersion' = 'update') => pageGuardAfterOperation({ req, collection, operation, result: {} } as Parameters<CollectionAfterOperationHook>[0])
+  const change = (data: Record<string, unknown>, originalDoc: Record<string, unknown> = published) => pageGuardBeforeChange({ req, collection, originalDoc, operation: 'update', data } as Parameters<CollectionBeforeChangeHook>[0])
   const save = async (data: Record<string, unknown>, draft = false) => {
-    await pageGuardBeforeOperation({ args: { req, draft, collection: { config: collection } }, operation: 'update' } as Parameters<CollectionBeforeOperationHook>[0])
-    return pageGuardBeforeChange({ req, collection, originalDoc: { id: 1, slug: 'latest-draft' }, operation: 'update', data } as Parameters<CollectionBeforeChangeHook>[0])
+    await begin(draft)
+    try { return await change(data) } finally { await end() }
   }
-  return { payload, req, published, read, remove, save, findByPath }
+  return { payload, req, published, read, remove, save, findByPath, collection, begin, end, change }
+
 }
 
 for (const status of ['running', 'decided', 'archived']) {
@@ -34,7 +39,7 @@ for (const status of ['running', 'decided', 'archived']) {
     describe(`${status} ${path}`, () => {
       test('refuses delete of the published main row', async () => {
         const f = setup(status, path)
-        await expect(f.remove()).rejects.toMatchObject({ status: 409, isPublic: true, message: expect.stringContaining('Better page') })
+        await expect(f.remove()).rejects.toMatchObject({ status: 409, isPublic: true, message: pageGuardCopy('Better page', status as 'running' | 'decided' | 'archived') })
         expect(f.read).toHaveBeenCalledWith(expect.objectContaining({ collection: 'pages', req: f.req, where: { id: { equals: 1 } } }))
         expect(f.payload.calls[0]!.args).toMatchObject({ req: f.req, overrideAccess: true })
         expect(f.findByPath).not.toHaveBeenCalled()
@@ -89,4 +94,44 @@ test.each(['decided', 'archived'])('protects frozen paths after stopped edits th
   const f = setup(status, '/winner')
   f.payload.documents['xp-experiments']![0]!.arms = [{ key: 'control', kind: 'control', pageTarget: '/edited-original' }, { key: 'variantA', pageTarget: '/edited-winner' }]
   await expect(f.remove()).rejects.toMatchObject({ status: 409 })
+})
+
+test('trash updates are deletes; restoring an already trashed page is allowed', async () => {
+  const f = setup()
+  await expect(f.save({ deletedAt: '2026-11-03', _status: 'published' })).rejects.toMatchObject({ status: 409 })
+  await expect(f.save({ deletedAt: null, _status: 'published' })).resolves.toBeDefined()
+  await expect(f.change({ deletedAt: '2026-11-04', _status: 'published' }, { ...f.published, deletedAt: '2026-11-03' })).resolves.toBeDefined()
+  f.collection.trash = false
+  await expect(f.save({ deletedAt: '2026-11-03', _status: 'published' })).resolves.toBeDefined()
+})
+test('partial publish compares the latest version merged with data', async () => {
+  const f = setup()
+  await expect(f.change({ _status: 'published' }, { ...f.published, slug: 'pending-rename' })).rejects.toMatchObject({ status: 409 })
+})
+test('nested same-collection operations restore the outer draft flag', async () => {
+  const f = setup()
+  await f.begin(true)
+  f.req.context = { ...f.req.context } // createLocalReq's nested-operation copy
+  await f.begin(false)
+  await expect(f.change({ slug: 'renamed', _status: 'published' })).rejects.toMatchObject({ status: 409 })
+  await f.end()
+  await expect(f.change({ slug: 'outer-draft', _status: 'draft' })).resolves.toBeDefined()
+  await f.end()
+})
+test('an earlier draft op and legacy context cannot bypass a publishing restore', async () => {
+  const f = setup()
+  await f.save({ slug: 'renamed', _status: 'draft' }, true)
+  f.req.context.xpPageGuardDrafts = { pages: true }
+  await f.begin(false, 'restoreVersion')
+  await expect(f.change({ slug: 'renamed', _status: 'draft' })).rejects.toMatchObject({ status: 409 })
+  await f.end('restoreVersion')
+  await f.begin(true, 'restoreVersion')
+  await expect(f.change({ slug: 'renamed', _status: 'published' })).resolves.toBeDefined()
+  await f.end('restoreVersion')
+  await expect(f.change({ slug: 'renamed', _status: 'draft' })).rejects.toMatchObject({ status: 409 })
+})
+test('a missing test round is a public typed refusal', async () => {
+  const f = setup()
+  f.payload.documents['xp-phases'] = []
+  await expect(f.save({ _status: 'draft' })).rejects.toMatchObject({ name: 'XpRefusal', code: 'invalid-phase', status: 409, isPublic: true })
 })

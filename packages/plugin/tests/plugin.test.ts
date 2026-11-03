@@ -121,7 +121,7 @@ test('applying the plugin twice registers one Tests dashboard and nav component'
 })
 
 test('page and Puck registrations compose once while preserving host hooks', async () => {
-  const { pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } = await import('../src/hooks/pageGuard.js')
+  const { pageGuardAfterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } = await import('../src/hooks/pageGuard.js')
   const host = vi.fn(), options = sampleOptions()
   options.puck = { enabled: true, collections: ['pages'] }
   options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => null }] }
@@ -130,6 +130,7 @@ test('page and Puck registrations compose once while preserving host hooks', asy
   expect(hooks.beforeChange).toEqual([host, pageGuardBeforeChange, contentChangesBeforeHook])
   expect(hooks.beforeDelete).toEqual([host, pageGuardBeforeDelete])
   expect(hooks.beforeOperation).toEqual([host, pageGuardBeforeOperation])
+  expect(hooks.afterOperation).toEqual([pageGuardAfterOperation])
   expect(hooks.afterChange).toEqual([contentChangesHook])
 })
 test('unknown page collection fails at config time', () => {

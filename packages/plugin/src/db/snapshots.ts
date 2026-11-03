@@ -59,12 +59,15 @@ export async function resultsCandidates(exec: Executor, { cutoff, experimentId }
     (SELECT max(s.${q(s.computedAt)}) FROM ${snapshots} s WHERE s.${q(s.experimentId)} = p.${q(p.experimentId)} AND s.${q(s.phase)} = p.${q(p.phase)}) AS "latestComputedAt",
     (SELECT t.${q(p.arms)} FROM ${phases} t WHERE t.${q(p.experimentId)} = p.${q(p.experimentId)} AND t.${q(p.phaseKind)} = 'test' AND t.${q(p.phase)} <= p.${q(p.phase)} ORDER BY t.${q(p.phase)} DESC LIMIT 1) AS "testArms",
     (SELECT frozen.${q(s.snapshot)} FROM ${snapshots} frozen WHERE frozen.${q(s.experimentId)} = p.${q(p.experimentId)} AND frozen.${q(s.phase)} = p.${q(p.phase)}
-      AND frozen.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond'
+      AND (frozen.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond' OR p.${q(p.endedAt)} < $1)
       ORDER BY frozen.${q(s.computedAt)} DESC, frozen.${q(s.id)} DESC LIMIT 1) AS "frozenSnapshot",
     l.${q(l.slug)} AS "layerSlug", e.${q(e.layerSlices)} AS "layerSlices"
     FROM ${phases} p JOIN ${qualifiedTable(exec, TABLES.experiments)} e ON e.${q(e.id)} = p.${q(p.experimentId)}
     LEFT JOIN ${qualifiedTable(exec, TABLES.layers)} l ON l.${q(l.id)} = e.${q(e.layerId)}
-    WHERE ((e.${q(e.kind)} = 'page' AND e.${q(e.status)} IN ('running', 'decided') AND (p.${q(p.phase)} = e.${q(e.phase)}
+    WHERE ((e.${q(e.kind)} = 'page'
+        AND (p.${q(p.endedAt)} IS NULL OR p.${q(p.endedAt)} >= $1 OR EXISTS
+          (SELECT 1 FROM ${snapshots} existing WHERE existing.${q(s.experimentId)} = p.${q(p.experimentId)} AND existing.${q(s.phase)} = p.${q(p.phase)}))
+        AND e.${q(e.status)} IN ('running', 'decided') AND (p.${q(p.phase)} = e.${q(e.phase)}
         OR p.${q(p.phase)} = (SELECT max(active.${q(p.phase)}) FROM ${phases} active WHERE active.${q(p.experimentId)} = e.${q(e.id)} AND active.${q(p.phaseKind)} = 'test')))
       OR ((p.${q(p.endedAt)} IS NULL OR p.${q(p.endedAt)} >= $1)
         AND NOT EXISTS (SELECT 1 FROM ${snapshots} frozen WHERE frozen.${q(s.experimentId)} = p.${q(p.experimentId)} AND frozen.${q(s.phase)} = p.${q(p.phase)}

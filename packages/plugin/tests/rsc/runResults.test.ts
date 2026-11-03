@@ -143,6 +143,7 @@ test('runResults counts a real analysis failure separately from budget exhaustio
   expect(error.err.message).toBe('Phase must have exactly one primary metric')
   expect(error.err).not.toBeInstanceOf(Error)
   expect(await snapshots()).toHaveLength(0)
+  expect(context.payload.logs.some(log => log.args.includes('Experiment version page lookup failed'))).toBe(false)
 })
 
 test('runResults counts a non-budget scheduling failure', async () => {
@@ -170,6 +171,7 @@ test('recompute returns analysis-failed with HTTP 500 for a real analysis failur
     { err: { name: 'XpAnalysisError', code: 'primary-metric-count', message: 'Phase must have exactly one primary metric', stack: expect.stringContaining('at ') }, experimentId: phase.experiment }, 'Experiment results failed',
   ] })
   expect(await snapshots()).toHaveLength(0)
+  expect(context.payload.logs.some(log => log.args.includes('Experiment version page lookup failed'))).toBe(false)
 })
 
 test('recompute returns recompute-failed with HTTP 503 when the real run exhausts its budget', async () => {
@@ -308,11 +310,12 @@ test('CUPED requests the pre-period per exposed unit, and frozen revenue cap als
 test('rollout uses first valid exposure across phases, exact coverage ranges and pinned SRM weights', async () => {
   vi.spyOn(Date, 'now').mockReturnValue(now)
   const arms: ResultsPhase['arms'] = [{ key: 'control', label: 'Original', kind: 'control', weight: 5 },
-    { key: 'variantA', label: 'Winner', kind: 'variant', weight: 93 }, { key: 'holdout', label: 'Holdout', kind: 'holdout', weight: 2 }]
+    { key: 'variantA', label: 'Winner', kind: 'variant', weight: 90 },
+    { key: 'variantB', label: 'Loser', kind: 'variant', weight: 3, pageTarget: '/loser' }, { key: 'holdout', label: 'Holdout', kind: 'holdout', weight: 2 }]
   const phase = await seed('visitor', { arms, endedAt: new Date(start + 1000).toISOString(), allocation: 50 })
-  const rollout: ResultsPhase = { ...phase, phase: 2, phaseKind: 'rollout', startedAt: new Date(start + 1000).toISOString(), endedAt: null, arms: arms.slice(1) }
+  const rollout: ResultsPhase = { ...phase, phase: 2, phaseKind: 'rollout', startedAt: new Date(start + 1000).toISOString(), endedAt: null, arms: arms.filter(arm => arm.key === 'variantA' || arm.kind === 'holdout') }
   await database.db.insert(xp_phases).values({ ...rollout, experiment: Number(phase.experiment), startedAt: String(rollout.startedAt), endedAt: null, arms: [...rollout.arms] })
-  const ranges = rolloutBucketRanges([5, 93, 2], .5)
+  const ranges = rolloutBucketRanges([5, 90, 3, 2], .5)
   const findId = (name: string, range: readonly number[]) => {
     for (let i = 0; ; i++) { const id = `${name}-${i}`, bucket = hash(phase.seed, id, 2)!; if (bucket >= range[0]! && bucket < range[1]!) return id }
   }
@@ -324,7 +327,14 @@ test('rollout uses first valid exposure across phases, exact coverage ranges and
     { unitId: prior, arm: 'variantA', ts: new Date(start + 2000).toISOString() },
     { unitId: holdout, arm: 'holdout', ts: new Date(start + 2000).toISOString() },
     { unitId: outside, arm: 'variantA', ts: new Date(start + 2000).toISOString() }])
-  expect(await runResults(payload().payload)).toMatchObject({ ran: 1, skipped: 0 })
+  await database.db.update(xp_experiments).set({ kind: 'page', status: 'decided', phase: 2 }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  await database.db.update(xp_phases).set({ arms: arms.map(arm => ({ ...arm, ...(arm.kind === 'control' ? { pageTarget: '/original' } : arm.key === 'variantA' ? { pageTarget: '/winner' } : {}) })) }).where(eq(xp_phases.phase, 1))
+  await database.db.update(xp_phases).set({ arms: rollout.arms.map(arm => ({ ...arm, ...(arm.kind !== 'holdout' ? { pageTarget: '/winner' } : {}) })) }).where(eq(xp_phases.phase, 2))
+  const context = payload()
+  const lookup = vi.fn(async () => ({ id: 1, published: true }))
+  context.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: lookup }] }
+  expect(await runResults(context.payload)).toMatchObject({ ran: 1, skipped: 0 })
+  expect(lookup.mock.calls).toHaveLength(2)
   const rows = await snapshots()
   const snapshot = rows.find(row => row.phase === 2)!.snapshot as import('../../src/types/snapshot.js').Snapshot
   expect(snapshot.exposures.perArm).toEqual({ variantA: 2, holdout: 1 })
@@ -399,17 +409,18 @@ test.each(['running', 'decided'] as const)('page health re-check writes missing 
     return path === '/original' ? { id: 1, published: true } : { id: 2, published: false }
   })
   context.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: lookup }] }
-  if (status === 'decided') context.options.events = { ...context.options.events, retentionDays: 1 }
+  if (status === 'decided') context.options.events = { ...context.options.events, retentionDays: 3 }
   // Even a decided test older than the grace period must refresh its health.
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
   if (status === 'decided') await events(phase, [{ ts: new Date(start + 500).toISOString() }])
-  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: status === 'decided' ? 0 : 1, failed: 0 })
+  expect(await snapshots()).toHaveLength(status === 'decided' ? 1 : 2)
   const snapshot = (await snapshots())[0]!.snapshot as Snapshot
   expect(snapshot.health).toEqual([
     { code: 'version-page-unavailable', path: '/unpublished' }, { code: 'version-page-unchecked', path: '/throwing' },
     { code: 'version-page-unavailable', path: '/missing' },
   ])
-  if (status === 'decided') expect(((await snapshots())[1]!.snapshot as Snapshot).exposures.total).toBe(0)
+  if (status === 'decided') expect(snapshot.exposures.total).toBe(0)
   expect(lookup.mock.calls.map(call => call[0])).toEqual(['/original', '/unpublished', '/throwing', '/missing', '/original', '/unpublished', '/throwing', '/missing'])
   expect(JSON.stringify(context.payload.logs)).not.toContain('secret-value')
   expect(context.payload.logs.some(log => log.level === 'error')).toBe(true)
@@ -426,4 +437,77 @@ test('page lookups respect the results deadline and cannot hang the pass', async
   const summary = await runResults(context.payload, { budgetMs: 1500, sweep: false })
   expect(summary).toMatchObject({ ran: 0, budgetExhausted: true })
   expect(await snapshots()).toHaveLength(0)
+  expect(context.payload.logs.some(log => log.args.includes('Experiment version page lookup failed'))).toBe(false)
+})
+
+test.each([true, false])('a found page (published=%s) wins over failed lookups in other registered collections', async published => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { arms: [
+    { key: 'control', kind: 'control', label: 'Original', weight: 50, pageTarget: '/original' },
+    { key: 'variantA', kind: 'variant', label: 'Version', weight: 50, pageTarget: '/version' },
+  ] })
+  await database.db.update(xp_experiments).set({ kind: 'page', phase: 1 }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  const context = payload()
+  context.options.pages = { collections: [
+    { slug: 'broken', pathOf: () => null, findByPath: async () => { throw new Error('lookup') } },
+    { slug: 'pages', pathOf: () => null, findByPath: async () => ({ id: 1, published }) },
+  ] }
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(((await snapshots())[0]!.snapshot as Snapshot).health).toEqual(published ? [] : [
+    { code: 'version-page-unavailable', path: '/original' }, { code: 'version-page-unavailable', path: '/version' },
+  ])
+})
+
+test('frozen page health compares canonically, writes changes once, and keeps inference frozen', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { endedAt: new Date(start + 1000).toISOString(), arms: [
+    { key: 'control', kind: 'control', label: 'Original', weight: 50, pageTarget: '/original' },
+    { key: 'variantA', kind: 'variant', label: 'Version', weight: 50, pageTarget: '/version' },
+  ] })
+  await database.db.update(xp_experiments).set({ kind: 'page', status: 'decided', phase: 1 }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  const context = payload()
+  const lookup = vi.fn(async () => null as { id: number; published: boolean } | null)
+  context.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: lookup }] }
+  await runResults(context.payload, { sweep: false })
+  const row = (await snapshots())[0]!, frozen = row.snapshot as Snapshot
+  // JSON key order and list order must not make health appear changed.
+  await database.db.update(xp_results_snapshots).set({ snapshot: { ...frozen, health: [...frozen.health!].reverse().map(({ code, path }) => ({ path, code })) } })
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 0, skipped: 1 })
+  expect(await snapshots()).toHaveLength(1)
+  lookup.mockResolvedValue({ id: 1, published: true })
+  vi.spyOn(Date, 'now').mockReturnValue(now + 1000)
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1 })
+  expect(await snapshots()).toHaveLength(2)
+  const changed = (await snapshots()).find(item => item.id !== row.id)!.snapshot as Snapshot
+  expect(changed).toEqual({ ...frozen, health: [], computedAt: new Date(now + 1000).toISOString() })
+  // undefined and [] are equivalent too.
+  await database.db.update(xp_results_snapshots).set({ snapshot: { ...changed, health: undefined } })
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 0 })
+})
+
+test('page phases beyond retention never reanalyse swept events, but existing snapshots still refresh health', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { endedAt: new Date(start + 1000).toISOString(), arms: [
+    { key: 'control', kind: 'control', label: 'Original', weight: 50, pageTarget: '/original' },
+    { key: 'variantA', kind: 'variant', label: 'Version', weight: 50, pageTarget: '/version' },
+  ] })
+  await database.db.update(xp_experiments).set({ kind: 'page', status: 'decided', phase: 1 }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  const context = payload()
+  context.options.events = { ...context.options.events, retentionDays: 1 }
+  context.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: async () => null }] }
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 0 })
+  expect(await snapshots()).toHaveLength(0)
+  context.options.events.retentionDays = 3
+  // The only existing snapshot predates the final grace snapshot. Once the
+  // events expire it is still safe to copy health, never to redo inference.
+  vi.spyOn(Date, 'now').mockReturnValue(start + 5000)
+  await runResults(context.payload, { sweep: false })
+  await events(phase, [{ ts: new Date(start + 500).toISOString() }])
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  context.options.events.retentionDays = 1
+  context.options.pages.collections[0]!.findByPath = async () => ({ id: 1, published: true })
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1 })
+  const rows = await snapshots()
+  expect(rows.map(row => (row.snapshot as Snapshot).health)).toContainEqual([])
+  expect(rows.every(row => (row.snapshot as Snapshot).exposures.total === 0)).toBe(true)
 })

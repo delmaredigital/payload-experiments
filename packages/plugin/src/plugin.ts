@@ -3,7 +3,7 @@ import type { ExperimentsPluginOptions } from './types/contracts.js'
 import { buildCollections } from './collections/index.js'
 import { buildEndpoints } from './endpoints/index.js'
 import { contentChangesBeforeHook, contentChangesHook } from './hooks/contentChanges.js'
-import { pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from './hooks/pageGuard.js'
+import { pageGuardAfterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from './hooks/pageGuard.js'
 import { createOnInit } from './onInit.js'
 import { puckCollections, resolveOptions } from './options.js'
 import * as paths from './admin/paths.js'
@@ -43,6 +43,7 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
             ...(page ? {
               beforeOperation: [...(collection.hooks?.beforeOperation ?? []), pageGuardBeforeOperation],
               beforeDelete: [...(collection.hooks?.beforeDelete ?? []), pageGuardBeforeDelete],
+              afterOperation: [pageGuardAfterOperation, ...(collection.hooks?.afterOperation ?? [])],
             } : {}),
             ...(puck ? { afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook] } : {}),
           } }

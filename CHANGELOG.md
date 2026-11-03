@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Changed: an unknown `pages.collections` slug now throws `Unknown experiments page collection` during plugin setup. Register host page collections before this plugin. Migration impact: no database migration; hosts with collections added by later plugins must reorder those plugins.
+- Fixed: whole-page protection includes trash and version restores, with status-specific instructions; unchanged page health no longer creates repeated frozen snapshots, and page health reaches the Tests home.
 - Added: `compileManifest` and its input/output types are exported from `/rsc`, so host tests can build a manifest without importing from `dist/` (a test helper: pass the same `attributeKeys` as the plugin options; its input shape may change in a pre-1.0 minor). Migration impact: none.
 - Fixed: when the analysis of a test fails, the server log now names the reason (a fixed code and message) instead of only the error type. Migration impact: none.
 - Fixed: pages in a whole-page test can't be deleted, renamed or unpublished while the test runs or while its result stands; the editor is told which test to stop or discard. Migration impact: none.

@@ -117,7 +117,7 @@ export function powerLine({ snapshot, phaseKind, status }: RoundLineInput): stri
 }
 
 export interface ResultsContext {
-  phase?: PhaseSummary; minExposuresPerArm?: number
+  status?: string; phase?: PhaseSummary; minExposuresPerArm?: number
   inLayer?: boolean; layerSlices?: number | readonly number[]; allocation?: number
 }
 function comparedKeys(snapshot: Snapshot, phase?: PhaseSummary): string[] {
@@ -146,7 +146,7 @@ export interface DataQualityItem { id: string; message: string; detail?: string;
 export function dataQuality(snapshot: DisplaySnapshot, ctx: ResultsContext = {}): DataQualityItem[] {
   const items: DataQualityItem[] = (snapshot.health ?? []).map(item => ({
     id: `${item.code}:${item.path}`, message: READINESS_COPY.needsAttention,
-    nextStep: item.code === 'version-page-unavailable' ? versionPageUnavailableCopy(item.path) : versionPageUncheckedCopy(item.path),
+    nextStep: item.code === 'version-page-unavailable' ? versionPageUnavailableCopy(item.path, ctx.status) : versionPageUncheckedCopy(item.path, ctx.status),
   }))
   const srmTotal = Object.keys(snapshot.srm.expected).reduce((total, key) => total + (snapshot.exposures.perArm[key] ?? 0), 0)
   if (snapshot.srm.flagged) items.push({

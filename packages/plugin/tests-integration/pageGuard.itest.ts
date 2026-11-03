@@ -1,22 +1,27 @@
-import { createLocalReq } from 'payload'
+import { createLocalReq, restoreVersionOperation, type PayloadRequest } from 'payload'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { createIntegrationHarness } from './harness.js'
 import { start } from '../src/transitions/start.js'
 import { decide } from '../src/transitions/decide.js'
 import { archive } from '../src/transitions/archive.js'
 import { expectedConfirm } from '../src/transitions/confirmPhrases.js'
+import { runResults } from '../src/server/runResults.js'
 import type { ResolvedOptions } from '../src/types/contracts.js'
+import type { Snapshot } from '../src/types/snapshot.js'
 
 // Train only: exp-core runs this against serial and uuid Postgres adapters.
 let harness: Awaited<ReturnType<typeof createIntegrationHarness>>
+let sequence = 0
+const checkedUsers: unknown[] = []
 beforeAll(async () => {
+  const access = { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true }
   harness = await createIntegrationHarness({
-    collections: [{ slug: 'pages', versions: { drafts: { autosave: true } },
-      access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true },
+    collections: ['pages', 'other-pages'].map(slug => ({ slug, trash: true, versions: { drafts: { autosave: true } }, access,
       fields: [{ name: 'slug', type: 'text', required: true }, { name: 'title', type: 'text' }],
-    }],
+    })),
     pages: { collections: [{ slug: 'pages', pathOf: doc => typeof doc.slug === 'string' ? `/${doc.slug}` : null,
       findByPath: async (path, req) => {
+        checkedUsers.push(req.user)
         const pages = await req.payload.find({ collection: 'pages', req, overrideAccess: false, draft: false,
           where: { and: [{ slug: { equals: path.slice(1) } }, { _status: { equals: 'published' } }] } })
         return pages.docs[0] ? { id: pages.docs[0].id, published: true } : null
@@ -26,35 +31,149 @@ beforeAll(async () => {
 }, 60_000)
 afterAll(async () => { await harness?.teardown() })
 
-test('real host saves refuse delete, publishing rename, and unpublish, then protect the archived winner and Original', async () => {
+async function fixture({ oldVersion = false } = {}) {
   const { payload } = harness
   const req = await createLocalReq({}, payload)
-  const original = await payload.create({ collection: 'pages', req, overrideAccess: false, data: { slug: 'original', _status: 'published' } })
-  const winner = await payload.create({ collection: 'pages', req, overrideAccess: false, data: { slug: 'winner', _status: 'published' } })
-  const unrelated = await payload.create({ collection: 'pages', req, overrideAccess: false, data: { slug: 'unrelated', _status: 'published' } })
-  const metric = await payload.create({ collection: 'xp-metrics', req, overrideAccess: true, data: { name: 'Goal', slug: 'goal', source: 'binomial', direction: 'increase' } })
+  const suffix = ++sequence
+  const originalSlug = `original-${suffix}`, winnerSlug = `winner-${suffix}`, loserSlug = `loser-${suffix}`
+  const original = await payload.create({ collection: 'pages', req, overrideAccess: false, data: { slug: oldVersion ? `old-${suffix}` : originalSlug, _status: 'published' } })
+  const old = oldVersion ? (await payload.findVersions({ collection: 'pages', req, overrideAccess: false, where: { parent: { equals: original.id } }, sort: '-createdAt', limit: 1 })).docs[0] : undefined
+  if (oldVersion) await payload.update({ collection: 'pages', id: original.id, req, overrideAccess: false, data: { slug: originalSlug, _status: 'published' } })
+  const winner = await payload.create({ collection: 'pages', req, overrideAccess: false, data: { slug: winnerSlug, _status: 'published' } })
+  const loser = await payload.create({ collection: 'pages', req, overrideAccess: false, data: { slug: loserSlug, _status: 'published' } })
+  const metric = await payload.create({ collection: 'xp-metrics', req, overrideAccess: true, data: { name: 'Goal', slug: `goal-${suffix}`, source: 'binomial', direction: 'increase' } })
   const testDoc = await payload.create({ collection: 'xp-experiments', req, overrideAccess: true, data: {
-    name: 'Better page', slug: 'better-page', kind: 'page', unitType: 'visitor', allocation: 100, exposurePolicy: 'pageview',
-    arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 50, pageTarget: '/original' },
-      { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 50, pageTarget: '/winner' }],
+    name: `Better page ${suffix}`, slug: `better-page-${suffix}`, kind: 'page', unitType: 'visitor', allocation: 100, exposurePolicy: 'pageview',
+    arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 40, pageTarget: `/${originalSlug}` },
+      { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 40, pageTarget: `/${winnerSlug}` },
+      { key: 'variantB', label: 'Variant B', kind: 'variant', weight: 20, pageTarget: `/${loserSlug}` }],
     metrics: { primary: metric.id }, analysis: { plannedDurationDays: 14, reachPerDay: 100 },
   } })
   await start(req, { experimentId: testDoc.id, options: payload.config.custom!.xp as ResolvedOptions })
-  for (const page of [original, winner]) {
-    await expect(payload.delete({ collection: 'pages', id: page.id, req, overrideAccess: false })).rejects.toMatchObject({ status: 409 })
-    await expect(payload.update({ collection: 'pages', id: page.id, req, overrideAccess: false, draft: false,
-      data: { slug: 'renamed', _status: 'published' } })).rejects.toMatchObject({ status: 409 })
-    await expect(payload.update({ collection: 'pages', id: page.id, req, overrideAccess: false, draft: false,
-      data: { _status: 'draft' } })).rejects.toMatchObject({ status: 409 })
+  const update = (id: string | number, data: Record<string, unknown>, draft?: boolean) => payload.update({ collection: 'pages', id, req, overrideAccess: false, ...(draft === undefined ? {} : { draft }), data })
+  const remove = (id: string | number) => payload.delete({ collection: 'pages', id, req, overrideAccess: false })
+  const choose = () => decide(req, { experimentId: testDoc.id, winnerArm: 'variantA', note: 'Owner choice', confirmation: expectedConfirm('decide', 'Variant A') })
+  return { payload, req, original, winner, loser, testDoc, originalSlug, update, remove, choose, old }
+}
+const refusal = { status: 409, isPublic: true }
+
+test('updates without draft or status refuse a rename on a drafts collection', async () => {
+  const f = await fixture()
+  await expect(f.update(f.original.id, { slug: 'renamed' })).rejects.toMatchObject(refusal)
+})
+
+test('updates without draft or status also refuse the pending draft implicit unpublish', async () => {
+  const f = await fixture()
+  await f.update(f.original.id, { title: 'Pending', _status: 'draft' }, true)
+  await expect(f.update(f.original.id, { title: 'Title only' })).rejects.toMatchObject(refusal)
+})
+
+test('partial-body publish after a draft rename is refused', async () => {
+  const f = await fixture()
+  await f.update(f.original.id, { slug: 'draft-rename', _status: 'draft' }, true)
+  await expect(f.update(f.original.id, { _status: 'published' }, false)).rejects.toMatchObject(refusal)
+})
+
+test('trash through update and delete is refused; restoring trash remains allowed', async () => {
+  const f = await fixture()
+  await expect(f.update(f.original.id, { deletedAt: new Date().toISOString() })).rejects.toMatchObject(refusal)
+  await expect(f.remove(f.original.id)).rejects.toMatchObject(refusal)
+  const free = await f.payload.create({ collection: 'pages', req: f.req, overrideAccess: false, data: { slug: `free-${sequence}`, _status: 'published' } })
+  await f.update(free.id, { deletedAt: new Date().toISOString() })
+  await expect(f.payload.update({ collection: 'pages', req: f.req, overrideAccess: false, id: free.id, trash: true, data: { deletedAt: null } })).resolves.toMatchObject({ deletedAt: null })
+})
+
+test('draft rename then unpublish then republish cannot change the live path', async () => {
+  const f = await fixture()
+  await f.update(f.original.id, { slug: 'draft-rename', _status: 'draft' }, true)
+  await expect(f.update(f.original.id, { _status: 'draft' }, false)).rejects.toMatchObject(refusal)
+  await expect(f.update(f.original.id, { _status: 'published' }, false)).rejects.toMatchObject(refusal)
+  const live = await f.payload.findByID({ collection: 'pages', id: f.original.id, req: f.req, overrideAccess: false, draft: false })
+  expect(live).toMatchObject({ slug: f.originalSlug, _status: 'published' })
+})
+
+test('restoreVersion guards normal restores after an earlier draft op on the same req', async () => {
+  const f = await fixture({ oldVersion: true })
+  await f.update(f.original.id, { title: 'Draft', _status: 'draft' }, true)
+  await expect(f.payload.restoreVersion({ collection: 'pages', id: f.old!.id, req: f.req, overrideAccess: false })).rejects.toMatchObject(refusal)
+})
+
+test('restoreVersion as draft allows restoring another path without changing the live row', async () => {
+  const f = await fixture({ oldVersion: true })
+  // Payload 3.90.2's Local API wrapper drops draft; use the public operation
+  // invoked by its REST restore handler to exercise Restore as draft.
+  await restoreVersionOperation({ collection: f.payload.collections.pages!, id: f.old!.id, req: f.req, overrideAccess: false, draft: true })
+  expect(await f.payload.findByID({ collection: 'pages', id: f.original.id, req: f.req, overrideAccess: false, draft: false })).toMatchObject({ slug: f.originalSlug, _status: 'published' })
+})
+
+test('decided pages refuse delete, rename and unpublish with decided instructions', async () => {
+  const f = await fixture()
+  await f.choose()
+  for (const page of [f.original, f.winner, f.loser]) {
+    await expect(f.remove(page.id)).rejects.toMatchObject({ ...refusal, message: expect.stringContaining('Discard winner') })
+    await expect(f.update(page.id, { slug: 'renamed', _status: 'published' })).rejects.toMatchObject(refusal)
+    await expect(f.update(page.id, { _status: 'draft' }, false)).rejects.toMatchObject(refusal)
   }
-  await payload.update({ collection: 'pages', id: original.id, req, overrideAccess: false, draft: true, data: { slug: 'draft-rename', _status: 'draft' } })
-  await expect(payload.update({ collection: 'pages', id: original.id, req, overrideAccess: false, draft: false,
-    data: { slug: 'draft-rename', _status: 'published' } })).rejects.toMatchObject({ status: 409 })
-  await payload.delete({ collection: 'pages', id: unrelated.id, req, overrideAccess: false })
-  await decide(req, { experimentId: testDoc.id, winnerArm: 'variantA', note: 'Owner choice', confirmation: expectedConfirm('decide', 'Variant A') })
-  // Page content report is the existing archive-after-content transition contract.
-  await payload.update({ collection: 'xp-experiments', id: testDoc.id, req, overrideAccess: true,
+})
+
+test('archived winner and Original refuse rename, unpublish and delete; losing pages are free', async () => {
+  const f = await fixture()
+  await f.choose()
+  await f.payload.update({ collection: 'xp-experiments', id: f.testDoc.id, req: f.req, overrideAccess: true,
     context: { xpTransition: true }, data: { decision: { winnerArm: 'variantA', contentReport: { docs: [{ ok: true }] } } } })
-  await archive(req, { experimentId: testDoc.id, mode: 'after-content' })
-  for (const page of [winner, original]) await expect(payload.delete({ collection: 'pages', id: page.id, req, overrideAccess: false })).rejects.toMatchObject({ status: 409 })
+  await archive(f.req, { experimentId: f.testDoc.id, mode: 'after-content' })
+  for (const page of [f.original, f.winner]) {
+    await expect(f.remove(page.id)).rejects.toMatchObject({ ...refusal, message: expect.stringContaining('Release pages') })
+    await expect(f.update(page.id, { slug: 'renamed', _status: 'published' })).rejects.toMatchObject(refusal)
+    await expect(f.update(page.id, { _status: 'draft' }, false)).rejects.toMatchObject(refusal)
+  }
+  await expect(f.remove(f.loser.id)).resolves.toBeDefined()
+})
+
+test('discarded archived tests hold no manifest paths and their pages are free', async () => {
+  const f = await fixture()
+  await f.choose()
+  await archive(f.req, { experimentId: f.testDoc.id, mode: 'discard', confirmation: expectedConfirm('discard', '') })
+  const state = await f.payload.findGlobal({ slug: 'xp-state', req: f.req, overrideAccess: true })
+  const manifest = state.manifest as { archivedPages?: Record<string, unknown> }
+  for (const page of [f.original, f.winner, f.loser]) {
+    expect(manifest.archivedPages).not.toHaveProperty(`/${page.slug}`)
+    await expect(f.remove(page.id)).resolves.toBeDefined()
+  }
+})
+
+test('title-only publishes are allowed', async () => {
+  const f = await fixture()
+  await expect(f.update(f.original.id, { title: 'Fresh title', _status: 'published' }, false)).resolves.toMatchObject({ title: 'Fresh title' })
+})
+
+test('bulk where delete and update refuse each protected document', async () => {
+  const f = await fixture()
+  const where = { id: { in: [f.original.id, f.winner.id] } }
+  const deleted = await f.payload.delete({ collection: 'pages', where, req: f.req, overrideAccess: false })
+  expect(deleted.errors).toHaveLength(2)
+  const updated = await f.payload.update({ collection: 'pages', where, req: f.req, overrideAccess: false, data: { _status: 'draft' }, draft: false })
+  expect(updated.errors).toHaveLength(2)
+  expect(deleted.docs).toHaveLength(0)
+  expect(updated.docs).toHaveLength(0)
+})
+
+test('a collection outside pages.collections is unaffected even at a protected path', async () => {
+  const f = await fixture()
+  const page = await f.payload.create({ collection: 'other-pages', req: f.req, overrideAccess: false, data: { slug: f.originalSlug, _status: 'published' } })
+  await f.payload.update({ collection: 'other-pages', id: page.id, req: f.req, overrideAccess: false, data: { slug: 'renamed', _status: 'draft' }, draft: false })
+  await expect(f.payload.delete({ collection: 'other-pages', id: page.id, req: f.req, overrideAccess: false })).resolves.toBeDefined()
+})
+
+test('runResults uses a real anonymous createLocalReq to detect an unavailable version page', async () => {
+  const f = await fixture()
+  // Adapter write simulates a page becoming unavailable outside normal host saves.
+  const req: PayloadRequest = await createLocalReq({}, f.payload)
+  await f.payload.db.updateOne({ collection: 'pages', id: f.winner.id, req, data: { _status: 'draft' } })
+  checkedUsers.length = 0
+  expect(await runResults(f.payload, { experimentId: f.testDoc.id, sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(checkedUsers.length).toBeGreaterThan(0)
+  expect(checkedUsers.every(user => user === null)).toBe(true)
+  const rows = await f.payload.find({ collection: 'xp-results-snapshots', req, overrideAccess: true, where: { experiment: { equals: f.testDoc.id } }, sort: '-computedAt' })
+  expect((rows.docs[0]!.snapshot as Snapshot).health).toContainEqual({ code: 'version-page-unavailable', path: `/${f.winner.slug}` })
 })

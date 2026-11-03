@@ -6,6 +6,7 @@ export const PLACEMENT_FAILURE_COPY = {
 
 export const READINESS_COPY = {
   needsAttention: 'Needs attention',
+  missingVersions: 'This test is missing its saved versions. Open the test and check its setup before changing this page.',
   ready: 'Ready to start.', saveFirst: 'Save your changes first.',
   saving: 'Saving…', saved: 'Saved', saveError: "Couldn't save — see the highlighted field",
   checkError: "Couldn't check readiness. Try again.", checking: 'Checking readiness…', retry: 'Try again',
@@ -48,8 +49,10 @@ export const runningCopy = (date: string | null, people: number | null, days: nu
   days === null ? null : `about ${days} days to go`,
 ].filter(Boolean).join(' · ')
 
-export const pageGuardCopy = (name: string, archived: boolean) => archived
-  ? `This page is shown at other addresses because the test "${name}" made it the winner. Open the test and choose "Discard the result" before you delete, rename or unpublish it.`
-  : `This page is part of the test "${name}". Stop the test before you delete, rename or unpublish it.`
-export const versionPageUnavailableCopy = (path: string) => `${path} isn't published, so visitors assigned to it see an error. Republish it, or stop the test.`
-export const versionPageUncheckedCopy = (path: string) => `Couldn't check whether ${path} is published. Check the page, or stop the test.`
+export const pageGuardCopy = (name: string, status: 'running' | 'decided' | 'archived') => status === 'archived'
+  ? `This page is shown at other addresses because the finished test "${name}" made it the winner. To free it, open the test and choose "Release pages".`
+  : status === 'decided'
+    ? `This page is part of the decided test "${name}". Choose "Make it the content" or "Discard winner" on the test before you delete, rename or unpublish it.`
+    : `This page is part of the running test "${name}". Stop the test before you delete, rename or unpublish it.`
+export const versionPageUnavailableCopy = (path: string, status = 'running') => `${path} isn't published, so visitors assigned to it see an error. Republish it, or ${status === 'decided' ? 'discard the winner' : 'stop the test'}.`
+export const versionPageUncheckedCopy = (path: string, status = 'running') => `Couldn't check whether ${path} is published. Check the page, or ${status === 'decided' ? 'discard the winner' : 'stop the test'}.`

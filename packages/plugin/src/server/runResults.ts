@@ -2,6 +2,7 @@ import { XpAnalysisError } from '../errors.js'
 import { safeError } from '../log.js'
 import { createLocalReq, type Payload } from 'payload'
 import type { MetricUnavailableReason } from '../types/reasons.js'
+import type { Snapshot } from '../types/snapshot.js'
 import type { DocId } from '../types/contracts.js'
 import type { ResolvedOptions } from '../types/contracts.js'
 import { resultsCandidates, resultsExecutor, writeSnapshots, type ResultsCandidate } from '../db/snapshots.js'
@@ -149,7 +150,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
   for (const [id, phases] of experiments) {
     if (Date.now() >= analysisDeadline) { summary.budgetExhausted = true; summary.skipped += experiments.size - summary.ran - summary.skipped; break }
     try {
-      const snapshots = []
+      const snapshots: Snapshot[] = []
       for (const phase of phases) {
         if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
         // Health refreshes must not reopen inference after the late-beacon grace.
@@ -162,25 +163,37 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
       if (current) {
         const req = await raceDeadline(analysisDeadline, () => createLocalReq({}, payload))
         const health: NonNullable<import('../types/snapshot.js').Snapshot['health']> = []
-        const targets = new Set(current.testArms.filter(arm => arm.kind !== 'holdout').flatMap(arm => arm.pageTarget ? [arm.pageTarget] : []))
+        // Rollouts assign only their shipped version and the Original holdout.
+        const arms = current.phase.phaseKind === 'rollout'
+          ? [...current.phase.arms.filter(arm => arm.kind !== 'holdout'), ...current.testArms.filter(arm => arm.kind === 'control')]
+          : current.testArms.filter(arm => arm.kind !== 'holdout')
+        const targets = new Set(arms.flatMap(arm => arm.pageTarget ? [arm.pageTarget] : []))
         for (const path of targets) {
-          let published = false, unchecked = false
+          let published = false, found = false, unchecked = false
           for (const collection of options.pages?.collections ?? []) {
             try {
               const page = await raceDeadline(analysisDeadline, () => collection.findByPath(path, req))
+              found ||= page != null
               published ||= page?.published === true
             } catch (error) {
-              payload.logger.error({ err: safeError(error), experimentId: id }, 'Experiment version page lookup failed')
               if (error instanceof ResultsBudgetError) throw error
+              payload.logger.error({ err: safeError(error), experimentId: id }, 'Experiment version page lookup failed')
               unchecked = true
             }
           }
-          if (unchecked || !published) health.push({ code: unchecked || !options.pages?.collections.length ? 'version-page-unchecked' : 'version-page-unavailable', path })
+          if (!published) health.push({ code: !found && (unchecked || !options.pages?.collections.length) ? 'version-page-unchecked' : 'version-page-unavailable', path })
         }
         for (const snapshot of snapshots) snapshot.health = health
       }
       if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
-      await writeSnapshots(exec, snapshots)
+      // Order and optional empty health are semantically identical. Frozen
+      // inference gets a new row only when its page availability changes.
+      const canonicalHealth = (snapshot: Snapshot) => JSON.stringify((snapshot.health ?? [])
+        .map(({ code, path }) => [code, path]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))))
+      const changed = snapshots.filter((snapshot, index) => !phases[index]!.frozenSnapshot
+        || canonicalHealth(snapshot) !== canonicalHealth(phases[index]!.frozenSnapshot!))
+      if (!changed.length) { summary.skipped++; continue }
+      await writeSnapshots(exec, changed)
       summary.ran++
       if (summary.processedIds.length < 100) summary.processedIds.push(id)
     } catch (error) {
