@@ -4,6 +4,7 @@ import { XP_METRIC_SOURCE_SELECT } from '../admin/paths.js'
 import { managedAccess } from './access.js'
 import { serializeMetricSources } from './serialize.js'
 import { validateCappingType, validateCappingValue } from './metricValidation.js'
+import { metricChangeGuard, metricDeleteGuard } from './metricsGuards.js'
 
 export function metricsCollection(options: ResolvedOptions): CollectionConfig {
   const sources = serializeMetricSources(options)
@@ -11,7 +12,7 @@ export function metricsCollection(options: ResolvedOptions): CollectionConfig {
     slug: 'xp-metrics', graphQL: false, disableDuplicate: true, versions: false,
     // group:false hides navigation while keeping collection routes reachable (hidden causes 404s).
     labels: { singular: 'Goal', plural: 'Goals' }, admin: { group: false, useAsTitle: 'name' }, access: managedAccess(options),
-    hooks: { beforeValidate: [({ data, originalDoc }) => {
+    hooks: { beforeDelete: [metricDeleteGuard], beforeChange: [metricChangeGuard], beforeValidate: [({ data, originalDoc }) => {
       if (!data) return data
       const source = sources.find(source => source.id === (data.source ?? originalDoc?.source))
       const capping = data.capping === undefined ? originalDoc?.capping : data.capping
