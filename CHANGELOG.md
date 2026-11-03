@@ -11,10 +11,15 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.2.0-rc.4] - 2026-11-03
+
+### plugin
+
 - Added Goals list and form pages inside Tests, reached through the "Manage goals" link. Migration impact: none.
 - Centralized admin theme tokens and moved Tests above collection groups, after any host-provided leading navigation links.
 - Audience list rules without fixed values now use keyboard-accessible chips and save arrays; fixed value lists keep their checkboxes, and existing comma-separated values remain readable.
 - Styled the Puck Experiment block header, warning, version tabs, selected-version copy action, empty drop zones and creation panel for host editor resets and both admin themes. The self-contained stylesheet is exported as `@delmaredigital/payload-experiments/puck/editor.css`. Hosts must load it inside the editor iframe: in the CSS that builds the iframe stylesheet, add `@import "@delmaredigital/payload-experiments/puck/editor.css";` after `@import "tailwindcss";`. Alternatively, serve the exported file and append its URL to payload-puck's `editorStylesheets`, after the host stylesheet. The client import alone does not reach an iframe with `syncHostStyles: false`. A block already linked to a test no longer offers "Test this block"; it links to "Set up the test" while the test is a draft and to "View results" afterwards.
+- Release workflow: prereleases now publish under their own npm dist-tag (`rc` for this line), not `next`, and a tag whose version, or whose CHANGELOG notes, do not match the package is refused before publishing. Install release candidates with `@rc` or an exact version.
 
 Migration impact: none. The Tests import-map path is unchanged.
 
