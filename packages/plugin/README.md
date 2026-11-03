@@ -279,7 +279,11 @@ Other server integrations:
   failure is logged and the content save proceeds.
 - `experimentMetadata(serverRuntime, path)` returns metadata to merge into the
   page's Next metadata: live variant targets get noindex and an Original
-  canonical; archived losing paths point canonically to the winner.
+  canonical; archived losing paths point canonically to the winner. It reads
+  the signed request context via `headers()`, so it decides from the URL the
+  visitor requested, not the rewritten route, and the Original's URL is never
+  noindex. Call it only from a dynamic `generateMetadata`, never inside
+  `'use cache'`; `path` is the fallback when the proxy did not run.
   `experimentSitemapFilter(path, manifest)` is a synchronous build-time filter:
   pass a privately server-loaded manifest and keep paths for which it returns
   `true`, excluding live variants and archived losing paths.
@@ -393,7 +397,7 @@ support visitor and user units and do not represent counts or revenue in v1.
 
 | Option | Purpose |
 | --- | --- |
-| `pages.collections` | Optional array of `{ slug, pathOf, findByPath }`. `pathOf(doc)` derives a public path from the slug; `findByPath(path, req)` resolves a published page to `{ id, published: true }`, or returns `null`. Start and readiness check every non-holdout version, including the Original. Without this option, readiness warns that pages are unchecked and Start keeps its existing behaviour. |
+| `pages.collections` | Optional array of `{ slug, pathOf, findByPath }`. `pathOf(doc)` derives a public path from the slug (reserved for page protection; not used yet); `findByPath(path, req)` resolves a published page to `{ id, published: true }`, or returns `null`. Start and readiness check every non-holdout version, including the Original. Without this option, readiness warns that pages are unchecked and Start keeps its existing behaviour. |
 
 For a collection with drafts enabled, use a published-only slug lookup with the
 manager's request and `overrideAccess: false`:

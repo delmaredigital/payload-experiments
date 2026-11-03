@@ -41,7 +41,7 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
     }
   }
   if (input.pages !== undefined) {
-    if (!input.pages || !Array.isArray(input.pages.collections)) throw new Error('Experiments pages.collections must be an array')
+    if (!input.pages || !Array.isArray(input.pages.collections) || input.pages.collections.length === 0) throw new Error('Experiments pages.collections must be a non-empty array')
     const slugs = new Set<string>()
     for (const entry of input.pages.collections) {
       if (!entry || typeof entry.slug !== 'string' || !entry.slug.trim() || slugs.has(entry.slug) || typeof entry.pathOf !== 'function' || typeof entry.findByPath !== 'function') {

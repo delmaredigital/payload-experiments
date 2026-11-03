@@ -153,7 +153,7 @@ test('pages is optional and preserves the public callback contract', () => {
   expect(resolveOptions({ ...sampleOptions(), pages }).pages).toEqual(pages)
   expect(resolveOptions(sampleOptions()).pages).toBeUndefined()
 })
-test.each([null, [], {}, { collections: null }, { collections: [null] }, { collections: [{ slug: '' }] },
+test.each([null, [], {}, { collections: null }, { collections: [] }, { collections: [null] }, { collections: [{ slug: '' }] },
   { collections: [{ slug: 'pages', pathOf: '/path', findByPath: (): null => null }] },
   { collections: [{ slug: 'pages', pathOf: (): null => null }] },
   { collections: [1, 2].map(() => ({ slug: 'pages', pathOf: (): null => null, findByPath: (): null => null })) },

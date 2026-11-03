@@ -5,6 +5,11 @@ import { headers } from 'next/headers.js'
 import { serverRequest } from './request.js'
 import { serverManifest } from './context.js'
 
+/**
+ * Reads the signed request context via `headers()`, so it decides from the URL the visitor requested, not the
+ * rewritten route. Call it only from a dynamic `generateMetadata`, never inside `'use cache'`. `path` is the
+ * fallback when the proxy did not run.
+ */
 export async function experimentMetadata<TUser extends { id: string | number } = { id: string | number }>(serverRuntime: ExperimentsServerRuntime<TUser>, path: string): Promise<Pick<Metadata, 'robots' | 'alternates'>> {
   const { request, hasContext } = serverRequest(new Headers(await headers()), serverRuntime.proxyRuntime.secrets)
   if (hasContext) path = request.nextUrl.pathname
