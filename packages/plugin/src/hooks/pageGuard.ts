@@ -21,7 +21,8 @@ export const pageGuardBeforeOperation: CollectionBeforeOperationHook = ({ args, 
   collections.set(slug, stack)
 }
 export const pageGuardAfterOperation: CollectionAfterOperationHook = ({ req, collection, operation, result }) => {
-  if (operation === 'update' || operation === 'restoreVersion') {
+  // beforeOperation reports by-id updates as 'update'; afterOperation reports 'updateByID'.
+  if (operation === 'update' || operation === 'updateByID' || operation === 'restoreVersion') {
     const collections = operations(req)
     const stack = collections?.get(collection.slug)
     stack?.pop()

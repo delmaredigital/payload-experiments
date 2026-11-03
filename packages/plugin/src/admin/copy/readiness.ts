@@ -55,4 +55,4 @@ export const pageGuardCopy = (name: string, status: 'running' | 'decided' | 'arc
     ? `This page is part of the decided test "${name}". Choose "Make it the content" or "Discard winner" on the test before you delete, rename or unpublish it.`
     : `This page is part of the running test "${name}". Stop the test before you delete, rename or unpublish it.`
 export const versionPageUnavailableCopy = (path: string, status = 'running') => `${path} isn't published, so visitors assigned to it see an error. Republish it, or ${status === 'decided' ? 'discard the winner' : 'stop the test'}.`
-export const versionPageUncheckedCopy = (path: string, status = 'running') => `Couldn't check whether ${path} is published. Check the page, or ${status === 'decided' ? 'discard the winner' : 'stop the test'}.`
+export const versionPageUncheckedCopy = (path: string, status = 'running') => `Couldn't check whether ${path} is published. Check that it is still published, or ${status === 'decided' ? 'discard the winner' : 'stop the test'}.`

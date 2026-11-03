@@ -26,7 +26,7 @@ const fixtures = {
   'page-target-unpublished': ['versions', '/variant', "/variant isn't a published page. Publish it, or pick another page."],
   'page-targets-unchecked': ['versions', undefined, "Version pages aren't checked; make sure each one is published."],
   'version-page-unavailable': ['versions', '/variant', "/variant isn't published, so visitors assigned to it see an error. Republish it, or stop the test."],
-  'version-page-unchecked': ['versions', '/variant', "Couldn't check whether /variant is published. Check the page, or stop the test."],
+  'version-page-unchecked': ['versions', '/variant', "Couldn't check whether /variant is published. Check that it is still published, or stop the test."],
   'page-user-unit': ['header', undefined, 'Whole-page tests count visitors. Create the test again counting visitors.'],
   'invalid-targeting-rule': ['who', { attributes: ['country'] }, 'Fix the rule: country.'],
   'undeclared-targeting-key': ['who', { attributes: ['country'] }, "Remove the rule on country: it isn't available."],

@@ -251,11 +251,13 @@ test('page health reuses data quality rendering with needs-attention and recover
   snapshot.health = [{ code: 'version-page-unavailable', path: '/version' }, { code: 'version-page-unchecked', path: '/other' }]
   expect(dataQuality(snapshot)).toEqual(expect.arrayContaining([
     { id: 'version-page-unavailable:/version', message: 'Needs attention', nextStep: "/version isn't published, so visitors assigned to it see an error. Republish it, or stop the test." },
-    { id: 'version-page-unchecked:/other', message: 'Needs attention', nextStep: "Couldn't check whether /other is published. Check the page, or stop the test." },
+    { id: 'version-page-unchecked:/other', message: 'Needs attention', nextStep: "Couldn't check whether /other is published. Check that it is still published, or stop the test." },
   ]))
 })
 
 test('decided page health names the available discard action', () => {
-  const snapshot = makeSnapshot({ health: [{ code: 'version-page-unavailable', path: '/page' }] })
+  const snapshot = makeSnapshot({ health: [{ code: 'version-page-unavailable', path: '/page' }, { code: 'version-page-unchecked', path: '/other' }] })
   expect(dataQuality(snapshot, { status: 'decided' })[0]?.nextStep).toContain('discard the winner.')
+  expect(dataQuality(snapshot, { status: 'decided' }).find(item => item.id === 'version-page-unchecked:/other')?.nextStep)
+    .toBe("Couldn't check whether /other is published. Check that it is still published, or discard the winner.")
 })

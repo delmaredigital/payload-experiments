@@ -18,6 +18,13 @@ beforeAll(async () => {
   harness = await createIntegrationHarness({
     collections: ['pages', 'other-pages'].map(slug => ({ slug, trash: true, versions: { drafts: { autosave: true } }, access,
       fields: [{ name: 'slug', type: 'text', required: true }, { name: 'title', type: 'text' }],
+      hooks: { beforeChange: [async ({ req, originalDoc, data }) => {
+        if (slug === 'pages' && req.context.pageGuardNestedDraft && !req.context.pageGuardInsideNestedDraft) {
+          await req.payload.update({ collection: 'pages', id: originalDoc!.id, req, overrideAccess: true,
+            context: { pageGuardInsideNestedDraft: true }, draft: true, data: { title: 'Nested draft', _status: 'draft' } })
+        }
+        return data
+      }] },
     })),
     pages: { collections: [{ slug: 'pages', pathOf: doc => typeof doc.slug === 'string' ? `/${doc.slug}` : null,
       findByPath: async (path, req) => {
@@ -60,6 +67,14 @@ const refusal = { status: 409, isPublic: true }
 test('updates without draft or status refuse a rename on a drafts collection', async () => {
   const f = await fixture()
   await expect(f.update(f.original.id, { slug: 'renamed' })).rejects.toMatchObject(refusal)
+})
+
+test('a nested draft by-id update in a host hook cannot bypass the outer unpublish', async () => {
+  const f = await fixture()
+  f.req.context.pageGuardNestedDraft = true
+  await expect(f.update(f.original.id, { _status: 'draft' }, false)).rejects.toMatchObject(refusal)
+  const live = await f.payload.findByID({ collection: 'pages', id: f.original.id, req: f.req, overrideAccess: false, draft: false })
+  expect(live).toMatchObject({ slug: f.originalSlug, _status: 'published' })
 })
 
 test('updates without draft or status also refuse the pending draft implicit unpublish', async () => {

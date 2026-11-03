@@ -18,10 +18,11 @@ export interface ResultsCandidate {
   frozenSnapshot?: Snapshot | null
   kind?: ExperimentKind
   currentPhase?: number
+  winnerArm?: string | null
   unitType: UnitType
   status: 'running' | 'stopped' | 'decided' | 'archived'
   latestComputedAt: string | null
-  testArms: Array<{ weight: number; kind?: string; pageTarget?: string }>
+  testArms: Array<{ key: string; weight: number; kind?: string; pageTarget?: string }>
   layerSlug: string | null
   layerSlices: number[] | null
 }
@@ -55,15 +56,17 @@ export async function resultsCandidates(exec: Executor, { cutoff, experimentId }
       'startedAt', p.${q(p.startedAt)}, 'endedAt', p.${q(p.endedAt)}, 'seed', p.${q(p.seed)},
       'arms', p.${q(p.arms)}, 'allocation', p.${q(p.allocation)}, 'metricDefinitions', p.${q(p.metricDefinitions)},
       'analysis', p.${q(p.analysis)}, 'contentChanges', p.${q(p.contentChanges)}) AS "phase",
-    e.${q(e.kind)} AS "kind", e.${q(e.phase)} AS "currentPhase", e.${q(e.unitType)} AS "unitType", e.${q(e.status)} AS "status",
+    e.${q(e.kind)} AS "kind", e.${q(e.phase)} AS "currentPhase", e.${q(e.unitType)} AS "unitType", e.${q(e.status)} AS "status", e.${q(e.decisionWinnerArm)} AS "winnerArm",
     (SELECT max(s.${q(s.computedAt)}) FROM ${snapshots} s WHERE s.${q(s.experimentId)} = p.${q(p.experimentId)} AND s.${q(s.phase)} = p.${q(p.phase)}) AS "latestComputedAt",
     (SELECT t.${q(p.arms)} FROM ${phases} t WHERE t.${q(p.experimentId)} = p.${q(p.experimentId)} AND t.${q(p.phaseKind)} = 'test' AND t.${q(p.phase)} <= p.${q(p.phase)} ORDER BY t.${q(p.phase)} DESC LIMIT 1) AS "testArms",
-    (SELECT frozen.${q(s.snapshot)} FROM ${snapshots} frozen WHERE frozen.${q(s.experimentId)} = p.${q(p.experimentId)} AND frozen.${q(s.phase)} = p.${q(p.phase)}
-      AND (frozen.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond' OR p.${q(p.endedAt)} < $1)
-      ORDER BY frozen.${q(s.computedAt)} DESC, frozen.${q(s.id)} DESC LIMIT 1) AS "frozenSnapshot",
+    frozen."snapshot" AS "frozenSnapshot",
     l.${q(l.slug)} AS "layerSlug", e.${q(e.layerSlices)} AS "layerSlices"
     FROM ${phases} p JOIN ${qualifiedTable(exec, TABLES.experiments)} e ON e.${q(e.id)} = p.${q(p.experimentId)}
     LEFT JOIN ${qualifiedTable(exec, TABLES.layers)} l ON l.${q(l.id)} = e.${q(e.layerId)}
+    LEFT JOIN LATERAL (SELECT s.${q(s.snapshot)} AS "snapshot" FROM ${snapshots} s
+      WHERE s.${q(s.experimentId)} = p.${q(p.experimentId)} AND s.${q(s.phase)} = p.${q(p.phase)}
+        AND (s.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond' OR p.${q(p.endedAt)} < $1)
+      ORDER BY s.${q(s.computedAt)} DESC, s.${q(s.id)} DESC LIMIT 1) frozen ON true
     WHERE ((e.${q(e.kind)} = 'page'
         AND (p.${q(p.endedAt)} IS NULL OR p.${q(p.endedAt)} >= $1 OR EXISTS
           (SELECT 1 FROM ${snapshots} existing WHERE existing.${q(s.experimentId)} = p.${q(p.experimentId)} AND existing.${q(s.phase)} = p.${q(p.phase)}))
@@ -73,7 +76,7 @@ export async function resultsCandidates(exec: Executor, { cutoff, experimentId }
         AND NOT EXISTS (SELECT 1 FROM ${snapshots} frozen WHERE frozen.${q(s.experimentId)} = p.${q(p.experimentId)} AND frozen.${q(s.phase)} = p.${q(p.phase)}
           AND frozen.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond')))
       ${experimentId === undefined ? '' : ` AND p.${q(p.experimentId)} = $3`}
-    ORDER BY "latestComputedAt" NULLS FIRST, p.${q(p.experimentId)}, p.${q(p.phase)}`, params)
+    ORDER BY (frozen."snapshot" IS NOT NULL), "latestComputedAt" NULLS FIRST, p.${q(p.experimentId)}, p.${q(p.phase)}`, params)
   return rows
 }
 

@@ -21,6 +21,8 @@ test('page refusals and health instructions match the test status', () => {
   expect(copy.pageGuardCopy('Example', 'archived')).toBe('This page is shown at other addresses because the finished test "Example" made it the winner. To free it, open the test and choose "Release pages".')
   expect(copy.versionPageUnavailableCopy('/page', 'decided')).toBe("/page isn't published, so visitors assigned to it see an error. Republish it, or discard the winner.")
   expect(copy.versionPageUnavailableCopy('/page', 'running')).toBe("/page isn't published, so visitors assigned to it see an error. Republish it, or stop the test.")
+  expect(copy.versionPageUncheckedCopy('/page', 'decided')).toBe("Couldn't check whether /page is published. Check that it is still published, or discard the winner.")
+  expect(copy.versionPageUncheckedCopy('/page', 'running')).toBe("Couldn't check whether /page is published. Check that it is still published, or stop the test.")
 })
 
 test.each(['running', 'decided'] as const)('page refusal actions exist for %s tests', status => {

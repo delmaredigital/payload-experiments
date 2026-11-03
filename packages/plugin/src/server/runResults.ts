@@ -140,8 +140,8 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
     summary.budgetExhausted = error instanceof ResultsBudgetError
     payload.logger.error({ err: safeError(error), experimentId }, 'Experiment scheduling failed')
   }
-  // Query order is oldest phase snapshot first; grouping keeps each experiment's
-  // phases together while preserving that scheduling priority.
+  // Analysis precedes health-only refreshes, then oldest phase snapshots first;
+  // grouping keeps each experiment's phases together with that priority.
   const experiments = new Map<DocId, ResultsCandidate[]>()
   for (const candidate of candidates) {
     const id = candidate.phase.experiment
@@ -163,10 +163,11 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
       if (current) {
         const req = await raceDeadline(analysisDeadline, () => createLocalReq({}, payload))
         const health: NonNullable<import('../types/snapshot.js').Snapshot['health']> = []
-        // Rollouts assign only their shipped version and the Original holdout.
+        // Decided tests serve only the winner and Original, including rollouts.
         const arms = current.phase.phaseKind === 'rollout'
           ? [...current.phase.arms.filter(arm => arm.kind !== 'holdout'), ...current.testArms.filter(arm => arm.kind === 'control')]
-          : current.testArms.filter(arm => arm.kind !== 'holdout')
+          : current.testArms.filter(arm => arm.kind !== 'holdout'
+            && (current.status !== 'decided' || arm.kind === 'control' || arm.key === current.winnerArm))
         const targets = new Set(arms.flatMap(arm => arm.pageTarget ? [arm.pageTarget] : []))
         for (const path of targets) {
           let published = false, found = false, unchecked = false
@@ -189,10 +190,11 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
       // Order and optional empty health are semantically identical. Frozen
       // inference gets a new row only when its page availability changes.
       const canonicalHealth = (snapshot: Snapshot) => JSON.stringify((snapshot.health ?? [])
-        .map(({ code, path }) => [code, path]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))))
+        .map(({ code, path }) => [code, path]).map(entry => JSON.stringify(entry)).sort((a, b) => a < b ? -1 : a > b ? 1 : 0))
       const changed = snapshots.filter((snapshot, index) => !phases[index]!.frozenSnapshot
         || canonicalHealth(snapshot) !== canonicalHealth(phases[index]!.frozenSnapshot!))
-      if (!changed.length) { summary.skipped++; continue }
+      // Unchanged health is a successful refresh with nothing to write.
+      if (!changed.length) { summary.ran++; continue }
       await writeSnapshots(exec, changed)
       summary.ran++
       if (summary.processedIds.length < 100) summary.processedIds.push(id)

@@ -24,7 +24,7 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
   const collection = { trash: true, slug: 'pages', versions: drafts ? { drafts: {} } : false }
   const remove = () => pageGuardBeforeDelete({ req, collection, id: 1 } as Parameters<CollectionBeforeDeleteHook>[0])
   const begin = async (draft = false, operation: 'update' | 'restoreVersion' = 'update') => pageGuardBeforeOperation({ args: { req, draft, collection: { config: collection } }, operation } as Parameters<CollectionBeforeOperationHook>[0])
-  const end = async (operation: 'update' | 'restoreVersion' = 'update') => pageGuardAfterOperation({ req, collection, operation, result: {} } as Parameters<CollectionAfterOperationHook>[0])
+  const end = async (operation: 'update' | 'updateByID' | 'restoreVersion' = 'updateByID') => pageGuardAfterOperation({ req, collection, operation, result: {} } as Parameters<CollectionAfterOperationHook>[0])
   const change = (data: Record<string, unknown>, originalDoc: Record<string, unknown> = published) => pageGuardBeforeChange({ req, collection, originalDoc, operation: 'update', data } as Parameters<CollectionBeforeChangeHook>[0])
   const save = async (data: Record<string, unknown>, draft = false) => {
     await begin(draft)
@@ -117,6 +117,19 @@ test('nested same-collection operations restore the outer draft flag', async () 
   await f.end()
   await expect(f.change({ slug: 'outer-draft', _status: 'draft' })).resolves.toBeDefined()
   await f.end()
+})
+test('a nested draft by-id update pops its frame before the outer unpublish', async () => {
+  const f = setup()
+  await f.begin(false, 'update')
+  f.req.context = { ...f.req.context }
+  await f.begin(true, 'update')
+  await expect(f.change({ title: 'Nested draft', _status: 'draft' })).resolves.toBeDefined()
+  await f.end('updateByID')
+  await expect(f.change({ _status: 'draft' })).rejects.toMatchObject({ status: 409 })
+  await f.end('updateByID')
+  const stacks = f.req.context.xpPageGuardOperations as Map<string, unknown[]>
+  expect(stacks.get('pages') ?? []).toEqual([])
+  expect(stacks.has('pages')).toBe(false)
 })
 test('an earlier draft op and legacy context cannot bypass a publishing restore', async () => {
   const f = setup()
