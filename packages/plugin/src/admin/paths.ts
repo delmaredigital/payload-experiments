@@ -6,3 +6,4 @@ export const XP_TESTS_LIST_REDIRECT = '@delmaredigital/payload-experiments/admin
 export const XP_TEST_EDIT_REDIRECT = '@delmaredigital/payload-experiments/admin/rsc#CollectionEditRedirect'
 export const XP_TESTS_NAV_LINK = '@delmaredigital/payload-experiments/admin/client#TestsNavLink'
 export const XP_TESTS_SURFACE = '@delmaredigital/payload-experiments/admin/client#TestsSurface'
+export const XP_TESTS_DASHBOARD_CARDS = '@delmaredigital/payload-experiments/admin/client#TestsDashboardCards'

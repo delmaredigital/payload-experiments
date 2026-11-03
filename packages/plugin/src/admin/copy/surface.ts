@@ -1,5 +1,6 @@
 export const SURFACE_COPY = {
   title: 'Tests', newTest: 'New test', goals: 'Goals', search: 'Search tests',
+  navAllTests: 'All tests', navGoals: 'Goals',
   backToAdmin: 'Back to admin',
   limitedList: 'Showing the 200 most recent tests.',
   notInstalled: "The Tests screen isn't installed yet. Run `payload generate:importmap` and reload.",

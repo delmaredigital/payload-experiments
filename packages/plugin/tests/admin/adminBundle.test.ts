@@ -35,3 +35,11 @@ test('the admin entry includes the Tests surface and shell', () => {
   const graph = collectImports(fileURLToPath(new URL('../../src/exports/adminClient.ts', import.meta.url)))
   for (const name of ['TestsSurface', 'SurfaceShell', 'TestsHome']) expect(graph.files.some(file => file.endsWith(`/surface/${name}.tsx`))).toBe(true)
 })
+
+
+test('both Tests navigation components are in the checked admin client graph', () => {
+  const graph = collectImports(fileURLToPath(new URL('../../src/exports/adminClient.ts', import.meta.url)))
+  for (const name of ['TestsNavLink', 'TestsDashboardCards']) {
+    expect(graph.files.some(file => file.endsWith(`/admin/${name}.tsx`))).toBe(true)
+  }
+})

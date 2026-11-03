@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config'
 
-// Visual fixtures for the Puck editor chrome. They write HTML outside the repo and
-// are never part of `pnpm test`; run with `pnpm fixtures:puck-editor`.
+// Visual fixtures write HTML outside the repo and are never part of `pnpm test`.
+// Run with `pnpm fixtures:puck-editor` or `pnpm fixtures:admin-nav`.
 export default defineConfig({
   test: {
     projects: [
@@ -10,6 +10,8 @@ export default defineConfig({
         ssr: { resolve: { conditions: ['@delmaredigital/source', 'module', 'node', 'development|production'] } },
         test: {
           name: 'plugin-fixtures',
+          // The public UI barrel imports the cropper's stylesheet. Let Vite handle it.
+          server: { deps: { inline: ['@payloadcms/ui', 'react-image-crop'] } },
           root: 'packages/plugin',
           globals: true,
           environment: 'node',

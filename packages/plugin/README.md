@@ -466,6 +466,13 @@ for these patterns.
 
 ## Admin and client
 
+The sidebar includes a **Tests** group with **All tests** and **Goals**. The
+dashboard also includes **Tests** and **Goals** cards above its widgets. Goals
+appears only for users who can manage tests. Both additions follow the host's
+admin route and keep host-provided navigation and dashboard entries first.
+After upgrading, run `payload generate:importmap` to register the dashboard card
+component.
+
 ### Client assignments and exposure
 
 Read assignments on the server and pass them to `ExperimentsProvider` from

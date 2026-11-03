@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { ChangeEvent, ReactNode } from 'react'
+import type { ChangeEvent, ComponentProps, ReactNode } from 'react'
 import { vi } from 'vitest'
 
 type Values = Record<string, unknown>
@@ -97,6 +97,12 @@ export function payloadUiMock() {
       return { ...snapshot.config, getEntityConfig: () => snapshot.entityConfig }
     },
     useAuth: () => useStateSnapshot().auth,
+    Link: ({ prefetch: _prefetch, ...props }: ComponentProps<'a'> & { prefetch?: boolean }) => <a {...props} />,
+    NavGroup: ({ label, children, isOpen }: Children & { label: string; isOpen?: boolean }) =>
+      <div className="nav-group" data-is-open={isOpen}><div className="nav-group__label">{label}</div>{children}</div>,
+    Card: ({ title, href, id, buttonAriaLabel, titleAs: Title = 'div' }: {
+      title: string; href?: string; id?: string; buttonAriaLabel?: string; titleAs?: 'h3' | 'div'
+    }) => <div className="card" id={id}><Title className="card__title">{title}</Title><a aria-label={buttonAriaLabel} href={href} /></div>,
     useField: ({ path }: { path?: string } = {}) => {
       const snapshot = useStateSnapshot()
       return (path && snapshot.fieldsByPath[path]) || snapshot.field

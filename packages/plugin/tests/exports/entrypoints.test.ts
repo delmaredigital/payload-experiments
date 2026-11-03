@@ -17,6 +17,7 @@ const required = {
   },
   adminClient: {
     TestsSurface: '../admin/surface/TestsSurface.js',
+    TestsDashboardCards: '../admin/TestsDashboardCards.js',
     TestsNavLink: '../admin/TestsNavLink.js',
     MetricSourceSelect: '../admin/MetricSourceSelect.js',
     LayerUsage: '../admin/LayerUsage.js',
