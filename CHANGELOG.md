@@ -13,8 +13,13 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added: optional `theme.accent` plugin option with derived light/dark fills, accessible accent text and focus rings, and foreground contrast validation.
 - Changed: admin design tokens and shared interface components for the 0.3.0 screens; Running and Ready use fixed green status colours, and the Puck editor stylesheet is generated from the same tokens.
+
+## [0.2.0-rc.7] - 2026-11-03
+
+### plugin
+
 - Fixed: the test page refuses to overwrite someone else's newer changes; it shows "Someone else changed this test. Reload to see their changes." with a Reload button.
-- Added: edits to a test made from two places at once no longer overwrite each other: a save based on an outdated copy is refused with "Someone else changed this test. Reload to see their changes." (clients opt in with the `x-xp-if-updated-at` header).
+- Added: edits to a test made from two places at once no longer overwrite each other: a save based on an outdated copy is refused with "Someone else changed this test. Reload to see their changes." (clients opt in with the `x-xp-if-updated-at` header; its name is exported as `XP_IF_UPDATED_AT_HEADER` from `@delmaredigital/payload-experiments/admin/client`).
 - Fixed: while a test is collecting data, results say which group is smallest and which has the fewest conversions, and how many each still needs, instead of counts that read as totals.
 - Fixed: after Recompute, the results page's status line shows the updated number of people.
 - Fixed: plugin logs no longer include error messages or database details; they carry the error name, code and stack frames. Migration impact: none.
