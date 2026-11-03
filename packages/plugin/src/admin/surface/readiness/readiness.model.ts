@@ -2,7 +2,7 @@ import type { ReadinessCode, PreflightResult } from '../../../types/endpoints.js
 import type { SerializedFlagPoint } from '../../../types/admin.js'
 import type { TestDocument } from '../testDocument.model.js'
 import { actionGroupLabel } from '../../actions/actions.model.js'
-import { placementFailureCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
+import { unsupportedContentCopy, placementFailureCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
 
 import { SECTION_ORDER, type SectionId } from '../contracts.js'
 export type ReadinessContext = Pick<TestDocument, 'arms' | 'unitType' | 'flagPoint'> & {
@@ -21,6 +21,7 @@ const versions = row('versions', detail => versionsNext(detailText(detail, C.ver
 
 /** Exhaustive mapping of the checkStart ReadinessCode union, including all ten invariant checks. */
 export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; next(detail: unknown, ctx: ReadinessContext): string | null }> = {
+  'make-content-unsupported': row('header', detail => unsupportedContentCopy(text(detail, 'This page'))),
   'invalid-status': row('header', () => null),
   'no-placements': row('what', detail => detail === undefined ? C.noPlacements : placementFailureCopy(detail)),
   'empty-slot': row('versions', (detail, ctx) => {

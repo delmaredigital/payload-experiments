@@ -669,13 +669,16 @@ changes block actions**; save first so they use the saved experiment.
 - The Puck picker lists 100 experiments.
 - The Puck experiment picker always calls `/api`; hosts with a custom API route
   see an empty picker.
-- Making a winner permanent skips pages in collections that are localized,
-  have hidden fields, or contain fields the manager cannot read or update. Those pages
-  are listed with a note to update them by hand.
 - Content-change markers are recorded on publish only (on save for collections
   without drafts).
 - Results cover the whole round; breakdowns by segment or dimension are not
   available in v1.
+
+### Limits
+
+| Capability | Limit |
+|---|---|
+| Make it the content: localized collections | not supported yet |
 
 ## Theme
 

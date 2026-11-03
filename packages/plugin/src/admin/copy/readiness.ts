@@ -26,6 +26,7 @@ export const READINESS_COPY = {
   groupFallback: 'each version', parameterFallback: 'each setting', attributeFallback: 'this attribute',
 } as const
 
+export const unsupportedContentCopy = (page: string) => `${page} has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand.`
 export const unpublishedPageCopy = (path: string) => `${path} isn't a published page. Publish it, or pick another page.`
 /** Old responses may include raw host errors; unknown strings use authored copy. */
 export const placementFailureCopy = (reason: unknown) => PLACEMENT_FAILURE_COPY[typeof reason === 'string' && Object.hasOwn(PLACEMENT_FAILURE_COPY, reason) ? reason as keyof typeof PLACEMENT_FAILURE_COPY : 'placements-failed']

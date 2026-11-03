@@ -8,6 +8,7 @@ import { doc, preflight } from './fixtures.js'
 
 type Fixture = [string, unknown, string | null]
 const fixtures = {
+  'make-content-unsupported': ['header', 'Landing page', "Landing page has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand."],
   'invalid-status': ['header', undefined, null],
   'no-placements': ['what', undefined, 'Not on a page yet. Open a page, add an Experiment block and choose this test.'],
   'empty-slot': ['versions', [{ slots: { control: 1, variantA: 0 } }], 'Add content for Short headline on the page.'],
@@ -41,16 +42,16 @@ const fixtures = {
 } satisfies Record<ReadinessCode, Fixture>
 const ctx = { ...doc, flagPoint: 'ask', flagPoints: [{ id: 'ask', params: { headline: { type: 'text' as const, label: 'Headline text' } } }] }
 
-test('covers every literal start check and every member of both source unions (30)', () => {
+test('covers every literal start check and every member of both source unions (31)', () => {
   const source = readFileSync(new URL('../../../../src/transitions/checkStart.ts', import.meta.url), 'utf8')
   const endpoints = readFileSync(new URL('../../../../src/types/endpoints.ts', import.meta.url), 'utf8')
   const literals = [...source.matchAll(/add\('([^']+)'/g)].map(match => match[1])
   const readinessUnion = source.split('export type ReadinessCode = ArmIssueCode')[1]!.split('export interface')[0]!
   const armUnion = endpoints.split('export type ArmIssueCode =')[1]!.split('\n')[0]!
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(20)
+  expect(literals).toHaveLength(21)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(30)
+  expect(members).toHaveLength(31)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
   expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())

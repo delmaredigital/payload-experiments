@@ -1,5 +1,7 @@
 import { Forbidden, Locked, NotFound, ValidationError, type Field } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
+import { contentReportCopy } from '../../src/admin/copy/actions.js'
+import { preflightData } from '../../src/transitions/preflightData.js'
 import { makeContent } from '../../src/transitions/makeContent.js'
 import { fakeReq } from '../_fakes/req.js'
 import { fakePayload } from '../_fakes/payload.js'
@@ -37,11 +39,20 @@ function fixture(kind = 'block', drafts = true, field = 'puckData') {
       ] }],
       pages: [{ id: 3, _status: 'published', [field]: { content: [slot()] } }, { id: 4, _status: 'published', [field]: { content: [slot()] } }],
     } })
+  Object.assign(payload.db, {
+    findOne: vi.fn(async ({ collection, where }) => structuredClone(payload.documents[collection]?.find(doc => doc.id === where.id.equals))),
+    findVersions: vi.fn(async ({ collection, where }) => ({ docs: [{ version: structuredClone(payload.documents[collection]?.find(doc => doc.id === where.and[0].parent.equals)) }] })),
+  })
   const req = fakeReq({ payload, user: { id: 42 } as never })
   const experiment = payload.documents['xp-experiments']![0]!
   return { req, payload, executor, options, experiment, field }
 }
 const hostUpdates = (f: ReturnType<typeof fixture>) => f.payload.calls.filter(call => call.method === 'update' && call.args.collection === 'pages')
+function mockDraftVersions(f: ReturnType<typeof fixture>, read: (id: string | number) => unknown | Promise<unknown>) {
+  vi.spyOn(f.payload.db, 'findVersions').mockImplementation(async args => ({ docs: [{
+    version: await read((args.where!.and as Array<{ parent: { equals: string | number } }>)[0]!.parent.equals),
+  }] }) as never)
+}
 
 test.each(['draft', 'running', 'stopped', 'archived'])('refuses %s before any host write', async status => {
   const f = fixture(); f.experiment.status = status
@@ -57,13 +68,16 @@ test.each(['locked', '_isLocked'])('any %s placement refuses all host writes', a
 test.each(['puckData', 'content'])('nested slots unwrap in %s; published and latest draft preserve their own edits', async field => {
   const f = fixture('block', true, field)
   const findByID = f.payload.findByID.bind(f.payload)
-  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+  const read = async (args: { id?: string | number; collection: string; draft?: boolean }) => {
     const doc = await findByID(args)
     return { ...doc, title: args.draft ? 'Draft outer title' : 'Published outer title', [field]: { root: { props: { title: args.draft ? 'Draft title' : 'Published title' } }, content: [
       { type: 'Section', props: { children: [slot([text('Before'), slot([text(args.draft ? 'Draft winner' : 'Published winner')], 'hero'), text('After')])] } },
       slot([text('Untouched')], 'another'),
     ] } }
-  })
+  }
+  vi.spyOn(f.payload, 'findByID').mockImplementation(read)
+  vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => read({ collection: args.collection, id: (args.where!.id as { equals: string | number }).equals, draft: false }) as never)
+  mockDraftVersions(f, id => read({ collection: 'pages', id, draft: true }))
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('archived')
   expect(result.docs).toEqual([{ collection: 'pages', id: 3, ok: true }, { collection: 'pages', id: 4, ok: true }])
@@ -161,6 +175,8 @@ test('Payload latest-version merge preserves published and draft fields outside 
   const published = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, title: 'Published title', seo: { description: 'Published SEO' } }]))
   const latest = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, _status: 'draft', title: 'Unpublished title', seo: { description: 'Draft SEO' } }]))
   vi.spyOn(f.payload, 'findByID').mockImplementation(async args => structuredClone((args.draft ? latest : published).get(args.id!)!))
+  vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => structuredClone(published.get((args.where!.id as { equals: number }).equals)) as never)
+  mockDraftVersions(f, id => structuredClone(latest.get(id)))
   const update = f.payload.update.bind(f.payload)
   vi.spyOn(f.payload, 'update').mockImplementation(async args => {
     if (args.collection === 'pages') {
@@ -178,42 +194,71 @@ test('Payload latest-version merge preserves published and draft fields outside 
   }
 })
 
-const unsafeFields: Array<{ name: string; fields: Field[]; detail: string }> = [
-  { name: 'localized nested tab', detail: 'localized', fields: [{ type: 'tabs', tabs: [{ label: 'SEO', fields: [{ name: 'title', type: 'text', localized: true }] }] }] },
-  { name: 'hidden nested group field', detail: 'hidden fields', fields: [{ name: 'seo', type: 'group', fields: [{ name: 'secret', type: 'text', hidden: true }] }] },
-  { name: 'hidden named tab', detail: 'hidden fields', fields: [{ type: 'tabs', tabs: [{ name: 'seo', hidden: true, fields: [{ name: 'title', type: 'text' }] }] }] },
-  { name: 'unreadable named tab', detail: 'fields you cannot read', fields: [{ type: 'tabs', tabs: [{ name: 'seo', access: { read: () => false }, fields: [{ name: 'title', type: 'text' }] }] }] },
-  { name: 'localized block field outside Puck JSON', detail: 'localized', fields: [{ name: 'blocks', type: 'blocks', blocks: [{ slug: 'copy', fields: [{ name: 'title', type: 'text', localized: true }] }] }] },
-]
-test.each(unsafeFields)('$name refuses each document without changing published or draft content', async ({ fields }) => {
+test.each(([
+  [{ name: 'secret', type: 'text', hidden: true }],
+  [{ name: 'secret', type: 'text', access: { read: () => false, update: () => true } }],
+  [{ name: 'secret', type: 'text', access: { read: () => true, update: () => false } }],
+  [{ name: 'secret', type: 'text', access: { read: () => false, update: () => false } }],
+] satisfies Field[][]).map(fields => ({ fields })))('restricted fields round-trip published values unchanged: %j', async ({ fields }) => {
   const f = fixture()
   f.payload.config.collections[0]!.fields = fields
+  for (const doc of f.payload.documents.pages!) doc.secret = 'Published private value'
+  const read = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    const doc = await read(args)
+    if ('hidden' in fields[0]! && fields[0]!.hidden && !args.showHiddenFields) delete doc.secret
+    if ('access' in fields[0]! && fields[0]!.access?.read && !await fields[0]!.access.read()) delete doc.secret
+    return doc
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs.every(doc => doc.ok)).toBe(true)
+  for (const call of hostUpdates(f).filter(call => !call.args.draft)) {
+    expect(call.args.data).toMatchObject({ secret: 'Published private value', puckData: { content: [text('Winner')] } })
+  }
+})
+
+test.each(([
+  [{ type: 'tabs', tabs: [{ label: 'SEO', fields: [{ name: 'title', type: 'text', localized: true }] }] }],
+  [{ name: 'blocks', type: 'blocks', blocks: [{ slug: 'copy', fields: [{ name: 'title', type: 'text', localized: true }] }] }],
+  [{ name: 'puckData', type: 'json', localized: true }],
+  [{ type: 'tabs', tabs: [{ name: 'localizedContent', label: 'Content', localized: true, fields: [{ name: 'puckData', type: 'json' }] }] }],
+] satisfies Field[][]).map(fields => ({ fields })))('localized collections are refused and warned about before Decide', async ({ fields }) => {
+  const f = fixture()
+  f.payload.config.collections[0]!.fields = fields
+  f.payload.documents.pages![0]!.title = 'Landing page'
   const original = structuredClone(f.payload.documents.pages)
+  const preflight = await preflightData(f.req, { experimentId: 1, options: f.options })
+  expect(preflight!.checks).toContainEqual({ code: 'make-content-unsupported', ok: true, warning: true, detail: 'Landing page' })
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('decided')
-  expect(result.docs).toHaveLength(2)
-  for (const doc of result.docs) expect(doc).toMatchObject({ ok: false, detail: 'validation' })
+  expect(result.docs.every(doc => !doc.ok && doc.detail === 'localized' && doc.error === 'localized')).toBe(true)
+  expect(contentReportCopy('localized')).toBe("This page has more than one language; Make it the content can't publish it safely yet. Copy the winning version by hand.")
   expect(hostUpdates(f)).toEqual([])
   expect(f.payload.documents.pages).toEqual(original)
 })
-test('evaluates field read access with the manager req even when the fake returns the field', async () => {
+
+test('published and draft adapter reads borrow the same detached host transaction, never the outer transition', async () => {
   const f = fixture()
-  const read = vi.fn(({ id, req }) => {
-    expect(req).toBe(f.req)
-    expect(req.user.id).toBe(42)
-    return id !== 3
+  const transactions: unknown[] = []
+  const read = vi.mocked(f.payload.db.findOne).getMockImplementation()!
+  vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => {
+    expect(args.req).toBe(f.req)
+    expect(args.req!.context?.xpTransition).toBeUndefined()
+    transactions.push(args.req!.transactionID)
+    return read(args)
   })
-  f.payload.config.collections[0]!.fields = [{ name: 'privateTitle', type: 'text', access: { read } }]
-  f.payload.documents.pages![0]!.privateTitle = 'Returned by fake; still unreadable'
-  const original = structuredClone(f.payload.documents.pages![0])
-  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
-  expect(result.doc.status).toBe('decided')
-  expect(read).toHaveBeenCalled()
-  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'validation' }, { id: 4, ok: true }])
-  expect(f.payload.documents.pages![0]).toEqual(original)
-  expect(hostUpdates(f).filter(call => call.args.id === 3)).toEqual([])
-  expect(hostUpdates(f).filter(call => call.args.id === 4)).toHaveLength(2)
+  const readVersions = vi.mocked(f.payload.db.findVersions).getMockImplementation()!
+  vi.spyOn(f.payload.db, 'findVersions').mockImplementation(async args => {
+    expect(args).toMatchObject({ collection: 'pages', req: f.req, limit: 1, pagination: false,
+      sort: '-updatedAt', where: { and: [{ parent: { equals: expect.any(Number) } }, { latest: { equals: true } }] } })
+    expect(args.req!.context?.xpTransition).toBeUndefined()
+    transactions.push(args.req!.transactionID)
+    return readVersions(args)
+  })
+  await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(transactions).toEqual(['fake-transaction-2', 'fake-transaction-2', 'fake-transaction-3', 'fake-transaction-3'])
 })
+
 test.each([true, {}])('retry after a failed placement is deleted reports it ok and archives (read=%j)', async access => {
   const f = fixture()
   Object.assign(f.payload.config.collections[0]!, { access: { read: () => access } })
@@ -308,7 +353,9 @@ test.each(['field', 'tab'] as const)('readable admin-only %s update access refus
     : [{ type: 'tabs', tabs: [{ name: 'settings', access: { read: () => true, update: updateAccess }, fields: [{ name: 'label', type: 'text' }] }] }]
   const published = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, adminOnly: 'Published value', settings: { label: 'Published setting' } }]))
   const drafts = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, adminOnly: 'Draft-only secret', settings: { label: 'Draft-only setting' } }]))
+  vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => structuredClone(published.get((args.where!.id as { equals: number }).equals)) as never)
   const originalPublished = structuredClone(published), originalDrafts = structuredClone(drafts)
+  mockDraftVersions(f, id => structuredClone(drafts.get(id)))
   vi.spyOn(f.payload, 'findByID').mockImplementation(async args => structuredClone((args.draft ? drafts : published).get(args.id!)!))
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('decided')
@@ -321,7 +368,9 @@ test.each(['field', 'tab'] as const)('readable admin-only %s update access refus
 test('nested block update access gets the proposed row and root data with the latest draft as doc', async () => {
   const f = fixture()
   const read = f.payload.findByID.bind(f.payload)
-  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => ({ ...await read(args), blocks: [{ blockType: 'copy', title: args.draft ? 'Draft-only title' : 'Published title' }] }))
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => ({ ...await read(args), blocks: [{ id: 'row', blockType: 'copy', title: args.draft ? 'Draft-only title' : 'Published title' }] }))
+  vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => ({ ...await read({ collection: args.collection, id: (args.where!.id as { equals: number }).equals }), blocks: [{ id: 'row', blockType: 'copy', title: 'Published title' }] }) as never)
+  mockDraftVersions(f, async id => ({ ...await read({ collection: 'pages', id }), blocks: [{ id: 'row', blockType: 'copy', title: 'Draft-only title' }] }))
   const updateAccess = vi.fn(({ req, doc, data, siblingData, blockData }) => {
     expect(req).toBe(f.req)
     expect(doc.blocks[0].title).toBe('Draft-only title')
@@ -363,29 +412,15 @@ test('a page already fixed by hand is done even if it would be refused for a wri
   expect(hostUpdates(f)).toEqual([])
 })
 
-test.each([
-  ['unreadable', { name: 'puckData', type: 'json', access: { read: () => false } }],
-  ['hidden', { name: 'puckData', type: 'json', hidden: true }],
-  ['localized', { name: 'puckData', type: 'json', localized: true }],
-])('a %s content field still holding the slot is never reported done (glue check F1)', async (_label, contentField) => {
+test('localized content cannot take the already-fixed shortcut', async () => {
   const f = fixture()
-  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }, { collection: 'pages', id: 4, ok: false }] } }
-  Object.assign(f.payload.config.collections[0]!, { fields: [contentField] })
-  // Localized: the default locale already looks fixed, but other locales may still hold the slot.
-  if (_label === 'localized') f.payload.documents.pages = f.payload.documents.pages!.map(doc => ({ ...doc, puckData: { content: [] } }))
-  const findByID = f.payload.findByID.bind(f.payload)
-  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
-    const doc = await findByID(args)
-    if (args.collection !== 'pages' || !doc || _label === 'localized') return doc
-    const { puckData: _stripped, ...rest } = doc as Record<string, unknown>
-    return rest as never
-  })
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
+  f.payload.config.collections[0]!.fields = [{ name: 'puckData', type: 'json', localized: true }]
+  f.payload.documents.pages = f.payload.documents.pages!.map(doc => ({ ...doc, puckData: { content: [] } }))
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
-  expect(result.doc.status).toBe('decided')
-  expect(result.docs.filter(doc => doc.ok)).toEqual([])
+  expect(result.docs).toContainEqual({ collection: 'pages', id: 3, ok: false, detail: 'localized', error: 'localized' })
   expect(hostUpdates(f)).toEqual([])
 })
-
 
 test.each([
   ['update-failed', (): unknown => new Error('secret-value pg row')],
@@ -438,4 +473,109 @@ test('a retained page read-hook failure is update-failed, stays decided, and kee
   expect(JSON.stringify(f.experiment.decision)).not.toContain('secret-value')
   expect(f.payload.logs).toContainEqual({ level: 'error', args: [expect.objectContaining({ experimentId: 1, id: 3 }), 'Experiment content read failed'] })
   expect(JSON.stringify(f.payload.logs)).not.toContain('secret-value')
+})
+
+test.each(['update-failed', 'forbidden', 'validation'] as const)('published adapter failure reports %s and rolls back the detached transaction', async reason => {
+  const f = fixture()
+  const error = reason === 'forbidden' ? new Forbidden() : reason === 'validation' ? new ValidationError({ errors: [] }) : new Error('secret-value')
+  vi.spyOn(f.payload.db, 'findOne').mockRejectedValue(error)
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs.every(doc => !doc.ok && doc.detail === reason)).toBe(true)
+  expect(hostUpdates(f)).toEqual([])
+  expect(f.payload.dbCalls.filter(call => call.method === 'rollbackTransaction')).toHaveLength(2)
+  expect(JSON.stringify(f.payload.logs)).not.toContain('secret-value')
+})
+
+test('reordered array rows compare denied fields against the same row ID as Payload', async () => {
+  const f = fixture()
+  f.payload.config.collections[0]!.fields = [{ name: 'items', type: 'array', fields: [
+    { name: 'secret', type: 'text', access: { update: () => false } },
+  ] }]
+  for (const doc of f.payload.documents.pages!) doc.items = [{ id: 'A', secret: 'X' }, { id: 'B', secret: 'Y' }]
+  const read = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => ({ ...await read(args), items: [{ id: 'B', secret: 'X' }, { id: 'A', secret: 'Y' }] }))
+  mockDraftVersions(f, async id => ({ ...await read({ collection: 'pages', id }), items: [{ id: 'B', secret: 'X' }, { id: 'A', secret: 'Y' }] }))
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs.every(doc => !doc.ok && doc.detail === 'validation')).toBe(true)
+  expect(hostUpdates(f)).toEqual([])
+})
+
+test('unreadable unpublished draft values survive the publish and draft patch', async () => {
+  const f = fixture()
+  f.payload.config.collections[0]!.fields = [{ name: 'privateTitle', type: 'text', access: { read: () => false, update: () => true } }]
+  const published = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, privateTitle: 'Published private title' }]))
+  const latest = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, privateTitle: 'Unpublished private title' }]))
+  mockDraftVersions(f, id => structuredClone(latest.get(id)))
+  vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => structuredClone(published.get((args.where!.id as { equals: number }).equals)) as never)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    const { privateTitle: _omitted, ...doc } = structuredClone((args.draft ? latest : published).get(args.id!)!)
+    return doc
+  })
+  const update = f.payload.update.bind(f.payload)
+  vi.spyOn(f.payload, 'update').mockImplementation(async args => {
+    if (args.collection === 'pages') {
+      const doc = { ...latest.get(args.id!)!, ...args.data }
+      latest.set(args.id!, doc)
+      if (!args.draft) published.set(args.id!, doc)
+    }
+    return update(args)
+  })
+  await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(published.get(3)!.privateTitle).toBe('Published private title')
+  expect(latest.get(3)!.privateTitle).toBe('Unpublished private title')
+})
+
+test.each(['publish', 'draft'] as const)('a differing unreadable value denied on the %s write refuses the placement', async stage => {
+  const f = fixture()
+  const updateAccess = vi.fn(({ req, data, doc }) => {
+    expect(req).toBe(f.req)
+    if (data._status === 'published') {
+      expect(data.privateTitle).toBe('Published private title')
+      expect(doc.privateTitle).toBe('Unpublished private title')
+    } else {
+      expect(data.privateTitle).toBe('Unpublished private title')
+      expect(doc.privateTitle).toBe('Published private title')
+    }
+    return stage === 'draft' && data._status === 'published'
+  })
+  f.payload.config.collections[0]!.fields = [{ name: 'privateTitle', type: 'text', access: { read: () => false, update: updateAccess } }]
+  for (const doc of f.payload.documents.pages!) doc.privateTitle = 'Published private title'
+  mockDraftVersions(f, id => ({ ...structuredClone(f.payload.documents.pages!.find(doc => doc.id === id)), privateTitle: 'Unpublished private title' }))
+  const read = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    const { privateTitle: _omitted, ...doc } = await read(args)
+    return doc as never
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs).toMatchObject([{ ok: false, detail: 'validation' }, { ok: false, detail: 'validation' }])
+  expect(updateAccess).toHaveBeenCalledTimes(stage === 'publish' ? 2 : 4)
+  expect(hostUpdates(f)).toEqual([])
+  expect(f.payload.dbCalls.filter(call => call.method === 'rollbackTransaction')).toHaveLength(2)
+})
+
+test('a document without a latest version uses the main row for its draft baseline', async () => {
+  const f = fixture()
+  vi.spyOn(f.payload.db, 'findVersions').mockResolvedValue({ docs: [] } as never)
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('archived')
+  expect(hostUpdates(f).filter(call => call.args.draft)).toHaveLength(2)
+})
+
+test('a draft-only array row with an update-denied value is refused before restoring can strip it', async () => {
+  const f = fixture()
+  const updateAccess = vi.fn(() => false)
+  f.payload.config.collections[0]!.fields = [{ name: 'items', type: 'array', fields: [
+    { name: 'secret', type: 'text', access: { read: () => false, update: updateAccess } },
+  ] }]
+  for (const doc of f.payload.documents.pages!) doc.items = []
+  mockDraftVersions(f, id => ({ ...structuredClone(f.payload.documents.pages!.find(doc => doc.id === id)),
+    items: [{ id: 'new-row', secret: 'Unpublished private value' }],
+  }))
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs).toMatchObject([{ ok: false, detail: 'validation' }, { ok: false, detail: 'validation' }])
+  expect(updateAccess).toHaveBeenCalledTimes(2)
+  expect(hostUpdates(f)).toEqual([])
+  expect(f.payload.dbCalls.filter(call => call.method === 'rollbackTransaction')).toHaveLength(2)
 })

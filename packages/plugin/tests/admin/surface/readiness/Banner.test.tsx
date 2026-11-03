@@ -306,3 +306,10 @@ test('unchecked version pages warn while Start stays enabled', () => {
   expect(screen.getByText("Version pages aren't checked; make sure each one is published.")).toBeTruthy()
   expect(button('Start').disabled).toBe(false)
 })
+
+test.each(['draft', 'running', 'decided'] as const)('localized make-content warning remains visible when %s without blocking Start', async status => {
+  const p = props({ status }, { preflight: preflight([{ code: 'make-content-unsupported', ok: true, warning: true, detail: 'Landing page' }]) })
+  render(<Banner {...p} />)
+  expect(screen.getByText("Landing page has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand.")).toBeTruthy()
+  if (status === 'draft') expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false)
+})

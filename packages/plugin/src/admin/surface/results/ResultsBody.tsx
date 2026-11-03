@@ -34,6 +34,7 @@ function ResultsContent({ id, surface, onRecomputed }: ResultsBodyProps) {
   const { api, doc, round, phases, state, data } = results
   const manage = surface.canManage && surface.canReadResults
   const [placements, setPlacements] = useState<PreflightResult['placements'] | null>(null)
+  const [checks, setChecks] = useState<PreflightResult['checks']>([])
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewRefresh, setPreviewRefresh] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -45,10 +46,11 @@ function ResultsContent({ id, surface, onRecomputed }: ResultsBodyProps) {
   useEffect(() => {
     let active = true
     setPlacements(null)
+    setChecks([])
     setPreviewError(null)
     if (manage) void api.preflight(id).then(result => {
       if (!active) return
-      if (result.ok && result.data) setPlacements(result.data.placements)
+      if (result.ok && result.data) { setPlacements(result.data.placements); setChecks(result.data.checks) }
       else setPreviewError(result.ok ? API_MESSAGES.unreadable : result.message)
     })
     return () => { active = false }
@@ -121,7 +123,7 @@ function ResultsContent({ id, surface, onRecomputed }: ResultsBodyProps) {
     {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retryPreview}</Button></> : null}
     {manage ? <Button disabled={busy || deciding} onClick={() => { void recompute() }}>{busy ? C.recomputing : C.recompute}</Button> : null}
     {canDecide ? <Button disabled={busy || deciding} onClick={() => setDeciding(true)}>{ACTIONS_COPY.decide}</Button> : null}
-    {deciding && manage && phase ? <DecideDialog id={id} arms={phase.arms} onClose={() => setDeciding(false)} /> : null}
+    {deciding && manage && phase ? <DecideDialog id={id} arms={phase.arms} checks={checks} onClose={() => setDeciding(false)} /> : null}
     {actionError ? <p role="alert">{actionError}</p> : null}
   </div>
 }
