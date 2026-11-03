@@ -44,7 +44,7 @@ test('only theme.css references Payload tokens directly', () => {
 test('Puck editor chrome uses scoped classes, tokens, and explicit reset-resistant controls', () => {
   const css = readFileSync(join(src, 'puck/editor/editor.css'), 'utf8')
   expect(css).not.toContain('!important')
-  const rules = css.replace(/^(?:\[data-theme='dark'\] )?\.xp-slot-root\s*\{[^}]+\}/gm, '')
+  const rules = css.replace(/^(?:\[data-theme='dark'\] \.xp-slot-root,\s*\.dark )?\.xp-slot-root\s*\{[^}]+\}/gm, '')
   expect(rules).not.toMatch(/#[0-9a-f]{3,8}\b|\b(?:rgb|hsl)a?\(/i)
   expect(references(css).every(name => name.startsWith('--xp-'))).toBe(true)
   const controls = css.match(/\.xp-slot-button,\s*\.xp-slot-tab,\s*\.xp-slot-input\s*\{([^}]+)\}/)?.[1] ?? ''
@@ -64,7 +64,7 @@ test('Puck iframe styles define every used token as a literal on the light and d
   const css = readFileSync(join(src, 'puck/editor/editor.css'), 'utf8')
   const used = new Set(references(css))
   expect(used.size).toBeGreaterThan(0)
-  for (const selector of ['.xp-slot-root', "[data-theme='dark'] .xp-slot-root"]) {
+  for (const selector of ['.xp-slot-root', "[data-theme='dark'] .xp-slot-root,\n.dark .xp-slot-root"]) {
     const start = css.indexOf(`\n${selector} {`)
     expect(start, selector).toBeGreaterThanOrEqual(0)
     const block = css.slice(start + 1).match(/^[^{]+\{([^}]+)\}/)?.[1] ?? ''

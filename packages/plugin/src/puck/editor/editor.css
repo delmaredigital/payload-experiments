@@ -32,7 +32,9 @@
   --xp-font-size-body: 15px;
 }
 
-[data-theme='dark'] .xp-slot-root {
+/* payload-puck's IframeWrapper sets both class="dark" and data-theme="dark" on the canvas <html>. */
+[data-theme='dark'] .xp-slot-root,
+.dark .xp-slot-root {
   --xp-bg: rgb(20, 20, 20);
   --xp-text: rgb(255, 255, 255);
   --xp-surface: rgb(34, 34, 34);

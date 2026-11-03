@@ -73,7 +73,7 @@ describe.skipIf(!process.env.XP_FIXTURE_OUT)('editor visual fixtures (coordinato
               variantB={({ className }: { className?: string } = {}) => <div className={className} />}
               variantC={({ className }: { className?: string } = {}) => <div className={className} />}
               puck={{ renderDropZone: () => null, metadata: {}, isEditing: true, dragRef: null }} />
-        const page = '<!DOCTYPE html>' + renderToStaticMarkup(<html lang="en" data-theme={theme}>
+        const page = '<!DOCTYPE html>' + renderToStaticMarkup(<html lang="en" className={theme === 'dark' ? 'dark' : undefined}>
           <head>
             <meta charSet="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
             <title>{`Experiment editor — ${state} — ${theme}`}</title>
