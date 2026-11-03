@@ -10,5 +10,6 @@ test('readiness copy uses editor language, including generated sentences', () =>
     if (typeof value === 'object') for (const sentence of Object.values(value)) expect(sentence).not.toMatch(forbidden)
   }
   for (const sentence of [copy.contentNext('Original'), copy.parameterNext('Headline', 'Variant A'), copy.stoppedCopy(null),
-    copy.decidedCopy(null, 'Variant A'), copy.runningCopy(null, 100, 2)]) expect(sentence).not.toMatch(forbidden)
+    copy.pageGuardCopy('Example', false), copy.pageGuardCopy('Example', true),
+    copy.versionPageUnavailableCopy('/example'), copy.versionPageUncheckedCopy('/example'), copy.decidedCopy(null, 'Variant A'), copy.runningCopy(null, 100, 2)]) expect(sentence).not.toMatch(forbidden)
 })

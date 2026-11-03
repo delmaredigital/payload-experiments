@@ -50,7 +50,7 @@ export interface ExperimentsPluginOptions<TUser extends { id: string | number } 
   pages?: { collections: Array<{
     slug: string
     pathOf: (doc: Record<string, unknown>) => string | null
-    /** Published-only lookup using the manager's req and overrideAccess: false. */
+    /** Published-only lookup using the supplied req and overrideAccess: false. Results checks supply an anonymous req. */
     findByPath: (path: string, req: PayloadRequest) => Promise<{ id: string | number; published: boolean } | null>
   }> }
   puck?: { enabled: boolean; collections: Array<string | { slug: string; field?: string }> }

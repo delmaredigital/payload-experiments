@@ -6,20 +6,21 @@ const codes = [
   'weights-total', 'control-count', 'control-first', 'holdout-count', 'holdout-last', 'variant-count',
   'invalid-key', 'duplicate-key', 'slot-required', 'duplicate-slot',
   'invalid-status', 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-target-unpublished', 'page-targets-unchecked', 'page-user-unit',
+  'version-page-unavailable', 'version-page-unchecked',
   'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'empty-slot',
   'layer-unit-mismatch', 'layer-full', 'unknown-metric-source', 'unit-source-mismatch', 'undeclared-targeting-key', 'invalid-targeting-rule',
 ] as const satisfies readonly ReadinessCode[]
 // Also fail compilation if the public union grows beyond the hand-maintained list.
 const exhaustive: Record<Exclude<ReadinessCode, typeof codes[number]>, never> = {} satisfies Record<Exclude<ReadinessCode, typeof codes[number]>, never>
 
-test('ReadinessCode lists exactly the literal predicates and ARM_CHECK_ORDER (30)', () => {
+test('ReadinessCode lists exactly the literal predicates and ARM_CHECK_ORDER (32 including health)', () => {
   const source = readFileSync(new URL('../../src/transitions/checkStart.ts', import.meta.url), 'utf8')
   const literals = [...source.matchAll(/\badd\('([^']+)'/g)].map(match => match[1])
   const order = source.match(/ARM_CHECK_ORDER[^=]*=\s*\[([\s\S]*?)\]/)![1]!
   const arms = [...order.matchAll(/'([^']+)'/g)].map(match => match[1])
   expect(literals).toHaveLength(20)
   expect(arms).toHaveLength(10)
-  expect(new Set([...literals, ...arms])).toEqual(new Set(codes))
-  expect(new Set(codes).size).toBe(30)
+  expect(new Set([...literals, ...arms, 'version-page-unavailable', 'version-page-unchecked'])).toEqual(new Set(codes))
+  expect(new Set(codes).size).toBe(32)
   expect(exhaustive).toEqual({})
 })

@@ -25,6 +25,8 @@ const fixtures = {
   'page-no-targets': ['versions', undefined, 'Add a page address for each version.'],
   'page-target-unpublished': ['versions', '/variant', "/variant isn't a published page. Publish it, or pick another page."],
   'page-targets-unchecked': ['versions', undefined, "Version pages aren't checked; make sure each one is published."],
+  'version-page-unavailable': ['versions', '/variant', "/variant isn't published, so visitors assigned to it see an error. Republish it, or stop the test."],
+  'version-page-unchecked': ['versions', '/variant', "Couldn't check whether /variant is published. Check the page, or stop the test."],
   'page-user-unit': ['header', undefined, 'Whole-page tests count visitors. Create the test again counting visitors.'],
   'invalid-targeting-rule': ['who', { attributes: ['country'] }, 'Fix the rule: country.'],
   'undeclared-targeting-key': ['who', { attributes: ['country'] }, "Remove the rule on country: it isn't available."],
@@ -41,7 +43,7 @@ const fixtures = {
 } satisfies Record<ReadinessCode, Fixture>
 const ctx = { ...doc, flagPoint: 'ask', flagPoints: [{ id: 'ask', params: { headline: { type: 'text' as const, label: 'Headline text' } } }] }
 
-test('covers every literal start check and every member of both source unions (30)', () => {
+test('covers every literal start check and every member of both source unions (32 including health)', () => {
   const source = readFileSync(new URL('../../../../src/transitions/checkStart.ts', import.meta.url), 'utf8')
   const endpoints = readFileSync(new URL('../../../../src/types/endpoints.ts', import.meta.url), 'utf8')
   const literals = [...source.matchAll(/add\('([^']+)'/g)].map(match => match[1])
@@ -50,9 +52,9 @@ test('covers every literal start check and every member of both source unions (3
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
   expect(literals).toHaveLength(20)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(30)
+  expect(members).toHaveLength(32)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
-  expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER].sort())
+  expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'version-page-unavailable', 'version-page-unchecked'].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())
 })
 for (const code of Object.keys(fixtures) as ReadinessCode[]) {

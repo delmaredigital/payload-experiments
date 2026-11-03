@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: pages in a whole-page test can't be deleted, renamed or unpublished while the test runs or while its result stands; the editor is told which test to stop or discard. Migration impact: none.
+- Added: a test whose version page stops resolving shows "Needs attention" after the next results run.
+
 - Added: optional `theme.accent` plugin option with derived light/dark fills, accessible accent text and focus rings, and foreground contrast validation.
 - Changed: admin design tokens and shared interface components for the 0.3.0 screens; Running and Ready use fixed green status colours, and the Puck editor stylesheet is generated from the same tokens.
 - Fixed: the Original's page is never marked noindex during or after a whole-page test; version pages reached at their own URL are noindex with a canonical to the Original while running or decided. Archived paths keep their canonical to the winner. `experimentMetadata` now reads the signed request context via `headers()`: call it only from a dynamic `generateMetadata`, never inside `'use cache'`.

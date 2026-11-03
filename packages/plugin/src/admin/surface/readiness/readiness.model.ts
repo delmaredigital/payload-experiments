@@ -2,7 +2,7 @@ import type { ReadinessCode, PreflightResult } from '../../../types/endpoints.js
 import type { SerializedFlagPoint } from '../../../types/admin.js'
 import type { TestDocument } from '../testDocument.model.js'
 import { actionGroupLabel } from '../../actions/actions.model.js'
-import { placementFailureCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
+import { versionPageUnavailableCopy, versionPageUncheckedCopy, placementFailureCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
 
 import { SECTION_ORDER, type SectionId } from '../contracts.js'
 export type ReadinessContext = Pick<TestDocument, 'arms' | 'unitType' | 'flagPoint'> & {
@@ -56,6 +56,8 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'page-no-targets': row('versions', () => C.noTargets),
   'page-target-unpublished': row('versions', detail => unpublishedPageCopy(text(detail, 'This page'))),
   'page-targets-unchecked': row('versions', () => C.uncheckedPages),
+  'version-page-unavailable': row('versions', detail => versionPageUnavailableCopy(text(detail, 'This page'))),
+  'version-page-unchecked': row('versions', detail => versionPageUncheckedCopy(text(detail, 'This page'))),
   'page-user-unit': row('header', () => C.pageVisitors),
   'invalid-targeting-rule': row('who', detail => {
     const attributes = object(detail).attributes

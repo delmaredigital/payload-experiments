@@ -5,6 +5,7 @@ export const PLACEMENT_FAILURE_COPY = {
 } as const
 
 export const READINESS_COPY = {
+  needsAttention: 'Needs attention',
   ready: 'Ready to start.', saveFirst: 'Save your changes first.',
   saving: 'Saving…', saved: 'Saved', saveError: "Couldn't save — see the highlighted field",
   checkError: "Couldn't check readiness. Try again.", checking: 'Checking readiness…', retry: 'Try again',
@@ -46,3 +47,9 @@ export const runningCopy = (date: string | null, people: number | null, days: nu
   people === null ? null : `${people.toLocaleString('en-US')} people so far`,
   days === null ? null : `about ${days} days to go`,
 ].filter(Boolean).join(' · ')
+
+export const pageGuardCopy = (name: string, archived: boolean) => archived
+  ? `This page is shown at other addresses because the test "${name}" made it the winner. Open the test and choose "Discard the result" before you delete, rename or unpublish it.`
+  : `This page is part of the test "${name}". Stop the test before you delete, rename or unpublish it.`
+export const versionPageUnavailableCopy = (path: string) => `${path} isn't published, so visitors assigned to it see an error. Republish it, or stop the test.`
+export const versionPageUncheckedCopy = (path: string) => `Couldn't check whether ${path} is published. Check the page, or stop the test.`

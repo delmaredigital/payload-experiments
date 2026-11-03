@@ -1,5 +1,5 @@
 import { safeError } from '../log.js'
-import type { Payload } from 'payload'
+import { createLocalReq, type Payload } from 'payload'
 import type { MetricUnavailableReason } from '../types/reasons.js'
 import type { DocId } from '../types/contracts.js'
 import type { ResolvedOptions } from '../types/contracts.js'
@@ -144,7 +144,32 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
       const snapshots = []
       for (const phase of phases) {
         if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
-        snapshots.push(await analyseCandidate(exec, phase, options, now, analysisDeadline, summary.unavailableMetrics, payload.logger))
+        // Health refreshes must not reopen inference after the late-beacon grace.
+        snapshots.push(phase.frozenSnapshot ? { ...phase.frozenSnapshot, computedAt: now.toISOString() }
+          : await analyseCandidate(exec, phase, options, now, analysisDeadline, summary.unavailableMetrics, payload.logger))
+      }
+      if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
+      const current = phases.find(candidate => candidate.kind === 'page' && candidate.phase.phase === candidate.currentPhase
+        && (candidate.status === 'running' || candidate.status === 'decided'))
+      if (current) {
+        const req = await raceDeadline(analysisDeadline, () => createLocalReq({}, payload))
+        const health: NonNullable<import('../types/snapshot.js').Snapshot['health']> = []
+        const targets = new Set(current.testArms.filter(arm => arm.kind !== 'holdout').flatMap(arm => arm.pageTarget ? [arm.pageTarget] : []))
+        for (const path of targets) {
+          let published = false, unchecked = false
+          for (const collection of options.pages?.collections ?? []) {
+            try {
+              const page = await raceDeadline(analysisDeadline, () => collection.findByPath(path, req))
+              published ||= page?.published === true
+            } catch (error) {
+              payload.logger.error({ err: safeError(error), experimentId: id }, 'Experiment version page lookup failed')
+              if (error instanceof ResultsBudgetError) throw error
+              unchecked = true
+            }
+          }
+          if (unchecked || !published) health.push({ code: unchecked || !options.pages?.collections.length ? 'version-page-unchecked' : 'version-page-unavailable', path })
+        }
+        for (const snapshot of snapshots) snapshot.health = health
       }
       if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
       await writeSnapshots(exec, snapshots)

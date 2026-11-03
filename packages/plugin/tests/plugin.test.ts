@@ -119,3 +119,21 @@ test('applying the plugin twice registers one Tests dashboard and nav component'
   expect(second.admin?.components?.beforeDashboard).toEqual(['host#Dashboard', paths.XP_TESTS_DASHBOARD_CARDS])
   expect(second.admin?.components?.beforeNavLinks).toEqual(['host#BeforeNav', paths.XP_TESTS_NAV_LINK])
 })
+
+test('page and Puck registrations compose once while preserving host hooks', async () => {
+  const { pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } = await import('../src/hooks/pageGuard.js')
+  const host = vi.fn(), options = sampleOptions()
+  options.puck = { enabled: true, collections: ['pages'] }
+  options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => null }] }
+  const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [{ slug: 'pages', fields: [], hooks: { beforeChange: [host], beforeDelete: [host], beforeOperation: [host] } }] })
+  const hooks = config.collections![0]!.hooks!
+  expect(hooks.beforeChange).toEqual([host, pageGuardBeforeChange, contentChangesBeforeHook])
+  expect(hooks.beforeDelete).toEqual([host, pageGuardBeforeDelete])
+  expect(hooks.beforeOperation).toEqual([host, pageGuardBeforeOperation])
+  expect(hooks.afterChange).toEqual([contentChangesHook])
+})
+test('unknown page collection fails at config time', () => {
+  const options = sampleOptions()
+  options.pages = { collections: [{ slug: 'missing', pathOf: () => '/', findByPath: async () => null }] }
+  expect(() => createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'] })).toThrow('Unknown experiments page collection: missing')
+})

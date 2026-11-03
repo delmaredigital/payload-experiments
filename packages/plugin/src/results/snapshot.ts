@@ -54,7 +54,7 @@ const shape = object({
     finding: string, action: nullable(string), headline: string, detail: string, recommendedArm: nullable(string),
   }, { guardrailLine: string }),
   contentChanges: list(object({ at: timestamp, doc: object({ collection: string, id }), by: nullable(id) })),
-})
+}, { health: list(object({ code: oneOf('version-page-unavailable', 'version-page-unchecked'), path: string })) })
 
 /** Validate the frozen JSON shape and headline/rollout invariants before storage.
  * This also accepts the shared CORE-13/admin fixtures without any I/O.

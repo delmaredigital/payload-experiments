@@ -1,4 +1,5 @@
 export const OVERRIDE_ACCESS_ALLOW_LIST: Array<{ file: string; reason: string }> = [
+  { file: "src/hooks/pageGuard.ts", reason: "§7.8 page guard: the hook must see test placements regardless of the editor's access" },
   { file: "src/collections/experiments/flagControlParams.ts", reason: "§7.8: \"nested reads inside plugin hooks (CORE-21): a refused nested operation kills the caller's transaction\"" },
   { file: "src/collections/layers.ts", reason: "§7.8: \"nested reads inside plugin hooks (CORE-21): a refused nested operation kills the caller's transaction\"" },
   { file: "src/endpoints/events.ts", reason: "§7.8: \"events endpoint insert and its assignment lookup\"" },
