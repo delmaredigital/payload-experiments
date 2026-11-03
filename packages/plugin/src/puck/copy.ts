@@ -1,3 +1,8 @@
+// Kept separate from admin copy because the Puck entries cannot import admin modules.
+export const slotLabels = {
+  control: 'Original', variantA: 'Variant A', variantB: 'Variant B', variantC: 'Variant C',
+} as const
+
 export const pickerCopy = {
   label: 'Experiment',
   none: 'No experiment',
