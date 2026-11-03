@@ -60,5 +60,7 @@
 }
 @media (max-width: 720px) {
   .xp-readiness--bar { grid-template-columns: minmax(0, 1fr); }
+  /* The sentence wraps under the save state here, so a trailing separator would dangle. */
+  .xp-readiness--bar .xp-readiness__separator { display: none; }
   .xp-readiness--bar > .xp-readiness__actions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
 }
