@@ -92,3 +92,13 @@ test('analysis errors retain their fixed code, message and frames as a plain log
     message: 'Phase comparison baseline or shipped arm is missing', stack: expect.stringContaining('at ') })
   expect(safeError(error)).not.toBeInstanceOf(Error)
 })
+
+test('an analysis error logs the fixed table text even if its message or code was tampered with', () => {
+  const mutated = new XpAnalysisError('no-baseline')
+  mutated.message += ' secret-value row'
+  expect(safeError(mutated)).toMatchObject({ code: 'no-baseline', message: 'Phase comparison baseline or shipped arm is missing' })
+  expect(JSON.stringify(safeError(mutated))).not.toContain('secret-value')
+  const forged = Object.assign(new XpAnalysisError('no-baseline'), { code: 'secret-value' })
+  expect(safeError(forged)).not.toHaveProperty('code')
+  expect(safeError(forged)).not.toHaveProperty('message')
+})

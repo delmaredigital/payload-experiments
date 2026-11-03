@@ -39,7 +39,7 @@ export type AnalysisErrorCode =
   | 'snapshot-shape'
   | 'snapshot-invariants'
 
-const ANALYSIS_ERROR_MESSAGES: Readonly<Record<AnalysisErrorCode, string>> = {
+export const ANALYSIS_ERROR_MESSAGES: Readonly<Record<AnalysisErrorCode, string>> = Object.freeze({
   'no-baseline': 'Phase comparison baseline or shipped arm is missing',
   'primary-metric-count': 'Phase must have exactly one primary metric',
   'duplicate-metric': 'Duplicate metric id',
@@ -56,7 +56,7 @@ const ANALYSIS_ERROR_MESSAGES: Readonly<Record<AnalysisErrorCode, string>> = {
   'seed-format': 'Assignment seed must end in |',
   'snapshot-shape': 'Invalid Snapshot shape (all numbers must be finite)',
   'snapshot-invariants': 'Invalid Snapshot invariants',
-}
+})
 
 export class XpAnalysisError extends Error {
   override name = 'XpAnalysisError'
