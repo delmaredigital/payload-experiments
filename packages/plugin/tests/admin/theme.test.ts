@@ -30,7 +30,8 @@ test('theme aliases resolve to installed Payload CSS or SCSS declarations', () =
   const dist = entry.slice(0, entry.lastIndexOf('/dist') + '/dist'.length)
   const defined = new Set(filesUnder(dist, /\.(css|scss)$/).flatMap(path => declarations(readFileSync(path, 'utf8'))))
   for (const name of ['--theme-text', '--theme-elevation-150', '--base']) expect(defined.has(name), name).toBe(true)
-  const missing = references(readFileSync(themePath, 'utf8')).filter(name => !defined.has(name))
+  const local = new Set(declarations(readFileSync(themePath, 'utf8')))
+  const missing = references(readFileSync(themePath, 'utf8')).filter(name => !defined.has(name) && !local.has(name))
   expect(missing).toEqual([])
 })
 
@@ -74,4 +75,19 @@ test('Puck iframe styles define every used token as a literal on the light and d
     expect([...used].filter(name => !defined.has(name)), selector).toEqual([])
   }
   expect(css).not.toMatch(/@import|var\(\s*--(?:theme|base|style|font)/)
+})
+
+
+test('the design vocabulary is complete and mirrored by theme.ts', () => {
+  const css = readFileSync(themePath, 'utf8')
+  const ts = readFileSync(join(src, 'admin/theme.ts'), 'utf8')
+  const names = ['bg', 'surface', 'surface-2', 'surface-3', 'border', 'border-strong', 'text', 'text-2', 'text-3',
+    'accent', 'accent-hover', 'accent-active', 'accent-subtle', 'accent-fg', 'focus', 'series-a', 'series-b', 'series-muted',
+    'radius-control', 'radius-card', 'radius-chip', 'font', 'mono', 'text-display', 'text-title', 'text-body', 'text-small', 'motion',
+    ...Array.from({ length: 8 }, (_, index) => `space-${index + 1}`),
+    ...['success', 'warning', 'error'].flatMap(name => [name, `${name}-bg`, `${name}-border`])]
+  for (const name of names) {
+    expect(css).toContain(`--xp-${name}:`)
+    expect(ts).toContain(`var(--xp-${name})`)
+  }
 })

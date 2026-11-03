@@ -37,6 +37,7 @@ export type ExperimentsAccess = (args: { req: PayloadRequest }) => boolean | Pro
 export interface ExperimentsPluginOptions<TUser extends { id: string | number } = { id: string | number }> {
   runtime: ExperimentsServerRuntime<TUser>
   access: { manage: ExperimentsAccess; admin?: ExperimentsAccess; readResults?: ExperimentsAccess; readIdentities?: ExperimentsAccess }
+  theme?: { accent?: string }
   admin?: {
     editorUrl?: (args: { collection: string; id: DocId; draft?: boolean }) => string
     previewUrl?: (args: { collection: string; id: DocId }) => string

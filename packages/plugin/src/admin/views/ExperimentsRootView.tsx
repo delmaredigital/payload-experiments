@@ -1,3 +1,4 @@
+import { accentStyles } from '../../ui/accent.js'
 import type { AdminViewServerProps } from 'payload'
 import { formatAdminURL } from 'payload/shared'
 import { notFound, redirect } from 'next/navigation.js'
@@ -94,5 +95,7 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
   function TestsSurfaceFallback() {
     return <RootViewMessage alert>{SURFACE_COPY.notInstalled}</RootViewMessage>
   }
-  return RenderServerComponent({ Component: XP_TESTS_SURFACE, Fallback: TestsSurfaceFallback, importMap: req.payload.importMap, clientProps })
+  const css = accentStyles(options.theme?.accent)
+  const surface = RenderServerComponent({ Component: XP_TESTS_SURFACE, Fallback: TestsSurfaceFallback, importMap: req.payload.importMap, clientProps })
+  return css ? <><style>{css}</style>{surface}</> : surface
 }

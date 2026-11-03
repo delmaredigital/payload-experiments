@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { ChipsInput } from '../../src/admin/components/ChipsInput.js'
+import { ChipsInput } from '../../src/ui/ChipsInput.js'
 
 afterEach(cleanup)
 function setup(value: string[] = [], disabled = false) {
