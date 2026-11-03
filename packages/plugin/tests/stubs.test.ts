@@ -43,7 +43,7 @@ const exportsByEntry = [
   [runtimeProxy, ['defineExperimentsProxyRuntime', 'createPostgresManifestLoader', 'createHttpManifestLoader']],
   [runtimeServer, ['defineExperimentsServerRuntime']],
   [proxy, ['resolveExperiments', 'applyExperiments', 'createExperimentProxy']],
-  [rsc, ['getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments']],
+  [rsc, ['getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments', 'compileManifest']],
   [client, ['ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
   [adminClient, ['XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField']],
   [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect']],

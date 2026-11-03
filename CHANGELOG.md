@@ -11,6 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: `compileManifest` and its input/output types are exported from `/rsc`, so host tests can build the manifest the plugin serves without importing from `dist/`. Migration impact: none.
 - Fixed: when results can't be computed, the server log now names the reason (a fixed code and message) instead of only the error type. Migration impact: none.
 
 - Added: optional `theme.accent` plugin option with derived light/dark fills, accessible accent text and focus rings, and foreground contrast validation.
