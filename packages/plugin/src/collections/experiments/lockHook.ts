@@ -1,7 +1,10 @@
 import type { CollectionBeforeChangeHook } from 'payload'
 import type { EditableField } from '../../types/admin.js'
 import type { Status } from '../../types/contracts.js'
-import { XpLockedFieldError } from '../../errors.js'
+import { XpLockedFieldError, XpRefusal } from '../../errors.js'
+import { XP_IF_UPDATED_AT_HEADER } from '../../constants.js'
+import { txExecutor } from '../../db/executor.js'
+import { lockExperimentUpdatedAt } from '../../db/staleEdit.js'
 import { xpOptionsFromReq } from '../../options/fromReq.js'
 import { EDITABLE_BY_STATUS } from './editability.js'
 import { defaultArms } from './armInvariants.js'
@@ -42,6 +45,15 @@ const same = (a: unknown, b: unknown, path: string) => JSON.stringify(normalize(
 
 export const lockHook: CollectionBeforeChangeHook = async ({ data, originalDoc, operation, req }) => {
   if (req.context.xpTransition === true) return data
+  const baseline = req.headers.get(XP_IF_UPDATED_AT_HEADER)
+  if (operation === 'update' && baseline !== null) {
+    // originalDoc predates beforeChange; read again under a transaction row lock
+    // so a competing save observes the preceding save's committed timestamp.
+    const stored = await lockExperimentUpdatedAt(txExecutor(req), originalDoc.id)
+    if (stored === null || new Date(baseline).getTime() !== new Date(stored).getTime()) {
+      throw new XpRefusal('stale-edit', 'Someone else changed this test. Reload to see their changes.', undefined, 409)
+    }
+  }
   const admin = async () => {
     const options = xpOptionsFromReq(req)
     return await (options.access.admin ?? options.access.manage)({ req }) === true
