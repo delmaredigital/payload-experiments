@@ -7,7 +7,7 @@ import { statusPill } from '../../status.model.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
 import { FieldErrors, reasonFor, save, TextEdit } from './fields.js'
 
-export function TestHeader({ test, surface, view = 'setup' }: SectionProps & { view?: 'setup' | 'results' }) {
+export function TestHeader({ test, surface, resultsVersion, view = 'setup' }: SectionProps & { view?: 'setup' | 'results' }) {
   const doc = test.doc
   if (!doc) return null
   const pill = statusPill({ status: doc.status, arms: doc.arms, decision: doc.decision as Parameters<typeof statusPill>[0]['decision'] })
@@ -19,6 +19,6 @@ export function TestHeader({ test, surface, view = 'setup' }: SectionProps & { v
       <readinessParts.SaveStatus test={test} />
       {view === 'results' ? <a href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(doc.id))}` })}>{SURFACE_COPY.backToSetup}</a> : surface.canReadResults && ['running', 'stopped', 'decided'].includes(doc.status)
         ? <a href={`${surface.adminRoute}/experiments/${encodeURIComponent(String(doc.id))}/results`}>{C.results}</a> : null}</div>
-    <readinessParts.Banner test={test} surface={surface} />
+    <readinessParts.Banner test={test} surface={surface} resultsVersion={resultsVersion} />
   </header>
 }

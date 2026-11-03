@@ -22,12 +22,14 @@ import { recommendation } from './recommendation.model.js'
 import { useResults } from './useResults.js'
 import { DecideDialog } from '../../actions/DecideDialog.js'
 
-export function ResultsBody({ id, surface }: { id: DocId; surface: SurfaceProps }) {
+type ResultsBodyProps = { id: DocId; surface: SurfaceProps; onRecomputed?: () => void }
+
+export function ResultsBody({ id, surface, onRecomputed }: ResultsBodyProps) {
   // A different test owns an independent selection and action lifecycle.
-  return <ResultsContent key={`${surface.apiRoute}/${id}`} id={id} surface={surface} />
+  return <ResultsContent key={`${surface.apiRoute}/${id}`} id={id} surface={surface} onRecomputed={onRecomputed} />
 }
 
-function ResultsContent({ id, surface }: { id: DocId; surface: SurfaceProps }) {
+function ResultsContent({ id, surface, onRecomputed }: ResultsBodyProps) {
   const results = useResults(id, surface)
   const { api, doc, round, phases, state, data } = results
   const manage = surface.canManage && surface.canReadResults
@@ -60,7 +62,10 @@ function ResultsContent({ id, surface }: { id: DocId; surface: SurfaceProps }) {
     try {
       const result = await api.recompute(id)
       if (!mounted.current) return
-      if (result.ok) results.reload()
+      if (result.ok) {
+        results.reload()
+        onRecomputed?.()
+      }
       else setActionError(result.message)
     } finally {
       inFlight.current = false

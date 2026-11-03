@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: after Recompute, the results page's status line shows the updated number of people.
+
 ## [0.2.0-rc.6] - 2026-11-03
 
 ### plugin

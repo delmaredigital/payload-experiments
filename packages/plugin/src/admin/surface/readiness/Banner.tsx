@@ -17,14 +17,14 @@ export function Banner(props: SectionProps) {
   return props.test.doc ? <BannerContent key={`${props.test.doc.id}/${props.test.doc.status}`} {...props} /> : null
 }
 
-function BannerContent({ test, surface }: SectionProps) {
+function BannerContent({ test, surface, resultsVersion }: SectionProps) {
   const [selected, setSelected] = useState<ActionId | null>(null)
   const [people, setPeople] = useState<number | null>(null)
   const transition = useTransition(test)
   const doc = test.doc!
   useEffect(() => {
     let active = true
-    setPeople(null)
+    // The id/status key resets the count; refreshes retain it while loading.
     if (surface.canReadResults && doc.status === 'running') {
       void createApi(surface.apiRoute).summary([doc.id]).then(result => {
         const count = result.ok ? result.data?.[doc.id]?.exposures : undefined
@@ -32,7 +32,7 @@ function BannerContent({ test, surface }: SectionProps) {
       })
     }
     return () => { active = false }
-  }, [doc.id, doc.status, surface.apiRoute, surface.canReadResults])
+  }, [doc.id, doc.status, surface.apiRoute, surface.canReadResults, resultsVersion])
   const decision = doc.decision as ActionDecision | undefined
   const winner = actionGroupLabel(decision?.winnerArm ?? 'control', doc.arms.find(item => item.key === decision?.winnerArm)?.label)
   const next = nextStep(test.preflight, { ...doc, flagPoints: surface.flagPoints })

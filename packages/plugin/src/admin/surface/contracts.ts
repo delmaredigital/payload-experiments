@@ -22,7 +22,7 @@ export interface SurfaceProps {
   descriptions?: { block?: string; document?: string; setting?: string }
 }
 
-export interface SectionProps { test: TestDocApi; surface: SurfaceProps }
+export interface SectionProps { test: TestDocApi; surface: SurfaceProps; resultsVersion?: number }
 
 /** Kind-specific pieces the generic test page composes (Setting kind: ADM-22). */
 export interface KindParts {
