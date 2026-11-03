@@ -17,9 +17,9 @@ export function TestsSurface(props: TestsSurfaceProps) {
     attributeKeys: props.attributeKeys, metricSources: props.metricSources,
     descriptions: props.admin?.descriptions,
   }
+  if (props.route === 'home') return <TestsHome adminRoute={props.adminRoute} apiRoute={props.apiRoute} canManage={props.canManage} />
   return <SurfaceShell adminRoute={props.adminRoute}>
-    {props.route === 'home' ? <TestsHome adminRoute={props.adminRoute} apiRoute={props.apiRoute} />
-      : props.route === 'goals' ? <GoalsList surface={surface} returnToTest={props.returnToTest} />
+    {props.route === 'goals' ? <GoalsList surface={surface} returnToTest={props.returnToTest} />
         : props.route === 'goalNew' || props.route === 'goal' ? <GoalForm key={props.route === 'goalNew' ? 'new' : props.id} surface={surface} id={props.route === 'goal' ? props.id : undefined} returnToTest={props.returnToTest} />
       : props.route === 'new' ? <NewTest surface={surface} pages={props.pages} />
         : props.id === undefined ? null : props.route === 'test' ? <TestPage key={props.id} id={props.id} surface={surface} />

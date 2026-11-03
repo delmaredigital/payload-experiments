@@ -1,18 +1,22 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Link, Pill } from '@payloadcms/ui'
+import { Link } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
 import type { SummaryResponse } from '../../types/endpoints.js'
 import { createApi } from '../api.js'
-import { SURFACE_COPY } from '../copy/surface.js'
+import { noMatchesLine, SURFACE_COPY } from '../copy/surface.js'
+import { Banner, EmptyState, StatusChip } from '../../ui/Feedback.js'
+import { Button } from '../../ui/Button.js'
+import { SearchInput } from '../../ui/Inputs.js'
+import { SurfaceShell } from './SurfaceShell.js'
 import { groupTests, homeCard } from './home.model.js'
 import type { HomeTest } from './home.model.js'
 
 type State = { loading: true } | { loading: false; error: true } | {
   loading: false; error: false; tests: HomeTest[]; summaries: SummaryResponse; summaryError: boolean; limited: boolean
 }
-export function TestsHome({ adminRoute, apiRoute }: { adminRoute: string; apiRoute: string }) {
+export function TestsHome({ adminRoute, apiRoute, canManage = false }: { adminRoute: string; apiRoute: string; canManage?: boolean }) {
   const api = useMemo(() => createApi(apiRoute), [apiRoute])
   const [state, setState] = useState<State>({ loading: true })
   const [search, setSearch] = useState('')
@@ -39,44 +43,54 @@ export function TestsHome({ adminRoute, apiRoute }: { adminRoute: string; apiRou
     void load()
     return () => { active = false; controller.abort() }
   }, [api, apiRoute, attempt])
-  const retry = <button type="button" onClick={() => setAttempt(value => value + 1)}>{SURFACE_COPY.retry}</button>
-  const newTest = <Link className="xp-tests-primary" href={formatAdminURL({ adminRoute, path: '/experiments/new' })}>{SURFACE_COPY.newTest}</Link>
-  return <>
-    <div className="xp-tests-toolbar">
-      <h1>{SURFACE_COPY.title}</h1>
-      <label>{SURFACE_COPY.search}<input type="search" value={search} onChange={event => setSearch(event.target.value)} /></label>
-      {newTest}<Link href={formatAdminURL({ adminRoute, path: '/experiments/goals' })}>{SURFACE_COPY.goals}</Link>
+  const retry = <Button size="sm" onClick={() => setAttempt(value => value + 1)}>{SURFACE_COPY.retry}</Button>
+  const newTest = <Button variant="primary" href={formatAdminURL({ adminRoute, path: '/experiments/new' })}>{SURFACE_COPY.newTest}</Button>
+  return <SurfaceShell adminRoute={adminRoute} actions={<>
+    <div className="xp-tests-search">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3.5 3.5" /></svg>
+      <SearchInput id="xp-tests-search" label={SURFACE_COPY.search} placeholder={SURFACE_COPY.search}
+        value={search} onChange={event => setSearch(event.target.value)} />
     </div>
+    {canManage ? <Button href={formatAdminURL({ adminRoute, path: '/experiments/goals' })}>{SURFACE_COPY.goals}</Button> : null}
+    {newTest}
+  </>}>
     {state.loading ? <p role="status">{SURFACE_COPY.loading}</p>
-      : state.error ? <div role="alert">{SURFACE_COPY.loadError} {retry}</div>
+      : state.error ? <Banner tone="error" action={retry}>{SURFACE_COPY.loadError}</Banner>
         : <>
-          {state.limited ? <p>{SURFACE_COPY.limitedList}</p> : null}
-          {state.summaryError ? <div role="alert">{SURFACE_COPY.summaryError} {retry}</div> : null}
-          {state.tests.length === 0 ? <div><p>{SURFACE_COPY.empty}</p>{newTest}</div>
-            : <TestGroups tests={state.tests} summaries={state.summaries} adminRoute={adminRoute} search={search} />}
+          {state.summaryError ? <Banner tone="error" action={retry}>{SURFACE_COPY.summaryError}</Banner> : null}
+          {state.tests.length === 0 ? <EmptyState action={newTest}>{SURFACE_COPY.empty}</EmptyState>
+            : <TestGroups tests={state.tests} summaries={state.summaries} adminRoute={adminRoute} search={search} clear={() => setSearch('')} />}
+          {state.limited ? <p className="xp-tests-limited">{SURFACE_COPY.limitedList}</p> : null}
         </>}
-  </>
+  </SurfaceShell>
 }
-function TestGroups({ tests, summaries, adminRoute, search }: {
-  tests: HomeTest[]; summaries: SummaryResponse; adminRoute: string; search: string
+function TestGroups({ tests, summaries, adminRoute, search, clear }: {
+  tests: HomeTest[]; summaries: SummaryResponse; adminRoute: string; search: string; clear: () => void
 }) {
   const groups = groupTests(tests, summaries, search)
-  if (!groups.some(group => group.tests.length)) return <p>{SURFACE_COPY.noMatches}</p>
+  if (!groups.some(group => group.tests.length)) return <div className="xp-tests-no-matches"><p>{noMatchesLine(search)}</p>
+    <Button variant="quiet" size="sm" onClick={clear}>{SURFACE_COPY.clear}</Button></div>
   return <>{groups.map((group, index) => {
     if (!group.tests.length) return null
-    const cards = <div className="xp-tests-cards">{group.tests.map(test => {
+    const rows = <div className="xp-tests-list">{group.tests.map(test => {
       const card = homeCard(test, summaries[test.id], adminRoute)
-      return <article className="xp-tests-card" key={test.id}>
-        <div className="xp-tests-card-heading"><h3>{test.name}</h3><span>{card.kind}</span>
-          <span title={card.pill.tooltip}><Pill>{card.pill.label}</Pill></span>
-          {test.status === 'running' && card.health ? <span role="img" aria-label={SURFACE_COPY.health[card.health]}
-            className={`xp-tests-health xp-tests-health--${card.health}`} /> : null}
+      return <article className="xp-tests-row" key={test.id}>
+        <div className="xp-tests-row-main">
+          <div className="xp-tests-row-name"><Link href={card.href}>{test.name}</Link><span className="xp-tests-kind">{card.kind}</span>
+            <span title={card.pill.tooltip}><StatusChip status={test.status} /></span>
+          </div>
+          <div className="xp-tests-row-line">
+            {test.status === 'running' && card.health ? <span className={`xp-tests-health xp-tests-health--${card.health}`}>{SURFACE_COPY.health[card.health]}</span> : null}
+            <span>{card.line}</span>
+          </div>
         </div>
-        <p>{card.line}</p>{card.headline ? <p>{card.headline}</p> : null}
-        <Link href={card.href}>{card.action}</Link>
+        <Button className="xp-tests-row-action" size="sm" href={card.href}>{card.action}</Button>
       </article>
     })}</div>
-    return index === 5 ? <details className="xp-tests-group" key={group.label}><summary>{group.label}</summary>{cards}</details>
-      : <section className="xp-tests-group" key={group.label} aria-label={group.label}><h2>{group.label}</h2>{cards}</section>
+    const heading = <div className="xp-tests-group-head"><h2 id={`xp-tests-group-${index}`}>{group.label}</h2><span>{group.tests.length}</span></div>
+    return index === 5 ? <details className="xp-tests-group" key={group.label}><summary>
+      <h2 className="xp-tests-group-head">{group.label}<span>{group.tests.length}</span><span className="xp-tests-group-chevron" aria-hidden="true">›</span></h2>
+    </summary>{rows}</details>
+      : <section className="xp-tests-group" key={group.label} aria-labelledby={`xp-tests-group-${index}`}>{heading}{rows}</section>
   })}</>
 }

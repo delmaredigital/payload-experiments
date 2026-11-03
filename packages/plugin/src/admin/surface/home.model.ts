@@ -45,13 +45,15 @@ export function homeCard(test: HomeTest, summary: Summary, adminRoute: string) {
   if (test.status === 'decided') {
     const date = test.decidedAt ? new Date(test.decidedAt) : undefined
     const winner = test.decision?.winnerArm
-    line = decidedLine(date && Number.isFinite(date.valueOf()) ? date.toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—',
-      winner ? armLabel(winner, test.arms?.find(arm => arm.key === winner)?.label) : '—')
+    const winnerLabel = test.arms?.find(arm => arm.key === winner)?.label?.trim()
+    line = decidedLine(date && Number.isFinite(date.valueOf()) ? date.toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+    }) : '—',
+      winner ? winnerLabel || armLabel(winner) : '—')
   }
   if (test.status === 'archived') line = statusPill(test).label
   return {
     kind: SURFACE_COPY.kinds[test.kind], pill: statusPill(test), line,
-    headline: test.status === 'running' ? summary?.verdict?.headline : undefined,
     health: healthDot(test, summary), href,
     action: results ? SURFACE_COPY.results : test.status === 'draft' || test.status === 'stopped' ? SURFACE_COPY.continue : SURFACE_COPY.open,
   }

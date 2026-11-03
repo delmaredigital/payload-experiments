@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Changed: the Tests home shows tests as compact rows grouped by what needs doing, with a health label and one-line status for each.
+
 - Added: optional `theme.accent` plugin option with derived light/dark fills, accessible accent text and focus rings, and foreground contrast validation.
 - Changed: admin design tokens and shared interface components for the 0.3.0 screens; Running and Ready use fixed green status colours, and the Puck editor stylesheet is generated from the same tokens.
 

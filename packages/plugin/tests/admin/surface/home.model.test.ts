@@ -24,11 +24,11 @@ test('no verdict and no planned duration do not invent a data warning', () => {
 })
 test('card copy, kind labels and actions are user-facing', () => {
   const running = homeCard(testDoc('x/y', 'running'), summary('collecting'), '/control')
-  expect(running).toMatchObject({ kind: 'Setting', line: 'Running 5 days of 28 · 1,200 people so far', headline: 'A headline', href: '/control/experiments/x%2Fy/results', action: 'View results' })
+  expect(running).toMatchObject({ kind: 'Setting', line: 'Running 5 days of 28 · 1,200 people so far', href: '/control/experiments/x%2Fy/results', action: 'View results' })
   expect(homeCard(testDoc('ready'), { ...summary('collecting'), ready: true }, '/admin').line).toBe('Ready to start')
   expect(homeCard(testDoc('draft'), undefined, '/admin')).toMatchObject({ line: 'Next: finish setting up', action: 'Continue setup' })
   expect(homeCard(testDoc('stopped', 'stopped'), undefined, '/admin')).toMatchObject({ action: 'View results', href: '/admin/experiments/stopped/results' })
-  expect(homeCard({ ...testDoc('decided', 'decided'), decidedAt: '2026-11-02T12:00:00Z', decision: { winnerArm: 'variantA' } }, undefined, '/admin').line).toBe('Decided 11/2/2026: Variant A')
+  expect(homeCard({ ...testDoc('decided', 'decided'), decidedAt: '2026-11-02T12:00:00Z', decision: { winnerArm: 'variantA' } }, undefined, '/admin').line).toBe('Decided 2 Nov 2026: Variant A')
   expect(homeCard(testDoc('archive', 'archived'), undefined, '/admin').action).toBe('Open')
   for (const [kind, label] of [['block', 'Page block'], ['flag', 'Setting'], ['code', 'Setting'], ['page', 'Whole page']] as const) {
     expect(homeCard({ ...testDoc('x'), kind }, undefined, '/admin').kind).toBe(label)
@@ -47,4 +47,15 @@ test('missing summaries and null verdicts stay in Running without a health claim
 })
 test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('root admin card URL for %s has no double slash', status => {
   expect(homeCard(testDoc('x/y', status), undefined, '/').href).toBe(`/experiments/x%2Fy${['running', 'stopped', 'decided'].includes(status) ? '/results' : ''}`)
+})
+
+test('decided sentence uses the stored label and UTC calendar day', () => {
+  expect(homeCard({ ...testDoc('winner', 'decided'), decidedAt: '2026-10-13T01:30:00+02:00',
+    arms: [{ key: 'variantB', label: 'Short form' }], decision: { winnerArm: 'variantB' } }, undefined, '/admin').line)
+    .toBe('Decided 12 Oct 2026: Short form')
+})
+test('running sentences stay compact past the planned end and omit verdict detail', () => {
+  expect(homeCard(testDoc('late', 'running'), { ...summary('collecting', 31), exposures: 1204 }, '/admin'))
+    .toMatchObject({ line: 'Running 31 days of 28 · 1,204 people so far', health: 'amber' })
+  expect(homeCard(testDoc('late', 'running'), summary('collecting'), '/admin')).not.toHaveProperty('headline')
 })

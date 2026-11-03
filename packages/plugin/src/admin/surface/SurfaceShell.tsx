@@ -2,17 +2,33 @@
 
 import '../theme.css'
 import type { ReactNode } from 'react'
-import { Link } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
+import { Breadcrumb } from '../../ui/Breadcrumb.js'
+import { Button } from '../../ui/Button.js'
 import { SURFACE_COPY } from '../copy/surface.js'
 import './surface.css'
 
-export function SurfaceShell({ adminRoute, children }: { adminRoute: string; children: ReactNode }) {
+export interface SurfaceShellProps {
+  adminRoute: string
+  children: ReactNode
+  crumbs?: Array<{ label: string; href?: string }>
+  title?: string
+  status?: ReactNode
+  actions?: ReactNode
+}
+export function SurfaceShell({ adminRoute, children, crumbs = [{ label: SURFACE_COPY.title }],
+  title = SURFACE_COPY.title, status, actions }: SurfaceShellProps) {
   return <div className="xp-tests-surface">
     <header className="xp-tests-shell-header">
-      <Link href={formatAdminURL({ adminRoute, path: '/experiments' })}>{SURFACE_COPY.title}</Link>
-      <Link href={formatAdminURL({ adminRoute })}>{SURFACE_COPY.backToAdmin}</Link>
+      <div className="xp-tests-container xp-tests-shell-top">
+        <Breadcrumb items={crumbs} />
+        <Button variant="quiet" size="sm" href={formatAdminURL({ adminRoute })}>{SURFACE_COPY.backToAdmin}</Button>
+      </div>
+      <div className="xp-tests-container xp-tests-shell-main">
+        <div className="xp-tests-shell-title"><h1>{title}</h1>{status}</div>
+        {actions ? <div className="xp-tests-shell-actions">{actions}</div> : null}
+      </div>
     </header>
-    <main className="xp-tests-main">{children}</main>
+    <main className="xp-tests-container xp-tests-main">{children}</main>
   </div>
 }
