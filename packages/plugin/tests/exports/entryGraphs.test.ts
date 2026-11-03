@@ -23,10 +23,15 @@ test.each(routeSafeEntries)('%s has no next/navigation value imports', name => {
   expect([...graph.bare, ...graph.dynamic].filter(name => /^next\/(?:navigation(?:[/.]|$)|dist\/)/.test(name))).toEqual([])
 })
 
-test('adminRsc stays server-only and free of Puck', () => {
+test('adminRsc eagerly imports only server modules and loads its themed message through a client boundary', () => {
   const graph = collectImports(entry('adminRsc'))
+  const eager = collectImports(entry('adminRsc'), { followDynamic: false })
+  const message = fileURLToPath(new URL('../../src/admin/components/RootViewMessage.tsx', import.meta.url))
   expect([...graph.bare, ...graph.dynamic].filter(name => name.startsWith('@puckeditor/'))).toEqual([])
-  expect(graph.files.filter(file => hasClientDirective(readFileSync(file, 'utf8')))).toEqual([])
+  expect(eager.files.filter(file => hasClientDirective(readFileSync(file, 'utf8')) || /\.(css|scss)$/.test(file))).toEqual([])
+  expect(graph.files.filter(file => hasClientDirective(readFileSync(file, 'utf8')))).toEqual([message])
+  expect(graph.dynamic).toContain('../components/RootViewMessage.js')
+  expect(collectImports(message).files).toContain(fileURLToPath(new URL('../../src/admin/theme.css', import.meta.url)))
   expect(graph.files).toContain(entry('adminRsc'))
 })
 
@@ -78,6 +83,10 @@ test('graph elides type edges, walks re-exports and cycles, and records dynamic 
     const graph = collectImports(join(dir, 'entry.ts'))
     expect(graph.bare).toEqual(['@delmaredigital/experiments-stats', 'dynamic-child', 'mixed-package', 'nested-package'])
     expect(graph.dynamic).toEqual(['./dynamic.js', 'dynamic-package'])
+    const eager = collectImports(join(dir, 'entry.ts'), { followDynamic: false })
+    expect(eager.dynamic).toEqual(graph.dynamic)
+    expect(eager.files).not.toContain(join(dir, 'dynamic.ts'))
+    expect(eager.bare).not.toContain('dynamic-child')
     expect(graph.files).toContain(join(dir, 'nested.ts'))
     expect(graph.files).toContain(join(dir, 'dynamic.ts'))
     expect(graph.files.some(file => file.endsWith('/stats/src/index.ts'))).toBe(true)

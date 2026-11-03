@@ -1,4 +1,5 @@
 'use client'
+import '../theme.css'
 import { theme } from '../theme.js'
 
 import { useEffect, useId, useRef, useState } from 'react'

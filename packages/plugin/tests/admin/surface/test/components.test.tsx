@@ -26,7 +26,7 @@ vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessPa
 vi.mock('../../../../src/admin/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const doc = (partial: Partial<TestDocument> = {}): TestDocument => ({ id: 'test/1', name: 'Welcome test', slug: 'welcome', status: 'draft', kind: 'block', unitType: 'visitor', arms: defaultArms('block'), allocation: 100, exposurePolicy: 'render', analysis: { plannedDurationDays: 28, minExposuresPerArm: 200 }, ...partial })
-const surface: SurfaceProps = { adminRoute: '/cms', apiRoute: '/cms-api', canManage: true, canReadResults: true, isAdmin: true, flagPoints: [], attributeKeys: { country: { type: 'string', values: ['US', 'CA'] }, age: { type: 'number' }, member: { type: 'boolean' } }, metricSources: [{ id: 'signup', label: 'Signups', kind: 'binomial', keyedBy: 'visitor', clientWritable: true }] }
+const surface: SurfaceProps = { adminRoute: '/cms', apiRoute: '/cms-api', canManage: true, canReadResults: true, isAdmin: true, flagPoints: [], attributeKeys: { country: { type: 'string', values: ['US', 'CA'] }, path: { type: 'string' }, age: { type: 'number' }, member: { type: 'boolean' } }, metricSources: [{ id: 'signup', label: 'Signups', kind: 'binomial', keyedBy: 'visitor', clientWritable: true }] }
 function props(partial: Partial<TestDocument> = {}): SectionProps {
   return { surface, test: { doc: doc(partial), preflight: { checks: [], placements: [], baseline: null, trafficPerDay: null, estimate: null }, preflightError: null, preflightPending: false,
     hasUnsaved: false, loadState: 'ready', saving: 'saved', errors: {}, stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}), refreshPreflight: vi.fn(async () => {}) } }
@@ -192,7 +192,8 @@ test('audience controls use typed values, word comparisons and current whole rul
 test('empty list audience rule shows the model hint', () => {
   const p = props({ targeting: [{ attribute: 'country', op: 'in', value: [] }] })
   render(<TargetingSection {...p} />)
-  expect(within(screen.getByRole('group', { name: 'Value' })).getByRole('textbox')).toBeTruthy()
+  expect(within(screen.getByRole('group', { name: 'Value' })).getAllByRole('checkbox')).toHaveLength(2)
+  expect(screen.queryByRole('textbox', { name: 'Value' })).toBeNull()
   expect(screen.getByText("Add at least one value — an empty list can't be saved.")).toBeTruthy()
 })
 test('goals load via the host API and preserve the current metrics group on selection', async () => {
@@ -253,18 +254,38 @@ test.each([2, 'uuid-guardrail'])('checkboxes preserve metric ids (%s) and add to
   fireEvent.click(within(screen.getByRole('group', { name: 'Also keep an eye on (optional)' })).getByLabelText('First · yes/no'))
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [], secondary: [id] } })
 })
-test('targeting chips keep other current rules and save arrays', () => {
-  const p = props({ targeting: [{ attribute: 'country', op: 'in', value: [] }] })
+test.each(['in', 'nin'] as const)('fixed-list %s targeting checkboxes keep current rules and save arrays', op => {
+  const p = props({ targeting: [{ attribute: 'country', op, value: [] }] })
+  const view = render(<TargetingSection {...p} />)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'US' }))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op, value: ['US'] }] })
+  p.test.doc!.targeting![0]!.value = ['US']
+  view.rerender(<TargetingSection {...p} />)
+  p.test.doc!.targeting!.push({ attribute: 'age', op: 'gte', value: 18 })
+  fireEvent.click(screen.getByRole('checkbox', { name: 'CA' }))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op, value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 18 }] })
+  p.test.doc!.targeting![0]!.value = 'US, CA'
+  view.rerender(<TargetingSection {...p} />)
+  expect((screen.getByRole('checkbox', { name: 'CA' }) as HTMLInputElement).checked).toBe(true)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'CA' }))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op, value: ['US'] }, { attribute: 'age', op: 'gte', value: 18 }] })
+  p.test.doc!.status = 'running'
+  view.rerender(<TargetingSection {...p} />)
+  expect(screen.queryByRole('checkbox')).toBeNull()
+  expect(screen.getByText('US, CA')).toBeTruthy()
+})
+test('free-text in targeting renders chips, keeps current rules and saves arrays', () => {
+  const p = props({ targeting: [{ attribute: 'path', op: 'in', value: [] }] })
   const view = render(<TargetingSection {...p} />)
   fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'US' } })
   fireEvent.keyDown(screen.getByRole('textbox', { name: 'Value' }), { key: 'Enter' })
-  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US'] }] })
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'path', op: 'in', value: ['US'] }] })
   p.test.doc!.targeting![0]!.value = ['US']
   view.rerender(<TargetingSection {...p} />)
   p.test.doc!.targeting!.push({ attribute: 'age', op: 'gte', value: 18 })
   fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'CA' } })
   fireEvent.keyDown(screen.getByRole('textbox', { name: 'Value' }), { key: 'Enter' })
-  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 18 }] })
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'path', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 18 }] })
 })
 test('read-only goals show None selected or a neutral label while goals are unavailable, never raw ids', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('Unavailable') }))
@@ -345,11 +366,11 @@ test('a goal missing from a successful load reads as no longer existing', async 
 })
 
 test.each(['in', 'nin'] as const)('legacy %s lists load as chips and save arrays; running lists stay disabled', op => {
-  const p = props({ targeting: [{ attribute: 'country', op, value: 'US, CA' }] })
+  const p = props({ targeting: [{ attribute: 'path', op, value: 'US, CA' }] })
   const view = render(<TargetingSection {...p} />)
   expect(screen.getByRole('button', { name: 'Remove US' })).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Remove CA' }))
-  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op, value: ['US'] }] })
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'path', op, value: ['US'] }] })
   p.test.doc!.status = 'running'
   view.rerender(<TargetingSection {...p} />)
   expect((screen.getByRole('textbox', { name: 'Value' }) as HTMLInputElement).disabled).toBe(true)
@@ -366,7 +387,7 @@ test('switching a legacy list operator and editing another row normalize whole-g
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 21 }] })
 })
 test('deleting a list rule cannot transfer its unfinished chip draft to the next rule', () => {
-  const p = props({ targeting: [{ attribute: 'country', op: 'in', value: ['US'] }, { attribute: 'country', op: 'in', value: ['CA'] }] })
+  const p = props({ targeting: [{ attribute: 'path', op: 'in', value: ['US'] }, { attribute: 'path', op: 'in', value: ['CA'] }] })
   vi.mocked(p.test.stage).mockImplementation(patch => { p.test.doc = { ...p.test.doc!, ...patch } })
   const view = render(<TargetingSection {...p} />)
   fireEvent.change(screen.getAllByRole('textbox', { name: 'Value' })[0]!, { target: { value: 'draft' } })
@@ -376,5 +397,5 @@ test('deleting a list rule cannot transfer its unfinished chip draft to the next
   expect(remaining.value).toBe('')
   fireEvent.keyDown(remaining, { key: 'Enter' })
   expect(p.test.stage).toHaveBeenCalledTimes(1)
-  expect(p.test.doc!.targeting).toEqual([{ attribute: 'country', op: 'in', value: ['CA'] }])
+  expect(p.test.doc!.targeting).toEqual([{ attribute: 'path', op: 'in', value: ['CA'] }])
 })

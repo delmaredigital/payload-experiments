@@ -13,11 +13,11 @@ export function opLabel(type: AttributeType, op: TargetingOp): string {
   return type === 'number' ? NUMBER_OP_LABELS[op as keyof typeof NUMBER_OP_LABELS] : STRING_OP_LABELS[op as keyof typeof STRING_OP_LABELS]
 }
 export function valueInput(attribute?: Attribute, op: TargetingOp = 'eq'): {
-  kind: 'text' | 'number' | 'boolean' | 'select' | 'chips'; options?: { label: string; value: string }[]
+  kind: 'text' | 'number' | 'boolean' | 'select' | 'multiselect' | 'chips'; options?: { label: string; value: string }[]
 } {
   const many = op === 'in' || op === 'nin'
+  if (attribute?.values) return { kind: many ? 'multiselect' : 'select', options: attribute.values.map(value => ({ label: value, value })) }
   if (many) return { kind: 'chips' }
-  if (attribute?.values) return { kind: 'select', options: attribute.values.map(value => ({ label: value, value })) }
   return { kind: attribute?.type === 'number' ? 'number' : attribute?.type === 'boolean' ? 'boolean' : 'text' }
 }
 export function coerceValue(type: AttributeType, op: TargetingOp, raw: unknown): string | number | boolean | string[] | null {

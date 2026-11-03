@@ -10,7 +10,7 @@ const statsEntry = fileURLToPath(new URL('../../../stats/src/index.ts', import.m
 
 /** Value edges by default; source-inventory checks may also follow erased type edges.
  * Dynamic specifiers are reported separately and also walked. */
-export function collectImports(entryFile: string, { includeTypes = false }: { includeTypes?: boolean } = {}): { bare: string[]; files: string[]; dynamic: string[] } {
+export function collectImports(entryFile: string, { includeTypes = false, followDynamic = true }: { includeTypes?: boolean; followDynamic?: boolean } = {}): { bare: string[]; files: string[]; dynamic: string[] } {
   const bare = new Set<string>(), files = new Set<string>(), dynamic = new Set<string>()
   const options: ts.CompilerOptions = { moduleResolution: ts.ModuleResolutionKind.Bundler, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX }
   function visit(file: string) {
@@ -20,6 +20,7 @@ export function collectImports(entryFile: string, { includeTypes = false }: { in
     const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
     function edge(specifier: string, isDynamic = false) {
       if (isDynamic) dynamic.add(specifier)
+      if (isDynamic && !followDynamic) return
       if (!specifier.startsWith('.')) {
         if (!isDynamic) bare.add(specifier)
         if (specifier === statsPackage) visit(statsEntry)

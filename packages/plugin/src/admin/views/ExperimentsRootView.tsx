@@ -1,4 +1,3 @@
-import { theme } from '../theme.js'
 import type { AdminViewServerProps } from 'payload'
 import { formatAdminURL } from 'payload/shared'
 import { notFound, redirect } from 'next/navigation.js'
@@ -39,6 +38,8 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     return redirect(formatAdminURL({ adminRoute,
       path: `${login}?redirect=${encodeURIComponent(currentPath)}` }))
   }
+  // Keep the server export importable in plain Node; Next loads the CSS-bearing client boundary when this view renders.
+  const { RootViewMessage } = await import('../components/RootViewMessage.js')
   const options = xpOptionsFromReq(req)
   async function permits(access: ExperimentsAccess): Promise<boolean> {
     try { return await access({ req }) === true } catch { return false }
@@ -47,7 +48,7 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
   const isAdmin = options.access.admin ? await permits(options.access.admin) : false
   const canReadResults = options.access.readResults ? await permits(options.access.readResults) : canManage
   if (routeAccess({ route, hasUser: true, canManage, canReadResults }) !== 'ok') {
-    return <div style={{ padding: theme.space[4], color: theme.color.text, background: theme.color.bg }}>{SURFACE_COPY.noAccess}</div>
+    return <RootViewMessage>{SURFACE_COPY.noAccess}</RootViewMessage>
   }
 
   const flagPoints = serializeFlagPoints(options)
@@ -86,9 +87,8 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     attributeKeys: serializeAttributeKeys(options), metricSources: serializeMetricSources(options),
     ...(descriptions ? { admin: { descriptions: { ...descriptions } } } : {}),
   }
+  function TestsSurfaceFallback() {
+    return <RootViewMessage alert>{SURFACE_COPY.notInstalled}</RootViewMessage>
+  }
   return RenderServerComponent({ Component: XP_TESTS_SURFACE, Fallback: TestsSurfaceFallback, importMap: req.payload.importMap, clientProps })
-}
-
-function TestsSurfaceFallback() {
-  return <div role="alert" style={{ padding: theme.space[4], color: theme.color.text, background: theme.color.bg }}>{SURFACE_COPY.notInstalled}</div>
 }

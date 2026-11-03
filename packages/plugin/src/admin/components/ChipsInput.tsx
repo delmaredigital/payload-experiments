@@ -29,7 +29,7 @@ export function ChipsInput({ value, onChange, label, description, placeholder, d
     onChange(value.filter((_, i) => i !== index))
     input.current?.focus()
   }
-  return <div className="xp-chips" role="group" aria-labelledby={`${id}-label`} aria-describedby={description ? `${id}-description` : undefined} aria-disabled={disabled}>
+  return <div className="xp-chips" role="group" aria-labelledby={`${id}-label`} aria-disabled={disabled}>
     <label id={`${id}-label`} htmlFor={id}>{label}</label>
     <div className="xp-chips-control">
       {value.map((item, index) => <span className="xp-chips-item" key={item}>
@@ -39,6 +39,7 @@ export function ChipsInput({ value, onChange, label, description, placeholder, d
       <input ref={input} id={id} type="text" value={draft} disabled={disabled} placeholder={placeholder}
         aria-describedby={description ? `${id}-description` : undefined}
         onChange={event => setDraft(event.target.value)}
+        onBlur={() => { if (draft.trim()) commit(draft) }}
         onKeyDown={event => {
           if (disabled || event.nativeEvent.isComposing) return
           if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); commit(draft) }

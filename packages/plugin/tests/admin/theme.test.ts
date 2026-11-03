@@ -35,7 +35,7 @@ test('theme aliases resolve to installed Payload CSS or SCSS declarations', () =
 })
 
 test('only theme.css references Payload tokens directly', () => {
-  const direct = /--(?:theme-[\w-]*|base(?:-[\w-]+)?|style-[\w-]*|font-[\w-]*)\b/g
+  const direct = /--(?:theme-|base\b|style-|font-)/g
   const violations = filesUnder(src, /\.(css|ts|tsx)$/).filter(path => path !== themePath).flatMap(path =>
     [...readFileSync(path, 'utf8').matchAll(direct)].map(match => `${path}: ${match[0]}`))
   expect(violations).toEqual([])

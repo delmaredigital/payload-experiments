@@ -21,7 +21,7 @@ test('input kinds follow the attribute type, value list and operator', () => {
   expect(valueInput({ type: 'number' })).toEqual({ kind: 'number' })
   expect(valueInput({ type: 'boolean' })).toEqual({ kind: 'boolean' })
   for (const op of ['in', 'nin', 'eq'] as const) expect(valueInput({ type: 'string', values: ['Mobile', 'Desktop'] }, op))
-    .toEqual(op === 'eq' ? { kind: 'select', options: [{ label: 'Mobile', value: 'Mobile' }, { label: 'Desktop', value: 'Desktop' }] } : { kind: 'chips' })
+    .toEqual({ kind: op === 'eq' ? 'select' : 'multiselect', options: [{ label: 'Mobile', value: 'Mobile' }, { label: 'Desktop', value: 'Desktop' }] })
   expect(valueInput({ type: 'number', values: ['1'] }).kind).toBe('select')
   expect(valueInput({ type: 'string', values: [] }).kind).toBe('select')
 })
