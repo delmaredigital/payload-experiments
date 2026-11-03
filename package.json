@@ -12,7 +12,8 @@
     "check": "pnpm typecheck && pnpm test",
     "clean": "pnpm -r --filter './packages/*' clean",
     "parity:generate": "python3 -I scripts/gbstats-parity/generate.py",
-    "parity:check": "vitest run --project stats tests/parity"
+    "parity:check": "vitest run --project stats tests/parity",
+    "fixtures:puck-editor": "vitest run --config vitest.fixtures.config.ts"
   },
   "devDependencies": {
     "@swc/cli": "^0.8.1",

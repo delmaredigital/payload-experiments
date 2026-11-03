@@ -4,9 +4,9 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, test, vi } from 'vitest'
-import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
-import { CreateExperimentDrawer } from '../../../src/puck/editor/CreateExperimentDrawer.js'
-import type { EditorExperiment } from '../../../src/puck/editor/editor.model.js'
+import { ExperimentSlotEditor } from '../../src/puck/editor/ExperimentSlotEditor.js'
+import { CreateExperimentDrawer } from '../../src/puck/editor/CreateExperimentDrawer.js'
+import type { EditorExperiment } from '../../src/puck/editor/editor.model.js'
 
 const fixture = vi.hoisted(() => ({
   doc: undefined as EditorExperiment | undefined,
@@ -42,11 +42,12 @@ vi.mock('@puckeditor/core', async importOriginal => {
   }
 })
 
-const source = join(dirname(fileURLToPath(import.meta.url)), '../../../src')
+const source = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 
-describe.skipIf(!process.env.XP_FIXTURE_OUT)('editor visual fixtures (coordinator only)', () => {
+// Not part of the test suite: run by `pnpm fixtures:puck-editor` (vitest.fixtures.config.ts), which requires both env paths.
+describe('editor visual fixtures (coordinator only)', () => {
   test('writes four editor states in light and dark, with host CSS first', () => {
-    const output = process.env.XP_FIXTURE_OUT!
+    const output = process.env.XP_FIXTURE_OUT ?? ''
     const hostCss = process.env.XP_HOST_CSS
     if (!isAbsolute(output) || !hostCss || !isAbsolute(hostCss)) {
       throw new Error('XP_FIXTURE_OUT and XP_HOST_CSS must both be absolute paths')
