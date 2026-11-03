@@ -9,6 +9,7 @@ import { bannerFor, tabsFor, type EditorExperiment } from './editor.model.js'
 import { cloneSlot } from './cloneSlot.js'
 import { CreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
+import './editor.css'
 
 const usePuckSelector = createUsePuck()
 // Public Puck registration enables native controls inside the editor canvas.
@@ -36,8 +37,8 @@ function EditorRender(props: RenderProps) {
   const pageTitle = usePuckSelector(state => typeof state.appState.data.root.props?.title === 'string' ? state.appState.data.root.props.title : '')
   const selected = usePuckSelector(state => state.selectedItem?.props.id === props.id)
   const originalEmpty = usePuckSelector(state => {
-    const content: unknown = state.selectedItem?.props.control
-    return state.selectedItem?.props.id !== props.id || !Array.isArray(content) || content.length === 0
+    const content: unknown = state.getItemById(props.id)?.props.control
+    return !Array.isArray(content) || content.length === 0
   })
 
   useEffect(() => {
@@ -66,6 +67,10 @@ function EditorRender(props: RenderProps) {
   const tabs = tabsFor(experiment)
   const activeSlot = active && active.id === experimentId ? active.slot : undefined
   const slot = tabs.find(tab => tab.slot === activeSlot)?.slot ?? tabs[0]?.slot ?? 'control'
+  const slotEmpty = usePuckSelector(state => {
+    const content: unknown = state.getItemById(props.id)?.props[slot]
+    return !Array.isArray(content) || content.length === 0
+  })
   const Slot = props[slot]
   const winnerKey = experiment?.decision?.winnerArm
   const winner = tabs.find(tab => tab.slot === winnerKey)?.label
@@ -97,21 +102,30 @@ function EditorRender(props: RenderProps) {
     })
   }
 
-  return <section style={{ border: '1px solid #aaa', padding: 12 }}>
-    <div ref={registerControls}>
-    <p role="status">{experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}</p>
-    <button type="button" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</button>
+  return <section className="xp-slot-editor">
+    <div className="xp-slot-chrome" ref={registerControls}>
+    <header className="xp-slot-header">
+      <h3 className="xp-slot-title">{experiment?.name ?? pickerCopy.label}</h3>
+      {experiment ? <span className="xp-slot-status" data-status={experiment.status}>{pickerCopy.statuses[experiment.status]}</span> : null}
+      <div className="xp-slot-actions">
+        <button className="xp-slot-button xp-slot-button-primary" type="button" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</button>
+        {/* Configurable admin routes are owed on ADM-11, alongside the existing /api prefix. */}
+        {experiment?.status === 'draft' ? <a className="xp-slot-button" href={`/admin/experiments/${encodeURIComponent(String(experimentId))}`}>{editorCopy.setup}</a> : null}
+      </div>
+    </header>
+    <p className={experiment?.status === 'running' ? 'xp-slot-notice xp-slot-warning' : 'xp-slot-notice'} role="status">
+      {experiment?.status === 'running' ? <svg className="xp-slot-warning-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3 2 21h20L12 3Z" /><path d="M12 9v5m0 3v1" /></svg> : null}
+      {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
+    </p>
     {creating ? <CreateExperimentDrawer initialName={pageTitle} onCreate={bind} onClose={() => setCreating(false)} /> : null}
-    {/* Configurable admin routes are owed on ADM-11, alongside the existing /api prefix. */}
-    {experiment?.status === 'draft' ? <a href={`/admin/experiments/${encodeURIComponent(String(experimentId))}`}>{editorCopy.setup}</a> : null}
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBlock: 8 }}>
-      {tabs.filter(tab => tab.slot !== 'control').map(tab => <button key={tab.slot} type="button" disabled={originalEmpty} onClick={() => requestCopy(tab.slot)}>{editorCopy.copy(tab.label)}</button>)}
-    </div>
-    {confirming ? <p role="alert">{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming)}{' '}
-      <button type="button" onClick={() => copyTo(confirming)}>{editorCopy.replace}</button>{' '}
-      <button type="button" onClick={() => setConfirming(null)}>{editorCopy.cancel}</button></p> : null}
-    <div role="tablist" aria-label={editorCopy.tabs} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-      {tabs.map((tab, index) => <button key={tab.slot} type="button" role="tab" id={`${tabId}-${tab.slot}`} aria-selected={tab.slot === slot} tabIndex={tab.slot === slot ? 0 : -1} aria-controls={`${tabId}-panel`} onClick={() => setActive({ id: experimentId, slot: tab.slot })} onKeyDown={event => {
+    {confirming ? <div className="xp-slot-confirm" role="alert"><p className="xp-slot-notice">{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming)}</p>
+      <div className="xp-slot-actions">
+        <button className="xp-slot-button xp-slot-button-primary" type="button" onClick={() => copyTo(confirming)}>{editorCopy.replace}</button>
+        <button className="xp-slot-button" type="button" onClick={() => setConfirming(null)}>{editorCopy.cancel}</button>
+      </div></div> : null}
+    <div className="xp-slot-toolbar">
+    <div className="xp-slot-tabs" role="tablist" aria-label={editorCopy.tabs}>
+      {tabs.map((tab, index) => <button className="xp-slot-tab" key={tab.slot} type="button" role="tab" id={`${tabId}-${tab.slot}`} aria-selected={tab.slot === slot} tabIndex={tab.slot === slot ? 0 : -1} aria-controls={`${tabId}-panel`} onClick={() => setActive({ id: experimentId, slot: tab.slot })} onKeyDown={event => {
         const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : undefined
         if (next === undefined) return
         event.preventDefault()
@@ -120,8 +134,15 @@ function EditorRender(props: RenderProps) {
         buttons?.[next]?.focus()
       }}>{tab.label}</button>)}
     </div>
+    {slot !== 'control' ? <div className="xp-slot-actions">
+      <button className="xp-slot-button" type="button" disabled={!selected || originalEmpty} onClick={() => requestCopy(slot)}>{editorCopy.copy}</button>
+    </div> : null}
     </div>
-    <div role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-${slot}`}><Slot /></div>
+    </div>
+    <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'} role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-${slot}`} tabIndex={0}>
+      <Slot className="xp-slot-drop-target" />
+      {slotEmpty ? <span className="xp-slot-drop-label">{editorCopy.dropZone(slot)}</span> : null}
+    </div>
   </section>
 }
 

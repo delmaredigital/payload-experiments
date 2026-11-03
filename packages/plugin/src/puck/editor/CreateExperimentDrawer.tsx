@@ -4,6 +4,7 @@ import { useId, useRef, useState } from 'react'
 import type { ExperimentRef } from '../../types/puck.js'
 import { CreateRefused, createTest } from './createTest.js'
 import { editorCopy } from './copy.js'
+import './editor.css'
 
 export function CreateExperimentDrawer({ onCreate, onClose, initialName = '' }: {
   initialName?: string
@@ -11,6 +12,7 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '' }: 
   onClose: () => void
 }) {
   const titleId = useId()
+  const nameId = useId()
   const [name, setName] = useState(initialName)
   const inFlight = useRef(false)
   const [pending, setPending] = useState(false)
@@ -33,13 +35,16 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '' }: 
     }
   }
 
-  return <aside role="dialog" aria-labelledby={titleId} style={{ padding: 16, border: '1px solid #aaa', background: 'Canvas', color: 'CanvasText' }}>
-    <h3 id={titleId}>{editorCopy.createLabel}</h3>
-    <label style={{ display: 'block', marginBottom: 8 }}>{editorCopy.name}
-      <input value={name} disabled={pending} onChange={event => setName(event.currentTarget.value)} />
-    </label>
-    {error ? <p role="alert">{error}</p> : null}
-    <button type="button" disabled={pending || !name.trim()} onClick={() => { void submitNew() }}>{pending ? editorCopy.creating : editorCopy.createLabel}</button>
-    <button type="button" disabled={pending} onClick={onClose}>{editorCopy.cancel}</button>
+  return <aside className="xp-slot-drawer" role="dialog" aria-labelledby={titleId}>
+    <h3 className="xp-slot-title" id={titleId}>{editorCopy.createLabel}</h3>
+    <div className="xp-slot-field">
+      <label className="xp-slot-label" htmlFor={nameId}>{editorCopy.name}</label>
+      <input className="xp-slot-input" id={nameId} value={name} disabled={pending} onChange={event => setName(event.currentTarget.value)} />
+    </div>
+    {error ? <p className="xp-slot-error" role="alert">{error}</p> : null}
+    <div className="xp-slot-actions">
+      <button className="xp-slot-button xp-slot-button-primary" type="button" disabled={pending || !name.trim()} onClick={() => { void submitNew() }}>{pending ? editorCopy.creating : editorCopy.createLabel}</button>
+      <button className="xp-slot-button" type="button" disabled={pending} onClick={onClose}>{editorCopy.cancel}</button>
+    </div>
   </aside>
 }

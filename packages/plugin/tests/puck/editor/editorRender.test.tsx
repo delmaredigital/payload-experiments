@@ -10,7 +10,7 @@ const puck = vi.hoisted(() => ({ item: {
     control: [{ type: 'Text', props: { id: 'source-id', text: 'Hello', nested: [{ type: 'Text', props: { id: 'nested-id', text: 'Nested' } }] } }],
     variantA: [], variantB: [], variantC: [],
   },
-}, dispatch: vi.fn(), getSelectorForId: vi.fn(), selectors: [] as unknown[], title: 'Welcome page' }))
+}, dispatch: vi.fn(), getSelectorForId: vi.fn(), selectors: [] as unknown[], title: 'Welcome page', selected: true }))
 
 vi.mock('@puckeditor/core', async importOriginal => {
   // Puck's drag library references this browser API during module evaluation.
@@ -18,7 +18,7 @@ vi.mock('@puckeditor/core', async importOriginal => {
   return {
   ...await importOriginal<typeof import('@puckeditor/core')>(),
   createUsePuck: () => (selector: (state: unknown) => unknown) => {
-    const result = selector({ selectedItem: puck.item, appState: { data: { root: { props: { title: puck.title } } } } })
+    const result = selector({ selectedItem: puck.selected ? puck.item : null, getItemById: (id: string) => id === puck.item.props.id ? puck.item : undefined, appState: { data: { root: { props: { title: puck.title } } } } })
     puck.selectors.push(result)
     return result
   },
@@ -48,6 +48,7 @@ beforeEach(() => {
   puck.dispatch.mockReset()
   puck.getSelectorForId.mockReset().mockReturnValue({ index: 2, zone: 'parent:content' })
   puck.selectors.length = 0
+  puck.selected = true
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => doc }))
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -79,7 +80,8 @@ test('renders only the selected group slot, switches tabs, and has primitive sel
 test('copy replaces the selected item at its actual zone with independently editable content', async () => {
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props()} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Copy Original → New headline' }))
+  fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Copy Original to this version' }))
   expect(puck.getSelectorForId).toHaveBeenCalledWith('slot-1')
   expect(puck.dispatch).toHaveBeenCalledOnce()
   const action = puck.dispatch.mock.calls[0]![0]
@@ -100,7 +102,8 @@ test('copy is disabled for an empty Original', async () => {
   try {
     const Editor = ExperimentSlotEditor.render
     render(<Editor {...props()} />)
-    const copy = await screen.findByRole('button', { name: 'Copy Original → New headline' })
+    fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
+    const copy = screen.getByRole('button', { name: 'Copy Original to this version' })
     expect((copy as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(copy)
     expect(puck.dispatch).not.toHaveBeenCalled()
@@ -168,15 +171,86 @@ test('copy into a variant that already has content asks first and only replaces 
   try {
     const Editor = ExperimentSlotEditor.render
     render(<Editor {...props()} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Copy Original → New headline' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Original to this version' }))
     expect(puck.dispatch).not.toHaveBeenCalled()
     expect(screen.getByRole('alert').textContent).toContain('New headline already has content.')
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(puck.dispatch).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Original → New headline' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Original to this version' }))
     fireEvent.click(screen.getByRole('button', { name: 'Replace' }))
     expect(puck.dispatch).toHaveBeenCalledTimes(1)
   } finally { puck.item.props.variantA = original }
+})
+
+test('tabs link to their panel, use roving focus, and support arrows, Home and End', async () => {
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, arms: [
+    ...doc.arms, { key: 'variantB', label: 'Variant B', kind: 'variant' },
+  ] })))
+  const Editor = ExperimentSlotEditor.render
+  render(<Editor {...props()} />)
+  const last = await screen.findByRole('tab', { name: 'Variant B' })
+  const original = screen.getByRole('tab', { name: 'Original' })
+  const middle = screen.getByRole('tab', { name: 'New headline' })
+  expect(screen.getByRole('tablist').getAttribute('aria-label')).toBe('Test versions')
+  for (const [key, from, to] of [
+    ['End', original, last], ['Home', last, original], ['ArrowLeft', original, last],
+    ['ArrowRight', last, original], ['ArrowRight', original, middle], ['ArrowLeft', middle, original],
+  ] as const) {
+    fireEvent.keyDown(from, { key })
+    expect(document.activeElement).toBe(to)
+    expect(to.getAttribute('aria-selected')).toBe('true')
+    expect(to.tabIndex).toBe(0)
+    expect(screen.getAllByRole('tab').filter(tab => tab.tabIndex === 0)).toHaveLength(1)
+    const panel = screen.getByRole('tabpanel')
+    expect(to.getAttribute('aria-controls')).toBe(panel.id)
+    expect(panel.getAttribute('aria-labelledby')).toBe(to.id)
+  }
+})
+
+test('empty slots have a labelled frame and filled slots have neither, even when unselected', async () => {
+  const Editor = ExperimentSlotEditor.render
+  const view = render(<Editor {...props()} />)
+  fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
+  expect(screen.getByText('Drop Variant A content here')).toBeTruthy()
+  expect(screen.getByRole('tabpanel').classList.contains('xp-slot-panel-empty')).toBe(true)
+  fireEvent.click(screen.getByRole('tab', { name: 'Original' }))
+  expect(screen.queryByText('Drop the original content here')).toBeNull()
+  expect(screen.getByRole('tabpanel').classList.contains('xp-slot-panel-empty')).toBe(false)
+  puck.selected = false
+  view.rerender(<Editor {...props()} />)
+  expect(screen.getByRole('tabpanel').classList.contains('xp-slot-panel-empty')).toBe(false)
+  const control = puck.item.props.control
+  puck.item.props.control = []
+  try {
+    view.rerender(<Editor {...props()} />)
+    expect(screen.getByText('Drop the original content here')).toBeTruthy()
+  } finally { puck.item.props.control = control }
+})
+
+test.each(['draft', 'stopped', 'running', 'decided', 'archived'] as const)('only running gets the warning banner: %s', async status => {
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status })))
+  const Editor = ExperimentSlotEditor.render
+  render(<Editor {...props()} />)
+  await screen.findByRole('tab', { name: 'New headline' })
+  expect(screen.getByRole('heading', { name: 'Example' })).toBeTruthy()
+  const banner = screen.getByRole('status')
+  expect(banner.classList.contains('xp-slot-warning')).toBe(status === 'running')
+  expect(Boolean(banner.querySelector('svg[aria-hidden="true"]'))).toBe(status === 'running')
+})
+
+test('only the selected variant has a copy action', async () => {
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, arms: [
+    ...doc.arms, { key: 'variantB', label: 'Variant B', kind: 'variant' },
+  ] })))
+  const Editor = ExperimentSlotEditor.render
+  render(<Editor {...props()} />)
+  await screen.findByRole('tab', { name: 'Variant B' })
+  expect(screen.queryByRole('button', { name: 'Copy Original to this version' })).toBeNull()
+  fireEvent.click(screen.getByRole('tab', { name: 'Variant B' }))
+  expect(screen.getAllByRole('button', { name: 'Copy Original to this version' })).toHaveLength(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Copy Original to this version' }))
+  expect(puck.dispatch.mock.calls[0]![0].data.props.variantB[0].props.text).toBe('Hello')
 })
 
 test('a draft binding links to setup, while a running binding has no setup link', async () => {

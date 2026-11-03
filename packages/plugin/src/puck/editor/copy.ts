@@ -5,7 +5,10 @@ export const editorCopy = {
   running: 'Changing this content mid-test mixes two versions in one result',
   decided: (winner: string) => `Decided: ${winner}. Use 'Make it the content' on the test to finish.`,
   archived: 'This test is archived; the winning content is shown to everyone.',
-  copy: (label: string) => `Copy Original → ${label}`,
+  copy: 'Copy Original to this version',
+  dropZone: (slot: 'control' | 'variantA' | 'variantB' | 'variantC') => slot === 'control'
+    ? 'Drop the original content here'
+    : `Drop ${editorCopy.labels[slot]} content here`,
   replaceConfirm: (label: string) => `${label} already has content. Replace it with a copy of the Original?`,
   replace: 'Replace',
   createLabel: 'Test this block',

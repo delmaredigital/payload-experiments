@@ -40,3 +40,20 @@ test('only theme.css references Payload tokens directly', () => {
     [...readFileSync(path, 'utf8').matchAll(direct)].map(match => `${path}: ${match[0]}`))
   expect(violations).toEqual([])
 })
+
+test('Puck editor chrome uses scoped classes, tokens, and explicit reset-resistant controls', () => {
+  const css = readFileSync(join(src, 'puck/editor/editor.css'), 'utf8')
+  expect(css).not.toMatch(/!important|#[0-9a-f]{3,8}\b|\b(?:rgb|hsl)a?\(/i)
+  expect(references(css).every(name => name.startsWith('--xp-'))).toBe(true)
+  const controls = css.match(/\.xp-slot-button,\s*\.xp-slot-tab,\s*\.xp-slot-input\s*\{([^}]+)\}/)?.[1] ?? ''
+  for (const declaration of ['appearance: none', 'background:', 'border:', 'padding:', 'border-radius:', 'font: inherit', 'font-size:', 'color:', 'cursor:', 'line-height:']) {
+    expect(controls, declaration).toContain(declaration)
+  }
+  for (const control of ['button', 'tab', 'input']) {
+    expect(css).toContain(`.xp-slot-${control}:focus-visible`)
+    expect(css).toContain(`.xp-slot-${control}:disabled`)
+  }
+  for (const file of ['ExperimentSlotEditor.tsx', 'CreateExperimentDrawer.tsx']) {
+    expect(readFileSync(join(src, 'puck/editor', file), 'utf8')).not.toContain('style=')
+  }
+})
