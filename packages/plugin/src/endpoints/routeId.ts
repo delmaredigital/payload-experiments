@@ -9,7 +9,8 @@ export function experimentId(req: PayloadRequest, value: unknown): DocId | undef
   if (idType !== 'number') return id
   if (!/^\d+$/.test(id)) return undefined
   const number = Number(id)
-  return Number.isSafeInteger(number) ? number : undefined
+  // Payload's Postgres serial ids are int4; larger values would reach SQL and fail with 22003.
+  return Number.isSafeInteger(number) && number <= 2_147_483_647 ? number : undefined
 }
 
 export function routeId(req: PayloadRequest): DocId | undefined {

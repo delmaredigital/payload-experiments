@@ -44,7 +44,7 @@ for (const { defaultIDType, customIDType, expected } of types) {
   })
 }
 
-test.each(['abc', '-1', '1.2', '1e2', ' 1', 'Infinity', '9007199254740992'])('numeric ids refuse %j before any reader runs', async id => {
+test.each(['abc', '-1', '1.2', '1e2', ' 1', 'Infinity', '9007199254740992', '2147483648'])('numeric ids refuse %j before any reader runs', async id => {
   const payload = fakePayload()
   Object.assign(payload.db, { defaultIDType: 'number' })
   const req = fakeReq({ payload, routeParams: { id } })
