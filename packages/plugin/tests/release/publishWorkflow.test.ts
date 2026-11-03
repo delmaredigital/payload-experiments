@@ -131,8 +131,12 @@ describe('release validation against an isolated repository fixture', () => {
     if (status) expect(result.stderr).toContain('Payload 4 line')
   })
 
-  test('rejects a shared section that has only the other package subsection', () => {
-    writeFileSync(join(root, 'CHANGELOG.md'), `## [${pluginVersion}]\n\n### stats\n\n- Stats only.\n\n### plugin\n\n`)
+  test.each([
+    '### stats\n\n- Stats only.\n\n### plugin\n\n',
+    '### plugin\n\n### stats\n\n- Stats only.\n',
+    '### stats\n\n- Stats only.\n',
+  ])('rejects a shared section without its own non-empty subsection (%j)', body => {
+    writeFileSync(join(root, 'CHANGELOG.md'), `## [${pluginVersion}]\n\n${body}`)
     const result = validate(`plugin-v${pluginVersion}`)
     expect(result.status).toBe(1)
     expect(result.stderr).toContain("no non-empty '### plugin' subsection")
