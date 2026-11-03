@@ -14,5 +14,5 @@ test('the editor render imports its shipped stylesheet', () => {
   const source = readFileSync(new URL('../../../src/puck/editor/ExperimentSlotEditor.tsx', import.meta.url), 'utf8')
   expect(source).toMatch(/import ['"]\.\/editor\.css['"]/)
   const css = readFileSync(new URL('../../../src/puck/editor/editor.css', import.meta.url), 'utf8')
-  expect(css).toMatch(/@import ['"]\.\.\/\.\.\/admin\/theme\.css['"]/)
+  expect(css).not.toMatch(/@import/)
 })

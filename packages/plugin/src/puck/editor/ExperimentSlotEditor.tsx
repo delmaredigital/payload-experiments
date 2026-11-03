@@ -102,7 +102,7 @@ function EditorRender(props: RenderProps) {
     })
   }
 
-  return <section className="xp-slot-editor">
+  return <section className="xp-slot-root xp-slot-editor">
     <div className="xp-slot-chrome" ref={registerControls}>
     <header className="xp-slot-header">
       <h3 className="xp-slot-title">{experiment?.name ?? pickerCopy.label}</h3>
@@ -139,7 +139,7 @@ function EditorRender(props: RenderProps) {
     </div> : null}
     </div>
     </div>
-    <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'} role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-${slot}`} tabIndex={0}>
+    <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'} role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-${slot}`}>
       <Slot className="xp-slot-drop-target" />
       {slotEmpty ? <span className="xp-slot-drop-label">{editorCopy.dropZone(slot)}</span> : null}
     </div>

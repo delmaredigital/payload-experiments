@@ -203,6 +203,9 @@ test('tabs link to their panel, use roving focus, and support arrows, Home and E
     expect(to.tabIndex).toBe(0)
     expect(screen.getAllByRole('tab').filter(tab => tab.tabIndex === 0)).toHaveLength(1)
     const panel = screen.getByRole('tabpanel')
+    expect(panel.hasAttribute('tabindex')).toBe(false)
+    expect(panel.closest('.xp-slot-root')).toBe(screen.getByRole('tablist').closest('.xp-slot-root'))
+    expect(panel.closest('.xp-slot-root')).not.toBeNull()
     expect(to.getAttribute('aria-controls')).toBe(panel.id)
     expect(panel.getAttribute('aria-labelledby')).toBe(to.id)
   }

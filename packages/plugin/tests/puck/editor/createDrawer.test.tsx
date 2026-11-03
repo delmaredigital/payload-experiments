@@ -27,6 +27,7 @@ test('posts the exact complete draft body, without a slug input, and binds the r
   expect(screen.queryByLabelText('Slug')).toBeNull()
   expect(screen.getByRole('heading', { name: 'Test this block' })).toBeTruthy()
   expect(screen.getByRole('dialog').getAttribute('aria-labelledby')).toBe(screen.getByRole('heading').id)
+  expect(screen.getByRole('dialog').classList.contains('xp-slot-root')).toBe(true)
   expect(screen.getByLabelText('Name').classList.contains('xp-slot-input')).toBe(true)
   expect(screen.getByRole('button', { name: 'Test this block' }).classList.contains('xp-slot-button-primary')).toBe(true)
   expect(screen.getByRole('button', { name: 'Cancel' }).classList.contains('xp-slot-button-primary')).toBe(false)

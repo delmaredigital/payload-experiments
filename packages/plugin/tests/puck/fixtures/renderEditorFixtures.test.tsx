@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -45,50 +44,6 @@ vi.mock('@puckeditor/core', async importOriginal => {
 
 const source = join(dirname(fileURLToPath(import.meta.url)), '../../../src')
 
-function payloadFixtureTokens(): string {
-  const require = createRequire(import.meta.url)
-  const entry = dirname(require.resolve('@payloadcms/ui'))
-  const dist = entry.slice(0, entry.lastIndexOf('/dist') + '/dist'.length)
-  const colors = readFileSync(join(dist, 'scss/colors.scss'), 'utf8')
-  const app = readFileSync(join(dist, 'scss/app.scss'), 'utf8')
-  const vars = readFileSync(join(dist, 'scss/vars.scss'), 'utf8')
-  const declarations = (text: string) => Object.fromEntries(
-    [...text.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(match => [match[1]!, match[2]!.trim()]),
-  )
-  // Copy only theme.css's dependencies from Payload's root/dark declarations:
-  // colors.scss supplies elevation, success, warning and error palettes;
-  // app.scss supplies bg/text/input/overlay, --base and --font-body.
-  // Resolve app.scss's two radius interpolations from vars.scss (3px / 4px).
-  const root = {
-    ...declarations(colors.match(/:root\s*\{([\s\S]*?)\n  \}/)![1]!),
-    ...declarations(app.match(/:root\s*\{([\s\S]*?)\n  \}/)![1]!),
-  }
-  const dark = {
-    ...root,
-    ...declarations(colors.match(/html\[data-theme='dark'\]\s*\{([\s\S]*?)\n  \}/)![1]!),
-    ...declarations(app.match(/&\[data-theme='dark'\]\s*\{([\s\S]*?)\n    \}/)![1]!),
-  }
-  const dependencies = new Set([...readFileSync(join(source, 'admin/theme.css'), 'utf8')
-    .matchAll(/var\((--[\w-]+)\)/g)].map(match => match[1]!))
-  function block(selector: string, values: Record<string, string>) {
-    function resolve(value: string): string {
-      return value.replace(/var\((--[\w-]+)\)/g, (_, key: string) => {
-        if (!values[key]) throw new Error(`Missing Payload fixture token: ${key}`)
-        return resolve(values[key])
-      }).replace(/#\{\$(style-radius-[sm])\}/g, (_, key: string) => {
-        const radius = vars.match(new RegExp(`\\$${key}: ([^ ]+) !default`))?.[1]
-        if (!radius) throw new Error(`Missing Payload radius: ${key}`)
-        return radius
-      })
-    }
-    return `${selector} {\n${[...dependencies].map(key => {
-      if (!values[key]) throw new Error(`Missing Payload fixture token: ${key}`)
-      return `  ${key}: ${resolve(values[key])};`
-    }).join('\n')}\n}`
-  }
-  return `${block(':root', root)}\n${block('[data-theme=dark]', dark)}`
-}
-
 describe.skipIf(!process.env.XP_FIXTURE_OUT)('editor visual fixtures (coordinator only)', () => {
   test('writes four editor states in light and dark, with host CSS first', () => {
     const output = process.env.XP_FIXTURE_OUT!
@@ -97,7 +52,6 @@ describe.skipIf(!process.env.XP_FIXTURE_OUT)('editor visual fixtures (coordinato
       throw new Error('XP_FIXTURE_OUT and XP_HOST_CSS must both be absolute paths')
     }
     readFileSync(hostCss) // Fail before writing if the supplied stylesheet is missing.
-    const tokens = payloadFixtureTokens()
     mkdirSync(output, { recursive: true })
     const Editor = ExperimentSlotEditor.render
     const paths: string[] = []
@@ -125,8 +79,7 @@ describe.skipIf(!process.env.XP_FIXTURE_OUT)('editor visual fixtures (coordinato
             <title>{`Experiment editor — ${state} — ${theme}`}</title>
             <link rel="stylesheet" href={pathToFileURL(hostCss).href} />
             <link rel="stylesheet" href={pathToFileURL(join(source, 'puck/editor/editor.css')).href} />
-            <link rel="stylesheet" href={pathToFileURL(join(source, 'admin/theme.css')).href} />
-            <style>{tokens + '\nhtml { font-size: 13px; } body { margin: 0; padding: 32px; background: var(--theme-bg); color: var(--theme-text); } main { max-width: 1100px; margin: auto; }'}</style>
+            <style>{`body { margin: 0; padding: 32px; background: ${theme === 'dark' ? '#141414' : '#fff'}; } main { max-width: 1100px; margin: auto; }`}</style>
           </head>
           <body><main>{content}</main></body>
         </html>)

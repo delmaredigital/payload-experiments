@@ -67,6 +67,7 @@
       "import": "./dist/exports/puckEditor.js",
       "default": "./dist/exports/puckEditor.js"
     },
+    "./puck/editor.css": "./dist/puck/editor/editor.css",
     "./package.json": "./package.json"
   },
   "files": ["dist", "LICENSE", "README.md"],

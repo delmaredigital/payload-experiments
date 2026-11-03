@@ -13,8 +13,9 @@ const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.ur
 
 test('real export map exempts exactly the two CSS-bearing client entries', () => {
   const entries = listExportTargets(pkg.exports)
-  expect(entries.map(({ entry }) => entry)).toEqual(Object.keys(pkg.exports).filter(entry => entry !== './package.json'))
+  expect(entries.map(({ entry }) => entry)).toEqual(Object.keys(pkg.exports).filter(entry => !['./package.json', './puck/editor.css'].includes(entry)))
   expect(entries.some(({ entry }) => entry === './package.json')).toBe(false)
+  expect(entries.some(({ entry }) => entry === './puck/editor.css')).toBe(false)
   expect(NODE_ESM_EXEMPT_ENTRIES).toEqual(['./admin/client', './puck/editor'])
   expect(entries.filter(({ exempt }) => exempt).map(({ entry }) => entry)).toEqual([...NODE_ESM_EXEMPT_ENTRIES])
   for (const { entry, targets } of entries) {
@@ -29,9 +30,11 @@ test('real export map exempts exactly the two CSS-bearing client entries', () =>
     entry: './admin/rsc', exempt: false, targets: ['./dist/exports/adminRsc.js'],
   })
 })
-test('selection only skips the exact package.json mapping', () => {
-  const entries = listExportTargets({ './other': './package.json', './package.json': './other.json' })
-  expect(entries.map(({ entry }) => entry)).toEqual(['./other', './package.json'])
+test('selection only skips the exact package.json and editor stylesheet mappings', () => {
+  const entries = listExportTargets({ './other': './package.json', './package.json': './other.json',
+    './other.css': './dist/puck/editor/editor.css', './puck/editor.css': './dist/puck/editor/other.css',
+  })
+  expect(entries.map(({ entry }) => entry)).toEqual(['./other', './package.json', './other.css', './puck/editor.css'])
 })
 test('selection retains distinct import/default targets and checks any future server admin entry', () => {
   const entries = listExportTargets({ ...pkg.exports, './admin': {

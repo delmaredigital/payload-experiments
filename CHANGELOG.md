@@ -14,7 +14,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Goals list and form pages inside Tests, reached through the "Manage goals" link. Migration impact: none.
 - Centralized admin theme tokens and moved Tests above collection groups, after any host-provided leading navigation links.
 - Audience list rules without fixed values now use keyboard-accessible chips and save arrays; fixed value lists keep their checkboxes, and existing comma-separated values remain readable.
-- Styled the Puck Experiment block header, warning, version tabs, selected-version copy action, empty drop zones and creation panel for host editor resets and both admin themes. Editor styles ship through the client import and Puck's default host-style mirroring; no additional host stylesheet configuration is required.
+- Styled the Puck Experiment block header, warning, version tabs, selected-version copy action, empty drop zones and creation panel for host editor resets and both admin themes. The self-contained stylesheet is exported as `@delmaredigital/payload-experiments/puck/editor.css`. Hosts must load it inside the editor iframe: in the CSS that builds the iframe stylesheet (cc-lms: `src/styles/globals.css`, input to `build:puck-css`), add `@import "@delmaredigital/payload-experiments/puck/editor.css";` after `@import "tailwindcss";`. Alternatively, serve the exported file and append its URL to payload-puck's `editorStylesheets`, after the host stylesheet. The client import alone does not reach an iframe with `syncHostStyles: false`.
 
 Migration impact: none. The Tests import-map path is unchanged.
 

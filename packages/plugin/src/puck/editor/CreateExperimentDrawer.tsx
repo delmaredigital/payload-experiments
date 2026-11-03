@@ -35,7 +35,7 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '' }: 
     }
   }
 
-  return <aside className="xp-slot-drawer" role="dialog" aria-labelledby={titleId}>
+  return <aside className="xp-slot-root xp-slot-drawer" role="dialog" aria-labelledby={titleId}>
     <h3 className="xp-slot-title" id={titleId}>{editorCopy.createLabel}</h3>
     <div className="xp-slot-field">
       <label className="xp-slot-label" htmlFor={nameId}>{editorCopy.name}</label>

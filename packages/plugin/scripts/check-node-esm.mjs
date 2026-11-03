@@ -13,7 +13,11 @@ export function isExemptEntry(entry) {
 
 /** Pure export selection, so tests can inspect the real map without loading dist. */
 export function listExportTargets(exportsMap) {
-  return Object.entries(exportsMap).filter(([entry, conditions]) => !(entry === './package.json' && conditions === './package.json')).map(([entry, conditions]) => ({
+  return Object.entries(exportsMap).filter(([entry, conditions]) =>
+    !(entry === './package.json' && conditions === './package.json') &&
+    // CSS is consumed by the host's stylesheet pipeline, not the Node loader.
+    !(entry === './puck/editor.css' && conditions === './dist/puck/editor/editor.css')
+  ).map(([entry, conditions]) => ({
     entry,
     exempt: isExemptEntry(entry),
     targets: [...new Set([conditions.import, conditions.default])],

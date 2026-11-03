@@ -1,4 +1,67 @@
-@import '../../admin/theme.css';
+/* Payload 3.90 defaults from @payloadcms/ui dist/scss/colors.scss and app.scss,
+   mapped as in admin/theme.css; radii from scss/vars.scss. Literal values keep
+   the editor independent of the parent admin's styles and sizing. */
+.xp-slot-root {
+  --xp-bg: rgb(255, 255, 255);
+  --xp-text: rgb(47, 47, 47);
+  --xp-surface: rgb(245, 245, 245);
+  --xp-surface-raised: rgb(235, 235, 235);
+  --xp-border: rgb(221, 221, 221);
+  --xp-border-strong: rgb(208, 208, 208);
+  --xp-input-border: rgb(181, 181, 181);
+  --xp-border-accent: rgb(154, 154, 154);
+  --xp-text-muted: rgb(101, 101, 101);
+  --xp-text-strong: rgb(47, 47, 47);
+  --xp-text-emphasis: rgb(20, 20, 20);
+  --xp-input-bg: rgb(255, 255, 255);
+  --xp-success-surface: rgb(218, 237, 248);
+  --xp-success: rgb(21, 135, 186);
+  --xp-success-text-strong: rgb(18, 56, 76);
+  --xp-warning-surface: rgb(248, 232, 219);
+  --xp-warning: rgb(185, 108, 13);
+  --xp-warning-text-strong: rgb(73, 47, 21);
+  --xp-error-text: rgb(182, 54, 54);
+  --xp-radius: 3px;
+  --xp-radius-large: 4px;
+  --xp-space-1: 5px;
+  --xp-space-2: 10px;
+  --xp-space-3: 15px;
+  --xp-space-4: 20px;
+  --xp-font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --xp-font-size-small: 13px;
+  --xp-font-size-body: 15px;
+}
+
+[data-theme='dark'] .xp-slot-root {
+  --xp-bg: rgb(20, 20, 20);
+  --xp-text: rgb(255, 255, 255);
+  --xp-surface: rgb(34, 34, 34);
+  --xp-surface-raised: rgb(47, 47, 47);
+  --xp-border: rgb(60, 60, 60);
+  --xp-border-strong: rgb(74, 74, 74);
+  --xp-input-border: rgb(101, 101, 101);
+  --xp-border-accent: rgb(141, 141, 141);
+  --xp-text-muted: rgb(181, 181, 181);
+  --xp-text-strong: rgb(235, 235, 235);
+  --xp-text-emphasis: rgb(255, 255, 255);
+  --xp-input-bg: rgb(34, 34, 34);
+  --xp-success-surface: rgb(19, 44, 58);
+  --xp-success: rgb(21, 135, 186);
+  --xp-success-text-strong: rgb(188, 225, 248);
+  --xp-warning-surface: rgb(56, 38, 20);
+  --xp-warning: rgb(185, 108, 13);
+  --xp-warning-text-strong: rgb(243, 212, 186);
+  --xp-error-text: rgb(246, 109, 103);
+  --xp-radius: 3px;
+  --xp-radius-large: 4px;
+  --xp-space-1: 5px;
+  --xp-space-2: 10px;
+  --xp-space-3: 15px;
+  --xp-space-4: 20px;
+  --xp-font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --xp-font-size-small: 13px;
+  --xp-font-size-body: 15px;
+}
 
 /* These controls also render in the host's preflight-reset editor iframe. */
 .xp-slot-editor {
@@ -124,8 +187,7 @@
 
 .xp-slot-button:focus-visible,
 .xp-slot-tab:focus-visible,
-.xp-slot-input:focus-visible,
-.xp-slot-panel:focus-visible {
+.xp-slot-input:focus-visible {
   outline: 2px solid var(--xp-text);
   outline-offset: 2px;
 }
