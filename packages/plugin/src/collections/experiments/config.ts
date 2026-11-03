@@ -9,7 +9,7 @@ import { flagControlParams } from './flagControlParams.js'
 import { lockHook } from './lockHook.js'
 import { deleteGuard, deleteGuardAfter } from './deleteGuard.js'
 import { checkArms } from './armInvariants.js'
-import { XpNotImplemented } from '../../errors.js'
+import { XpNotImplemented, XpRefusal } from '../../errors.js'
 
 type ValidationContext = { data?: { kind?: unknown; exposurePolicy?: unknown }; siblingData?: { attribute?: string; op?: string } }
 const positiveInteger = (value: number | null | undefined) => (value != null && Number.isInteger(value) && value > 0) || 'Enter a positive whole number.'
@@ -36,7 +36,15 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
         results: { Component: paths.XP_TEST_EDIT_REDIRECT, path: '/results', tab: { label: 'Results', href: '/results' } },
       } } },
     },
-    hooks: { beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter] },
+    hooks: {
+      beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter],
+      afterError: [({ error }) => {
+        // Payload preserves public Error status/message, but omits custom codes.
+        if (error instanceof XpRefusal && error.code === 'stale-edit') {
+          return { status: error.status, response: { errors: [{ code: error.code, message: error.message }] } }
+        }
+      }],
+    },
     fields: [
       { name: 'status', type: 'select', defaultValue: 'draft', required: true, options: ['draft', 'running', 'stopped', 'decided', 'archived'], admin: { position: 'sidebar', readOnly: true } },
       { type: 'tabs', tabs: [

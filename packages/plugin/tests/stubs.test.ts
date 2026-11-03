@@ -45,7 +45,7 @@ const exportsByEntry = [
   [proxy, ['resolveExperiments', 'applyExperiments', 'createExperimentProxy']],
   [rsc, ['getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments']],
   [client, ['ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
-  [adminClient, ['TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField']],
+  [adminClient, ['XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField']],
   [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect']],
   [puck, ['ExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
   [puckEditor, ['ExperimentSlotEditor']],
@@ -75,7 +75,7 @@ test.each(exportsByEntry)('entry exports every contracted value (%j)', (barrel, 
   expect(Object.keys(barrel).sort()).toEqual([...names].sort())
   for (const [name, value] of Object.entries(barrel)) {
     const expectedType = name.endsWith('_BYTES') || name === 'MAX_EVENTS_PER_BODY' ? 'number'
-      : name === 'EXPERIMENT_SLOT_TYPE' ? 'string'
+      : name === 'EXPERIMENT_SLOT_TYPE' || name === 'XP_IF_UPDATED_AT_HEADER' ? 'string'
       : name === 'ExperimentSlot' || name === 'ExperimentSlotEditor' ? 'object' : 'function'
     expect(typeof value, name).toBe(expectedType)
   }

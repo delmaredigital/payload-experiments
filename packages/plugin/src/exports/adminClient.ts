@@ -1,5 +1,6 @@
 'use client'
 
+export { XP_IF_UPDATED_AT_HEADER } from '../constants.js'
 export { LayerUsage } from '../admin/LayerUsage.js'
 export { MetricSourceSelect } from '../admin/MetricSourceSelect.js'
 export { ArmSelectField } from '../admin/armSelect/ArmSelectField.js'
