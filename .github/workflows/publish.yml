@@ -1,6 +1,7 @@
 name: Publish to npm
 
 # Tags: stats-vX.Y.Z publishes packages/stats; plugin-vX.Y.Z publishes packages/plugin.
+# Prereleases use their identifier as the npm dist-tag (rc, next, beta); plain X.Y.Z uses latest.
 on:
   push:
     tags:
@@ -29,22 +30,11 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
-      - run: pnpm install --frozen-lockfile
-      - name: Resolve package from tag
-        run: |
-          case "$TAG" in
-            stats-v*)  echo "PKG=packages/stats"  >> "$GITHUB_ENV"; echo "VER=${TAG#stats-v}"  >> "$GITHUB_ENV" ;;
-            plugin-v*) echo "PKG=packages/plugin" >> "$GITHUB_ENV"; echo "VER=${TAG#plugin-v}" >> "$GITHUB_ENV" ;;
-            *) echo "unknown tag $TAG"; exit 1 ;;
-          esac
-          # A prerelease (semver suffix, e.g. 0.1.0-rc.1) goes to the `next` dist-tag
-          # and a GitHub prerelease, so it never becomes `latest`.
-          case "${TAG#*-v}" in
-            *-*) echo "NPM_TAG=next" >> "$GITHUB_ENV"; echo "PRERELEASE_ARG=--prerelease" >> "$GITHUB_ENV" ;;
-            *)   echo "NPM_TAG=latest" >> "$GITHUB_ENV"; echo "PRERELEASE_ARG=" >> "$GITHUB_ENV" ;;
-          esac
+      - name: Validate release
+        run: scripts/release/validate-release.sh "$TAG"
         env:
           TAG: ${{ github.ref_name }}
+      - run: pnpm install --frozen-lockfile
       # Build the workspace because the plugin's declaration build resolves stats through its workspace link to packages/stats/dist.
       - run: pnpm build
       # npm itself performs trusted publishing (OIDC, id-token: write) from 11.5.1;
@@ -74,15 +64,7 @@ jobs:
           echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
       - name: Publish (npm trusted publishing)
         run: npm publish "$TARBALL" --access public --provenance --tag "$NPM_TAG"
-      - name: Extract release notes from CHANGELOG
-        run: |
-          awk -v ver="$VER" '
-            $0 ~ "^## \\[" ver "\\]" {flag=1; next}
-            flag && /^## \[/ {exit}
-            flag {print}
-          ' CHANGELOG.md > release-notes.md
-          if [ -s release-notes.md ]; then echo "NOTES_ARG=--notes-file release-notes.md" >> "$GITHUB_ENV"; else echo "NOTES_ARG=" >> "$GITHUB_ENV"; fi
-      - run: gh release create "$TAG" $NOTES_ARG $PRERELEASE_ARG --generate-notes
+      - run: gh release create "$TAG" --notes-file release-notes.md $PRERELEASE_ARG --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
