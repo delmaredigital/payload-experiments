@@ -4,6 +4,7 @@ import { checkStart, type StartExperiment } from '../transitions/checkStart.js'
 import { loadStartInputsBatch } from '../transitions/preflightData.js'
 import { readSnapshots, resultsError } from './results.js'
 import { experimentId } from './routeId.js'
+import { sanitizeReadinessDetail } from './sanitizeReadinessDetail.js'
 export async function handleSummary<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, { options }: EndpointContext<TUser>): Promise<Response> {
   let ids: string[]
   try {
@@ -39,7 +40,15 @@ export async function handleSummary<TUser extends { id: string | number } = { id
         const experiment = drafts.find(e => String(e.id) === String(id))
         if (!experiment) continue
         const input = inputs.get(String(experiment.id))
-        try { response[key]!.ready = !!input && checkStart(input).every(check => check.ok) }
+        try {
+          const checks = input ? checkStart(input) : []
+          response[key]!.ready = !!input && checks.every(check => check.ok)
+          const next = checks.find(check => !check.ok && !check.warning)
+          if (next) {
+            const detail = sanitizeReadinessDetail(next.code, next.detail)
+            response[key]!.next = { code: next.code, ...(detail === undefined ? {} : { detail }) }
+          }
+        }
         catch { response[key]!.ready = false }
       }
     }
