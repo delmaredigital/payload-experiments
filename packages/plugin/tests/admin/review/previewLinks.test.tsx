@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { PreviewLinks } from '../../../src/admin/PreviewLinks.js'
+import type { PreflightResult } from '../../../src/types/endpoints.js'
 import { resetPayloadUiMock } from '../_helpers/payloadUiMock.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
@@ -33,11 +34,43 @@ test('no placement url shows a disabled explanation', () => {
   render(<PreviewLinks experimentId={1} placements={[{ collection: 'settings', id: 2, title: 'Ask', ok: true }]} arms={arms} />)
   expect((screen.getByRole('button', { name: "Preview isn't set up for this page type" }) as HTMLButtonElement).disabled).toBe(true)
 })
-test('one control/variant preview per placement; no holdout even without kind', () => {
+test('one control/variant preview per page; no holdout even without kind', () => {
   render(<PreviewLinks experimentId={1} placements={[...placements, { ...placements[0]!, id: 2, title: 'About', url: '/about' }]} arms={[{ key: 'control' }, { key: 'variantA' }, { key: 'holdout' }]} />)
   expect(screen.getAllByRole('button', { name: 'Preview Original' })).toHaveLength(2)
   expect(screen.getAllByRole('button', { name: 'Preview Variant A' })).toHaveLength(2)
   expect(screen.getAllByRole('button')).toHaveLength(4)
+})
+test('published and draft placements on the same page render one row and one set of previews without duplicate keys', () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const duplicates: PreflightResult['placements'] = [
+    { collection: 'pages', id: 31, title: 'Thank you for registering', url: '/thank-you', ok: true, detail: 'Published',
+      slots: { control: 1, variantA: 1, variantB: 0, variantC: 0 } },
+    { collection: 'pages', id: 31, title: 'Draft thank you', url: '/thank-you', ok: false, detail: 'Draft',
+      slots: { control: 2, variantA: 0, variantB: 0, variantC: 0 } },
+  ]
+  const { container } = render(<PreviewLinks experimentId={1} placements={duplicates} arms={arms} />)
+  expect(errors.mock.calls.some(call => call.some(value => String(value).includes('same key')))).toBe(false)
+  expect(container.querySelectorAll('.xp-preview-links > div')).toHaveLength(1)
+  expect(screen.getByText('Thank you for registering (placed 2 times on this page)')).toBeTruthy()
+  expect(screen.queryByText(/Draft thank you/)).toBeNull()
+  expect(screen.getAllByRole('button', { name: 'Preview Original' })).toHaveLength(1)
+  expect(screen.getAllByRole('button', { name: 'Preview Short headline' })).toHaveLength(1)
+  expect(screen.getAllByRole('button')).toHaveLength(2)
+})
+test('two placements on one page keep the available URL and show the placement count', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ token: 'temporary' }))))
+  const open = vi.spyOn(window, 'open').mockReturnValue(null)
+  const duplicates: PreflightResult['placements'] = [
+    { collection: 'pages', id: 1, title: 'Home', ok: true, slots: { control: 1, variantA: 1, variantB: 0, variantC: 0 } },
+    { collection: 'pages', id: 1, title: 'Home', url: '/home', ok: true, slots: { control: 2, variantA: 1, variantB: 0, variantC: 0 } },
+  ]
+  const { container } = render(<PreviewLinks experimentId={1} placements={duplicates} arms={arms} />)
+  expect(container.querySelectorAll('.xp-preview-links > div')).toHaveLength(1)
+  expect(screen.getByText('Home (placed 2 times on this page)')).toBeTruthy()
+  expect(screen.getAllByRole('button')).toHaveLength(2)
+  expect(screen.queryByRole('button', { name: "Preview isn't set up for this page type" })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Preview Original' }))
+  await waitFor(() => expect(open).toHaveBeenCalledWith(`${window.location.origin}/home?xp_preview=temporary`, '_blank', 'noopener,noreferrer'))
 })
 test('rapid clicks share the in-flight guard and all controls disable until the response', async () => {
   let resolve!: (response: Response) => void

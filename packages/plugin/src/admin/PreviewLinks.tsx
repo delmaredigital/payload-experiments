@@ -8,6 +8,7 @@ import { armLabel } from './labels.js'
 import { useApi } from './useApi.js'
 import { REVIEW_COPY as C } from './copy/review.js'
 import { API_MESSAGES } from './copy/common.js'
+import { previewPages } from './previewLinks.model.js'
 
 export function PreviewLinks({ experimentId, placements, arms }: {
   experimentId: DocId; placements: PreflightResult['placements']; arms: readonly { key: string; kind?: string; label?: string }[]
@@ -32,8 +33,8 @@ export function PreviewLinks({ experimentId, placements, arms }: {
     finally { inFlight.current = false; setBusy(false) }
   }
   return <div className="xp-preview-links">
-    {placements.map(placement => <div key={`${placement.collection}/${placement.id}`}>
-      <p>{placement.title}</p>
+    {previewPages(placements).map(placement => <div key={placement.key}>
+      <p>{placement.title}{placement.slotCount > 1 ? ` ${C.placedTimes(placement.slotCount)}` : null}</p>
       {placement.url ? arms.filter(arm => arm.kind !== 'holdout' && arm.key !== 'holdout').map(arm =>
         <Button key={arm.key} disabled={busy} onClick={() => { void preview(placement.url!, arm.key) }}>
           {C.preview} {arm.label?.trim() || armLabel(arm.key)}
