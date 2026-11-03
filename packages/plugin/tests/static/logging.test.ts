@@ -4,9 +4,11 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { describe, expect, test } from 'vitest'
 
+// Allowed context keys are a naming rule, not a value check: reviewers must not
+// log request data under an allowed key.
 const pluginRoot = fileURLToPath(new URL('../../', import.meta.url))
 const levels = new Set(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
-const consoleLevels = new Set(['error', 'warn', 'log', 'info', 'debug', 'trace', 'dir', 'table', 'assert'])
+const consoleLevels = new Set(['error', 'warn', 'log', 'info', 'debug', 'trace', 'dir', 'table', 'assert', 'count', 'group', 'timeLog'])
 const contextKeys = new Set(['experimentId', 'snapshotId', 'metricId', 'flagPoint', 'slug', 'collection', 'id', 'phase', 'operation'])
 
 // Reviewed string parameters, bound by declaration (not merely by identifier text).
@@ -61,7 +63,9 @@ function scan(text: string, file: string): Violation[] {
   const isConsole = (value: ts.Expression): boolean => (ts.isIdentifier(unwrap(value)) && unwrap(value).getText(source) === 'console') || member(value)?.name === 'console'
   const isProcessStream = (value: ts.Expression): boolean => {
     const access = member(value)
-    return !!access && (access.name === 'stderr' || access.name === 'stdout') && ts.isIdentifier(access.receiver) && access.receiver.text === 'process'
+    return !!access && (access.name === 'stderr' || access.name === 'stdout') &&
+      ((ts.isIdentifier(access.receiver) && access.receiver.text === 'process') ||
+        (member(access.receiver)?.name === 'process' && member(access.receiver)!.receiver.getText(source) === 'globalThis'))
   }
   const loggingMethod = (value: ts.Expression): boolean => {
     const access = member(value)
@@ -86,13 +90,67 @@ function scan(text: string, file: string): Violation[] {
     return !!identifierSymbol(value)?.declarations?.some(declaration => {
       let binding: ts.Node = declaration
       while (ts.isBindingElement(binding) || ts.isObjectBindingPattern(binding) || ts.isArrayBindingPattern(binding)) binding = binding.parent
-      return ts.isVariableDeclaration(binding) && ts.isCatchClause(binding.parent)
+      if (ts.isVariableDeclaration(binding) && ts.isCatchClause(binding.parent)) return true
+      if (!ts.isParameter(binding)) return false
+      const fn = binding.parent
+      if ((!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) || fn.parameters[0] !== binding) return false
+      let callback: ts.Node = fn
+      while (ts.isExpression(callback.parent) && unwrap(callback.parent) === fn) callback = callback.parent
+      const call = callback.parent
+      if (!ts.isCallExpression(call)) return false
+      const method = member(call.expression)?.name
+      return (method === 'catch' && call.arguments.length === 1 && call.arguments[0] === callback) ||
+        (method === 'then' && call.arguments[1] === callback)
     })
   }
+  const assignments = new Map<ts.Symbol, ts.Expression[]>()
+  const isAssignment = (node: ts.Node): node is ts.BinaryExpression => ts.isBinaryExpression(node) &&
+    node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+  const collectAssignments = (node: ts.Node): void => {
+    if (isAssignment(node) && ts.isIdentifier(unwrap(node.left))) {
+      const symbol = identifierSymbol(unwrap(node.left) as ts.Identifier)
+      if (symbol) assignments.set(symbol, [...(assignments.get(symbol) ?? []), node.right])
+    }
+    ts.forEachChild(node, collectAssignments)
+  }
+  collectAssignments(source)
+  const tainted = (node: ts.Node, visited = new Set<ts.Symbol>()): boolean => {
+    // Follow values returned by inline functions, including IIFEs and promise
+    // callbacks. Merely inspecting an error in a callback does not return it.
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+      if (!ts.isBlock(node.body)) return tainted(node.body, visited)
+      const returnedTaint = (child: ts.Node): boolean => {
+        if (ts.isReturnStatement(child)) return !!child.expression && tainted(child.expression, visited)
+        if (ts.isFunctionLike(child)) return false
+        return ts.forEachChild(child, descendant => returnedTaint(descendant) || undefined) ?? false
+      }
+      return returnedTaint(node.body)
+    }
+    // Sanitization ends taint only for a sole, direct identifier argument.
+    if (ts.isCallExpression(node) && safeCall(node) && ts.isIdentifier(unwrap(node.arguments[0]!))) return false
+    if (ts.isIdentifier(node)) {
+      if (catchBound(node)) return true
+      const symbol = identifierSymbol(node)
+      if (!symbol || visited.has(symbol)) return false
+      const next = new Set(visited).add(symbol)
+      const initializers = (symbol.declarations ?? []).flatMap(declaration => {
+        const values: ts.Expression[] = []
+        let binding: ts.Node = declaration
+        while (ts.isBindingElement(binding) || ts.isObjectBindingPattern(binding) || ts.isArrayBindingPattern(binding)) {
+          if (ts.isBindingElement(binding) && binding.initializer) values.push(binding.initializer)
+          binding = binding.parent
+        }
+        if (ts.isVariableDeclaration(binding) && binding.initializer) values.push(binding.initializer)
+        return values
+      })
+      return [...initializers, ...(assignments.get(symbol) ?? [])].some(value => tainted(value, next))
+    }
+    return ts.forEachChild(node, child => tainted(child, visited) || undefined) ?? false
+  }
   const checkCatchReferences = (node: ts.Node): void => {
-    // Only a direct safeError(catchBinding) may consume the raw caught value.
+    // Only a direct safeError(catchBindingOrAlias) may consume the raw caught value.
     if (ts.isCallExpression(node) && safeCall(node) && ts.isIdentifier(unwrap(node.arguments[0]!))) return
-    if (ts.isIdentifier(node) && catchBound(node)) report(node, 'catch-bound-log-value')
+    if (ts.isIdentifier(node) && tainted(node)) report(node, 'catch-bound-log-value')
     ts.forEachChild(node, checkCatchReferences)
   }
   const contextValue = (value: ts.Expression): boolean => {
@@ -158,6 +216,7 @@ function scan(text: string, file: string): Violation[] {
     }
     if (ts.isVariableDeclaration(node) && node.initializer && (isLogger(node.initializer) || isConsole(node.initializer))) report(node, 'logger-alias')
     if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && (isLogger(node.right) || isConsole(node.right))) report(node, 'logger-alias')
+    if (isAssignment(node) && ts.isIdentifier(unwrap(node.left)) && tainted(node.right)) report(node, 'catch-bound-assignment')
     if (ts.isBindingElement(node)) {
       const name = key(node.propertyName ?? node.name as ts.PropertyName)
       if (name === 'logger' && (!ts.isIdentifier(node.name) || node.name.text !== 'logger')) report(node, 'logger-alias')
@@ -205,6 +264,8 @@ describe('logging source boundary', () => {
     'console.dir(error)', 'console.table(error)', 'console.assert(false, error)', 'globalThis.console.error(error)',
     'logger.child({}).error(error)', 'payload.logger.child({}).warn(error)',
     'process.stderr.write(String(error))', 'process.stdout.write(error.message)',
+    'globalThis.process.stderr.write(String(error))', 'globalThis.process.stdout.write(error.message)',
+    'console.count(error)', 'console.group(error)', 'console.timeLog("timer", error)',
     'const c = console; c.error(error)', 'let c; c = globalThis.console',
     'const safeError = e => e; logger.error({ err: safeError(error) })',
     'function safeError(e) { return e }; logger.error({ err: safeError(error) })',
@@ -225,6 +286,8 @@ describe('logging source boundary', () => {
     'try {} catch (caught) { console.error(safeError(caught)) }',
     'logger.child({}).info("Fixed")', 'globalThis.console.dir({ id })',
     'process.stderr.write("Fixed")', 'process.stdout.write("Fixed")',
+    'globalThis.process.stderr.write("Fixed")', 'globalThis.process.stdout.write("Fixed")',
+    'console.count("Fixed")', 'console.group("Fixed")', 'console.timeLog("timer", "Fixed")',
     'logger.info({ id: doc.id, experimentId: docs[0].id, phase: 1, operation: "save" })',
   ])('accepts safe snippet: %s', text => expect(scan(`import { safeError } from './log.js';\n${text}`, 'src/example.ts')).toEqual([]))
 
@@ -244,6 +307,61 @@ describe('logging source boundary', () => {
     'logger.error({ id: get().id }, "x")',
   ])('rejects unsafe context values with the real sanitizer imported: %s', text => {
     expect(scan(`import { safeError } from './log.js';\n${text}`, 'src/example.ts').length).toBeGreaterThan(0)
+  })
+
+  test.each([
+    'const e2 = error; logger.error({ id: e2 })',
+    'const m = error.message; logger.error({ slug: m })',
+    'const { detail } = error; logger.error({ id: detail })',
+    'let x; x = error; logger.error({ id: x })',
+    'const pgError = error as { detail?: string }; logger.error({ err: safeError(error), id: pgError.detail })',
+    'const reason = error instanceof Error ? error.message : "x"; logger.error({ operation: reason })',
+    'const first = error; const second = first; logger.error({ id: second })',
+    'const { cause: { detail } } = error; logger.error({ id: detail })',
+    'const [detail] = error; logger.error({ id: detail })',
+    'const { detail = error } = {}; logger.error({ id: detail })',
+    'const [detail = error] = []; logger.error({ id: detail })',
+    'const { cause: { detail } = error } = {}; logger.error({ id: detail })',
+    'let first = second; let second = first || error; logger.error({ id: first })',
+    'const alias = (() => error)(); logger.error({ id: alias })',
+    'const alias = await Promise.resolve().then(() => error); logger.error({ id: alias })',
+  ])('rejects tainted catch aliases: %s', body => {
+    const text = `import { safeError } from './log.js'; try {} catch (error) { ${body} }`
+    expect(scan(text, 'src/example.ts').some(v => v.rule === 'catch-bound-log-value')).toBe(true)
+  })
+
+  test.each([
+    'promise.catch(e => logger.error({ id: e }))',
+    'promise.catch(e => logger.error({ err: safeError(e), slug: e.message }))',
+    'promise.catch(function (e) { logger.error({ id: e.detail }) })',
+    'promise.then(null, e => logger.error({ id: e }))',
+    'promise.then(onSuccess, function ({ detail }) { logger.error({ id: detail }) })',
+    'promise.catch((e => { const alias = e; logger.error({ id: alias }) }) as Function)',
+    'const alias = await promise.catch(e => e); logger.error({ id: alias })',
+  ])('rejects rejection callback values: %s', text => {
+    expect(scan(`import { safeError } from './log.js'; ${text}`, 'src/example.ts').some(v => v.rule === 'catch-bound-log-value')).toBe(true)
+  })
+
+  test.each([
+    'let outer; try {} catch (error) { outer = error }',
+    'let outer; try {} catch (error) { const alias = error; outer = alias.detail }',
+    'let outer; promise.catch(e => { outer = e })',
+    'let outer; try {} catch (error) { outer ??= error }',
+  ])('rejects catch-bound assignment without a log: %s', text => {
+    expect(scan(text, 'src/example.ts').some(v => v.rule === 'catch-bound-assignment')).toBe(true)
+  })
+
+  test.each([
+    'try {} catch (error) { const alias = error; logger.error({ err: safeError(alias) }) }',
+    'promise.catch(e => logger.error({ err: safeError(e) }))',
+    'promise.then(null, e => logger.error({ err: safeError(e) }))',
+    'try {} catch (error) { const alias = safeError(error); logger.info({ id: alias.name }) }',
+    'let outer; try {} catch (error) { outer = safeError(error) }',
+    'const first = second; const second = first; logger.info({ id: first })',
+    'promise.then(e => logger.info({ id: e }))',
+    'promise.catch(e => { function report(e) { logger.info({ id: e }) } })',
+  ])('accepts sanitized aliases and unrelated bindings: %s', text => {
+    expect(scan(`import { safeError } from './log.js'; ${text}`, 'src/example.ts')).toEqual([])
   })
 
   test('catch references bind to the declaration rather than the identifier text', () => {

@@ -1,5 +1,6 @@
 import pg from 'pg'
 import type { Pool, PoolClient } from 'pg'
+import { safeError } from '../log.js'
 
 export interface Executor {
   query<R>(text: string, params?: unknown[]): Promise<{ rows: R[]; rowCount: number }>
@@ -125,7 +126,10 @@ export async function ownConnection(pool: Pool): Promise<Executor & { release(er
     async query<R>(text: string, params?: unknown[]) {
       try { return await exec.query<R>(text, params) }
       catch (error) {
-        queryError ??= connectionError(error)
+        if (!queryError) {
+          const failure = connectionError(error)
+          if (failure) queryError = Object.assign(new Error('Query failed'), safeError(failure))
+        }
         throw error
       }
     },
@@ -192,7 +196,8 @@ export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec:
       })
     } catch (error) {
       const failure = error && typeof error === 'object' && 'code' in error && error.code === '57014' ? new ResultsBudgetError() : error
-      releaseError = connectionError(error)
+      const connectionFailure = connectionError(error)
+      if (connectionFailure) releaseError = Object.assign(new Error('Query failed'), safeError(connectionFailure))
       // Destroy deadline-raced clients immediately, including BEGIN/SET/COMMIT hangs.
       // A rollback cannot be allowed to extend the caller's deadline either.
       // A server statement timeout (57014) has settled; rollback can reuse it.
@@ -200,7 +205,7 @@ export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec:
         try { await raceDeadline(deadline, () => exec.query('ROLLBACK')) }
         catch (rollbackError) {
           // Even an ordinary SQL error here leaves transaction state uncertain.
-          releaseError = rollbackError instanceof Error ? rollbackError : new Error('Rollback failed', { cause: rollbackError })
+          releaseError = Object.assign(new Error('Rollback failed'), safeError(rollbackError))
         }
       }
       throw failure
@@ -215,9 +220,10 @@ export async function withStatementTimeout<T>(pool: Pool, ms: number, fn: (exec:
     await exec.query('COMMIT')
     return result
   } catch (error) {
-    releaseError = connectionError(error)
+    const connectionFailure = connectionError(error)
+    if (connectionFailure) releaseError = Object.assign(new Error('Query failed'), safeError(connectionFailure))
     try { await exec.query('ROLLBACK') } catch (rollbackError) {
-      releaseError = rollbackError instanceof Error ? rollbackError : new Error('Rollback failed', { cause: rollbackError })
+      releaseError = Object.assign(new Error('Rollback failed'), safeError(rollbackError))
     }
     throw error
   } finally { exec.release(releaseError) }

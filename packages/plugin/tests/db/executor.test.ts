@@ -93,14 +93,16 @@ test('ownConnection uses one checked-out client and exposes release', async () =
   expect(client.release).toHaveBeenCalledOnce()
   expect(client.release).toHaveBeenCalledWith(undefined)
 })
-test('ownConnection releases a failed query with its error to discard the client', async () => {
+test('ownConnection releases a failed query with a sanitized error to discard the client', async () => {
   const { pool, client } = fakePool()
   const queryError = new Error('connection lost')
   client.query.mockRejectedValue(queryError)
   const exec = await ownConnection(pool)
   try { await expect(exec.query('SELECT 1')).rejects.toBe(queryError) }
   finally { exec.release() }
-  expect(client.release).toHaveBeenCalledExactlyOnceWith(queryError)
+  expect(client.release).toHaveBeenCalledExactlyOnceWith(expect.any(Error))
+  expect(client.release.mock.calls[0]![0]).toMatchObject({ name: 'Error', message: 'Query failed' })
+  expect(JSON.stringify(client.release.mock.calls[0]![0])).not.toContain('connection lost')
 })
 test.each(['57014', '23505', '42P01'])('ownConnection reuses a client after SQL error %s and successful rollback', async code => {
   const { pool, client } = fakePool()
@@ -120,7 +122,9 @@ test.each(['08006', '08003', '57P01', '57P02', '57P03', 'ECONNRESET', undefined]
   await expect(exec.query('SELECT broken')).rejects.toBe(error)
   await exec.query('ROLLBACK')
   exec.release()
-  expect(client.release).toHaveBeenCalledExactlyOnceWith(error)
+  expect(client.release).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+    name: 'Error', message: 'Query failed', ...(code && /^[0-9A-Z]{5}$/.test(code) ? { code } : {}),
+  }))
 })
 test.each([false, true])('timeout executor releases SQL failures normally after rollback (deadline %s)', async bounded => {
   for (const code of ['57014', '23505']) {
@@ -143,7 +147,9 @@ test.each([false, true])('timeout executor discards transport errors (deadline %
     const error = Object.assign(new Error('connection failed'), { code })
     client.query.mockRejectedValueOnce(error)
     await expect(withStatementTimeout(pool, 250, async () => {}, bounded ? Date.now() + 1000 : undefined)).rejects.toBe(error)
-    expect(client.release).toHaveBeenCalledExactlyOnceWith(error)
+    expect(client.release).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      name: 'Error', message: 'Query failed', ...(code ? { code } : {}),
+    }))
   }
 })
 test('a bounded failed rollback discards the client while preserving the SQL error', async () => {
@@ -156,7 +162,7 @@ test('a bounded failed rollback discards the client while preserving the SQL err
     return { rows: [], rowCount: 0 }
   })
   await expect(withStatementTimeout(pool, 250, exec => exec.query('SELECT broken'), Date.now() + 1000)).rejects.toBe(error)
-  expect(client.release).toHaveBeenCalledExactlyOnceWith(rollbackError)
+  expect(client.release).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: 'Error', code: '25P02', message: 'Rollback failed' }))
 })
 test.each([false, true])('timeout transaction releases on success/failure (%s)', async fail => {
   const { pool, client } = fakePool()
@@ -185,7 +191,7 @@ test('a failed rollback destroys the connection while preserving the work error'
     return { rows: [], rowCount: 0 }
   })
   await expect(withStatementTimeout(pool, 250, async () => { throw workError })).rejects.toBe(workError)
-  expect(client.release).toHaveBeenCalledWith(rollbackError)
+  expect(client.release).toHaveBeenCalledWith(expect.objectContaining({ name: 'Error', message: 'Rollback failed' }))
 })
 
 test.each(['transaction', 'pool', 'pg'])('%s always returns numbers for finite numeric/safe int8, preserving nulls and infinite timestamps', async route => {

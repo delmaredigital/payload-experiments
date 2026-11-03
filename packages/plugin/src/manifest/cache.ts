@@ -19,7 +19,8 @@ export function createManifestCache(load: ManifestLoader, { ttlMs = 30_000, cold
       }, error => {
         // A timed-out attempt must not pin inFlight or delay the next retry.
         // Its late result is ignored: only the race winner can mutate the cache.
-        checkedAt = error === expired ? -Infinity : now()
+        if (error === expired) checkedAt = -Infinity
+        else checkedAt = now()
         return cached
       }).finally(() => { clearTimeout(timer); inFlight = undefined })
     }
