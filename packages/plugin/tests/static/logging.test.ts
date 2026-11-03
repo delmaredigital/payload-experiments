@@ -216,7 +216,6 @@ function scan(text: string, file: string): Violation[] {
     }
     if (ts.isVariableDeclaration(node) && node.initializer && (isLogger(node.initializer) || isConsole(node.initializer))) report(node, 'logger-alias')
     if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && (isLogger(node.right) || isConsole(node.right))) report(node, 'logger-alias')
-    if (isAssignment(node) && ts.isIdentifier(unwrap(node.left)) && tainted(node.right)) report(node, 'catch-bound-assignment')
     if (ts.isBindingElement(node)) {
       const name = key(node.propertyName ?? node.name as ts.PropertyName)
       if (name === 'logger' && (!ts.isIdentifier(node.name) || node.name.text !== 'logger')) report(node, 'logger-alias')
@@ -342,15 +341,11 @@ describe('logging source boundary', () => {
     expect(scan(`import { safeError } from './log.js'; ${text}`, 'src/example.ts').some(v => v.rule === 'catch-bound-log-value')).toBe(true)
   })
 
-  test.each([
-    'let outer; try {} catch (error) { outer = error }',
-    'let outer; try {} catch (error) { const alias = error; outer = alias.detail }',
-    'let outer; promise.catch(e => { outer = e })',
-    'let outer; try {} catch (error) { outer ??= error }',
-  ])('rejects catch-bound assignment without a log: %s', text => {
-    expect(scan(text, 'src/example.ts').some(v => v.rule === 'catch-bound-assignment')).toBe(true)
-  })
-
+  // Known gaps (CORE-35b, briefed only if src grows such a site): a named rejection handler
+  // (`promise.catch(handler)`), `Promise.allSettled` results logged as `r.reason`, taint through
+  // callback parameters (`[error].forEach(x => log(x))`) and through property stores
+  // (`obj.d = error`). Storing an error to rethrow it or hand it to `pool.release` is legitimate
+  // and deliberately not reported; only its use inside a log call is.
   test.each([
     'try {} catch (error) { const alias = error; logger.error({ err: safeError(alias) }) }',
     'promise.catch(e => logger.error({ err: safeError(e) }))',
