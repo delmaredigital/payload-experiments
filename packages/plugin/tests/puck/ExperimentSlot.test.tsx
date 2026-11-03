@@ -4,6 +4,8 @@ import type { ArmSlot } from '../../src/types/puck.js'
 import { ExperimentSlot } from '../../src/puck/ExperimentSlot.js'
 import { createExperimentSlotField } from '../../src/puck/experimentSlotField.js'
 import { ExperimentPicker } from '../../src/puck/ExperimentPicker.js'
+import { slotLabels } from '../../src/puck/copy.js'
+import { GROUP_LABELS } from '../../src/admin/copy/arms.js'
 
 type RenderProps = Parameters<typeof ExperimentSlot.render>[0]
 const names: ArmSlot[] = ['control', 'variantA', 'variantB', 'variantC']
@@ -52,11 +54,17 @@ test('a viewport exposure renders the fixed wrapper and sentinel markup', () => 
 
 test('config defines four slots, a custom experiment field, and empty serialized defaults', () => {
   expect(ExperimentSlot.label).toBe('Experiment')
+  expect(Object.keys(ExperimentSlot.fields!)[0]).toBe('experiment')
   expect(ExperimentSlot.fields).toEqual({
     experiment: { type: 'custom', label: 'Experiment', render: expect.any(Function) },
-    control: { type: 'slot' }, variantA: { type: 'slot' }, variantB: { type: 'slot' }, variantC: { type: 'slot' },
+    variantC: { type: 'slot', label: 'Variant C' }, variantB: { type: 'slot', label: 'Variant B' },
+    variantA: { type: 'slot', label: 'Variant A' }, control: { type: 'slot', label: 'Original' },
   })
   expect(ExperimentSlot.defaultProps).toEqual({ experiment: null, control: [], variantA: [], variantB: [], variantC: [] })
+})
+
+test('Puck slot labels match the admin group labels', () => {
+  for (const key of names) expect(slotLabels[key]).toBe(GROUP_LABELS[key])
 })
 
 test('custom field supports a label and passes the reference and change callback to the picker', () => {
