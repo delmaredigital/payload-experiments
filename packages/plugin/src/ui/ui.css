@@ -1,6 +1,6 @@
 /* Shared primitives: no host palette references, and no global element resets. */
 .xp-ui-chips, .xp-ui-chips-control, .xp-ui-chips-item, .xp-ui-button, .xp-ui-input, .xp-ui-toggle, .xp-ui-tab, .xp-ui-dialog, .xp-ui-card { box-sizing: border-box; }
-.xp-ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: var(--xp-radius-control); border: 1px solid transparent; font: 500 14px/20px var(--xp-font); color: var(--xp-text); background: transparent; cursor: pointer; white-space: normal; overflow-wrap: anywhere; max-width: 100%; min-width: 0; text-decoration: none; transition: background-color var(--xp-motion), border-color var(--xp-motion), color var(--xp-motion); }
+.xp-ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 7px 14px; border-radius: var(--xp-radius-control); border: 1px solid transparent; font: 500 14px/20px var(--xp-font); color: var(--xp-text); background: transparent; cursor: pointer; white-space: normal; overflow-wrap: anywhere; max-width: 100%; min-width: 0; text-decoration: none; transition: background-color var(--xp-motion), border-color var(--xp-motion), color var(--xp-motion); }
 .xp-ui-button--primary { background: var(--xp-accent); color: var(--xp-accent-fg); border-color: var(--xp-accent); }
 .xp-ui-button--primary:hover { background: var(--xp-accent-hover); border-color: var(--xp-accent-hover); }
 .xp-ui-button--primary:active { background: var(--xp-accent-active); border-color: var(--xp-accent-active); }
@@ -52,7 +52,8 @@
 .xp-ui-breadcrumb { color: var(--xp-text-2); font: var(--xp-text-small); }
 .xp-ui-breadcrumb ol { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .xp-ui-breadcrumb li { display: flex; gap: 8px; min-width: 0; }
-.xp-ui-breadcrumb a { color: var(--xp-accent-text); text-decoration: var(--xp-accent-text-decoration); border-radius: var(--xp-radius-chip); }
+.xp-ui-breadcrumb a { color: var(--xp-text-2); text-decoration: underline; text-underline-offset: 2px; border-radius: var(--xp-radius-chip); }
+.xp-ui-breadcrumb a:hover { color: var(--xp-text); }
 .xp-ui-breadcrumb [aria-current] { color: var(--xp-text); }
 .xp-ui-dialog { width: min(480px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; padding: 24px; border: 1px solid var(--xp-border); border-radius: var(--xp-radius-card); background: var(--xp-surface); color: var(--xp-text); font: var(--xp-text-body); box-shadow: 0 16px 48px var(--xp-overlay); }
 .xp-ui-dialog h2 { margin: 0 0 16px; font: var(--xp-text-title); }
@@ -69,8 +70,7 @@
 .xp-ui-chips[aria-disabled='true'] { opacity: .5; }
 .xp-ui-chips[aria-disabled='true'] button { cursor: default; }
 .xp-ui-chips p:not(.xp-ui-error) { margin: 0; color: var(--xp-text-muted); font-size: var(--xp-font-size-small); }
-/* Links and quiet actions use the accessible text accent, never the fill. */
-.xp-ui-button--quiet, .xp-ui-button--quiet:hover { color: var(--xp-accent-text); text-decoration: var(--xp-accent-text-decoration); }
+/* Quiet actions and breadcrumb links stay neutral; only the selected tab takes the text accent. */
 .xp-ui-button-group { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; }
 @media (prefers-reduced-motion: reduce) {
   .xp-ui-button, .xp-ui-input, .xp-ui-toggle, .xp-ui-toggle::before, .xp-ui-chips-control { transition: none; }

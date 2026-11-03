@@ -37,10 +37,13 @@ test('narrow-width CSS audit: controls fit their containing block and action row
 })
 
 test('text accents use the accessible text token and its fallback decoration together', () => {
-  for (const selector of [".xp-ui-tab[aria-selected='true']", '.xp-ui-breadcrumb a', '.xp-ui-button--quiet', '.xp-ui-button--quiet:hover']) {
+  for (const selector of [".xp-ui-tab[aria-selected='true']"]) {
     expect(rule(selector), selector).toContain('color: var(--xp-accent-text)')
     expect(rule(selector), selector).toContain('text-decoration: var(--xp-accent-text-decoration)')
   }
+  // Quiet actions and breadcrumb links stay neutral so a host accent never recolours Cancel.
+  expect(rule('.xp-ui-button--quiet')).toContain('color: var(--xp-text-2)')
+  expect(rule('.xp-ui-breadcrumb a')).toContain('text-decoration: underline')
   expect(rule('.xp-ui-status--running')).toContain('color: var(--xp-success)')
   expect(rule('.xp-ui-status--ready')).toContain('color: var(--xp-success)')
 })
