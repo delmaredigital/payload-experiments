@@ -73,6 +73,7 @@ async function start(req: PayloadRequest, experimentId: DocId, slices: number[])
   })
   await writePhaseRecord(req, { experiment: experimentId, phase: 1, phaseKind: 'test', seed, arms,
     allocation: slices.length || 100, targeting: [], startedAt: new Date().toISOString(),
+    analysis: { sequentialTuningParameter: 5000 },
   })
 }
 

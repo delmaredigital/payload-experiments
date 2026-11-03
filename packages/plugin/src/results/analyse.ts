@@ -96,8 +96,8 @@ const severity = { ok: 0, insufficient: 1, warning: 2, failing: 3 } as const
 export function analysePhase(input: AnalysePhaseInput): Snapshot {
   const { phase, units } = input
   const { analysis } = phase
-  // Start freezes this optional collection field as-is. Match the stats engine's
-  // default and record the effective value in every snapshot, including n = 0.
+  // Compatibility for phases created before Start froze the effective tuning
+  // value. Record that effective value in every snapshot, including n = 0.
   const sequentialTuningParameter = analysis.sequentialTuningParameter ?? DEFAULT_SEQUENTIAL_TUNING_PARAMETER
   const alpha = analysis.alpha ?? 0.05
   const prior = analysis.prior ?? DEFAULT_GAUSSIAN_PRIOR
