@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from '../copy/common.js'
+import { XP_IF_UPDATED_AT_HEADER } from '../../constants.js'
+import { TEST_PAGE } from '../copy/testPage.js'
 import { changedPatch, editablePatch, payloadFieldErrors } from './testDocument.model.js'
 import type { TestDocument, TestDocumentPatch } from './testDocument.model.js'
 
@@ -16,13 +18,14 @@ type View = {
   hasUnsaved: boolean
   loadState: 'loading' | 'ready' | 'forbidden' | 'missing' | 'error'
   saving: 'idle' | 'saving' | 'saved' | 'error'
+  stale: boolean
   /** Path-specific validation errors; _section is the fallback for a section-wide refusal. */
   errors: Record<string, string>
 }
 // Saves outlive their mounted reader. Reopening the same document must wait for its queue.
 const drainingSaves = new Map<string, Promise<void>>()
 
-const initialView = (): View => ({ doc: null, preflight: null, preflightError: null, preflightPending: false, hasUnsaved: false, loadState: 'loading', saving: 'idle', errors: {} })
+const initialView = (): View => ({ doc: null, preflight: null, preflightError: null, preflightPending: false, hasUnsaved: false, loadState: 'loading', saving: 'idle', stale: false, errors: {} })
 type Session = {
   key: string; saved: TestDocument | null; pending: TestDocumentPatch; queue: TestDocumentPatch[]
   tail: Promise<void>; view: View; controller: AbortController; reloading: boolean
@@ -51,7 +54,7 @@ function clearErrors(errors: Record<string, string>, patch: TestDocumentPatch): 
 }
 
 function stage(session: Session, partial: TestDocumentPatch) {
-  if (!session.saved || session.reloading || session.view.loadState !== 'ready' || session.controller.signal.aborted) return
+  if (!session.saved || session.view.stale || session.reloading || session.view.loadState !== 'ready' || session.controller.signal.aborted) return
   const patch = editablePatch(session.saved.status, partial)
   if (!Object.keys(patch).length) return
   session.pending = { ...session.pending, ...patch }
@@ -141,13 +144,14 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
 
     // Capture each commit now, then diff against the latest server document when its turn arrives.
     function commit(): Promise<void> {
-      if (!session.saved || session.reloading || controller.signal.aborted || !Object.keys(session.pending).length) return session.tail
+      if (!session.saved || session.view.stale || session.reloading || controller.signal.aborted || !Object.keys(session.pending).length) return session.tail
       const queued = session.pending
       session.pending = {}
       session.queue.push(queued)
       session.view.saving = 'saving'
       session.publish()
       const step = async () => {
+        if (session.view.stale) return
         let saved = false
         let changed = false
         let failed = false
@@ -156,19 +160,32 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
           const patch = changedPatch(session.saved, queued)
           changed = Object.keys(patch).length > 0
           if (changed) {
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+            if (typeof session.saved.updatedAt === 'string') headers[XP_IF_UPDATED_AT_HEADER] = session.saved.updatedAt
             const response = await fetch(url, {
               // Submitted saves belong to the queue, not the mounted reader's lifetime.
               method: 'PATCH', credentials: 'include',
-              headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+              headers, body: JSON.stringify(patch),
             })
             const body: unknown = await response.json().catch(() => undefined)
-            if (!response.ok) session.view.errors = { ...session.view.errors, ...payloadFieldErrors(body) }
+            const errors = (body as { errors?: Array<{ code?: string; message?: string }> } | undefined)?.errors
+            const staleError = response.status === 409 && Array.isArray(errors)
+              ? errors.find(error => error?.code === 'stale-edit') : undefined
+            if (staleError) {
+              session.view.stale = true
+              // Keep every typed value visible, but discard all queued sends until Reload.
+              session.pending = [...session.queue, session.pending].reduce((draft, edit) => ({ ...draft, ...edit }), {})
+              session.queue = []
+              session.view.errors = { _section: staleError.message || TEST_PAGE.staleEdit }
+            } else if (!response.ok) session.view.errors = { ...session.view.errors, ...payloadFieldErrors(body) }
             else {
               // Payload collection PATCH returns { doc, message }; GET returns the doc itself.
               const doc = (body as { doc?: TestDocument } | undefined)?.doc
               const readable = doc && doc.id != null && doc.status
               // A 2xx has applied even if its response body was lost. Preserve it while re-reading.
-              session.saved = readable ? doc : { ...session.saved, ...patch }
+              // The old timestamp is no longer a valid baseline. Omit the header until a
+              // readable PATCH or GET restores it, including when this read is aborted.
+              session.saved = readable ? doc : { ...session.saved, ...patch, updatedAt: undefined }
               saved = true
               // Keep readiness pending even while recovering an unreadable successful PATCH body.
               session.preflightReads++

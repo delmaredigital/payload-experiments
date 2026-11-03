@@ -25,7 +25,9 @@ export function TestPage({ id, surface }: { id: DocId; surface: SurfaceProps }) 
   const parts = test.doc.kind === 'block' ? pageBlockParts : test.doc.kind === 'page' ? pageParts : settingParts
   const props = { test, surface }
   return <main className="xp-test-page"><TestHeader {...props} />
-    {test.errors._section ? <p role="alert">{test.errors._section}</p> : null}
+    {test.errors._section ? <div role="alert"><p>{test.errors._section}</p>
+      {test.stale ? <button type="button" onClick={() => void test.reload()}>{C.reload}</button> : null}
+    </div> : null}
     {test.preflightError ? <p role="alert">{test.preflightError}</p> : null}
     <Section test={test} sectionId="what"><parts.Binding {...props} /><Hypothesis {...props} /></Section>
     <VersionsSection {...props} parts={parts} /><GoalSection {...props} /><TargetingSection {...props} />

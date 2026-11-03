@@ -1,4 +1,5 @@
 export const TEST_PAGE = {
+  staleEdit: 'Someone else changed this test. Reload to see their changes.', reload: 'Reload',
   loading: 'Loading test…', forbidden: "You don't have access to this test.", missing: 'This test no longer exists.',
   error: "Couldn't load this test.", retry: 'Try again', name: 'Test name', results: 'Results',
   complete: 'Complete', incomplete: 'Incomplete', completeMark: '✓', incompleteMark: '○',
