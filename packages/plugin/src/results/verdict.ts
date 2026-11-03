@@ -86,7 +86,7 @@ function chance(value: number | undefined): string {
 
 /** Resolve a stored group label without exposing an internal key in verdict copy. */
 export function verdictGroupLabel(key: string, label = ''): string {
-  return label.trim() || ARM_LABELS[key as ArmKey] || 'This group'
+  return label.trim() || (Object.hasOwn(ARM_LABELS, key) ? ARM_LABELS[key as ArmKey] : 'This group')
 }
 
 /** Apply spec §8.5 in order to already-computed results; no inference is performed here. */
