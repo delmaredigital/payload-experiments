@@ -2,6 +2,7 @@
 import { StrictMode } from 'react'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
+import { XP_IF_UPDATED_AT_HEADER } from '../../../src/constants.js'
 import { useTestDocument } from '../../../src/admin/surface/useTestDocument.js'
 import type { TestDocument } from '../../../src/admin/surface/testDocument.model.js'
 import type { PreflightResult } from '../../../src/types/endpoints.js'
@@ -608,4 +609,121 @@ test.each([1, 'uuid-goal'])('unchanged typed relationship ids (%s) never send an
     await result.current.commit()
   })
   expect(patches()).toHaveLength(0)
+})
+
+
+test('each queued PATCH sends its current saved baseline, including the preceding PATCH timestamp', async () => {
+  const first = deferred<Response>()
+  const loadedAt = '2026-11-03T10:00:00.000Z'
+  const savedAt = '2026-11-03T10:01:00.000Z'
+  let count = 0
+  const { result, patches } = setup(document({ updatedAt: loadedAt }), async patch =>
+    ++count === 1 ? first.promise : response({ doc: document({ ...patch, updatedAt: savedAt }) }))
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  let completed!: Promise<void>
+  act(() => {
+    result.current.stage({ name: 'First' }); void result.current.commit()
+    result.current.stage({ hypothesis: 'Second' }); completed = result.current.commit()
+  })
+  await waitFor(() => expect(patches()).toHaveLength(1))
+  expect(new Headers(patches()[0]![1]?.headers).get(XP_IF_UPDATED_AT_HEADER)).toBe(loadedAt)
+  await act(async () => {
+    first.resolve(response({ doc: document({ name: 'First', updatedAt: savedAt }) }))
+    await completed
+  })
+  expect(patches()).toHaveLength(2)
+  expect(new Headers(patches()[1]![1]?.headers).get(XP_IF_UPDATED_AT_HEADER)).toBe(savedAt)
+})
+
+test('a document without updatedAt sends no baseline header', async () => {
+  const { result, patches } = setup()
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  await act(async () => { result.current.stage({ name: 'New' }); await result.current.commit() })
+  expect(new Headers(patches()[0]![1]?.headers).has(XP_IF_UPDATED_AT_HEADER)).toBe(false)
+})
+
+test.each([undefined, 'A newer edit was saved. Reload this test.'])('stale-edit freezes typed values and drops queued saves until Reload (message %s)', async message => {
+  const refused = deferred<Response>()
+  const { result, patches, fetcher } = setup(document({ updatedAt: '2026-11-03T10:00:00.000Z' }), () => refused.promise)
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  let completed!: Promise<void>
+  act(() => {
+    result.current.stage({ name: 'Refused name' }); void result.current.commit()
+    result.current.stage({ hypothesis: 'Queued hypothesis' }); completed = result.current.commit()
+    result.current.stage({ allocation: 80 })
+  })
+  await waitFor(() => expect(patches()).toHaveLength(1))
+  await act(async () => {
+    refused.resolve(response({ errors: [{ code: 'stale-edit', message }] }, 409))
+    await completed
+  })
+  expect(result.current.stale).toBe(true)
+  expect(result.current.saving).toBe('error')
+  expect(result.current.errors).toEqual({ _section: message ?? 'Someone else changed this test. Reload to see their changes.' })
+  expect(result.current.doc).toMatchObject({ name: 'Refused name', hypothesis: 'Queued hypothesis', allocation: 80 })
+  await act(async () => { result.current.stage({ name: 'Must not save' }); await result.current.commit() })
+  expect(patches()).toHaveLength(1)
+  expect(result.current.doc?.name).toBe('Refused name')
+  fetcher.mockImplementationOnce(async () => response(document({ name: 'Someone else saved', updatedAt: '2026-11-03T10:02:00.000Z' })))
+  await act(async () => { await result.current.reload() })
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  expect(result.current.stale).toBe(false)
+  expect(result.current.hasUnsaved).toBe(false)
+  expect(result.current.errors).toEqual({})
+  expect(result.current.doc).toMatchObject({ name: 'Someone else saved', hypothesis: 'Original hypothesis', allocation: 100 })
+  expect(patches()).toHaveLength(1)
+  fetcher.mockImplementationOnce(async () => response({ doc: document({ name: 'Fresh edit', updatedAt: '2026-11-03T10:03:00.000Z' }) }))
+  await act(async () => { result.current.stage({ name: 'Fresh edit' }); await result.current.commit() })
+  expect(patches()).toHaveLength(2)
+  expect(new Headers(patches()[1]![1]?.headers).get(XP_IF_UPDATED_AT_HEADER)).toBe('2026-11-03T10:02:00.000Z')
+})
+
+test.each(['aborted', 'failed'] as const)('unreadable success drops the old baseline when its recovery read is %s', async recovery => {
+  const first = deferred<Response>()
+  const loadedAt = '2026-11-03T10:00:00.000Z'
+  let serverDoc = document({ updatedAt: loadedAt })
+  let count = 0
+  let reads = 0
+  const fetcher = stubFetch(async (input, init) => {
+    if (input.endsWith('/preflight')) return response(preflight)
+    if (init?.method === 'PATCH') {
+      count++
+      if (count === 1) {
+        serverDoc = { ...serverDoc, name: 'First', updatedAt: '2026-11-03T10:01:00.000Z' }
+        return first.promise
+      }
+      // Model the real server refusal if the old, now-stale timestamp is sent.
+      const baseline = new Headers(init.headers).get(XP_IF_UPDATED_AT_HEADER)
+      if (baseline && baseline !== serverDoc.updatedAt) return response({ errors: [{ code: 'stale-edit' }] }, 409)
+      serverDoc = { ...serverDoc, ...JSON.parse(init.body as string), updatedAt: '2026-11-03T10:02:00.000Z' }
+      return response({ doc: serverDoc })
+    }
+    if (++reads > 1) throw new Error('Read failed')
+    return response(serverDoc)
+  })
+  const { result, unmount } = renderHook(() => useTestDocument(serverDoc.id, { apiRoute: '/cms-api' }))
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  let completed!: Promise<void>
+  act(() => {
+    result.current.stage({ name: 'First' }); void result.current.commit()
+    result.current.stage({ hypothesis: 'Second' }); completed = result.current.commit()
+  })
+  await waitFor(() => expect(count).toBe(1))
+  if (recovery === 'aborted') unmount()
+  await act(async () => {
+    first.resolve({ ok: true, status: 200, json: async () => { throw new Error('Lost body') } } as unknown as Response)
+    await completed
+  })
+  const patches = fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH')
+  expect(patches).toHaveLength(2)
+  expect(new Headers(patches[1]![1]?.headers).has(XP_IF_UPDATED_AT_HEADER)).toBe(false)
+  expect(serverDoc.hypothesis).toBe('Second')
+  expect(reads).toBe(recovery === 'aborted' ? 1 : 2)
+  if (recovery === 'failed') {
+    expect(result.current.stale).toBe(false)
+    expect(result.current.saving).toBe('saved')
+    await act(async () => { result.current.stage({ allocation: 90 }); await result.current.commit() })
+    const last = fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH').at(-1)!
+    expect(new Headers(last[1]?.headers).get(XP_IF_UPDATED_AT_HEADER)).toBe('2026-11-03T10:02:00.000Z')
+  }
 })
