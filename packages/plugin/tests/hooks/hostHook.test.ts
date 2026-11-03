@@ -1,3 +1,4 @@
+import { safeError } from '../../src/log.js'
 import type { CollectionAfterChangeHook } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { neverThrow } from '../../src/hooks/hostHook.js'
@@ -11,7 +12,7 @@ test.each(['throw', 'reject'])('a hook that %ss reports the failure and returns 
   const doc = { id: 1, title: 'Saved' }
   const args = { doc } as Parameters<CollectionAfterChangeHook>[0]
   expect(await neverThrow('contentChanges', hook)(args)).toBe(doc)
-  expect(report).toHaveBeenCalledExactlyOnceWith('[payload-experiments] contentChanges failed; the document was saved without it', error)
+  expect(report).toHaveBeenCalledExactlyOnceWith('[payload-experiments] contentChanges failed; the document was saved without it', safeError(error))
 })
 
 test('successful hooks receive the original arguments and preserve their result', async () => {

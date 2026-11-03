@@ -1,3 +1,4 @@
+import { safeError } from '../../src/log.js'
 import type { Payload } from 'payload'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
@@ -132,10 +133,11 @@ test('runResults counts a real analysis failure separately from budget exhaustio
     ran: 0, skipped: 1, failed: 1, processedIds: [], budgetExhausted: false,
   })
   expect(context.payload.logs).toContainEqual({ level: 'error', args: [
-    { err: expect.any(RangeError), experimentId: phase.experiment }, 'Experiment results failed',
+    { err: { name: 'RangeError', stack: expect.stringContaining('at ') }, experimentId: phase.experiment }, 'Experiment results failed',
   ] })
-  const error = context.payload.logs.find(log => log.level === 'error')!.args[0] as { err: Error }
-  expect(error.err.message).toBe('Phase must have exactly one primary metric')
+  const error = context.payload.logs.find(log => log.level === 'error')!.args[0] as { err: Record<string, unknown> }
+  expect(error.err).not.toHaveProperty('message')
+  expect(error.err).not.toBeInstanceOf(Error)
   expect(await snapshots()).toHaveLength(0)
 })
 
@@ -146,7 +148,7 @@ test('runResults counts a non-budget scheduling failure', async () => {
     ran: 0, skipped: 1, failed: 1, budgetExhausted: false,
   })
   expect(context.payload.logs).toContainEqual({ level: 'error', args: [
-    { err: error, experimentId: 42 }, 'Experiment scheduling failed',
+    { err: safeError(error), experimentId: 42 }, 'Experiment scheduling failed',
   ] })
 })
 
@@ -161,7 +163,7 @@ test('recompute returns analysis-failed with HTTP 500 for a real analysis failur
   expect(response.status).toBe(500)
   expect(await response.json()).toEqual({ errors: [{ code: 'analysis-failed', message: 'Results could not be computed; this has been logged.' }] })
   expect(context.payload.logs).toContainEqual({ level: 'error', args: [
-    { err: expect.any(RangeError), experimentId: phase.experiment }, 'Experiment results failed',
+    { err: { name: 'RangeError', stack: expect.stringContaining('at ') }, experimentId: phase.experiment }, 'Experiment results failed',
   ] })
   expect(await snapshots()).toHaveLength(0)
 })

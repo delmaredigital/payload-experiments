@@ -1,3 +1,4 @@
+import { safeError } from '../log.js'
 import type { Payload } from 'payload'
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
 import type { Assignments, RenderedExposure } from '../types/assignments.js'
@@ -36,6 +37,6 @@ export async function recordExposures<TUser extends { id: string | number } = { 
     })
     await insertEvents(exec, rows, message => payload!.logger.error(message))
   } catch (error) {
-    try { payload?.logger.error({ err: error, msg: 'Experiments: recordExposures failed' }) } catch { /* Logging must not break a page. */ }
+    try { payload?.logger.error({ err: safeError(error) }, 'Experiments: recordExposures failed') } catch { /* Logging must not break a page. */ }
   }
 }

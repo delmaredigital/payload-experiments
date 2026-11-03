@@ -1,3 +1,4 @@
+import { safeError } from '../log.js'
 import { NextRequest } from 'next/server.js'
 import type { PayloadRequest } from 'payload'
 import { DEFAULT_MAX_BODY_BYTES } from '../constants.js'
@@ -51,7 +52,7 @@ export async function handleEvents<TUser extends { id: string | number } = { id:
     // no Local API calls (and hence no implicit overrideAccess defaults).
     if (rows.length) await insertEvents(pooledExecutor(req.payload), rows, message => req.payload.logger.error(message))
   } catch (error) {
-    try { req.payload.logger.error({ err: error, msg: 'Experiments: events endpoint failed' }) } catch { /* Telemetry and logging must never break the request. */ }
+    try { req.payload.logger.error({ err: safeError(error) }, 'Experiments: events endpoint failed') } catch { /* Telemetry and logging must never break the request. */ }
   }
   return accepted()
 }

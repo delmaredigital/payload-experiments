@@ -1,3 +1,4 @@
+import { safeError } from '../../src/log.js'
 import type { CollectionAfterChangeHook } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { contentChangesBeforeHook, contentChangesHook } from '../../src/hooks/contentChanges.js'
@@ -158,7 +159,7 @@ test('explicit calls and installed hooks log discovery errors without throwing i
   const report = vi.spyOn(console, 'error').mockImplementation(() => {})
   await expect(recordContentChange(args)).resolves.toBeUndefined()
   expect(await contentChangesHook(args)).toBe(args.doc)
-  expect(report).toHaveBeenCalledWith('[payload-experiments] contentChanges failed; the document was saved without it', error)
+  expect(report).toHaveBeenCalledWith('[payload-experiments] contentChanges failed; the document was saved without it', safeError(error))
 })
 test.each(['lock', 'append', 'under-lock read'])('%s failure is recovered before the hook reports a lost marker', async stage => {
   const { args, executor, payload } = setup()
@@ -176,7 +177,7 @@ test.each(['lock', 'append', 'under-lock read'])('%s failure is recovered before
   expect(args.req.transactionID).toBe(transaction)
   expect(payload.dbCalls).toEqual([])
   expect(executor.calls.filter(call => call.text === 'ROLLBACK TO SAVEPOINT xp_content_change')).toHaveLength(2)
-  expect(report).toHaveBeenCalledWith('[payload-experiments] contentChanges failed; the document was saved without it', error)
+  expect(report).toHaveBeenCalledWith('[payload-experiments] contentChanges failed; the document was saved without it', safeError(error))
 })
 
 test('a held experiment lock times out at 2s, skips the marker, logs and preserves the host transaction', async () => {
@@ -199,7 +200,7 @@ test('a held experiment lock times out at 2s, skips the marker, logs and preserv
   expect(executor.calls.some(call => call.text.startsWith('UPDATE'))).toBe(false)
   expect(args.req.transactionID).toBe(transaction)
   expect(payload.dbCalls).toEqual([])
-  expect(report).toHaveBeenCalledExactlyOnceWith('[payload-experiments] contentChanges failed; the document was saved without it', error)
+  expect(report).toHaveBeenCalledExactlyOnceWith('[payload-experiments] contentChanges failed; the document was saved without it', safeError(error))
 })
 
 test('a pruned version history and unpublish do not change the captured main-row baseline', async () => {
@@ -313,7 +314,7 @@ test.each(['SAVEPOINT', 'ROLLBACK TO SAVEPOINT', 'RELEASE SAVEPOINT'])('explicit
   })
   const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
   await expect(recordContentChange(args)).resolves.toBeUndefined()
-  expect(errors).toHaveBeenCalledWith('[payload-experiments] contentChanges failed; the document was saved without it', error)
+  expect(errors).toHaveBeenCalledWith('[payload-experiments] contentChanges failed; the document was saved without it', safeError(error))
 })
 test('KI-2: draft-born page already contains a running slot; unchanged first publish records exactly one marker', async () => {
   const { args, executor } = setup()
