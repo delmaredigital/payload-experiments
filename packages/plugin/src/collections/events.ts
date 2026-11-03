@@ -4,7 +4,7 @@ import { readOnlyAccess } from './access.js'
 
 export function eventsCollection(options: ResolvedOptions): CollectionConfig {
   return {
-    slug: 'xp-events', graphQL: false, disableDuplicate: true, admin: { hidden: true },
+    slug: 'xp-events', graphQL: false, disableDuplicate: true, versions: false, admin: { hidden: true },
     access: readOnlyAccess(options.access.readIdentities ?? options.access.admin ?? options.access.manage),
     indexes: [{ fields: ['experiment', 'phase', 'type', 'ts'] }, { fields: ['unitId', 'experiment'] }, { fields: ['type', 'eventName', 'ts'] }, { fields: ['experiment', 'type', 'ts'] }],
     fields: [

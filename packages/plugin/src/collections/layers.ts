@@ -7,7 +7,7 @@ import { managedAccess } from './access.js'
 export function layersCollection(options: ResolvedOptions): CollectionConfig {
   const usageAdmin = { description: 'See which tests use this group and how much room is left.', components: { Field: XP_LAYER_USAGE } }
   return {
-    slug: 'xp-layers', graphQL: false, disableDuplicate: true,
+    slug: 'xp-layers', graphQL: false, disableDuplicate: true, versions: false,
     // group:false hides navigation while keeping collection routes reachable (hidden causes 404s).
     labels: { singular: 'Test group', plural: 'Test groups (advanced)' }, admin: { group: false, useAsTitle: 'name' }, access: managedAccess(options),
     fields: [

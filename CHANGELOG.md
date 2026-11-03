@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Every plugin collection and global now states `versions` explicitly (`false`, except Tests, which keep their version history). No schema change on Payload 3; prevents default versioning tables on Payload 4.
+
+Migration impact: none.
+
 ## [0.2.0-rc.4] - 2026-11-03
 
 ### plugin

@@ -8,7 +8,7 @@ import { validateCappingType, validateCappingValue } from './metricValidation.js
 export function metricsCollection(options: ResolvedOptions): CollectionConfig {
   const sources = serializeMetricSources(options)
   return {
-    slug: 'xp-metrics', graphQL: false, disableDuplicate: true,
+    slug: 'xp-metrics', graphQL: false, disableDuplicate: true, versions: false,
     // group:false hides navigation while keeping collection routes reachable (hidden causes 404s).
     labels: { singular: 'Goal', plural: 'Goals' }, admin: { group: false, useAsTitle: 'name' }, access: managedAccess(options),
     hooks: { beforeValidate: [({ data, originalDoc }) => {

@@ -4,7 +4,7 @@ import { readOnlyAccess } from './access.js'
 
 export function snapshotsCollection(options: ResolvedOptions): CollectionConfig {
   return {
-    slug: 'xp-results-snapshots', graphQL: false, disableDuplicate: true, admin: { hidden: true },
+    slug: 'xp-results-snapshots', graphQL: false, disableDuplicate: true, versions: false, admin: { hidden: true },
     access: readOnlyAccess(options.access.readResults ?? options.access.manage), indexes: [{ fields: ['experiment', 'computedAt'] }],
     fields: [
       { name: 'experiment', type: 'relationship', relationTo: 'xp-experiments' },

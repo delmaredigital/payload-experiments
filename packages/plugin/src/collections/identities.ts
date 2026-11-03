@@ -4,7 +4,7 @@ import { readOnlyAccess } from './access.js'
 
 export function identitiesCollection(options: ResolvedOptions): CollectionConfig {
   return {
-    slug: 'xp-identities', graphQL: false, disableDuplicate: true, admin: { hidden: true },
+    slug: 'xp-identities', graphQL: false, disableDuplicate: true, versions: false, admin: { hidden: true },
     access: readOnlyAccess(options.access.readIdentities ?? options.access.admin ?? options.access.manage),
     fields: [
       { name: 'anonymousId', type: 'text', unique: true, required: true },

@@ -29,7 +29,7 @@ test('all collection identities, storage flags and version settings', () => {
   for (const collection of collections) {
     expect(collection.graphQL).toBe(false)
     expect(collection.disableDuplicate).toBe(true)
-    expect(collection.versions).toEqual(collection === experiments ? { drafts: false, maxPerDoc: 50 } : undefined)
+    expect(collection.versions).toEqual(collection === experiments ? { drafts: false, maxPerDoc: 50 } : false)
     expect(collection.admin?.hidden).toBe(['xp-phases', 'xp-events', 'xp-identities', 'xp-results-snapshots'].includes(collection.slug) ? true : undefined)
   }
   expect(globals[0]).toMatchObject({ slug: 'xp-state', dbName: 'xp_state', graphQL: false, admin: { hidden: true } })

@@ -4,7 +4,7 @@ import { readOnlyAccess } from './access.js'
 
 export function phasesCollection(options: ResolvedOptions): CollectionConfig {
   return {
-    slug: 'xp-phases', graphQL: false, disableDuplicate: true, admin: { hidden: true },
+    slug: 'xp-phases', graphQL: false, disableDuplicate: true, versions: false, admin: { hidden: true },
     access: readOnlyAccess(options.access.readResults ?? options.access.manage),
     fields: [
       { name: 'experiment', type: 'relationship', relationTo: 'xp-experiments' },
