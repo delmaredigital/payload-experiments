@@ -201,3 +201,17 @@ test('a per-language collection label picks a readable string without a translat
     expect.objectContaining({ collectionLabel: 'Pages' }),
   ] }) }))
 })
+
+
+test('root emits exactly one scoped accent style only when configured', async () => {
+  const { props, payload } = setup()
+  expect(renderToStaticMarkup(await ExperimentsRootView(props))).not.toContain('<style>')
+  const xp = payload.config.custom.xp as ExperimentsPluginOptions
+  xp.theme = { accent: '#1f3a68' }
+  const html = renderToStaticMarkup(await ExperimentsRootView(props))
+  expect(html.match(/<style>/g)).toHaveLength(1)
+  expect(html).toContain('--xp-accent:#1f3a68;')
+  expect(html).toContain('[data-theme="dark"][data-theme="dark"]')
+  const declarations = [...html.matchAll(/(--[\w-]+):/g)].map(match => match[1])
+  expect(declarations.every(name => name === '--xp-focus' || name?.startsWith('--xp-accent'))).toBe(true)
+})

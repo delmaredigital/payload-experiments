@@ -8,6 +8,7 @@ test('/puck/editor cannot reach exposure, server, admin, or database code', () =
   expect(graph.files.filter(file => /\/src\/(client|db|server|endpoints|admin)\//.test(file))).toEqual([])
   expect([...graph.bare, ...graph.dynamic].filter(name => /^(payload(?:\/|$)|@payloadcms\/|@delmaredigital\/experiments-stats(?:\/|$)|pg(?:\/|$)|node:)/.test(name))).toEqual([])
   expect(graph.dynamic).toEqual([])
+  expect(graph.files.some(file => /\/src\/ui\//.test(file))).toBe(true)
 })
 
 test('the editor render imports its shipped stylesheet', () => {

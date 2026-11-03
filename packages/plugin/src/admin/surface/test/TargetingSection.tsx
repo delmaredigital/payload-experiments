@@ -1,6 +1,6 @@
 'use client'
 import { useId, useState } from 'react'
-import { ChipsInput } from '../../components/ChipsInput.js'
+import { ChipsInput } from '../../../ui/ChipsInput.js'
 import { AUDIENCE_COPY } from '../../copy/audience.js'
 import type { SectionProps } from '../contracts.js'
 import type { TargetingRule } from '../../../types/contracts.js'

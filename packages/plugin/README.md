@@ -672,3 +672,21 @@ changes block actions**; save first so they use the saved experiment.
   without drafts).
 - Results cover the whole round; breakdowns by segment or dimension are not
   available in v1.
+
+## Theme
+
+The admin inherits Payload's neutral palette by default. Set one host accent:
+
+```ts
+theme: { accent: '#1f3a68' }
+```
+
+`theme.accent` accepts `#rgb` or `#rrggbb`; empty or undefined uses the default.
+The plugin derives darker hover/active fills (clamped to keep text contrast), a
+contrasting focus ring, and an opaque 8% subtle tint.
+In dark mode it raises HSL lightness when needed to reach 3:1 against the
+reference dark surface, then selects white or near-black foreground text.
+The WCAG 2.x gate requires at least 4.5:1 **foreground text on the accent fill**
+in each theme (the accent is used as a fill, not as page text). A failing
+colour is refused with its ratio. Status chips retain Payload semantic colours.
+`deriveAccent` is also exported from `/puck/editor` for editor integrations.

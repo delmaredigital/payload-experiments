@@ -1,9 +1,24 @@
+/** Host accent rules (reference surfaces are defined by theme.css):
+ * (i) Foreground on accent, hover and active fills reaches 4.5:1 in both themes.
+ * (ii) Accent text moves toward the surface's opposite to reach 4.5:1; if the
+ * bounded search fails, use the neutral text token and underline it.
+ * (iii) Focus reaches 3:1 against the surface: darken on light, lighten on dark.
+ */
+export { deriveAccent } from '../ui/accent.js'
+
 /** every Payload token reference lives in theme.css; porting to Payload 4 edits that file only */
 export const theme = {
   color: {
     bg: 'var(--xp-bg)',
     text: 'var(--xp-text)',
     surface: 'var(--xp-surface)',
+    surface2: 'var(--xp-surface-2)', surface3: 'var(--xp-surface-3)',
+    text2: 'var(--xp-text-2)', text3: 'var(--xp-text-3)',
+    accentHover: 'var(--xp-accent-hover)', accentActive: 'var(--xp-accent-active)',
+    accentText: 'var(--xp-accent-text)', accentSubtle: 'var(--xp-accent-subtle)', accentFg: 'var(--xp-accent-fg)', focus: 'var(--xp-focus)',
+    successBorder: 'var(--xp-success-border)', warningBorder: 'var(--xp-warning-border)',
+    errorBg: 'var(--xp-error-bg)', errorBorder: 'var(--xp-error-border)',
+    seriesA: 'var(--xp-series-a)', seriesB: 'var(--xp-series-b)', seriesMuted: 'var(--xp-series-muted)',
     surfaceRaised: 'var(--xp-surface-raised)',
     border: 'var(--xp-border)',
     borderStrong: 'var(--xp-border-strong)',
@@ -30,7 +45,9 @@ export const theme = {
     error: 'var(--xp-error)',
     errorText: 'var(--xp-error-text)',
   },
-  radius: { small: 'var(--xp-radius)', large: 'var(--xp-radius-large)' },
+  motion: 'var(--xp-motion)',
+  type: { display: 'var(--xp-text-display)', title: 'var(--xp-text-title)', body: 'var(--xp-text-body)', small: 'var(--xp-text-small)' },
+  radius: { control: 'var(--xp-radius-control)', card: 'var(--xp-radius-card)', chip: 'var(--xp-radius-chip)', small: 'var(--xp-radius)', large: 'var(--xp-radius-large)' },
   space: {
     1: 'var(--xp-space-1)',
     2: 'var(--xp-space-2)',
@@ -38,6 +55,7 @@ export const theme = {
     4: 'var(--xp-space-4)',
     5: 'var(--xp-space-5)',
     6: 'var(--xp-space-6)',
+    7: 'var(--xp-space-7)', 8: 'var(--xp-space-8)',
   },
-  font: { body: 'var(--xp-font-body)', small: 'var(--xp-font-size-small)', size: 'var(--xp-font-size-body)' },
+  font: { mono: 'var(--xp-mono)', family: 'var(--xp-font)', body: 'var(--xp-font-body)', small: 'var(--xp-font-size-small)', size: 'var(--xp-font-size-body)' },
 } as const
