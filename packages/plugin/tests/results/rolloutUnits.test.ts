@@ -1,5 +1,6 @@
 import { hash, layerSlice, rolloutBucketRanges } from '@delmaredigital/experiments-stats'
 import { expect, test } from 'vitest'
+import { XpAnalysisError } from '../../src/errors.js'
 import { rolloutAnalysisUnits } from '../../src/results/rolloutUnits.js'
 
 const seed = 'rollout-test|'
@@ -88,7 +89,7 @@ test('empty exposures', () => {
 
 test('rejects a seed without the assignment separator, even with no exposures', () => {
   expect(() => rolloutAnalysisUnits({ ...args, seed: 'missing-pipe', exposuresAllPhases: [] }))
-    .toThrow(new RangeError('Assignment seed must end in |'))
+    .toThrow(new XpAnalysisError('seed-format'))
 })
 
 test('accepts mixed timestamp formats when comparing exposures across phases', () => {

@@ -11,4 +11,8 @@ export { recordContentChange } from '../server/recordContentChange.js'
 export { experimentSitemapFilter } from '../server/sitemap.js'
 export { experimentMetadata } from '../server/metadata.js'
 export { toClientAssignments } from '../server/toClientAssignments.js'
+// Pure manifest builder for host tests (CORE-43): the same compile transitions run, with no database access.
+export { compileManifest } from '../manifest/compile.js'
+export type { ManifestInputs, ManifestInputExperiment, ManifestPhase, ManifestCompileOptions } from '../manifest/compile.js'
+export type { Manifest, ManifestExperiment } from '../types/manifest.js'
 export { contentChangesBeforeHook as captureContentBaseline } from '../hooks/contentChanges.js'

@@ -1,3 +1,4 @@
+import { XpAnalysisError } from '../errors.js'
 import { checkSrm } from '@delmaredigital/experiments-stats'
 import type { Snapshot } from '../types/snapshot.js'
 
@@ -10,7 +11,7 @@ export function exposureSrm(
 ): Snapshot['srm'] {
   const active = arms.filter(arm => arm.weight > 0)
   const weight = active.reduce((sum, arm) => sum + arm.weight, 0)
-  if (weight <= 0) throw new RangeError('SRM requires positive weights')
+  if (weight <= 0) throw new XpAnalysisError('srm-weights')
   const expected = Object.fromEntries(arms.map(arm => [arm.key, arm.weight / weight]))
   // A unit exposed to an impossible arm is a splitting problem even though
   // checkSrm deliberately omits zero-weight groups from its degrees of freedom.

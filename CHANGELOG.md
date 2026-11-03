@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: `compileManifest` and its input/output types are exported from `/rsc`, so host tests can build a manifest without importing from `dist/` (a test helper: pass the same `attributeKeys` as the plugin options; its input shape may change in a pre-1.0 minor). Migration impact: none.
+- Fixed: when the analysis of a test fails, the server log now names the reason (a fixed code and message) instead of only the error type. Migration impact: none.
 - Fixed: a goal used by a test can't be deleted, and its short name and what it measures can't change, through any route (not only the Goals page). Migration impact: none.
 - Added: optional `theme.accent` plugin option with derived light/dark fills, accessible accent text and focus rings, and foreground contrast validation.
 - Changed: admin design tokens and shared interface components for the 0.3.0 screens; Running and Ready use fixed green status colours, and the Puck editor stylesheet is generated from the same tokens.
