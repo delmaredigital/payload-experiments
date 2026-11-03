@@ -1,5 +1,6 @@
 import type { Snapshot } from '../types/snapshot.js'
-import { slotLabels } from '../puck/copy.js'
+import type { ArmKey } from '../types/contracts.js'
+import { ARM_LABELS } from '../labels/arms.js'
 
 /** Already-computed results. Rollouts require the shipped winner's key and label;
  * R3 reads that winner's comparison, regardless of comparison order. */
@@ -83,6 +84,11 @@ function chance(value: number | undefined): string {
   return value >= 0.995 ? ' (more than 99%)' : ` (${Math.floor(value * 100)}%)`
 }
 
+/** Resolve a stored group label without exposing an internal key in verdict copy. */
+export function verdictGroupLabel(key: string, label = ''): string {
+  return label.trim() || ARM_LABELS[key as ArmKey] || 'This group'
+}
+
 /** Apply spec §8.5 in order to already-computed results; no inference is performed here. */
 export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
   const rollout = input.phaseKind === 'rollout'
@@ -135,7 +141,7 @@ export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
       if (!group || group.kind === 'control') return 'Original'
       const label = input.exposures.perArm.find(item => item.arm === group.arm)?.label
         ?? input.primary.comparisons.find(item => item.arm === group.arm)?.label
-      return label?.trim() || slotLabels[group.arm as keyof typeof slotLabels] || group.arm
+      return verdictGroupLabel(group.arm, label)
     }
     const detail = [
       minimum < input.exposures.minExposuresPerArm

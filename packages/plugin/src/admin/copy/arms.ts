@@ -1,5 +1,7 @@
 import type { ArmIssueCode } from '../../types/endpoints.js'
 
+export { ARM_LABELS as GROUP_LABELS } from '../../labels/arms.js'
+
 export const ISSUE_COPY: Record<ArmIssueCode, string> = {
   'weights-total': 'Weights must add up to 100%. They add up to {total}% now.',
   'control-count': 'Include exactly one Original.',
@@ -12,9 +14,6 @@ export const ISSUE_COPY: Record<ArmIssueCode, string> = {
   'slot-required': 'Choose the matching content slot for this group.',
   'invalid-key': 'Use the standard group names: Original, Variant A–C, Holdout.',
 }
-export const GROUP_LABELS = {
-  control: 'Original', variantA: 'Variant A', variantB: 'Variant B', variantC: 'Variant C', holdout: 'Holdout',
-} as const
 export const ARMS_COPY = {
   holdout: 'The holdout sees the Original and is measured but not compared during the test. After you decide, it keeps seeing the Original so the winner can be compared with it.',
   pageRequired: 'Enter a page path for this group.',

@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { describe, expect, expectTypeOf, test } from 'vitest'
-import { computeVerdict, type VerdictInput } from '../../src/results/verdict.js'
+import { computeVerdict, verdictGroupLabel, type VerdictInput } from '../../src/results/verdict.js'
 import type { Snapshot } from '../../src/types/snapshot.js'
 import { collectImports } from '../_helpers/importGraph.js'
 
@@ -188,10 +188,22 @@ test('collecting names the first converter group on a tie, independently of expo
   expect(computeVerdict(value).detail).toContain('Fewest conversions so far: Shorter form, 37 of the 150 needed.')
 })
 
-test.each(['', '   '])('collecting falls back from blank group label %j to the slot label', label => {
+test.each(['', '   '])('collecting falls back from blank group label %j to the standard label', label => {
   const value = input('T4')
   value.exposures.perArm[1]!.label = label
   expect(computeVerdict(value).detail).toBe('Smallest group so far: Variant A, 360 of the 1000 people it needs. Fewest conversions so far: Variant A, 37 of the 150 needed.')
+})
+
+// Test-phase holdouts are excluded from row 4, so exercise its label helper directly.
+test.each(['', '   '])('blank holdout label %j falls back to Holdout', label => {
+  expect(verdictGroupLabel('holdout', label)).toBe('Holdout')
+})
+
+test('collecting uses This group for an unknown key with a blank label', () => {
+  const value = input('T4')
+  Object.assign(value.exposures.perArm[1]!, { arm: 'future-group', label: '   ' })
+  value.primary.convertersPerArm[1]!.arm = 'future-group'
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: This group, 360 of the 1000 people it needs. Fewest conversions so far: This group, 37 of the 150 needed.')
 })
 
 test('collecting trims stored labels and can find a converter label in the comparison list', () => {

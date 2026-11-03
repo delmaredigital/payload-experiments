@@ -1,6 +1,8 @@
-// Kept separate from admin copy because the Puck entries cannot import admin modules.
+import { ARM_LABELS } from '../labels/arms.js'
+
 export const slotLabels = {
-  control: 'Original', variantA: 'Variant A', variantB: 'Variant B', variantC: 'Variant C',
+  control: ARM_LABELS.control, variantA: ARM_LABELS.variantA,
+  variantB: ARM_LABELS.variantB, variantC: ARM_LABELS.variantC,
 } as const
 
 export const pickerCopy = {
