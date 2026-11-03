@@ -1,3 +1,4 @@
+import { safeError } from '../log.js'
 import type { PayloadRequest } from 'payload'
 import { txExecutor } from '../db/executor.js'
 import { deleteExperimentSnapshots, serializeDelete } from '../db/delete.js'
@@ -30,7 +31,7 @@ export async function deleteExperiment(req: PayloadRequest, experimentId: DocId)
       const decision = current.decision as { discardedAt?: string | null } | undefined
       if (current.status !== 'archived' || decision?.discardedAt) state.pruneFlagDefaultIds.set(String(experimentId), experimentId)
     } catch (error) {
-      req.payload.logger.error({ experimentId, err: error }, 'Experiment cascade failed; aborting delete')
+      req.payload.logger.error({ experimentId, err: safeError(error) }, 'Experiment cascade failed; aborting delete')
       throw error
     }
   })

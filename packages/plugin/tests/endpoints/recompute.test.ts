@@ -1,3 +1,4 @@
+import { safeError } from '../../src/log.js'
 import { afterEach, expect, test, vi } from 'vitest'
 import { handleRecompute } from '../../src/endpoints/recompute.js'
 import { runResults } from '../../src/server/runResults.js'
@@ -38,7 +39,7 @@ test('a snapshot read error is logged with its experiment and returns recompute-
   const response = await handleRecompute(fakeReq({ payload, routeParams: { id: 'exp' } }), { options: sampleOptions() })
   expect(response.status).toBe(503)
   expect(await response.json()).toEqual({ errors: [{ code: 'recompute-failed', message: 'Results could not be recomputed. Try again.' }] })
-  expect(payload.logs).toContainEqual({ level: 'error', args: [{ err: error, experimentId: 'exp' }, expect.any(String)] })
+  expect(payload.logs).toContainEqual({ level: 'error', args: [{ err: safeError(error), experimentId: 'exp' }, expect.any(String)] })
 })
 
 test('missing experiment is 404 and does not run analysis', async () => {

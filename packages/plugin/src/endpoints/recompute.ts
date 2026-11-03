@@ -1,3 +1,4 @@
+import { safeError } from '../log.js'
 import type { PayloadRequest } from 'payload'
 import type { EndpointContext } from '../types/endpoints.js'
 import { runResults } from '../server/runResults.js'
@@ -16,7 +17,7 @@ export async function handleRecompute<TUser extends { id: string | number } = { 
     if (!latest) return resultsError(422, 'recompute-failed', 'There is no round to analyse yet.')
     return Response.json({ snapshotId: latest.id }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
-    req.payload.logger.error({ err: error, experimentId: docs[0].id }, 'Experiment recompute failed')
+    req.payload.logger.error({ err: safeError(error), experimentId: docs[0].id }, 'Experiment recompute failed')
     return resultsError(503, 'recompute-failed', 'Results could not be recomputed. Try again.')
   }
 }

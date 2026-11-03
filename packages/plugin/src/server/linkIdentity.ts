@@ -1,3 +1,4 @@
+import { safeError } from '../log.js'
 import type { Payload } from 'payload'
 import { NextRequest } from 'next/server.js'
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
@@ -20,6 +21,6 @@ export async function linkIdentity<TUser extends { id: string | number } = { id:
     payload = await serverRuntime.getPayload()
     await insertIdentityOnOwnConnection(payload, { anonymousId, userId: opts.userId })
   } catch (error) {
-    try { payload?.logger.error({ err: error, msg: 'Experiments: linkIdentity failed' }) } catch { /* Never break sign-in, even if logging fails. */ }
+    try { payload?.logger.error({ err: safeError(error) }, 'Experiments: linkIdentity failed') } catch { /* Never break sign-in, even if logging fails. */ }
   }
 }

@@ -1,4 +1,6 @@
 import type { Snapshot } from '../types/snapshot.js'
+import type { ArmKey } from '../types/contracts.js'
+import { ARM_LABELS } from '../labels/arms.js'
 
 /** Already-computed results. Rollouts require the shipped winner's key and label;
  * R3 reads that winner's comparison, regardless of comparison order. */
@@ -82,6 +84,11 @@ function chance(value: number | undefined): string {
   return value >= 0.995 ? ' (more than 99%)' : ` (${Math.floor(value * 100)}%)`
 }
 
+/** Resolve a stored group label without exposing an internal key in verdict copy. */
+export function verdictGroupLabel(key: string, label = ''): string {
+  return label.trim() || (Object.hasOwn(ARM_LABELS, key) ? ARM_LABELS[key as ArmKey] : 'This group')
+}
+
 /** Apply spec §8.5 in order to already-computed results; no inference is performed here. */
 export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
   const rollout = input.phaseKind === 'rollout'
@@ -127,10 +134,27 @@ export function computeVerdict(input: VerdictInput): Snapshot['verdict'] {
   if (failing) return make(3, 'guardrail-failing',
     `Stop: ${failing.worstArmLabel} harms ${failing.name}.`, null,
     'An outcome that must stay safe has become worse.', input.controlArm, undefined, failing.worstArm)
-  if (collecting) return make(4, 'collecting', input.status === 'stopped'
-    ? 'Stopped before enough data was collected.'
-    : `Collecting data: ${minimum} of ${input.exposures.minExposuresPerArm} people, ${minimumConverters} of ${input.primary.minSampleSize} conversions.`,
-  null, 'More people or conversions are needed before drawing a conclusion.', null)
+  if (collecting) {
+    const smallest = compared.find(item => item.n === minimum)
+    const fewest = converters.find(item => item.converters === minimumConverters)
+    const groupLabel = (group: { arm: string; kind: string } | undefined): string => {
+      if (!group || group.kind === 'control') return 'Original'
+      const label = input.exposures.perArm.find(item => item.arm === group.arm)?.label
+        ?? input.primary.comparisons.find(item => item.arm === group.arm)?.label
+      return verdictGroupLabel(group.arm, label)
+    }
+    const detail = [
+      minimum < input.exposures.minExposuresPerArm
+        ? `Smallest group so far: ${groupLabel(smallest)}, ${minimum} of the ${input.exposures.minExposuresPerArm} people it needs.` : '',
+      minimumConverters < input.primary.minSampleSize
+        ? `Fewest conversions so far: ${groupLabel(fewest)}, ${minimumConverters} of the ${input.primary.minSampleSize} needed.` : '',
+    ].filter(Boolean).join(' ') || 'More people or conversions are needed before drawing a conclusion.'
+    return make(4, 'collecting', input.status === 'stopped'
+      ? 'Stopped before enough data was collected.'
+      : 'Collecting data.', null, input.status === 'stopped'
+      ? 'More people or conversions are needed before drawing a conclusion.'
+      : detail, null)
+  }
 
   const variantKeys = new Set(compared.filter(item => item.kind === 'variant').map(item => item.arm))
   const variants = input.primary.comparisons.filter(item => variantKeys.has(item.arm))

@@ -1,9 +1,8 @@
 import type { ArmKey, ExperimentKind, Status } from '../types/contracts.js'
 import type { VerdictCode } from '../types/snapshot.js'
+import { ARM_LABELS } from '../labels/arms.js'
 
-export const ARM_LABELS = {
-  control: 'Original', variantA: 'Variant A', variantB: 'Variant B', variantC: 'Variant C', holdout: 'Holdout',
-} satisfies Record<ArmKey, string>
+export { ARM_LABELS }
 export const STATUS_LABELS = {
   draft: 'Draft', running: 'Running', stopped: 'Stopped', decided: 'Decided', archived: 'Archived',
 } satisfies Record<Status, string>

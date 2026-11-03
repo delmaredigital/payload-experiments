@@ -6,6 +6,8 @@ import { createExperimentSlotField } from '../../src/puck/experimentSlotField.js
 import { ExperimentPicker } from '../../src/puck/ExperimentPicker.js'
 import { slotLabels } from '../../src/puck/copy.js'
 import { GROUP_LABELS } from '../../src/admin/copy/arms.js'
+import { ARM_LABELS as adminArmLabels } from '../../src/admin/labels.js'
+import { ARM_LABELS } from '../../src/labels/arms.js'
 
 type RenderProps = Parameters<typeof ExperimentSlot.render>[0]
 const names: ArmSlot[] = ['control', 'variantA', 'variantB', 'variantC']
@@ -63,7 +65,10 @@ test('config defines four slots, a custom experiment field, and empty serialized
   expect(ExperimentSlot.defaultProps).toEqual({ experiment: null, control: [], variantA: [], variantB: [], variantC: [] })
 })
 
-test('Puck slot labels match the admin group labels', () => {
+test('Puck and admin labels use the neutral arm-label map', () => {
+  expect(GROUP_LABELS).toBe(ARM_LABELS)
+  expect(adminArmLabels).toBe(ARM_LABELS)
+  expect(Object.keys(slotLabels)).toEqual(names)
   for (const key of names) expect(slotLabels[key]).toBe(GROUP_LABELS[key])
 })
 

@@ -1,3 +1,4 @@
+import { safeError } from '../log.js'
 import type { Payload } from 'payload'
 import { NextRequest } from 'next/server.js'
 import type { ExperimentsServerRuntime } from '../types/runtime.js'
@@ -33,7 +34,7 @@ export async function trackConversion<TUser extends { id: string | number } = { 
         const user = await serverRuntime.getUser()
         if (user) userId = serverRuntime.userIdOf(user)
       } catch (error) {
-        try { payload.logger.error({ err: error, msg: 'Experiments: trackConversion getUser failed' }) } catch { /* Still record the visitor conversion if logging fails. */ }
+        try { payload.logger.error({ err: safeError(error) }, 'Experiments: trackConversion getUser failed') } catch { /* Still record the visitor conversion if logging fails. */ }
       }
     }
     if (!visitorId && !userId) return
@@ -41,6 +42,6 @@ export async function trackConversion<TUser extends { id: string | number } = { 
       unitId: visitorId ?? userId!, unitType: visitorId ? 'visitor' : 'user', userId,
       dedupeKey: `conversion:s:${event.idempotencyKey}`, ts: new Date().toISOString() }], message => payload!.logger.error(message))
   } catch (error) {
-    try { payload?.logger.error({ err: error, msg: 'Experiments: trackConversion failed' }) } catch { /* Never break the host's write path. */ }
+    try { payload?.logger.error({ err: safeError(error) }, 'Experiments: trackConversion failed') } catch { /* Never break the host's write path. */ }
   }
 }

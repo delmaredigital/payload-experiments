@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { describe, expect, expectTypeOf, test } from 'vitest'
-import { computeVerdict, type VerdictInput } from '../../src/results/verdict.js'
+import { computeVerdict, verdictGroupLabel, type VerdictInput } from '../../src/results/verdict.js'
 import type { Snapshot } from '../../src/types/snapshot.js'
 import { collectImports } from '../_helpers/importGraph.js'
 
@@ -147,7 +147,76 @@ test('holdout is excluded from the collecting minimum', () => {
   value.exposures.perArm.find(item => item.kind === 'holdout')!.n = 0
   expect(computeVerdict(value).row).toBe(7)
   value.exposures.perArm[1]!.n = 999
-  expect(computeVerdict(value).finding).toBe(`Collecting data: 999 of 1000 people, ${Math.min(...value.primary.convertersPerArm.filter(group => group.kind !== 'holdout').map(group => group.converters))} of 150 conversions.`)
+  expect(computeVerdict(value)).toMatchObject({
+    finding: 'Collecting data.', headline: 'Collecting data.', action: null,
+    detail: 'Smallest group so far: Shorter form, 999 of the 1000 people it needs.',
+  })
+})
+
+test('collecting names the first compared group when exposure counts tie', () => {
+  const value = input('T4')
+  addVariant(value, 'variantB', 'Guided form', 'none', 0)
+  value.exposures.perArm.find(group => group.arm === 'variantB')!.n = 360
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Shorter form, 360 of the 1000 people it needs. Fewest conversions so far: Shorter form, 37 of the 150 needed.')
+  value.exposures.perArm.reverse()
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Guided form, 360 of the 1000 people it needs. Fewest conversions so far: Shorter form, 37 of the 150 needed.')
+})
+
+test('collecting names the smallest control group Original', () => {
+  const value = input('T4')
+  Object.assign(value.exposures.perArm[0]!, { label: 'Old form', n: 100 })
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Original, 100 of the 1000 people it needs. Fewest conversions so far: Shorter form, 37 of the 150 needed.')
+})
+
+test('collecting uses the smallest group label rather than its key or comparison label', () => {
+  const value = input('T4')
+  value.exposures.perArm[1]!.label = 'One-page signup'
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: One-page signup, 360 of the 1000 people it needs. Fewest conversions so far: One-page signup, 37 of the 150 needed.')
+})
+
+test('collecting names different groups for the smallest people count and fewest conversions', () => {
+  const value = input('T4')
+  value.primary.convertersPerArm[0]!.converters = 20
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Shorter form, 360 of the 1000 people it needs. Fewest conversions so far: Original, 20 of the 150 needed.')
+})
+
+test('collecting names the first converter group on a tie, independently of exposure order', () => {
+  const value = input('T4')
+  value.primary.convertersPerArm[0]!.converters = 37
+  expect(computeVerdict(value).detail).toContain('Fewest conversions so far: Original, 37 of the 150 needed.')
+  value.primary.convertersPerArm.reverse()
+  expect(computeVerdict(value).detail).toContain('Fewest conversions so far: Shorter form, 37 of the 150 needed.')
+})
+
+test.each(['', '   '])('collecting falls back from blank group label %j to the standard label', label => {
+  const value = input('T4')
+  value.exposures.perArm[1]!.label = label
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Variant A, 360 of the 1000 people it needs. Fewest conversions so far: Variant A, 37 of the 150 needed.')
+})
+
+// Test-phase holdouts are excluded from row 4, so exercise its label helper directly.
+test.each(['', '   '])('blank holdout label %j falls back to Holdout', label => {
+  expect(verdictGroupLabel('holdout', label)).toBe('Holdout')
+})
+
+test('inherited object keys never become a label', () => {
+  expect(verdictGroupLabel('toString')).toBe('This group')
+})
+
+test('collecting uses This group for an unknown key with a blank label', () => {
+  const value = input('T4')
+  Object.assign(value.exposures.perArm[1]!, { arm: 'future-group', label: '   ' })
+  value.primary.convertersPerArm[1]!.arm = 'future-group'
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: This group, 360 of the 1000 people it needs. Fewest conversions so far: This group, 37 of the 150 needed.')
+})
+
+test('collecting trims stored labels and can find a converter label in the comparison list', () => {
+  const value = input('T4')
+  value.exposures.perArm[1]!.label = '  One-page signup  '
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: One-page signup, 360 of the 1000 people it needs. Fewest conversions so far: One-page signup, 37 of the 150 needed.')
+  value.exposures.perArm = value.exposures.perArm.filter(group => group.arm !== 'variantA')
+  value.primary.comparisons[0]!.label = '  Short signup  '
+  expect(computeVerdict(value).detail).toBe('Smallest group so far: Original, 380 of the 1000 people it needs. Fewest conversions so far: Short signup, 37 of the 150 needed.')
 })
 
 test.each(['T5', 'T6', 'T7', 'T8'])('holdout comparisons cannot alter %s', name => {
@@ -163,14 +232,19 @@ test('conversion minimum alone collects, with stopped wording', () => {
   const value = input()
   value.primary.convertersPerArm[0]!.converters = 149
   value.status = 'stopped'
-  expect(computeVerdict(value)).toMatchObject({ row: 4, finding: 'Stopped before enough data was collected.' })
+  expect(computeVerdict(value)).toMatchObject({
+    row: 4, finding: 'Stopped before enough data was collected.',
+    headline: 'Stopped before enough data was collected.', action: null,
+    detail: 'More people or conversions are needed before drawing a conclusion.',
+  })
 })
 
 test('conversion minimum is per group, even when the total exceeds the minimum', () => {
   const value = input()
   value.primary.convertersPerArm[0]!.converters = 149
   expect(computeVerdict(value)).toMatchObject({
-    row: 4, finding: 'Collecting data: 1980 of 1000 people, 149 of 150 conversions.',
+    row: 4, finding: 'Collecting data.', headline: 'Collecting data.', action: null,
+    detail: 'Fewest conversions so far: Original, 149 of the 150 needed.',
   })
   value.primary.convertersPerArm[0]!.converters = 150
   value.primary.convertersPerArm.find(group => group.kind === 'holdout')!.converters = 0
