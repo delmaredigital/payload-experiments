@@ -111,7 +111,8 @@ function EditorRender(props: RenderProps) {
         {/* Creating a test replaces the binding, so it is offered only on an unbound block. */}
         {experimentId === undefined ? <button className="xp-slot-button xp-slot-button-primary" type="button" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</button> : null}
         {/* Configurable admin routes are owed on ADM-11, alongside the existing /api prefix. */}
-        {experiment ? <a className="xp-slot-button xp-slot-button-primary" href={`/admin/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`}>{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</a> : null}
+        {/* Open outside the canvas iframe because hosts may deny framing admin pages. */}
+        {experiment ? <a className="xp-slot-button xp-slot-button-primary" href={`/admin/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`} target="_blank" rel="noopener noreferrer">{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</a> : null}
       </div>
     </header>
     <p className={experiment?.status === 'running' ? 'xp-slot-notice xp-slot-warning' : 'xp-slot-notice'} role="status">
