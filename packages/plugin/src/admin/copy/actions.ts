@@ -15,6 +15,7 @@ export const ACTIONS_COPY = {
   group: 'Group', note: 'Decision note', confirmation: 'Confirmation',
   typePhrase: 'Type the following to confirm:', cancel: 'Cancel', retry: 'Retry', done: 'Done',
   dismiss: 'Dismiss', dismissed: 'Dismissed', undo: 'Undo',
+  contentArchived: 'The winner is now the content and the test is archived.',
   dismissLabel: (page: string) => `Dismiss ${page}`, undoLabel: (page: string) => `Undo dismiss ${page}`,
   dismissHelp: "Dismiss a page you'll update by hand, then finish archiving.",
   contentEntryNotDecided: "This test isn't decided, so its pages can't be changed.",

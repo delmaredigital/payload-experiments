@@ -59,6 +59,7 @@ export function MakeContentResult({ result, onRetry, busy = false, id, api, canM
   const retryable = docs.some(doc => !doc.ok && !doc.dismissedAt)
   return <div ref={container} aria-live="polite">
     {error ? <Banner tone="error">{error}</Banner> : null}
+    {result.doc?.status === 'archived' ? <p>{C.contentArchived}</p> : null}
     <ul>{docs.map((doc, index) => {
       const label = ('title' in doc && typeof doc.title === 'string' && doc.title) || `${doc.collection}/${doc.id}`
       return <li key={`${doc.collection}/${doc.id}/${index}`}>
@@ -71,7 +72,7 @@ export function MakeContentResult({ result, onRetry, busy = false, id, api, canM
         </> : null}
       </li>
     })}</ul>
-    {editable && retryable ? <><p>{C.dismissHelp}</p><p>{C.partial}</p><Button disabled={busy || pending} onClick={() => { void run(onRetry) }}>{C.retry}</Button></> : null}
+    {editable && retryable ? <><p>{C.dismissHelp}</p><p>{C.partial}</p><Button aria-disabled={busy || pending || undefined} onClick={() => { void run(onRetry) }}>{C.retry}</Button></> : null}
     {editable && contentDone(docs) && onFinish ? <Button data-finish-archiving variant="primary" disabled={busy || pending} onClick={() => { void run(onFinish) }}>{C.finish}</Button> : null}
   </div>
 }

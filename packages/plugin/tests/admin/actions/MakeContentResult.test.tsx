@@ -54,20 +54,31 @@ test('make-content retry reposts and keeps results visible until Done reloads', 
   expect(reloadPage).toHaveBeenCalledTimes(1)
 })
 
-test('Retry synchronously prevents rapid duplicate calls and disables itself while pending', async () => {
+test('Retry synchronously prevents rapid duplicate calls and stays focusable while pending', async () => {
   let resolve!: () => void
   const pending = new Promise<void>(done => { resolve = done })
   const retry = vi.fn(() => pending)
   render(<MakeContentResult result={partial} onRetry={retry} />)
   const button = screen.getByRole('button', { name: 'Retry' }) as HTMLButtonElement
+  button.focus()
   act(() => { button.click(); button.click() })
   expect(retry).toHaveBeenCalledTimes(1)
-  expect(button.disabled).toBe(true)
+  expect(button.getAttribute('aria-disabled')).toBe('true')
+  expect(button.disabled).toBe(false)
+  expect(document.activeElement).toBe(button)
   resolve()
-  await waitFor(() => expect(button.disabled).toBe(false))
+  await waitFor(() => expect(button.getAttribute('aria-disabled')).toBeNull())
+  expect(document.activeElement).toBe(button)
 })
 
-test('make-content and Retry each POST once on rapid clicks with pending controls disabled', async () => {
+test('a make-content result that archived the test says so', () => {
+  const { rerender } = render(<MakeContentResult result={{ ...partial, doc: { status: 'archived' }, docs: [] }} onRetry={vi.fn()} />)
+  expect(screen.getByText(ACTIONS_COPY.contentArchived)).toBeTruthy()
+  rerender(<MakeContentResult result={{ ...partial, doc: { status: 'decided' } }} onRetry={vi.fn()} />)
+  expect(screen.queryByText(ACTIONS_COPY.contentArchived)).toBeNull()
+})
+
+test('make-content and Retry each POST once on rapid clicks while pending', async () => {
   let resolveFirst!: (value: Response) => void
   let resolveRetry!: (value: Response) => void
   const fetcher = vi.fn().mockReturnValueOnce(new Promise<Response>(done => { resolveFirst = done }))
@@ -85,7 +96,7 @@ test('make-content and Retry each POST once on rapid clicks with pending control
   const retry = await screen.findByRole('button', { name: 'Retry' }) as HTMLButtonElement
   act(() => { retry.click(); retry.click() })
   expect(fetcher).toHaveBeenCalledTimes(2)
-  expect(retry.disabled).toBe(true)
+  expect(retry.getAttribute('aria-disabled')).toBe('true')
   expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true)
   resolveRetry(new Response(JSON.stringify({ ...partial, docs: partial.docs.map(doc => ({ ...doc, ok: true })) })))
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull())
