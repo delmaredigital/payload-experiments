@@ -82,13 +82,14 @@ test.each(['draft', 'stopped'] as const)('%s adds A through C, selects the new t
     const add = screen.getByRole('button', { name: C.add })
     fireEvent.click(add); fireEvent.click(add)
     const tab = await screen.findByRole('tab', { name: label })
-    expect(tab.getAttribute('aria-selected')).toBe('true')
+    // The tab can mount before the selection effect flips it; wait for the selected state.
+    await waitFor(() => expect(tab.getAttribute('aria-selected')).toBe('true'))
     expect(order.slice(start).filter(call => ['GET', 'PATCH'].includes(call))).toEqual(['GET', 'PATCH'])
     expect(patches().at(-1)).toEqual(['/host-api/xp-experiments/builder-test', expect.objectContaining({
       method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json', 'x-xp-if-updated-at': timestamp },
       body: JSON.stringify({ arms: [...previous, { key, kind: 'variant', label, weight: 0, slot: key }] }),
     })])
-    expect(screen.getByLabelText('Cached versions').textContent).toBe(doc.arms.map(arm => arm.key).join(','))
+    await waitFor(() => expect(screen.getByLabelText('Cached versions').textContent).toBe(doc.arms.map(arm => arm.key).join(',')))
   }
   expect(screen.queryByRole('button', { name: C.add })).toBeNull()
   expect(patches()).toHaveLength(3)
