@@ -24,7 +24,7 @@ import './testPage.css'
 
 export function TestPage({ id, surface, onTitleChange }: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {
   const [barHeight, setBarHeight] = useState<number>()
-  const test = useTestDocument(id, { apiRoute: surface.apiRoute })
+  const test = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true })
   useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
   if (test.loadState !== 'ready' || !test.doc) return <SurfaceShell adminRoute={surface.adminRoute} title={C.test} crumbs={[{ label: C.tests, href: formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }) }, { label: C.test }]}><div className="xp-test-page" role={test.loadState === 'error' ? 'alert' : 'status'}>
     <p>{test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading}</p>

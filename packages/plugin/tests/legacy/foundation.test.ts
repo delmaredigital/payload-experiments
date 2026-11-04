@@ -105,8 +105,8 @@ test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('page
 
 test('serialized page copying links honour a non-default admin route and keep custom URLs verbatim', () => {
   const req = fakeReq({ payload: fakePayload({ config: { routes: { admin: '/staff' }, collections: [{ slug: 'pages', labels: { plural: 'Pages' } }] } }) })
-  expect(serializePageCollections([page()], req)).toEqual([{ slug: 'pages', label: 'Pages', copyUrl: '/staff/collections/pages', copyLabel: 'Open Pages' }])
-  expect(serializePageCollections([{ ...page(), copyUrl: '/tree?copy=1', copyLabel: 'Open Tree', copyHint: 'Use Duplicate' }], req)).toEqual([{ slug: 'pages', label: 'Pages', copyUrl: '/tree?copy=1', copyLabel: 'Open Tree', copyHint: 'Use Duplicate' }])
+  expect(serializePageCollections([page()], req)).toEqual([{ slug: 'pages', label: 'Pages', contentChecks: false, copyUrl: '/staff/collections/pages', copyLabel: 'Open Pages' }])
+  expect(serializePageCollections([{ ...page(), copyUrl: '/tree?copy=1', copyLabel: 'Open Tree', copyHint: 'Use Duplicate' }], req)).toEqual([{ slug: 'pages', label: 'Pages', contentChecks: false, copyUrl: '/tree?copy=1', copyLabel: 'Open Tree', copyHint: 'Use Duplicate' }])
 })
 
 const statusBase: PageTestStatus = { slug: 'test', name: 'Test', status: 'draft', role: 'version', winner: false,

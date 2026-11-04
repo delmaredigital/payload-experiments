@@ -10,6 +10,11 @@ import { copyPaths, editorFiles, helperPaths, helperStrings } from './copySource
 const forbidden = /\b(?:arms?|phases?|flag ?points?|unit ?types?|unitType|CUPED|exposure ?polic(?:y|ies)|percentiles?)\b|\bin (?:Metrics|Who(?! takes part\b)|Groups|Review)\b|\b(?:Metrics|Who|Review) tab\b/i
 const hits = (strings: string[]) => strings.filter(value => forbidden.test(value))
 const samples: Record<string, unknown[][]> = {
+  pageInUseCopy: [['/example'], ['/example', true]],
+  unpublishedPageCopy: [['/example'], ['/example', { original: true, found: true, collection: 'Pages' }], ['/example', { original: false, found: true, collection: 'Pages' }], ['/example', { original: false, found: false, collection: 'Pages' }]],
+  sameAddressCopy: [['Variant A', 'Original', '/example'], ['Variant A', 'Original', '/example', 'Pages']],
+  usedPageCopy: [['Original']], usedAddressCopy: [['Original', '/example', 'Pages']],
+  openOriginalCopy: [['Pages']], openCollectionCopy: [['Pages']], pageStepCopy: [['Variant A']],
   pageGuardCopy: [['Example', 'running'], ['Example', 'decided'], ['Example', 'archived'], ['Example', 'archived', 'original']],
   versionPageUnavailableCopy: [['/example', 'running'], ['/example', 'decided']], versionPageUncheckedCopy: [['/example', 'running'], ['/example', 'decided']],
   groupShare: [['50', 'Original'], ['50', 'Shorter form']],

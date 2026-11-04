@@ -34,16 +34,17 @@ export function slugify(name: string): string {
 
 /** Complete draft defaults, shared by the page hand-off and setting creation. */
 export function newTestBody(input: {
-  kind: 'block' | 'flag'; name: string; slug: string; unitType: UnitType
-  flagPoint?: string; layer?: DocId; hypothesis?: string
+  kind: 'block' | 'flag' | 'page'; name: string; slug: string; unitType: UnitType
+  pageCollection?: string; flagPoint?: string; layer?: DocId; hypothesis?: string
 }) {
-  const { kind, name, slug, unitType, flagPoint, layer, hypothesis } = input
+  const { kind, name, slug, unitType, flagPoint, layer, hypothesis, pageCollection } = input
   const arms: Arm[] = [
     { key: 'control', kind: 'control', label: 'Original', weight: 50, ...(kind === 'block' ? { slot: 'control' as const } : {}) },
     { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 50, ...(kind === 'block' ? { slot: 'variantA' as const } : {}) },
   ]
-  return { name, slug, kind, unitType, exposurePolicy: kind === 'block' ? 'render' : 'manual', arms,
+  return { name, slug, kind, unitType: kind === 'page' ? 'visitor' : unitType, exposurePolicy: kind === 'block' ? 'render' : kind === 'page' ? 'pageview' : 'manual', arms,
     allocation: 100, analysis: { plannedDurationDays: 28 },
+    ...(pageCollection === undefined ? {} : { pageCollection }),
     ...(flagPoint === undefined ? {} : { flagPoint }), ...(layer === undefined ? {} : { layer }),
     ...(hypothesis === undefined ? {} : { hypothesis }) }
 }

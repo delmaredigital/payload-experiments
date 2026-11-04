@@ -31,7 +31,7 @@ const fixtures = {
   'unknown-collection': ['versions', undefined, "That page type isn't set up for tests."],
   'version-identical': ['versions', { arm: 'variantA', path: '/version' }, '/version looks the same as the Original, so the test would compare nothing. Change it before you start.'],
   'version-same-address': ['versions', { arm: 'variantA', otherArm: 'control', path: '/' }, 'Short headline has the same address (/) as Original. Choose a different page.'],
-  'page-target-unpublished': ['versions', '/variant', "/variant isn't a published page. Publish it, or pick another page."],
+  'page-target-unpublished': ['versions', '/variant', "/variant isn't a published page yet. Publish it, or choose another page."],
   'page-targets-unchecked': ['versions', undefined, "Version pages aren't checked; make sure each one is published."],
   'version-page-unavailable': ['versions', '/variant', "/variant isn't published, so visitors assigned to it see an error. Republish it, or stop the test."],
   'version-page-unchecked': ['versions', '/variant', "Couldn't check whether /variant is published. Check that it is still published, or stop the test."],
@@ -113,7 +113,7 @@ test('status helpers omit unknown dates and duration, clamp a finished duration'
 
 test('page conflict readiness names the next action and tolerates missing path detail', () => {
   expect(nextStep(preflight([{ code: 'page-in-use', ok: false, detail: { paths: ['/original'] } }]), ctx))
-    .toEqual({ section: 'versions', code: 'page-in-use', sentence: fixtures['page-in-use'][2], nextStep: 'Choose a different page' })
+    .toEqual({ section: 'versions', code: 'page-in-use', sentence: fixtures['page-in-use'][2], nextStep: 'Choose pages' })
   for (const detail of [undefined, {}, { paths: [] }, { paths: [null] }]) {
     expect(READINESS['page-in-use'].next(detail, ctx)).toBe('Another running or decided test already uses this page. Choose a different page, or finish that test first.')
   }
@@ -135,3 +135,22 @@ test('placement copy lists every draft page and names edit actions exactly', () 
     nextStep: 'Open Other\nEdit /version',
   })
 }, 5000)
+
+test.each([
+  [true, false, "/copy isn't published, so it can't be the Original. Publish it, or choose another page."],
+  [true, true, "/copy isn't published, so it can't be the Original. Publish it, or choose another page."],
+  [false, true, '/copy is still a draft. Publish it in Pages, then start the test.'],
+  [false, false, "/copy isn't published yet, or no page has that address. Publish it in Pages, or choose another page."],
+] as const)('unpublished readiness distinguishes original=%s found=%s', (original, found, expected) => {
+  const key = original ? 'control' : 'variantA'
+  const context = { ...ctx, collectionLabel: 'Pages', arms: ctx.arms.map(arm => ({ ...arm, pageTarget: arm.key === key ? '/copy/' : '/other' })),
+    pagePlacements: [{ arm: key, path: '/copy/', id: found ? 1 : null, published: false, collection: 'pages' }] }
+  expect(READINESS['page-target-unpublished'].next('/copy', context)).toBe(expected)
+  expect(nextStep(preflight([{ code: 'page-target-unpublished', ok: false, detail: '/copy' }]), context)).toMatchObject({ nextStep: 'Choose pages', arm: key })
+})
+test('page conflicts normalize raw targets and distinguish versions from the Original', () => {
+  const context = { ...ctx, collectionLabel: 'Pages', arms: ctx.arms.map(arm => ({ ...arm, pageTarget: arm.kind === 'control' ? '/original/' : '/copy/' })) }
+  expect(READINESS['page-in-use'].next({ paths: ['/copy'] }, context)).toBe('/copy is already in another running or decided test. Make a new copy of the Original for this version, or finish that test first.')
+  expect(READINESS['page-in-use'].next({ paths: ['/original'] }, context)).toBe('Another running or decided test already uses /original. Choose a different page, or finish that test first.')
+  expect(READINESS['version-same-address'].next({ arm: 'variantA', otherArm: 'control', path: '/original' }, context)).toBe('Short headline has the same address (/original) as Original. Choose a different page. Give the copy its own address in Pages, publish it, then choose it.')
+})

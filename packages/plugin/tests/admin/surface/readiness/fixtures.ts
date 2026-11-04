@@ -13,7 +13,7 @@ export const preflight = (checks: PreflightResult['checks'] = []): PreflightResu
 export function props(document: Partial<TestDocument> = {}, test: Partial<TestDocApi> = {}): SectionProps {
   return {
     test: { doc: { ...doc, ...document }, preflight: preflight(), preflightError: null, preflightPending: false, hasUnsaved: false, stale: false, saving: 'idle', loadState: 'ready', errors: {},
-      stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}), refreshPreflight: vi.fn(async () => {}), ...test },
+      chosenPages: {}, choosePage: vi.fn(async () => {}), stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}), refreshPreflight: vi.fn(async () => {}), ...test },
     surface: { apiRoute: '/custom-api', adminRoute: '/admin', canManage: true, canReadResults: false, isAdmin: true, flagPoints: [], metricSources: [], attributeKeys: {} },
   }
 }

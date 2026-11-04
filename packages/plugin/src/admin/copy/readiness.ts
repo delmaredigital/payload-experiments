@@ -23,7 +23,7 @@ export const READINESS_COPY = {
   full: "This test's group is full. Lower how many people take part, or create the test again without the group.",
   differentPeople: "This test's group counts different people. Create the test again without the group.",
   uncheckedPages: "Version pages aren't checked; make sure each one is published.",
-  chooseDifferentPage: 'Choose a different page',
+  chooseDifferentPage: 'Choose a different page', choosePages: 'Choose pages',
   noTargets: 'Choose a page for each version.',
   pageVisitors: 'Whole-page tests count visitors. Create the test again counting visitors.',
   blockPathRule: 'Remove the page-path rule in Who takes part; page block tests run on their page.',
@@ -34,8 +34,14 @@ export const READINESS_COPY = {
 } as const
 
 export const unsupportedContentCopy = (page: string) => `${page} has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand.`
-export const pageInUseCopy = (path: string) => `Another running or decided test already uses ${path}. Choose a different page, or finish that test first.`
-export const unpublishedPageCopy = (path: string) => `${path} isn't a published page. Publish it, or pick another page.`
+export const pageInUseCopy = (path: string, version = false) => version
+  ? `${path} is already in another running or decided test. Make a new copy of the Original for this version, or finish that test first.`
+  : `Another running or decided test already uses ${path}. Choose a different page, or finish that test first.`
+export const unpublishedPageCopy = (path: string, context?: { original: boolean; found: boolean; collection: string }) => !context
+  ? `${path} isn't a published page yet. Publish it, or choose another page.`
+  : context.original ? `${path} isn't published, so it can't be the Original. Publish it, or choose another page.`
+    : context.found ? `${path} is still a draft. Publish it in ${context.collection}, then start the test.`
+      : `${path} isn't published yet, or no page has that address. Publish it in ${context.collection}, or choose another page.`
 /** Old responses may include raw host errors; unknown strings use authored copy. */
 export const placementFailureCopy = (reason: unknown) => PLACEMENT_FAILURE_COPY[typeof reason === 'string' && Object.hasOwn(PLACEMENT_FAILURE_COPY, reason) ? reason as keyof typeof PLACEMENT_FAILURE_COPY : 'placements-failed']
 
@@ -67,7 +73,7 @@ export const pageGuardCopy = (name: string, status: 'running' | 'decided' | 'arc
 export const versionPageUnavailableCopy = (path: string, status = 'running') => `${path} isn't published, so visitors assigned to it see an error. Republish it, or ${status === 'decided' ? 'discard the winner' : 'stop the test'}.`
 export const versionPageUncheckedCopy = (path: string, status = 'running') => `Couldn't check whether ${path} is published. Check that it is still published, or ${status === 'decided' ? 'discard the winner' : 'stop the test'}.`
 
-export const sameAddressCopy = (label: string, other: string, path: string) => `${label} has the same address (${path}) as ${other}. Choose a different page.`
+export const sameAddressCopy = (label: string, other: string, path: string, collection?: string) => `${label} has the same address (${path}) as ${other}. Choose a different page.${collection ? ` Give the copy its own address in ${collection}, publish it, then choose it.` : ''}`
 export const identicalVersionCopy = (version: string) => `${version} looks the same as the Original, so the test would compare nothing. Change it before you start.`
 
 /** Keep named actions aligned with the actual transition buttons. */

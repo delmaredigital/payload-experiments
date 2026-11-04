@@ -148,8 +148,8 @@ test('new route loads recent Puck pages with access checked and preserves numeri
     [{ collection: 'articles', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: true, select: { heading: true } }],
   ])
   expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [
-    { collection: 'pages', collectionLabel: 'Pages', id: 12, title: 'Welcome', editorUrl: '/page-editor/12' },
-    { collection: 'articles', collectionLabel: 'Articles', id: 'uuid', title: 'Story', editorUrl: '/page-editor/uuid' },
+    { collection: 'pages', editor: 'puck', collectionLabel: 'Pages', id: 12, title: 'Welcome', editorUrl: '/page-editor/12' },
+    { collection: 'articles', editor: 'puck', collectionLabel: 'Articles', id: 'uuid', title: 'Story', editorUrl: '/page-editor/uuid' },
   ] }) }))
   expect(editorUrl).toHaveBeenCalledWith({ collection: 'pages', id: 12, draft: true, editor: 'puck', doc: { id: 12, title: 'Welcome' } })
 })
@@ -159,8 +159,8 @@ test('failed collection reads are skipped, missing titles and editor URLs have c
   await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
   expect(find).toHaveBeenCalledTimes(3)
   expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [
-    { collection: 'articles', collectionLabel: 'Articles', id: 'uuid', title: 'uuid', editorUrl: '/control/collections/articles/uuid' },
-    { collection: 'other', collectionLabel: 'other', id: 7, title: '7', editorUrl: '/control/collections/other/7' },
+    { collection: 'articles', editor: 'puck', collectionLabel: 'Articles', id: 'uuid', title: 'uuid', editorUrl: '/control/collections/articles/uuid' },
+    { collection: 'other', editor: 'puck', collectionLabel: 'other', id: 7, title: '7', editorUrl: '/control/collections/other/7' },
   ] }) }))
   expect(find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'other', draft: true, depth: 0 }))
 })
@@ -233,15 +233,35 @@ test('by-slug does no lookup for a results-only reader', async () => {
   expect(find).not.toHaveBeenCalled()
   expect(mocks.render).not.toHaveBeenCalled()
 })
-test('new-test handoff omits blocks documents from Puck and serializes page collections', async () => {
+test('new-test handoff includes blocks documents once and serializes page collections', async () => {
   const { props, payload } = setup({ puck: { enabled: true, collections: ['pages'] }, pageDocs: { pages: [{ id: 1, title: 'Legacy' }] } })
   const xp = payload.config.custom.xp as ExperimentsPluginOptions
   xp.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => true }] }
   xp.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => null, copyHint: 'Copy in Pages' }] }
   payload.config.collections[0]!.fields = [{ name: 'title', type: 'text' }]
   await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
-  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [], pageCollections: [
-    { slug: 'pages', label: 'Pages', copyHint: 'Copy in Pages', copyUrl: '/control/collections/pages', copyLabel: 'Open Pages' },
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [{ collection: 'pages', editor: 'blocks', collectionLabel: 'Pages', id: 1, title: 'Legacy', editorUrl: '/editor' }], pageCollections: [
+    { slug: 'pages', label: 'Pages', contentChecks: false, copyHint: 'Copy in Pages', copyUrl: '/control/collections/pages', copyLabel: 'Open Pages' },
   ] }) }))
   expect(payload.calls.some(call => call.method === 'findByID')).toBe(false)
+})
+
+test('blocks-only collections list eligible pages with edit-view URLs and no Puck registration', async () => {
+  const { props, payload, find, req } = setup({ pageDocs: { pages: [{ id: 1, title: 'Legacy' }, { id: 2, title: 'Other editor' }] }, editorUrl: () => undefined as unknown as string })
+  const xp = payload.config.custom.xp as ExperimentsPluginOptions
+  xp.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: doc => doc.id === 1 }] }
+  payload.config.collections[0]!.fields = [{ name: 'title', type: 'text' }]
+  await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
+  expect(find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'pages', req, overrideAccess: false, limit: 50, sort: '-updatedAt' }))
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [
+    { collection: 'pages', collectionLabel: 'Pages', id: 1, title: 'Legacy', editor: 'blocks', editorUrl: '/control/collections/pages/1' },
+  ] }) }))
+})
+test('contentChecks is a server-computed boolean and never serializes contentOf', async () => {
+  const { props, payload } = setup()
+  const xp = payload.config.custom.xp as ExperimentsPluginOptions
+  xp.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => null, contentOf: doc => doc.layout }] }
+  await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
+  const { clientProps } = mocks.render.mock.calls[0]![0] as { clientProps: TestsSurfaceProps }
+  expect(clientProps.pageCollections).toEqual([{ slug: 'pages', label: 'Pages', contentChecks: true, copyUrl: '/control/collections/pages', copyLabel: 'Open Pages' }])
 })

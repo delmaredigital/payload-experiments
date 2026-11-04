@@ -39,7 +39,7 @@ function setup(status: Status = 'draft') {
   }
   const testApi: TestDocApi = {
     doc, preflight: null, preflightError: null, preflightPending: false, errors: {}, saving: 'idle', loadState: 'ready', hasUnsaved: false, stale: false,
-    stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}), refreshPreflight: vi.fn(async () => {}),
+    chosenPages: {}, choosePage: vi.fn(async () => {}), stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}), refreshPreflight: vi.fn(async () => {}),
   }
   const surface: SurfaceProps = {
     adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: false,

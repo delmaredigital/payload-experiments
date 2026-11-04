@@ -4,7 +4,8 @@ import { lockPagePaths } from '../db/locks.js'
 import { lockMetricsForFreeze } from '../db/metricUsage.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
 import { claimSlices } from '../db/slices.js'
-import { interactingTestsCopy, pageInUseCopy, unpublishedPageCopy } from '../admin/copy/readiness.js'
+import { sameAddressCopy, interactingTestsCopy, pageInUseCopy, unpublishedPageCopy } from '../admin/copy/readiness.js'
+import { GROUP_LABELS } from '../admin/copy/arms.js'
 import { XpRefusal } from '../errors.js'
 import { isOpValid } from '../targeting/ops.js'
 import { newSeed } from '../runtime/seed.js'
@@ -33,6 +34,7 @@ export function refuse(code: RefusalCode, detail?: unknown): never {
     'interacting-tests': (() => { const d = (detail as Array<{ path: string; status: string; name: string; version: boolean }> | undefined)?.[0]; return d ? interactingTestsCopy(d.path, d.status, d.name, d.version) : 'Finish one of the tests first.' })(),
     'unknown-collection': "That page type isn't set up for tests.",
     'page-in-use': pageInUseCopy((detail as { paths?: string[] } | undefined)?.paths?.[0] ?? 'this page'),
+    'version-same-address': (() => { const d = detail as { arm: keyof typeof GROUP_LABELS; otherArm: keyof typeof GROUP_LABELS; path: string } | undefined; return sameAddressCopy(GROUP_LABELS[d?.arm ?? 'variantA'], GROUP_LABELS[d?.otherArm ?? 'control'], d?.path ?? 'this address') })(),
     'page-target-unpublished': unpublishedPageCopy(typeof detail === 'string' ? detail : 'This page'),
     'invalid-status': 'This action is not available in the current status.',
     'stale-draft': 'The experiment changed. Review it again before starting.',

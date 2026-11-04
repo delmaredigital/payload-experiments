@@ -5,6 +5,7 @@ import type { ExposurePolicy } from '../../../types/contracts.js'
 import { ADVANCED_COPY as C } from '../../copy/advanced.js'
 import { exposureOptions } from './testPage.model.js'
 import { FieldErrors, positiveInteger, ReadOnly, reasonFor, save, SelectEdit, TextEdit } from './fields.js'
+import { PageHoldout } from './PageHoldout.js'
 import { Section } from './Section.js'
 
 type Analysis = NonNullable<TestDocument['analysis']>
@@ -17,6 +18,7 @@ export function AdvancedSection({ test, surface }: SectionProps) {
     ['minExposuresPerArm', 200, 1], ['attributionWindowHours', '', 1], ['sequentialTuningParameter', '', 0],
   ] as const
   return <Section test={test} sectionId="advanced">
+    {doc.kind === 'page' ? <PageHoldout test={test} surface={surface} /> : null}
     <div className="xp-field-grid"><div><SelectEdit label={C.exposurePolicy.label} value={doc.exposurePolicy} reason={reasonFor(test, 'exposurePolicy')}
       options={exposureOptions(doc.kind).map(value => ({ value, label: C.policies[value] }))}
       onCommit={value => save(test, 'exposurePolicy', () => ({ exposurePolicy: value as ExposurePolicy }))} />
