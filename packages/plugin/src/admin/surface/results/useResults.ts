@@ -57,7 +57,7 @@ export function useResults(id: DocId, { apiRoute, canReadResults, canManage = tr
     void Promise.all([
       canManage ? read<ResultsDocument>(`${base}/xp-experiments/${encoded}?depth=0`, signal)
         : Promise.resolve<ApiResult<ResultsDocument>>({ ok: true, data: undefined }),
-      api.results(id, { phase: round ?? undefined, series: true }),
+      api.results(id, { phase: round ?? undefined, series: true, notFound: round === null ? undefined : API_MESSAGES.roundNotFound }),
     ]).then(([document, result]) => {
       if (signal.aborted) return
       const failure = !document.ok ? document : !result.ok ? result : undefined

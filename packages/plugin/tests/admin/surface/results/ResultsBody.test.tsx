@@ -33,6 +33,22 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks() })
+test('a missing selected round shows round-picker copy and keeps the picker available', async () => {
+  const newer = { ...snapshot, phase: 2 }
+  const fetcher = setup({ phases: [phase, phaseFor(newer)], snapshot: newer })
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation((url, init) => url.includes('phase=1')
+    ? Promise.resolve(json({ errors: [{ code: 'not-found', message: 'Round not found' }] }, 404))
+    : original(url, init))
+  render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByText('Shorter form is most likely to be best.')
+  fireEvent.change(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '1' } })
+  expect((await screen.findByRole('alert')).textContent).toBe('That round no longer exists. Choose another round.')
+  expect(fetcher.mock.calls.some(([url]) => url === '/api/xp/experiments/1/results?phase=1&series=1')).toBe(true)
+  expect(screen.getByRole('combobox', { name: 'Round' })).toBeTruthy()
+  expect(screen.queryByText('Round not found')).toBeNull()
+})
+
 test.each(['running', 'stopped'])('collecting results show the stored detail without duplicate counts when %s', async status => {
   const collecting = fixture(status === 'running' ? 'T4' : 'T4-stopped')
   setup({ phases: [phaseFor(collecting)], snapshot: collecting }, { ...doc, status })
@@ -181,7 +197,7 @@ test('rollouts have no Decide; decided tests retain their frozen decision findin
   expect(screen.queryByRole('button', { name: 'Decide' })).toBeNull()
 })
 test('errors, missing and empty results render distinct states', async () => {
-  for (const [status, expected] of [[403, "You don't have access to results."], [404, "This test couldn't be found."], [500, 'Retry']] as const) {
+  for (const [status, expected] of [[403, "You don't have access to results."], [404, 'This test no longer exists.'], [500, 'Retry']] as const) {
     vi.stubGlobal('fetch', vi.fn(async () => json({}, status)))
     const view = render(<ResultsBody id={1} surface={{ ...surface, canManage: false }} />)
     await screen.findByText(expected)

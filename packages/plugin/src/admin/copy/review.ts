@@ -13,5 +13,5 @@ export const REVIEW_COPY = {
   metric: 'Metric',
   chooseMetric: 'Choose a metric',
   loadingMetrics: 'Loading metrics…',
-  noMetrics: 'All available metrics are already on this experiment.',
+  noMetrics: 'All available goals are already on this test.',
 } as const
