@@ -20,7 +20,7 @@ const snap = (id: number, round: number, computedAt: string) => ({ id, experimen
   snapshot: { ...fixture, phase: round, computedAt } as unknown as Snapshot })
 
 test('returns phase summaries and null snapshot before first run, passes req and access posture', async () => {
-  vi.mocked(resultsMetadata).mockResolvedValue({ status: 'running', snapshotId: null, winnerArm: null })
+  vi.mocked(resultsMetadata).mockResolvedValue({ name: 'Signup form', kind: 'flag', status: 'running', snapshotId: null, winnerArm: null })
   vi.mocked(newestSnapshotIds).mockResolvedValue([])
   const payload = fakePayload({ collections: { 'xp-phases': [phase(1)] } })
   const req = fakeReq({ payload, routeParams: { id: 'exp' }, url: 'http://localhost/results' })
@@ -31,7 +31,7 @@ test('returns phase summaries and null snapshot before first run, passes req and
 })
 
 test('decided defaults to decision round, retains decision snapshot and offers selected round series', async () => {
-  vi.mocked(resultsMetadata).mockResolvedValue({ status: 'decided', snapshotId: 1, winnerArm: 'variantA' })
+  vi.mocked(resultsMetadata).mockResolvedValue({ name: 'Signup form', kind: 'flag', status: 'decided', snapshotId: 1, winnerArm: 'variantA' })
   vi.mocked(newestSnapshotIds).mockResolvedValue([2, 3])
   const payload = fakePayload({ collections: { 'xp-phases': [phase(1), phase(2, 'rollout')], 'xp-results-snapshots': [
     snap(1, 1, '2026-10-02T00:00:00Z'), snap(2, 1, '2026-10-03T00:00:00Z'), snap(3, 2, '2026-10-04T00:00:00Z'),
@@ -53,7 +53,7 @@ test('decided defaults to decision round, retains decision snapshot and offers s
 })
 
 test('decision uses the decision snapshot phase even when a later test round is selected', async () => {
-  vi.mocked(resultsMetadata).mockResolvedValue({ status: 'decided', snapshotId: 1, winnerArm: 'variantA' })
+  vi.mocked(resultsMetadata).mockResolvedValue({ name: 'Signup form', kind: 'flag', status: 'decided', snapshotId: 1, winnerArm: 'variantA' })
   vi.mocked(newestSnapshotIds).mockResolvedValue([2])
   const payload = fakePayload({ collections: { 'xp-phases': [phase(3), phase(2, 'rollout'), phase(1)],
     'xp-results-snapshots': [snap(1, 1, '2026-10-02T00:00:00Z'), snap(2, 3, '2026-10-04T00:00:00Z')] } })
@@ -62,7 +62,7 @@ test('decision uses the decision snapshot phase even when a later test round is 
 })
 
 test.each([null, 99])('decision without an available decision snapshot (%s) uses the last test round', async snapshotId => {
-  vi.mocked(resultsMetadata).mockResolvedValue({ status: 'decided', snapshotId, winnerArm: 'variantB' })
+  vi.mocked(resultsMetadata).mockResolvedValue({ name: 'Signup form', kind: 'flag', status: 'decided', snapshotId, winnerArm: 'variantB' })
   vi.mocked(newestSnapshotIds).mockResolvedValue([])
   const payload = fakePayload({ collections: { 'xp-phases': [phase(4, 'rollout'), phase(1), phase(3), phase(2, 'rollout')] } })
   const response = await handleResults(fakeReq({ payload, routeParams: { id: 'exp' }, url: 'http://localhost/results?phase=1' }), { options })
@@ -72,7 +72,7 @@ test.each([null, 99])('decision without an available decision snapshot (%s) uses
 })
 
 test.each([null, ''])('no winner (%s) omits the decision key even with a decision snapshot', async winnerArm => {
-  vi.mocked(resultsMetadata).mockResolvedValue({ status: 'running', snapshotId: 1, winnerArm })
+  vi.mocked(resultsMetadata).mockResolvedValue({ name: 'Signup form', kind: 'flag', status: 'running', snapshotId: 1, winnerArm })
   vi.mocked(newestSnapshotIds).mockResolvedValue([1])
   const payload = fakePayload({ collections: { 'xp-phases': [phase(1)], 'xp-results-snapshots': [snap(1, 1, '2026-10-02T00:00:00Z')] } })
   const response = await handleResults(fakeReq({ payload, routeParams: { id: 'exp' } }), { options })
@@ -80,27 +80,63 @@ test.each([null, ''])('no winner (%s) omits the decision key even with a decisio
 })
 
 test.each([{ records: [] }, { records: [phase(1, 'rollout')] }])('winner without a decision snapshot or test round omits the decision key ($records)', async ({ records }) => {
-  vi.mocked(resultsMetadata).mockResolvedValue({ status: 'decided', snapshotId: null, winnerArm: 'variantA' })
+  vi.mocked(resultsMetadata).mockResolvedValue({ name: 'Signup form', kind: 'flag', status: 'decided', snapshotId: null, winnerArm: 'variantA' })
   vi.mocked(newestSnapshotIds).mockResolvedValue([])
   const payload = fakePayload({ collections: { 'xp-phases': records } })
   const response = await handleResults(fakeReq({ payload, routeParams: { id: 'exp' } }), { options })
   expect(await response.json()).not.toHaveProperty('decision')
 })
 
-test('a readResults-only caller gets the decision through the gated endpoint', async () => {
+test('a readResults-only caller gets exactly the allowed experiment identity and the decision', async () => {
   const readerOptions = sampleOptions()
   readerOptions.access = { manage: vi.fn(() => false), readResults: vi.fn(() => true) }
-  vi.mocked(resultsMetadata).mockResolvedValue({ status: 'decided', snapshotId: null, winnerArm: 'variantA' })
+  const privateFields = { arms: [{ params: { value: 'private-arm-value' } }], targeting: [{ value: 'private-targeting-value' }],
+    decision: { note: 'private-decision-note' }, seed: 'private-seed', notes: 'private-notes', slug: 'private-slug' }
+  const metadata = { name: 'Signup form', kind: 'flag' as const, status: 'decided' as const, snapshotId: null, winnerArm: 'variantA', ...privateFields }
+  vi.mocked(resultsMetadata).mockResolvedValue(metadata)
   vi.mocked(newestSnapshotIds).mockResolvedValue([])
-  const payload = fakePayload({ collections: { 'xp-phases': [phase(1), phase(2, 'rollout')] } })
+  const payload = fakePayload({ collections: { 'xp-phases': [phase(1), phase(2, 'rollout')], 'xp-experiments': [{ id: 'exp', ...metadata }] } })
   const req = fakeReq({ payload, user: { id: 'reader' }, routeParams: { id: 'exp' } })
   const endpoint = buildEndpoints({ options: readerOptions }).find(route => route.path === '/xp/experiments/:id/results')!
   const response = await endpoint.handler(req)
   expect(response.status).toBe(200)
-  expect(await response.json()).toMatchObject({ decision: { phase: 1, winnerArm: 'variantA' } })
+  const body = await response.json()
+  expect(body.experiment).toEqual({ name: 'Signup form', kind: 'flag', status: 'decided' })
+  expect(Object.keys(body.experiment).sort()).toEqual(['kind', 'name', 'status'])
+  expect(Object.keys(body).sort()).toEqual(['decision', 'experiment', 'phases', 'snapshot'])
+  expect(body.decision).toEqual({ phase: 1, winnerArm: 'variantA' })
+  // Phase summaries and the existing public decision are allowed; live document fields are not.
+  const serialized = JSON.stringify(body)
+  for (const value of ['private-arm-value', 'private-targeting-value', 'private-decision-note', 'private-seed', 'private-notes', 'private-slug']) {
+    expect(serialized).not.toContain(value)
+  }
+  for (const field of ['targeting', 'seed', 'notes', 'slug', 'snapshotId', 'winnerArm']) expect(body.experiment).not.toHaveProperty(field)
   expect(readerOptions.access.readResults).toHaveBeenCalledWith({ req })
   expect(readerOptions.access.manage).not.toHaveBeenCalled()
   expect(payload.calls.every(call => call.args.collection !== 'xp-experiments' && call.args.overrideAccess === false && call.args.req === req)).toBe(true)
+})
+
+test('a null experiment name is returned as an empty string', async () => {
+  vi.mocked(resultsMetadata).mockResolvedValue({ name: null, kind: 'block', status: 'draft', snapshotId: null, winnerArm: null })
+  vi.mocked(newestSnapshotIds).mockResolvedValue([])
+  const response = await handleResults(fakeReq({ routeParams: { id: 'exp' } }), { options })
+  expect(await response.json()).toEqual({ experiment: { name: '', kind: 'block', status: 'draft' }, phases: [], snapshot: null })
+})
+
+test('a forbidden caller receives the existing refusal without experiment metadata', async () => {
+  const deniedOptions = sampleOptions()
+  deniedOptions.access = { manage: vi.fn(() => false), readResults: vi.fn(() => false) }
+  const payload = fakePayload()
+  const req = fakeReq({ payload, user: { id: 'forbidden' }, routeParams: { id: 'exp' } })
+  const endpoint = buildEndpoints({ options: deniedOptions }).find(route => route.path === '/xp/experiments/:id/results')!
+  const response = await endpoint.handler(req)
+  expect(response.status).toBe(403)
+  const body = await response.json()
+  expect(body).toEqual({ errors: [{ code: 'forbidden', message: 'Access denied' }] })
+  expect(body).not.toHaveProperty('experiment')
+  expect(resultsMetadata).not.toHaveBeenCalled()
+  expect(newestSnapshotIds).not.toHaveBeenCalled()
+  expect(payload.calls).toEqual([])
 })
 
 test.each(['', 'abc', '-1', '0', '1.2', '9007199254740992'])('ill-typed phase=%s is 400 invalid-body before database reads', async phase => {

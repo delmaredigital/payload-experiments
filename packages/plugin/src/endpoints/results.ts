@@ -49,7 +49,8 @@ export async function handleResults<TUser extends { id: string | number } = { id
   const phase = selected === null ? decision?.phase ?? (metadata.status === 'decided' ? records.filter(record => record.phaseKind === 'test').at(-1)?.phase : records.at(-1)?.phase) : Number(selected)
   if (selected !== null && !records.some(record => record.phase === phase)) return resultsError(404, 'not-found', 'Round not found')
   const snapshot = snapshots.find(snapshot => snapshot.phase === phase)?.snapshot ?? null
-  const response: ResultsResponse = { phases, snapshot, ...(decision ? { decisionSnapshot: decision } : {}) }
+  const response: ResultsResponse = { experiment: { name: metadata.name ?? '', kind: metadata.kind, status: metadata.status },
+    phases, snapshot, ...(decision ? { decisionSnapshot: decision } : {}) }
   const decisionPhase = decision?.phase ?? records.filter(record => record.phaseKind === 'test').at(-1)?.phase
   if (typeof metadata.winnerArm === 'string' && metadata.winnerArm.length > 0 && decisionPhase !== undefined) {
     response.decision = { phase: decisionPhase, winnerArm: metadata.winnerArm }

@@ -1,6 +1,6 @@
 import type { Payload } from 'payload'
 import type { Pool } from 'pg'
-import type { Arm, DocId, ExperimentKind, UnitType } from '../types/contracts.js'
+import type { Arm, DocId, ExperimentKind, Status, UnitType } from '../types/contracts.js'
 import type { Snapshot } from '../types/snapshot.js'
 import type { AnalysisPhase, FrozenMetric } from '../results/analyse.js'
 import { withStatementTimeout, ResultsBudgetError, RESULTS_TIMEOUT_MARGIN_MS, type Executor } from './executor.js'
@@ -116,10 +116,12 @@ export async function newestSnapshotIds(exec: Executor, ids: DocId[], per: 'phas
   return rows.map(row => row.id)
 }
 
+type ResultsMetadata = { name: string | null; kind: ExperimentKind; status: Status; snapshotId: DocId | null; winnerArm: string | null }
+
 /** Called only behind the endpoint's readResults gate. Experiment collection
- * reads require manage, so read only the decision metadata needed by results. */
-export async function resultsMetadata(exec: Executor, id: DocId): Promise<{ status: string; snapshotId: DocId | null; winnerArm: string | null } | null> {
+ * reads require manage, so read only the identity and decision metadata needed by results. */
+export async function resultsMetadata(exec: Executor, id: DocId): Promise<ResultsMetadata | null> {
   const c = COLUMNS.experiments
-  const { rows } = await exec.query<{ status: string; snapshotId: DocId | null; winnerArm: string | null }>(`SELECT ${q(c.status)} AS "status", ${q(c.decisionSnapshotId)} AS "snapshotId", ${q(c.decisionWinnerArm)} AS "winnerArm" FROM ${qualifiedTable(exec, TABLES.experiments)} WHERE ${q(c.id)} = $1`, [id])
+  const { rows } = await exec.query<ResultsMetadata>(`SELECT ${q(c.name)} AS "name", ${q(c.kind)} AS "kind", ${q(c.status)} AS "status", ${q(c.decisionSnapshotId)} AS "snapshotId", ${q(c.decisionWinnerArm)} AS "winnerArm" FROM ${qualifiedTable(exec, TABLES.experiments)} WHERE ${q(c.id)} = $1`, [id])
   return rows[0] ?? null
 }
