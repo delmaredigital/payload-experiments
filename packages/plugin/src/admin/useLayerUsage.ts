@@ -1,4 +1,5 @@
 'use client'
+import { fetchAllDocs } from '../lib/fetchAllDocs.js'
 import { useConfig } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
 import type { DocId } from '../types/contracts.js'
@@ -16,19 +17,11 @@ export function useLayerExperiments(layerId: DocId | null) {
     if (id == null) return
     const controller = new AbortController()
     async function load() {
-      const docs: LayerExperiment[] = []
-      let page = 1
-      while (!controller.signal.aborted) {
-        const query = new URLSearchParams({ depth: '0', limit: '100', page: String(page),
-          'where[layer][equals]': id!, 'where[status][in]': 'running,decided' })
-        const response = await fetch(`${api}/xp-experiments?${query}`, { credentials: 'include', signal: controller.signal })
-        if (!response.ok) { if (!controller.signal.aborted) setState(null); return }
-        const data = await response.json() as { docs: LayerExperiment[]; hasNextPage?: boolean }
-        docs.push(...data.docs)
-        if (!data.hasNextPage) break
-        page++
-      }
-      if (!controller.signal.aborted) setState({ api, id: id!, usage: layerUsage(docs) })
+      const query = new URLSearchParams({ depth: '0',
+        'where[layer][equals]': id!, 'where[status][in]': 'running,decided' })
+      const response = await fetchAllDocs<LayerExperiment>(`${api}/xp-experiments?${query}`, { credentials: 'include', signal: controller.signal })
+      if (!response.ok) { if (!controller.signal.aborted) setState(null); return }
+      if (!controller.signal.aborted) setState({ api, id: id!, usage: layerUsage(response.docs) })
     }
     void load().catch(() => { if (!controller.signal.aborted) setState(null) })
     return () => controller.abort()

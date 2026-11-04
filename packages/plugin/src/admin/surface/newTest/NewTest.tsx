@@ -1,5 +1,7 @@
 'use client'
 
+import { fetchAllDocs } from '../../../lib/fetchAllDocs.js'
+
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation.js'
 import { formatAdminURL } from 'payload/shared'
@@ -35,10 +37,9 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
     setLayerState('loading')
     void (async () => {
       try {
-        const response = await fetch(`${surface.apiRoute.replace(/\/$/, '')}/xp-layers?depth=0&limit=100`, { credentials: 'include', signal: controller.signal })
-        const body = await response.json()
-        if (!response.ok || !Array.isArray(body?.docs)) throw new Error('groups')
-        if (!controller.signal.aborted) { setLayers(body.docs); setLayerState('ready') }
+        const response = await fetchAllDocs<Layer>(`${surface.apiRoute.replace(/\/$/, '')}/xp-layers?depth=0`, { credentials: 'include', signal: controller.signal })
+        if (!response.ok) throw new Error('groups')
+        if (!controller.signal.aborted) { setLayers(response.docs); setLayerState('ready') }
       } catch { if (!controller.signal.aborted) setLayerState('error') }
     })()
     return () => controller.abort()

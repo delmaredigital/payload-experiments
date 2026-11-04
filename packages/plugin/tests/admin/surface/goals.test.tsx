@@ -189,7 +189,7 @@ test('a used goal locks its short name and disables Delete with its usage count'
 })
 test('usage on later pages also locks the short name', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response(!url.includes('/xp-experiments?') ? goal : url.endsWith('page=1')
-    ? { docs: [], hasNextPage: true } : { docs: [{ id: 1, metrics: { primary: 7 } }] })))
+    ? { docs: [{ id: 2, metrics: {} }], hasNextPage: true } : { docs: [{ id: 1, metrics: { primary: 7 } }] })))
   render(<GoalForm surface={surface} id="7" />)
   expect((await screen.findByLabelText('Short name') as HTMLInputElement).readOnly).toBe(true)
   expect(screen.getByText('Used by 1 test. Remove it from those tests first.')).toBeTruthy()
@@ -376,4 +376,17 @@ test('goals use plugin primitives and have no Payload controls or raw controls',
       expect(match[1]!.split(',').map(name => name.trim()).every(name => ['Link', 'useConfig', 'useAuth'].includes(name))).toBe(true)
     }
   }
+})
+
+test('all 150 goals render across two pages', async () => {
+  const goals = Array.from({ length: 150 }, (_, id) => ({ ...goal, id, name: `Goal ${id}` }))
+  const fetch = vi.fn(async (url: string) => {
+    const page = Number(new URL(url, 'https://example.test').searchParams.get('page'))
+    return response(url.includes('xp-metrics') ? { docs: goals.slice((page - 1) * 100, page * 100), hasNextPage: page < 2 } : { docs: [], hasNextPage: false })
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(<GoalsList surface={surface} />)
+  await screen.findByRole('link', { name: 'Goal 149' })
+  expect(screen.getAllByRole('article')).toHaveLength(150)
+  expect(fetch).toHaveBeenCalledTimes(3)
 })

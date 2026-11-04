@@ -25,13 +25,14 @@ test('loads block experiments with editor credentials and shows names, status la
   expect(screen.getByRole('status').textContent).toBe('Loading tests…')
   expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(true)
   await screen.findByRole('option', { name: 'First example · Draft' })
-  expect(fetch).toHaveBeenCalledWith('/api/xp-experiments?where[kind][equals]=block&depth=0&limit=100&sort=-updatedAt', {
+  expect(fetch).toHaveBeenCalledWith('/api/xp-experiments?where%5Bkind%5D%5Bequals%5D=block&depth=0&sort=id&limit=100&page=1', {
     credentials: 'include', signal: expect.any(AbortSignal),
   })
   expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual([
     'No test', 'First example · Draft', 'Second example · Running', 'Third example · Stopped', 'Fourth example · Decided', 'Fifth example · Archived',
   ])
   expect(screen.queryByRole('status')).toBeNull()
+  expect(screen.queryByRole('searchbox')).toBeNull()
 })
 
 test('selection stores only id and slug, preserves id types, and clears to null', async () => {
@@ -106,6 +107,59 @@ test.each(['render', 'editor'] as const)('%s factory supplies custom sidebar rou
   const fetch = mockFetch()
   render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'test' }))
   await screen.findByRole('option', { name: 'First example · Draft' })
-  expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments?where[kind][equals]=block&depth=0&limit=100&sort=-updatedAt', expect.objectContaining({ credentials: 'include' }))
+  expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments?where%5Bkind%5D%5Bequals%5D=block&depth=0&sort=id&limit=100&page=1', expect.objectContaining({ credentials: 'include' }))
   expect(screen.getByRole('combobox', { name: 'Test' }).classList.contains('xp-ui-select')).toBe(true)
+})
+
+test('all 150 tests load; search above eight filters name and slug but keeps the bound test', async () => {
+  const all = Array.from({ length: 150 }, (_, id) => ({ id, slug: `block-${id}`, name: `Test ${id}`, status: 'draft' }))
+  const fetch = vi.fn(async (url: string) => {
+    const page = Number(new URL(url, 'https://example.test').searchParams.get('page'))
+    return new Response(JSON.stringify({ docs: all.slice((page - 1) * 100, page * 100), hasNextPage: page < 2 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(<ExperimentPicker value={{ id: 149, slug: 'block-149' }} onChange={vi.fn()} />)
+  await screen.findByRole('option', { name: 'Test 149 · Draft' })
+  expect(screen.getAllByRole('option')).toHaveLength(151)
+  expect(fetch).toHaveBeenCalledTimes(2)
+  const search = screen.getByRole('searchbox', { name: 'Search tests' })
+  const select = screen.getByRole('combobox')
+  const label = select.previousElementSibling!
+  expect(label.tagName).toBe('LABEL')
+  expect(label.textContent).toBe('Test')
+  expect(label.getAttribute('for')).toBe(select.id)
+  expect(search.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(search.hasAttribute('placeholder')).toBe(false)
+  fireEvent.change(search, { target: { value: '  TEST 12  ' } })
+  expect(screen.getAllByRole('option')).toHaveLength(13) // none, 12/120–129, bound
+  expect(screen.queryByRole('option', { name: 'Test 1 · Draft' })).toBeNull()
+  fireEvent.change(search, { target: { value: ' BLOCK-2 ' } })
+  expect(screen.getByRole('option', { name: 'Test 2 · Draft' })).toBeTruthy()
+  expect(screen.getAllByRole('option')).toHaveLength(13)
+  fireEvent.change(search, { target: { value: 'absent' } })
+  expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['No test', 'Test 149 · Draft'])
+  expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('149')
+  fireEvent.change(search, { target: { value: '' } })
+  expect(screen.getAllByRole('option')).toHaveLength(151)
+})
+test('exactly eight tests do not show search', async () => {
+  mockFetch({ docs: Array.from({ length: 8 }, (_, id) => ({ ...docs[0], id })) })
+  render(<ExperimentPicker value={null} onChange={vi.fn()} />)
+  await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(9))
+  expect(screen.queryByRole('searchbox')).toBeNull()
+})
+
+test('stable paging keeps newest activity order and renders a repeated document once', async () => {
+  const older = { ...docs[0], updatedAt: '2026-11-01T00:00:00Z' }
+  const newer = { ...docs[1], updatedAt: '2026-11-03T00:00:00Z' }
+  const fetch = vi.fn(async (url: string) => {
+    const params = new URL(url, 'https://example.test').searchParams
+    expect(params.get('sort')).toBe('id')
+    const first = params.get('page') === '1'
+    return new Response(JSON.stringify({ docs: first ? [older] : [newer, { ...older, name: 'Repeated' }], hasNextPage: first }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(<ExperimentPicker value={null} onChange={vi.fn()} />)
+  await screen.findByRole('option', { name: 'Second example · Running' })
+  expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['No test', 'Second example · Running', 'First example · Draft'])
 })

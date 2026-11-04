@@ -48,13 +48,18 @@ export function newTestBody(input: {
     ...(hypothesis === undefined ? {} : { hypothesis }) }
 }
 
-export function uniqueSlug(base: string, taken: readonly string[]): string {
+/** Candidate order shared by local naming and the bounded REST slug probes. */
+export function slugCandidate(base: string, index: number): string {
   const root = base.slice(0, 64).replace(/-+$/g, '') || 'test'
+  if (index === 1) return root
+  const suffix = `-${index}`
+  return root.slice(0, 64 - suffix.length).replace(/-+$/g, '') + suffix
+}
+
+export function uniqueSlug(base: string, taken: readonly string[]): string {
   const used = new Set(taken)
-  if (!used.has(root)) return root
-  for (let index = 2; ; index++) {
-    const suffix = `-${index}`
-    const candidate = root.slice(0, 64 - suffix.length).replace(/-+$/g, '') + suffix
+  for (let index = 1; ; index++) {
+    const candidate = slugCandidate(base, index)
     if (!used.has(candidate)) return candidate
   }
 }

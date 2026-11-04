@@ -12,6 +12,7 @@ import { sanitizeReadinessDetail } from '../../sanitizeReadinessDetail.js'
 
 export interface HomeTest {
   id: DocId; name: string; kind: ExperimentKind; status: Status; unitType: UnitType
+  updatedAt?: string | null
   flagPoint?: string | null
   analysis?: { plannedDurationDays?: number | null } | null
   arms?: Arm[] | null

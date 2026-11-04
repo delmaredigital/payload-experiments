@@ -39,7 +39,10 @@ test('posts the exact complete draft body, without a slug input, and binds the r
   create()
   await waitFor(() => expect(onCreate).toHaveBeenCalledWith({ id: 42, slug: 'new-test' }))
   expect(onClose).toHaveBeenCalledOnce()
-  expect(fetch.mock.calls[0]).toEqual(['/api/xp-experiments?where[slug][like]=new-test&depth=0&limit=200&select[slug]=true', { credentials: 'include' }])
+  const probe = new URL(fetch.mock.calls[0]![0], 'https://example.test')
+  expect(probe.searchParams.get('where[slug][in]')?.split(',')).toHaveLength(50)
+  expect(probe.searchParams.get('where[slug][in]')?.split(',')[0]).toBe('new-test')
+  expect(fetch.mock.calls[0]![1]).toEqual({ credentials: 'include' })
   expect(fetch.mock.calls[1]).toEqual(['/api/xp-experiments', {
     method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(expectedBody),
   }])
@@ -51,7 +54,7 @@ test('a collision re-queries and retries once using the next free slug', async (
   create()
   await waitFor(() => expect(onCreate).toHaveBeenCalledWith({ id: 43, slug: 'new-test-3' }))
   expect(fetch).toHaveBeenCalledTimes(4)
-  expect(fetch.mock.calls[2]![0]).toBe(fetch.mock.calls[0]![0])
+  expect(new URL(fetch.mock.calls[2]![0], 'https://example.test').searchParams.get('where[slug][in]')?.split(',')[0]).toBe('new-test-2')
   expect(JSON.parse(fetch.mock.calls[3]![1].body)).toEqual({ ...expectedBody, slug: 'new-test-3' })
 })
 test('a second collision stays inline and never retries a third time', async () => {

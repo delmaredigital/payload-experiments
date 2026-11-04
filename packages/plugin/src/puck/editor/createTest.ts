@@ -1,6 +1,6 @@
 import type { ExperimentRef } from '../../types/puck.js'
 import { editorCopy } from './copy.js'
-import { isSlugCollision, newTestBody, slugify, uniqueSlug } from './editor.model.js'
+import { isSlugCollision, newTestBody, slugify, slugCandidate } from './editor.model.js'
 
 /** Only a server refusal may supply editor-facing error text. */
 export class CreateRefused extends Error {}
@@ -14,16 +14,23 @@ function refusalMessage(body: unknown): string {
 /** Shared lookup, complete draft creation and one retry for a racing slug collision. */
 export async function createTest(api: string, input: Omit<Parameters<typeof newTestBody>[0], 'slug'>): Promise<ExperimentRef> {
   const base = slugify(input.name) || 'test'
+  let next = 1
   for (let attempt = 0; ; attempt++) {
-    // Suffixes shorten a 64-character base; include those neighbouring slugs in the lookup.
-    const lookup = await fetch(`${api}/xp-experiments?where[slug][like]=${encodeURIComponent(base.slice(0, 60))}&depth=0&limit=200&select[slug]=true`, { credentials: 'include' })
-    const found = await lookup.json()
-    if (!lookup.ok) throw new CreateRefused(refusalMessage(found))
-    if (!Array.isArray(found?.docs)) throw new Error(editorCopy.createError)
-    const taken = found.docs.flatMap((doc: { slug?: unknown }) => typeof doc.slug === 'string' ? [doc.slug] : [])
+    let slug: string | undefined
+    while (slug === undefined) {
+      const candidates = Array.from({ length: 50 }, (_, offset) => slugCandidate(base, next + offset))
+      const lookup = await fetch(`${api}/xp-experiments?where[slug][in]=${encodeURIComponent(candidates.join(','))}&limit=50&depth=0&select[slug]=true`, { credentials: 'include' })
+      const found = await lookup.json()
+      if (!lookup.ok) throw new CreateRefused(refusalMessage(found))
+      if (!Array.isArray(found?.docs)) throw new Error(editorCopy.createError)
+      const taken = new Set(found.docs.flatMap((doc: { slug?: unknown }) => typeof doc.slug === 'string' ? [doc.slug] : []))
+      const free = candidates.findIndex(candidate => !taken.has(candidate))
+      if (free === -1) next += candidates.length
+      else { slug = candidates[free]!; next += free + 1 }
+    }
     const response = await fetch(`${api}/xp-experiments`, {
       method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newTestBody({ ...input, slug: uniqueSlug(base, taken) })),
+      body: JSON.stringify(newTestBody({ ...input, slug })),
     })
     const body = await response.json()
     if (!response.ok) {

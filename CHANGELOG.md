@@ -11,6 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: the Tests home, goal and layer lists, the block's test picker and new-test names read every page, so sites with many tests no longer lose items past the first 100–200 or fail to create a test with a common name.
 - Changed: CI workflows pin every action to a commit and give each job only the permissions it needs; only the publish job can request an npm OIDC token. Migration impact: none.
 
 ## [0.3.0-rc.2] - 2026-11-04

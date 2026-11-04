@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
 import type { SummaryResponse } from '../../types/endpoints.js'
+import { fetchAllDocs } from '../../lib/fetchAllDocs.js'
 import { createApi } from '../api.js'
 import { noMatchesLine, SURFACE_COPY } from '../copy/surface.js'
 import { Banner, EmptyState, StatusChip } from '../../ui/Feedback.js'
@@ -15,14 +16,14 @@ import { groupTests, homeCard } from './home.model.js'
 import type { HomeTest } from './home.model.js'
 import type { ReadinessContext } from './readiness/readiness.model.js'
 
-const HOME_FIELDS = ['name', 'kind', 'status', 'analysis', 'arms', 'decidedAt', 'decision', 'unitType', 'flagPoint'] as const
+const HOME_FIELDS = ['name', 'kind', 'status', 'analysis', 'arms', 'decidedAt', 'decision', 'unitType', 'flagPoint', 'updatedAt'] as const
 // Typecheck fails if HomeTest gains a field the list request does not select (Payload always returns id).
 const homeFieldsComplete: Exclude<keyof HomeTest, 'id'> extends (typeof HOME_FIELDS)[number] ? true : never = true
 void homeFieldsComplete
 const HOME_SELECT = HOME_FIELDS.map(field => `select[${field}]=true`).join('&')
 
 type State = { loading: true } | { loading: false; error: true } | {
-  loading: false; error: false; tests: HomeTest[]; summaries: SummaryResponse; summaryError: boolean; limited: boolean
+  loading: false; error: false; tests: HomeTest[]; summaries: SummaryResponse; summaryError: boolean
 }
 export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, flagPoints }: {
   adminRoute: string; apiRoute: string; canManage?: boolean; crumbs?: SurfaceShellProps['crumbs']; flagPoints?: ReadinessContext['flagPoints']
@@ -37,14 +38,14 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, fla
     setState({ loading: true })
     async function load() {
       try {
-        const response = await fetch(`${apiRoute.replace(/\/$/, '')}/xp-experiments?depth=0&sort=-updatedAt&limit=200&${HOME_SELECT}`, {
+        const response = await fetchAllDocs<HomeTest>(`${apiRoute.replace(/\/$/, '')}/xp-experiments?depth=0&sort=id&${HOME_SELECT}`, {
           credentials: 'include', signal: controller.signal,
         })
         if (!response.ok) throw new Error('list')
-        const { docs, totalDocs } = await response.json() as { docs: HomeTest[]; totalDocs: number }
+        const docs = response.docs.sort((a, b) => (Date.parse(b.updatedAt ?? '') || 0) - (Date.parse(a.updatedAt ?? '') || 0))
         if (!active) return
         const summary = await api.summary(docs.map(doc => doc.id))
-        if (active) setState({ loading: false, error: false, tests: docs, limited: totalDocs > docs.length,
+        if (active) setState({ loading: false, error: false, tests: docs,
           summaries: summary.ok ? summary.data ?? {} : {}, summaryError: !summary.ok })
       } catch {
         if (active) setState({ loading: false, error: true })
@@ -70,7 +71,6 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, fla
           {state.summaryError ? <Banner tone="error" action={retry}>{SURFACE_COPY.summaryError}</Banner> : null}
           {state.tests.length === 0 ? <EmptyState action={newTest}>{SURFACE_COPY.empty}</EmptyState>
             : <TestGroups tests={state.tests} summaries={state.summaries} adminRoute={adminRoute} flagPoints={flagPoints} search={search} clear={() => setSearch('')} />}
-          {state.limited ? <p className="xp-tests-limited">{SURFACE_COPY.limitedList}</p> : null}
         </>}
   </SurfaceShell>
 }

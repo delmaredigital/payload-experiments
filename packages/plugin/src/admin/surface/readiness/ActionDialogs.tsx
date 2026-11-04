@@ -1,4 +1,6 @@
 'use client'
+
+import { DocsResponseError, fetchAllDocs } from '../../../lib/fetchAllDocs.js'
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { Button } from '../../../ui/Button.js'
@@ -99,13 +101,11 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
     const controller = new AbortController()
     void (async () => {
       try {
-        const response = await fetch(`${surface.apiRoute.replace(/\/$/, '')}/xp-metrics?depth=0&limit=100`, { credentials: 'include', signal: controller.signal })
+        const response = await fetchAllDocs<{ id: DocId; name: string }>(`${surface.apiRoute.replace(/\/$/, '')}/xp-metrics?depth=0`, { credentials: 'include', signal: controller.signal })
         if (!response.ok) throw new Error(refusalMessage(undefined, response.status))
-        const data = await response.json() as { docs?: Array<{ id: DocId; name: string }> }
-        if (!Array.isArray(data.docs)) throw new Error(API_MESSAGES.unreadable)
-        if (!controller.signal.aborted) setMetrics(data.docs)
+        if (!controller.signal.aborted) setMetrics(response.docs)
       } catch (cause) {
-        if (!controller.signal.aborted) setLoadError(cause instanceof Error ? cause.message : API_MESSAGES.network)
+        if (!controller.signal.aborted) setLoadError(cause instanceof DocsResponseError ? API_MESSAGES.unreadable : cause instanceof Error ? cause.message : API_MESSAGES.network)
       } finally { if (!controller.signal.aborted) setLoading(false) }
     })()
     return () => controller.abort()
