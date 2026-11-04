@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { URL as NodeURL } from 'node:url'
 import { afterEach, expect, test } from 'vitest'
 import { VerdictHero } from '../../../src/admin/results/VerdictHero.js'
 import { DataTable } from '../../../src/admin/results/DataTable.js'
@@ -40,4 +42,43 @@ test('StatTile separates the large stored value and label', () => {
   const { container } = render(<StatTile label="Days" value="9 of 28" />)
   expect(container.querySelector('.xp-stat-tile-label')?.textContent).toBe('Days')
   expect(container.querySelector('.xp-stat-tile-value')?.textContent).toBe('9 of 28')
+})
+
+test('table scroll region is named, keyboard focusable and cues only the remaining scroll directions', () => {
+  const snapshot = fixture('T7-bayesian'), phase = phaseFor(snapshot)
+  const { unmount } = render(<DataTable rows={armRows({ snapshot, phase, metricId: 'registrations' })} caption="Registrations" method="bayesian" metricKind="binomial" primary />)
+  const region = screen.getByRole('region', { name: 'Registrations' })
+  expect(region.tabIndex).toBe(0)
+  expect(within(region).getByRole('table', { name: 'Registrations' })).toBeTruthy()
+  const frame = region.parentElement!
+  Object.defineProperties(region, { clientWidth: { configurable: true, value: 390 }, scrollWidth: { value: 1000 } })
+  fireEvent(window, new Event('resize'))
+  expect(frame.classList.contains('has-right')).toBe(true)
+  expect(frame.classList.contains('has-left')).toBe(false)
+  fireEvent.scroll(region, { target: { scrollLeft: 200 } })
+  expect(frame.classList.contains('has-right')).toBe(true)
+  expect(frame.classList.contains('has-left')).toBe(true)
+  fireEvent.scroll(region, { target: { scrollLeft: 610 } })
+  expect(frame.classList.contains('has-right')).toBe(false)
+  expect(frame.classList.contains('has-left')).toBe(true)
+  Object.defineProperty(region, 'clientWidth', { value: 1000 })
+  fireEvent.scroll(region, { target: { scrollLeft: 0 } })
+  fireEvent(window, new Event('resize'))
+  expect(frame.classList.contains('has-right')).toBe(false)
+  expect(frame.classList.contains('has-left')).toBe(false)
+  unmount()
+})
+
+test('table CSS scrolls horizontally, pins Group and draws token-based edge cues above the cells', () => {
+  const css = readFileSync(new NodeURL('../../../src/admin/results/results.css', import.meta.url), 'utf8')
+  const rule = (selector: string) => css.slice(css.indexOf('\n' + selector)).split('}')[0]!
+  expect(rule('.xp-data-table-wrap {')).toMatch(/overflow-x:\s*auto/)
+  const pinned = rule('.xp-data-table tr > :first-child {')
+  expect(pinned).toMatch(/position:\s*sticky/)
+  expect(pinned).toMatch(/left:\s*0/)
+  expect(pinned).toContain('background: var(--xp-surface)')
+  expect(rule('.xp-data-table-frame::before, .xp-data-table-frame::after {')).toContain('pointer-events: none')
+  expect(rule('.xp-data-table-frame::before {')).toContain('linear-gradient(to right, var(--xp-border-strong), transparent)')
+  expect(rule('.xp-data-table-frame::after {')).toContain('linear-gradient(to left, var(--xp-border-strong), transparent)')
+  expect(rule('.xp-data-table-frame.has-left::before, .xp-data-table-frame.has-right::after {')).toContain('opacity: 1')
 })

@@ -10,6 +10,7 @@ import type { DocId } from '../../../types/contracts.js'
 import type { PreflightResult, ResultsResponse } from '../../../types/endpoints.js'
 import type { SurfaceProps } from '../contracts.js'
 import { RESULTS_COPY as C } from '../../copy/results.js'
+import { formatDate } from '../../format/date.js'
 import { ACTIONS_COPY } from '../../copy/actions.js'
 import { METRICS_COPY } from '../../copy/metrics.js'
 import { API_MESSAGES } from '../../copy/common.js'
@@ -93,13 +94,15 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
   // ADM-06b: an older round never inherits the live test's running status.
   const lineStatus = status === 'running' && round === newestRound ? 'running' : 'stopped'
   const isDecidedTestRound = status === 'decided' && phase?.phaseKind === 'test' && decision?.phase === round
+  const showingDecision = isDecidedTestRound && Boolean(data?.decisionSnapshot)
+  const shown = showingDecision ? data!.decisionSnapshot! : snapshot
   const winner = phase?.arms.find(arm => arm.key === decision?.winnerArm)?.label ?? armLabel(decision?.winnerArm ?? 'control')
-  const card = snapshot ? verdictCard({ snapshot, decisionSnapshot: data?.decisionSnapshot, isDecidedTestRound, winnerLabel: winner }) : null
+  const card = shown ? verdictCard({ snapshot: shown, decisionSnapshot: data?.decisionSnapshot, isDecidedTestRound, winnerLabel: winner }) : null
   const context = { status, phase, inLayer: doc?.layer != null, layerSlices: doc?.layerSlices, allocation: doc?.allocation }
   const primary = phase?.metrics.find(metric => metric.role === 'primary')
   // The endpoint decides the current round; historical rounds are read-only.
   const canDecide = manage && (status === 'running' || status === 'stopped') && phase?.phaseKind === 'test'
-    && round === newestRound && state === 'ready' && Boolean(snapshot)
+    && round === newestRound && state === 'ready' && Boolean(shown)
   const actions = <>
       {canDecide ? <Button disabled={busy || deciding || releasing} onClick={() => setDeciding(true)}>{ACTIONS_COPY.decide}</Button> : null}
       {manage && doc && canReleasePages(doc) ? <Button variant="secondary" disabled={busy || deciding || releasing} onClick={() => {
@@ -112,13 +115,13 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
   const meta = <><div className="xp-round-meta">
     {phases.length > 0 ? <Select id="xp-results-round" label={C.round} disabled={deciding || releasing} value={round ?? ''} onChange={event => results.setRound(Number(event.target.value))}>
       {roundOptions(phases).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </Select> : null}{manage && snapshot ? <span>· {C.methods[snapshot.method]}</span> : null}
-    </div>{manage ? <Button variant="quiet" size="sm" disabled={busy || deciding || releasing} onClick={() => { void recompute() }}>{busy ? C.recomputing : C.recompute}</Button> : null}</>
-  const leader = snapshot?.verdict.recommendedArm
-  const leadingComparison = snapshot?.metrics.find(metric => metric.role === 'primary')?.comparisons.find(item => item.arm === leader)
-  const chance = snapshot?.method === 'bayesian' && !['collecting', 'rollout-collecting'].includes(snapshot.verdict.code)
+    </Select> : null}{manage && shown ? <span>· {C.methods[shown.method]}</span> : null}{showingDecision ? <span className="xp-results-as-of">{manage ? '· ' : ''}{C.asOfDecision(formatDate(data!.decisionSnapshot!.computedAt))}</span> : null}
+    </div>{/* The decided round shows the decision's numbers, so a recompute would change nothing here. */}{manage && !showingDecision ? <Button variant="quiet" size="sm" disabled={busy || deciding || releasing} onClick={() => { void recompute() }}>{busy ? C.recomputing : C.recompute}</Button> : null}</>
+  const leader = shown?.verdict.recommendedArm
+  const leadingComparison = shown?.metrics.find(metric => metric.role === 'primary')?.comparisons.find(item => item.arm === leader)
+  const chance = shown?.method === 'bayesian' && !['collecting', 'rollout-collecting'].includes(shown.verdict.code)
     ? leadingComparison?.chanceToWin : undefined
-  const days = snapshot ? Math.max(0, Math.floor((Date.parse(snapshot.window.to) - Date.parse(phase?.startedAt ?? snapshot.window.from)) / 86400000)) : undefined
+  const days = shown ? Math.max(0, Math.floor((Date.parse(shown.window.to) - Date.parse(phase?.startedAt ?? shown.window.from)) / 86400000)) : undefined
   const planned = doc?.analysis?.plannedDurationDays
   const content = <div className="xp-results" style={{ color: theme.color.text }}>
     {actionError ? <Banner tone="error">{actionError}</Banner> : null}
@@ -128,23 +131,23 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
       : state === 'missing' ? <p role="alert">{results.error}</p>
       : state === 'error' ? <><p role="alert">{results.error}</p><Button onClick={results.reload}>{C.retry}</Button></>
       : null}
-    {phase && snapshot ? <>
-      <VerdictHero model={card!} meta={meta} recommendation={recommendation({ snapshot, phase, status: lineStatus, plannedDurationDays: round === newestRound ? doc?.analysis?.plannedDurationDays : undefined })}
-        guardrails={guardrailChips(snapshot)} power={powerLine({ snapshot, phaseKind: phase.phaseKind, status: lineStatus })}
-        collecting={collectingLine({ snapshot, phaseKind: phase.phaseKind, status: lineStatus }, context)}
-        sinceShipping={rolloutLine(snapshot, phase, phases, decision ?? undefined)} />
+    {phase && shown ? <>
+      <VerdictHero model={card!} meta={meta} recommendation={recommendation({ snapshot: shown, phase, status: lineStatus, plannedDurationDays: round === newestRound ? doc?.analysis?.plannedDurationDays : undefined })}
+        guardrails={guardrailChips(shown)} power={powerLine({ snapshot: shown, phaseKind: phase.phaseKind, status: lineStatus })}
+        collecting={collectingLine({ snapshot: shown, phaseKind: phase.phaseKind, status: lineStatus }, context)}
+        sinceShipping={rolloutLine(shown, phase, phases, decision ?? undefined)} />
       <div className="xp-stat-tiles">
-        <StatTile label={C.people} value={formatCount(snapshot.exposures.total)} />
+        <StatTile label={C.people} value={formatCount(shown.exposures.total)} />
         <StatTile label={C.days} value={planned ? daysOfPlan(formatCount(days), formatCount(planned)) : formatCount(days)} />
         <StatTile label={C.chanceToWin} value={formatPercent(chance)} detail={chance != null && leader ? <><Swatch arm={leader} />{phase.arms.find(arm => arm.key === leader)?.label ?? armLabel(leader)}</> : undefined} />
       </div>
-      {phase.metrics.filter(metric => metric.role === 'primary').map(metric => <MetricTable key={metric.metricId} metric={metric} snapshot={snapshot} phase={phase} leader={leader} />)}
+      {phase.metrics.filter(metric => metric.role === 'primary').map(metric => <MetricTable key={metric.metricId} metric={metric} snapshot={shown} phase={phase} leader={leader} />)}
       {primary ? <details className="xp-results-panel xp-chart-details"><summary>{C.chart}</summary>
-        <CiChart series={data?.series} metricId={primary.metricId} metricName={primary.name} phase={phase} contentChanges={snapshot.contentChanges} />
+        <CiChart series={data?.series} metricId={primary.metricId} metricName={primary.name} phase={phase} contentChanges={shown.contentChanges} />
       </details> : null}
-      <DataQualityPanel problem={snapshot.verdict.code === 'data-problem'} items={dataQuality(snapshot, context)} />
+      <DataQualityPanel problem={shown.verdict.code === 'data-problem'} items={dataQuality(shown, context)} />
       {(['guardrail', 'secondary'] as const).map(role => phase.metrics.filter(metric => metric.role === role).map(metric =>
-        <MetricTable key={metric.metricId} metric={metric} snapshot={snapshot} phase={phase} />))}
+        <MetricTable key={metric.metricId} metric={metric} snapshot={shown} phase={phase} />))}
     </> : <>{meta}{state === 'empty' || state === 'ready' ? <p>{C.empty}</p> : null}</>}
     {manage && placements && placements.length > 0 ? <section className="xp-results-block"><div className="xp-results-block-head"><h2>{C.previews}</h2></div><PreviewLinks experimentId={id} flagPoint={doc?.flagPoint} placements={placements} arms={doc?.arms ?? []} /></section> : null}
     {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retryPreview}</Button></> : null}
