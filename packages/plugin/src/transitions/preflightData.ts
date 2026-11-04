@@ -7,6 +7,8 @@ import type { PreflightResult } from '../types/endpoints.js'
 import { checkStart, relationshipId } from './checkStart.js'
 import type { CheckStartInput, PlacementFailure, StartExperiment, StartMetric } from './checkStart.js'
 import { flagPlacements, scanBlockPlacements, type BlockPlacement } from './placements.js'
+import { routedPageTests } from '../db/pageOccupancy.js'
+import { pooledExecutor, txExecutor } from '../db/executor.js'
 
 export interface PreflightDependencies {
   now?: Date
@@ -28,6 +30,12 @@ export async function loadStartInputs<TUser extends { id: DocId }>(req: PayloadR
   return (await loadStartInputsBatch(req, options, [experiment])).get(String(experiment.id)) ?? null
 }
 
+/** Occupancy from the arms the runtime routes on (frozen rounds), shared by preflight and
+ * Start's locked recheck. Raw SQL on the request's transaction when there is one. */
+export async function loadPageTestsInUse(req: PayloadRequest): Promise<NonNullable<CheckStartInput['pageTestsInUse']>> {
+  return routedPageTests(await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload))
+}
+
 const metricIds = (experiment: StartExperiment) => [experiment.metrics?.primary, ...experiment.metrics?.secondary ?? [], ...experiment.metrics?.guardrails ?? []]
   .map(relationshipId).filter((id): id is DocId => id !== undefined)
 
@@ -43,6 +51,7 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
   })()
   const blockSlugs = new Set(experiments.filter(e => e.kind === 'block').map(e => e.slug))
   // Lazy promises prevent unhandled rejections and share failed reads as well as successful ones.
+  let pageTestsInUse: ReturnType<typeof loadPageTestsInUse> | undefined
   let blocks: ReturnType<typeof scanBlockPlacements> | undefined
   let state: Promise<Record<string, { params: Record<string, unknown> }> | undefined> | undefined
   const busyPoints = new Map<string, Promise<Array<{ id: DocId }>>>()
@@ -58,6 +67,8 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
         return failureDetail(cause)
       }
       if (experiment.kind === 'page') {
+        pageTestsInUse ??= loadPageTestsInUse(req)
+        input.pageTestsInUse = await pageTestsInUse
         input.pageTargetsUnchecked = options.pages === undefined
         if (options.pages) {
           input.unpublishedPageTargets = []

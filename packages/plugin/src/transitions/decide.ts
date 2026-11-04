@@ -5,7 +5,9 @@ import { decideGuard } from '../results/decideGuard.js'
 import type { Arm, DocId } from '../types/contracts.js'
 import type { DecideBody } from '../types/endpoints.js'
 import type { Snapshot } from '../types/snapshot.js'
-import { relationshipId } from './checkStart.js'
+import { lockPagePaths } from '../db/locks.js'
+import { routedPageTests } from '../db/pageOccupancy.js'
+import { pageTargetPaths, relationshipId } from './checkStart.js'
 import { expectedConfirm, matchesConfirm, storedWinnerLabel } from './confirmPhrases.js'
 import { withTransition } from './kernel.js'
 import { readPhaseRecord, setPhaseEndedAt, writePhaseRecord } from './phaseRecord.js'
@@ -26,6 +28,17 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
     }
     const test = await readPhaseRecord(req, experimentId, current.phase!)
     if (test.phaseKind !== 'test') refuse('invalid-status')
+    if (current.kind === 'page' && current.status === 'stopped') {
+      // Deciding a stopped page test restores its routing: recheck page occupancy under the
+      // sorted path locks Start takes, so another test that started on these pages meanwhile wins.
+      // The frozen test-round arms are what decide restores; the stopped document's arms may have been edited.
+      const mine = pageTargetPaths(test.arms as Arm[])
+      await lockPagePaths(exec, mine)
+      // Other tests' routed (frozen-round) arms, as the runtime matches them.
+      const occupied = new Set((await routedPageTests(exec)).filter(other => String(other.id) !== String(experimentId)).flatMap(other => pageTargetPaths(other.arms)))
+      const shared = mine.filter(path => occupied.has(path))
+      if (shared.length) refuse('page-in-use', { paths: shared })
+    }
     const winner = test.arms.find(arm => arm.key === winnerArm && arm.kind !== 'holdout')
     if (!winner) refuse('invalid-winner')
     // §7.8: decision snapshot lookup serves the authorised transition.

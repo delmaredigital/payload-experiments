@@ -16,7 +16,7 @@ test('readiness copy uses editor language, including generated sentences', () =>
     if (typeof value === 'object') for (const sentence of Object.values(value)) expect(sentence).not.toMatch(forbidden)
   }
   for (const sentence of [copy.contentNext('Original'), copy.parameterNext('Headline', 'Variant A'), copy.stoppedCopy(null),
-    ...(['running', 'decided', 'archived'] as const).map(status => copy.pageGuardCopy('Example', status)),
+    copy.pageInUseCopy('/example'), ...(['running', 'decided', 'archived'] as const).map(status => copy.pageGuardCopy('Example', status)),
     ...['running', 'decided'].flatMap(status => [copy.versionPageUnavailableCopy('/example', status), copy.versionPageUncheckedCopy('/example', status)]), copy.decidedCopy(null, 'Variant A'), copy.runningCopy(null, 100, 2)]) expect(sentence).not.toMatch(forbidden)
 })
 
@@ -36,4 +36,10 @@ test.each(['running', 'decided'] as const)('page refusal actions exist for %s te
   for (const id of status === 'running' ? ['stop'] : ['make-content', 'discard']) {
     expect(copy.pageGuardCopy('Example', status)).toContain(actions.find(action => action.id === id)!.label)
   }
+})
+
+
+test('page conflict readiness uses the coordinator copy', () => {
+  expect(copy.pageInUseCopy('/original')).toBe('Another running or decided test already uses /original. Choose a different page, or finish that test first.')
+  expect(copy.READINESS_COPY.chooseDifferentPage).toBe('Choose a different page')
 })

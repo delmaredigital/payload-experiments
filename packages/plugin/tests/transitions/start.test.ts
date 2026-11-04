@@ -1,5 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import { fakePayload } from '../_fakes/payload.js'
+import { pageArms, pageOccupancyDb } from '../_helpers/pageOccupancy.js'
 import { fakeReq } from '../_fakes/req.js'
 import { createFakeExecutor } from '../_fakes/executor.js'
 import { sampleOptions } from '../collections/fixtures.js'
@@ -23,10 +24,12 @@ function fixture(status = 'draft', layer = false) {
   })
   let revision = 8
   const manifests: unknown[] = []
+  const occupancy: Array<{ id: number; arms: import('../../src/types/contracts.js').Arm[] }> = []
   executor.query = async <R>(text: string, params: unknown[] = []) => {
     executor.calls.push({ text, params })
     let rows: unknown[] = []
     let rowCount = 1
+    if (text.includes('JOIN LATERAL')) rows = occupancy
     if (text.includes(' AS slices ')) rows = payload.documents['xp-experiments']!.filter(doc => doc.layer === params[0] && ['running', 'decided'].includes(String(doc.status))).map(doc => ({ slices: doc.layerSlices }))
     if (text.includes('FOR SHARE')) rows = payload.documents['xp-metrics']!.filter(doc => (params[0] as unknown[]).includes(doc.id)).map(doc => ({ id: doc.id, slug: doc.slug, source: doc.source }))
     if (text.includes('txid_current()')) rows = [{ xid: '10' }]
@@ -49,7 +52,7 @@ function fixture(status = 'draft', layer = false) {
   })
   const req = executor.withSession({ payload })
   const experiment = payload.documents['xp-experiments']![0]!
-  return { options, payload, executor, req, experiment, manifests }
+  return { options, payload, executor, req, experiment, manifests, occupancy }
 }
 import { start } from '../../src/transitions/start.js'
 import { stop } from '../../src/transitions/stop.js'
@@ -132,7 +135,7 @@ test.each([
   const { req, options, experiment, executor } = fixture()
   Object.assign(experiment, changes)
   await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code })
-  expect(executor.calls).toEqual([])
+  expect(executor.calls.every(call => call.text.includes('JOIN LATERAL'))).toBe(true)
 })
 test.each([
   { attribute: 'age', op: 'eq', value: 'wrong' }, { attribute: 'age', op: 'contains', value: 1 },
@@ -242,7 +245,8 @@ test.each(['missing', 'draft', 'throws'] as const)('unpublished page target (%s)
   expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant', '/original', '/variant'])
   for (const call of findByPath.mock.calls) expect(call[1]).toBe(req)
   expect(experiment.status).toBe('draft')
-  expect(executor.calls).toEqual([])
+  expect(executor.calls).toHaveLength(2)
+  expect(executor.calls.every(call => call.text.includes('JOIN LATERAL'))).toBe(true)
   expect(JSON.stringify(payload.logs)).not.toContain('secret-value')
 })
 test('published targets start; holdouts are not looked up, multiple collections resolve paths', async () => {
@@ -302,3 +306,108 @@ test.each(['slug', 'source'])('Start refuses a goal whose %s changed before the 
   await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'stale-draft', status: 409 })
   expect(payload.documents['xp-phases']).toEqual([])
 })
+
+test.each([['running', 0], ['running', 1], ['decided', 0], ['decided', 1]] as const)('a %s page test blocks sharing arm %s in preflight and Start', async (status, peerArm) => {
+  for (const shared of ['/original', '/variant']) {
+    const { options, req, payload, executor, occupancy } = pageFixture()
+    occupancy.push({ id: 8,
+      arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index === peerArm ? shared + '/' : '/elsewhere' })) })
+    const expected = { code: 'page-in-use', ok: false, detail: { paths: [shared] } }
+    expect((await preflightData(req, { experimentId: 1, options }))!.checks).toContainEqual(expected)
+    await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({
+      code: 'page-in-use', status: 409, detail: expected.detail,
+      message: `Another running or decided test already uses ${shared}. Choose a different page, or finish that test first.`,
+    })
+    expect(executor.calls).toHaveLength(2)
+    expect(executor.calls.every(call => call.text.includes('JOIN LATERAL'))).toBe(true)
+    expect(payload.documents['xp-phases']).toEqual([])
+  }
+})
+
+test.each([
+  ['page', 'draft'], ['page', 'stopped'], ['page', 'archived'],
+  ['block', 'running'], ['block', 'decided'], ['flag', 'running'], ['flag', 'decided'], ['code', 'running'],
+])('a %s test in %s does not occupy page targets', async (kind, status) => {
+  const { options, req, payload, experiment } = pageFixture()
+  const arms = defaultArms('page').map(arm => ({ ...arm, pageTarget: '/original/' }))
+  payload.documents['xp-experiments']!.push({ ...experiment, id: 8, slug: 'other', kind, status, arms })
+  payload.documents['xp-phases']!.push({ id: 9, experiment: 8, phase: 1, phaseKind: 'test', seed: 'old|', arms, allocation: 100, targeting: [] })
+  expect((await start(req, { experimentId: 1, options })).doc.status).toBe('running')
+})
+
+test.each(['running', 'decided'])('Start rechecks %s page conflicts after sorted path locks and before any phase write', async status => {
+  const { options, req, payload, executor, experiment, occupancy } = pageFixture()
+  experiment.layer = 3
+  experiment.arms = defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/a/' : '/z/' }))
+  const query = executor.query
+  executor.query = async (text, params) => {
+    if (text.includes("hashtext('xp:pagepath')") && params?.[0] === '/z') {
+      occupancy.push({ id: 8,
+        arms: [{ ...defaultArms('page')[0]!, pageTarget: '/z///' }] })
+    }
+    return query(text, params)
+  }
+  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-in-use', detail: { paths: ['/z'] } })
+  expect(executor.calls.filter(call => call.text.includes('advisory')).map(call => call.params)).toEqual([['3'], ['1'], ['/a'], ['/z']])
+  expect(payload.documents['xp-phases']).toEqual([])
+  expect(executor.calls.filter(call => call.text.includes('JOIN LATERAL'))).toHaveLength(2)
+  expect(payload.calls.filter(call => call.args.collection === 'xp-experiments' && JSON.stringify(call.args.where).includes('kind'))).toEqual([])
+})
+
+test('a stopped page test can start a new round using its own previous pages', async () => {
+  const { options, req, experiment } = pageFixture()
+  experiment.status = 'stopped'
+  experiment.phase = 1
+  expect((await start(req, { experimentId: 1, options })).doc).toMatchObject({ status: 'running', phase: 2 })
+})
+
+
+test.each([false, true])('a decided peer occupies frozen /x and leaves edited /y free (rollout=%s)', async rollout => {
+  const database = await pageOccupancyDb()
+  try {
+    const frozen = pageArms('/x')
+    await database.addTest(8, 'decided', '/y', [
+      { phase: 1, kind: 'test', arms: frozen },
+      ...(rollout ? [{ phase: 2, kind: 'rollout' as const, arms: [frozen[1]!] }] : []),
+    ])
+    for (const path of ['/x', '/y']) {
+      const { options, req, executor, experiment, payload } = pageFixture()
+      experiment.arms = pageArms(path)
+      payload.documents['xp-experiments']!.push({ id: 8, slug: 'peer', kind: 'page', status: 'decided',
+        unitType: 'visitor', exposurePolicy: 'pageview', phase: 1, decision: { winnerArm: 'variantA' }, arms: pageArms('/y') })
+      payload.documents['xp-phases']!.push({ id: 9, experiment: 8, phase: 1, phaseKind: 'test', seed: 'peer|', arms: frozen, allocation: 100, targeting: [] })
+      // Exercise the real occupancy SQL while keeping transition writes and locks fake.
+      const query = executor.query
+      executor.query = async (text, params) => text.includes('JOIN LATERAL') ? database.exec.query(text, params) : query(text, params)
+      if (path === '/x') {
+        await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({
+          code: 'page-in-use', detail: { paths: ['/x', '/x/variant'] },
+        })
+        expect(experiment.status).toBe('draft')
+      } else {
+        await expect(start(req, { experimentId: 1, options })).resolves.toMatchObject({ doc: { status: 'running' } })
+      }
+    }
+  } finally { await database.close() }
+}, 60_000)
+
+test.each([
+  ['/x', {}, 'refused'],                                           // the archived Original's path is rewritten to the winner
+  ['/x/variant', {}, 'allowed'],                                   // the winner's own path is not rewritten
+  ['/x', { pagesReleasedAt: '2026-11-03T00:00:00Z' }, 'allowed'],  // Release pages frees it
+  ['/x', { discardedAt: '2026-11-03T00:00:00Z' }, 'allowed'],      // so does a discard
+] as const)('a new test on %s next to an archived peer (%j) is %s', async (path, decision, outcome) => {
+  const database = await pageOccupancyDb()
+  try {
+    await database.addTest(8, 'archived', '/x', [{ phase: 1, kind: 'test', arms: pageArms('/x') }], 'page', { winnerArm: 'variantA', ...decision })
+    const { options, req, executor, experiment } = pageFixture()
+    experiment.arms = pageArms(path).map((arm, index) => index ? { ...arm, pageTarget: `${path}-other` } : arm)
+    const query = executor.query
+    executor.query = async (text, params) => text.includes('JOIN LATERAL') ? database.exec.query(text, params) : query(text, params)
+    if (outcome === 'refused') {
+      await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-in-use', detail: { paths: [path] } })
+    } else {
+      await expect(start(req, { experimentId: 1, options })).resolves.toMatchObject({ doc: { status: 'running' } })
+    }
+  } finally { await database.close() }
+}, 60_000)
