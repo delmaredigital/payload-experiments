@@ -28,12 +28,11 @@ const fieldNames: Record<string, keyof Draft> = { name: 'name', slug: 'slug', so
 const empty = (): Draft => ({ name: '', slug: '', source: '', direction: 'increase', attributionWindowHours: 168,
   minSampleSize: 150, capType: '', capValue: '', warningPercent: '5' })
 
-export function GoalForm({ surface, id, returnToTest, onTitleChange }: { surface: SurfaceProps; id?: string; returnToTest?: string; onTitleChange?: (title: string) => void }) {
+export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps; id?: string; returnToTest?: string }) {
   const router = useRouter()
   const base = surface.apiRoute.replace(/\/$/, '')
   const [draft, setDraft] = useState<Draft>(empty)
   const [goal, setGoal] = useState<Goal>()
-  useEffect(() => { if (goal?.name) onTitleChange?.(goal.name) }, [goal?.name, onTitleChange])
   const [usedBy, setUsedBy] = useState(0)
   const [ready, setReady] = useState(false)
   const [loadError, setLoadError] = useState('')
