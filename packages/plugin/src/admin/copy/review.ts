@@ -1,6 +1,7 @@
 export const REVIEW_COPY = {
   noBaseline: 'No data yet for this metric.',
   preview: 'Preview',
+  previewBlocked: 'Your browser blocked the preview window. Allow pop-ups for this site, then try again.',
   placedTimes: (n: number) => `(placed ${n} times on this page)`,
   raise: 'Raise allocation',
   addMetric: 'Add a metric',
