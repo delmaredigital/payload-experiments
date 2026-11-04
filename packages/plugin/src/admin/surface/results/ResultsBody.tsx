@@ -115,7 +115,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
   const meta = <><div className="xp-round-meta">
     {phases.length > 0 ? <Select id="xp-results-round" label={C.round} disabled={deciding || releasing} value={round ?? ''} onChange={event => results.setRound(Number(event.target.value))}>
       {roundOptions(phases).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </Select> : null}{manage && shown ? <span>· {C.methods[shown.method]}</span> : null}{showingDecision ? <span className="xp-results-as-of">· {C.asOfDecision(formatDate(data!.decisionSnapshot!.computedAt))}</span> : null}
+    </Select> : null}{manage && shown ? <span>· {C.methods[shown.method]}</span> : null}{showingDecision ? <span className="xp-results-as-of">{manage ? '· ' : ''}{C.asOfDecision(formatDate(data!.decisionSnapshot!.computedAt))}</span> : null}
     </div>{/* The decided round shows the decision's numbers, so a recompute would change nothing here. */}{manage && !showingDecision ? <Button variant="quiet" size="sm" disabled={busy || deciding || releasing} onClick={() => { void recompute() }}>{busy ? C.recomputing : C.recompute}</Button> : null}</>
   const leader = shown?.verdict.recommendedArm
   const leadingComparison = shown?.metrics.find(metric => metric.role === 'primary')?.comparisons.find(item => item.arm === leader)

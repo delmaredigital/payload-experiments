@@ -419,3 +419,11 @@ test.each([['T7', 'Sequential'], ['T7-bayesian', 'Bayesian']])('manager sees %s 
   await screen.findByRole('table', { name: 'Registrations' })
   expect(container.querySelector('.xp-round-meta')?.textContent).toContain(method)
 })
+test('readers see when a decided round was recorded, with no leading separator and no Recompute', async () => {
+  const stored = fixture('T7-bayesian')
+  setup({ phases: [phaseFor(stored)], snapshot: stored, decisionSnapshot: stored, decision: { phase: 1, winnerArm: 'variantA' } })
+  const { container } = render(<ResultsBody id={1} surface={{ ...surface, canManage: false }} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  expect(container.querySelector('.xp-results-as-of')?.textContent).toMatch(/^as of the decision, \d{1,2} [A-Z][a-z]{2} \d{4}$/)
+  expect(screen.queryByRole('button', { name: 'Recompute' })).toBeNull()
+})
