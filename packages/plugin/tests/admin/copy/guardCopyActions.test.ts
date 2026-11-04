@@ -32,6 +32,10 @@ const copyStates = {
 } as const
 
 test.each(Object.entries(copyStates))('%s names each mapped action verbatim and allows its status', (state, { copy, labels, status }) => {
+  // The copy names no action beyond the table: guard copy quotes its actions; health copy ends with them.
+  if (state.startsWith('guard.')) expect([...copy.matchAll(/"([^"]+)"/g)].map(match => match[1])
+    .filter(label => label !== '__test_name__' && !(labels as readonly string[]).includes(label!)), `${state}: unmapped quoted action`).toEqual([])
+  else expect(copy.endsWith(` ${labels.join(', or ')}.`), `${state}: actions sentence is not exactly the table's labels`).toBe(true)
   for (const label of labels) {
     expect(copy, `${state}: missing verbatim action "${label}"`).toContain(label)
     const action = actionFor(label)
