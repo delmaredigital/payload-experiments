@@ -54,8 +54,11 @@ export const runningCopy = (date: string | null, people: number | null, days: nu
   days === null ? null : `about ${days} days to go`,
 ].filter(Boolean).join(' · ')
 
-export const pageGuardCopy = (name: string, status: 'running' | 'decided' | 'archived') => status === 'archived'
-  ? `This page is shown at other addresses because the finished test "${name}" made it the winner. To free it, open the test and choose "Release pages".`
+/** After archive the guard protects the winner and the Original; only the winner page is "the winner". */
+export const pageGuardCopy = (name: string, status: 'running' | 'decided' | 'archived', role: 'winner' | 'original' = 'winner') => status === 'archived'
+  ? role === 'original'
+    ? `This page's address now shows the winner of the finished test "${name}". To free it, open the test and choose "Release pages".`
+    : `This page is shown at other addresses because the finished test "${name}" made it the winner. To free it, open the test and choose "Release pages".`
   : status === 'decided'
     ? `This page is part of the decided test "${name}". Choose "Make it the content" or "Discard winner" on the test before you delete, rename or unpublish it.`
     : `This page is part of the running test "${name}". Stop the test before you delete, rename or unpublish it.`

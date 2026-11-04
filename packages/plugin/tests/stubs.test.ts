@@ -48,7 +48,7 @@ const exportsByEntry = [
   [adminClient, ['XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField']],
   [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect']],
   [puck, ['ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
-  [puckEditor, ['ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent']],
+  [puckEditor, ['ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent', 'experimentOutlinePlugin']],
 ] as const
 
 test('root barrel keeps public types and excludes internal contracts and the Puck Slot peer type', () => {

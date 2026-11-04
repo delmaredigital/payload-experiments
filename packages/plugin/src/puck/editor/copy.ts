@@ -24,5 +24,6 @@ export const editorCopy = {
   createError: "Couldn't create the test. Try again.",
   loading: 'Loading test…',
   loadError: "Couldn't load this test. Try selecting it again.",
+  orphan: (label: string) => `${label} has content but isn't part of this test. Move or delete it; visitors never see it.`,
   tabs: 'Test versions',
 } as const

@@ -11,12 +11,13 @@ import { accentVariables, deriveAccent, validateAccent } from '../../ui/accent.j
 import { createExperimentSlotField } from '../experimentSlotField.js'
 import { resolvePuckRoutes, type PuckRoutes } from '../routes.js'
 import { PuckHostProvider, usePuckRoutes } from '../hostContext.js'
-import { pickerCopy } from '../copy.js'
+import { pickerCopy, slotLabels } from '../copy.js'
 import { experimentSlotDefaultProps, experimentSlotFields, experimentSlotLabel } from '../slotConfig.js'
 import { bannerFor, tabsFor, type EditorExperiment } from './editor.model.js'
 import { cloneSlot } from './cloneSlot.js'
 import { CreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
+import { acquireArms, loadArms, useArms } from './armsCache.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
@@ -50,6 +51,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     return () => observer.disconnect()
   }, [props.accent])
   const experimentId = props.experiment?.id
+  const knownArms = useArms(experimentId)
   const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean }>()
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
   const [creating, setCreating] = useState(false)
@@ -61,26 +63,46 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     const content: unknown = state.getItemById(props.id)?.props.control
     return !Array.isArray(content) || content.length === 0
   })
+  const orphanSlots = usePuckSelector(state => {
+    const item = state.getItemById(props.id)
+    return (['variantA', 'variantB', 'variantC'] as const).filter(slot => {
+      const content: unknown = item?.props[slot]
+      return knownArms && !knownArms.arms.includes(slot) && Array.isArray(content) && content.length > 0
+    }).join(',')
+  }).split(',').filter(Boolean) as ArmSlot[]
 
   useEffect(() => {
     if (experimentId === undefined) return
     const controller = new AbortController()
     let current = true
+    let request = 0
+    const releaseArms = acquireArms(experimentId)
     async function load() {
+      const revision = ++request
       try {
-        const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(experimentId!)}?depth=0`, {
-          credentials: 'include', signal: controller.signal,
-        })
-        if (!response.ok) throw new Error('load')
-        const doc: unknown = await response.json()
-        if (!isExperiment(doc)) throw new Error('document')
-        if (current) setLoaded({ id: experimentId, doc })
+        const doc = await loadArms(experimentId!, async signal => {
+          const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(experimentId!)}?depth=0`, {
+            credentials: 'include', signal,
+          })
+          if (!response.ok) throw new Error('load')
+          const doc: unknown = await response.json()
+          if (!isExperiment(doc)) throw new Error('document')
+          return doc
+        }, controller.signal)
+        if (current && revision === request) {
+          setLoaded({ id: experimentId, doc })
+        }
       } catch {
-        if (current) setLoaded({ id: experimentId, error: true })
+        if (current && revision === request) {
+          setLoaded({ id: experimentId, error: true })
+        }
       }
     }
     void load()
-    return () => { current = false; controller.abort() }
+    // The linked test opens in another tab; refresh this same document source on return.
+    const onVisible = () => { if (document.visibilityState === 'visible') void load() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { current = false; controller.abort(); releaseArms(); document.removeEventListener('visibilitychange', onVisible) }
   }, [experimentId, api])
 
   const result = experimentId === undefined || loaded?.id !== experimentId ? undefined : loaded
@@ -132,6 +154,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
         {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
       </Banner>
+      {orphanSlots.map(slot => <Banner key={slot} tone="warning">{editorCopy.orphan(slotLabels[slot])}</Banner>)}
       <div className="xp-ui-button-group">
         {experimentId === undefined ? <Button variant="primary" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</Button> : null}
         {experiment ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`} target="_blank" rel="noopener noreferrer">{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</Button> : null}

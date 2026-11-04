@@ -17,7 +17,10 @@ export async function experimentMetadata<TUser extends { id: string | number } =
   const live = manifest?.experiments.find(e => e.kind === 'page' && e.arms.some(a => a.pageTarget !== undefined && normalisePath(a.pageTarget) === normalisePath(path)))
   if (live) {
     const controlPath = live.arms.find(a => a.kind === 'control')?.pageTarget
-    return controlPath && normalisePath(path) !== normalisePath(controlPath) ? { robots: { index: false }, alternates: { canonical: controlPath } } : {}
+    if (!controlPath) return {}
+    // The Original's URL may be served with a variant's route: its canonical must stay on the Original,
+    // never the (noindexed) variant route the host would otherwise derive.
+    return normalisePath(path) !== normalisePath(controlPath) ? { robots: { index: false }, alternates: { canonical: controlPath } } : { alternates: { canonical: controlPath } }
   }
   const archivedPath = manifest ? findNormalisedPathKey(manifest.archivedPages, path) : undefined
   const archived = archivedPath === undefined ? undefined : manifest?.archivedPages[archivedPath]

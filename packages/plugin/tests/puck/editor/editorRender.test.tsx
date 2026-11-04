@@ -144,8 +144,10 @@ test('new binding hides stale tabs, resets selection, and aborts the old load', 
   const Editor = ExperimentSlotEditor.render
   const view = render(<Editor {...props()} />)
   fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
-  const signal = vi.mocked(fetch).mock.calls[0]![1]!.signal!
   vi.mocked(fetch).mockReturnValue(new Promise(() => {}))
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  fireEvent(document, new Event('visibilitychange'))
+  const signal = vi.mocked(fetch).mock.calls.at(-1)![1]!.signal!
   view.rerender(<Editor {...props({ experiment: { id: 2, slug: 'other' } })} />)
   expect(signal.aborted).toBe(true)
   expect(screen.queryByRole('tab', { name: 'New headline' })).toBeNull()
