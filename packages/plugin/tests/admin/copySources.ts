@@ -70,7 +70,7 @@ export function helperStrings(source: string): string[] {
         }
       }
       if (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
-        if ((!proseOnly || node.text.includes(' ')) && !seen.has(node)) { seen.add(node); result.push(node.text) }
+        if ((!proseOnly || node.text.includes(' ') || /^[A-Z][a-z]+$/.test(node.text)) && !seen.has(node)) { seen.add(node); result.push(node.text) }
       }
       ts.forEachChild(node, visit)
     }

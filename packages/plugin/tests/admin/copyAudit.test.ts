@@ -185,6 +185,8 @@ test.each([
   ["export function label(path = 'Pick an arm first') { return path }", 'Pick an arm first'],
   ["export const PLANTED = ['Each arm gets equal traffic.', 'Choose a version.']", 'Each arm gets equal traffic.'],
   ["const CODE_MESSAGES: Record<string, string> = { noArm: 'Add an arm first' }; export const label = c => CODE_MESSAGES[c]", 'Add an arm first'],
+  ["const GROUPS = { a: 'Arm', b: 'arms' }; export const label = k => GROUPS[k]", 'Arm'],
+  ["export const HEADERS = ['Phase', 'phase-id']", 'Phase'],
   ["function fail() { throw new TypeError('Choose an arm') }", 'Choose an arm'],
   ["function fail(reject) { reject(new Error('Choose an arm')) }", 'Choose an arm'],
   ...['message', 'label', 'title', 'headline', 'detail', 'hint'].map(key => [`const copy = { ${key}: 'Choose an arm' }`, 'Choose an arm']),
