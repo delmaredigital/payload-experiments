@@ -82,7 +82,7 @@ test.each(exportsByEntry)('entry exports every contracted value (%j)', (barrel, 
 })
 
 test('every route resolves a handler', () => {
-  expect(ROUTES).toHaveLength(16)
+  expect(ROUTES).toHaveLength(17)
   for (const route of ROUTES) expect(typeof route.handler, route.path).toBe('function')
 })
 

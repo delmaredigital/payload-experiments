@@ -12,7 +12,9 @@ export type AllocateBody = { allocation: number }
 export type AddMetricBody = { metric: DocId; role: 'secondary' | 'guardrail' }
 export type DecideBody = { winnerArm: string; note?: string; confirmation?: string }
 export type ArchiveBody = { mode: 'stopped' | 'after-content' | 'discard' | 'hard-coded'; confirmation?: string }
-export type MakeContentResult = TransitionSuccess & { docs: Array<{ collection: string; id: DocId; ok: boolean; detail?: ContentReportReason | string; error?: ContentReportReason | string }> }
+export type DismissContentEntryBody = { collection: string; id: DocId }
+export type DismissContentEntryResult = Pick<TransitionSuccess, 'doc'>
+export type MakeContentResult = TransitionSuccess & { docs: Array<{ collection: string; id: DocId; ok: boolean; detail?: ContentReportReason | string; error?: ContentReportReason | string; dismissedAt?: string; dismissedBy?: string | null }> }
 export type PreflightResult = {
   checks: Array<{ code: ReadinessCode; ok: boolean; detail?: unknown; warning?: boolean }>
   placements: Array<{ collection: string; id: DocId; title: string; url?: string; editorUrl?: string; slots?: Record<ArmSlot, number>; ok: boolean; detail?: string }>

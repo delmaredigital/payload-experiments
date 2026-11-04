@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: a manager can dismiss one failed entry in the "Make it the content" report (for a page deleted or copied by hand), so the test can be archived with its result. Migration impact: none.
+
 - Added: the results endpoint includes the test's name, kind and status (`experiment`), so people who can read results but not tests see the real title. Migration impact: none.
 - Fixed: a block test can't be given a page-path targeting rule, or started with one; it runs wherever the block is placed. Migration impact: none; hosts switching exhaustively on ReadinessCode add 'block-path-rule'.
 - Changed: the results page leads with the verdict and three key numbers, shows each outcome as a clear table ("Rate" or "Average"), and keeps the confidence chart under Details.

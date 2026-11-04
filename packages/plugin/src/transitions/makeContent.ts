@@ -16,7 +16,7 @@ import { withTransition } from './kernel.js'
 import { scanBlockPlacements, type BlockPlacement } from './placements.js'
 import { readExperiment, refuse, updateExperiment } from './start.js'
 
-type ContentDoc = { collection: string; id: DocId; ok: boolean; detail?: ContentReportReason; error?: ContentReportReason }
+type ContentDoc = { collection: string; id: DocId; ok: boolean; detail?: ContentReportReason; error?: ContentReportReason; dismissedAt?: string; dismissedBy?: string | null }
 
 /** Classify by type/name only; host error messages can contain row data. */
 function contentFailureReason(error: unknown): ContentReportReason {
@@ -180,8 +180,20 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
     const decision = current.decision as Record<string, unknown> | undefined
     const winner = current.arms.find(arm => arm.key === decision?.winnerArm && arm.kind !== 'holdout')
     if (!winner) refuse('invalid-winner')
+    const report = decision?.contentReport as { docs?: ContentDoc[] } | undefined
+    const previous = new Map((report?.docs ?? []).map(doc => [doc.collection + ':' + doc.id, doc]))
     const docs: ContentDoc[] = []
+    // Dismissed failures are handled by the manager: retain them unchanged and
+    // never retry them. Active failures keep their audit fields; success creates
+    // a fresh ok entry, dropping any old dismissal metadata.
+    const retainDismissed = (collection: string, id: DocId) => {
+      const entry = previous.get(collection + ':' + id)
+      if (!entry?.dismissedAt) return false
+      docs.push(entry)
+      return true
+    }
     const attempt = async (collection: string, id: DocId, fn: () => Promise<void>, missingOk = false) => {
+      if (retainDismissed(collection, id)) return
       let missing = false
       try {
         await hostTransaction(req, async () => {
@@ -209,12 +221,11 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           detail = contentFailureReason(error)
         }
         req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content update failed')
-        docs.push({ collection, id, ok: Boolean(missing), detail: missing ? 'not-found' : detail, ...(!missing ? { error: detail } : {}) })
+        docs.push({ ...(!missing ? previous.get(collection + ':' + id) : {}), collection, id, ok: Boolean(missing), detail: missing ? 'not-found' : detail, ...(!missing ? { error: detail } : {}) })
       }
     }
     if (current.kind === 'block') {
       if (!winner.slot) refuse('invalid-winner')
-      const report = decision?.contentReport as { docs?: ContentDoc[] } | undefined
       const registrations = puckCollections(options)
       const scanned: BlockPlacement[] = []
       for (const registration of registrations) {
@@ -230,13 +241,14 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           if (!denied || !report?.docs?.some(doc => doc.collection === registration.slug)) throw error
         } finally { req.transactionID = transactionID }
       }
-      if (scanned.some(doc => doc.locked)) refuse('locked-placement')
+      if (scanned.some(doc => doc.locked && !previous.get(doc.collection + ':' + doc.id)?.dismissedAt)) refuse('locked-placement')
       const placements = new Map<string, { collection: string; id: DocId }>()
       for (const doc of [...(report?.docs ?? []), ...scanned]) placements.set(doc.collection + ':' + doc.id, doc)
       const skipped = new Set<string>()
       // Probe with no borrowed transaction: disableErrors handles expected
       // NotFound/Forbidden, and even a host read hook cannot kill the outer tx.
       for (const [key, { collection, id }] of placements) {
+        if (retainDismissed(collection, id)) { skipped.add(key); continue }
         const transactionID = req.transactionID
         delete req.transactionID
         try {
@@ -259,7 +271,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
             }
           }
           req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content read failed')
-          docs.push({ collection, id, ok: Boolean(missing), detail: missing ? 'not-found' : detail, ...(!missing ? { error: detail } : {}) })
+          docs.push({ ...(!missing ? previous.get(collection + ':' + id) : {}), collection, id, ok: Boolean(missing), detail: missing ? 'not-found' : detail, ...(!missing ? { error: detail } : {}) })
           skipped.add(key)
         } finally { req.transactionID = transactionID }
       }
@@ -306,6 +318,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
       if (!point) refuse('flag-no-point')
       if (point.makeContent) await attempt('xp-experiments', experimentId, () => point.makeContent!({ experimentId,
         winner: { arm: winner.key, params: winner.params ?? {} }, req }))
+      else retainDismissed('xp-experiments', experimentId)
       // Lock the shared state before its read/modify/write, after L/F/E.
       await lockContentDefaults(exec)
       // §7.8 transition exception: durable made-content defaults in plugin state.
@@ -317,7 +330,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
       } } })
     }
     const doc = await updateExperiment(req, experimentId, { decision: { ...decision, contentReport: { docs } } })
-    if (docs.every(doc => doc.ok)) return { ...await archive(req, { experimentId, mode: 'after-content' }), docs }
+    if (docs.every(doc => doc.ok === true || doc.dismissedAt)) return { ...await archive(req, { experimentId, mode: 'after-content' }), docs }
     const manifest = await buildAndStoreManifest(req)
     return { doc, revision: manifest.revision, docs }
   })

@@ -37,6 +37,8 @@ export type {
   DecideBody,
   ArchiveBody,
   MakeContentResult,
+  DismissContentEntryBody,
+  DismissContentEntryResult,
   PreflightResult,
   PreviewTokenResult,
   PhaseSummary,

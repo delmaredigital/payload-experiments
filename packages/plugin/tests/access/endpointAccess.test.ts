@@ -20,6 +20,7 @@ const routes = [
   ['post', '/xp/experiments/:id/release-holdout', 'manage'],
   ['post', '/xp/experiments/:id/release-pages', 'manage'],
   ['post', '/xp/experiments/:id/make-content', 'manage'],
+  ['post', '/xp/experiments/:id/content-report/dismiss', 'manage'],
   ['post', '/xp/experiments/:id/archive', 'manage'],
   ['get', '/xp/experiments/:id/preflight', 'manage'],
   ['get', '/xp/experiments/:id/preview-token', 'manage'],

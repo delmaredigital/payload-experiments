@@ -98,3 +98,13 @@ test.each(['block', 'page'])('archive %s preserves winner routing, discard remov
     else expect(manifest.archivedPages).toEqual(discard ? {} : { '/original': { slug: 'hero', winnerPath: '/winner' } })
   }
 })
+
+
+test.each([false, true])('after-content accepts ok and dismissed failures (legacy array=%s) and preserves the audit', async legacy => {
+  const f = fixture('decided')
+  const docs = [{ ok: true }, { ok: false, dismissedAt: '2026-11-03T10:00:00.000Z', dismissedBy: '42' }]
+  const decision = { winnerArm: 'variantA', note: 'Kept winner', contentReport: legacy ? docs : { docs } }
+  f.experiment.decision = decision
+  expect((await archive(f.req, { experimentId: 1, mode: 'after-content' })).doc.status).toBe('archived')
+  expect(f.experiment.decision).toEqual(decision)
+})
