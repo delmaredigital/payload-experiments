@@ -81,6 +81,21 @@ describe('pure manifest compiler', () => {
     expect(result.archivedPages).toEqual({ '/original': { slug: 'page', winnerPath: '/a' }, '/b': { slug: 'page', winnerPath: '/a' } })
     expect(() => compileManifest(inputs([experiment({ ...archived, lastTestPhase: null })]), 1)).toThrow('Missing last test phase')
   })
+  test('released page tests contribute no archived routing while block winners and flag defaults remain', () => {
+    const source = inputs([
+      experiment({ kind: 'page', status: 'archived', decision: { winnerArm: 'variantA', pagesReleasedAt: '2026-11-03T00:00:00Z' } }),
+      experiment({ id: 2, slug: 'block', status: 'archived', decision: { winnerArm: 'variantA' } }),
+      experiment({ id: 3, slug: 'other-page', kind: 'page', status: 'archived', decision: { winnerArm: 'variantB' } }),
+    ], { flagDefaults: { cta: { experiment: 4, winnerArm: 'variantA', params: {}, decidedAt: 'now' } } })
+    const result = compileManifest(source, 12)
+    expect(result).toMatchObject({ revision: 12, experiments: [], archivedWinners: { block: 'variantA' }, flagDefaults: source.flagDefaults,
+      archivedPages: { '/original': { slug: 'other-page', winnerPath: '/b' }, '/a': { slug: 'other-page', winnerPath: '/b' } } })
+    expect(Object.values(result.archivedPages).some(entry => entry.slug === 'hero')).toBe(false)
+    expect(result.archivedPages).not.toHaveProperty('/b')
+    // Released pages need no routing phase, even when their old record is gone.
+    source.experiments[0]!.currentPhase = null
+    expect(() => compileManifest(source, 13)).not.toThrow()
+  })
   test('compiles legacy rules from declarations, preserving frozen types across registry changes', () => {
     const e = experiment({ currentPhase: phase({ targeting: [
       { attribute: 'age', op: 'gte', value: 18 },

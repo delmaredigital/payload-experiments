@@ -65,6 +65,7 @@ export async function resultsCandidates(exec: Executor, { cutoff, experimentId }
     LEFT JOIN ${qualifiedTable(exec, TABLES.layers)} l ON l.${q(l.id)} = e.${q(e.layerId)}
     LEFT JOIN LATERAL (SELECT s.${q(s.snapshot)} AS "snapshot" FROM ${snapshots} s
       WHERE s.${q(s.experimentId)} = p.${q(p.experimentId)} AND s.${q(s.phase)} = p.${q(p.phase)}
+        AND p.${q(p.endedAt)} IS NOT NULL
         AND (s.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond' OR p.${q(p.endedAt)} < $1)
       ORDER BY s.${q(s.computedAt)} DESC, s.${q(s.id)} DESC LIMIT 1) frozen ON true
     WHERE ((e.${q(e.kind)} = 'page'
@@ -73,10 +74,14 @@ export async function resultsCandidates(exec: Executor, { cutoff, experimentId }
         AND e.${q(e.status)} IN ('running', 'decided') AND (p.${q(p.phase)} = e.${q(e.phase)}
         OR p.${q(p.phase)} = (SELECT max(active.${q(p.phase)}) FROM ${phases} active WHERE active.${q(p.experimentId)} = e.${q(e.id)} AND active.${q(p.phaseKind)} = 'test')))
       OR ((p.${q(p.endedAt)} IS NULL OR p.${q(p.endedAt)} >= $1)
-        AND NOT EXISTS (SELECT 1 FROM ${snapshots} frozen WHERE frozen.${q(s.experimentId)} = p.${q(p.experimentId)} AND frozen.${q(s.phase)} = p.${q(p.phase)}
-          AND frozen.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond')))
+        AND NOT EXISTS (SELECT 1 FROM ${snapshots} done WHERE done.${q(s.experimentId)} = p.${q(p.experimentId)} AND done.${q(s.phase)} = p.${q(p.phase)}
+          AND done.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond')))
       ${experimentId === undefined ? '' : ` AND p.${q(p.experimentId)} = $3`}
-    ORDER BY (frozen."snapshot" IS NOT NULL), "latestComputedAt" NULLS FIRST, p.${q(p.experimentId)}, p.${q(p.phase)}`, params)
+    ORDER BY (frozen."snapshot" IS NOT NULL),
+      CASE WHEN frozen."snapshot" IS NULL THEN
+        (SELECT max(s.${q(s.computedAt)}) FROM ${snapshots} s WHERE s.${q(s.experimentId)} = p.${q(p.experimentId)} AND s.${q(s.phase)} = p.${q(p.phase)}) END NULLS FIRST,
+      CASE WHEN frozen."snapshot" IS NOT NULL THEN random() END,
+      p.${q(p.experimentId)}, p.${q(p.phase)}`, params)
   return rows
 }
 

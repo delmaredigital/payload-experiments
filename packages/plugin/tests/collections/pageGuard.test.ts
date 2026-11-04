@@ -70,6 +70,14 @@ test('unrelated pages and archived losing versions are allowed', async () => {
   await expect(setup('archived', '/loser').remove()).resolves.toBeUndefined()
   await expect(setup('running', '/loser').remove()).rejects.toMatchObject({ status: 409 })
 })
+test.each(['/original', '/winner'])('released archived tests allow deleting, renaming and unpublishing %s', async path => {
+  const f = setup('archived', path)
+  f.payload.documents['xp-experiments']![0]!.decision = { winnerArm: 'variantA', pagesReleasedAt: '2026-11-03T00:00:00Z', pagesReleasedBy: '42' }
+  await expect(f.remove()).resolves.toBeUndefined()
+  await expect(f.save({ slug: 'renamed', _status: 'published' })).resolves.toBeDefined()
+  await expect(f.save({ _status: 'draft' })).resolves.toBeDefined()
+  expect(f.payload.calls.some(call => call.args.collection === 'xp-phases')).toBe(false)
+})
 test('collections without drafts protect path changes', async () => {
   await expect(setup('running', '/original', false, false).save({ slug: 'renamed' })).rejects.toMatchObject({ status: 409 })
 })
