@@ -14,10 +14,10 @@ const fields = ['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'flagPo
 const reasons = {
   draft: "Can't be changed in this state.", stopped: "Can't be changed in this state.",
   running: 'Locked while the test is running so everyone in this round sees the same thing. Stop the test to change it.',
-  decided: 'Locked after the decision.', archived: "Archived experiments can't be changed.",
+  decided: 'Locked after the decision.', archived: "Archived tests can't be changed.",
 }
 for (const status of Object.keys(table) as Status[]) for (const field of fields) test(`${status}: ${field}`, () => {
-  const expected = ['slug', 'kind', 'unitType', 'layer'].includes(field) ? 'Set when the experiment was created.'
+  const expected = ['slug', 'kind', 'unitType', 'layer'].includes(field) ? 'Set when the test was created.'
     : (table[status] as readonly string[]).includes(field) ? null : reasons[status]
   const runningReason = field === 'allocation' ? 'To include more people, use "Let more people in" at the bottom of the page. To include fewer, stop the test; the change applies when you start it again.'
     : field === 'metrics' ? 'Add a guardrail or something to watch with "Add a goal" at the bottom of the page; the main goal is fixed for this round.' : expected

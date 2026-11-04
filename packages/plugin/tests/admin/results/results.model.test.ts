@@ -35,12 +35,13 @@ test('absent guardrail line stays absent', () => {
   expect(guardrailChips(snapshot)).toEqual([])
 })
 
-test('decided opens its test round; every other status opens the newest round', () => {
+test('decided and archived open their decision round; other statuses open the newest round', () => {
   const testPhase = phaseFor(fixture('T7'))
   const rollout = { ...phaseFor(fixture('R3')), phase: 3 }
   const phases = [rollout, testPhase, { ...testPhase, phase: 2 }]
   expect(defaultRound({ phases, status: 'decided', decision: { phase: 1 } })).toBe(1)
-  for (const status of ['draft', 'running', 'stopped', 'archived'] as const) expect(defaultRound({ phases, status, decision: { phase: 1 } })).toBe(3)
+  expect(defaultRound({ phases, status: 'archived', decision: { phase: 1 } })).toBe(1)
+  for (const status of ['draft', 'running', 'stopped'] as const) expect(defaultRound({ phases, status, decision: { phase: 1 } })).toBe(3)
   expect(defaultRound({ phases: [], status: 'draft' })).toBeNull()
   expect(roundOptions([testPhase, rollout])).toEqual([
     { value: 1, label: 'Round 1 · during the test' }, { value: 3, label: 'Round 3 · after shipping' },

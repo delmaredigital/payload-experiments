@@ -5,12 +5,34 @@ import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../../src/constants.js'
 import { ADVANCED_COPY } from '../../src/admin/copy/advanced.js'
 import * as labels from '../../src/admin/labels.js'
 import { STATUS_TOOLTIPS } from '../../src/admin/copy/status.js'
-import { refusalMessage } from '../../src/admin/copy/common.js'
+import { API_MESSAGES, refusalMessage } from '../../src/admin/copy/common.js'
 import type { ArmKey, ExperimentKind, Status } from '../../src/types/contracts.js'
 import type { VerdictCode } from '../../src/types/snapshot.js'
 
+test.each([
+  ['not-found', 422], [undefined, 404], ['not-found', 404],
+] as const)('not-found copy ignores server text for code %s and status %s', (code, status) => {
+  for (const message of ['Metric not found', 'The phase record was not found.', 'Round not found', 'Experiment not found']) {
+    expect(refusalMessage(code, status, message, { notFound: 'Choose another goal.' })).toBe('Choose another goal.')
+    expect(refusalMessage(code, status, message)).toBe(API_MESSAGES.notFound)
+  }
+})
+test.each([
+  ['unauthenticated', 422, API_MESSAGES.unauthenticated], [undefined, 401, API_MESSAGES.unauthenticated],
+  ['commit-unverified', 500, API_MESSAGES.commitUnverified],
+  ['not-implemented', 422, API_MESSAGES.notImplemented], [undefined, 501, API_MESSAGES.notImplemented],
+  ['forbidden', 422, API_MESSAGES.forbidden], [undefined, 403, API_MESSAGES.forbidden],
+  ['invalid-status', 409, 'Server explanation'], ['future-code', 422, 'Server explanation'],
+] as const)('not-found overrides leave code %s and status %s unchanged', (code, status, expected) => {
+  expect(refusalMessage(code, status, 'Server explanation', { notFound: 'Choose another goal.' })).toBe(expected)
+})
+test('other uncoded refusals retain the generic fallback', () => {
+  expect(refusalMessage(undefined, 400, undefined, { notFound: 'Choose another goal.' })).toBe(API_MESSAGES.failed)
+})
+
 function checkStrings(value: unknown) {
-  if (typeof value === 'string') expect(value).not.toMatch(/\b(arms?|phases?)\b/i)
+  // "Experiment block" is the Puck block's own name; every other user-facing string says "test".
+  if (typeof value === 'string') expect(value.replace(/Experiment block/g, ''), value).not.toMatch(/\b(arms?|phases?|experiments?)\b/i)
   else if (value && typeof value === 'object') for (const item of Object.values(value)) checkStrings(item)
 }
 function modules(directory: URL): URL[] {

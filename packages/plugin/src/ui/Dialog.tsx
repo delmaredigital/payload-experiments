@@ -38,6 +38,7 @@ export function Dialog({ open, title, onClose, children, dismissible = true, ini
   }, [open, initialFocus])
   return <dialog ref={ref} aria-labelledby={heading} className="xp-ui-dialog" tabIndex={-1} onCancel={event => { event.preventDefault(); requestClose() }}
     onKeyDown={event => {
+      if (event.defaultPrevented) return
       if (event.key === 'Escape') { event.preventDefault(); requestClose(); return }
       if (event.key !== 'Tab') return
       const node = event.currentTarget

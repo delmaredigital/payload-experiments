@@ -21,6 +21,28 @@ const button = (name: string) => screen.getByRole('button', { name }) as HTMLBut
 const dialogButton = (name: string) => within(screen.getByRole('dialog')).getByRole('button', { name }) as HTMLButtonElement
 const success = () => response({ doc: {}, revision: 2 })
 
+test.each([
+  ['Add a goal', 'Metric not found', 'That goal no longer exists. Choose another goal.'],
+  ['Add a goal', 'The phase record was not found.', 'That goal no longer exists. Choose another goal.'],
+  ['Let more people in', 'The phase record was not found.', 'This round has changed. Reload the page.'],
+  ['Stop', 'Experiment not found', 'This test no longer exists.'],
+])('%s names what is missing for a 404: %s', async (action, message, expected) => {
+  const p = props({ status: 'running' })
+  const fetcher = vi.fn()
+  if (action === 'Add a goal') fetcher.mockResolvedValueOnce(response({ docs: [{ id: 4, name: 'New outcome' }] }))
+  fetcher.mockResolvedValueOnce(response({ errors: [{ code: 'not-found', message }] }, 404))
+  vi.stubGlobal('fetch', fetcher)
+  render(<Banner {...p} />)
+  fireEvent.click(button(action))
+  if (action === 'Add a goal') {
+    await screen.findByRole('option', { name: 'New outcome' })
+    fireEvent.change(screen.getByLabelText('Metric'), { target: { value: '4' } })
+  }
+  fireEvent.click(dialogButton(action))
+  expect((await screen.findByRole('alert')).textContent).toBe(expected)
+  expect(p.test.reload).not.toHaveBeenCalled()
+})
+
 test('exports the complete parts and a ready primary Start for a draft', () => {
   expect(readinessParts.Banner).toBe(Banner)
   expect(readinessParts.SaveStatus).toBe(SaveStatus)
@@ -36,6 +58,14 @@ test('only the first missing item is shown, linked in section order, and disable
   expect(button('Start').disabled).toBe(true)
   expect(button('Start').closest('[title]')?.getAttribute('title')).toBe('Choose a goal.')
   expect(screen.queryByText('Choose how long to run it.')).toBeNull()
+})
+test('block path refusal shows its message and removal line in Who takes part and disables Start', () => {
+  render(<Banner {...props({}, { preflight: preflight([{ code: 'block-path-rule', ok: false, detail: { rules: [1] } }]) })} />)
+  const message = 'Remove the page-path rule in Who takes part; page block tests run on their page.'
+  expect(screen.getByRole('status').textContent).toContain(message)
+  expect(screen.getByText('Remove rule').closest('a')?.getAttribute('href')).toBe('#section-who')
+  expect(button('Start').disabled).toBe(true)
+  expect(button('Start').closest('[title]')?.getAttribute('title')).toBe(message)
 })
 test.each([{ hasUnsaved: true }, { saving: 'saving' as const }])('Start disabled when changes are pending: %j', patch => {
   render(<Banner {...props({}, patch)} />)

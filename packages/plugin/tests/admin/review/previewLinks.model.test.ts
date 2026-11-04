@@ -54,3 +54,15 @@ test('page keys cannot collide across collection/id boundaries', () => {
 test('no placements means no preview pages', () => {
   expect(previewPages([])).toEqual([])
 })
+
+test('flag-point placement rows are never grouped or counted as page slots', () => {
+  const placements = [
+    { collection: 'signup-choice', id: 'variantA', title: 'Signup page', ok: true },
+    { collection: 'signup-choice', id: 'variantA', title: 'Another signup page', ok: true },
+  ]
+  const rows = previewPages(placements, 'signup-choice')
+  expect(rows).toHaveLength(2)
+  expect(rows.map(row => row.title)).toEqual(['Signup page', 'Another signup page'])
+  expect(rows.every(row => row.slotCount === 1)).toBe(true)
+  expect(new Set(rows.map(row => row.key)).size).toBe(2)
+})

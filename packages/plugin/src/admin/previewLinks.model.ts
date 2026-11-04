@@ -4,10 +4,10 @@ type Placement = PreflightResult['placements'][number]
 type PreviewPage = Placement & { key: string; slotCount: number }
 
 /** Preview URLs identify pages; counts use the most placements in any one version. */
-export function previewPages(placements: readonly Placement[]): PreviewPage[] {
+export function previewPages(placements: readonly Placement[], flagPoint?: string): PreviewPage[] {
   const pages = new Map<string, { page: PreviewPage; versions: Map<Placement['detail'], number> }>()
-  for (const placement of placements) {
-    const key = `${placement.collection}\u0000${String(placement.id)}`
+  for (const [index, placement] of placements.entries()) {
+    const key = `${placement.collection}\u0000${String(placement.id)}${placement.collection === flagPoint ? `\u0000${index}` : ''}`
     const existing = pages.get(key)
     if (existing) {
       const { page, versions } = existing

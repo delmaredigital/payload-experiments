@@ -12,6 +12,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### plugin
 
 - Added: the results endpoint includes the test's name, kind and status (`experiment`), so people who can read results but not tests see the real title. Migration impact: none.
+- Fixed: a block test can't be given a page-path targeting rule, or started with one; it runs wherever the block is placed. Migration impact: none; hosts switching exhaustively on ReadinessCode add 'block-path-rule'.
+- Changed: the results page leads with the verdict and three key numbers, shows each outcome as a clear table ("Rate" or "Average"), and keeps the confidence chart under Details.
+- Fixed: when something a test refers to was removed, the admin says what is missing (a goal or a round) instead of saying the test no longer exists.
 - Fixed: a goal can't be deleted or have its short name or measurement changed while another save or Start is adding it to a test at the same moment. Migration impact: none.
 - Fixed: Make it the content now works on collections with hidden or restricted fields: it publishes from the live page, so draft edits never leak into the published version. Localized collections are refused with a clear message and flagged before Decide (not supported yet). Migration impact: none.
 - Added: `ContentReportReason` now includes `'localized'` (exported from `/` and `/rsc`), and `ReadinessCode` includes `'make-content-unsupported'`. Migration impact: none; hosts switching exhaustively on these unions add the new member.

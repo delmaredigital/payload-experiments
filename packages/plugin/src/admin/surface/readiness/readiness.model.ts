@@ -21,7 +21,7 @@ const row = (section: SectionId | 'header', next: (detail: unknown, ctx: Readine
 const versions = row('versions', detail => versionsNext(detailText(detail, C.versionFallback)))
 
 /** Exhaustive mapping of the checkStart ReadinessCode union, including all ten invariant checks. */
-export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; next(detail: unknown, ctx: ReadinessContext): string | null }> = {
+export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; next(detail: unknown, ctx: ReadinessContext): string | null; nextStep?: string }> = {
   'make-content-unsupported': row('header', detail => unsupportedContentCopy(text(detail, 'This page'))),
   'invalid-status': row('header', () => null),
   'no-placements': row('what', detail => detail === undefined ? C.noPlacements : placementFailureCopy(detail)),
@@ -61,6 +61,7 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'version-page-unavailable': row('versions', detail => versionPageUnavailableCopy(text(detail, 'This page'))),
   'version-page-unchecked': row('versions', detail => versionPageUncheckedCopy(text(detail, 'This page'))),
   'page-user-unit': row('header', () => C.pageVisitors),
+  'block-path-rule': { ...row('who', () => C.blockPathRule), nextStep: C.removeRule },
   'invalid-targeting-rule': row('who', detail => {
     const attributes = object(detail).attributes
     return ruleNext(detailText(detail, Array.isArray(attributes) && attributes.length ? attributes.map(String).join(', ') : C.ruleFallback))
@@ -80,7 +81,7 @@ export function nextStep(preflight: PreflightResult | null, ctx: ReadinessContex
       const mapping = READINESS[check.code]
       if (check.ok || mapping.section !== section) continue
       const sentence = mapping.next(check.detail, ctx)
-      if (sentence) return { section, sentence, code: check.code }
+      if (sentence) return { section, sentence, code: check.code, ...(mapping.nextStep ? { nextStep: mapping.nextStep } : {}) }
     }
   }
   return null

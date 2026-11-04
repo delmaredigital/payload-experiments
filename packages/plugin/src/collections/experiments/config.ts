@@ -4,6 +4,7 @@ import * as paths from '../../admin/paths.js'
 import { managedAccess } from '../access.js'
 import { serializeAttributeKeys, serializeFlagPoints } from '../serialize.js'
 import { TARGETING_OPS, isOpValid } from '../../targeting/ops.js'
+import { readListValue } from '../../targeting/values.js'
 import { createDefaults } from './createDefaults.js'
 import { flagControlParams } from './flagControlParams.js'
 import { lockHook } from './lockHook.js'
@@ -11,7 +12,9 @@ import { deleteGuard, deleteGuardAfter } from './deleteGuard.js'
 import { checkArms } from './armInvariants.js'
 import { XpNotImplemented, XpRefusal } from '../../errors.js'
 
-type ValidationContext = { data?: { kind?: unknown; exposurePolicy?: unknown }; siblingData?: { attribute?: string; op?: string } }
+type TargetingRow = { id?: string | number; attribute?: string; op?: string; value?: unknown }
+type ValidationContext = { data?: { kind?: unknown; status?: unknown; exposurePolicy?: unknown }; siblingData?: TargetingRow }
+const targetingValue = (rule: TargetingRow) => rule.op === 'in' || rule.op === 'nin' ? readListValue(rule.value) : rule.value
 const positiveInteger = (value: number | null | undefined) => (value != null && Number.isInteger(value) && value > 0) || 'Enter a positive whole number.'
 
 export function experimentsCollection(options: ResolvedOptions): CollectionConfig {
@@ -66,8 +69,25 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
             validate: (value: unknown, { data }: ValidationContext) => (value === 'visitor' || value === 'user') && (data?.kind !== 'page' || value === 'visitor') || 'Page experiments require visitors.' },
           { name: 'allocation', type: 'number', required: true, defaultValue: 100, min: 1, max: 100, validate: (value: number | null | undefined) => positiveInteger(value) === true && value! <= 100 || 'Enter a whole percentage from 1 to 100.' },
           { name: 'layer', type: 'relationship', relationTo: 'xp-layers' },
-          { name: 'targeting', type: 'array', fields: [
-            { name: 'attribute', type: 'text', required: true, validate: (value: unknown) => (typeof value === 'string' && Object.hasOwn(attributeKeys, value)) || 'Choose a registered attribute.' },
+          { name: 'targeting', type: 'array', validate: (value: unknown[] | null | undefined, { data, previousValue }: ValidationContext & { previousValue?: unknown[] | null }) => {
+            // Payload 3.90.2 beforeChange/promise.js passes merged document data
+            // and this document's stored array as previousValue, including in bulk updates.
+            const status = data?.status ?? 'draft'
+            if (data?.kind === 'block' && (status === 'draft' || status === 'stopped')) {
+              for (const rule of (value ?? []) as TargetingRow[]) {
+                if (rule.attribute !== 'path') continue
+                const previous = rule.id == null ? undefined
+                  : (previousValue as TargetingRow[] | null | undefined)?.find(stored => stored.id != null && String(stored.id) === String(rule.id))
+                if (!previous || previous.attribute !== rule.attribute || previous.op !== rule.op
+                  || JSON.stringify(targetingValue(previous)) !== JSON.stringify(targetingValue(rule))) {
+                  return 'Page block tests run on their page; remove the page-path rule.'
+                }
+              }
+            }
+            return true
+          }, fields: [
+            { name: 'attribute', type: 'text', required: true,
+              validate: (value: unknown) => (typeof value === 'string' && Object.hasOwn(attributeKeys, value)) || 'Choose a registered attribute.' },
             { name: 'op', type: 'select', required: true, options: [...new Set(Object.values(TARGETING_OPS).flat())],
               validate: (value: unknown, { siblingData }: ValidationContext) => isOpValid(attributeKeys[siblingData?.attribute ?? '']?.type ?? '', value as string) || 'Choose an operator supported by this attribute.' },
             { name: 'value', type: 'json', required: true,
