@@ -327,7 +327,9 @@ Accepted limits:
 
 - Cross-device: register in A, verify on B, keep using A. A's events after B's
   proof are not credited until a proving sign-in on A upgrades A. Events before
-  B's proof, including the registration funnel, remain credited.
+  B's proof, including the registration funnel, remain credited. Once A is
+  upgraded, its link is verified and eligible for all its events, so the next
+  results run also credits A's events from between B's proof and the upgrade.
 - Password set before verification: a later password sign-in is proof the
   plugin accepts. Whether unverified registration may set a password is a host
   authentication concern.
