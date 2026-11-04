@@ -166,7 +166,7 @@ test('stable paging keeps newest activity order and renders a repeated document 
   expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['No test', 'Second example · Running', 'First example · Draft'])
 })
 
-test('standalone sidebar field wraps the picker root in its stylesheet scope', async () => {
+test('sidebar field wraps the picker in its own root', async () => {
   mockFetch()
   const field = createExperimentSlotField()
   const view = render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'field' }))

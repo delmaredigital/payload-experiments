@@ -69,7 +69,7 @@ export function ExperimentPicker({ value, onChange }: {
       {value && !experiments.some(doc => String(doc.id) === selected) ? <option value={selected}>{value.slug}</option> : null}
       {visible.map(doc => <option key={doc.id} value={String(doc.id)}>{doc.name} · {pickerCopy.statuses[doc.status]}</option>)}
     </select>
-    {state === 'loading' ? <div className="xp-ui-banner xp-ui-banner--info" role="status"><p>{pickerCopy.loading}</p></div> : null}
+    {state === 'loading' ? <div className="xp-ui-banner" role="status"><p>{pickerCopy.loading}</p></div> : null}
     {state === 'error' || state === 'forbidden' ? <div className="xp-ui-banner xp-ui-banner--error" role="alert"><p>{pickerCopy[state]}</p></div> : null}
   </div>
 }

@@ -16,10 +16,9 @@ const entries = [
 ] as const
 
 describe('plugin package plumbing', () => {
-  test('declares all ten JavaScript entries plus the Puck stylesheets and package.json', () => {
-    expect(Object.keys(manifest.exports)).toEqual([...entries.map(([entry]) => entry), './puck/editor.css', './puck/field.css', './package.json'])
+  test('declares all ten JavaScript entries plus the editor stylesheet and package.json', () => {
+    expect(Object.keys(manifest.exports)).toEqual([...entries.map(([entry]) => entry), './puck/editor.css', './package.json'])
     expect(manifest.exports['./puck/editor.css']).toBe('./dist/puck/editor/editor.css')
-    expect(manifest.exports['./puck/field.css']).toBe('./dist/puck/field.css')
     expect(manifest.exports['./package.json']).toBe('./package.json')
   })
 
