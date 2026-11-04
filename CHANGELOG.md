@@ -12,7 +12,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### plugin
 
 - Fixed: Make it the content now works on collections with hidden or restricted fields: it publishes from the live page, so draft edits never leak into the published version. Localized collections are refused with a clear message and flagged before Decide (not supported yet). Migration impact: none.
-
+- Added: `ContentReportReason` now includes `'localized'` (exported from `/` and `/rsc`), and `ReadinessCode` includes `'make-content-unsupported'`. Migration impact: none; hosts switching exhaustively on these unions add the new member.
 - Changed: the Tests home shows tests as compact rows grouped by what needs doing, with a health label and one-line status for each.
 - Added: the tests summary includes each draft or stopped test's next readiness step (`next: { code, detail? }`, ids only), so the home list can say what to do next. Migration impact: none.
 - Added: `compileManifest` and its input/output types are exported from `/rsc`, so host tests can build a manifest without importing from `dist/` (a test helper: pass the same `attributeKeys` as the plugin options; its input shape may change in a pre-1.0 minor). Migration impact: none.

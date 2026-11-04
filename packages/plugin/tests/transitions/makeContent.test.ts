@@ -222,14 +222,20 @@ test.each(([
   [{ name: 'blocks', type: 'blocks', blocks: [{ slug: 'copy', fields: [{ name: 'title', type: 'text', localized: true }] }] }],
   [{ name: 'puckData', type: 'json', localized: true }],
   [{ type: 'tabs', tabs: [{ name: 'localizedContent', label: 'Content', localized: true, fields: [{ name: 'puckData', type: 'json' }] }] }],
-] satisfies Field[][]).map(fields => ({ fields })))('localized collections are refused and warned about before Decide', async ({ fields }) => {
+] satisfies Field[][]).flatMap(fields => [false, true].map(localization => ({ fields, localization }))))('localized flags only refuse and warn when localization is enabled: %j', async ({ fields, localization }) => {
   const f = fixture()
   f.payload.config.collections[0]!.fields = fields
+  if (localization) Object.assign(f.payload.config, { localization: { locales: ['en', 'de'], defaultLocale: 'en' } })
   f.payload.documents.pages![0]!.title = 'Landing page'
   const original = structuredClone(f.payload.documents.pages)
   const preflight = await preflightData(f.req, { experimentId: 1, options: f.options })
-  expect(preflight!.checks).toContainEqual({ code: 'make-content-unsupported', ok: true, warning: true, detail: 'Landing page' })
+  expect(preflight!.checks.some(check => check.code === 'make-content-unsupported' && check.warning === true)).toBe(localization)
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  if (!localization) {
+    expect(result.docs.every(doc => doc.ok)).toBe(true)
+    expect(hostUpdates(f)).toHaveLength(4)
+    return
+  }
   expect(result.doc.status).toBe('decided')
   expect(result.docs.every(doc => !doc.ok && doc.detail === 'localized' && doc.error === 'localized')).toBe(true)
   expect(contentReportCopy('localized')).toBe("This page has more than one language; Make it the content can't publish it safely yet. Copy the winning version by hand.")
@@ -414,6 +420,7 @@ test('a page already fixed by hand is done even if it would be refused for a wri
 
 test('localized content cannot take the already-fixed shortcut', async () => {
   const f = fixture()
+  Object.assign(f.payload.config, { localization: { locales: ['en', 'de'], defaultLocale: 'en' } })
   f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
   f.payload.config.collections[0]!.fields = [{ name: 'puckData', type: 'json', localized: true }]
   f.payload.documents.pages = f.payload.documents.pages!.map(doc => ({ ...doc, puckData: { content: [] } }))
@@ -578,4 +585,162 @@ test('a draft-only array row with an update-denied value is refused before resto
   expect(updateAccess).toHaveBeenCalledTimes(2)
   expect(hostUpdates(f)).toEqual([])
   expect(f.payload.dbCalls.filter(call => call.method === 'rollbackTransaction')).toHaveLength(2)
+})
+
+
+test.each(['published empty', 'draft cleared'])('omitted polymorphic links stay empty through both writes: %s', async empty => {
+  const f = fixture()
+  const links: Field[] = [
+    { name: 'link', type: 'relationship', relationTo: ['pages', 'media'] },
+    { name: 'image', type: 'upload', relationTo: ['media', 'files'] },
+  ]
+  f.payload.config.collections[0]!.fields = [
+    ...links, { name: 'group', type: 'group', fields: links },
+    { name: 'items', type: 'array', fields: links },
+    { name: 'layout', type: 'blocks', blocks: [{ slug: 'copy', fields: links }] },
+    { type: 'tabs', tabs: [
+      { name: 'named', label: 'Named', fields: links },
+      { label: 'Unnamed', fields: [{ type: 'row', fields: [
+        { type: 'collapsible', label: 'Links', fields: [{ name: 'nested', type: 'group', fields: links }] },
+      ] }] },
+    ] },
+  ]
+  const values = (set: boolean) => set ? { link: { relationTo: 'pages', value: 9 }, image: { relationTo: 'media', value: 10 } } : {}
+  const nested = (set: boolean) => ({ ...values(set), group: values(set), named: values(set), nested: values(set),
+    items: [{ id: 'one', ...values(set) }, { id: 'two', ...values(!set) }],
+    layout: [{ id: 'block', blockType: 'copy', ...values(set) }],
+  })
+  const published = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, ...nested(empty === 'draft cleared') }]))
+  const latest = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, ...nested(empty === 'published empty'), _status: 'draft' }]))
+  // Different row order ensures inherited values are matched by id, not index.
+  for (const doc of latest.values()) doc.items.reverse()
+  vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => structuredClone(published.get((args.where!.id as { equals: number }).equals)) as never)
+  mockDraftVersions(f, id => structuredClone(latest.get(id)))
+  // Model Payload's latest-version merge, including nested row inheritance.
+  const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  function merge(value: unknown, original: unknown): unknown {
+    if (Array.isArray(value)) return value.map(row => merge(row, Array.isArray(original) ? original.find(old => isObject(old) && isObject(row) && old.id === row.id) : undefined))
+    if (!isObject(value)) return value
+    const result: Record<string, unknown> = isObject(original) ? { ...original } : {}
+    for (const [key, child] of Object.entries(value)) result[key] = merge(child, result[key])
+    return result
+  }
+  const update = f.payload.update.bind(f.payload)
+  vi.spyOn(f.payload, 'update').mockImplementation(async args => {
+    if (args.collection === 'pages') {
+      const doc = merge(args.data, latest.get(args.id!)) as NonNullable<ReturnType<typeof latest.get>>
+      latest.set(args.id!, doc)
+      if (!args.draft) published.set(args.id!, doc)
+    }
+    return update(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs.every(doc => doc.ok)).toBe(true)
+  const explicit = (set: boolean) => set ? values(true) : { link: null, image: null }
+  const expected = (set: boolean) => ({ ...explicit(set), group: explicit(set), named: explicit(set), nested: explicit(set),
+    items: [{ id: 'one', ...explicit(set) }, { id: 'two', ...explicit(!set) }],
+    layout: [{ id: 'block', blockType: 'copy', ...explicit(set) }], puckData: { content: [text('Winner')] },
+  })
+  for (const id of [3, 4]) {
+    expect(published.get(id)).toMatchObject(expected(empty === 'draft cleared'))
+    const draftExpected = expected(empty === 'published empty')
+    draftExpected.items.reverse()
+    expect(latest.get(id)).toMatchObject(draftExpected)
+  }
+})
+
+test('all absent stored fields get empty values; virtual, join and metadata fields are never invented', async () => {
+  const f = fixture()
+  f.payload.config.collections[0]!.fields = [
+    { name: 'title', type: 'text' }, { name: 'enabled', type: 'checkbox' },
+    { name: 'many', type: 'relationship', relationTo: 'pages', hasMany: true },
+    { name: 'choices', type: 'select', options: ['a'], hasMany: true },
+    { name: 'items', type: 'array', fields: [{ name: 'title', type: 'text' }] },
+    { name: 'layout', type: 'blocks', blocks: [] }, { name: 'group', type: 'group', fields: [{ name: 'title', type: 'text' }] },
+    { type: 'tabs', tabs: [{ name: 'named', label: 'Named', fields: [{ name: 'title', type: 'text' }] }] },
+    { name: 'computed', type: 'text', virtual: true }, { name: 'backlinks', type: 'join', collection: 'pages', on: 'link' },
+    { name: 'id', type: 'text' }, { name: 'createdAt', type: 'date' }, { name: 'updatedAt', type: 'date' },
+  ]
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs.every(doc => doc.ok)).toBe(true)
+  for (const { args } of hostUpdates(f)) {
+    expect(args.data).toMatchObject({ title: null, enabled: null, many: [], choices: [], items: [], layout: [], group: { title: null }, named: { title: null } })
+    for (const name of ['computed', 'backlinks', 'id', 'createdAt', 'updatedAt']) expect(args.data).not.toHaveProperty(name)
+  }
+})
+
+test.each(['publish', 'draft'])('an omitted update-denied link differing from the other version refuses %s', async stage => {
+  const f = fixture()
+  f.payload.config.collections[0]!.fields = [{ name: 'link', type: 'relationship', relationTo: ['pages', 'media'], access: { update: () => false } }]
+  if (stage === 'draft') for (const doc of f.payload.documents.pages!) doc.link = { relationTo: 'pages', value: 9 }
+  mockDraftVersions(f, id => {
+    const doc = structuredClone(f.payload.documents.pages!.find(doc => doc.id === id))!
+    if (stage === 'publish') doc.link = { relationTo: 'pages', value: 9 }
+    else delete doc.link
+    return doc
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs.every(doc => !doc.ok && doc.detail === 'validation')).toBe(true)
+  expect(hostUpdates(f)).toEqual([])
+})
+
+test('an unchanged absent update-denied link is not refused', async () => {
+  const f = fixture()
+  const access = vi.fn(() => false)
+  f.payload.config.collections[0]!.fields = [{ name: 'link', type: 'relationship', relationTo: ['pages', 'media'], access: { update: access } }]
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs.every(doc => doc.ok)).toBe(true)
+  expect(access).not.toHaveBeenCalled()
+  expect(hostUpdates(f)).toHaveLength(4)
+})
+
+test('a hand-fixed published page only writes the draft when an update-denied value differs', async () => {
+  const f = fixture()
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [3, 4].map(id => ({ collection: 'pages', id, ok: false })) } }
+  f.payload.config.collections[0]!.fields = [{ name: 'secret', type: 'text', access: { update: () => false } }]
+  const drafts = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...structuredClone(doc), secret: 'Draft secret' }]))
+  for (const doc of f.payload.documents.pages!) Object.assign(doc, { secret: 'Published secret', puckData: { content: [text('Winner')] } })
+  mockDraftVersions(f, id => structuredClone(drafts.get(id)))
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs.every(doc => doc.ok)).toBe(true)
+  expect(hostUpdates(f)).toHaveLength(2)
+  for (const { args } of hostUpdates(f)) expect(args).toMatchObject({ draft: true, data: { secret: 'Draft secret', puckData: { content: [text('Winner')] } } })
+})
+
+test.each(['adapter missing', 'access probe 404', 'update 404'])('a page deleted between probe and write is done: %s', async stage => {
+  const f = fixture()
+  if (stage === 'adapter missing') vi.spyOn(f.payload.db, 'findOne').mockResolvedValue(null)
+  if (stage === 'access probe 404') {
+    const read = f.payload.findByID.bind(f.payload)
+    vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+      if (args.collection === 'pages' && !args.disableErrors) throw new NotFound()
+      return read(args)
+    })
+  }
+  if (stage === 'update 404') {
+    const update = f.payload.update.bind(f.payload)
+    vi.spyOn(f.payload, 'update').mockImplementation(async args => {
+      if (args.collection === 'pages') throw Object.assign(new Error('gone'), { status: 404 })
+      return update(args)
+    })
+  }
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs).toEqual([3, 4].map(id => ({ collection: 'pages', id, ok: true, detail: 'not-found' })))
+  expect(result.doc.status).toBe('archived')
+})
+
+
+test('empty children added to a group or named tab do not turn unchanged denied values into refusals', async () => {
+  const f = fixture()
+  const access = vi.fn(() => false)
+  const fields: Field[] = [{ name: 'link', type: 'relationship', relationTo: ['pages', 'media'] }]
+  f.payload.config.collections[0]!.fields = [
+    { name: 'group', type: 'group', access: { update: access }, fields },
+    { type: 'tabs', tabs: [{ name: 'named', label: 'Named', access: { update: access }, fields }] },
+  ]
+  for (const doc of f.payload.documents.pages!) Object.assign(doc, { group: {}, named: {} })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs.every(doc => doc.ok)).toBe(true)
+  expect(access).not.toHaveBeenCalled()
+  expect(hostUpdates(f)).toHaveLength(4)
 })

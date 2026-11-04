@@ -51,7 +51,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: {
               placements.get(experiment)!.push({ collection, id: doc.id, title: String(doc.title ?? doc.name ?? doc.id),
                 published: !draft || doc._status === 'published',
                 slots: Object.fromEntries(slots.map(slot => [slot, Array.isArray(props[slot]) ? props[slot].length : 0])) as Record<ArmSlot, number>,
-                ...(hasLocalizedFields(req.payload.config.collections?.find(config => config.slug === collection)?.fields ?? [], req.payload.config.blocks) ? { localized: true } : {}),
+                ...(hasLocalizedFields(req.payload.config.collections?.find(config => config.slug === collection)?.fields ?? [], req.payload.config) ? { localized: true } : {}),
                 locked: doc._isLocked === true || doc.locked === true,
               })
             }

@@ -15,6 +15,7 @@ beforeAll(async () => {
       access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true },
       fields: [{ name: 'title', type: 'text' }, { name: 'secret', type: 'text', hidden: true },
         { name: 'restricted', type: 'text', access: { read: () => false, update: () => true } },
+        { name: 'link', type: 'relationship', relationTo: ['publish-pages', 'xp-experiments'] },
         { name: 'content', type: 'json' }],
     }], puckCollections: [{ slug: 'publish-pages', field: 'content' }],
   })
@@ -43,7 +44,13 @@ test('make-content publishes exactly the old main row plus the winning slot, nev
   const readMain = () => payload.db.findOne<Record<string, unknown> & { id: string | number }>({ collection: 'publish-pages', req, where: { id: { equals: page.id } } })
   const before = await readMain()
   await payload.update({ collection: 'publish-pages', id: page.id, req, overrideAccess: false, draft: true,
-    data: { title: 'Draft-only title', secret: 'Draft-only hidden', restricted: 'Draft-only restricted', _status: 'draft' } })
+    data: { title: 'Draft-only title', secret: 'Draft-only hidden', restricted: 'Draft-only restricted', link: { relationTo: 'xp-experiments', value: experiment.id }, _status: 'draft' } })
+  const readDraft = async () => {
+    const { docs } = await payload.db.findVersions({ collection: 'publish-pages', req, limit: 1, pagination: false,
+      where: { and: [{ parent: { equals: page.id } }, { latest: { equals: true } }] }, sort: '-updatedAt' })
+    return docs[0]!.version
+  }
+  const beforeDraft = await readDraft()
   await start(req, { experimentId: experiment.id, options })
   await stop(req, { experimentId: experiment.id })
   await decide(req, { experimentId: experiment.id, winnerArm: 'variantA', note: 'Ship', confirmation: 'Variant A' })
@@ -57,7 +64,6 @@ test('make-content publishes exactly the old main row plus the winning slot, nev
   expect(withoutTimestamp(after)).toEqual({ ...withoutTimestamp(before), content: { content: [winner] } })
   const draft = await payload.findByID({ collection: 'publish-pages', id: page.id, req, overrideAccess: false, draft: true, showHiddenFields: true })
   expect(draft).toMatchObject({ title: 'Draft-only title', secret: 'Draft-only hidden', content: { content: [winner] } })
-  const { docs: versions } = await payload.db.findVersions({ collection: 'publish-pages', req, limit: 1, pagination: false,
-    where: { and: [{ parent: { equals: page.id } }, { latest: { equals: true } }] }, sort: '-updatedAt' })
-  expect(versions[0]!.version).toMatchObject({ restricted: 'Draft-only restricted', content: { content: [winner] } })
+  const restoredDraft = await readDraft()
+  expect(withoutTimestamp(restoredDraft)).toEqual({ ...withoutTimestamp(beforeDraft), content: { content: [winner] } })
 })

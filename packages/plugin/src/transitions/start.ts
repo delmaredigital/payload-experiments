@@ -50,6 +50,8 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
   if (full.updatedAt !== (input.experiment as TransitionExperiment).updatedAt) refuse('stale-draft')
   // Review reads respect field access; internal writes must preserve hidden config.
   input.experiment = { ...input.experiment, kind: full.kind, analysis: full.analysis }
+  // Warning-only codes always have ok: true. These exclusions narrow
+  // ReadinessCode to RefusalCode, which intentionally excludes warnings.
   const failed = checkStart(input).find(check => !check.ok)
   if (failed && failed.code !== 'page-targets-unchecked' && failed.code !== 'make-content-unsupported') refuse(failed.code, failed.detail)
   const before = input.experiment as TransitionExperiment
