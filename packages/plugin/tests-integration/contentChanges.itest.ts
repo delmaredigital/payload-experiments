@@ -9,8 +9,9 @@ import type { ResolvedOptions } from '../src/types/contracts.js'
 let harness: Awaited<ReturnType<typeof createIntegrationHarness>>
 beforeAll(async () => {
   harness = await createIntegrationHarness({
-    collections: [{ slug: 'audit-media', upload: { disableLocalStorage: true, filesRequiredOnCreate: false }, fields: [] },
-      { slug: 'audit-links', fields: [{ name: 'title', type: 'text' }] },
+    collections: [{ slug: 'audit-media', upload: { disableLocalStorage: true, filesRequiredOnCreate: false }, access: { read: () => true }, fields: [] },
+      // Publicly readable, like a host's media and linked pages, so default-depth reads populate them.
+      { slug: 'audit-links', access: { read: () => true }, fields: [{ name: 'title', type: 'text' }] },
       { slug: 'linked-audit-pages', versions: { drafts: true },
         access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true },
         hooks: { beforeChange: [contentChangesBeforeHook], afterChange: [contentChangesHook] },
@@ -97,11 +98,12 @@ test.each(['image', 'link'] as const)('default-depth unchanged %s publish record
     data: { _status: 'published', layout: [{ blockType: 'linked', text: 'Original', [field]: linked.id,
       experimentArm: { experiment: String(f.experiment.id), arm: 'variantA' } }] } })
   await f.begin()
+  // An API publish that expands links (Payload's default depth outside the admin): explicit, so the harness config can't hide it.
   const unchanged = await f.payload.update({ collection: 'linked-audit-pages', id: page.id, req: f.req,
-    overrideAccess: false, data: { _status: 'published' } })
+    overrideAccess: false, depth: 2, data: { _status: 'published' } })
   expect(unchanged.layout[0][field]).toMatchObject({ id: linked.id })
   expect(await f.markers()).toHaveLength(0)
-  await f.payload.update({ collection: 'linked-audit-pages', id: page.id, req: f.req, overrideAccess: false,
+  await f.payload.update({ collection: 'linked-audit-pages', id: page.id, req: f.req, overrideAccess: false, depth: 2,
     data: { _status: 'published', layout: [{ ...unchanged.layout[0], text: 'Changed', [field]: linked.id }] } })
   expect(await f.markers()).toHaveLength(1)
   await f.payload.update({ collection: 'linked-audit-pages', id: page.id, req: f.req, overrideAccess: false,
