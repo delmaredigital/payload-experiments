@@ -1,16 +1,19 @@
 import type { PhaseSummary } from '../../../types/endpoints.js'
 import type { Status } from '../../../types/contracts.js'
-import type { Snapshot, VerdictCode } from '../../../types/snapshot.js'
+import type { VerdictCode } from '../../../types/snapshot.js'
 import { formatDate } from '../../format/date.js'
 import { armLabel } from '../../labels.js'
 import { formatCount, formatPercent } from '../../results/format.js'
+import { RESULTS_COPY } from '../../copy/results.js'
+import { legacyRecommendationWinner } from '../../results/legacy.js'
+import { isLegacySnapshot, type DisplaySnapshot } from '../../results/snapshot.js'
 import {
   RECOMMENDATION_COPY as C, collectingRecommendation, guardrailRecommendation, mixedRecommendation,
   rolloutCollectingRecommendation, rolloutReadoutRecommendation, runningRecommendation, winnerRecommendation, worseRecommendation, storedGuardrailFinding,
 } from '../../copy/recommendation.js'
 
 export interface RecommendationContext {
-  snapshot: Snapshot
+  snapshot: DisplaySnapshot
   phase?: PhaseSummary
   plannedDurationDays?: number | null
   status?: Status
@@ -22,7 +25,9 @@ function label(ctx: RecommendationContext, key: string | null | undefined, fallb
 const primary = ({ snapshot }: RecommendationContext) => snapshot.metrics.find(metric => metric.role === 'primary')
 const worse = (ctx: RecommendationContext) => primary(ctx)?.comparisons.find(comparison => comparison.significant === 'worse'
   && ctx.phase?.arms.some(arm => arm.key === comparison.arm && arm.kind === 'variant'))?.arm
-const winner = (ctx: RecommendationContext) => label(ctx, ctx.snapshot.winnerArm ?? ctx.snapshot.verdict.recommendedArm, C.winner)
+const rolloutWinner = (ctx: RecommendationContext) => isLegacySnapshot(ctx.snapshot)
+  ? legacyRecommendationWinner(ctx.snapshot, ctx.phase)
+  : { key: ctx.snapshot.winnerArm, label: label(ctx, ctx.snapshot.winnerArm) }
 
 /** Select stored findings and format them; never run inference in the admin. */
 export const RECOMMENDATION: Record<VerdictCode, (ctx: RecommendationContext) => string> = {
@@ -56,11 +61,12 @@ export const RECOMMENDATION: Record<VerdictCode, (ctx: RecommendationContext) =>
     return Number.isFinite(end) ? runningRecommendation(formatDate(end)) : C.keepRunning
   },
   'no-difference': () => C.noDifference,
-  'rollout-collecting': ctx => rolloutCollectingRecommendation(winner(ctx)),
-  'rollout-readout': ctx => rolloutReadoutRecommendation(winner(ctx), formatPercent(
-    primary(ctx)?.comparisons.find(comparison => comparison.arm === (ctx.snapshot.winnerArm ?? ctx.snapshot.verdict.recommendedArm))?.lift, true)),
+  'rollout-collecting': ctx => rolloutCollectingRecommendation(rolloutWinner(ctx).label),
+  'rollout-readout': ctx => rolloutReadoutRecommendation(rolloutWinner(ctx).label, formatPercent(
+    primary(ctx)?.comparisons.find(comparison => comparison.arm === rolloutWinner(ctx).key)?.lift, true)),
 }
 export const recommendation = (ctx: RecommendationContext): string => {
+  if (!isLegacySnapshot(ctx.snapshot) && ctx.snapshot.phaseKind === 'rollout' && ctx.snapshot.winnerArm === null) return RESULTS_COPY.missingWinner
   const sentence = RECOMMENDATION[ctx.snapshot.verdict.code]
   return sentence(ctx)
 }

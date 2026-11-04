@@ -22,6 +22,8 @@ export const RESULTS_COPY = {
   infeasible: 'A clear answer would take more than 90 days at this traffic.',
   noCap: 'Not capped: fewer than 20 people had this outcome in the 90 days before Start, so every value counts in full.',
   quality: 'Data quality',
+  missingWinner: 'The stored winner is missing from this round’s results.',
+  missingWinnerNext: 'Recompute; if it persists, contact a developer before trusting these results.',
   srm: "Traffic isn't splitting as set. Check for caching or a page placed twice.",
   multiGroup: 'People who saw more than one group were excluded.',
   multiGroupNext: 'Check for caching or a page placed twice before trusting the results.',

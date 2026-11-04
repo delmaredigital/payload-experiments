@@ -5,7 +5,7 @@ import {
 } from '../../../src/admin/results/results.model.js'
 import { RESULTS_COPY } from '../../../src/admin/copy/results.js'
 import { formatCI } from '../../../src/admin/results/format.js'
-import { fixture, fixtures, makeSnapshot, phaseFor, revenueSnapshot } from './fixtures.js'
+import { fixture, fixtures, legacyFixture, makeSnapshot, phaseFor, revenueSnapshot } from './fixtures.js'
 
 test.each(Object.keys(fixtures))('%s keeps the server headline verbatim', name => {
   const snapshot = fixture(name)
@@ -102,8 +102,6 @@ test('rollout collecting counts retain the frozen minimum and include the holdou
   const snapshot = fixture('R2')
   const input = { snapshot, phaseKind: snapshot.phaseKind, status: 'decided' as const }
   expect(collectingLine(input, { minExposuresPerArm: 2000 })).toBe('360 of 1,000 people, 144 of 150 conversions')
-  const legacy = { ...snapshot, minExposuresPerArm: undefined as unknown as number }
-  expect(collectingLine({ ...input, snapshot: legacy })).toBe('360 of — people, 144 of 150 conversions')
   const phase = phaseFor(snapshot)
   snapshot.metrics[0]!.perArm.find(group => group.arm === 'holdout')!.converters = 20
   expect(collectingLine(input, { phase })).toBe('360 of 1,000 people, 20 of 150 conversions')
@@ -148,13 +146,13 @@ test.each(['R1', 'R2', 'R3'])('%s rollout is winner vs holdout with a shipping l
   expect(rolloutLine({ ...snapshot, winnerArm: 'holdout' }, phase, [phase], { winnerArm: 'variantA' })).toBe('Since shipping Unchanged form')
   expect(JSON.stringify(verdictCard({ snapshot, isDecidedTestRound: false, winnerLabel: '' }))).not.toMatch(/\bDecide\b/)
 })
-test('only the newest rollout borrows the current decision winner, regardless of phase list order', () => {
-  const snapshot = fixture('R3')
+test('only the newest legacy rollout borrows the current decision winner, regardless of phase list order', () => {
+  const snapshot = legacyFixture('R3')
   const older = phaseFor(snapshot)
   const newer = { ...older, phase: older.phase + 2 }
   const testPhase = { ...phaseFor(fixture('T7')), phase: newer.phase + 1 }
   const phases = [newer, testPhase, older]
-  const unnamed = { ...snapshot, winnerArm: null }
+  const unnamed = snapshot
   expect(rolloutLine(unnamed, older, phases, { winnerArm: 'variantB' })).toBe('Since shipping the winner')
   expect(rolloutLine({ ...unnamed, phase: newer.phase }, newer, phases, { winnerArm: 'variantA' })).toBe('Since shipping Shorter form')
   expect(rolloutLine({ ...snapshot, winnerArm: 'variantA' }, older, phases, { winnerArm: 'variantB' })).toBe('Since shipping Shorter form')
