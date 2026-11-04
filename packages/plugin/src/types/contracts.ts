@@ -24,7 +24,7 @@ export interface ParamField {
 export interface MetricSource {
   id: string; label: string; kind: 'binomial' | 'count' | 'revenue'; keyedBy: UnitType; clientWritable?: boolean
   query(args: { from: Date; to: Date; unitIds?: string[] }): Promise<Array<{ unitId: string; value: number; ts: Date }>>
-  covariate?(args: { units: Array<{ unitId: string; firstExposureTs: Date }>; lookbackDays: number }): Promise<Array<{ unitId: string; value: number }>>
+  covariate?(args: { units: Array<{ unitId: string; firstExposureTs: Date }>; lookbackDays: number }): Promise<Array<{ unitId: string; value: number; ts: Date }>>
 }
 export interface FlagPoint {
   id: string; label: string; description?: string; params: Record<string, ParamField>; defaultParams: Record<string, unknown>

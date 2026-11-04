@@ -39,14 +39,14 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
   const identities = candidate.unitType === 'visitor' ? await identityRows(exec, { anonymousIds: ids }) : []
   const userIds = [...new Set(identities.map(identity => identity.userId))]
   const linked = new Set(userIds)
+  const identityConflicts = new Set<string>()
   const credit = (events: Array<{ unitId: string; value: number; ts: Date | number; userId?: string | null }>, userKeyed: boolean): MetricEvent[] => {
     if (candidate.unitType === 'user') return events.map(event => ({ ...event, unitId: event.userId ?? event.unitId }))
     const userEvents = events.filter(event => userKeyed || event.userId != null && linked.has(event.userId))
       .map(event => ({ userId: String(event.userId ?? event.unitId), value: event.value, ts: event.ts }))
-    const credited = creditUserEvents(units, identities, userEvents).events
+    const credited = creditUserEvents(units, identities, userEvents, userId => identityConflicts.add(userId)).events
     return userKeyed ? credited : [...events.filter(event => event.userId == null || !linked.has(event.userId)), ...credited]
   }
-  const diagnostics = creditUserEvents(units, identities, [])
   const metricData: MetricUnitData[] = []
   for (const definition of phase.metricDefinitions) {
     try {
@@ -78,16 +78,21 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
         const sourceIds = userKeyed ? userIds : ids
         events = credit(await raceDeadline(deadline, () => source.query({ from, to, unitIds: sourceIds })), userKeyed)
         if (phase.analysis.cuped === 'auto' && source.covariate) {
+          // Ask for every linked user's pre-period even if their link is no longer
+          // eligible now: eligibility is evaluated at each returned row's timestamp.
+          const userStarts = new Map<string, number>()
+          if (userKeyed) for (const link of identities) {
+            const unit = units.get(link.anonymousId)
+            if (unit) userStarts.set(link.userId, Math.min(userStarts.get(link.userId) ?? Infinity, timestampMs(unit.firstTs)))
+          }
           const sourceUnits = userKeyed
-            ? creditUserEvents(units, identities, userIds.map(userId => ({ userId, ts: now, value: 0 }))).events.map(event => ({
-              unitId: identities.find(identity => identity.anonymousId === event.unitId)!.userId,
-              firstExposureTs: units.get(event.unitId)!.firstTs,
-            }))
-            : [...units].map(([unitId, unit]) => ({ unitId, firstExposureTs: unit.firstTs }))
+            ? [...userStarts].map(([unitId, ts]) => ({ unitId, firstExposureTs: new Date(ts) }))
+            : [...units].map(([unitId, unit]) => ({ unitId, firstExposureTs: new Date(timestampMs(unit.firstTs)) }))
           const pre = await raceDeadline(deadline, () => source.covariate!({ units: sourceUnits, lookbackDays: 14 }))
           if (pre.some(row => !Number.isFinite(row.value))) throw new XpAnalysisError('non-finite-covariates')
-          const credited = credit(pre.map(row => ({ ...row, ts: now })), userKeyed)
-          covariates = new Map(credited.map(row => [row.unitId, row.value]))
+          const credited = credit(pre, userKeyed)
+          const preUnits = new Map([...units].map(([id, unit]) => [id, { arm: unit.arm, firstTs: new Date(timestampMs(unit.firstTs) - 14 * 86_400_000) }]))
+          covariates = perUnitValues(preUnits, credited, { kind, windowHours: 14 * 24 })
         }
       }
       if (events.some(event => !Number.isFinite(event.value))) throw new XpAnalysisError('non-finite-values')
@@ -112,7 +117,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
   const snapshot = analysePhase({ phase: analysisPhase, now, units, metricData, status,
     onMetricError: (error, metricId) => logger.error({ err: safeError(error), experimentId: phase.experiment, metricId }, 'Experiment metric analysis failed'),
     excludedMultiArm: exposed.excludedMultiArm, armMismatch: await armMismatchCount(exec, query),
-    identityConflictShare: userIds.length ? diagnostics.conflicts / userIds.length : 0,
+    identityConflictShare: userIds.length ? identityConflicts.size / userIds.length : 0,
     ...(phase.phaseKind === 'rollout' ? { winnerArm: phase.arms.find(arm => arm.kind !== 'holdout')!.key } : {}),
   })
   return snapshot

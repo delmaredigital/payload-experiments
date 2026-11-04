@@ -19,8 +19,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed: Make it the content now works on collections with hidden or restricted fields: it publishes from the live page, so draft edits never leak into the published version. Localized collections are refused with a clear message and flagged before Decide (not supported yet). Migration impact: none.
 - Added: `ContentReportReason` now includes `'localized'` (exported from `/` and `/rsc`), and `ReadinessCode` includes `'make-content-unsupported'`. Migration impact: none; hosts switching exhaustively on these unions add the new member.
 - Changed: test page sections use the new controls: a versions grid with a traffic split bar, rule cards for who takes part, and plain-language advanced settings.
-- Added: an archived whole-page test's results offer "Release pages", which lets every address show its own page again; the result stays recorded.
-- Added: Release pages on archived whole-page tests removes their archived routing and page protection, and records who released them and when. Migration impact: four nullable columns: decision_pages_released_at and decision_pages_released_by on xp_experiments, and version_decision_pages_released_at and version_decision_pages_released_by on _xp_experiments_v; run payload migrate:create.
+
 - Changed: the test page has a step list, numbered sections and a readiness bar with Start at the bottom.
 - Fixed: the retention sweep logs its "made no progress" warning whenever the results budget ends before it deletes anything, including between statements. Migration impact: none.
 - Changed: the Tests home shows tests as compact rows grouped by what needs doing, with a health label and one-line status for each; draft tests name the next step to finish setting them up.
@@ -40,6 +39,15 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added: optional `pages` option (`pathOf`, `findByPath`) so the plugin can check version pages; see the README option table. Page protection hooks are not included. Migration impact: none.
 - Fixed: readiness checks no longer show raw error text from the site's code.
 - Fixed: results and make-content reports no longer store or show raw error text; they carry a reason code shown as plain copy, and the details go to the server log. Migration impact: none.
+
+- Added: an archived whole-page test's results offer "Release pages", which lets every address show its own page again; the result stays recorded.
+- Added: Release pages on archived whole-page tests removes their archived routing and page protection, and records who released them and when. Migration impact: four nullable columns: decision_pages_released_at and decision_pages_released_by on xp_experiments, and version_decision_pages_released_at and version_decision_pages_released_by on _xp_experiments_v; run payload migrate:create.
+
+### BREAKING
+
+- `linkIdentity` requires `verified: boolean` and returns `'linked' | 'verified' | 'skipped' | 'failed'`. Pass `true` only from a request that proves account ownership in this browser; registration and session refreshes do not prove ownership. Metric-source `covariate` returns one row per pre-period event with its own `ts: Date`, so eligibility is evaluated at each row's time.
+- Migration impact: one nullable column `verified_at` and one index on `user_id` in `xp_identities`; run `payload migrate:create` along with the release-pages columns above. Existing rows become unverified, which only narrows crediting. Optional backfill to keep old behaviour for old rows: `UPDATE xp_identities SET verified_at = linked_at WHERE verified_at IS NULL;`.
+- Fixed: A registration from someone else's browser no longer receives credit for the account owner's later activity.
 
 ## [0.2.0-rc.7] - 2026-11-03
 
