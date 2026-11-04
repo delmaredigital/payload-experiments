@@ -10,6 +10,10 @@ import { copyPaths, editorFiles, helperPaths, helperStrings } from './copySource
 const forbidden = /\b(?:arms?|phases?|flag ?points?|unit ?types?|unitType|CUPED|exposure ?polic(?:y|ies)|percentiles?)\b|\bin (?:Metrics|Who(?! takes part\b)|Groups|Review)\b|\b(?:Metrics|Who|Review) tab\b/i
 const hits = (strings: string[]) => strings.filter(value => forbidden.test(value))
 const samples: Record<string, unknown[][]> = {
+  blockPosition: [['Hero', 2]], blockTestName: [['About us', 'Hero']],
+  blockDraftStatus: [['Hero']], blockFinishedStatus: [['Shorter form']],
+  blockDecidedStatus: [['Shorter form', false], ['Shorter form', true]],
+  blockSaveNotice: [[false], [true]], blockSyncNotice: [[false], [true]],
   pageGuardCopy: [['Example', 'running'], ['Example', 'decided'], ['Example', 'archived'], ['Example', 'archived', 'original']],
   versionPageUnavailableCopy: [['/example', 'running'], ['/example', 'decided']], versionPageUncheckedCopy: [['/example', 'running'], ['/example', 'decided']],
   groupShare: [['50', 'Original'], ['50', 'Shorter form']],

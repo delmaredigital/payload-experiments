@@ -14,6 +14,9 @@ const defaults = () => ({
   formFields: {} as MockFields,
   documentInfo: { id: '1', collectionSlug: 'xp-experiments', data: {} } as Values,
   formModified: false,
+  formInitializing: false,
+  serverFunctions: { getFormState: vi.fn() } as Values,
+  rowLabel: { path: '', data: {} } as Values,
 })
 let state = defaults()
 const listeners = new Set<() => void>()
@@ -114,6 +117,9 @@ export function payloadUiMock() {
     },
     useDocumentInfo: () => useStateSnapshot().documentInfo,
     useFormModified: () => useStateSnapshot().formModified,
+    useFormInitializing: () => useStateSnapshot().formInitializing,
+    useServerFunctions: () => useStateSnapshot().serverFunctions,
+    useRowLabel: () => useStateSnapshot().rowLabel,
     Button: ({ children, className, onClick, disabled, extraButtonProps, type = 'button' }: Children & {
       onClick?: () => void; disabled?: boolean; extraButtonProps?: ComponentProps<'button'>; type?: 'button' | 'submit' | 'reset'
     }) => <button {...extraButtonProps} className={className} onClick={onClick} disabled={disabled} type={type}>{children}</button>,
