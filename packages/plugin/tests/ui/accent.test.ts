@@ -98,7 +98,7 @@ beforeAll(() => {
     grid.push({ input, sets, acceptedBefore, validationThrew, validationMessage })
   }
   console.log(`accent grid beforeAll: ${Math.round(performance.now() - started)} ms`)
-}, 60_000) // Measured locally: 7.24 s alone, 13.4 s in the full plugin set; CI runners ran ~2.7× slower, so the cap is ≥3× the loaded time.
+}, 120_000) // Measured locally: 7.3 s alone, 13.4 s in the full plugin set; CI runners ran ~2.7× slower (~36 s loaded), so the cap is ≥3× that.
 
 test.each([
   ['light', 3742, 161], ['dark', 2303, 1600],
