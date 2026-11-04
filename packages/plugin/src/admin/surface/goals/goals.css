@@ -2,6 +2,8 @@
 .xp-goals { display: grid; gap: var(--xp-space-4); }
 .xp-goals > .xp-ui-field { max-width: 20rem; }
 .xp-goal-form { max-width: 48rem; display: grid; gap: var(--xp-space-4); }
+.xp-goal-card { display: grid; gap: var(--xp-space-4); }
+.xp-goal-card > h2 { margin: 0; font: var(--xp-text-title); }
 .xp-goal-form fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: var(--xp-space-4); }
 .xp-goal-form input[readonly] { background: var(--xp-surface-2); }
 .xp-goal-advanced { border: 1px solid var(--xp-border); border-radius: var(--xp-radius); }

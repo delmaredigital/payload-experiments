@@ -11,7 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-- Changed: the Goals pages use the new layout; deleting a goal now asks for confirmation.
+- Changed: the Goals pages use the new layout; deleting a goal now asks for confirmation; choosing "Use this goal" from a test makes it that test's main goal.
 
 - Added: the results endpoint includes the test's name, kind and status (`experiment`), so people who can read results but not tests see the real title. Migration impact: none.
 - Fixed: a block test can't be given a page-path targeting rule, or started with one; it runs wherever the block is placed. Migration impact: none; hosts switching exhaustively on ReadinessCode add 'block-path-rule'.

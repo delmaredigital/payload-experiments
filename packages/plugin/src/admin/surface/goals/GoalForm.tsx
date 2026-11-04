@@ -13,7 +13,7 @@ import { SURFACE_COPY } from '../../copy/surface.js'
 import { SurfaceShell } from '../SurfaceShell.js'
 import { Button } from '../../../ui/Button.js'
 import { TextInput, NumberInput, Select } from '../../../ui/Inputs.js'
-import { SectionCard } from '../../../ui/Card.js'
+import { Card } from '../../../ui/Card.js'
 import { Banner } from '../../../ui/Feedback.js'
 import { Dialog } from '../../../ui/Dialog.js'
 import './goals.css'
@@ -126,7 +126,8 @@ export function GoalForm({ surface, id, returnToTest, onTitleChange }: { surface
       {loadError ? <Banner tone="error" action={<Button size="sm" onClick={() => setAttempt(n => n + 1)}>{C.retry}</Button>}>{loadError}</Banner>
         : !ready ? <p role="status">{C.loading}</p> : <form className="xp-goal-form" onSubmit={event => { event.preventDefault(); void submit() }}>
           {error ? <Banner tone="error">{error}</Banner> : null}
-          <SectionCard number={1} title={C.fields} headingId="xp-goal-fields-title">
+          <Card className="xp-goal-card">
+            <h2>{C.fields}</h2>
             <fieldset disabled={pending !== null || !surface.canManage}>
               <TextInput id="xp-goal-name" label={C.name} required value={draft.name} error={fieldErrors.name} onChange={event => {
                 const name = event.currentTarget.value
@@ -171,7 +172,7 @@ export function GoalForm({ surface, id, returnToTest, onTitleChange }: { surface
                 onClick={() => setConfirmDelete(true)}>{pending === 'delete' ? C.deleting : C.remove}</Button>}
             </div>
             {id !== undefined && usedBy ? <p className="xp-ui-help" id="xp-goal-used">{goalDeleteLocked(usedBy)}</p> : null}
-          </SectionCard>
+          </Card>
         </form>}
       <Dialog open={confirmDelete} initialFocus="cancel" title={C.deleteTitle} onClose={() => setConfirmDelete(false)}>
         <p>{C.deleteBody}</p>

@@ -53,7 +53,8 @@ export function GoalsList({ surface, returnToTest }: { surface: SurfaceProps; re
                   <div className="xp-tests-row-name"><Link href={href}>{goal.name}</Link>{label ? <span className="xp-tests-kind">{label[0]!.toUpperCase() + label.slice(1)}</span> : null}</div>
                   <div className="xp-tests-row-line"><span>{goal.direction === 'decrease' ? C.decrease : C.increase}</span><span aria-hidden="true">·</span><span>{count ? goalUsedBy(count) : C.unused}</span></div>
                 </div>
-                <Button className="xp-tests-row-action" variant={returnToTest ? 'primary' : 'secondary'} size="sm" href={href}>{returnToTest ? C.useGoal : C.open}</Button>
+                <Button className="xp-tests-row-action" variant={returnToTest ? 'primary' : 'secondary'} size="sm" href={returnToTest
+                  ? url(`/experiments/${encodeURIComponent(returnToTest)}?${new URLSearchParams({ goal: String(goal.id) })}`) : href}>{returnToTest ? C.useGoal : C.open}</Button>
               </article>
             })}</div>}
     </div>

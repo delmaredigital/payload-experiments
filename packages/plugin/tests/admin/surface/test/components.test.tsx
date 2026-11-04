@@ -50,15 +50,15 @@ test.each([7, 'goal-uuid'])('returning with goal %s saves its API id exactly onc
   expect(window.location.hash).toBe('#section-win')
   window.history.replaceState(null, '', '/')
 })
-test.each(['running', 'draft'] as const)('returned goals do not replace an existing primary or edit a %s test', async status => {
+test.each(['running', 'decided', 'archived'] as const)('returned goals do not edit a %s test and clear the param', async status => {
   window.history.replaceState(null, '', '/cms/experiments/test?goal=2')
   metricsFetch()
-  const p = props({ status, metrics: { primary: status === 'draft' ? 1 : null } })
+  const p = props({ status, metrics: { primary: 1 } })
   render(<GoalSection {...p} />)
   await waitFor(() => expect(window.location.search).toBe(''))
   expect(p.test.stage).not.toHaveBeenCalled()
   expect(p.test.commit).not.toHaveBeenCalled()
-  expect(screen.getByText('Manage goals').getAttribute('href')).toBe(status === 'draft' ? '/cms/experiments/goals?return=1' : '/cms/experiments/goals')
+  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/experiments/goals')
   window.history.replaceState(null, '', '/')
 })
 

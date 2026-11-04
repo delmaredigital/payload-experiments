@@ -61,7 +61,7 @@ test('list pages through goals and tests and renders compact rows, kinds, direct
   expect(screen.getByRole('link', { name: 'Register' }).getAttribute('href')).toBe('/control/experiments/goals/7?return=test%2F1')
   expect(screen.getByRole('link', { name: 'Back to the test' }).getAttribute('href')).toBe('/control/experiments/test%2F1')
   const action = within(row).getByRole('link', { name: 'Use this goal' })
-  expect(action.getAttribute('href')).toBe('/control/experiments/goals/7?return=test%2F1')
+  expect(action.getAttribute('href')).toBe('/control/experiments/test%2F1?goal=7')
   expect(action.classList.contains('xp-ui-button--primary')).toBe(true)
   expect(shellHeader().contains(screen.getByRole('link', { name: 'New goal' }))).toBe(true)
   expect(fetch).toHaveBeenCalledTimes(4)
@@ -72,6 +72,19 @@ test('empty goals explain their purpose and keep New goal available', async () =
   render(<GoalsList surface={surface} />)
   expect(await screen.findByText('No goals yet. A goal is what a test tries to improve.')).toBeTruthy()
   expect(screen.getAllByRole('link', { name: 'New goal' })).toHaveLength(2)
+})
+test('Use this goal encodes the test path and goal query under the configured admin route', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => response({ docs: url.includes('xp-metrics') ? [{ ...goal, id: 'goal/with & symbols' }] : [] })))
+  render(<GoalsList surface={{ ...surface, adminRoute: '/' }} returnToTest="test/1" />)
+  expect((await screen.findByRole('link', { name: 'Use this goal' })).getAttribute('href')).toBe('/experiments/test%2F1?goal=goal%2Fwith+%26+symbols')
+})
+test('the single goal form has a plain card without section progress', async () => {
+  await loadForm()
+  const card = screen.getByRole('heading', { level: 2, name: 'Goal details' }).closest('.xp-ui-card')!
+  expect(card).not.toBeNull()
+  expect(card.classList.contains('xp-ui-section')).toBe(false)
+  expect(card.querySelector('.xp-ui-section-number, .xp-ui-section-complete')).toBeNull()
+  expect(screen.queryByLabelText('Incomplete')).toBeNull()
 })
 test('new goal derives an editable short name and posts only collection fields, converting percent to fraction', async () => {
   const fetch = vi.fn(async () => response({ doc: { ...goal, id: 'goal-uuid' } }))
@@ -269,6 +282,11 @@ test('surface dispatches goals and form routes with sources and the shared shell
   await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Register'))
   const editCrumbs = expectShell(['Tests', 'Goals', 'Register'])
   expect(within(editCrumbs).getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/experiments/goals')
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Unsaved edit' } })
+  view.rerender(<TestsSurface {...surface} route="goalNew" />)
+  await screen.findByLabelText('Name')
+  expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('')
+  expect(screen.queryByRole('button', { name: 'Delete goal' })).toBeNull()
 })
 
 
