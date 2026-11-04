@@ -59,7 +59,7 @@ export function ConfirmDialog({ id, action, winnerLabel, onClose, canManage = fa
   }
   return <DialogFrame dismissible={!busy && !reportBusy} initialFocus={action.id === 'start' ? undefined : 'cancel'} title={action.confirm.title} onClose={close}>
     {content ? <MakeContentResult result={content} id={id} api={api} canManage={canManage} isDecided={content.doc?.status ? content.doc.status === 'decided' : isDecided}
-      onRetry={() => submit()} onFinish={() => submit(true)} busy={busy} onBusyChange={setReportBusy} /> : <>
+      onRetry={() => submit()} onFinish={() => submit(true)} busy={busy} onBusyChange={setReportBusy} onActionStart={() => setError(null)} /> : <>
       <p>{action.confirm.body}</p>
       {phrase ? <><p>{C.typePhrase} <strong>{phrase}</strong></p>
         <TextInput id="xp-confirmation" label={C.confirmation} value={typed} readOnly={busy}

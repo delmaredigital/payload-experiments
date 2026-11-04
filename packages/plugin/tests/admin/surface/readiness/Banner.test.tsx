@@ -379,13 +379,13 @@ test('make-content Dismiss/Undo and Finish use the surface API and existing arch
   render(<Banner {...p} />)
   fireEvent.click(button('Make it the content'))
   fireEvent.click(dialogButton('Make it the content'))
-  const dismiss = await screen.findByRole('button', { name: 'Dismiss' })
+  const dismiss = await screen.findByRole('button', { name: 'Dismiss pages/2' })
   act(() => { dismiss.click(); dismiss.click() })
   expect(fetcher).toHaveBeenCalledTimes(2)
   expect(dialogButton('Done').disabled).toBe(true)
   resolveDismiss(response({ doc: { decision: { contentReport: { docs: [dismissed] } } } }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Undo dismiss pages/2' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Dismiss pages/2' }))
   const finish = await screen.findByRole('button', { name: 'Finish archiving' })
   act(() => { finish.click(); finish.click() })
   await waitFor(() => expect(p.test.reload).toHaveBeenCalledOnce())
@@ -397,6 +397,24 @@ test('make-content Dismiss/Undo and Finish use the surface API and existing arch
     '/custom-api/xp/experiments/xp1/archive',
   ])
   expect(JSON.parse(fetcher.mock.calls[4]?.[1].body)).toEqual({ mode: 'after-content' })
+})
+
+test('surface clears a stale retry error as soon as Dismiss starts', async () => {
+  const p = props({ status: 'decided', decision: { winnerArm: 'variantA' } })
+  const entry = { collection: 'pages', id: 2, ok: false, error: 'locked' }
+  let dismiss!: (value: Response) => void
+  const fetcher = vi.fn().mockResolvedValueOnce(response({ doc: {}, revision: 2, docs: [entry] }))
+    .mockResolvedValueOnce(response({ errors: [{ code: 'commit-unverified' }] }, 500))
+    .mockReturnValueOnce(new Promise<Response>(resolve => { dismiss = resolve }))
+  vi.stubGlobal('fetch', fetcher)
+  render(<Banner {...p} />)
+  fireEvent.click(button('Make it the content'))
+  fireEvent.click(dialogButton('Make it the content'))
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+  await screen.findByRole('alert')
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss pages/2' }))
+  expect(screen.queryByRole('alert')).toBeNull()
+  await act(async () => { dismiss(response({ doc: { decision: { contentReport: { docs: [{ ...entry, dismissedAt: '2026-11-03T12:00:00Z' }] } } } })) })
 })
 
 test.each([false, true])('surface uses the returned archived status to hide Finish (after Retry=%s)', async retry => {

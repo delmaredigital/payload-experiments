@@ -15,6 +15,7 @@ export const ACTIONS_COPY = {
   group: 'Group', note: 'Decision note', confirmation: 'Confirmation',
   typePhrase: 'Type the following to confirm:', cancel: 'Cancel', retry: 'Retry', done: 'Done',
   dismiss: 'Dismiss', dismissed: 'Dismissed', undo: 'Undo',
+  dismissLabel: (page: string) => `Dismiss ${page}`, undoLabel: (page: string) => `Undo dismiss ${page}`,
   dismissHelp: "Dismiss a page you'll update by hand, then finish archiving.",
   contentEntryNotDecided: "This test isn't decided yet, so pages can't be dismissed.",
   contentEntryDismissed: 'This page was already dismissed.',

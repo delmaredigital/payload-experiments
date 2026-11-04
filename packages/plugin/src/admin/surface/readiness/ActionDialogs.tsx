@@ -53,7 +53,7 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
   }
   return <Dialog open initialFocus={action.id === 'start' ? undefined : 'cancel'} dismissible={!transition.busy && !reportBusy} title={action.confirm.title} onClose={close}>
     {content ? <MakeContentResult result={content} id={test.doc?.id} api={api} canManage={surface.canManage} isDecided={(content.doc?.status ?? test.doc?.status) === 'decided'}
-      onRetry={() => submit()} onFinish={() => submit(true)} busy={transition.busy} onBusyChange={setReportBusy} /> : <>
+      onRetry={() => submit()} onFinish={() => submit(true)} busy={transition.busy} onBusyChange={setReportBusy} onActionStart={transition.clearError} /> : <>
       <p>{action.confirm.body}</p>
       {phrase ? <><p>{A.typePhrase} <strong>{phrase}</strong></p>
         <TextInput id="xp-confirmation" label={A.confirmation} value={typed} readOnly={transition.busy} onChange={(event: ChangeEvent<HTMLInputElement>) => setTyped(event.target.value)} />
