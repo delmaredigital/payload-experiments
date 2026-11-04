@@ -11,6 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: while a whole-page test is live, the Original's URL keeps a canonical to itself even when a visitor is served a version page there, so search engines never treat the Original as a copy of a noindexed version. Hosts merge `experimentMetadata` after their own metadata so its canonical wins. Migration impact: none.
 - Fixed: after a whole-page test is archived, trying to delete, rename or unpublish the Original page now says its address shows the winner, instead of calling the Original the winner. Migration impact: none.
 - Fixed: Preview opens its new tab in Safari and other browsers that block pop-ups opened after a delay; a refused preview shows plain-language copy instead of the server's message.
 - Added: `admin.previewUrl` may be async and receives the placement's title, published state and slug; returning null hides preview for that placement, and the admin never shows "Preview isn't set up". The old `({ collection, id }) => string` form still works, and several slots on one page version share one lookup. Migration impact: none.
