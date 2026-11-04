@@ -32,7 +32,7 @@ for (const { defaultIDType, customIDType, expected } of types) {
     vi.mocked(preflightData).mockResolvedValue(null)
     expect((await handlePreflight(req, ctx)).status).toBe(404)
     expect(preflightData).toHaveBeenCalledWith(req, { experimentId: expected, options: ctx.options }, undefined)
-    vi.mocked(resultsMetadata).mockResolvedValue({ status: 'draft', snapshotId: null, winnerArm: null })
+    vi.mocked(resultsMetadata).mockResolvedValue({ name: 'Signup form', kind: 'flag', status: 'draft', snapshotId: null, winnerArm: null })
     vi.mocked(newestSnapshotIds).mockResolvedValue([])
     expect((await handleResults(req, ctx)).status).toBe(200)
     expect(resultsMetadata).toHaveBeenCalledWith(expect.anything(), expected)

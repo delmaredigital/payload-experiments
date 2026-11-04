@@ -14,7 +14,7 @@ vi.mock('../../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
 const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: false, flagPoints: [], attributeKeys: {}, metricSources: [] }
 const snapshot = fixture('T7')
 const phase = phaseFor(snapshot)
-const response: ResultsResponse = { phases: [phase], snapshot, series: ['2026-10-29', '2026-10-30'].map(computedAt => ({ computedAt, metricId: 'registrations', arm: 'variantA', lift: 0.1, ci: [0, 0.2] })) }
+const response: ResultsResponse = { experiment: { name: 'Signup form', kind: 'flag', status: 'running' }, phases: [phase], snapshot, series: ['2026-10-29', '2026-10-30'].map(computedAt => ({ computedAt, metricId: 'registrations', arm: 'variantA', lift: 0.1, ci: [0, 0.2] })) }
 const doc = { status: 'running', arms: phase.arms.map(arm => ({ ...arm, label: `Current ${arm.key}` })), analysis: { plannedDurationDays: 28 } }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 function setup(data: ResultsResponse = response, saved = doc) {
@@ -31,7 +31,7 @@ function setup(data: ResultsResponse = response, saved = doc) {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks() })
 test.each(['running', 'stopped'])('collecting results show the stored detail without duplicate counts when %s', async status => {
   const collecting = fixture(status === 'running' ? 'T4' : 'T4-stopped')
-  setup({ phases: [phaseFor(collecting)], snapshot: collecting }, { ...doc, status })
+  setup({ experiment: response.experiment, phases: [phaseFor(collecting)], snapshot: collecting }, { ...doc, status })
   const { container } = render(<ResultsBody id={1} surface={surface} />)
   expect(await screen.findByText(collecting.verdict.detail)).toBeTruthy()
   expect(container.querySelector('.xp-collecting')).toBeNull()
@@ -85,7 +85,7 @@ test('Decide opens the shared dialog with newest round labels, posts once, and r
   const newest = { ...snapshot, phase: 2 }
   const newestPhase = phaseFor(newest)
   newestPhase.arms.find(arm => arm.key === 'variantA')!.label = 'Newest shorter form'
-  const fetcher = setup({ phases: [phase, newestPhase], snapshot: newest })
+  const fetcher = setup({ experiment: response.experiment, phases: [phase, newestPhase], snapshot: newest })
   let finish!: (response: Response) => void
   const original = fetcher.getMockImplementation()!
   fetcher.mockImplementation((url, init) => init?.method === 'POST' ? new Promise(resolve => { finish = resolve }) : original(url, init))
@@ -137,7 +137,7 @@ test('the shared Decide dialog keeps its selection and note while the body refre
   expect((within(dialog).getByLabelText('Decision note') as HTMLTextAreaElement).value).toBe('Keep this note')
 })
 test('guarded decisions require a note and typed confirmation', async () => {
-  setup({ phases: [phaseFor(fixture('T4'))], snapshot: fixture('T4') })
+  setup({ experiment: response.experiment, phases: [phaseFor(fixture('T4'))], snapshot: fixture('T4') })
   render(<ResultsBody id={1} surface={surface} />)
   fireEvent.click(await screen.findByRole('button', { name: 'Decide' }))
   const dialog = screen.getByRole('dialog')
@@ -169,7 +169,7 @@ test.each(['running', 'stopped'] as const)('older rounds never inherit running c
 test('rollouts have no Decide; decided tests retain their frozen decision finding', async () => {
   const rollout = fixture('R3')
   const phases = [phase, { ...phaseFor(rollout), phase: 2 }]
-  setup({ phases, snapshot, decisionSnapshot: snapshot }, { ...doc, status: 'decided', decision: { phase: 1, winnerArm: 'variantA' } } as typeof doc)
+  setup({ experiment: response.experiment, phases, snapshot, decisionSnapshot: snapshot }, { ...doc, status: 'decided', decision: { phase: 1, winnerArm: 'variantA' } } as typeof doc)
   render(<ResultsBody id={1} surface={surface} />)
   await screen.findByRole('heading', { name: 'Decided: Shorter form' })
   expect(screen.getByText(snapshot.verdict.finding)).toBeTruthy()
@@ -182,7 +182,7 @@ test('errors, missing and empty results render distinct states', async () => {
     await screen.findByText(expected)
     view.unmount()
   }
-  setup({ phases: [], snapshot: null })
+  setup({ experiment: response.experiment, phases: [], snapshot: null })
   render(<ResultsBody id={1} surface={{ ...surface, canManage: false }} />)
   expect(await screen.findByText(/No results yet/)).toBeTruthy()
 })
@@ -197,7 +197,7 @@ test.each(['variantA', null])('results-only readers see the actual decided winne
   const decisionSnapshot = fixture('T7')
   decisionSnapshot.verdict.recommendedArm = recommendedArm
   // The editor chose another version despite the stored recommendation.
-  const data = { phases: [phase, { ...phaseFor(fixture('R3')), phase: 2 }], snapshot: decisionSnapshot, decisionSnapshot,
+  const data = { experiment: response.experiment, phases: [phase, { ...phaseFor(fixture('R3')), phase: 2 }], snapshot: decisionSnapshot, decisionSnapshot,
     decision: { phase: 1, winnerArm: 'variantB' } }
   const fetcher = setup(data)
   const original = fetcher.getMockImplementation()!
@@ -220,7 +220,7 @@ test.each([true, false])('archived document status wins for managers; readers in
 })
 test('a decided test whose decision round was still collecting reads as stopped, not keep running', async () => {
   const collecting = fixture('T4')
-  setup({ phases: [phaseFor(collecting)], snapshot: collecting, decisionSnapshot: collecting },
+  setup({ experiment: response.experiment, phases: [phaseFor(collecting)], snapshot: collecting, decisionSnapshot: collecting },
     { ...doc, status: 'decided', decision: { phase: phaseFor(collecting).phase, winnerArm: 'control' } } as typeof doc)
   render(<ResultsBody id="xp/one" surface={surface} />)
   expect(await screen.findByText('Stopped before enough people took part to tell.')).toBeTruthy()
