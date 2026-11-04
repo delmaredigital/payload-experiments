@@ -14,6 +14,12 @@ export const ACTIONS_COPY = {
   different: 'You chose a different group than the results recommend.',
   group: 'Group', note: 'Decision note', confirmation: 'Confirmation',
   typePhrase: 'Type the following to confirm:', cancel: 'Cancel', retry: 'Retry', done: 'Done',
+  dismiss: 'Dismiss', dismissed: 'Dismissed', undo: 'Undo',
+  dismissHelp: "Dismiss a page you'll update by hand, then finish archiving.",
+  contentEntryNotDecided: "This test isn't decided yet, so pages can't be dismissed.",
+  contentEntryDismissed: 'This page was already dismissed.',
+  contentEntryUpdated: 'This page is already updated.',
+  contentEntryNotFound: 'This test no longer exists.',
   loading: 'Loading results…', updated: 'Updated', failed: 'Failed',
   contentReasons: {
     localized: "This page has more than one language; Make it the content can't publish it safely yet. Copy the winning version by hand.",
@@ -39,3 +45,11 @@ export const hardCodedLabel = (winner: string) => `The developer has hard-coded 
 /** Old reports can contain host error text: never interpolate an unknown string. */
 export const contentReportCopy = (reason: string | undefined, ok = false) => reason === 'not-found' && ok ? ACTIONS_COPY.missingContent
   : ACTIONS_COPY.contentReasons[reason !== undefined && Object.hasOwn(ACTIONS_COPY.contentReasons, reason) ? reason as ContentReportReason : 'update-failed']
+
+// CORE-44 uses invalid-status for not-decided, already-dismissed and already-updated.
+// Prefer the test-state explanation; never infer a reason from server free text.
+export const CONTENT_ENTRY_REFUSALS = {
+  notFound: ACTIONS_COPY.contentEntryNotFound,
+  codes: { 'invalid-status': ACTIONS_COPY.contentEntryNotDecided },
+  fallback: "Couldn't complete this change. Try again.",
+} as const

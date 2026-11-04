@@ -22,11 +22,11 @@ export const LOCKED_MESSAGES = {
   other: "Can't be changed in this state.",
 } as const
 
-export function refusalMessage(code: string | undefined, status: number, message?: string, options?: { notFound?: string }): string {
+export function refusalMessage(code: string | undefined, status: number, message?: string, options?: { notFound?: string; codes?: Readonly<Record<string, string>>; fallback?: string }): string {
   if (code === 'unauthenticated' || status === 401) return API_MESSAGES.unauthenticated
   if (code === 'not-found' || status === 404) return options?.notFound ?? API_MESSAGES.notFound
   if (code === 'commit-unverified') return API_MESSAGES.commitUnverified
   if (code === 'not-implemented' || status === 501) return API_MESSAGES.notImplemented
   if (code === 'forbidden' || status === 403) return API_MESSAGES.forbidden
-  return message || API_MESSAGES.failed
+  return (code ? options?.codes?.[code] : undefined) ?? options?.fallback ?? (message || API_MESSAGES.failed)
 }

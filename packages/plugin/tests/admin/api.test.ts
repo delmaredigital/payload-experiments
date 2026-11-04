@@ -174,3 +174,13 @@ test('summary returns a failed batch rather than partial success', async () => {
   await expect(api.summary(Array.from({ length: 101 }, (_, index) => index)))
     .resolves.toMatchObject({ ok: false, status: 403 })
 })
+
+test.each(['dismissContentEntry', 'restoreContentEntry'] as const)('%s uses the content-report endpoint and exact body', async method => {
+  const data = { doc: { decision: { contentReport: { docs: [] } } } }
+  respond(data)
+  await expect(api[method]('id /?', { collection: 'pages', id: 12 })).resolves.toEqual({ ok: true, data })
+  const action = method === 'dismissContentEntry' ? 'dismiss' : 'restore'
+  expect(fetchMock).toHaveBeenCalledExactlyOnceWith(`/custom/api/xp/experiments/id%20%2F%3F/content-report/${action}`, {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ collection: 'pages', id: 12 }),
+  })
+})

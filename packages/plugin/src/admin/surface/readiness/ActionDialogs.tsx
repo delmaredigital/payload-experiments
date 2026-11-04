@@ -24,14 +24,16 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
   const api = createApi(surface.apiRoute)
   const [typed, setTyped] = useState('')
   const [content, setContent] = useState<ContentResult | null>(null)
+  const [reportBusy, setReportBusy] = useState(false)
   const transition = useTransition(test, onClose)
   const phrase = action.confirm.phrase ? expectedConfirm(action.confirm.phrase.action, winnerLabel) : null
   const ready = action.id !== 'start' || Boolean(test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
   const enabled = ready && !transition.busy && !test.hasUnsaved && test.saving !== 'saving' && (!phrase || matchesConfirm(phrase, typed))
-  async function submit() {
+  async function submit(finish = false) {
     if (!enabled || !test.doc) return
     const id = test.doc.id
     await transition.run(async () => {
+      if (finish) return api.archive(id, { mode: 'after-content' })
       if (action.archive) return api.archive(id, { ...action.archive, ...(phrase ? { confirmation: typed.trim() } : {}) })
       if (action.id === 'start') return api.start(id)
       if (action.id === 'stop') return api.stop(id)
@@ -42,15 +44,16 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
         return result
       }
       return result.ok ? { ok: false, status: 0, retryable: true, message: API_MESSAGES.unreadable } : result
-    }, { reloadOnSuccess: action.id !== 'make-content' })
+    }, { reloadOnSuccess: finish || action.id !== 'make-content' })
   }
   function close() {
-    if (transition.busy) return
+    if (transition.busy || reportBusy) return
     if (content) void test.reload()
     onClose()
   }
-  return <Dialog open initialFocus={action.id === 'start' ? undefined : 'cancel'} dismissible={!transition.busy} title={action.confirm.title} onClose={close}>
-    {content ? <MakeContentResult result={content} onRetry={submit} busy={transition.busy} /> : <>
+  return <Dialog open initialFocus={action.id === 'start' ? undefined : 'cancel'} dismissible={!transition.busy && !reportBusy} title={action.confirm.title} onClose={close}>
+    {content ? <MakeContentResult result={content} id={test.doc?.id} api={api} canManage={surface.canManage} isDecided={(content.doc?.status ?? test.doc?.status) === 'decided'}
+      onRetry={() => submit()} onFinish={() => submit(true)} busy={transition.busy} onBusyChange={setReportBusy} /> : <>
       <p>{action.confirm.body}</p>
       {phrase ? <><p>{A.typePhrase} <strong>{phrase}</strong></p>
         <TextInput id="xp-confirmation" label={A.confirmation} value={typed} readOnly={transition.busy} onChange={(event: ChangeEvent<HTMLInputElement>) => setTyped(event.target.value)} />
@@ -58,7 +61,7 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
     </>}
     {transition.error ? <p role="alert">{transition.error}</p> : null}
     {!content ? <Button disabled={!enabled} onClick={() => { void submit() }}>{action.label}</Button> : null}
-    <Button data-dialog-cancel disabled={transition.busy} onClick={close}>{content ? A.done : A.cancel}</Button>
+    <Button data-dialog-cancel disabled={transition.busy || reportBusy} onClick={close}>{content ? A.done : A.cancel}</Button>
   </Dialog>
 }
 

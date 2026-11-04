@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: after Make it the content, a page that couldn't be updated can be dismissed (and undone), and Finish archiving appears once every page is updated or dismissed.
+
 - Changed: the Goals pages use the new layout; deleting a goal now asks for confirmation; choosing "Use this goal" from a test makes it that test's main goal.
 
 - Fixed: a decided test's results show the numbers recorded at the decision everywhere on the page; results tables scroll sideways on narrow screens with a visible edge.
