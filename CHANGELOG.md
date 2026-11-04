@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: a decided round whose stored winner is missing now says so under Data quality instead of "the winner".
+
 ## [0.3.0-rc.2] - 2026-11-04
 
 ### plugin

@@ -8,11 +8,12 @@ import {
   ignoredCopy, metricUnavailable, moreDays, roundLabel, shareCopy, shippingTitle, srmP, uncappedTotal,
 } from '../copy/results.js'
 import { formatCI, formatCount, formatMetric, formatPercent, formatProbability } from './format.js'
+import { legacyMinimum, legacyRolloutLine, legacyTooFew } from './legacy.js'
+import { isLegacySnapshot, type DisplaySnapshot } from './snapshot.js'
 
 type Metric = Snapshot['metrics'][number]
 type Arm = Metric['perArm'][number]
 type Decision = { phase: number; winnerArm?: string }
-type DisplaySnapshot = Snapshot
 
 export function defaultRound({ phases, decision, status }: Pick<ResultsResponse, 'phases'> & {
   decision?: Decision | null; status: Status
@@ -30,7 +31,7 @@ export type VerdictCardModel =
   | { headline: string; detail: string; guardrailLine?: string }
 
 export function verdictCard({ snapshot, decisionSnapshot, isDecidedTestRound, winnerLabel }: {
-  snapshot: Snapshot; decisionSnapshot?: Snapshot; isDecidedTestRound: boolean; winnerLabel: string
+  snapshot: DisplaySnapshot; decisionSnapshot?: DisplaySnapshot; isDecidedTestRound: boolean; winnerLabel: string
 }): VerdictCardModel {
   if (isDecidedTestRound) return {
     title: decidedTitle(winnerLabel), finding: decisionSnapshot?.verdict.finding ?? null,
@@ -42,11 +43,12 @@ export function verdictCard({ snapshot, decisionSnapshot, isDecidedTestRound, wi
 
 export function rolloutLine(snapshot: DisplaySnapshot, phase: PhaseSummary, phases: PhaseSummary[], decision?: Pick<Decision, 'winnerArm'>): string | null {
   if (snapshot.phaseKind !== 'rollout') return null
-  const newestRollout = phases.filter(phase => phase.phaseKind === 'rollout').reduce<number | null>(
-    (latest, phase) => latest === null || phase.phase > latest ? phase.phase : latest, null,
-  )
-  const winner = snapshot.winnerArm ?? (snapshot.phase === newestRollout ? decision?.winnerArm : undefined)
-  return shippingTitle(winner ? phase.arms.find(arm => arm.key === winner)?.label ?? armLabel(winner) : RESULTS_COPY.shippedGroup)
+  return isLegacySnapshot(snapshot) ? legacyRolloutLine(snapshot, phase, phases, decision) : currentRolloutLine(snapshot, phase)
+}
+
+function currentRolloutLine(snapshot: Snapshot, phase: PhaseSummary): string | null {
+  return snapshot.winnerArm === null ? null
+    : shippingTitle(phase.arms.find(arm => arm.key === snapshot.winnerArm)?.label ?? armLabel(snapshot.winnerArm))
 }
 
 export interface CappedCellModel { statistic: string; totalLine?: string; cappedLine?: string; notice?: string }
@@ -73,7 +75,7 @@ export interface ArmRow {
   key: string; label: string; n: string; value: string; capped: CappedCellModel
   rate?: string; lift?: string; chanceToWin?: string; baseline?: string; comparison?: ComparisonModel
 }
-export function armRows({ snapshot, phase, metricId }: { snapshot: Snapshot; phase: PhaseSummary; metricId: DocId }): ArmRow[] {
+export function armRows({ snapshot, phase, metricId }: { snapshot: DisplaySnapshot; phase: PhaseSummary; metricId: DocId }): ArmRow[] {
   const metric = snapshot.metrics.find(metric => metric.metricId === metricId)
   return phase.arms.map(group => {
     const arm = metric?.perArm.find(arm => arm.arm === group.key)
@@ -102,7 +104,7 @@ export function armRows({ snapshot, phase, metricId }: { snapshot: Snapshot; pha
   })
 }
 
-export function guardrailChips(snapshot: Snapshot) {
+export function guardrailChips(snapshot: DisplaySnapshot) {
   return snapshot.guardrails.map(guardrail => ({
     name: snapshot.metrics.find(metric => metric.metricId === guardrail.metricId)?.name ?? '—',
     status: RESULTS_COPY.guardrails[guardrail.status],
@@ -123,7 +125,7 @@ export interface ResultsContext {
   status?: string; phase?: PhaseSummary; minExposuresPerArm?: number
   inLayer?: boolean; layerSlices?: number | readonly number[]; allocation?: number
 }
-function comparedKeys(snapshot: Snapshot, phase?: PhaseSummary): string[] {
+function comparedKeys(snapshot: DisplaySnapshot, phase?: PhaseSummary): string[] {
   return phase ? phase.arms.filter(arm => arm.kind !== 'holdout' || snapshot.phaseKind === 'rollout').map(arm => arm.key)
     : Object.keys(snapshot.exposures.perArm).filter(key => key !== 'holdout' || snapshot.phaseKind === 'rollout')
 }
@@ -139,7 +141,7 @@ export function collectingLine({ snapshot, phaseKind }: RoundLineInput, ctx: Res
   const primary = snapshot.metrics.find(metric => metric.role === 'primary')
   return collectingCopy(
     formatCount(smallest(keys.map(key => snapshot.exposures.perArm[key]))),
-    formatCount(snapshot.minExposuresPerArm ?? ctx.minExposuresPerArm),
+    formatCount(isLegacySnapshot(snapshot) ? legacyMinimum(snapshot, ctx) : snapshot.minExposuresPerArm),
     formatCount(smallest(keys.map(key => primary?.perArm.find(arm => arm.arm === key)?.converters))),
     formatCount(primary ? snapshot.params.minSampleSizes[primary.metricId] : undefined),
   )
@@ -151,6 +153,10 @@ export function dataQuality(snapshot: DisplaySnapshot, ctx: ResultsContext = {})
     id: `${item.code}:${item.path}`, message: READINESS_COPY.needsAttention,
     nextStep: item.code === 'version-page-unavailable' ? versionPageUnavailableCopy(item.path, ctx.status) : versionPageUncheckedCopy(item.path, ctx.status),
   }))
+  // Test snapshots store null by design; only rollout snapshots record the shipped winner.
+  if (!isLegacySnapshot(snapshot) && snapshot.phaseKind === 'rollout' && snapshot.winnerArm === null) items.push({
+    id: 'missing-winner', message: RESULTS_COPY.missingWinner, nextStep: RESULTS_COPY.missingWinnerNext,
+  })
   const srmTotal = Object.keys(snapshot.srm.expected).reduce((total, key) => total + (snapshot.exposures.perArm[key] ?? 0), 0)
   if (snapshot.srm.flagged) items.push({
     id: 'srm', message: srmP(formatProbability(snapshot.srm.p)), nextStep: RESULTS_COPY.srm,
@@ -170,7 +176,8 @@ export function dataQuality(snapshot: DisplaySnapshot, ctx: ResultsContext = {})
   if (exposures.identityConflictShare > 0) items.push({
     id: 'identity', message: RESULTS_COPY.identity, detail: conflictCopy(formatPercent(exposures.identityConflictShare)), nextStep: RESULTS_COPY.identityNext,
   })
-  if (snapshot.verdict.code === 'collecting' || snapshot.verdict.code === 'rollout-collecting') items.push({
+  if (isLegacySnapshot(snapshot) ? legacyTooFew(snapshot)
+    : snapshot.verdict.code === 'collecting' || snapshot.verdict.code === 'rollout-collecting') items.push({
     id: 'too-few', message: RESULTS_COPY.tooFew, nextStep: RESULTS_COPY.tooFewNext,
   })
   const slices = typeof ctx.layerSlices === 'number' ? ctx.layerSlices : ctx.layerSlices?.length
@@ -183,4 +190,4 @@ export function dataQuality(snapshot: DisplaySnapshot, ctx: ResultsContext = {})
   return items
 }
 
-export function verdictLabel(snapshot: Snapshot): string { return verdictCodeLabel(snapshot.verdict.code) }
+export function verdictLabel(snapshot: DisplaySnapshot): string { return verdictCodeLabel(snapshot.verdict.code) }

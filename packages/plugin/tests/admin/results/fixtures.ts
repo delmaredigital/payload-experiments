@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { URL as NodeURL } from 'node:url'
 import type { PhaseSummary } from '../../../src/types/endpoints.js'
 import type { Snapshot, VerdictCode } from '../../../src/types/snapshot.js'
+import type { LegacySnapshot } from '../../../src/admin/results/snapshot.js'
 
 type Check = (value: unknown, path: string) => void
 function fail(path: string): never { throw new Error(`Incomplete snapshot: ${path}`) }
@@ -79,6 +80,12 @@ export function fixture(name: string): Snapshot {
   return structuredClone(snapshot)
 }
 
+/** History predating both CORE-15a additions, deliberately outside the writer's current shape. */
+export function legacyFixture(name: string): LegacySnapshot {
+  const { winnerArm: _winner, minExposuresPerArm: _minimum, ...snapshot } = fixture(name)
+  return snapshot
+}
+
 export function makeSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
   return { ...fixture('T7'), ...overrides } satisfies Snapshot
 }
@@ -95,7 +102,7 @@ export function revenueSnapshot(): Snapshot {
   return snapshot
 }
 
-export function phaseFor(snapshot: Snapshot): PhaseSummary {
+export function phaseFor(snapshot: Pick<Snapshot, 'phase' | 'phaseKind' | 'window' | 'srm' | 'metrics'>): PhaseSummary {
   const labels: Record<string, string> = { control: 'Original form', variantA: 'Shorter form', variantB: 'One page form', variantC: 'Friendly form', holdout: 'Unchanged form' }
   return {
     phase: snapshot.phase, phaseKind: snapshot.phaseKind, startedAt: snapshot.window.from, endedAt: null,
