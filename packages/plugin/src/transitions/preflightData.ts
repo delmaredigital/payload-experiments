@@ -7,6 +7,8 @@ import type { PreflightResult } from '../types/endpoints.js'
 import { checkStart, relationshipId } from './checkStart.js'
 import type { CheckStartInput, PlacementFailure, StartExperiment, StartMetric } from './checkStart.js'
 import { flagPlacements, scanBlockPlacements, type BlockPlacement } from './placements.js'
+import { routedPageTests } from '../db/pageOccupancy.js'
+import { pooledExecutor, txExecutor } from '../db/executor.js'
 
 export interface PreflightDependencies {
   now?: Date
@@ -28,17 +30,10 @@ export async function loadStartInputs<TUser extends { id: DocId }>(req: PayloadR
   return (await loadStartInputsBatch(req, options, [experiment])).get(String(experiment.id)) ?? null
 }
 
-/** Access-checked occupancy, shared by preflight and Start's locked recheck. */
+/** Occupancy from the arms the runtime routes on (frozen rounds), shared by preflight and
+ * Start's locked recheck. Raw SQL on the request's transaction when there is one. */
 export async function loadPageTestsInUse(req: PayloadRequest): Promise<NonNullable<CheckStartInput['pageTestsInUse']>> {
-  const tests: NonNullable<CheckStartInput['pageTestsInUse']> = []
-  let page = 1
-  while (true) {
-    const result = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 100, page,
-      where: { and: [{ kind: { equals: 'page' } }, { status: { in: ['running', 'decided'] } }] } })
-    tests.push(...result.docs as unknown as NonNullable<CheckStartInput['pageTestsInUse']>)
-    if (!result.hasNextPage) return tests
-    page++
-  }
+  return routedPageTests(await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload))
 }
 
 const metricIds = (experiment: StartExperiment) => [experiment.metrics?.primary, ...experiment.metrics?.secondary ?? [], ...experiment.metrics?.guardrails ?? []]

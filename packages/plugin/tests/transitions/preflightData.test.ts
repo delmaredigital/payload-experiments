@@ -1,6 +1,7 @@
 import { expect, test, vi } from 'vitest'
 import type { PowerWeeksInput } from '@delmaredigital/experiments-stats'
-import { preflightData, loadStartInputs, loadStartInputsBatch } from '../../src/transitions/preflightData.js'
+import { preflightData, loadStartInputs, loadStartInputsBatch, loadPageTestsInUse } from '../../src/transitions/preflightData.js'
+import { createFakeExecutor } from '../_fakes/executor.js'
 import { fakeReq } from '../_fakes/req.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { sampleOptions } from '../collections/fixtures.js'
@@ -12,16 +13,16 @@ const rows = [
   { unitId: 'a', value: 4, ts: new Date('2026-10-11') },
   { unitId: 'b', value: 10, ts: new Date('2026-10-12') },
 ]
-function setup(kind: 'binomial' | 'count' | 'revenue' = 'binomial', reach: number | null = 100) {
+function setup(kind: 'binomial' | 'count' | 'revenue' = 'binomial', reach: number | null = 100, executor = createFakeExecutor()) {
   const options = sampleOptions()
   const query = vi.fn(async () => rows)
   options.metricSources!.find(source => source.id === kind)!.query = query
-  const payload = fakePayload({ collections: {
+  const payload = fakePayload({ executor, collections: {
     'xp-experiments': [{ id: 1, slug: 'hero', kind: 'code', status: 'draft', unitType: 'visitor', arms: defaultArms('code'), allocation: 50,
       exposurePolicy: 'manual', metrics: { primary: 2 }, analysis: { plannedDurationDays: 14, reachPerDay: reach } }],
     'xp-metrics': [{ id: 2, source: kind }],
   } })
-  return { options, payload, query, req: fakeReq({ payload }) }
+  return { options, payload, query, executor, req: fakeReq({ payload }) }
 }
 test.each(['binomial', 'count', 'revenue'] as const)('28-day %s baseline aggregates distinct eventful units', async kind => {
   const { options, req, query, payload } = setup(kind)
@@ -135,17 +136,50 @@ test('a binomial rate of 1 or more (reachPerDay below the converters) gives no b
 })
 
 
-test('page drafts share one paginated occupancy scan with the existing access posture', async () => {
-  const { req, payload, options } = setup()
+test('page drafts share one SQL occupancy scan with no Local API occupancy read', async () => {
+  const occupancy = Array.from({ length: 101 }, (_, n) => ({
+    id: n + 2, arms: defaultArms('page').map(arm => ({ ...arm, pageTarget: n === 100 ? '/shared/' : `/page-${n}` })),
+  }))
+  const executor = createFakeExecutor({ results: [{ rows: occupancy }] })
+  const { req, payload, options } = setup('binomial', 100, executor)
   const draft = payload.documents['xp-experiments']![0]!
   Object.assign(draft, { kind: 'page', arms: defaultArms('page').map(arm => ({ ...arm, pageTarget: '/shared' })) })
   const peer = { ...draft, id: 200, slug: 'second' }
-  payload.documents['xp-experiments']!.push(peer, ...Array.from({ length: 101 }, (_, n) => ({
-    id: n + 2, kind: 'page', status: n % 2 ? 'running' : 'decided', arms: defaultArms('page').map(arm => ({ ...arm, pageTarget: n === 100 ? '/shared/' : `/page-${n}` })),
-  })))
+  payload.documents['xp-experiments']!.push(peer)
   const inputs = await loadStartInputsBatch(req, options, [draft, peer] as unknown as import('../../src/transitions/checkStart.js').StartExperiment[])
   expect(inputs.get('1')!.pageTestsInUse).toHaveLength(101)
   expect(inputs.get('200')!.pageTestsInUse).toBe(inputs.get('1')!.pageTestsInUse)
-  expect(payload.calls.filter(call => call.args.collection === 'xp-experiments').map(call => call.args.page)).toEqual([1, 2])
-  expect(payload.calls.every(call => call.args.overrideAccess === false && call.args.req === req)).toBe(true)
+  expect(executor.calls).toHaveLength(1)
+  expect(executor.calls[0]!.text).toContain('JOIN LATERAL')
+  expect(payload.calls.filter(call => call.args.collection === 'xp-experiments' || call.args.collection === 'xp-phases')).toEqual([])
+})
+
+
+test.each([false, true])('occupancy uses the request session with a promised transaction id: %s', async promised => {
+  const pool = createFakeExecutor({ results: [{ rows: [{ id: 2, arms: [] }] }] })
+  const session = createFakeExecutor({ results: [{ rows: [{ id: 3, arms: defaultArms('page') }] }] })
+  const payload = fakePayload({ executor: pool })
+  const req = session.withSession({ payload, transactionID: 'occupancy-tx' })
+  if (promised) req.transactionID = Promise.resolve('occupancy-tx')
+  expect(await loadPageTestsInUse(req)).toEqual([{ id: 3, arms: defaultArms('page') }])
+  expect(session.calls).toHaveLength(1)
+  expect(pool.calls).toEqual([])
+  expect(payload.calls).toEqual([])
+})
+
+test('occupancy without a transaction uses the pool with no Local API read', async () => {
+  const executor = createFakeExecutor({ results: [{ rows: [{ id: 2, arms: defaultArms('page') }] }] })
+  const payload = fakePayload({ executor })
+  expect(await loadPageTestsInUse(fakeReq({ payload }))).toEqual([{ id: 2, arms: defaultArms('page') }])
+  expect(executor.calls).toHaveLength(1)
+  expect(payload.calls).toEqual([])
+})
+
+test('occupancy with a missing transaction session throws without falling back to the pool', async () => {
+  const executor = createFakeExecutor()
+  const payload = fakePayload({ executor })
+  const req = fakeReq({ payload, transactionID: 'missing-session' })
+  await expect(loadPageTestsInUse(req)).rejects.toMatchObject({ name: 'XpNoTransactionError' })
+  expect(executor.calls).toEqual([])
+  expect(payload.calls).toEqual([])
 })

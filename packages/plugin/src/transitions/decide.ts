@@ -6,6 +6,7 @@ import type { Arm, DocId } from '../types/contracts.js'
 import type { DecideBody } from '../types/endpoints.js'
 import type { Snapshot } from '../types/snapshot.js'
 import { lockPagePaths } from '../db/locks.js'
+import { routedPageTests } from '../db/pageOccupancy.js'
 import { pageTargetPaths, relationshipId } from './checkStart.js'
 import { expectedConfirm, matchesConfirm, storedWinnerLabel } from './confirmPhrases.js'
 import { withTransition } from './kernel.js'
@@ -33,10 +34,8 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
       // The frozen test-round arms are what decide restores; the stopped document's arms may have been edited.
       const mine = pageTargetPaths(test.arms as Arm[])
       await lockPagePaths(exec, mine)
-      // §7.8: recheck page occupancy under its lock before restoring live routing.
-      const live = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: true, depth: 0, limit: 0,
-        where: { and: [{ kind: { equals: 'page' } }, { status: { in: ['running', 'decided'] } }] } })
-      const occupied = new Set(live.docs.filter(doc => String(doc.id) !== String(experimentId)).flatMap(doc => pageTargetPaths(doc.arms as Arm[])))
+      // Other tests' routed (frozen-round) arms, as the runtime matches them.
+      const occupied = new Set((await routedPageTests(exec)).filter(other => String(other.id) !== String(experimentId)).flatMap(other => pageTargetPaths(other.arms)))
       const shared = mine.filter(path => occupied.has(path))
       if (shared.length) refuse('page-in-use', { paths: shared })
     }

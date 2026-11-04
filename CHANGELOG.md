@@ -11,7 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-- Fixed: a whole-page test can't start while another running or decided test uses one of its pages, so visitors are never counted for a page they didn't see. Deciding a stopped whole-page test is refused the same way if another test has since started on its pages. Migration impact: none; hosts switching exhaustively on ReadinessCode add 'page-in-use'.
+- Fixed: a whole-page test can't start while another running or decided test uses one of its pages, so visitors are never counted for a page they didn't see. Deciding a stopped whole-page test is refused the same way if another test has since started on its pages. A page an archived test still sends to its winner counts as in use until you release its pages or discard its result. Migration impact: none; hosts switching exhaustively on ReadinessCode add 'page-in-use'.
 - Fixed: Preview opens its new tab in Safari and other browsers that block pop-ups opened after a delay; a refused preview shows plain-language copy instead of the server's message.
 - Added: `admin.previewUrl` may be async and receives the placement's title, published state and slug; returning null hides preview for that placement, and the admin never shows "Preview isn't set up". The old `({ collection, id }) => string` form still works, and several slots on one page version share one lookup. Migration impact: none.
 - Fixed: an event recorded in a visitor's own browser is always credited to that visitor when they saw the test, even if their link to a signed-in account can't be used. Migration impact: none.

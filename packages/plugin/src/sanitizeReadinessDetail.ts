@@ -21,9 +21,11 @@ export function sanitizeReadinessDetail(code: ReadinessCode, detail: unknown): u
         ? { rules: detail.rules } : undefined
     case 'no-placements':
       return failure(detail) ? detail : undefined
-    case 'page-in-use':
-      return object(detail) && Array.isArray(detail.paths) && detail.paths.length && detail.paths.every(path)
-        ? { paths: detail.paths } : undefined
+    case 'page-in-use': {
+      if (!object(detail) || !Array.isArray(detail.paths)) return undefined
+      const paths = detail.paths.filter(path)
+      return paths.length ? { paths } : undefined
+    }
     case 'page-target-unpublished':
       // Paths only: no query, fragment, whitespace, URL authority or encoded text.
       return path(detail) ? detail : undefined

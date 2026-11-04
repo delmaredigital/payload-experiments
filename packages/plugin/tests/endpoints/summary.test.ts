@@ -7,6 +7,7 @@ import { sanitizeReadinessDetail } from '../../src/endpoints/sanitizeReadinessDe
 import { ARM_CHECK_ORDER, checkStart, type ReadinessCode } from '../../src/transitions/checkStart.js'
 import { loadStartInputsBatch } from '../../src/transitions/preflightData.js'
 import type { StartExperiment } from '../../src/transitions/checkStart.js'
+import { createFakeExecutor } from '../_fakes/executor.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
 import { sampleOptions } from '../collections/fixtures.js'
@@ -65,7 +66,9 @@ function readinessSetup() {
     exposurePolicy: kind === 'block' ? 'render' : 'manual', flagPoint: kind === 'flag' ? 'cta' : undefined,
     arms: defaultArms(kind), analysis: { plannedDurationDays: 28, reachPerDay: 100 }, metrics: { primary: 2 },
   })
-  const payload = fakePayload({ overrides: { findGlobal }, collections: {
+  const occupancy: Array<{ id: string; arms: import('../../src/types/contracts.js').Arm[] }> = []
+  const executor = createFakeExecutor({ results: [{ rows: occupancy }] })
+  const payload = fakePayload({ executor, overrides: { findGlobal }, collections: {
     'xp-experiments': [draft('one'), draft('two'), draft('flag', 'flag')],
     'xp-metrics': [{ id: 2, source: 'binomial' }],
     pages: [{ id: 10, _status: 'published', puckData: { content: ['one', 'two'].map(experiment => ({
@@ -74,7 +77,7 @@ function readinessSetup() {
   } })
   vi.mocked(newestSnapshotIds).mockResolvedValue([])
   const req = fakeReq({ payload, user: { id: 1 }, url: 'http://localhost/summary?ids=one,two,flag' })
-  return { options, payload, req, placements, findGlobal }
+  return { options, payload, req, placements, findGlobal, executor, occupancy }
 }
 
 test('two block drafts share one scan; a flag draft shares metrics and state and all three are ready', async () => {
@@ -378,11 +381,11 @@ test('sanitizer accepts identifiers and paths up to 128 characters and drops abs
 
 
 test('summary next contains only normalised shared page paths and page drafts share the occupancy read', async () => {
-  const { options, req, payload } = readinessSetup()
+  const { options, req, payload, occupancy, executor } = readinessSetup()
   const drafts = payload.documents['xp-experiments']!.slice(0, 2)
   for (const draft of drafts) Object.assign(draft, { kind: 'page', exposurePolicy: 'pageview',
     arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/variant/' : '/original/' })) })
-  payload.documents['xp-experiments']!.push({ id: 'occupied', kind: 'page', status: 'decided', name: 'secret-value',
+  occupancy.push({ id: 'occupied',
     arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/unshared' : '/original' })) })
   const body = await (await handleSummary(req, { options })).json()
   for (const id of ['one', 'two']) {
@@ -390,6 +393,17 @@ test('summary next contains only normalised shared page paths and page drafts sh
     expect(body[id].next).toEqual({ code: 'page-in-use', detail: { paths: ['/original'] } })
   }
   expect(JSON.stringify(body)).not.toContain('secret-value')
-  // ids, one page occupancy scan, one flag occupancy scan.
-  expect(payload.calls.filter(call => call.args.collection === 'xp-experiments')).toHaveLength(3)
+  // The Local API reads only requested ids and flag occupancy; page occupancy uses SQL once.
+  expect(payload.calls.filter(call => call.args.collection === 'xp-experiments')).toHaveLength(2)
+  expect(payload.calls.filter(call => call.args.collection === 'xp-phases')).toEqual([])
+  expect(executor.calls).toHaveLength(1)
+  expect(executor.calls[0]!.text).toContain('JOIN LATERAL')
+})
+
+test('page-in-use detail keeps valid paths when other paths are rejected', () => {
+  expect(sanitizeReadinessDetail('page-in-use', {
+    paths: ['/original', '/about.html', '/encoded%20path', '/~user', '/variant', '//host', '/query?secret', '/fragment#secret', '/white space', `/${'a'.repeat(128)}`, null, 123],
+    title: 'secret-value',
+  })).toEqual({ paths: ['/original', '/variant'] })
+  expect(sanitizeReadinessDetail('page-in-use', { paths: ['/about.html', '/encoded%20path', '/~user'] })).toBeUndefined()
 })

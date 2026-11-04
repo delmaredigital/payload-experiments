@@ -2,6 +2,8 @@ import { commitTransaction, createLocalReq, initTransaction, killTransaction, ty
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { txExecutor } from '../src/db/executor.js'
 import { defaultArms } from '../src/collections/experiments/armInvariants.js'
+import { stop } from '../src/transitions/stop.js'
+import { decide } from '../src/transitions/decide.js'
 import { start } from '../src/transitions/start.js'
 import { sampleOptions } from '../tests/collections/fixtures.js'
 import { createIntegrationHarness } from './harness.js'
@@ -89,4 +91,20 @@ test('concurrent starts on the same normalized paths wait and exactly one succee
     await Promise.allSettled([pending])
     await killTransaction(second.req)
   }
+})
+
+
+test('deciding after a stopped document edit occupies the frozen pages and leaves edited pages free', async () => {
+  const a = await pageTest('/stopped-edit-x')
+  await start(await request(), { experimentId: a.id, options })
+  await stop(await request(), { experimentId: a.id })
+  await harness.payload.update({ collection: 'xp-experiments', id: a.id, overrideAccess: true,
+    data: { arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/stopped-edit-y/variant/' : '/stopped-edit-y/' })) } })
+  await decide(await request(), { experimentId: a.id, winnerArm: 'control', confirmation: 'Original', note: 'Keep the tested Original' })
+  const b = await pageTest('/stopped-edit-x'), c = await pageTest('/stopped-edit-y')
+  await expect(start(await request(), { experimentId: b.id, options })).rejects.toMatchObject({
+    code: 'page-in-use', detail: { paths: ['/stopped-edit-x', '/stopped-edit-x/variant'] },
+  })
+  expect((await harness.payload.findByID({ collection: 'xp-experiments', id: b.id, overrideAccess: true })).status).toBe('draft')
+  await expect(start(await request(), { experimentId: c.id, options })).resolves.toMatchObject({ doc: { status: 'running' } })
 })

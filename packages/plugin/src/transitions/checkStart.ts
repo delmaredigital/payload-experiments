@@ -97,7 +97,7 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('no-reach-per-day', !['manual', 'viewport'].includes(e.exposurePolicy) || positive(e.analysis?.reachPerDay))
   add('page-no-targets', e.kind !== 'page' || e.arms.filter(arm => arm.kind !== 'holdout').every(arm => typeof arm.pageTarget === 'string' && arm.pageTarget.trim().length > 0))
   const occupiedPaths = new Set((input.pageTestsInUse ?? []).filter(other => String(other.id) !== String(e.id))
-    .flatMap(other => other.arms.flatMap(arm => typeof arm.pageTarget === 'string' ? [normalisePath(arm.pageTarget)] : [])))
+    .flatMap(other => pageTargetPaths(other.arms)))
   const sharedPaths = e.kind === 'page' ? pageTargetPaths(e.arms).filter(path => occupiedPaths.has(path)) : []
   add('page-in-use', sharedPaths.length === 0, { paths: sharedPaths })
   add('page-target-unpublished', !input.unpublishedPageTargets?.length, input.unpublishedPageTargets?.[0])
