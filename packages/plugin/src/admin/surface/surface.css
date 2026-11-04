@@ -43,7 +43,6 @@
 .xp-tests-group-chevron { align-self: center; color: var(--xp-text-3); }
 .xp-tests-group[open] .xp-tests-group-chevron { transform: rotate(90deg); }
 .xp-tests-group > summary + .xp-tests-list { margin-top: 10px; }
-.xp-tests-limited { margin-top: var(--xp-space-4); color: var(--xp-text-2); font: var(--xp-text-small); }
 .xp-tests-no-matches { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xp-space-2); }
 .xp-tests-no-matches p { margin: 0; }
 @media (max-width: 720px) {

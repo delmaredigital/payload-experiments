@@ -6,7 +6,7 @@ import type { ExperimentRef } from '../types/puck.js'
 import { usePuckRoutes } from './hostContext.js'
 import { pickerCopy } from './copy.js'
 
-type ExperimentOption = ExperimentRef & { name: string; status: keyof typeof pickerCopy.statuses }
+type ExperimentOption = ExperimentRef & { name: string; updatedAt?: string; status: keyof typeof pickerCopy.statuses }
 type LoadState = 'loading' | 'ready' | 'error' | 'forbidden'
 
 function isExperimentOption(value: unknown): value is ExperimentOption {
@@ -32,7 +32,7 @@ export function ExperimentPicker({ value, onChange }: {
     const controller = new AbortController()
     async function load() {
       try {
-        const response = await fetchAllDocs<unknown>(`${api}/xp-experiments?where[kind][equals]=block&depth=0&sort=-updatedAt`, {
+        const response = await fetchAllDocs<unknown>(`${api}/xp-experiments?where[kind][equals]=block&depth=0&sort=id`, {
           credentials: 'include', signal: controller.signal,
         })
         if (!active) return
@@ -40,7 +40,7 @@ export function ExperimentPicker({ value, onChange }: {
           setState(response.status === 403 ? 'forbidden' : 'error')
           return
         }
-        setExperiments(response.docs.filter(isExperimentOption))
+        setExperiments(response.docs.filter(isExperimentOption).sort((a, b) => (Date.parse(b.updatedAt ?? '') || 0) - (Date.parse(a.updatedAt ?? '') || 0)))
         setState('ready')
       } catch {
         if (active) setState('error')
@@ -55,12 +55,12 @@ export function ExperimentPicker({ value, onChange }: {
   const visible = experiments.filter(doc => String(doc.id) === selected ||
     doc.name.toLocaleLowerCase('en-US').includes(query) || doc.slug.toLocaleLowerCase('en-US').includes(query))
   return <div className="xp-ui-field">
-    <label htmlFor={id}>{pickerCopy.label}</label>
     {experiments.length > 8 ? <div className="xp-ui-field">
       <label htmlFor={`${id}-search`}>{pickerCopy.search}</label>
       <input id={`${id}-search`} type="search" className="xp-ui-input" value={search}
-        placeholder={pickerCopy.search} onChange={event => setSearch(event.currentTarget.value)} />
+        onChange={event => setSearch(event.currentTarget.value)} />
     </div> : null}
+    <label htmlFor={id}>{pickerCopy.label}</label>
     <select id={id} className="xp-ui-input xp-ui-select" value={selected} disabled={state === 'loading'} /* stays enabled on error so a saved experiment can still be unbound */ onChange={event => {
       const experiment = experiments.find(doc => String(doc.id) === event.currentTarget.value)
       onChange(experiment ? { id: experiment.id, slug: experiment.slug } : null)

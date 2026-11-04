@@ -76,7 +76,7 @@ test('stale selection does not show a matching key from another experiment; Clea
 })
 test('403 displays the agreed access state', async () => {
   fields()
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 403 })))
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 403 })))
   render(<ArmSelectField path="rows.0.tag" field={field} />)
   expect(await screen.findByText("You can't see tests. Ask an admin.")).toBeTruthy()
   expect(screen.queryByLabelText('Group')).toBeNull()

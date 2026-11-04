@@ -16,7 +16,7 @@ import { groupTests, homeCard } from './home.model.js'
 import type { HomeTest } from './home.model.js'
 import type { ReadinessContext } from './readiness/readiness.model.js'
 
-const HOME_FIELDS = ['name', 'kind', 'status', 'analysis', 'arms', 'decidedAt', 'decision', 'unitType', 'flagPoint'] as const
+const HOME_FIELDS = ['name', 'kind', 'status', 'analysis', 'arms', 'decidedAt', 'decision', 'unitType', 'flagPoint', 'updatedAt'] as const
 // Typecheck fails if HomeTest gains a field the list request does not select (Payload always returns id).
 const homeFieldsComplete: Exclude<keyof HomeTest, 'id'> extends (typeof HOME_FIELDS)[number] ? true : never = true
 void homeFieldsComplete
@@ -38,11 +38,11 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, fla
     setState({ loading: true })
     async function load() {
       try {
-        const response = await fetchAllDocs<HomeTest>(`${apiRoute.replace(/\/$/, '')}/xp-experiments?depth=0&sort=-updatedAt&${HOME_SELECT}`, {
+        const response = await fetchAllDocs<HomeTest>(`${apiRoute.replace(/\/$/, '')}/xp-experiments?depth=0&sort=id&${HOME_SELECT}`, {
           credentials: 'include', signal: controller.signal,
         })
         if (!response.ok) throw new Error('list')
-        const { docs } = response
+        const docs = response.docs.sort((a, b) => (Date.parse(b.updatedAt ?? '') || 0) - (Date.parse(a.updatedAt ?? '') || 0))
         if (!active) return
         const summary = await api.summary(docs.map(doc => doc.id))
         if (active) setState({ loading: false, error: false, tests: docs,

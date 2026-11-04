@@ -189,7 +189,7 @@ test('a used goal locks its short name and disables Delete with its usage count'
 })
 test('usage on later pages also locks the short name', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response(!url.includes('/xp-experiments?') ? goal : url.endsWith('page=1')
-    ? { docs: [], hasNextPage: true } : { docs: [{ id: 1, metrics: { primary: 7 } }] })))
+    ? { docs: [{ id: 2, metrics: {} }], hasNextPage: true } : { docs: [{ id: 1, metrics: { primary: 7 } }] })))
   render(<GoalForm surface={surface} id="7" />)
   expect((await screen.findByLabelText('Short name') as HTMLInputElement).readOnly).toBe(true)
   expect(screen.getByText('Used by 1 test. Remove it from those tests first.')).toBeTruthy()

@@ -1,4 +1,5 @@
 'use client'
+import { fetchAllDocs } from '../../../lib/fetchAllDocs.js'
 import { Button } from '../../../ui/Button.js'
 import { useEffect, useState } from 'react'
 import { formatAdminURL } from 'payload/shared'
@@ -21,18 +22,11 @@ export function GoalSection({ test, surface }: SectionProps) {
       try {
         await Promise.resolve()
         if (controller.signal.aborted) return
-        const all: Metric[] = []
-        let page = 1
-        for (;;) {
-          const response = await fetch(`${surface.apiRoute.replace(/\/$/, '')}/xp-metrics?depth=0&limit=100&page=${page}`, { credentials: 'include', signal: controller.signal })
-          if (!response.ok) throw new Error()
-          const body = await response.json() as { docs: Metric[]; hasNextPage?: boolean }
-          if (!Array.isArray(body.docs)) throw new Error()
-          all.push(...body.docs)
-          if (!body.hasNextPage) break
-          page++
-        }
-        if (!controller.signal.aborted) { setMetrics(all); setFailed(false); setLoaded(true) }
+        const response = await fetchAllDocs<Metric>(`${surface.apiRoute.replace(/\/$/, '')}/xp-metrics?depth=0`, {
+          credentials: 'include', signal: controller.signal,
+        })
+        if (!response.ok) throw new Error()
+        if (!controller.signal.aborted) { setMetrics(response.docs); setFailed(false); setLoaded(true) }
       } catch { if (!controller.signal.aborted) setFailed(true) }
     })()
     return () => controller.abort()

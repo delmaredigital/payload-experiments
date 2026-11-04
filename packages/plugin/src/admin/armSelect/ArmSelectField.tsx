@@ -1,4 +1,5 @@
 'use client'
+import { fetchAllDocs } from '../../lib/fetchAllDocs.js'
 import { Banner, Button, SelectInput, useConfig, useField } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
 import type { GroupFieldClientProps } from 'payload'
@@ -25,19 +26,11 @@ export function ArmSelectField({ path, field, readOnly }: GroupFieldClientProps)
     if (!point) return
     const controller = new AbortController()
     async function list(statuses: string): Promise<ArmSelectExperiment[]> {
-      const docs: ArmSelectExperiment[] = []
-      let page = 1
-      while (!controller.signal.aborted) {
-        const query = new URLSearchParams({ depth: '0', limit: '100', page: String(page),
-          'where[flagPoint][equals]': point, 'where[status][in]': statuses })
-        const response = await fetch(`${api}/xp-experiments?${query}`, { credentials: 'include', signal: controller.signal })
-        if (!response.ok) throw new Error(response.status === 403 ? ARM_SELECT_COPY.forbidden : ARM_SELECT_COPY.unavailable)
-        const data = await response.json() as { docs: ArmSelectExperiment[]; hasNextPage?: boolean }
-        docs.push(...data.docs)
-        if (!data.hasNextPage) break
-        page++
-      }
-      return docs
+      const query = new URLSearchParams({ depth: '0',
+        'where[flagPoint][equals]': point, 'where[status][in]': statuses })
+      const response = await fetchAllDocs<ArmSelectExperiment>(`${api}/xp-experiments?${query}`, { credentials: 'include', signal: controller.signal })
+      if (!response.ok) throw new Error(response.status === 403 ? ARM_SELECT_COPY.forbidden : ARM_SELECT_COPY.unavailable)
+      return response.docs
     }
     void Promise.all([list('running,decided'), list('draft,stopped')]).then(([live, candidates]) => {
       if (!controller.signal.aborted) { setError(null); setLoaded({ key, live: live[0] ?? null, candidates }) }

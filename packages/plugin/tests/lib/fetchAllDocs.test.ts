@@ -49,3 +49,32 @@ test('non-JSON HTTP errors still retain their status', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Forbidden', { status: 403 })))
   expect(await fetchAllDocs('/items')).toEqual({ ok: false, status: 403, body: undefined })
 })
+
+test('an endless server with empty docs stops immediately (bounded fake)', async () => {
+  const fetch = vi.fn(async () => {
+    if (fetch.mock.calls.length > 3) throw new Error('empty-page guard missing')
+    return response({ docs: [], hasNextPage: true })
+  })
+  vi.stubGlobal('fetch', fetch)
+  expect(await fetchAllDocs('/items')).toEqual({ ok: true, docs: [] })
+  expect(fetch).toHaveBeenCalledOnce()
+})
+test('a server ignoring page stops at totalPages even with hasNextPage true', async () => {
+  const fetch = vi.fn(async () => response({ docs: [{ id: 'one' }], totalPages: 2, hasNextPage: true }))
+  vi.stubGlobal('fetch', fetch)
+  expect(await fetchAllDocs('/items')).toEqual({ ok: true, docs: [{ id: 'one' }] })
+  expect(fetch).toHaveBeenCalledTimes(2)
+})
+test('deduplicates ids across pages, keeping the first document and its id type', async () => {
+  const first = [{ id: 1, name: 'First' }, { id: 'uuid', name: 'UUID' }]
+  const fetch = vi.fn().mockResolvedValueOnce(response({ docs: first, hasNextPage: true }))
+    .mockResolvedValueOnce(response({ docs: [{ id: 1, name: 'Edited' }, { id: 'uuid', name: 'Edited UUID' }, { id: 2 }], hasNextPage: false }))
+  vi.stubGlobal('fetch', fetch)
+  expect(await fetchAllDocs('/items')).toEqual({ ok: true, docs: [...first, { id: 2 }] })
+})
+test('a nonempty endless server fails distinctly at the 1000-page ceiling', async () => {
+  const fetch = vi.fn(async () => response({ docs: [{ id: 1 }], hasNextPage: true }))
+  vi.stubGlobal('fetch', fetch)
+  expect(await fetchAllDocs('/items')).toEqual({ ok: false, status: 0, body: undefined, reason: 'page-limit-exceeded' })
+  expect(fetch).toHaveBeenCalledTimes(1000)
+})

@@ -48,8 +48,8 @@ test('writes the real home and shell, empty and search-empty fixtures', async ()
   for (const path of cssPaths) readFileSync(path)
   mkdirSync(output, { recursive: true })
   const paths: string[] = []
-  for (const state of ['home', 'home-250', 'home-empty', 'home-search-empty'] as const) {
-    const rows: HomeTest[] = state === 'home-empty' ? [] : state === 'home-250'
+  for (const state of ['home', 'home-250', 'home-250-bottom', 'home-empty', 'home-search-empty'] as const) {
+    const rows: HomeTest[] = state === 'home-empty' ? [] : state.startsWith('home-250')
       ? Array.from({ length: 250 }, (_, index) => ({ id: `test-${index + 1}`, name: `Test ${String(index + 1).padStart(3, '0')}`, kind: 'block', unitType: 'visitor', status: 'draft' })) : docs
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       const page = Number(new URL(url, 'https://example.test').searchParams.get('page'))
@@ -59,8 +59,8 @@ test('writes the real home and shell, empty and search-empty fixtures', async ()
     const view = render(<ConfigProvider config={config}><TestsHome adminRoute="/admin" apiRoute="/api" canManage /></ConfigProvider>)
     await waitFor(() => expect(view.queryByText('Loading tests…')).toBeNull())
     if (state === 'home-empty') expect(view.getByText('Create a test to learn what works.')).toBeTruthy()
-    else expect(view.container.querySelectorAll('article')).toHaveLength(state === 'home-250' ? 250 : 8)
-    if (state === 'home-250') { expect(view.getByText('Test 001')).toBeTruthy(); expect(view.getByText('Test 250')).toBeTruthy() }
+    else expect(view.container.querySelectorAll('article')).toHaveLength(state.startsWith('home-250') ? 250 : 8)
+    if (state.startsWith('home-250')) { expect(view.getByText('Test 001')).toBeTruthy(); expect(view.getByText('Test 250')).toBeTruthy() }
     if (state === 'home') {
       expect(view.getByText('Next: Choose a goal.')).toBeTruthy()
       expect(view.getByText('Next: Not on a page yet. Open a page, add an Experiment block and choose this test.')).toBeTruthy()
@@ -69,15 +69,16 @@ test('writes the real home and shell, empty and search-empty fixtures', async ()
       fireEvent.change(view.getByRole('searchbox'), { target: { value: 'newsletter' } })
       expect(view.getByText('No tests match "newsletter".')).toBeTruthy()
     }
+    if (state === 'home-250-bottom') view.getByText('Test 250').closest('article')!.id = 'last-test'
     for (const theme of state === 'home-search-empty' ? ['light'] : ['light', 'dark']) {
       view.container.querySelectorAll('option').forEach(o => o.toggleAttribute('selected', o.selected))
-      const html = `<!DOCTYPE html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Tests — ${theme}</title>${cssPaths.map(path => `<link rel="stylesheet" href="${pathToFileURL(path).href}">`).join('')}<style>body { margin: 0; }</style></head><body>${view.container.innerHTML}</body></html>`
+      const html = `<!DOCTYPE html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Tests — ${theme}</title>${cssPaths.map(path => `<link rel="stylesheet" href="${pathToFileURL(path).href}">`).join('')}<style>body { margin: 0; }</style></head><body>${view.container.innerHTML}${state === 'home-250-bottom' ? '<script>document.getElementById("last-test").scrollIntoView({ block: "end" });</script>' : ''}</body></html>`
       const path = join(output, `${state}-${theme}.html`)
       writeFileSync(path, html)
       paths.push(path)
     }
     cleanup()
   }
-  expect(paths).toHaveLength(7)
+  expect(paths).toHaveLength(9)
   console.log(paths.join('\n'))
 })

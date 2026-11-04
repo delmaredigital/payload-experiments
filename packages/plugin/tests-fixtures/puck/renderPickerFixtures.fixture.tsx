@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { ExperimentPicker } from '../../src/puck/ExperimentPicker.js'
+import { createExperimentSlotField } from '../../src/puck/experimentSlotField.js'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
@@ -17,7 +17,9 @@ test('writes a small sidebar picker fixture with search in light and dark', asyn
     const page = Number(new URL(url, 'https://example.test').searchParams.get('page'))
     return new Response(JSON.stringify({ docs: docs.slice((page - 1) * 100, page * 100), hasNextPage: page < 2 }))
   }))
-  const view = render(<ExperimentPicker value={{ id: 149, slug: 'block-150' }} onChange={() => {}} />)
+  // Render the real sidebar field factory, including its host provider.
+  const field = createExperimentSlotField()
+  const view = render(field.render({ field, value: { id: 149, slug: 'block-150' }, onChange: () => {}, name: 'experiment', id: 'picker-fixture' }))
   await screen.findByRole('option', { name: 'Page block test 150 · Draft' })
   expect(screen.getAllByRole('option')).toHaveLength(151)
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'block-2' } })

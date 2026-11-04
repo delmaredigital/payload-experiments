@@ -24,10 +24,10 @@ test('loading then empty state with the creation and Goals links', async () => {
   const url = new URL(fetch.mock.calls[0]![0], 'https://example.test')
   expect(url.pathname).toBe('/data/xp-experiments')
   expect(Object.fromEntries(url.searchParams)).toEqual({
-    depth: '0', sort: '-updatedAt', limit: '100', page: '1',
+    depth: '0', sort: 'id', limit: '100', page: '1',
     'select[name]': 'true', 'select[kind]': 'true', 'select[status]': 'true',
     'select[analysis]': 'true', 'select[arms]': 'true', 'select[decidedAt]': 'true',
-    'select[decision]': 'true', 'select[unitType]': 'true', 'select[flagPoint]': 'true',
+    'select[updatedAt]': 'true', 'select[decision]': 'true', 'select[unitType]': 'true', 'select[flagPoint]': 'true',
   })
   expect(fetch).toHaveBeenCalledOnce()
   expect(screen.queryByText('Showing the 200 most recent tests.')).toBeNull()
@@ -210,4 +210,23 @@ test('home renders shared readiness sentences, context and safe fallback copy', 
   expect(container.textContent).not.toContain(secret)
   expect(container.textContent).not.toContain('future-check')
   expect(container.textContent).not.toContain('finish setting up')
+})
+
+test('stable paging renders a repeated test once and keeps newest activity first within groups', async () => {
+  const older = { id: 'a', name: 'Older draft', kind: 'flag', status: 'draft', updatedAt: '2026-11-01T00:00:00Z' }
+  const newest = { id: 'b', name: 'Newest draft', kind: 'flag', status: 'draft', updatedAt: '2026-11-03T00:00:00Z' }
+  const middle = { id: 'c', name: 'Middle draft', kind: 'flag', status: 'draft', updatedAt: '2026-11-02T00:00:00Z' }
+  const fetch = vi.fn(async (url: string) => {
+    if (url.includes('/summary?')) return new Response('{}')
+    const params = new URL(url, 'https://example.test').searchParams
+    expect(params.get('sort')).toBe('id')
+    const first = params.get('page') === '1'
+    return new Response(JSON.stringify({ docs: first ? [older, newest] : [{ ...older, name: 'Repeated draft' }, middle], hasNextPage: first }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(<TestsHome adminRoute="/admin" apiRoute="/api" canManage />)
+  await screen.findByText('Middle draft')
+  expect(screen.getAllByRole('article').map(row => row.querySelector('a')?.textContent)).toEqual(['Newest draft', 'Middle draft', 'Older draft'])
+  expect(screen.queryByText('Repeated draft')).toBeNull()
+  expect(fetch.mock.calls[2]?.[0]).toBe('/api/xp/experiments/summary?ids=b,c,a')
 })
