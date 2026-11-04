@@ -28,6 +28,7 @@ function fixture(status = 'draft', layer = false) {
     let rows: unknown[] = []
     let rowCount = 1
     if (text.includes(' AS slices ')) rows = payload.documents['xp-experiments']!.filter(doc => doc.layer === params[0] && ['running', 'decided'].includes(String(doc.status))).map(doc => ({ slices: doc.layerSlices }))
+    if (text.includes('FOR SHARE')) rows = payload.documents['xp-metrics']!.filter(doc => (params[0] as unknown[]).includes(doc.id)).map(doc => ({ id: doc.id, slug: doc.slug, source: doc.source }))
     if (text.includes('txid_current()')) rows = [{ xid: '10' }]
     if (text.includes('txid_status(')) rows = [{ status: 'committed' }]
     if (text.includes('RETURNING "revision"')) rows = [{ revision: ++revision }]
@@ -263,4 +264,41 @@ test('without pages, preflight warns without refusing and start preserves existi
   expect(result!.checks).toContainEqual({ code: 'page-targets-unchecked', ok: true, warning: true })
   expect(result!.checks.every(check => check.ok)).toBe(true)
   expect((await start(req, { experimentId: 1, options })).doc.status).toBe('running')
+})
+
+test('Start locks every frozen goal in sorted order after advisory locks and before writing the phase', async () => {
+  const { req, options, experiment, executor, payload } = fixture()
+  experiment.metrics = { primary: 4, secondary: [2], guardrails: [4] }
+  const query = executor.query
+  executor.query = async (text, params) => {
+    if (text.includes('FOR SHARE')) {
+      expect(req.context.xpTransition).toBe(true)
+      expect(await req.transactionID).toBeDefined()
+      expect(executor.calls.some(call => call.text.includes("hashtext('xp:experiment')"))).toBe(true)
+      expect(payload.documents['xp-phases']).toEqual([])
+      expect(params).toEqual([[2, 4]])
+    }
+    return query(text, params)
+  }
+  await start(req, { experimentId: 1, options })
+  expect(executor.calls.filter(call => call.text.includes('FOR SHARE'))).toHaveLength(1)
+})
+
+test('Start refuses a goal deleted after preflight without freezing its definition', async () => {
+  const { req, options, executor, payload } = fixture()
+  const query = executor.query
+  executor.query = async (text, params) => text.includes('FOR SHARE') ? { rows: [], rowCount: 0 } : query(text, params)
+  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'stale-draft', status: 409 })
+  expect(payload.documents['xp-phases']).toEqual([])
+})
+
+test.each(['slug', 'source'])('Start refuses a goal whose %s changed before the freeze lock', async field => {
+  const { req, options, executor, payload } = fixture()
+  const query = executor.query
+  executor.query = async (text, params) => {
+    if (text.includes('FOR SHARE')) payload.documents['xp-metrics']![0]![field] = 'changed'
+    return query(text, params)
+  }
+  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'stale-draft', status: 409 })
+  expect(payload.documents['xp-phases']).toEqual([])
 })

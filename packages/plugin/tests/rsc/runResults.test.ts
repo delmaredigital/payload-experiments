@@ -7,6 +7,7 @@ import { hash, rolloutBucketRanges } from '@delmaredigital/experiments-stats'
 import { pooledExecutor } from '../../src/db/executor.js'
 import { resultsCandidates } from '../../src/db/snapshots.js'
 import * as snapshotDb from '../../src/db/snapshots.js'
+import * as resultsDb from '../../src/db/results.js'
 import { insertEvents, type EventRow } from '../../src/db/events.js'
 import { insertIdentity } from '../../src/db/identities.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../../src/constants.js'
@@ -145,6 +146,26 @@ test('runResults counts a real analysis failure separately from budget exhaustio
   expect(error.err).not.toBeInstanceOf(Error)
   expect(await snapshots()).toHaveLength(0)
   expect(context.payload.logs.some(log => log.args.includes('Experiment version page lookup failed'))).toBe(false)
+})
+
+test('runResults logs a fixed code and message for an invalid stored exposure timestamp', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed()
+  const context = payload()
+  // Inject a malformed stored row at the reader boundary; PostgreSQL rejects
+  // invalid timestamp text before it could reach the aggregation helpers.
+  vi.spyOn(resultsDb, 'phaseExposureRows').mockResolvedValueOnce([
+    { unitId: 'bad-timestamp', arm: 'control', ts: NaN },
+  ])
+  expect(await runResults(context.payload, { experimentId: phase.experiment, sweep: false })).toMatchObject({
+    ran: 0, skipped: 1, failed: 1, processedIds: [], budgetExhausted: false,
+  })
+  expect(context.payload.logs).toContainEqual({ level: 'error', args: [
+    { err: { name: 'XpAnalysisError', code: 'invalid-timestamp', message: 'Event or exposure timestamp is invalid', stack: expect.stringContaining('at ') }, experimentId: phase.experiment }, 'Experiment results failed',
+  ] })
+  const error = context.payload.logs.find(log => log.level === 'error')!.args[0] as { err: Record<string, unknown> }
+  expect(error.err).not.toBeInstanceOf(Error)
+  expect(await snapshots()).toHaveLength(0)
 })
 
 test('runResults counts a non-budget scheduling failure', async () => {

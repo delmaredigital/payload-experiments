@@ -28,6 +28,7 @@ function fixture(status = 'draft', layer = false) {
     let rows: unknown[] = []
     let rowCount = 1
     if (text.includes(' AS slices ')) rows = payload.documents['xp-experiments']!.filter(doc => doc.layer === params[0] && ['running', 'decided'].includes(String(doc.status))).map(doc => ({ slices: doc.layerSlices }))
+    if (text.includes('FOR SHARE')) rows = payload.documents['xp-metrics']!.filter(doc => (params[0] as unknown[]).includes(doc.id)).map(doc => ({ id: doc.id, slug: doc.slug, source: doc.source }))
     if (text.includes('txid_current()')) rows = [{ xid: '10' }]
     if (text.includes('txid_status(')) rows = [{ status: 'committed' }]
     if (text.includes('RETURNING "revision"')) rows = [{ revision: ++revision }]
@@ -90,4 +91,41 @@ test('rechecks running status after the history query', async () => {
   const { req, options, experiment } = fixture('running')
   options.metricSources!.find(source => source.id === 'revenue')!.query = async () => { experiment.status = 'stopped'; return [] }
   await expect(addMetric(req, { experimentId: 1, metric: 4, role: 'secondary', options })).rejects.toMatchObject({ code: 'invalid-status' })
+})
+
+test('addMetric locks the goal inside the transaction after advisory locks and before appending', async () => {
+  const { req, options, executor, payload } = fixture('running')
+  const query = executor.query
+  executor.query = async (text, params) => {
+    if (text.includes('FOR SHARE')) {
+      expect(req.context.xpTransition).toBe(true)
+      expect(await req.transactionID).toBeDefined()
+      expect(executor.calls.some(call => call.text.includes("hashtext('xp:experiment')"))).toBe(true)
+      expect(payload.documents['xp-phases']![0]!.metricDefinitions).toHaveLength(1)
+      expect(params).toEqual([[4]])
+    }
+    return query(text, params)
+  }
+  await addMetric(req, { experimentId: 1, metric: 4, role: 'secondary', options })
+  expect(executor.calls.filter(call => call.text.includes('FOR SHARE'))).toHaveLength(1)
+})
+
+test('addMetric refuses a goal deleted after its initial lookup without appending it', async () => {
+  const { req, options, executor, payload } = fixture('running')
+  const query = executor.query
+  executor.query = async (text, params) => text.includes('FOR SHARE') ? { rows: [], rowCount: 0 } : query(text, params)
+  await expect(addMetric(req, { experimentId: 1, metric: 4, role: 'secondary', options })).rejects.toMatchObject({ code: 'stale-draft', status: 409 })
+  expect(payload.documents['xp-phases']![0]!.metricDefinitions).toHaveLength(1)
+})
+
+test.each(['slug', 'source'])('addMetric refuses a goal whose %s changed during history lookup', async field => {
+  const { req, options, executor, payload, experiment } = fixture('running')
+  options.metricSources!.find(source => source.id === 'revenue')!.query = async () => {
+    expect(executor.calls).toEqual([])
+    payload.documents['xp-metrics']![1]![field] = 'changed'
+    return []
+  }
+  await expect(addMetric(req, { experimentId: 1, metric: 4, role: 'secondary', options })).rejects.toMatchObject({ code: 'stale-draft', status: 409 })
+  expect(payload.documents['xp-phases']![0]!.metricDefinitions).toHaveLength(1)
+  expect(experiment.metrics).toEqual({ primary: 2 })
 })

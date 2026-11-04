@@ -1,7 +1,13 @@
+import { XpAnalysisError } from '../../src/errors.js'
 import { describe, expect, test } from 'vitest'
-import { firstExposures, perUnitValues } from '../../src/results/aggregate.js'
+import { firstExposures, perUnitValues, timestampMs, type Timestamp } from '../../src/results/aggregate.js'
 
 const at = (hours: number) => new Date(Date.UTC(2026, 9, 30) + hours * 3_600_000)
+
+test.each([undefined, null, true, {}])('rejects unsupported timestamp input %s', ts => {
+  expect(() => timestampMs(ts as Timestamp))
+    .toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
+})
 
 describe('firstExposures', () => {
   test('accepts mixed timestamp formats and returns Date first exposures', () => {
@@ -15,13 +21,13 @@ describe('firstExposures', () => {
   })
 
   test.each([new Date(NaN), 'invalid', NaN, Infinity, 8.64e15 + 1])('rejects invalid timestamps %s', ts => {
-    expect(() => firstExposures([{ unitId: 'a', arm: 'control', ts }])).toThrow(RangeError)
-    expect(() => firstExposures([], { endedAt: ts })).toThrow(RangeError)
+    expect(() => firstExposures([{ unitId: 'a', arm: 'control', ts }])).toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
+    expect(() => firstExposures([], { endedAt: ts })).toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
     expect(() => firstExposures([
       { unitId: 'a', arm: 'control', ts: at(1) },
       { unitId: 'a', arm: 'variantA', ts: at(2) },
       { unitId: 'a', arm: 'control', ts }, // already excluded units must still be validated
-    ])).toThrow(RangeError)
+    ])).toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
   })
 
   test('finds the earliest exposure without relying on input order', () => {
@@ -84,18 +90,18 @@ describe('perUnitValues', () => {
   test.each([0, -1, NaN, Infinity, -Infinity, undefined, null, '2'])(
     'rejects invalid windowHours %s even with empty inputs', windowHours => {
       expect(() => perUnitValues(new Map(), [], { kind: 'count', windowHours: windowHours as number }))
-        .toThrow(RangeError)
+        .toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'window-hours' }))
     },
   )
 
   test.each([new Date(NaN), 'invalid', NaN, Infinity, 8.64e15 + 1])('rejects invalid timestamps %s', ts => {
     const options = { kind: 'revenue', windowHours: 2 } as const
-    expect(() => perUnitValues(new Map(), [], { ...options, endedAt: ts })).toThrow(RangeError)
+    expect(() => perUnitValues(new Map(), [], { ...options, endedAt: ts })).toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
     expect(() => perUnitValues(new Map([['a', { arm: 'control', firstTs: ts }]]), [], options))
-      .toThrow(RangeError)
+      .toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
     // Bad event timestamps are rejected even if their unit was never exposed.
     expect(() => perUnitValues(new Map(), [{ unitId: 'unexposed', value: 1, ts }], options))
-      .toThrow(RangeError)
+      .toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
   })
 
   const units = new Map([

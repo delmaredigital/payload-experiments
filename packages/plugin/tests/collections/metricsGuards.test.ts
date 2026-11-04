@@ -12,7 +12,7 @@ const originalDoc = { id: 17, name: 'Signups', slug: 'signups', source: 'events:
 const deleteMessage = 'This goal is used by the test "Signup test". Remove it from the test first.'
 const changeMessage = "This goal is used by a test, so its short name and what it measures can't change. Create a new goal instead."
 function fixture(inUse = true) {
-  const exec = createFakeExecutor({ results: [{ rows: inUse ? [{ name: 'Signup test' }] : [] }] })
+  const exec = createFakeExecutor({ results: [{ rows: [] }, { rows: inUse ? [{ name: 'Signup test' }] : [] }] })
   return { exec, req: exec.withSession() }
 }
 function remove(req: PayloadRequest, id: string | number = 17) {
@@ -31,7 +31,7 @@ test('guards are registered on the collection', () => {
 test.each([17, '17', '48209116-0d47-46a2-9058-f46d67b665fb'])('delete refuses frozen phase usage and compares numeric/string ids as text: %s', async id => {
   const { exec, req } = fixture()
   await expect(remove(req, id)).rejects.toMatchObject({ status: 400, isPublic: true, message: deleteMessage })
-  const call = exec.calls[0]!
+  const call = exec.calls[1]!
   expect(call.text).toContain('FROM "xp_phases" p')
   expect(call.text).toContain('jsonb_array_elements(p."metric_definitions")')
   expect(call.text).toContain("definition->>'metricId' = $1::text")
@@ -43,7 +43,7 @@ test.each([17, '17', '48209116-0d47-46a2-9058-f46d67b665fb'])('delete refuses fr
 test.each(['primary', 'secondary', 'guardrails'])('delete refuses a draft selecting the goal as %s', async role => {
   const { exec, req } = fixture()
   await expect(remove(req)).rejects.toThrow(deleteMessage)
-  const sql = exec.calls[0]!.text
+  const sql = exec.calls[1]!.text
   expect(sql).toContain('UNION ALL')
   expect(sql).toContain('FROM "xp_experiments" e')
   if (role === 'primary') expect(sql).toContain('e."metrics_primary_id"::text = $2::text')
@@ -60,8 +60,8 @@ test('the query prefers a running or decided test and uses the executor schema',
   const { exec, req } = fixture()
   Object.assign(req.payload.db, { schemaName: 'custom"schema' })
   await expect(remove(req)).rejects.toThrow(deleteMessage)
-  expect(exec.calls[0]!.text).toContain('"custom""schema"."xp_phases"')
-  expect(exec.calls[0]!.text).toContain("ORDER BY CASE WHEN usage.status IN ('running', 'decided') THEN 0 ELSE 1 END")
+  expect(exec.calls[1]!.text).toContain('"custom""schema"."xp_phases"')
+  expect(exec.calls[1]!.text).toContain("ORDER BY CASE WHEN usage.status IN ('running', 'decided') THEN 0 ELSE 1 END")
 })
 
 test('delete allows an unused goal', async () => {
@@ -72,7 +72,7 @@ test('delete allows an unused goal', async () => {
 test.each([{ slug: 'renamed' }, { source: 'count' }])('a used goal refuses an identity change: %j', async data => {
   const { exec, req } = fixture()
   await expect(change(req, data)).rejects.toMatchObject({ status: 400, isPublic: true, message: changeMessage })
-  expect(exec.calls).toHaveLength(1)
+  expect(exec.calls).toHaveLength(2)
 })
 
 test.each([{ slug: 'renamed' }, { source: 'count' }])('an unused goal allows an identity change: %j', async data => {
@@ -101,7 +101,11 @@ test.each(['delete', 'update'])('%s queries only the request session when a tran
   req.payload.db.drizzle = { execute: pool.execute } as typeof req.payload.db.drizzle
   req.transactionID = Promise.resolve(req.transactionID!)
   await expect(operation === 'delete' ? remove(req) : change(req, { source: 'count' })).rejects.toBeInstanceOf(XpGoalInUseError)
-  expect(exec.calls).toHaveLength(1)
+  expect(exec.calls).toHaveLength(2)
+  expect(exec.calls[0]!.text).toContain(operation === 'delete' ? 'FOR UPDATE' : 'FOR NO KEY UPDATE')
+  expect(exec.calls[0]!.text).toContain('FROM \"xp_metrics\" WHERE \"id\" = $1')
+  expect(exec.calls[0]!.params).toEqual([17])
+  expect(exec.calls[1]!.text).toContain('FROM \"xp_phases\" p')
   expect(pool.calls).toEqual([])
 })
 
@@ -111,6 +115,7 @@ test.each(['delete', 'update'])('%s without a transaction uses the pooled execut
   const req = fakeReq({ payload })
   await expect(operation === 'delete' ? remove(req) : change(req, { slug: 'changed' })).rejects.toBeInstanceOf(XpGoalInUseError)
   expect(exec.calls).toHaveLength(1)
+  expect(exec.calls[0]!.text).not.toMatch(/FOR (?:UPDATE|NO KEY UPDATE|SHARE)/)
   expect(payload.calls).toEqual([])
 })
 
