@@ -17,8 +17,11 @@ export function acquireArms(testId: DocId): () => void {
   const count = mounted.get(key) ?? 0
   mounted.set(key, count + 1)
   if (count === 0 && !pending.has(key)) setArms(testId, undefined)
+  let released = false
   return () => {
-    const count = mounted.get(key)! - 1
+    if (released) return
+    released = true
+    const count = (mounted.get(key) ?? 1) - 1
     if (count === 0) mounted.delete(key)
     else mounted.set(key, count)
   }
