@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.3.0-rc.2] - 2026-11-04
+
+### plugin
+
 - Fixed: starting a whole-page test and deleting, renaming or unpublishing one of its pages at the same moment can no longer leave the test running on a page that's gone: one waits for the other, and the later one is refused. A page whose test address was saved with a trailing slash is protected too. Migration impact: none.
 - Added: the Experiment block in the Puck editor is a test builder: add up to three variants, rename, copy the Original into a version, remove a version, and set the traffic split, while the test is a draft or stopped; a running test shows people per version and the current leader.
 - Fixed: publishing a page through the API or "Make it the content" no longer adds a false "content changed" marker to the results chart when only linked images or documents were expanded, including collections without drafts. Migration impact: none.
