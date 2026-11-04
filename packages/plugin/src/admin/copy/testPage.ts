@@ -21,6 +21,7 @@ export const TEST_PAGE = {
   secondary: 'Also keep an eye on (optional)', manageGoals: 'Manage goals', searchGoals: 'Search goals', chooseGoal: 'Choose a goal',
   goalsError: "Couldn't load goals. Try again.", noGoal: 'None selected', missingGoal: 'A goal that no longer exists', goalUnavailable: 'Goal details unavailable',
   everyone: 'Everyone on the pages where this appears.', rulesSummary: 'Only people matching these rules.', addRule: 'Add a rule', removeRule: 'Remove rule',
+  blockPathRule: 'This rule no longer applies to page block tests; remove it.',
   attribute: 'Attribute', comparison: 'Comparison', value: 'Value', yes: 'Yes', no: 'No',
   reach: 'About how many people will see this per day?', reachHelp: 'A rough number is fine. It only sets the suggested length.',
   duration: 'Planned length (days)', noSuggestion: 'Enter a daily number above to get a suggestion. 4 weeks is a safe default.',

@@ -28,7 +28,7 @@ const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManag
   flagPoints: [{ id: 'upsell', label: 'Recurring upsell', description: 'Offer a recurring gift after registration.',
     params: { message: { type: 'select', label: 'Message', options: [{ value: 'show', label: 'Show' }, { value: 'hide', label: 'Hide' }] } },
     defaultParams: { message: 'show' }, effectiveDefaults: { message: 'show' } }],
-  attributeKeys: { path: { type: 'string' } },
+  attributeKeys: { path: { type: 'string' }, country: { type: 'string' } },
   metricSources: [{ id: 'donation', label: 'Donation completed', kind: 'binomial', keyedBy: 'visitor', clientWritable: false },
     { id: 'amount', label: 'Donation amount', kind: 'revenue', keyedBy: 'visitor', clientWritable: false },
     { id: 'unsubscribe', label: 'Unsubscribed from emails', kind: 'binomial', keyedBy: 'visitor', clientWritable: true }],
@@ -41,7 +41,7 @@ const base: TestDocument = {
     { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 33, slot: 'variantA' },
     { key: 'variantB', kind: 'variant', label: 'Variant B', weight: 33, slot: 'variantB' }],
   metrics: { primary: 1, secondary: [2], guardrails: [3] },
-  targeting: [{ attribute: 'path', op: 'in', value: ['/registration/thank-you', '/registration/thank-you-oauth'] }],
+  targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }],
   analysis: { plannedDurationDays: 28, reachPerDay: 140, minExposuresPerArm: 200 },
 }
 const preflight: PreflightResult = { checks: [], placements: [{ collection: 'pages', id: 1, title: 'Registration thank-you', detail: 'Published', ok: true,

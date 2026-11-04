@@ -19,9 +19,14 @@ export function TargetingSection({ test, surface }: SectionProps) {
   const [rowsRevision, setRowsRevision] = useState(0)
   const reason = reasonFor(test, 'targeting')
   const update = (transform: (current: TargetingRule[]) => TargetingRule[]) => save(test, 'targeting', () => ({ targeting: transform(readTargetingRules(test.doc!.targeting ?? [])) }))
-  const keys = Object.keys(surface.attributeKeys)
+  // Page block tests are scoped by their page; path rules belong to setting and flag tests (ruling Nov 3).
+  const blockPath = (key: string) => test.doc!.kind === 'block' && key === 'path'
+  const keys = Object.keys(surface.attributeKeys).filter(key => !blockPath(key))
   return <Section test={test} sectionId="who"><p>{rules.length ? C.rulesSummary : C.everyone}</p>
     {rules.map((rule, index) => {
+      const remove = () => { setRowsRevision(revision => revision + 1); update(current => current.filter((_, i) => i !== index)) }
+      if (blockPath(rule.attribute)) return <div className="xp-targeting-row" key={`${rowsRevision}-${index}`}><p className="xp-ui-help">{C.blockPathRule}</p>
+        {!reason ? <div className="xp-ui-button-group"><Button variant="link" size="sm" onClick={remove}>{C.removeRule}</Button></div> : null}</div>
       const attribute = surface.attributeKeys[rule.attribute]
       const input = valueInput(attribute, rule.op)
       const setRule = (partial: Partial<TargetingRule>) => update(current => current.map((row, i) => i === index ? { ...row, ...partial } : row))
@@ -50,7 +55,7 @@ export function TargetingSection({ test, surface }: SectionProps) {
           : input.kind === 'boolean' ? <SelectEdit label={C.value} reason={reason} value={String(rule.value)} options={[{ value: 'true', label: C.yes }, { value: 'false', label: C.no }]} onCommit={changeValue} />
           : <TextEdit label={C.value} reason={reason} value={Array.isArray(rule.value) ? rule.value.join(', ') : String(rule.value)} type={input.kind === 'number' ? 'number' : 'text'} onCommit={changeValue} />}
         {hint ? <p>{hint}</p> : null}<FieldErrors test={test} path={`targeting.${index}`} />
-        {!reason ? <div className="xp-ui-button-group"><Button variant="link" size="sm" onClick={() => { setRowsRevision(revision => revision + 1); update(current => current.filter((_, i) => i !== index)) }}>{C.removeRule}</Button></div> : null}
+        {!reason ? <div className="xp-ui-button-group"><Button variant="link" size="sm" onClick={remove}>{C.removeRule}</Button></div> : null}
       </div>
     })}
     {!reason ? <div className="xp-ui-button-group"><Button disabled={!keys.length} onClick={() => {

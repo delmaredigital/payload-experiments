@@ -309,7 +309,7 @@ test.each(['in', 'nin'] as const)('fixed-list %s targeting checkboxes keep curre
   expect(screen.getByText('US, CA')).toBeTruthy()
 })
 test('free-text in targeting renders chips, keeps current rules and saves arrays', () => {
-  const p = props({ targeting: [{ attribute: 'path', op: 'in', value: [] }] })
+  const p = props({ kind: 'flag', targeting: [{ attribute: 'path', op: 'in', value: [] }] })
   const view = render(<TargetingSection {...p} />)
   fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'US' } })
   fireEvent.keyDown(screen.getByRole('textbox', { name: 'Value' }), { key: 'Enter' })
@@ -401,7 +401,7 @@ test('a goal missing from a successful load reads as no longer existing', async 
 })
 
 test.each(['in', 'nin'] as const)('legacy %s lists load as chips and save arrays; running lists stay disabled', op => {
-  const p = props({ targeting: [{ attribute: 'path', op, value: 'US, CA' }] })
+  const p = props({ kind: 'flag', targeting: [{ attribute: 'path', op, value: 'US, CA' }] })
   const view = render(<TargetingSection {...p} />)
   expect(screen.getByRole('button', { name: 'Remove US' })).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Remove CA' }))
@@ -422,7 +422,7 @@ test('switching a legacy list operator and editing another row normalize whole-g
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 21 }] })
 })
 test('deleting a list rule cannot transfer its unfinished chip draft to the next rule', () => {
-  const p = props({ targeting: [{ attribute: 'path', op: 'in', value: ['US'] }, { attribute: 'path', op: 'in', value: ['CA'] }] })
+  const p = props({ kind: 'flag', targeting: [{ attribute: 'path', op: 'in', value: ['US'] }, { attribute: 'path', op: 'in', value: ['CA'] }] })
   vi.mocked(p.test.stage).mockImplementation(patch => { p.test.doc = { ...p.test.doc!, ...patch } })
   const view = render(<TargetingSection {...p} />)
   fireEvent.change(screen.getAllByRole('textbox', { name: 'Value' })[0]!, { target: { value: 'draft' } })
@@ -572,4 +572,21 @@ test('large goal lists search independently inside each list and retain checked 
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [2, 9], secondary: [3] } })
   expect(within(screen.getByRole('combobox', { name: 'Goal' })).getByRole('option', { name: 'Goal 4 · yes/no' })).toBeTruthy()
   expect(screen.getByRole('link', { name: 'Manage goals' }).closest('.xp-ui-field-label')?.querySelector('label')?.textContent).toBe('Goal')
+})
+test('page block tests never offer the Path attribute; setting tests still do', () => {
+  const block = props({ targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
+  const view = render(<TargetingSection {...block} />)
+  expect(within(screen.getByLabelText('Attribute')).queryByRole('option', { name: 'Path' })).toBeNull()
+  view.unmount()
+  const flag = props({ kind: 'flag', targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
+  render(<TargetingSection {...flag} />)
+  expect(within(screen.getByLabelText('Attribute')).getByRole('option', { name: 'Path' })).toBeTruthy()
+})
+test('an existing path rule on a page block test is read-only with a removal note', () => {
+  const p = props({ targeting: [{ attribute: 'path', op: 'in', value: ['/a'] }, { attribute: 'age', op: 'gte', value: 18 }] })
+  render(<TargetingSection {...p} />)
+  expect(screen.getByText('This rule no longer applies to page block tests; remove it.')).toBeTruthy()
+  expect(screen.getAllByLabelText('Attribute')).toHaveLength(1)
+  fireEvent.click(screen.getAllByRole('button', { name: 'Remove rule' })[0]!)
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
 })
