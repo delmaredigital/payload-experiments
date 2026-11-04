@@ -8,7 +8,7 @@ import { armLabel } from './labels.js'
 import { useApi } from './useApi.js'
 import { REVIEW_COPY as C } from './copy/review.js'
 import { TEST_PAGE } from './copy/testPage.js'
-import { API_MESSAGES } from './copy/common.js'
+import { API_MESSAGES, refusalMessage } from './copy/common.js'
 import { actionablePreviewPages } from './previewLinks.model.js'
 
 export function PreviewLinks({ experimentId, placements, arms, flagPoint }: {
@@ -23,14 +23,25 @@ export function PreviewLinks({ experimentId, placements, arms, flagPoint }: {
     inFlight.current = true
     setBusy(true)
     setError(null)
+    let win: Window | null = null
     try {
+      win = window.open('', '_blank')
+      if (!win) { setError(C.previewBlocked); return }
+      // Clearing opener immediately gives the same protection as noopener: the
+      // previewed page cannot reach window.opener. The admin URL may be sent as
+      // referrer to the host's own site (resolved against location.origin); accepted.
+      try { win.opener = null } catch { /* Some browsers refuse this assignment. */ }
       const result = await api.previewToken(experimentId, arm)
-      if (!result.ok) { setError(result.message); return }
-      if (!result.data?.token) { setError(API_MESSAGES.unreadable); return }
+      if (!result.ok) {
+        win.close()
+        setError(result.status === 0 ? API_MESSAGES.network : refusalMessage(result.code, result.status))
+        return
+      }
+      if (typeof result.data?.token !== 'string' || !result.data.token) { win.close(); setError(API_MESSAGES.unreadable); return }
       const target = new URL(url, window.location.origin)
       target.searchParams.set('xp_preview', result.data.token)
-      window.open(target.href, '_blank', 'noopener,noreferrer')
-    } catch { setError(API_MESSAGES.failed) }
+      win.location.replace(target.href)
+    } catch { win?.close(); setError(API_MESSAGES.failed) }
     finally { inFlight.current = false; setBusy(false) }
   }
   return <div className="xp-preview-links">
