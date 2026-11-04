@@ -20,7 +20,7 @@ test('results returns the typed experiment identity', async () => {
   const result = await api.results(1)
   if (!result.ok) throw new Error(result.message)
   expectTypeOf(result.data).toEqualTypeOf<ResultsResponse | undefined>()
-  expectTypeOf<ResultsResponse['experiment']>().toEqualTypeOf<{ name: string; kind: ExperimentKind; status: Status }>()
+  expectTypeOf<ResultsResponse['experiment']>().toEqualTypeOf<{ name: string; kind: ExperimentKind; status: Status } | undefined>()
   expect(result.data).toEqual(data)
 })
 test('the first core refusal supplies the code and message', async () => {
