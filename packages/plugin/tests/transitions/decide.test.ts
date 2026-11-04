@@ -160,6 +160,23 @@ test.each(['running', 'decided'])('stopped flag decision refuses a point occupie
   expect(f.payload.documents['xp-phases']).toHaveLength(1)
 })
 
+test.each(['running', 'decided'])('stopped page decision refuses pages now used by another %s page test', async status => {
+  const f = fixture('stopped')
+  f.experiment.kind = 'page'
+  f.payload.documents['xp-experiments']!.push({ id: 2, kind: 'page', status, arms: [
+    { key: 'control', kind: 'control', weight: 50, pageTarget: '/original/' }, { key: 'variantA', kind: 'variant', weight: 50, pageTarget: '/elsewhere' },
+  ] })
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantA' })).rejects.toMatchObject({ code: 'page-in-use', detail: { paths: ['/original'] } })
+  expect(f.executor.calls.some(call => call.text.includes("hashtext('xp:pagepath')"))).toBe(true)
+  expect(f.payload.documents['xp-phases']).toHaveLength(1)
+})
+test('stopped page decision proceeds when no other live page test shares its pages', async () => {
+  const f = fixture('stopped')
+  f.experiment.kind = 'page'
+  f.payload.documents['xp-experiments']!.push({ id: 2, kind: 'page', status: 'draft', arms: [{ key: 'control', kind: 'control', weight: 100, pageTarget: '/original' }] })
+  // A draft page test on the same pages does not occupy them.
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantA' })).resolves.toBeDefined()
+})
 test('stopped decision uses the frozen winner and label after the document arm was removed', async () => {
   const f = fixture('stopped')
   f.experiment.arms = [(f.experiment.arms as Arm[])[0]]

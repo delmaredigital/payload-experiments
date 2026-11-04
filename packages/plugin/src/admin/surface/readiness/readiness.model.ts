@@ -3,7 +3,7 @@ import type { SerializedFlagPoint } from '../../../types/admin.js'
 import type { TestDocument } from '../testDocument.model.js'
 import { formatDate } from '../../format/date.js'
 import { actionGroupLabel } from '../../actions/actions.model.js'
-import { unsupportedContentCopy, versionPageUnavailableCopy, versionPageUncheckedCopy, placementFailureCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
+import { unsupportedContentCopy, versionPageUnavailableCopy, versionPageUncheckedCopy, placementFailureCopy, pageInUseCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
 
 import { SECTION_ORDER, type SectionId } from '../contracts.js'
 export type ReadinessContext = Pick<TestDocument, 'arms' | 'unitType' | 'flagPoint'> & {
@@ -55,6 +55,10 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'no-reach-per-day': row('length', () => C.noReach),
   'layer-full': row('versions', () => C.full),
   'layer-unit-mismatch': row('header', () => C.differentPeople),
+  'page-in-use': { ...row('versions', detail => {
+    const paths = object(detail).paths
+    return pageInUseCopy(text(Array.isArray(paths) ? paths[0] : undefined, 'this page'))
+  }), nextStep: C.chooseDifferentPage },
   'page-no-targets': row('versions', () => C.noTargets),
   'page-target-unpublished': row('versions', detail => unpublishedPageCopy(text(detail, 'This page'))),
   'page-targets-unchecked': row('versions', () => C.uncheckedPages),

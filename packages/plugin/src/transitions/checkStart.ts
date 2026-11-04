@@ -1,4 +1,5 @@
 import { checkArms } from '../collections/experiments/armInvariants.js'
+import { normalisePath } from '../runtime/normalisePath.js'
 import { isOpValid } from '../targeting/ops.js'
 import type { Arm, DocId, ExperimentKind, ExposurePolicy, FlagPoint, MetricSource, ResolvedOptions, Status, TargetingRule, UnitType } from '../types/contracts.js'
 import type { ArmIssueCode, PreflightResult } from '../types/endpoints.js'
@@ -10,6 +11,7 @@ export type ReadinessCode = ArmIssueCode
   | 'no-primary-metric'
   | 'no-reach-per-day'
   | 'page-no-targets'
+  | 'page-in-use'
   | 'page-target-unpublished'
   | 'page-targets-unchecked'
   | 'version-page-unavailable'
@@ -44,6 +46,7 @@ export interface CheckStartInput {
   flagPoints?: FlagPoint[]; placements?: BlockPlacement[]; flagPlacements?: FlagPlacement[]
   placementError?: PlacementFailure; flagPlacementError?: PlacementFailure; flagPointBusy?: boolean
   unpublishedPageTargets?: string[]; pageTargetsUnchecked?: boolean
+  pageTestsInUse?: Pick<StartExperiment, 'id' | 'arms'>[]
   layer?: { unitType: UnitType; usedSlices: number[] } | null
   attributeKeys?: ResolvedOptions['attributeKeys']
 }
@@ -52,6 +55,9 @@ export const ARM_CHECK_ORDER: readonly ArmIssueCode[] = [
   'invalid-key', 'duplicate-key', 'slot-required', 'duplicate-slot',
 ]
 export const relationshipId = (value: DocId | { id: DocId } | null | undefined): DocId | undefined => value == null ? undefined : typeof value === 'object' ? value.id : value
+export const pageTargetPaths = (arms: readonly Arm[]): string[] => [...new Set(arms
+  .filter(arm => arm.kind !== 'holdout' && typeof arm.pageTarget === 'string' && arm.pageTarget.trim())
+  .map(arm => normalisePath(arm.pageTarget!)))].sort()
 const positive = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value) && value > 0
 
 function invalidParams(arms: Arm[], point: FlagPoint): unknown[] {
@@ -88,6 +94,10 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('no-primary-metric', primary !== undefined && input.metrics.some(metric => String(metric.id) === String(primary)))
   add('no-reach-per-day', !['manual', 'viewport'].includes(e.exposurePolicy) || positive(e.analysis?.reachPerDay))
   add('page-no-targets', e.kind !== 'page' || e.arms.filter(arm => arm.kind !== 'holdout').every(arm => typeof arm.pageTarget === 'string' && arm.pageTarget.trim().length > 0))
+  const occupiedPaths = new Set((input.pageTestsInUse ?? []).filter(other => String(other.id) !== String(e.id))
+    .flatMap(other => other.arms.flatMap(arm => typeof arm.pageTarget === 'string' ? [normalisePath(arm.pageTarget)] : [])))
+  const sharedPaths = e.kind === 'page' ? pageTargetPaths(e.arms).filter(path => occupiedPaths.has(path)) : []
+  add('page-in-use', sharedPaths.length === 0, { paths: sharedPaths })
   add('page-target-unpublished', !input.unpublishedPageTargets?.length, input.unpublishedPageTargets?.[0])
   add('page-targets-unchecked', true)
   if (input.pageTargetsUnchecked) checks[checks.length - 1]!.warning = true

@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import type { PowerWeeksInput } from '@delmaredigital/experiments-stats'
-import { preflightData, loadStartInputs } from '../../src/transitions/preflightData.js'
+import { preflightData, loadStartInputs, loadStartInputsBatch } from '../../src/transitions/preflightData.js'
 import { fakeReq } from '../_fakes/req.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { sampleOptions } from '../collections/fixtures.js'
@@ -132,4 +132,20 @@ test('a binomial rate of 1 or more (reachPerDay below the converters) gives no b
   expect(result!.baseline).toBeNull()
   expect(result!.estimate).toBeNull()
   expect(estimate).not.toHaveBeenCalled()
+})
+
+
+test('page drafts share one paginated occupancy scan with the existing access posture', async () => {
+  const { req, payload, options } = setup()
+  const draft = payload.documents['xp-experiments']![0]!
+  Object.assign(draft, { kind: 'page', arms: defaultArms('page').map(arm => ({ ...arm, pageTarget: '/shared' })) })
+  const peer = { ...draft, id: 200, slug: 'second' }
+  payload.documents['xp-experiments']!.push(peer, ...Array.from({ length: 101 }, (_, n) => ({
+    id: n + 2, kind: 'page', status: n % 2 ? 'running' : 'decided', arms: defaultArms('page').map(arm => ({ ...arm, pageTarget: n === 100 ? '/shared/' : `/page-${n}` })),
+  })))
+  const inputs = await loadStartInputsBatch(req, options, [draft, peer] as unknown as import('../../src/transitions/checkStart.js').StartExperiment[])
+  expect(inputs.get('1')!.pageTestsInUse).toHaveLength(101)
+  expect(inputs.get('200')!.pageTestsInUse).toBe(inputs.get('1')!.pageTestsInUse)
+  expect(payload.calls.filter(call => call.args.collection === 'xp-experiments').map(call => call.args.page)).toEqual([1, 2])
+  expect(payload.calls.every(call => call.args.overrideAccess === false && call.args.req === req)).toBe(true)
 })

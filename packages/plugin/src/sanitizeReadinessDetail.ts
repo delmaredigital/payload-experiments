@@ -4,6 +4,8 @@ const object = (value: unknown): value is Record<string, unknown> => value !== n
 // The runtime's slug/key alphabet, bounded even for host-provided parameter keys.
 const key = (value: unknown): value is string => typeof value === 'string' && value.length <= 128 && /^[A-Za-z0-9_-]+$/.test(value)
 const arm = (value: unknown): value is string => typeof value === 'string' && ['control', 'variantA', 'variantB', 'variantC', 'holdout'].includes(value)
+const path = (value: unknown): value is string => typeof value === 'string' && value.length <= 128 && value.startsWith('/')
+  && !value.includes('//') && !/[^A-Za-z0-9_/-]/.test(value)
 const failure = (value: unknown) => value === 'placements-failed' || value === 'forbidden' || value === 'not-found'
 
 /** Summary details contain identifiers only. Project known shapes rather than
@@ -19,10 +21,12 @@ export function sanitizeReadinessDetail(code: ReadinessCode, detail: unknown): u
         ? { rules: detail.rules } : undefined
     case 'no-placements':
       return failure(detail) ? detail : undefined
+    case 'page-in-use':
+      return object(detail) && Array.isArray(detail.paths) && detail.paths.length && detail.paths.every(path)
+        ? { paths: detail.paths } : undefined
     case 'page-target-unpublished':
       // Paths only: no query, fragment, whitespace, URL authority or encoded text.
-      return typeof detail === 'string' && detail.length <= 128 && detail.startsWith('/')
-        && !detail.includes('//') && !/[^A-Za-z0-9_/-]/.test(detail) ? detail : undefined
+      return path(detail) ? detail : undefined
     case 'flag-params-invalid': {
       if (!Array.isArray(detail) || !detail.length || !detail.every(item => object(item) && arm(item.arm) && key(item.field))) return undefined
       return detail.map(item => ({ arm: item.arm, field: item.field }))

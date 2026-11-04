@@ -302,3 +302,57 @@ test.each(['slug', 'source'])('Start refuses a goal whose %s changed before the 
   await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'stale-draft', status: 409 })
   expect(payload.documents['xp-phases']).toEqual([])
 })
+
+test.each([['running', 0], ['running', 1], ['decided', 0], ['decided', 1]] as const)('a %s page test blocks sharing arm %s in preflight and Start', async (status, peerArm) => {
+  for (const shared of ['/original', '/variant']) {
+    const { options, req, payload, executor } = pageFixture()
+    payload.documents['xp-experiments']!.push({ id: 8, kind: 'page', status,
+      arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index === peerArm ? shared + '/' : '/elsewhere' })) })
+    const expected = { code: 'page-in-use', ok: false, detail: { paths: [shared] } }
+    expect((await preflightData(req, { experimentId: 1, options }))!.checks).toContainEqual(expected)
+    await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({
+      code: 'page-in-use', status: 409, detail: expected.detail,
+      message: `Another running or decided test already uses ${shared}. Choose a different page, or finish that test first.`,
+    })
+    expect(executor.calls).toEqual([])
+    expect(payload.documents['xp-phases']).toEqual([])
+  }
+})
+
+test.each([
+  ['page', 'draft'], ['page', 'stopped'], ['page', 'archived'],
+  ['block', 'running'], ['block', 'decided'], ['flag', 'running'], ['flag', 'decided'], ['code', 'running'],
+])('a %s test in %s does not occupy page targets', async (kind, status) => {
+  const { options, req, payload, experiment } = pageFixture()
+  const arms = defaultArms('page').map(arm => ({ ...arm, pageTarget: '/original/' }))
+  payload.documents['xp-experiments']!.push({ ...experiment, id: 8, slug: 'other', kind, status, arms })
+  payload.documents['xp-phases']!.push({ id: 9, experiment: 8, phase: 1, phaseKind: 'test', seed: 'old|', arms, allocation: 100, targeting: [] })
+  expect((await start(req, { experimentId: 1, options })).doc.status).toBe('running')
+})
+
+test.each(['running', 'decided'])('Start rechecks %s page conflicts after sorted path locks and before any phase write', async status => {
+  const { options, req, payload, executor, experiment } = pageFixture()
+  experiment.layer = 3
+  experiment.arms = defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/a/' : '/z/' }))
+  const query = executor.query
+  executor.query = async (text, params) => {
+    if (text.includes("hashtext('xp:pagepath')") && params?.[0] === '/z') {
+      payload.documents['xp-experiments']!.push({ id: 8, kind: 'page', status,
+        arms: [{ ...defaultArms('page')[0]!, pageTarget: '/z///' }] })
+    }
+    return query(text, params)
+  }
+  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-in-use', detail: { paths: ['/z'] } })
+  expect(executor.calls.filter(call => call.text.includes('advisory')).map(call => call.params)).toEqual([['3'], ['1'], ['/a'], ['/z']])
+  expect(payload.documents['xp-phases']).toEqual([])
+  const reads = payload.calls.filter(call => call.args.page === 1 && call.args.collection === 'xp-experiments' && JSON.stringify(call.args.where).includes('kind'))
+  expect(reads).toHaveLength(2)
+  expect(reads.every(call => call.args.req === req && call.args.overrideAccess === false)).toBe(true)
+})
+
+test('a stopped page test can start a new round using its own previous pages', async () => {
+  const { options, req, experiment } = pageFixture()
+  experiment.status = 'stopped'
+  experiment.phase = 1
+  expect((await start(req, { experimentId: 1, options })).doc).toMatchObject({ status: 'running', phase: 2 })
+})

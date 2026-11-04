@@ -23,6 +23,7 @@ export const READINESS_COPY = {
   full: "This test's group is full. Lower how many people take part, or create the test again without the group.",
   differentPeople: "This test's group counts different people. Create the test again without the group.",
   uncheckedPages: "Version pages aren't checked; make sure each one is published.",
+  chooseDifferentPage: 'Choose a different page',
   noTargets: 'Add a page address for each version.',
   pageVisitors: 'Whole-page tests count visitors. Create the test again counting visitors.',
   blockPathRule: 'Remove the page-path rule in Who takes part; page block tests run on their page.',
@@ -33,6 +34,7 @@ export const READINESS_COPY = {
 } as const
 
 export const unsupportedContentCopy = (page: string) => `${page} has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand.`
+export const pageInUseCopy = (path: string) => `Another running or decided test already uses ${path}. Choose a different page, or finish that test first.`
 export const unpublishedPageCopy = (path: string) => `${path} isn't a published page. Publish it, or pick another page.`
 /** Old responses may include raw host errors; unknown strings use authored copy. */
 export const placementFailureCopy = (reason: unknown) => PLACEMENT_FAILURE_COPY[typeof reason === 'string' && Object.hasOwn(PLACEMENT_FAILURE_COPY, reason) ? reason as keyof typeof PLACEMENT_FAILURE_COPY : 'placements-failed']

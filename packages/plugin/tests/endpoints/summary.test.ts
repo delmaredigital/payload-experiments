@@ -322,6 +322,7 @@ test('summary JSON never includes placement titles or flag placement free text',
 const safeDetails: Array<[ReadinessCode, unknown, unknown]> = [
   ['block-path-rule', { rules: [0, 2], value: 'secret-value text' }, { rules: [0, 2] }],
   ['no-placements', 'forbidden', 'forbidden'],
+  ['page-in-use', { paths: ['/original', '/variant'], title: 'secret-value text', experimentId: 8 }, { paths: ['/original', '/variant'] }],
   ['page-target-unpublished', '/registration/thank-you', '/registration/thank-you'],
   ['flag-params-invalid', [{ arm: 'variantA', field: 'title', message: 'secret-value text' }], [{ arm: 'variantA', field: 'title' }]],
   ['flag-placement-missing', 'placements-failed', 'placements-failed'],
@@ -334,6 +335,7 @@ test.each(safeDetails)('sanitizer allow-list for %s projects identifiers only', 
 })
 
 const unsafeDetails: Array<[ReadinessCode, unknown]> = [
+  ...[[], [123], ['/page?secret=text'], ['/page#secret'], ['//authority'], ['/page%20text'], ['/page text'], [`/${'a'.repeat(128)}`]].map(paths => ['page-in-use', { paths }] as [ReadinessCode, unknown]),
   ...[[], [-1], [0.5], ['0'], [Infinity], [Number.MAX_SAFE_INTEGER + 1]].map(rules => ['block-path-rule', { rules }] as [ReadinessCode, unknown]),
   ['no-placements', 'secret-value text'],
   ['page-target-unpublished', '/secret-value text'],
@@ -372,4 +374,22 @@ test('sanitizer accepts identifiers and paths up to 128 characters and drops abs
   for (const [code] of safeDetails) {
     for (const detail of [undefined, null, 123, true, [], {}]) expect(sanitizeReadinessDetail(code, detail)).toBeUndefined()
   }
+})
+
+
+test('summary next contains only normalised shared page paths and page drafts share the occupancy read', async () => {
+  const { options, req, payload } = readinessSetup()
+  const drafts = payload.documents['xp-experiments']!.slice(0, 2)
+  for (const draft of drafts) Object.assign(draft, { kind: 'page', exposurePolicy: 'pageview',
+    arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/variant/' : '/original/' })) })
+  payload.documents['xp-experiments']!.push({ id: 'occupied', kind: 'page', status: 'decided', name: 'secret-value',
+    arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/unshared' : '/original' })) })
+  const body = await (await handleSummary(req, { options })).json()
+  for (const id of ['one', 'two']) {
+    expect(body[id].ready).toBe(false)
+    expect(body[id].next).toEqual({ code: 'page-in-use', detail: { paths: ['/original'] } })
+  }
+  expect(JSON.stringify(body)).not.toContain('secret-value')
+  // ids, one page occupancy scan, one flag occupancy scan.
+  expect(payload.calls.filter(call => call.args.collection === 'xp-experiments')).toHaveLength(3)
 })

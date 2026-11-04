@@ -28,6 +28,19 @@ export async function loadStartInputs<TUser extends { id: DocId }>(req: PayloadR
   return (await loadStartInputsBatch(req, options, [experiment])).get(String(experiment.id)) ?? null
 }
 
+/** Access-checked occupancy, shared by preflight and Start's locked recheck. */
+export async function loadPageTestsInUse(req: PayloadRequest): Promise<NonNullable<CheckStartInput['pageTestsInUse']>> {
+  const tests: NonNullable<CheckStartInput['pageTestsInUse']> = []
+  let page = 1
+  while (true) {
+    const result = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 100, page,
+      where: { and: [{ kind: { equals: 'page' } }, { status: { in: ['running', 'decided'] } }] } })
+    tests.push(...result.docs as unknown as NonNullable<CheckStartInput['pageTestsInUse']>)
+    if (!result.hasNextPage) return tests
+    page++
+  }
+}
+
 const metricIds = (experiment: StartExperiment) => [experiment.metrics?.primary, ...experiment.metrics?.secondary ?? [], ...experiment.metrics?.guardrails ?? []]
   .map(relationshipId).filter((id): id is DocId => id !== undefined)
 
@@ -43,6 +56,7 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
   })()
   const blockSlugs = new Set(experiments.filter(e => e.kind === 'block').map(e => e.slug))
   // Lazy promises prevent unhandled rejections and share failed reads as well as successful ones.
+  let pageTestsInUse: ReturnType<typeof loadPageTestsInUse> | undefined
   let blocks: ReturnType<typeof scanBlockPlacements> | undefined
   let state: Promise<Record<string, { params: Record<string, unknown> }> | undefined> | undefined
   const busyPoints = new Map<string, Promise<Array<{ id: DocId }>>>()
@@ -58,6 +72,8 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
         return failureDetail(cause)
       }
       if (experiment.kind === 'page') {
+        pageTestsInUse ??= loadPageTestsInUse(req)
+        input.pageTestsInUse = await pageTestsInUse
         input.pageTargetsUnchecked = options.pages === undefined
         if (options.pages) {
           input.unpublishedPageTargets = []

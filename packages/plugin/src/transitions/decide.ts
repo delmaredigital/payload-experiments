@@ -5,7 +5,8 @@ import { decideGuard } from '../results/decideGuard.js'
 import type { Arm, DocId } from '../types/contracts.js'
 import type { DecideBody } from '../types/endpoints.js'
 import type { Snapshot } from '../types/snapshot.js'
-import { relationshipId } from './checkStart.js'
+import { lockPagePaths } from '../db/locks.js'
+import { pageTargetPaths, relationshipId } from './checkStart.js'
 import { expectedConfirm, matchesConfirm, storedWinnerLabel } from './confirmPhrases.js'
 import { withTransition } from './kernel.js'
 import { readPhaseRecord, setPhaseEndedAt, writePhaseRecord } from './phaseRecord.js'
@@ -23,6 +24,18 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
       const busy = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: true, depth: 0, limit: 0,
         where: { and: [{ flagPoint: { equals: current.flagPoint } }, { status: { in: ['running', 'decided'] } }] } })
       if (busy.docs.some(doc => String(doc.id) !== String(experimentId))) refuse('flag-point-busy')
+    }
+    if (current.kind === 'page' && current.status === 'stopped') {
+      // Deciding a stopped page test restores its routing: recheck page occupancy under the
+      // sorted path locks Start takes, so another test that started on these pages meanwhile wins.
+      const mine = pageTargetPaths(current.arms as Arm[])
+      await lockPagePaths(exec, mine)
+      // §7.8: recheck page occupancy under its lock before restoring live routing.
+      const live = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: true, depth: 0, limit: 0,
+        where: { and: [{ kind: { equals: 'page' } }, { status: { in: ['running', 'decided'] } }] } })
+      const occupied = new Set(live.docs.filter(doc => String(doc.id) !== String(experimentId)).flatMap(doc => pageTargetPaths(doc.arms as Arm[])))
+      const shared = mine.filter(path => occupied.has(path))
+      if (shared.length) refuse('page-in-use', { paths: shared })
     }
     const test = await readPhaseRecord(req, experimentId, current.phase!)
     if (test.phaseKind !== 'test') refuse('invalid-status')
