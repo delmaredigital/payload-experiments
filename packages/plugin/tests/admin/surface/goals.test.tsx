@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath, URL as NodeURL } from 'node:url'
 import type { ComponentProps } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
@@ -23,6 +25,11 @@ const surface: SurfaceProps = { adminRoute: '/control', apiRoute: '/data/', canM
   ] }
 const goal = { id: 7, name: 'Register', slug: 'register', source: 'signup', direction: 'increase', attributionWindowHours: 168, minSampleSize: 150, guardrailThreshold: 0.05 }
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
+function shellHeader() {
+  const header = screen.getByRole('heading', { level: 1 }).closest<HTMLElement>('header.xp-tests-shell-header')
+  expect(header).not.toBeNull()
+  return header!
+}
 function fill(name = 'Completed registrations') {
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: name } })
   fireEvent.change(screen.getByLabelText('Measured by'), { target: { value: 'signup' } })
@@ -56,7 +63,7 @@ test('list pages through goals and tests and renders compact rows, kinds, direct
   const action = within(row).getByRole('link', { name: 'Use this goal' })
   expect(action.getAttribute('href')).toBe('/control/experiments/goals/7?return=test%2F1')
   expect(action.classList.contains('xp-ui-button--primary')).toBe(true)
-  expect(screen.getByRole('banner').contains(screen.getByRole('link', { name: 'New goal' }))).toBe(true)
+  expect(shellHeader().contains(screen.getByRole('link', { name: 'New goal' }))).toBe(true)
   expect(fetch).toHaveBeenCalledTimes(4)
   for (const call of fetch.mock.calls) expect(call[1]).toMatchObject({ credentials: 'include' })
 })
@@ -145,7 +152,7 @@ test('existing goal keeps a linked Goals crumb and a generic Goal title while lo
   vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { finish = resolve })))
   render(<TestsSurface {...surface} route="goal" id="7" />)
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Goal')
-  const crumbs = within(screen.getByRole('banner')).getByRole('navigation')
+  const crumbs = within(shellHeader()).getByRole('navigation')
   expect(crumbs.textContent).toBe('Tests›Goals›Goal')
   expect(within(crumbs).getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/experiments/goals')
   finish(response({ errors: [{ message: 'Unable to load this goal.' }] }, 500))
@@ -158,7 +165,7 @@ test('a used goal locks its short name and disables Delete with its usage count'
   expect((screen.getByLabelText('Short name') as HTMLInputElement).readOnly).toBe(true)
   expect((screen.getByRole('button', { name: 'Delete goal' }) as HTMLButtonElement).disabled).toBe(true)
   expect(screen.getByText('Used by 2 tests. Remove it from those tests first.')).toBeTruthy()
-  expect(within(screen.getByRole('banner')).getByText('In use by 2 tests')).toBeTruthy()
+  expect(within(shellHeader()).getByText('In use by 2 tests')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Delete goal' }).getAttribute('aria-describedby')).toBe('xp-goal-used')
   fireEvent.click(screen.getByRole('button', { name: 'Delete goal' }))
   expect(fetch).toHaveBeenCalledTimes(2)
@@ -240,7 +247,7 @@ test('surface dispatches goals and form routes with sources and the shared shell
     expect(main.classList.contains('xp-tests-main')).toBe(true)
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(labels[labels.length - 1])
-    const crumbs = within(screen.getByRole('banner')).getByRole('navigation', { name: 'Breadcrumb' })
+    const crumbs = within(shellHeader()).getByRole('navigation', { name: 'Breadcrumb' })
     expect(within(crumbs).getAllByRole('listitem').map(item => item.textContent?.replace('›', ''))).toEqual(labels)
     expect(within(crumbs).getByText(labels[labels.length - 1]!).getAttribute('aria-current')).toBe('page')
     expect(within(crumbs).getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/control/experiments')
@@ -318,7 +325,7 @@ test.each(['load', 'save', 'delete'] as const)('a not-found refusal on %s uses t
     fireEvent.click(screen.getByRole('button', { name: operation === 'save' ? 'Save' : 'Delete goal' }))
     if (operation === 'delete') fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
   }
-  expect((await screen.findByRole('alert')).textContent).toBe('This goal no longer exists.')
+  expect(within(await screen.findByRole('alert')).getByText('This goal no longer exists.', { selector: 'p', exact: true }).textContent).toBe('This goal no longer exists.')
   expect(screen.queryByText('This test no longer exists.')).toBeNull()
   expect(push).not.toHaveBeenCalled()
 })
@@ -340,9 +347,9 @@ test('server validation associates main and Advanced fields and opens Advanced',
 })
 
 test('goals use plugin primitives and have no Payload controls or raw controls', () => {
-  const dir = new URL('../../../src/admin/surface/goals/', import.meta.url)
+  const dir = fileURLToPath(new NodeURL('../../../src/admin/surface/goals/', import.meta.url))
   for (const file of readdirSync(dir).filter(file => /\.tsx$/.test(file))) {
-    const source = readFileSync(new URL(file, dir), 'utf8')
+    const source = readFileSync(join(dir, file), 'utf8')
     expect(source).not.toMatch(/<(?:input|select|button)\b/)
     for (const match of source.matchAll(/import\s*\{([^}]+)\}\s*from ['"]@payloadcms\/ui['"]/g)) {
       expect(match[1]!.split(',').map(name => name.trim()).every(name => ['Link', 'useConfig', 'useAuth'].includes(name))).toBe(true)

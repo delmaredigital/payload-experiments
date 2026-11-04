@@ -21,7 +21,7 @@ export function GoalsList({ surface, returnToTest }: { surface: SurfaceProps; re
   const [attempt, setAttempt] = useState(0)
   const [search, setSearch] = useState('')
   const returnQuery = returnToTest ? `?${new URLSearchParams({ return: returnToTest })}` : ''
-  const url = (path: string) => formatAdminURL({ adminRoute: surface.adminRoute, path })
+  const url = (path: `/${string}`) => formatAdminURL({ adminRoute: surface.adminRoute, path })
   useEffect(() => {
     const controller = new AbortController()
     setData(undefined); setError('')
