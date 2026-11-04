@@ -28,6 +28,6 @@ function ManagedResults({ id, surface, onTitleChange }: { id: DocId; surface: Su
     {test.errors._section ? <p role="alert">{test.errors._section}</p> : null}
     {test.preflightError ? <p role="alert">{test.preflightError}</p> : null}
     {/* Wait for the header document so the body mounts once with its final key. */}
-    {test.loadState !== 'loading' && test.loadState !== 'missing' && test.loadState !== 'forbidden' ? <ResultsBody key={bodyKey} id={id} surface={surface} onRecomputed={() => setResultsVersion(value => value + 1)} /> : null}
+    {test.loadState !== 'loading' && test.loadState !== 'missing' && test.loadState !== 'forbidden' ? <ResultsBody key={bodyKey} id={id} surface={surface} onRecomputed={() => setResultsVersion(value => value + 1)} onPagesReleased={() => { void test.reload() }} /> : null}
   </div>
 }

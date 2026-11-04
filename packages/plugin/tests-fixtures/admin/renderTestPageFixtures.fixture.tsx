@@ -28,7 +28,7 @@ const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManag
   flagPoints: [{ id: 'upsell', label: 'Recurring upsell', description: 'Offer a recurring gift after registration.',
     params: { message: { type: 'select', label: 'Message', options: [{ value: 'show', label: 'Show' }, { value: 'hide', label: 'Hide' }] } },
     defaultParams: { message: 'show' }, effectiveDefaults: { message: 'show' } }],
-  attributeKeys: { path: { type: 'string' } },
+  attributeKeys: { path: { type: 'string' }, country: { type: 'string' } },
   metricSources: [{ id: 'donation', label: 'Donation completed', kind: 'binomial', keyedBy: 'visitor', clientWritable: false },
     { id: 'amount', label: 'Donation amount', kind: 'revenue', keyedBy: 'visitor', clientWritable: false },
     { id: 'unsubscribe', label: 'Unsubscribed from emails', kind: 'binomial', keyedBy: 'visitor', clientWritable: true }],
@@ -41,7 +41,7 @@ const base: TestDocument = {
     { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 33, slot: 'variantA' },
     { key: 'variantB', kind: 'variant', label: 'Variant B', weight: 33, slot: 'variantB' }],
   metrics: { primary: 1, secondary: [2], guardrails: [3] },
-  targeting: [{ attribute: 'path', op: 'in', value: ['/registration/thank-you', '/registration/thank-you-oauth'] }],
+  targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }],
   analysis: { plannedDurationDays: 28, reachPerDay: 140, minExposuresPerArm: 200 },
 }
 const preflight: PreflightResult = { checks: [], placements: [{ collection: 'pages', id: 1, title: 'Registration thank-you', detail: 'Published', ok: true,
@@ -57,26 +57,35 @@ test('writes real Shell/TestPage fixtures for ready, blocked, running, page, set
   for (const path of cssPaths) readFileSync(path)
   mkdirSync(output, { recursive: true })
   const paths: string[] = []
-  for (const state of ['block-ready', 'block-blocked', 'block-running', 'page', 'setting', 'stale'] as const) {
+  for (const state of ['block-ready', 'block-blocked', 'block-running', 'page', 'setting', 'stale', 'threshold-error', 'missing-goal'] as const) {
     const doc: TestDocument = { ...base, id: state,
       ...(state === 'block-running' ? { status: 'running', startedAt: '2026-10-25T12:00:00Z', allocation: 40 } : {}),
+      ...(state === 'missing-goal' ? { metrics: { ...base.metrics, primary: 99 } } : {}),
       ...(state === 'block-blocked' ? { metrics: { ...base.metrics, primary: null } } : {}),
       ...(state === 'page' ? { kind: 'page', name: 'Summer program landing page', exposurePolicy: 'pageview',
         arms: base.arms.map((arm, i) => ({ ...arm, slot: undefined, pageTarget: ['/summer', '/summer-a', '/summer-b'][i] })) } : {}),
       ...(state === 'setting' ? { kind: 'flag', name: 'Recurring upsell', exposurePolicy: 'manual', flagPoint: 'upsell',
         arms: base.arms.slice(0, 2).map((arm, i) => ({ ...arm, slot: undefined, weight: 50, params: { message: i ? 'hide' : 'show' } })) } : {}),
     }
-    const check = { ...preflight, checks: state === 'block-blocked' ? [{ code: 'no-primary-metric' as const, ok: false }] : [] }
+    const check = { ...preflight, checks: state === 'block-blocked' || state === 'missing-goal' ? [{ code: 'no-primary-metric' as const, ok: false }] : [] }
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => new Response(JSON.stringify(
-      init?.method === 'PATCH' ? { errors: [{ code: 'stale-edit', message: 'Someone else changed this test. Reload to see their changes.' }] }
+      init?.method === 'PATCH' && state === 'threshold-error' ? { errors: [{ data: { errors: [{ path: 'analysis.minExposuresPerArm', message: 'Enter a minimum of one person per version.' }] } }] } : init?.method === 'PATCH' ? { errors: [{ code: 'stale-edit', message: 'Someone else changed this test. Reload to see their changes.' }] }
         : url.endsWith('/preflight') ? check : url.includes('/xp-metrics') ? { docs: metrics, hasNextPage: false }
           : url.includes('/summary?') ? { [state]: { exposures: 1204, days: 9, verdict: null } } : doc,
-    ), { status: init?.method === 'PATCH' ? 409 : 200 })))
+    ), { status: init?.method === 'PATCH' ? state === 'threshold-error' ? 400 : 409 : 200 })))
     const view = render(<ConfigProvider config={config}><TestPage id={state} surface={surface} /></ConfigProvider>)
     await waitFor(() => expect(view.queryByText('Loading test…')).toBeNull())
     await waitFor(() => expect(view.queryByText('Loading metrics…')).toBeNull())
     await waitFor(() => expect(view.queryAllByText('Donation completed · yes/no').length).toBeGreaterThan(0))
     if (state === 'block-running') await waitFor(() => expect(view.getByText(/1,204 people so far/)).toBeTruthy())
+    if (state === 'threshold-error') {
+      fireEvent.click(view.getByRole('heading', { name: 'Advanced settings · for developers' }))
+      fireEvent.change(view.getByLabelText('Minimum people per version'), { target: { value: '5' } })
+      fireEvent.blur(view.getByLabelText('Minimum people per version'))
+      // Close while the server validation is pending: the error must reopen it.
+      view.container.querySelector<HTMLDetailsElement>('.xp-test-advanced')!.open = false
+      await waitFor(() => expect(view.getByText('Enter a minimum of one person per version.')).toBeTruthy())
+    }
     if (state === 'stale') {
       fireEvent.change(view.getByLabelText('Test name'), { target: { value: 'My unsaved name' } })
       fireEvent.blur(view.getByLabelText('Test name'))
@@ -85,18 +94,19 @@ test('writes real Shell/TestPage fixtures for ready, blocked, running, page, set
     await act(async () => {})
     expect(view.container.querySelectorAll('.xp-ui-section')).toHaveLength(5)
     expect(view.getAllByRole('main')).toHaveLength(1)
-    expect(view.container.querySelector('.xp-test-advanced')?.hasAttribute('open')).toBe(false)
+    expect(view.container.querySelector('.xp-test-advanced')?.hasAttribute('open')).toBe(state === 'threshold-error')
     for (const theme of ['light', 'dark']) {
       // jsdom has no layout. Real browser ResizeObserver measures the same fixed bar;
       // restore the conservative CSS fallback for the non-hydrated review fixture.
       const page = view.container.querySelector<HTMLElement>('.xp-test-page')!
       page.style.removeProperty('padding-bottom')
+      view.container.querySelectorAll('option').forEach(o => o.toggleAttribute('selected', o.selected))
       const html = `<!DOCTYPE html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${state} — ${theme}</title>${cssPaths.map(path => `<link rel="stylesheet" href="${pathToFileURL(path).href}">`).join('')}<style>body { margin: 0; }</style></head><body>${view.container.innerHTML}</body></html>`
       const path = join(output, `test-${state}-${theme}.html`)
       writeFileSync(path, html); paths.push(path)
     }
     cleanup()
   }
-  expect(paths).toHaveLength(12)
+  expect(paths).toHaveLength(16)
   console.log(paths.join('\n'))
 })

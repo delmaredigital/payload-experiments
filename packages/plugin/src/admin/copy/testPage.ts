@@ -9,6 +9,7 @@ export const TEST_PAGE = {
   hypothesis: 'Why are you testing this? (optional)', hypothesisPlaceholder: 'We believe … will … because …',
   notPlaced: 'Not on a page yet. Open a page, add an Experiment block and choose this test.',
   onPage: 'On:', openPage: 'Open the page', editedOnPage: 'Versions are edited on the page.', editOnPage: 'Edit on page',
+  empty: 'Empty', pageReady: 'Page ready', addPageAddress: 'Add a page address',
   ready: 'Content ready', emptySlot: 'Nothing in this slot yet', pageBinding: 'Each version is a whole page at its own address.',
   pageAddress: 'Page address', holdoutContent: 'Sees the Original', label: 'Version label', weight: 'Share (%)',
   balanceHelp: 'Changing a share balances the other versions so the total stays at 100%.',
@@ -20,6 +21,7 @@ export const TEST_PAGE = {
   secondary: 'Also keep an eye on (optional)', manageGoals: 'Manage goals', searchGoals: 'Search goals', chooseGoal: 'Choose a goal',
   goalsError: "Couldn't load goals. Try again.", noGoal: 'None selected', missingGoal: 'A goal that no longer exists', goalUnavailable: 'Goal details unavailable',
   everyone: 'Everyone on the pages where this appears.', rulesSummary: 'Only people matching these rules.', addRule: 'Add a rule', removeRule: 'Remove rule',
+  blockPathRule: 'This rule no longer applies to page block tests; remove it.',
   attribute: 'Attribute', comparison: 'Comparison', value: 'Value', yes: 'Yes', no: 'No',
   reach: 'About how many people will see this per day?', reachHelp: 'A rough number is fine. It only sets the suggested length.',
   duration: 'Planned length (days)', noSuggestion: 'Enter a daily number above to get a suggestion. 4 weeks is a safe default.',
@@ -30,3 +32,5 @@ export const TEST_PAGE = {
 export const suggestedWeeks = (weeks: number) => `Suggested: about ${Math.round(weeks * 10) / 10} weeks`
 export const weeksHint = (days: number) => `About ${Math.round(days / 7 * 10) / 10} weeks`
 export const NUMBER_COMPARISONS = { eq: 'is', neq: 'is not', gt: 'is more than', gte: 'is at least', lt: 'is less than', lte: 'is at most' } as const
+
+export const placementCount = (count: number) => ` (placed ${count} times)`
