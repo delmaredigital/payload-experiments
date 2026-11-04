@@ -15,7 +15,7 @@ export interface PhaseRecord {
   allocationChanges?: AllocationChange[]
   targeting: TargetingRule[]
   metricDefinitions?: Array<Record<string, unknown>>
-  analysis?: Record<string, unknown>
+  analysis?: Record<string, unknown> & { sequentialTuningParameter?: number | null }
   contentChanges?: ContentChange[]
 }
 
@@ -28,7 +28,9 @@ export async function readPhaseRecord(req: PayloadRequest, experimentId: DocId, 
 }
 
 /** Caller holds the experiment lock and passes the kernel's transaction req. */
-export async function writePhaseRecord(req: PayloadRequest, record: PhaseRecord) {
+export async function writePhaseRecord(req: PayloadRequest, record: PhaseRecord & {
+  analysis: Record<string, unknown> & { sequentialTuningParameter: number }
+}) {
   // §7.8: transition endpoints' writes to plugin collections.
   return req.payload.create({
     collection: 'xp-phases', data: record, req,

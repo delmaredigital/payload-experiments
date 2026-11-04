@@ -28,7 +28,7 @@ export function GoalsList({ surface, returnToTest }: { surface: SurfaceProps; re
   const newGoal = <Link className="xp-tests-primary" href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals/new${returnQuery}` })}>{C.newGoal}</Link>
   return <div className="xp-goals">
     <GoalsBreadcrumb adminRoute={surface.adminRoute} />
-    <div className="xp-tests-toolbar"><h1>{C.title}</h1>{newGoal}</div>
+    <div className="xp-tests-toolbar">{newGoal}</div>
     {error ? <p role="alert">{error}{' '}<button type="button" onClick={() => setAttempt(n => n + 1)}>{C.retry}</button></p>
       : !data ? <p role="status">{C.loading}</p> : !data.goals.length ? <p>{C.empty}</p>
         : <div className="xp-goals-table"><table><thead><tr>{[C.name, C.source, C.directionColumn, C.usedBy, C.status].map(label => <th scope="col" key={label}>{label}</th>)}</tr></thead>

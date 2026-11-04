@@ -10,3 +10,8 @@ test('surface copy avoids the anti-goal vocabulary', () => {
 test('the routed surface no longer advertises placeholder screens', () => {
   expect(Object.keys(SURFACE_COPY).filter(key => key.endsWith('Placeholder'))).toEqual([])
 })
+
+test('surface copy names the test and results routes', () => {
+  expect(SURFACE_COPY.test).toBe('Test')
+  expect(SURFACE_COPY.resultsTitle).toBe('Results')
+})

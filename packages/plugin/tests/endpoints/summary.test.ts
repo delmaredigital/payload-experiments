@@ -3,6 +3,10 @@ import { newestSnapshotIds } from '../../src/db/snapshots.js'
 import { defaultArms } from '../../src/collections/experiments/armInvariants.js'
 import { buildEndpoints } from '../../src/endpoints/index.js'
 import { handleSummary } from '../../src/endpoints/summary.js'
+import { sanitizeReadinessDetail } from '../../src/endpoints/sanitizeReadinessDetail.js'
+import { ARM_CHECK_ORDER, checkStart, type ReadinessCode } from '../../src/transitions/checkStart.js'
+import { loadStartInputsBatch } from '../../src/transitions/preflightData.js'
+import type { StartExperiment } from '../../src/transitions/checkStart.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
 import { sampleOptions } from '../collections/fixtures.js'
@@ -79,6 +83,7 @@ test('two block drafts share one scan; a flag draft shares metrics and state and
   expect(response.status).toBe(200)
   const body = await response.json()
   expect([body.one.ready, body.two.ready, body.flag.ready]).toEqual([true, true, true])
+  for (const row of Object.values(body)) expect(row).not.toHaveProperty('next')
   // One scan means one published read and one draft read, independent of slug count.
   expect(payload.calls.filter(call => call.args.collection === 'pages')).toHaveLength(2)
   expect(payload.calls.filter(call => call.args.collection === 'xp-metrics')).toHaveLength(1)
@@ -97,8 +102,11 @@ test('a missing primary goal gives false readiness; stopped is checked and runni
   payload.documents['xp-experiments']![2]!.status = 'running'
   const body = await (await handleSummary(req, { options })).json()
   expect(body.one.ready).toBe(false)
+  expect(body.one.next).toEqual({ code: 'no-primary-metric' })
   expect(body.two.ready).toBe(true)
+  expect(body.two).not.toHaveProperty('next')
   expect(body.flag).not.toHaveProperty('ready')
+  expect(body.flag).not.toHaveProperty('next')
 })
 
 test('readResults-only callers get no readiness and perform no setup reads', async () => {
@@ -106,7 +114,10 @@ test('readResults-only callers get no readiness and perform no setup reads', asy
   options.access = { manage: () => false, readResults: () => true }
   const route = buildEndpoints({ options }).find(route => route.path === '/xp/experiments/summary')!
   const body = await (await route.handler(req)).json()
-  for (const row of Object.values(body)) expect(row).not.toHaveProperty('ready')
+  for (const row of Object.values(body)) {
+    expect(row).not.toHaveProperty('ready')
+    expect(row).not.toHaveProperty('next')
+  }
   expect(payload.calls).toEqual([])
   expect(findGlobal).not.toHaveBeenCalled()
   expect(placements).not.toHaveBeenCalled()
@@ -236,4 +247,114 @@ test('summary carries bounded page health without copying arbitrary detail', asy
   expect(body.page.health).toHaveLength(100)
   expect(body.page.health[0]).toEqual({ code: 'version-page-unavailable', path: '/' + 'a'.repeat(127) })
   expect(JSON.stringify(body)).not.toContain('secret-value')
+})
+
+test('next is the first failure in the actual checkStart order, not the last', async () => {
+  const { options, req, payload } = readinessSetup()
+  const draft = payload.documents['xp-experiments']![0]!
+  draft.arms = [...defaultArms('block')].reverse().map(arm => ({ ...arm, weight: 10 }))
+  draft.analysis = {}
+  draft.metrics = {}
+  const inputs = await loadStartInputsBatch(req, options, [draft as unknown as StartExperiment])
+  const checks = checkStart(inputs.get('one')!)
+  expect(checks.slice(1, 1 + ARM_CHECK_ORDER.length).map(check => check.code)).toEqual(ARM_CHECK_ORDER)
+  const failures = checks.filter(check => !check.ok && !check.warning)
+  expect(failures.length).toBeGreaterThan(2)
+  expect(failures[0]!.code).toBe('weights-total')
+  const body = await (await handleSummary(req, { options })).json()
+  expect(body.one).toMatchObject({ ready: false, next: { code: failures[0]!.code } })
+  expect(body.one.next).not.toHaveProperty('detail') // Invariant messages are text.
+})
+
+test.each(['running', 'decided', 'archived'])('%s tests never receive next or ready', async status => {
+  const { options, req, payload } = readinessSetup()
+  Object.assign(payload.documents['xp-experiments']![0]!, { status, metrics: {} })
+  const body = await (await handleSummary(req, { options })).json()
+  expect(body.one).not.toHaveProperty('next')
+  expect(body.one).not.toHaveProperty('ready')
+})
+
+test('a stopped test receives its first failing step', async () => {
+  const { options, req, payload } = readinessSetup()
+  Object.assign(payload.documents['xp-experiments']![0]!, { status: 'stopped', metrics: {} })
+  const body = await (await handleSummary(req, { options })).json()
+  expect(body.one).toMatchObject({ ready: false, next: { code: 'no-primary-metric' } })
+})
+
+test('a warning-only page check does not produce next', async () => {
+  const { options, req, payload } = readinessSetup()
+  const draft = payload.documents['xp-experiments']![0]!
+  Object.assign(draft, { kind: 'page', exposurePolicy: 'pageview',
+    arms: defaultArms('page').map(arm => ({ ...arm, pageTarget: `/${arm.key}` })) })
+  const inputs = await loadStartInputsBatch(req, options, [draft as unknown as StartExperiment])
+  expect(checkStart(inputs.get('one')!)).toContainEqual({ code: 'page-targets-unchecked', ok: true, warning: true })
+  const body = await (await handleSummary(req, { options })).json()
+  expect(body.one.ready).toBe(true)
+  expect(body.one).not.toHaveProperty('next')
+})
+
+test('summary JSON never includes placement titles or flag placement free text', async () => {
+  const { options, req, payload, placements } = readinessSetup()
+  const secret = 'secret-value from a host error or page title'
+  payload.documents.pages = [{ id: 10, title: secret, _status: 'published', puckData: { content: [{
+    type: 'ExperimentSlot', props: { experiment: 'one', control: [{}], variantA: [] },
+  }] } }]
+  placements.mockImplementation(async () => [{ arm: 'control', ok: false, detail: secret }, { arm: 'variantA', ok: true }])
+  const body = await (await handleSummary(req, { options })).json()
+  expect(body.one.next).toEqual({ code: 'empty-slot' })
+  expect(body.flag.next).toEqual({ code: 'flag-placement-missing', detail: { missing: ['control'], placements: [{ arm: 'control' }] } })
+  expect(JSON.stringify(body)).not.toContain('secret-value')
+})
+
+const safeDetails: Array<[ReadinessCode, unknown, unknown]> = [
+  ['no-placements', 'forbidden', 'forbidden'],
+  ['page-target-unpublished', '/registration/thank-you', '/registration/thank-you'],
+  ['flag-params-invalid', [{ arm: 'variantA', field: 'title', message: 'secret-value text' }], [{ arm: 'variantA', field: 'title' }]],
+  ['flag-placement-missing', 'placements-failed', 'placements-failed'],
+  ['flag-placement-missing', { missing: ['variantA'], placements: [{ arm: 'variantA', ok: false, detail: 'secret-value text' }], message: 'secret-value text' }, { missing: ['variantA'], placements: [{ arm: 'variantA' }] }],
+  ['undeclared-targeting-key', { attributes: ['country', 'utmSource'], message: 'secret-value text' }, { attributes: ['country', 'utmSource'] }],
+  ['invalid-targeting-rule', { attributes: ['country'], value: 'secret-value text' }, { attributes: ['country'] }],
+]
+test.each(safeDetails)('sanitizer allow-list for %s projects identifiers only', (code, detail, expected) => {
+  expect(sanitizeReadinessDetail(code, detail)).toEqual(expected)
+})
+
+const unsafeDetails: Array<[ReadinessCode, unknown]> = [
+  ['no-placements', 'secret-value text'],
+  ['page-target-unpublished', '/secret-value text'],
+  ['page-target-unpublished', '/page\n'],
+  ['page-target-unpublished', '/page\r'],
+  ['page-target-unpublished', '/page//child'],
+  ['page-target-unpublished', '/page?secret-value=text'],
+  ['page-target-unpublished', '//secret-value'],
+  ['page-target-unpublished', '/page%20secret-value'],
+  ['page-target-unpublished', `/${'a'.repeat(128)}`],
+  ['flag-params-invalid', [{ arm: 'variantA', field: 'secret-value text' }]],
+  ['flag-params-invalid', [{ arm: 'variantA', field: 'title\n' }]],
+  ['flag-params-invalid', [{ arm: 'variantA', field: 'a'.repeat(129) }]],
+  ['flag-params-invalid', [{ arm: 'unknown', field: 'title' }]],
+  ['flag-params-invalid', { arm: 'variantA', field: 'title' }],
+  ['flag-placement-missing', 'secret-value text'],
+  ['flag-placement-missing', { missing: ['secret-value text'], placements: [] }],
+  ['flag-placement-missing', { missing: [], placements: [{ detail: 'secret-value text' }] }],
+  ['flag-placement-missing', { missing: [], placements: 'secret-value text' }],
+  ['undeclared-targeting-key', { attributes: ['secret-value text'] }],
+  ['invalid-targeting-rule', { attributes: ['a'.repeat(129)] }],
+  ['invalid-targeting-rule', { message: 'secret-value text' }],
+  ['empty-slot', [{ collection: 'pages', id: 10, title: 'secret-value text', slots: { control: 1, variantA: 0 } }]],
+  ['unknown-metric-source', [{ id: 2, source: 'secret-value text' }]],
+  ['layer-full', { available: 0, requested: 100 }],
+]
+test.each(unsafeDetails)('sanitizer drops unknown or non-identifier detail for %s', (code, detail) => {
+  expect(sanitizeReadinessDetail(code, detail)).toBeUndefined()
+})
+
+test('sanitizer accepts identifiers and paths up to 128 characters and drops absent details', () => {
+  const field = 'a'.repeat(128)
+  expect(sanitizeReadinessDetail('flag-params-invalid', [{ arm: 'control', field }])).toEqual([{ arm: 'control', field }])
+  const path = `/${'a'.repeat(127)}`
+  expect(sanitizeReadinessDetail('page-target-unpublished', path)).toBe(path)
+  for (const [code] of safeDetails) {
+    for (const detail of [undefined, null, 123, true, [], {}]) expect(sanitizeReadinessDetail(code, detail)).toBeUndefined()
+  }
 })

@@ -79,7 +79,6 @@ test('Puck iframe styles define every used token as a literal on the light and d
   expect(css).not.toMatch(/@import|var\(\s*--(?:theme|base|style|font)/)
 })
 
-
 test('the design vocabulary is complete and mirrored by theme.ts', () => {
   const css = readFileSync(themePath, 'utf8')
   const ts = readFileSync(join(src, 'admin/theme.ts'), 'utf8')
@@ -129,4 +128,15 @@ test.each(['light', 'dark'] as const)('%s has five distinct reference surface st
   expect(resolve(tokens['--xp-accent-text']!)).toBe(resolve(tokens['--xp-text']!))
   expect(tokens['--xp-accent-text-decoration']).toBe('none')
   expect([tokens['--xp-series-a'], tokens['--xp-series-b']]).toEqual(mode === 'light' ? ['#2a78d6', '#eb6834'] : ['#3987e5', '#d95926'])
+})
+
+test.each(['light', 'dark'] as const)('%s default status chip has a border distinct from its background', mode => {
+  const css = readFileSync(new URL('../../src/ui/ui.css', import.meta.url), 'utf8')
+  const chip = css.match(/\.xp-ui-status \{([^}]+)\}/)![1]!
+  const { tokens, resolve } = themeTokens(mode)
+  const border = chip.match(/border: 1px solid (var\(--[\w-]+\))/)![1]!
+  const background = chip.match(/background: (var\(--[\w-]+\))/)![1]!
+  expect(resolve(border)).not.toBe(resolve(background))
+  // elevation-100 is already surface-2, so accent-subtle needs another step.
+  expect(resolve(tokens['--xp-accent-subtle']!)).not.toBe(resolve('var(--theme-elevation-100)'))
 })

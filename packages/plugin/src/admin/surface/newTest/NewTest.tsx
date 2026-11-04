@@ -61,9 +61,9 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
   }
 
   const collections = [...new Set(pages?.map(page => page.collection))]
-  return <main className="xp-new-test">
+  return <div className="xp-new-test">
     {step === 'kind' ? <>
-      <h1>{C.question}</h1>
+      <h2>{C.question}</h2>
       <div className="xp-new-test-cards">
         {pages !== undefined ? <button type="button" className="xp-new-test-card" onClick={() => setStep('block')}>
           <strong>{C.block}</strong><span>{C.blockMeaning}</span>{surface.descriptions?.block ? <span>{surface.descriptions.block}</span> : null}
@@ -74,7 +74,7 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
       </div>
       {pages === undefined && !surface.flagPoints.length ? <p>{C.unavailable}</p> : null}
     </> : step === 'block' ? <>
-      <h1>{C.block}</h1><p>{C.handoff}</p>
+      <h2>{C.block}</h2><p>{C.handoff}</p>
       {!pages?.length ? <p>{C.noPages}</p> : collections.map(collection => {
         const group = pages!.filter(page => page.collection === collection)
         return <section key={collection}><h2>{group[0]!.collectionLabel}</h2><ul>
@@ -82,7 +82,7 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
         </ul>{group.length === 50 ? <p>{C.recentPages}</p> : null}</section>
       })}
     </> : step === 'setting' ? <>
-      <h1>{C.chooseSetting}</h1>
+      <h2>{C.chooseSetting}</h2>
       <fieldset><legend>{C.setting}</legend>{surface.flagPoints.map(setting => <label key={setting.id} className="xp-new-test-choice">
         <input type="radio" name="setting" checked={pointId === setting.id} onChange={() => {
           if (pointId !== setting.id) { setPointId(setting.id); setName(setting.label) }
@@ -100,7 +100,7 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
         {layerState === 'loading' ? <p role="status">{C.groupsLoading}</p> : layerState === 'error' ? <p role="alert">{C.groupsError}{' '}<button type="button" onClick={() => setLayerRetry(value => value + 1)}>{C.retry}</button></p> : null}
       </details>
     </> : <form onSubmit={event => { event.preventDefault(); void submit() }}>
-      <h1>{C.nameQuestion}</h1>
+      <h2>{C.nameQuestion}</h2>
       <label>{C.name}<input required value={name} disabled={pending} onChange={event => setName(event.currentTarget.value)} /></label>
       <label>{C.hypothesis}<textarea value={hypothesis} disabled={pending} onChange={event => setHypothesis(event.currentTarget.value)} /></label>
       {error ? <p role="alert">{error}</p> : null}
@@ -113,5 +113,5 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
       }}>{C.back}</button>
       {step === 'setting' ? <button type="button" disabled={!point} onClick={() => setStep('name')}>{C.next}</button> : null}
     </div>
-  </main>
+  </div>
 }
