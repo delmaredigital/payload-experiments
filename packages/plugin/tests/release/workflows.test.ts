@@ -37,6 +37,20 @@ test.each(workflows)('$file pins every external action and reusable workflow to 
   expect(external.filter(reference => !/@[0-9a-f]{40}$/.test(reference))).toEqual([])
 })
 
+test('an action pinned in several workflows uses one commit everywhere', () => {
+  const shas = new Map<string, Set<string>>()
+  for (const { workflow } of workflows) {
+    for (const job of Object.values(workflow.jobs)) {
+      for (const reference of [job.uses, ...(job.steps ?? []).map(step => step.uses)]) {
+        if (!reference || reference.startsWith('./')) continue
+        const [action, sha] = reference.split('@') as [string, string]
+        shas.set(action, (shas.get(action) ?? new Set()).add(sha))
+      }
+    }
+  }
+  expect([...shas].filter(([, pins]) => pins.size > 1).map(([action]) => action)).toEqual([])
+})
+
 test.each(workflows)('$file grants no workflow-wide write permissions', ({ file, workflow }) => {
   // Publish must have no workflow-level grant for its reusable CI call to inherit.
   expect(workflow.permissions).toEqual(file === 'publish.yml' ? undefined : { contents: 'read' })
