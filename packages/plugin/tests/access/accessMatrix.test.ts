@@ -5,9 +5,8 @@ import { createExperimentsPlugin } from '../../src/plugin.js'
 import type { ExperimentsAccess, ExperimentsPluginOptions } from '../../src/types/contracts.js'
 import { fakeReq } from '../_fakes/req.js'
 import { invoke, sampleOptions } from '../collections/fixtures.js'
+import { collectionOperations as operations, globalOperations } from './payloadOperations.js'
 
-const operations = ['create', 'read', 'update', 'delete', 'readVersions', 'unlock'] as const
-const globalOperations = ['read', 'update', 'readVersions'] as const
 const req = fakeReq()
 const callback = (result: unknown) => (async () => result) as ExperimentsAccess
 const built = (options: ExperimentsPluginOptions) => createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'] })
@@ -27,7 +26,6 @@ test.each([true, false, 'yes', {}])('every plugin operation enforces strict bool
     }
   }
   for (const global of config.globals ?? []) {
-    // Globals expose these three operations in Payload's public API.
     expect(Object.keys(global.access!).sort()).toEqual([...globalOperations].sort())
     for (const operation of globalOperations) {
       expect(await invoke(global.access?.[operation], { req }), `${global.slug}.${operation}`).toBe(value === true && operation === 'read')

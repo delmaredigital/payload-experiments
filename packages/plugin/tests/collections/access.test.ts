@@ -1,15 +1,14 @@
 import { expect, test } from 'vitest'
 import { buildCollections } from '../../src/collections/index.js'
 import { fakeReq } from '../_fakes/req.js'
+import { collectionOperations as operations, globalOperations } from '../access/payloadOperations.js'
 import { invoke, sampleOptions } from './fixtures.js'
 
-const operations = ['create', 'read', 'update', 'delete', 'readVersions', 'unlock'] as const
 const req = fakeReq()
 test('every supported collection and global access operation is explicit', () => {
   const { collections, globals } = buildCollections(sampleOptions())
   for (const config of collections) for (const op of operations) expect(typeof config.access?.[op], `${config.slug}.${op}`).toBe('function')
-  // Payload globals support read, update and readVersions only.
-  expect(Object.keys(globals[0]!.access!).sort()).toEqual(['read', 'readVersions', 'update'])
+  for (const global of globals) expect(Object.keys(global.access!).sort()).toEqual([...globalOperations].sort())
 })
 test.each([true, false, 'yes', {}])('strict manage result %j and delete Where', async result => {
   const options = sampleOptions()
