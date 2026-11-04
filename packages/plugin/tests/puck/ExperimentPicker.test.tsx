@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
+import { createExperimentSlotField } from '../../src/puck/experimentSlotField.js'
 import { ExperimentPicker } from '../../src/puck/ExperimentPicker.js'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
@@ -108,6 +109,7 @@ test.each(['render', 'editor'] as const)('%s factory supplies custom sidebar rou
   render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'test' }))
   await screen.findByRole('option', { name: 'First example · Draft' })
   expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments?where%5Bkind%5D%5Bequals%5D=block&depth=0&sort=id&limit=100&page=1', expect.objectContaining({ credentials: 'include' }))
+  expect(screen.getByRole('combobox').closest('.xp-puck-field')).toBeTruthy()
   expect(screen.getByRole('combobox', { name: 'Test' }).classList.contains('xp-ui-select')).toBe(true)
 })
 
@@ -162,4 +164,14 @@ test('stable paging keeps newest activity order and renders a repeated document 
   render(<ExperimentPicker value={null} onChange={vi.fn()} />)
   await screen.findByRole('option', { name: 'Second example · Running' })
   expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['No test', 'Second example · Running', 'First example · Draft'])
+})
+
+test('standalone sidebar field wraps the picker root in its stylesheet scope', async () => {
+  mockFetch()
+  const field = createExperimentSlotField()
+  const view = render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'field' }))
+  await screen.findByRole('option', { name: 'First example · Draft' })
+  const root = view.container.querySelector('.xp-puck-field > .xp-ui-field')
+  expect(root).toBeTruthy()
+  expect(screen.getByRole('combobox').closest('.xp-ui-field')).toBe(root)
 })

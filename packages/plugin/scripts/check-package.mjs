@@ -31,9 +31,11 @@ export function checkSourcePackage(pkg, root, { checkDist = false } = {}) {
   if (!pkg.exports || !Object.keys(pkg.exports).length) failures.push('exports must declare package entry points')
   for (const [entry, conditions] of Object.entries(pkg.exports ?? {})) {
     if (entry === './package.json' && conditions === './package.json') continue
-    // The iframe stylesheet is a public asset, with no JavaScript/type conditions.
-    if (entry === './puck/editor.css' && conditions === './dist/puck/editor/editor.css') {
-      if (!existsSync(resolve(root, 'src/puck/editor/editor.css'))) failures.push(`${entry}: missing source counterpart: ./src/puck/editor/editor.css`)
+    // Public stylesheets have no JavaScript/type conditions.
+    if ((entry === './puck/editor.css' && conditions === './dist/puck/editor/editor.css') ||
+        (entry === './puck/field.css' && conditions === './dist/puck/field.css')) {
+      const source = conditions.replace('./dist/', './src/')
+      if (!existsSync(resolve(root, source))) failures.push(`${entry}: missing source counterpart: ${source}`)
       if (checkDist && !existsSync(resolve(root, conditions))) failures.push(`${entry}: missing built target ${conditions}`)
       continue
     }

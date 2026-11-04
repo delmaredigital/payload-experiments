@@ -24,6 +24,7 @@ afterEach(() => { for (const path of temporary.splice(0)) rmSync(path, { recursi
 test('source export counterparts, files and frozen dependency contracts pass without dist', () => {
   expect(pkg.exports['./package.json']).toBe('./package.json')
   expect(pkg.exports['./puck/editor.css']).toBe('./dist/puck/editor/editor.css')
+  expect(pkg.exports['./puck/field.css']).toBe('./dist/puck/field.css')
   expect(checkSourcePackage(pkg, root)).toEqual([])
   expect(readFileSync(join(root, 'LICENSE'))).toEqual(readFileSync(new URL('../../../../LICENSE', import.meta.url)))
 })
@@ -34,6 +35,8 @@ test.each([
   ['./other.css', './dist/puck/editor/editor.css'],
   ['./puck/editor.css', './src/puck/editor/editor.css'],
   ['./puck/editor.css', './dist/puck/editor/other.css'],
+  ['./puck/field.css', './src/puck/field.css'],
+  ['./puck/field.css', './dist/puck/other.css'],
 ])('source check rejects other string-valued exports (%s -> %s)', (entry, target) => {
   const invalid = structuredClone(pkg)
   invalid.exports[entry] = target
@@ -83,9 +86,12 @@ test('source check reports missing license and readme, and emitted files when re
   expect(failures).toContain('Missing README.md')
   expect(failures).toContain('./puck/editor.css: missing source counterpart: ./src/puck/editor/editor.css')
   expect(failures).toContain('./puck/editor.css: missing built target ./dist/puck/editor/editor.css')
+  expect(failures).toContain('./puck/field.css: missing source counterpart: ./src/puck/field.css')
+  expect(failures).toContain('./puck/field.css: missing built target ./dist/puck/field.css')
   for (const [entry, conditions] of Object.entries(pkg.exports) as Array<[string, Record<string, string>]>) {
     if (entry === './package.json' && (conditions as unknown) === './package.json') continue
     if (entry === './puck/editor.css' && (conditions as unknown) === './dist/puck/editor/editor.css') continue
+    if (entry === './puck/field.css' && (conditions as unknown) === './dist/puck/field.css') continue
     for (const condition of ['import', 'types', 'default']) {
       expect(failures).toContain(`${entry}.${condition}: missing built target ${conditions[condition]}`)
       expect(failures.some(failure => failure.startsWith(`${entry}.${condition}: missing source counterpart`))).toBe(true)

@@ -16,7 +16,8 @@ export function listExportTargets(exportsMap) {
   return Object.entries(exportsMap).filter(([entry, conditions]) =>
     !(entry === './package.json' && conditions === './package.json') &&
     // CSS is consumed by the host's stylesheet pipeline, not the Node loader.
-    !(entry === './puck/editor.css' && conditions === './dist/puck/editor/editor.css')
+    !(entry === './puck/editor.css' && conditions === './dist/puck/editor/editor.css') &&
+    !(entry === './puck/field.css' && conditions === './dist/puck/field.css')
   ).map(([entry, conditions]) => ({
     entry,
     exempt: isExemptEntry(entry),

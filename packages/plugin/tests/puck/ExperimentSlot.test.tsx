@@ -80,7 +80,10 @@ test('custom field supports a label and passes the reference and change callback
   const value = { id: 'uuid-1', slug: 'example' }
   const onChange = vi.fn()
   const element = field.render({ field, name: 'experiment', id: 'experiment-1', value, onChange }) as ReactElement<ComponentProps<typeof PuckHostProvider>>
-  const picker = element.props.children as ReactElement<ComponentProps<typeof ExperimentPicker>>
+  const root = element.props.children as ReactElement<ComponentProps<'div'>>
+  expect(root.type).toBe('div')
+  expect(root.props.className).toBe('xp-puck-field')
+  const picker = root.props.children as ReactElement<ComponentProps<typeof ExperimentPicker>>
   expect(element.props.routes).toEqual({ admin: '/admin', api: '/api' })
   expect(picker.type).toBe(ExperimentPicker)
   expect(picker.props).toEqual({ value, onChange })

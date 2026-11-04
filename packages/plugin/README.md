@@ -696,6 +696,15 @@ The editor CSS includes its own light and dark palette, selected by
 `data-theme="dark"` or the `dark` class on the iframe's `<html>`. The client component's CSS import alone
 does not reach an iframe configured with `syncHostStyles: false`.
 
+Import the sidebar stylesheet once in the host page's CSS, next to any
+`editor.css` import there, so the test picker is styled:
+
+```css
+@import "@delmaredigital/payload-experiments/puck/field.css";
+```
+
+Its light and dark palette follows the host's `data-theme` attribute.
+
 Resolve the Puck data on the server with `resolveExperimentData` before
 rendering it. The render component shows only the selected group's slot. The
 editor lets you select a block experiment, edit each group's content, copy the

@@ -11,6 +11,8 @@ export function createExperimentSlotField(opts?: { label?: string; routes?: Puck
   return {
     type: 'custom',
     label: opts?.label ?? pickerCopy.label,
-    render: ({ value, onChange }) => createElement(PuckHostProvider, { routes, children: createElement(ExperimentPicker, { value, onChange }) }),
+    render: ({ value, onChange }) => createElement(PuckHostProvider, { routes,
+      children: createElement('div', { className: 'xp-puck-field' }, createElement(ExperimentPicker, { value, onChange })),
+    }),
   }
 }

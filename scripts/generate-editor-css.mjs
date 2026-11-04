@@ -38,12 +38,21 @@ export function resolvedTokens(mode) {
   const variables = { ...referencePalette(mode), ...tokens }
   return Object.fromEntries(Object.entries(tokens).map(([name, value]) => [name, resolve(value, variables)]))
 }
+const block = (selector, mode) => `${selector} {\n${Object.entries(resolvedTokens(mode)).map(([name, value]) => `  ${name}: ${value};`).join('\n')}\n}\n`
 export function generateEditorCss() {
-  const block = (selector, mode) => `${selector} {\n${Object.entries(resolvedTokens(mode)).map(([name, value]) => `  ${name}: ${value};`).join('\n')}\n}\n`
   return '/* generated — do not edit. Run pnpm generate:editor-css. Reference: Payload 3.90.2. */\n'
     + block('.xp-slot-root', 'light') + '\n' + block("[data-theme='dark'] .xp-slot-root,\n.dark .xp-slot-root", 'dark')
     + '\n' + readFileSync(join(src, 'ui/ui.css'), 'utf8') + '\n' + readFileSync(join(src, 'puck/editor/editor.chrome.css'), 'utf8')
 }
+/** The sidebar lives in the host document, outside the canvas token scope. */
+export function generateFieldCss() {
+  // Nest the shared rules so no selector can affect UI outside the field.
+  const ui = readFileSync(join(src, 'ui/ui.css'), 'utf8')
+  return '/* generated — do not edit. Run pnpm generate:editor-css. Reference: Payload 3.90.2. */\n'
+    + block('.xp-puck-field', 'light') + '\n' + block("[data-theme='dark'] .xp-puck-field", 'dark')
+    + '\n.xp-puck-field {\n' + ui + '\n}\n'
+}
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   writeFileSync(join(src, 'puck/editor/editor.css'), generateEditorCss())
+  writeFileSync(join(src, 'puck/field.css'), generateFieldCss())
 }
