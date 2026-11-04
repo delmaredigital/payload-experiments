@@ -1,6 +1,6 @@
 export const AUDIENCE_COPY = {
   listPlaceholder: 'Type a value and press Enter',
-  listDescription: 'Add one value per chip, for example each page path.',
+  listDescription: 'Add one value per chip.',
   removeValue: (value: string) => `Remove ${value}`,
   removeSymbol: '×',
   emptyListNote: "Add at least one value — an empty list can't be saved." } as const
