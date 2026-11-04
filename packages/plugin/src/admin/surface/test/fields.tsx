@@ -25,10 +25,10 @@ export function ReadOnly({ label, value, reason, labelAction }: { label: string;
   return <div className="xp-read-only" title={reason ?? undefined}><div className="xp-ui-field-label"><strong>{label}</strong>{labelAction}</div><p>{value}</p>{reason ? <small>{reason}</small> : null}</div>
 }
 /** Local typing is intentionally separate from staging: build the current group on commit. */
-export function TextEdit({ label, value, onCommit, reason, multiline, placeholder, type = 'text', min, max, required, onDraft, validate, invalidMessage, hideLabel = false, disabled = false, help }: {
+export function TextEdit({ label, value, onCommit, reason, multiline, placeholder, type = 'text', min, max, required, onDraft, isValid, invalidMessage, hideLabel = false, disabled = false, help }: {
   label: string; value: string | number; onCommit: (value: string) => void; reason?: string | null
   onDraft?: (value: string) => void; multiline?: boolean; placeholder?: string; type?: 'text' | 'number'; min?: number; max?: number; required?: boolean
-  validate?: (value: string) => boolean; invalidMessage?: string; hideLabel?: boolean; disabled?: boolean; help?: string
+  isValid?: (value: string) => boolean; invalidMessage?: string; hideLabel?: boolean; disabled?: boolean; help?: string
 }) {
   const id = useId()
   const [draft, setDraft] = useState(String(value))
@@ -36,7 +36,8 @@ export function TextEdit({ label, value, onCommit, reason, multiline, placeholde
   useEffect(() => setDraft(String(value)), [value])
   const commit = () => {
     if (draft === String(value)) return
-    if (validate && !validate(draft)) {
+    // Named isValid, not validate: Payload 4's Local API has a validate method, which the access gate flags.
+    if (isValid && !isValid(draft)) {
       setError(draft.trim() ? invalidMessage ?? null : null)
       setDraft(String(value))
       onDraft?.(String(value))

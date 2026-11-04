@@ -40,7 +40,7 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
       <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.label}`} value={arm.label} reason={reason} hideLabel disabled={Boolean(reason)}
         onCommit={label => update(arms => arms.map(current => current.key === arm.key ? { ...current, label } : current))} />
       <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.weight}`} type="number" min={0} max={100} value={doc.arms[index]!.weight} reason={reason} hideLabel disabled={Boolean(reason)}
-        validate={raw => raw.trim() !== '' && Number.isInteger(Number(raw)) && Number(raw) >= 0 && Number(raw) <= 100} invalidMessage={C.invalidShare}
+        isValid={raw => raw.trim() !== '' && Number.isInteger(Number(raw)) && Number(raw) >= 0 && Number(raw) <= 100} invalidMessage={C.invalidShare}
         onDraft={value => setWeightEdit({ key: arm.key, weight: Number(value) })}
         onCommit={value => update(arms => balanceWeight(arms, arm.key, Number(value)))} />
       <parts.VersionContent test={test} surface={surface} armIndex={index} />
