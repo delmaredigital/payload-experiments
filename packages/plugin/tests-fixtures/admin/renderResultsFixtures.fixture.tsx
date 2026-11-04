@@ -27,12 +27,32 @@ const config = { collections: [], globals: [], routes: { admin: '/admin', api: '
 const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: true,
   flagPoints: [], attributeKeys: {}, metricSources: [] }
 
+// Exported HTML has no React hydration. Keep its scroll cues usable for visual review.
+const scrollCueScript = `<script>
+document.querySelectorAll('.xp-data-table-wrap').forEach(wrap => {
+  const update = () => {
+    wrap.parentElement.classList.toggle('has-left', wrap.scrollLeft > 0);
+    wrap.parentElement.classList.toggle('has-right', wrap.scrollLeft + wrap.clientWidth < wrap.scrollWidth - 1);
+  };
+  wrap.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  new ResizeObserver(update).observe(wrap);
+  update();
+});
+</script>`
+
 // Illustrative mockup values, only in this visual fixture. No inference is run here.
 // A decided round shows the stored winner verdict (as the server writes it), with the fixture's arm labels.
 function decisionSnapshot(base: ReturnType<typeof fixture>) {
+  const snapshot = structuredClone(base)
   const stored = fixture('T7-bayesian').verdict
   const relabel = (text: string | null | undefined) => text?.replaceAll('Shorter form', 'Variant A') ?? text
-  return { ...base, verdict: { ...stored, finding: relabel(stored.finding)!, headline: relabel(stored.headline)!, action: relabel(stored.action) ?? null, detail: relabel(stored.detail)! } }
+  const winner = snapshot.metrics.find(metric => metric.role === 'primary')!.comparisons.find(comparison => comparison.arm === 'variantA')!
+  winner.chanceToWin = .97
+  winner.significant = 'better'
+  winner.ci = winner.ciAdjusted = [.03, .74]
+  snapshot.verdict = { ...stored, finding: relabel(stored.finding)!, headline: relabel(stored.headline)!, action: relabel(stored.action) ?? null, detail: relabel(stored.detail)! }
+  return snapshot
 }
 function mockupSnapshot() {
   const snapshot = fixture('T7-bayesian')
@@ -100,6 +120,14 @@ test('writes real Shell and ResultsRoute scenarios in light and dark', async () 
     expect(view.getAllByRole('main')).toHaveLength(1)
     expect(view.container.querySelector<HTMLDetailsElement>('.xp-chart-details')?.open).toBe(false)
     if (state === 'archived-page') expect(view.getByRole('button', { name: 'Release pages' }).closest('header')).toBeTruthy()
+    if (state === 'decided') {
+      expect(view.getByText('Variant A is very likely better (97%).')).toBeTruthy()
+      expect(view.container.querySelectorAll('.xp-stat-tile-value')[2]?.textContent).toBe('97.0%')
+      expect(view.getAllByRole('table')[0]?.textContent).toContain('97.0%')
+      expect(view.getAllByRole('rowheader').map(header => header.textContent)).toEqual([
+        'Original', 'Variant A', 'Variant B', 'Original', 'Variant A', 'Variant B', 'Original', 'Variant A', 'Variant B',
+      ])
+    }
     if (state === 'released-page') {
       await waitFor(() => expect(view.getByText('Pages released 3 Nov 2026 by Alex Editor')).toBeTruthy())
       expect(view.getByText('Pages released 3 Nov 2026 by Alex Editor').closest('.xp-tests-shell-subtitle')).toBeTruthy()
@@ -111,7 +139,7 @@ test('writes real Shell and ResultsRoute scenarios in light and dark', async () 
     }
     if (state === 'running-leader') await waitFor(() => expect(view.getByText('Running since 25 Oct 2026 · 1,204 people so far · about 19 days to go')).toBeTruthy())
     for (const theme of ['light', 'dark']) {
-      const html = `<!DOCTYPE html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${state} results — ${theme}</title>${cssPaths.map(path => `<link rel="stylesheet" href="${pathToFileURL(path).href}">`).join('')}<style>body { margin: 0; }</style></head><body>${view.container.innerHTML}</body></html>`
+      const html = `<!DOCTYPE html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${state} results — ${theme}</title>${cssPaths.map(path => `<link rel="stylesheet" href="${pathToFileURL(path).href}">`).join('')}<style>body { margin: 0; }</style></head><body>${view.container.innerHTML}${scrollCueScript}</body></html>`
       const path = join(output, `results-${state}-${theme}.html`)
       writeFileSync(path, html); paths.push(path)
     }

@@ -1,12 +1,18 @@
+import { refusalMessage } from '../../copy/common.js'
 import { GOALS_COPY as C } from '../../copy/goals.js'
 import { payloadFieldErrors } from '../testDocument.model.js'
 
-/** REST refusals remain the server's words, including nested field validation errors. */
-export async function goalResponse(response: Response, fallback: string): Promise<unknown> {
+export class GoalResponseError extends Error {
+  constructor(message: string, public readonly fields: Record<string, string>) { super(message) }
+}
+
+/** Map REST refusals while retaining Payload's field validation details. */
+export async function goalResponse(response: Response, fallback: string, options?: { notFound?: string }): Promise<unknown> {
   const body: unknown = await response.json().catch(() => undefined)
   if (!response.ok) {
-    const messages = Object.values(payloadFieldErrors(body, '_section', fallback))
-    throw new Error(messages.length ? messages.join(' ') : fallback)
+    const fields = payloadFieldErrors(body, '_section', fallback)
+    const first = (body as { errors?: { code?: string }[] } | null | undefined)?.errors?.[0]
+    throw new GoalResponseError(refusalMessage(first?.code, response.status, Object.values(fields).join(' ') || fallback, options), fields)
   }
   if (body == null) throw new Error(fallback)
   return body

@@ -47,9 +47,9 @@ export function GoalSection({ test, surface }: SectionProps) {
     url.searchParams.delete('goal')
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
     const goal = metrics.find(metric => String(metric.id) === goalId)
-    if (!reason && doc.metrics?.primary == null && goal) {
+    if (!reason && goal) {
       save(test, 'metrics', () => ({ metrics: { ...doc.metrics, primary: goal.id,
-        guardrails: doc.metrics?.guardrails?.filter(id => id !== goal.id), secondary: doc.metrics?.secondary?.filter(id => id !== goal.id) } }))
+        guardrails: doc.metrics?.guardrails?.filter(id => String(id) !== goalId), secondary: doc.metrics?.secondary?.filter(id => String(id) !== goalId) } }))
     }
   }, [loaded, metrics, reason, doc.metrics, test])
   const sources = metricSourceOptions(surface.metricSources)
