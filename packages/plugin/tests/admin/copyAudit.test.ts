@@ -180,6 +180,13 @@ test.each([
   ["export function label() { return 'Choose an arm' }", 'Choose an arm'],
   ["export const label = () => 'Choose an arm'", 'Choose an arm'],
   ["export function fail() { throw new Error('Choose an arm') }", 'Choose an arm'],
+  ["export function label(note: string = 'Pick an arm first') { return note }", 'Pick an arm first'],
+  ["export const label = (note: string = 'Pick an arm first') => note", 'Pick an arm first'],
+  ["export function label(path = 'Pick an arm first') { return path }", 'Pick an arm first'],
+  ["export const PLANTED = ['Each arm gets equal traffic.', 'Choose a version.']", 'Each arm gets equal traffic.'],
+  ["const CODE_MESSAGES: Record<string, string> = { noArm: 'Add an arm first' }; export const label = c => CODE_MESSAGES[c]", 'Add an arm first'],
+  ["function fail() { throw new TypeError('Choose an arm') }", 'Choose an arm'],
+  ["function fail(reject) { reject(new Error('Choose an arm')) }", 'Choose an arm'],
   ...['message', 'label', 'title', 'headline', 'detail', 'hint'].map(key => [`const copy = { ${key}: 'Choose an arm' }`, 'Choose an arm']),
 ])('helper scanner reports authored text: %s', (source, expected) => {
   expect(hits(helperStrings(source))).toEqual([expected])
@@ -194,6 +201,14 @@ test.each([
   "function query() { const params = new URLSearchParams(); return params.set('phase', round) }",
   "function query() { const params = new URLSearchParams(); return params.append('arm', version) }",
   "export const data = () => ({ 'arm': 'Original', ['phase']: 'Round' })",
+  "function groups(path = 'arms') { return fields[path] }",
+  "const fields = ['arms', 'phase']; const paths = { client: '/payload-experiments/admin' }",
+  "const checks = [value === 'Choose an arm', value !== 'Over the last phase']",
+  "const data = { 'Choose an arm': 'Original', ['Over the last phase']: 'Round' }",
+  "const loads = [fetch('/Choose an arm'), window.fetch('/Over the last phase')]",
+  "function request(path) { return fetch(path) }; const loads = [request('/Choose an arm')]",
+  "const params = new URLSearchParams(); const query = [params.set('Choose an arm', version), params.append('Over the last phase', round)]",
+  ...['className', 'classNames', 'clsx', 'cn', 'cx'].map(name => `const css = [${name}('Choose an arm', { phase: active })]`),
   ...['className', 'classNames', 'clsx', 'cn', 'cx'].map(name => `export const css = () => ${name}('arm', { phase: active })`),
 ])('helper scanner excludes implementation syntax: %s', source => {
   expect(hits(helperStrings(source))).toEqual([])

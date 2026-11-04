@@ -100,6 +100,12 @@ test('all admin and Puck helper copy says test, not experiment', () => {
 test.each([
   "export const label = () => 'Choose an experiment'",
   "function fail() { throw new Error('Choose an experiment') }",
+  "function label(note: string = 'Choose an experiment') { return note }",
+  "export const label = (note: string = 'Choose an experiment') => note",
+  "export const PLANTED = ['Choose an experiment', 'Choose a version.']",
+  "const CODE_MESSAGES: Record<string, string> = { noTest: 'Choose an experiment' }; export const label = c => CODE_MESSAGES[c]",
+  "function fail() { throw new TypeError('Choose an experiment') }",
+  "function fail(reject) { reject(new Error('Choose an experiment')) }",
   "const error = { message: 'Choose an experiment' }",
 ])('helper test-vocabulary gate reports planted copy: %s', source => {
   expect(helperCopyHits(source)).toEqual(['Choose an experiment'])

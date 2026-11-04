@@ -18,10 +18,11 @@ export const helperPaths = editorFiles.filter(file => file.endsWith('.ts') && !c
 const copyProperties = new Set(['message', 'label', 'title', 'headline', 'detail', 'hint'])
 const classNameHelpers = new Set(['className', 'classNames', 'clsx', 'cn', 'cx'])
 
-/** Returned literals, thrown Error messages and authored copy properties in every helper. */
+/** Returned literals, defaults, variable values, Error messages and authored copy properties in every helper. */
 export function helperStrings(source: string): string[] {
   const file = ts.createSourceFile('copy.ts', source, ts.ScriptTarget.Latest, true)
   const result: string[] = []
+  const seen = new Set<ts.Node>()
   const urlReaders = new Set(['fetch'])
   const queryBuilders = new Set<string>()
   function implementation(node: ts.Node) {
@@ -45,33 +46,53 @@ export function helperStrings(source: string): string[] {
     ts.forEachChild(node, implementation)
   }
   implementation(file)
-  function literals(node: ts.Node) {
-    // Imports and type syntax describe implementation, never rendered copy.
-    if (ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node) || ts.isTypeNode(node)) return
-    // Equality operands are discriminants, including inside returned expressions.
-    if (ts.isBinaryExpression(node) && [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(node.operatorToken.kind)) return
-    // Inspect property values, never their identifier/string/computed keys.
-    if (ts.isPropertyAssignment(node)) { literals(node.initializer); return }
-    if (ts.isCallExpression(node)) {
-      const name = ts.isIdentifier(node.expression) ? node.expression.text
-        : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined
-      // CSS helper arguments are class tokens; only fetch's first argument is a URL.
-      if (name && classNameHelpers.has(name)) return
-      if (name && urlReaders.has(name)) { node.arguments.slice(1).forEach(literals); return }
-      // URLSearchParams.set/append's first argument is a query key.
-      if (ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
-        && queryBuilders.has(node.expression.expression.text) && ['set', 'append'].includes(node.expression.name.text)) {
-        node.arguments.slice(1).forEach(literals); return
+  function literals(root: ts.Node, proseOnly = false) {
+    function visit(node: ts.Node) {
+      // A helper's path default is a Payload field path, like the JSX path attribute.
+      if (ts.isParameter(node.parent) && ts.isIdentifier(node.parent.name) && node.parent.name.text === 'path'
+        && ts.isStringLiteralLike(node) && /^[\w.[\]]+$/.test(node.text)) return
+      // Imports and type syntax describe implementation, never rendered copy.
+      if (ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node) || ts.isTypeNode(node)) return
+      // Equality operands are discriminants, including inside returned expressions.
+      if (ts.isBinaryExpression(node) && [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(node.operatorToken.kind)) return
+      // Inspect property values, never their identifier/string/computed keys.
+      if (ts.isPropertyAssignment(node)) { visit(node.initializer); return }
+      if (ts.isCallExpression(node)) {
+        const name = ts.isIdentifier(node.expression) ? node.expression.text
+          : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined
+        // CSS helper arguments are class tokens; only fetch's first argument is a URL.
+        if (name && classNameHelpers.has(name)) return
+        if (name && urlReaders.has(name)) { node.arguments.slice(1).forEach(visit); return }
+        // URLSearchParams.set/append's first argument is a query key.
+        if (ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
+          && queryBuilders.has(node.expression.expression.text) && ['set', 'append'].includes(node.expression.name.text)) {
+          node.arguments.slice(1).forEach(visit); return
+        }
       }
+      if (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
+        if ((!proseOnly || node.text.includes(' ')) && !seen.has(node)) { seen.add(node); result.push(node.text) }
+      }
+      ts.forEachChild(node, visit)
     }
-    if (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) result.push(node.text)
-    ts.forEachChild(node, literals)
+    visit(root)
   }
   function walk(node: ts.Node) {
-    if (ts.isReturnStatement(node) && node.expression) literals(node.expression)
-    else if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) literals(node.body)
-    else if (ts.isThrowStatement(node) && ts.isNewExpression(node.expression)
-      && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === 'Error') node.expression.arguments?.forEach(literals)
+    if (ts.isParameter(node) && node.initializer) literals(node.initializer)
+    else if (ts.isVariableDeclaration(node) && node.initializer) {
+      let value = node.initializer
+      while (ts.isParenthesizedExpression(value) || ts.isAsExpression(value) || ts.isSatisfiesExpression(value)) value = value.expression
+      // Bare variables also hold route fragments, import-map entries and field keys.
+      if (ts.isArrayLiteralExpression(value) || ts.isObjectLiteralExpression(value)) literals(value, true)
+      // Keep the existing return/property checks, plus defaults and Error constructors.
+      ts.forEachChild(node, walk)
+    }
+    else if (ts.isReturnStatement(node) && node.expression) literals(node.expression)
+    else if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      node.parameters.forEach(parameter => { if (parameter.initializer) literals(parameter.initializer) })
+      literals(node.body)
+    }
+    else if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)
+      && node.expression.text.endsWith('Error')) node.arguments?.forEach(argument => literals(argument))
     else if (ts.isPropertyAssignment(node) && (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) && copyProperties.has(node.name.text)) literals(node.initializer)
     else ts.forEachChild(node, walk)
   }
