@@ -159,6 +159,19 @@ test('block preflight resolves host URLs with publication state and carries ever
   expect(editorUrl.mock.calls).toEqual([[{ collection: 'pages', id: 10, draft: false }], [{ collection: 'pages', id: 11, draft: true }]])
 })
 
+test('several slots on one page version share one host preview lookup', async () => {
+  const { options, payload, req } = blockSetup()
+  const page = (payload.documents.pages as Array<{ id: number; puckData: { content: unknown[] } }>).find(doc => doc.id === 10)!
+  page.puckData.content.push({ type: 'ExperimentSlot', props: { experiment: 'hero', control: [{}], variantA: [{}] } })
+  const previewUrl = vi.fn(async ({ id }) => `/page/${id}`)
+  options.admin = { previewUrl }
+  const body = await (await handlePreflight(req, { options })).json() as PreflightResult
+  const landing = body.placements.filter(placement => placement.id === 10)
+  expect(landing.length).toBeGreaterThan(1)
+  expect(landing.every(placement => placement.url === '/page/10')).toBe(true)
+  expect(previewUrl.mock.calls.filter(([placement]) => placement.id === 10)).toHaveLength(1)
+})
+
 test('flag placement rows never get URLs or slots even when host URL options exist', async () => {
   const { options, req } = setup('flag')
   options.flagPoints![0]!.placements = async () => [{ arm: 'control', ok: true }]
