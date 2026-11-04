@@ -647,8 +647,11 @@ test('page lookups respect the results deadline and cannot hang the pass', async
   ] })
   await database.db.update(xp_experiments).set({ kind: 'page', phase: 1 }).where(eq(xp_experiments.id, Number(phase.experiment)))
   const context = payload()
-  context.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: () => new Promise(() => {}) }] }
-  const summary = await runResults(context.payload, { budgetMs: 1500, sweep: false })
+  const findByPath = vi.fn(() => new Promise<never>(() => {}))
+  context.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath }] }
+  // The budget is the test's wait; it must still outlast the analysis so the lookup is reached.
+  const summary = await runResults(context.payload, { budgetMs: 300, sweep: false })
+  expect(findByPath).toHaveBeenCalled()
   expect(summary).toMatchObject({ ran: 0, budgetExhausted: true })
   expect(await snapshots()).toHaveLength(0)
   expect(context.payload.logs.some(log => log.args.includes('Experiment version page lookup failed'))).toBe(false)

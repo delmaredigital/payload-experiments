@@ -38,7 +38,7 @@ function unreachable(entries: string[], inventory: string[]) {
 test('admin source is reachable from public entries', () => {
   const entries = readdirSync(join(src, 'exports')).filter(file => file.endsWith('.ts')).map(file => join(src, 'exports', file))
   expect(unreachable(entries, files(join(src, 'admin')))).toEqual({ orphans: [], runtimeOnlyThroughTypes: [] })
-})
+}, 15_000) // Two import-graph walks per public entry: measured 1.3–1.8 s in the full suite.
 test('an orphan fixture is reported', () => {
   const directory = mkdtempSync(join(tmpdir(), 'xp-admin-orphan-'))
   try {
