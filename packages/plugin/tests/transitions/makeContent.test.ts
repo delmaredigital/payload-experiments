@@ -1,4 +1,4 @@
-import { Forbidden, Locked, NotFound, ValidationError, type Field } from 'payload'
+import { Forbidden, Locked, NotFound, ValidationError, killTransaction, type Field, type Block } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { contentReportCopy } from '../../src/admin/copy/actions.js'
 import { preflightData } from '../../src/transitions/preflightData.js'
@@ -220,6 +220,7 @@ test.each(([
 test.each(([
   [{ type: 'tabs', tabs: [{ label: 'SEO', fields: [{ name: 'title', type: 'text', localized: true }] }] }],
   [{ name: 'blocks', type: 'blocks', blocks: [{ slug: 'copy', fields: [{ name: 'title', type: 'text', localized: true }] }] }],
+  [{ name: 'blocks', type: 'blocks', blocks: [], blockReferences: [{ slug: 'inline', fields: [{ name: 'title', type: 'text', localized: true }] }] }],
   [{ name: 'puckData', type: 'json', localized: true }],
   [{ type: 'tabs', tabs: [{ name: 'localizedContent', label: 'Content', localized: true, fields: [{ name: 'puckData', type: 'json' }] }] }],
 ] satisfies Field[][]).flatMap(fields => [false, true].map(localization => ({ fields, localization }))))('localized flags only refuse and warn when localization is enabled: %j', async ({ fields, localization }) => {
@@ -457,7 +458,10 @@ test('a retained page read that fails with a plain 404 reports ok with not-found
   f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
   const findByID = f.payload.findByID.bind(f.payload)
   vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
-    if (args.collection === 'pages' && args.id === 3 && args.disableErrors) throw Object.assign(new Error('secret-value gone'), { status: 404 })
+    if (args.collection === 'pages' && args.id === 3 && args.disableErrors) {
+      f.payload.documents.pages = f.payload.documents.pages!.filter(doc => doc.id !== 3)
+      throw Object.assign(new Error('secret-value gone'), { status: 404 })
+    }
     return findByID(args)
   })
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
@@ -713,14 +717,20 @@ test.each(['adapter missing', 'access probe 404', 'update 404'])('a page deleted
   if (stage === 'access probe 404') {
     const read = f.payload.findByID.bind(f.payload)
     vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
-      if (args.collection === 'pages' && !args.disableErrors) throw new NotFound()
+      if (args.collection === 'pages' && !args.disableErrors) {
+        f.payload.documents.pages = f.payload.documents.pages!.filter(doc => doc.id !== args.id)
+        throw new NotFound()
+      }
       return read(args)
     })
   }
   if (stage === 'update 404') {
     const update = f.payload.update.bind(f.payload)
     vi.spyOn(f.payload, 'update').mockImplementation(async args => {
-      if (args.collection === 'pages') throw Object.assign(new Error('gone'), { status: 404 })
+      if (args.collection === 'pages') {
+        f.payload.documents.pages = f.payload.documents.pages!.filter(doc => doc.id !== args.id)
+        throw Object.assign(new Error('gone'), { status: 404 })
+      }
       return update(args)
     })
   }
@@ -743,4 +753,143 @@ test('empty children added to a group or named tab do not turn unchanged denied 
   expect(result.docs.every(doc => doc.ok)).toBe(true)
   expect(access).not.toHaveBeenCalled()
   expect(hostUpdates(f)).toHaveLength(4)
+})
+
+
+test.each(['outer probe', 'inner probe', 'publish', 'draft'] as const)('NotFound from %s with an existing row refuses the placement and never archives', async stage => {
+  const f = fixture()
+  const original = structuredClone(f.payload.documents.pages![0]!)
+  const read = f.payload.findByID.bind(f.payload)
+  const update = f.payload.update.bind(f.payload)
+  const failedTransactions: unknown[] = []
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    if (args.collection === 'pages' && args.id === 3 && (
+      stage === 'outer probe' && args.disableErrors || stage === 'inner probe' && !args.disableErrors
+    )) {
+      failedTransactions.push(f.req.transactionID)
+      await killTransaction(f.req)
+      throw new NotFound()
+    }
+    return read(args)
+  })
+  vi.spyOn(f.payload, 'update').mockImplementation(async args => {
+    if (args.collection === 'pages' && args.id === 3 && (
+      stage === 'publish' && !args.draft || stage === 'draft' && args.draft
+    )) {
+      failedTransactions.push(f.req.transactionID)
+      // Payload kills the transaction when the host hook's lookup throws.
+      await killTransaction(f.req)
+      throw new NotFound()
+    }
+    return update(args)
+  })
+  const rollback = f.payload.db.rollbackTransaction.bind(f.payload.db)
+  vi.spyOn(f.payload.db, 'rollbackTransaction').mockImplementation(async id => {
+    if (failedTransactions.includes(id)) Object.assign(f.payload.documents.pages![0]!, structuredClone(original))
+    return rollback(id)
+  })
+  const adapterRead = vi.mocked(f.payload.db.findOne).getMockImplementation()!
+  const checks: unknown[] = []
+  vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => {
+    expect(args.req!.context?.xpTransition).toBeUndefined()
+    expect(args.req!.transactionID).toBeDefined()
+    checks.push(args.req!.transactionID)
+    return adapterRead(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'not-found', error: 'not-found' }, { id: 4, ok: true }])
+  expect(f.payload.documents.pages![0]).toEqual(original)
+  expect(checks.length).toBeGreaterThanOrEqual(2)
+  expect(checks).not.toContain('fake-transaction-1')
+  if (stage !== 'outer probe') expect(f.payload.dbCalls).toContainEqual({ method: 'rollbackTransaction', args: [failedTransactions[0]] })
+})
+
+test('an existence re-check failure after NotFound fails closed', async () => {
+  const f = fixture()
+  const read = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    if (args.collection === 'pages' && !args.disableErrors) throw new NotFound()
+    return read(args)
+  })
+  vi.spyOn(f.payload.db, 'findOne').mockRejectedValue(new Error('secret-value adapter error'))
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs.every(doc => !doc.ok && doc.detail === 'update-failed')).toBe(true)
+  expect(hostUpdates(f)).toEqual([])
+  expect(JSON.stringify(f.payload.logs)).not.toContain('secret-value')
+})
+
+test.each(['inline reference', 'recursive reference'] as const)('every row in an %s preserves an empty published link and its draft edit', async shape => {
+  const f = fixture()
+  const block: Block = { slug: 'copy', fields: [{ name: 'link', type: 'relationship', relationTo: ['pages', 'media'] }] }
+  if (shape === 'recursive reference') block.fields.push({ name: 'children', type: 'blocks', blocks: [], blockReferences: ['copy'] })
+  Object.assign(f.payload.config, { blocks: [block] })
+  f.payload.config.collections[0]!.fields = [{ name: 'layout', type: 'blocks', blocks: [], blockReferences: shape === 'inline reference' ? [block] : ['copy'] }]
+  const link = { relationTo: 'pages', value: 9 }
+  const rows = (set: boolean): Record<string, unknown>[] => {
+    let row: Record<string, unknown> = { id: 'deep', blockType: 'copy', ...(set ? { link } : {}) }
+    if (shape === 'recursive reference') {
+      row.children = []
+      for (const id of ['middle', 'outer']) row = { id, blockType: 'copy', link: null, children: [row] }
+    }
+    return [row]
+  }
+  const published = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, layout: rows(false) }]))
+  const latest = new Map(f.payload.documents.pages!.map(doc => [doc.id, { ...doc, layout: rows(true) }]))
+  vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => structuredClone(published.get((args.where!.id as { equals: number }).equals)) as never)
+  mockDraftVersions(f, id => structuredClone(latest.get(id)))
+  // Model Payload's row-ID merge so an omitted key inherits the draft link.
+  function merge(data: Record<string, unknown>, original: Record<string, unknown> = {}): Record<string, unknown> {
+    const result = { ...original, ...data }
+    for (const [key, value] of Object.entries(data)) if (Array.isArray(value)) {
+      const old = original[key]
+      result[key] = value.map(row => merge(row, Array.isArray(old) ? old.find(item => item.id === row.id) : undefined))
+    }
+    return result
+  }
+  const update = f.payload.update.bind(f.payload)
+  vi.spyOn(f.payload, 'update').mockImplementation(async args => {
+    if (args.collection === 'pages') {
+      const doc = merge(args.data!, latest.get(args.id!)) as NonNullable<ReturnType<typeof latest.get>>
+      latest.set(args.id!, doc)
+      if (!args.draft) published.set(args.id!, doc)
+    }
+    return update(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('archived')
+  const deepest = (doc: { layout: Record<string, unknown>[] }) => {
+    let row = doc.layout[0]!
+    while (Array.isArray(row.children) && row.children.length) row = row.children[0]
+    return row
+  }
+  for (const id of [3, 4]) {
+    expect(deepest(published.get(id)!)).toMatchObject({ id: 'deep', link: null })
+    expect(deepest(latest.get(id)!)).toMatchObject({ id: 'deep', link })
+  }
+})
+
+test.each(['inline reference', 'recursive reference'] as const)('update-denied links inside an %s refuse before either write', async shape => {
+  const f = fixture()
+  const access = vi.fn(() => false)
+  const block: Block = { slug: 'copy', fields: [{ name: 'link', type: 'relationship', relationTo: ['pages', 'media'], access: { update: access } }] }
+  if (shape === 'recursive reference') block.fields.push({ name: 'children', type: 'blocks', blocks: [], blockReferences: ['copy'] })
+  Object.assign(f.payload.config, { blocks: [block] })
+  f.payload.config.collections[0]!.fields = [{ name: 'layout', type: 'blocks', blocks: [], blockReferences: shape === 'inline reference' ? [block] : ['copy'] }]
+  const rows = (set: boolean) => {
+    let row: Record<string, unknown> = { id: 'deep', blockType: 'copy', ...(set ? { link: { relationTo: 'pages', value: 9 } } : {}) }
+    if (shape === 'recursive reference') {
+      row.children = []
+      for (const id of ['middle', 'outer']) row = { id, blockType: 'copy', link: null, children: [row] }
+    }
+    return [row]
+  }
+  for (const doc of f.payload.documents.pages!) doc.layout = rows(false)
+  mockDraftVersions(f, id => ({ ...structuredClone(f.payload.documents.pages!.find(doc => doc.id === id)), layout: rows(true) }))
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs.every(doc => !doc.ok && doc.detail === 'validation')).toBe(true)
+  expect(access).toHaveBeenCalledTimes(2)
+  expect(hostUpdates(f)).toEqual([])
 })

@@ -1,6 +1,6 @@
 import { Forbidden, NotFound, ValidationError, Locked, commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field, type Block } from 'payload'
 import { latestDraftContent, publishedContent as readPublishedContent } from '../db/publishedContent.js'
-import { hasLocalizedFields } from './contentFields.js'
+import { contentBlocks, hasLocalizedFields } from './contentFields.js'
 import { safeError } from '../log.js'
 import { XpRefusal } from '../errors.js'
 import type { ContentReportReason } from '../types/reasons.js'
@@ -31,6 +31,9 @@ function contentFailureReason(error: unknown): ContentReportReason {
 }
 
 class LocalizedContent extends Error {}
+
+const isNotFound = (error: unknown) => contentFailureReason(error) === 'not-found'
+  || Boolean(error && typeof error === 'object' && 'status' in error && error.status === 404)
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
 
@@ -64,11 +67,10 @@ function contentData(doc: Record<string, unknown>, field: string, content: unkno
 /** Adapter reads can omit empty fields (notably single polymorphic links).
  * Make every stored value explicit so Payload cannot fill it from the other version.
  */
-function fillContentFields(fields: Field[], source: Record<string, unknown>, blocks: Block[] = [], seen = new Set<Field>()): Record<string, unknown> {
+function fillContentFields(fields: Field[], source: Record<string, unknown>, blocks: Block[] = []): Record<string, unknown> {
   const result = { ...source }
   for (const field of fields) {
-    if (seen.has(field) || field.type === 'ui' || field.type === 'join' || 'virtual' in field && field.virtual) continue
-    const branch = new Set(seen).add(field)
+    if (field.type === 'ui' || field.type === 'join' || 'virtual' in field && field.virtual) continue
     const name = 'name' in field ? field.name : undefined
     if (name && contentMetadata.has(name)) continue
     if (name && result[name] === undefined) result[name] = field.type === 'array' || field.type === 'blocks' || 'hasMany' in field && field.hasMany ? [] : null
@@ -76,23 +78,23 @@ function fillContentFields(fields: Field[], source: Record<string, unknown>, blo
       if ('name' in tab && tab.name) {
         const value = result[tab.name]
         // Payload traverses groups/tabs as objects; null would be dereferenced.
-        result[tab.name] = fillContentFields(tab.fields, object(value) ? value : {}, blocks, branch)
-      } else Object.assign(result, fillContentFields(tab.fields, result, blocks, branch))
+        result[tab.name] = fillContentFields(tab.fields, object(value) ? value : {}, blocks)
+      } else Object.assign(result, fillContentFields(tab.fields, result, blocks))
     }
     const value = name ? result[name] : result
     if ('fields' in field) {
-      if (Array.isArray(value)) result[name!] = value.map(row => object(row) ? fillContentFields(field.fields, row, blocks, branch) : row)
+      if (Array.isArray(value)) result[name!] = value.map(row => object(row) ? fillContentFields(field.fields, row, blocks) : row)
       else if (object(value) || field.type === 'group') {
-        const filled = fillContentFields(field.fields, object(value) ? value : {}, blocks, branch)
+        const filled = fillContentFields(field.fields, object(value) ? value : {}, blocks)
         if (name) result[name] = filled
         else Object.assign(result, filled)
       }
     }
     if (field.type === 'blocks' && Array.isArray(value)) {
-      const definitions = [...field.blocks, ...(field.blockReferences ?? []).flatMap(slug => blocks.filter(block => block.slug === slug))]
+      const definitions = contentBlocks(field, blocks)
       result[name!] = value.map(row => {
         const block = object(row) ? definitions.find(block => block.slug === row.blockType) : undefined
-        return block && object(row) ? fillContentFields(block.fields, row, blocks, branch) : row
+        return block && object(row) ? fillContentFields(block.fields, row, blocks) : row
       })
     }
   }
@@ -108,10 +110,9 @@ const existingRow = (row: unknown, original: unknown): Record<string, unknown> =
 
 async function fieldRefusal(fields: Field[], req: PayloadRequest, doc: Record<string, unknown> & { id: DocId },
   operation: 'update' = 'update', data: Record<string, unknown> = doc,
-  siblingData: Record<string, unknown> = data, blockData?: Record<string, unknown>, seen = new Set<Field>(), originalSibling: Record<string, unknown> = fillContentFields(fields, doc, req.payload.config.blocks)): Promise<string | undefined> {
+  siblingData: Record<string, unknown> = data, blockData?: Record<string, unknown>, originalSibling: Record<string, unknown> = fillContentFields(fields, doc, req.payload.config.blocks)): Promise<string | undefined> {
   for (const field of fields) {
-    if (seen.has(field) || field.type === 'ui' || field.type === 'join' || 'virtual' in field && field.virtual) continue
-    const branch = new Set(seen).add(field)
+    if (field.type === 'ui' || field.type === 'join' || 'virtual' in field && field.virtual) continue
     if ('name' in field && !['id', 'createdAt', 'updatedAt'].includes(field.name) && JSON.stringify(siblingData[field.name] ?? null) !== JSON.stringify(originalSibling[field.name] ?? null) && 'access' in field && field.access?.[operation] && !await field.access[operation]({ id: doc.id, req, doc, data, siblingData, blockData })) {
       return 'This page has fields you cannot update; update it by hand.'
     }
@@ -122,24 +123,23 @@ async function fieldRefusal(fields: Field[], req: PayloadRequest, doc: Record<st
       }
       const tabData = 'name' in tab && tab.name ? siblingData[tab.name] : siblingData
       const originalTab = 'name' in tab && tab.name ? originalSibling[tab.name] : originalSibling
-      const refusal = await fieldRefusal(tab.fields, req, doc, operation, data, object(tabData) ? tabData : {}, blockData, branch, object(originalTab) ? originalTab : {})
+      const refusal = await fieldRefusal(tab.fields, req, doc, operation, data, object(tabData) ? tabData : {}, blockData, object(originalTab) ? originalTab : {})
       if (refusal) return refusal
     }
     const originalValue = 'name' in field ? originalSibling[field.name] : originalSibling
     if ('fields' in field) for (const row of Array.isArray(value) && value.length ? value : [value]) {
       const original = Array.isArray(value) ? existingRow(row, originalValue) : originalValue
-      const refusal = await fieldRefusal(field.fields, req, doc, operation, data, object(row) ? row : {}, blockData, branch, object(original) ? original : {})
+      const refusal = await fieldRefusal(field.fields, req, doc, operation, data, object(row) ? row : {}, blockData, object(original) ? original : {})
       if (refusal) return refusal
     }
     if (field.type === 'blocks') {
-      const blocks = [...field.blocks, ...(field.blockReferences ?? []).map(slug => req.payload.config.blocks?.find(block => block.slug === slug)).filter(block => block !== undefined)]
-      for (const block of blocks) {
-        const rows = Array.isArray(value) ? value.filter(row => object(row) && row.blockType === block.slug) : []
-        for (const row of rows.length ? rows : [{}]) {
-          const original = existingRow(row, originalValue)
-          const refusal = await fieldRefusal(block.fields, req, doc, operation, data, row, row, branch, object(original) ? original : {})
-          if (refusal) return refusal
-        }
+      const blocks = contentBlocks(field, req.payload.config.blocks)
+      for (const row of Array.isArray(value) ? value : []) {
+        const block = object(row) ? blocks.find(block => block.slug === row.blockType) : undefined
+        if (!block || !object(row)) continue
+        const original = existingRow(row, originalValue)
+        const refusal = await fieldRefusal(block.fields, req, doc, operation, data, row, row, object(original) ? original : {})
+        if (refusal) return refusal
       }
     }
   }
@@ -182,11 +182,27 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
     if (!winner) refuse('invalid-winner')
     const docs: ContentDoc[] = []
     const attempt = async (collection: string, id: DocId, fn: () => Promise<void>, missingOk = false) => {
-      try { await hostTransaction(req, fn); docs.push({ collection, id, ok: true }) }
+      let missing = false
+      try {
+        await hostTransaction(req, async () => {
+          try { await fn() }
+          catch (error) {
+            if (missingOk && isNotFound(error)) {
+              // Payload may already have killed the failed write's transaction.
+              // Roll back any remaining writes, then check the row while still
+              // detached from the outer transition and its privileged context.
+              await killTransaction(req)
+              if (!await initTransaction(req)) throw new Error('A content transaction could not be started.')
+              missing = !await readPublishedContent(req, collection, id)
+            }
+            throw error
+          }
+        })
+        docs.push({ collection, id, ok: true })
+      }
       catch (error) {
-        const detail = contentFailureReason(error)
+        const detail = isNotFound(error) ? 'not-found' : contentFailureReason(error)
         req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content update failed')
-        const missing = missingOk && (detail === 'not-found' || error && typeof error === 'object' && 'status' in error && error.status === 404)
         docs.push({ collection, id, ok: Boolean(missing), detail: missing ? 'not-found' : detail, ...(!missing ? { error: detail } : {}) })
       }
     }
@@ -231,10 +247,17 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           } else if (doc._isLocked === true || doc.locked === true) refuse('locked-placement', { collection, id })
         } catch (error) {
           if (error && typeof error === 'object' && 'code' in error && error.code === 'locked-placement') throw error
-          const missing = error && typeof error === 'object' && 'status' in error && error.status === 404
+          let missing = false
+          if (isNotFound(error)) {
+            try {
+              await hostTransaction(req, async () => { missing = !await readPublishedContent(req, collection, id) })
+            } catch (checkError) {
+              missing = false
+              req.payload.logger.error({ err: safeError(checkError), experimentId, collection, id }, 'Experiment content existence check failed')
+            }
+          }
           req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content read failed')
-          // A 404 means the placement is gone: nothing to update, so ok and detail must agree.
-          const detail: ContentReportReason = missing ? 'not-found' : contentFailureReason(error)
+          const detail: ContentReportReason = isNotFound(error) ? 'not-found' : contentFailureReason(error)
           docs.push({ collection, id, ok: Boolean(missing), detail, ...(!missing ? { error: detail } : {}) })
           skipped.add(key)
         } finally { req.transactionID = transactionID }

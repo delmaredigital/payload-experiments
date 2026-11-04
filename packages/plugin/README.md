@@ -679,6 +679,7 @@ changes block actions**; save first so they use the saved experiment.
 | Capability | Limit |
 |---|---|
 | Make it the content: localized collections | not supported yet |
+| Make it the content: field defaults | An update-denied field empty in both versions may publish its default because Payload applies defaults when reading. |
 
 ## Theme
 
