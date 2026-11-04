@@ -47,6 +47,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
     links.push(identity)
     linksByUser.set(identity.userId, links)
   }
+  // Last arm credited per user: enough to detect that a user's credited events span arms (a conflict).
   const creditedArms = new Map<string, string>()
   const noteCredit = (userId: string, unitId: string) => {
     const arm = units.get(unitId)?.arm
