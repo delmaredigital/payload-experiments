@@ -8,7 +8,6 @@ import type { DocId } from '../../../types/contracts.js'
 import type { PreflightResult } from '../../../types/endpoints.js'
 import type { SurfaceProps } from '../contracts.js'
 import { RESULTS_COPY as C } from '../../copy/results.js'
-import { RESULTS_SURFACE_COPY } from '../../copy/recommendation.js'
 import { ACTIONS_COPY } from '../../copy/actions.js'
 import { API_MESSAGES } from '../../copy/common.js'
 import { armLabel } from '../../labels.js'
@@ -112,7 +111,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased }: ResultsB
     </select></label> : null}
     {state === 'loading' ? <p role="status">{data ? C.refreshing : C.loading}</p>
       : state === 'forbidden' ? <p role="alert">{C.forbidden}</p>
-      : state === 'missing' ? <p role="alert">{RESULTS_SURFACE_COPY.missing}</p>
+      : state === 'missing' ? <p role="alert">{results.error}</p>
       : state === 'error' ? <><p role="alert">{results.error}</p><Button onClick={results.reload}>{C.retry}</Button></>
       : null}
     {phase && snapshot ? <>

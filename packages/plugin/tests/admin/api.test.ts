@@ -42,6 +42,21 @@ test('HTTP statuses map even without a coded envelope', async () => {
     expect(await api.start(1)).toMatchObject({ ok: false, status, message })
   }
 })
+test.each([true, false])('per-request not-found copy covers JSON and non-JSON errors: %s', async json => {
+  const calls = [
+    () => api.addMetric(1, { metric: 2, role: 'secondary' }, { notFound: 'Goal missing' }),
+    () => api.allocate(1, { allocation: 75 }, { notFound: 'Round changed' }),
+    () => api.results(1, { phase: 2, notFound: 'Round missing' }),
+  ]
+  for (const [index, message] of ['Goal missing', 'Round changed', 'Round missing'].entries()) {
+    fetchMock.mockResolvedValueOnce(json ? Response.json({ errors: [{ code: 'not-found', message: 'Developer text' }] }, { status: 404 }) : new Response('Not found', { status: 404 }))
+    expect(await calls[index]!()).toMatchObject({ ok: false, status: 404, message })
+  }
+  respond({ errors: [{ code: 'not-found', message: 'Experiment not found' }] }, 404)
+  expect(await api.stop(1)).toMatchObject({ ok: false, message: 'This experiment no longer exists.' })
+  respond({}, 404)
+  expect(await api.results(1)).toMatchObject({ ok: false, message: 'This experiment no longer exists.' })
+})
 test('network failure resolves, never rejects', async () => {
   fetchMock.mockRejectedValueOnce(new Error('offline'))
   await expect(api.start(1)).resolves.toEqual({ ok: false, status: 0,

@@ -1,5 +1,8 @@
 export const API_MESSAGES = {
   notFound: 'This experiment no longer exists.',
+  goalNotFound: 'That goal no longer exists. Choose another goal.',
+  roundChanged: 'This round has changed. Reload the page.',
+  roundNotFound: 'That round no longer exists. Choose another round.',
   commitUnverified: 'The change may not have been saved. Reload and try again.',
   notImplemented: "This isn't available yet.",
   unauthenticated: 'Your session has expired. Sign in again.',
@@ -19,9 +22,9 @@ export const LOCKED_MESSAGES = {
   other: "Can't be changed in this state.",
 } as const
 
-export function refusalMessage(code: string | undefined, status: number, message?: string): string {
+export function refusalMessage(code: string | undefined, status: number, message?: string, options?: { notFound?: string }): string {
   if (code === 'unauthenticated' || status === 401) return API_MESSAGES.unauthenticated
-  if (code === 'not-found' || status === 404) return API_MESSAGES.notFound
+  if (code === 'not-found' || status === 404) return options?.notFound ?? API_MESSAGES.notFound
   if (code === 'commit-unverified') return API_MESSAGES.commitUnverified
   if (code === 'not-implemented' || status === 501) return API_MESSAGES.notImplemented
   if (code === 'forbidden' || status === 403) return API_MESSAGES.forbidden

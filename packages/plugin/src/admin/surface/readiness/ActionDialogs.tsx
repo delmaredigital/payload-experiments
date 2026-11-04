@@ -77,7 +77,8 @@ export function AllocateAction({ test, surface, onClose }: Props) {
     {!valid ? <p>{R.allocationInvalid}</p> : null}
     {transition.error ? <p role="alert">{transition.error}</p> : null}
     <Button disabled={disabled || !valid} onClick={() => {
-      if (valid && test.doc) void transition.run(() => createApi(surface.apiRoute).allocate(test.doc!.id, { allocation }))
+      // Not-found can also mean the experiment is missing; use round copy for the missing phase record.
+      if (valid && test.doc) void transition.run(() => createApi(surface.apiRoute).allocate(test.doc!.id, { allocation }, { notFound: API_MESSAGES.roundChanged }))
     }}>{C.allocate}</Button>
     <Button disabled={transition.busy} onClick={onClose}>{A.cancel}</Button>
   </Dialog>
@@ -123,7 +124,8 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
     {!loading && !loadError && !available.length ? <p>{R.noMetrics}</p> : null}
     {loadError || transition.error ? <p role="alert">{loadError ?? transition.error}</p> : null}
     <Button disabled={disabled || loading || !!loadError || !selected} onClick={() => {
-      if (selected && test.doc) void transition.run(() => createApi(surface.apiRoute).addMetric(test.doc!.id, { metric: selected.id, role }))
+      // Goal and phase lookups share not-found; prefer the more likely missing goal without reading server text.
+      if (selected && test.doc) void transition.run(() => createApi(surface.apiRoute).addMetric(test.doc!.id, { metric: selected.id, role }, { notFound: API_MESSAGES.goalNotFound }))
     }}>{C.addGoal}</Button>
     <Button disabled={transition.busy} onClick={onClose}>{A.cancel}</Button>
   </Dialog>
