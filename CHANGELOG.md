@@ -12,7 +12,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### plugin
 
 - Changed: test page sections use the new controls: a versions grid with a traffic split bar, rule cards for who takes part, and plain-language advanced settings.
-
+- Added: Release pages on archived whole-page tests removes their archived routing and page protection, and records who released them and when. Migration impact: four nullable columns: decision_pages_released_at and decision_pages_released_by on xp_experiments, and version_decision_pages_released_at and version_decision_pages_released_by on _xp_experiments_v; run payload migrate:create.
 - Changed: the test page has a step list, numbered sections and a readiness bar with Start at the bottom.
 - Fixed: the retention sweep logs its "made no progress" warning whenever the results budget ends before it deletes anything, including between statements. Migration impact: none.
 - Changed: the Tests home shows tests as compact rows grouped by what needs doing, with a health label and one-line status for each; draft tests name the next step to finish setting them up.
@@ -22,7 +22,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed: when the analysis of a test fails, the server log now names the reason (a fixed code and message) instead of only the error type. Migration impact: none.
 - Fixed: a goal used by a test can't be deleted, and its short name and what it measures can't change, through any route (not only the Goals page). Migration impact: none.
 - Changed: an unknown `pages.collections` slug now throws `Unknown experiments page collection` during plugin setup. Register host page collections before this plugin. Migration impact: no database migration; hosts with collections added by later plugins must reorder those plugins.
-- Fixed: whole-page protection includes trash and version restores, with status-specific instructions; unchanged page health no longer creates repeated frozen snapshots, and page health reaches the Tests home.
+- Fixed: whole-page protection includes trash and version restores, with status-specific instructions; unchanged page health no longer creates repeated frozen snapshots, and page health reaches the Tests home. Decided tests check only the winner's and the Original's pages. Migration impact: none.
 - Fixed: pages in a whole-page test can't be deleted, renamed or unpublished while the test runs or while its result stands; the editor is told which test to stop or discard. Migration impact: none.
 - Added: a test whose version page stops resolving shows "Needs attention" after the next results run.
 - Added: optional `theme.accent` plugin option with derived light/dark fills, accessible accent text and focus rings, and foreground contrast validation.

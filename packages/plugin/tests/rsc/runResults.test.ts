@@ -1,5 +1,6 @@
 import { safeError } from '../../src/log.js'
 import type { Payload } from 'payload'
+import * as payloadRuntime from 'payload'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { hash, rolloutBucketRanges } from '@delmaredigital/experiments-stats'
@@ -331,7 +332,7 @@ test('rollout uses first valid exposure across phases, exact coverage ranges and
   await database.db.update(xp_phases).set({ arms: arms.map(arm => ({ ...arm, ...(arm.kind === 'control' ? { pageTarget: '/original' } : arm.key === 'variantA' ? { pageTarget: '/winner' } : {}) })) }).where(eq(xp_phases.phase, 1))
   await database.db.update(xp_phases).set({ arms: rollout.arms.map(arm => ({ ...arm, ...(arm.kind !== 'holdout' ? { pageTarget: '/winner' } : {}) })) }).where(eq(xp_phases.phase, 2))
   const context = payload()
-  const lookup = vi.fn(async () => ({ id: 1, published: true }))
+  const lookup = vi.fn(async (_path: string) => ({ id: 1, published: true }))
   context.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: lookup }] }
   expect(await runResults(context.payload)).toMatchObject({ ran: 1, skipped: 0 })
   expect(lookup.mock.calls).toHaveLength(2)
@@ -368,7 +369,7 @@ test.each([false, true])('analysis (ended=%s) precedes older decided page health
   await database.db.update(xp_experiments).set({ kind: 'page', status: 'decided', phase: 1, decision_winnerArm: 'variantA' })
     .where(eq(xp_experiments.id, Number(decided.experiment)))
   const context = payload()
-  const lookup = vi.fn(async () => ({ id: 1, published: true }))
+  const lookup = vi.fn(async (_path: string) => ({ id: 1, published: true }))
   context.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: lookup }] }
   const clock = vi.spyOn(Date, 'now').mockReturnValue(now - 10_000)
   await runResults(context.payload, { experimentId: decided.experiment, sweep: false })
@@ -395,6 +396,42 @@ test.each([false, true])('analysis (ended=%s) precedes older decided page health
   }
   expect(lookup).not.toHaveBeenCalled()
   expect((await snapshots()).filter(row => row.experiment === decided.experiment)).toEqual([frozen])
+})
+
+test('one-health-check budgets visit both frozen page tests within 40 unseeded passes', async () => {
+  const context = payload()
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+  const lookup = vi.fn(async (_path: string) => ({ id: 1, published: true }))
+  context.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: lookup }] }
+  for (const name of ['first', 'second']) {
+    const phase = await seed('visitor', { endedAt: new Date(start + 1000).toISOString(), arms: [
+      { key: 'control', label: 'Original', kind: 'control', weight: 50, pageTarget: `/${name}-original` },
+      { key: 'variantA', label: 'Winner', kind: 'variant', weight: 50, pageTarget: `/${name}-winner` },
+    ] })
+    await database.db.update(xp_experiments).set({ kind: 'page', status: 'decided', phase: 1, decision_winnerArm: 'variantA' })
+      .where(eq(xp_experiments.id, Number(phase.experiment)))
+    expect(await runResults(context.payload, { experimentId: phase.experiment, sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  }
+  const frozen = await snapshots()
+  let checks = 0
+  vi.spyOn(payloadRuntime, 'createLocalReq').mockImplementation(async () => {
+    // Expire the budget at the second experiment's health check. The first
+    // completes unchanged and writes nothing, so its ordering key stays fixed.
+    if (++checks === 2) clock.mockReturnValue(now + 100)
+    return fakeReq({ payload: context.payload })
+  })
+  lookup.mockClear()
+  for (let pass = 0; pass < 40; pass++) {
+    checks = 0
+    clock.mockReturnValue(now)
+    expect(await runResults(context.payload, { budgetMs: 100, sweep: false })).toMatchObject({ ran: 1, failed: 0, budgetExhausted: true })
+  }
+  const paths = lookup.mock.calls.map(([path]) => path)
+  // Independent uniform random ordering: P(one of two never first) = 2^-39,
+  // about 1.82e-12. No RNG seed or ordering mock is used.
+  expect(paths).toContain('/first-original')
+  expect(paths).toContain('/second-original')
+  expect(await snapshots()).toEqual(frozen)
 })
 
 test('ended phases freeze after the late-beacon grace; open phases keep running', async () => {

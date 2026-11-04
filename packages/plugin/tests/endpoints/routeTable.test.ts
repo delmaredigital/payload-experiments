@@ -12,7 +12,7 @@ afterEach(() => vi.restoreAllMocks())
 
 const paths = [
   ['get', '/xp/manifest'], ['post', '/xp/events'],
-  ...['start', 'allocate', 'add-metric', 'stop', 'decide', 'release-holdout', 'make-content', 'archive'].map(action => ['post', `/xp/experiments/:id/${action}`]),
+  ...['start', 'allocate', 'add-metric', 'stop', 'decide', 'release-holdout', 'release-pages', 'make-content', 'archive'].map(action => ['post', `/xp/experiments/:id/${action}`]),
   ['get', '/xp/experiments/:id/preflight'], ['get', '/xp/experiments/:id/preview-token'],
   ['get', '/xp/experiments/:id/results'], ['post', '/xp/experiments/:id/recompute'], ['get', '/xp/experiments/summary'],
 ]
@@ -36,8 +36,8 @@ async function assertResponse(response: Response, status: number, code: string) 
 }
 test('each frozen route is registered once, with the expected access kind', () => {
   expect(ROUTES.map(({ method, path }) => [method, path])).toEqual(paths)
-  expect(new Set(ROUTES.map(({ method, path }) => `${method}:${path}`)).size).toBe(15)
-  expect(ROUTES.map(route => route.access)).toEqual(['manifestKey', 'signedCookie', ...Array(10).fill('manage'), 'readResults', 'manage', 'readResults'])
+  expect(new Set(ROUTES.map(({ method, path }) => `${method}:${path}`)).size).toBe(16)
+  expect(ROUTES.map(route => route.access)).toEqual(['manifestKey', 'signedCookie', ...Array(11).fill('manage'), 'readResults', 'manage', 'readResults'])
   expect(buildEndpoints({ options: options() }).map(({ method, path }) => [method, path])).toEqual(paths)
 })
 for (const route of ROUTES.filter(route => route.access === 'manage' || route.access === 'readResults')) {

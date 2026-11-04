@@ -4,6 +4,7 @@ import { createIntegrationHarness } from './harness.js'
 import { start } from '../src/transitions/start.js'
 import { decide } from '../src/transitions/decide.js'
 import { archive } from '../src/transitions/archive.js'
+import { releasePages } from '../src/transitions/releasePages.js'
 import { expectedConfirm } from '../src/transitions/confirmPhrases.js'
 import { runResults } from '../src/server/runResults.js'
 import type { ResolvedOptions } from '../src/types/contracts.js'
@@ -155,6 +156,25 @@ test('discarded archived tests hold no manifest paths and their pages are free',
     expect(manifest.archivedPages).not.toHaveProperty(`/${page.slug}`)
     await expect(f.remove(page.id)).resolves.toBeDefined()
   }
+})
+test('archive then release advances the manifest and allows unpublishing the winner', async () => {
+  const f = await fixture()
+  await f.choose()
+  await f.payload.update({ collection: 'xp-experiments', id: f.testDoc.id, req: f.req, overrideAccess: true,
+    context: { xpTransition: true }, data: { decision: { winnerArm: 'variantA', contentReport: { docs: [] } } } })
+  const archived = await archive(f.req, { experimentId: f.testDoc.id, mode: 'after-content' })
+  const before = await f.payload.findGlobal({ slug: 'xp-state', req: f.req, overrideAccess: true })
+  expect((before.manifest as { archivedPages: Record<string, unknown> }).archivedPages).toHaveProperty(`/${f.original.slug}`)
+  await expect(f.update(f.winner.id, { _status: 'draft' }, false)).rejects.toMatchObject(refusal)
+  const released = await releasePages(f.req, { experimentId: f.testDoc.id })
+  expect(released.revision).toBe(archived.revision + 1)
+  expect(released.doc).toMatchObject({ status: 'archived', decision: { winnerArm: 'variantA', pagesReleasedAt: expect.any(String), pagesReleasedBy: null } })
+  const after = await f.payload.findGlobal({ slug: 'xp-state', req: f.req, overrideAccess: true })
+  expect(after.revision).toBe(released.revision)
+  const manifest = after.manifest as { revision: number; archivedPages: Record<string, { slug: string }> }
+  expect(manifest.revision).toBe(released.revision)
+  expect(Object.values(manifest.archivedPages).some(entry => entry.slug === f.testDoc.slug)).toBe(false)
+  await expect(f.update(f.winner.id, { _status: 'draft' }, false)).resolves.toMatchObject({ _status: 'draft' })
 })
 
 test('title-only publishes are allowed', async () => {

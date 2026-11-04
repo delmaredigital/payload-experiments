@@ -60,6 +60,7 @@ const nestedChanges = {
   'analysis.attributionWindowHours': 48, 'analysis.sequentialTuningParameter': 200, 'analysis.reachPerDay': 500,
   'metrics.primary': 20, 'metrics.secondary': [21], 'metrics.guardrails': [22],
   'decision.winnerArm': 'control', 'decision.verdictCode': 'mixed', 'decision.note': 'Changed', 'decision.decidedBy': 20,
+  'decision.pagesReleasedAt': '2026-11-03T14:00:00Z', 'decision.pagesReleasedBy': '42',
   'decision.snapshotId': 21, 'decision.discardedAt': '2026-10-31T14:00:00Z',
   'decision.contentReport': { docs: [{ collection: 'pages', id: 1, ok: true }] },
 }
@@ -146,7 +147,7 @@ test.each(statuses)('content report host document ids remain locked in %s', asyn
   await expect(run({ decision: { contentReport: { docs: [{ ok: true, id: 1, collection: 'pages' }] } } }, original)).resolves.toBeDefined()
 })
 test('create forces lifecycle defaults, without mutating input', async () => {
-  const data = { ...fixture('running'), decision: { note: 'Injected' } }
+  const data = { ...fixture('running'), decision: { note: 'Injected', pagesReleasedAt: '2026-11-03T14:00:00Z', pagesReleasedBy: '42' } }
   const result = await run(data, fixture(), request(false), 'create')
   expect(result).toMatchObject({ status: 'draft', phase: 0 })
   for (const field of ['seed', 'layerSlices', 'startedAt', 'stoppedAt', 'decidedAt', 'archivedAt', 'decision']) expect(result[field]).toBeUndefined()
@@ -234,4 +235,13 @@ test('client-sent timestamps are dropped on create', async () => {
   const result = await run({ name: 'New', kind: 'flag', createdAt: '2020-01-01T00:00:00.000Z', updatedAt: '2020-01-01T00:00:00.000Z' }, undefined as never, request(true), 'create')
   expect(result).not.toHaveProperty('createdAt')
   expect(result).not.toHaveProperty('updatedAt')
+})
+
+// REST/admin post-backs can use equivalent date and opaque-id representations.
+test.each(statuses)('unchanged page release audit is accepted in %s', async status => {
+  const original = { ...fixture(status), decision: { ...fixture(status).decision, pagesReleasedAt: '2026-11-03T14:00:00.000Z', pagesReleasedBy: '42' } }
+  const data = { decision: { pagesReleasedAt: '2026-11-03T09:00:00-05:00', pagesReleasedBy: 42 } }
+  await expect(run(data, original)).resolves.toBe(data)
+  await expect(run({ decision: { pagesReleasedAt: null } }, original)).rejects.toMatchObject({ field: 'decision.pagesReleasedAt' })
+  await expect(run({ decision: { pagesReleasedBy: null } }, original)).rejects.toMatchObject({ field: 'decision.pagesReleasedBy' })
 })

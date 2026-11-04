@@ -346,6 +346,12 @@ export const xp_experiments = pgTable(
       withTimezone: true,
       precision: 3,
     }),
+    decision_pagesReleasedAt: timestamp("decision_pages_released_at", {
+      mode: "string",
+      withTimezone: true,
+      precision: 3,
+    }),
+    decision_pagesReleasedBy: varchar("decision_pages_released_by"),
     updatedAt: timestamp("updated_at", {
       mode: "string",
       withTimezone: true,
@@ -546,6 +552,13 @@ export const _xp_experiments_v = pgTable(
     version_decision_holdoutReleasedAt: timestamp(
       "version_decision_holdout_released_at",
       { mode: "string", withTimezone: true, precision: 3 },
+    ),
+    version_decision_pagesReleasedAt: timestamp(
+      "version_decision_pages_released_at",
+      { mode: "string", withTimezone: true, precision: 3 },
+    ),
+    version_decision_pagesReleasedBy: varchar(
+      "version_decision_pages_released_by",
     ),
     version_updatedAt: timestamp("version_updated_at", {
       mode: "string",

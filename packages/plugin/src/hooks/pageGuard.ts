@@ -37,9 +37,9 @@ async function protect(req: PayloadRequest, path: string): Promise<void> {
     depth: 0, limit: 0, where: { and: [{ kind: { equals: 'page' } }, { status: { in: ['running', 'decided', 'archived'] } }] },
   })
   for (const test of tests.docs) {
-    const decision = test.decision as { winnerArm?: string | null; discardedAt?: string | null } | undefined
+    const decision = test.decision as { winnerArm?: string | null; discardedAt?: string | null; pagesReleasedAt?: string | null } | undefined
     const archived = test.status === 'archived'
-    if (archived && (!decision?.winnerArm || decision.discardedAt)) continue
+    if (archived && (!decision?.winnerArm || decision.discardedAt || decision.pagesReleasedAt)) continue
     // page guard: the hook must see test placements regardless of the editor's access
     const phases = await req.payload.find({ collection: 'xp-phases', req, overrideAccess: true,
       depth: 0, limit: 1, sort: '-phase', where: { experiment: { equals: test.id }, phaseKind: { equals: 'test' } },

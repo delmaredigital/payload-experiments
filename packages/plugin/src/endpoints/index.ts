@@ -7,7 +7,7 @@ import type { ResolvedOptions } from '../types/contracts.js'
 import type { AccessKind, EndpointContext, ErrorEnvelope, RefusalCode } from '../types/endpoints.js'
 import { handleManifest } from './manifest.js'
 import { handleEvents } from './events.js'
-import { handleStart, handleAllocate, handleAddMetric, handleStop, handleDecide, handleReleaseHoldout, handleMakeContent, handleArchive } from './transitions.js'
+import { handleStart, handleAllocate, handleAddMetric, handleStop, handleDecide, handleReleaseHoldout, handleReleasePages, handleMakeContent, handleArchive } from './transitions.js'
 import { handlePreflight } from './preflight.js'
 import { handlePreviewToken } from './previewToken.js'
 import { handleResults } from './results.js'
@@ -23,6 +23,7 @@ export const ROUTES: Array<{ method: Endpoint['method']; path: string; access: A
   { method: 'post', path: '/xp/experiments/:id/stop', access: 'manage', handler: handleStop },
   { method: 'post', path: '/xp/experiments/:id/decide', access: 'manage', handler: handleDecide },
   { method: 'post', path: '/xp/experiments/:id/release-holdout', access: 'manage', handler: handleReleaseHoldout },
+  { method: 'post', path: '/xp/experiments/:id/release-pages', access: 'manage', handler: handleReleasePages },
   { method: 'post', path: '/xp/experiments/:id/make-content', access: 'manage', handler: handleMakeContent },
   { method: 'post', path: '/xp/experiments/:id/archive', access: 'manage', handler: handleArchive },
   { method: 'get', path: '/xp/experiments/:id/preflight', access: 'manage', handler: handlePreflight },
