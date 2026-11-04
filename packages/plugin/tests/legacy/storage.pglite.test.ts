@@ -121,3 +121,19 @@ test('identical published versions compare content with fresh ids and blockName 
   expect(await identicalPageVersions(f.req, registration, [...arms])).toEqual([{ arm: 'variantA', path: '/version', collection: 'pages', id: version }])
   expect(await identicalPageVersions(f.req, { ...registration, contentOf: undefined }, [...arms])).toEqual([])
 })
+
+test.each([true, false])('slug-pick hook uses transaction locks only with a transaction (%s)', async transactional => {
+  const { pickExperimentSlug } = await import('../../src/collections/experiments/pickSlug.js')
+  const calls: string[] = []
+  const db = { execute: vi.fn(async (sql: unknown) => {
+    const { PgDialect } = await import('drizzle-orm/pg-core')
+    const query = new PgDialect().sqlToQuery(sql as never)
+    calls.push(query.sql)
+    if (query.sql.includes('advisory')) return { rows: [], rowCount: 1 }
+    return { rows: [{ used: query.params[0] === 'hook-slug' }], rowCount: 1 }
+  }) }
+  const req = { payload: { db: { drizzle: db, sessions: { tx: { db } } } }, ...(transactional ? { transactionID: 'tx' } : {}) } as unknown as PayloadRequest
+  const result = await pickExperimentSlug({ req, operation: 'create', data: { slug: 'hook-slug' } } as never)
+  expect(result.slug).toBe('hook-slug-2')
+  expect(calls.filter(sql => sql.includes('advisory'))).toHaveLength(transactional ? 2 : 0)
+})

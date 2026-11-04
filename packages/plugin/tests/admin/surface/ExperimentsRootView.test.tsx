@@ -144,14 +144,14 @@ test('new route loads recent Puck pages with access checked and preserves numeri
     pageDocs: { pages: [{ id: 12, title: 'Welcome' }], articles: [{ id: 'uuid', heading: 'Story' }] }, editorUrl })
   await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
   expect(find.mock.calls).toEqual([
-    [{ collection: 'pages', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: false }],
-    [{ collection: 'articles', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: false }],
+    [{ collection: 'pages', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: true, select: { title: true } }],
+    [{ collection: 'articles', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: true, select: { heading: true } }],
   ])
   expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [
     { collection: 'pages', collectionLabel: 'Pages', id: 12, title: 'Welcome', editorUrl: '/page-editor/12' },
     { collection: 'articles', collectionLabel: 'Articles', id: 'uuid', title: 'Story', editorUrl: '/page-editor/uuid' },
   ] }) }))
-  expect(editorUrl).toHaveBeenCalledWith({ collection: 'pages', id: 12, draft: false, editor: 'puck', doc: { id: 12, title: 'Welcome' } })
+  expect(editorUrl).toHaveBeenCalledWith({ collection: 'pages', id: 12, draft: true, editor: 'puck', doc: { id: 12, title: 'Welcome' } })
 })
 test('failed collection reads are skipped, missing titles and editor URLs have configured-route fallbacks', async () => {
   const { props, find } = setup({ puck: { enabled: true, collections: ['pages', 'articles', 'other'] }, deniedCollections: ['pages'],
@@ -162,7 +162,7 @@ test('failed collection reads are skipped, missing titles and editor URLs have c
     { collection: 'articles', collectionLabel: 'Articles', id: 'uuid', title: 'uuid', editorUrl: '/control/collections/articles/uuid' },
     { collection: 'other', collectionLabel: 'other', id: 7, title: '7', editorUrl: '/control/collections/other/7' },
   ] }) }))
-  expect(find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'other', draft: false, depth: 0 }))
+  expect(find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'other', draft: true, depth: 0 }))
 })
 test.each([[], ['12'], ['12', 'results']].map(segments => [segments]))('pages are not loaded for route %j', async segments => {
   const { props, find } = setup({ puck: { enabled: true, collections: ['pages'] } })
@@ -214,4 +214,34 @@ test('root emits exactly one scoped accent style only when configured', async ()
   expect(html).toContain('[data-theme="dark"][data-theme="dark"]')
   const declarations = [...html.matchAll(/(--[\w-]+):/g)].map(match => match[1])
   expect(declarations.every(name => name === '--xp-focus' || name?.startsWith('--xp-accent'))).toBe(true)
+})
+
+test('by-slug resolves an access-checked test id for the client route', async () => {
+  const { props, find, req } = setup({ pageDocs: { 'xp-experiments': [{ id: 42, title: 'Found' }] } })
+  await ExperimentsRootView({ ...props, params: { segments: ['experiments', 'by-slug', 'my-test'] } })
+  expect(find).toHaveBeenCalledWith({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 1, where: { slug: { equals: 'my-test' } } })
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ route: 'test', id: '42' }) }))
+})
+test.each(['unknown', 'retired'])('by-slug returns notFound for %s short names', async slug => {
+  const { props } = setup()
+  await expect(ExperimentsRootView({ ...props, params: { segments: ['experiments', 'by-slug', slug] } })).rejects.toThrow('not-found')
+  expect(mocks.notFound).toHaveBeenCalledOnce()
+})
+test('by-slug does no lookup for a results-only reader', async () => {
+  const { props, find } = setup({ manage: () => false, readResults: () => true })
+  await ExperimentsRootView({ ...props, params: { segments: ['experiments', 'by-slug', 'private'] } })
+  expect(find).not.toHaveBeenCalled()
+  expect(mocks.render).not.toHaveBeenCalled()
+})
+test('new-test handoff omits blocks documents from Puck and serializes page collections', async () => {
+  const { props, payload } = setup({ puck: { enabled: true, collections: ['pages'] }, pageDocs: { pages: [{ id: 1, title: 'Legacy' }] } })
+  const xp = payload.config.custom.xp as ExperimentsPluginOptions
+  xp.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => true }] }
+  xp.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => null, copyHint: 'Copy in Pages' }] }
+  payload.config.collections[0]!.fields = [{ name: 'title', type: 'text' }]
+  await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [], pageCollections: [
+    { slug: 'pages', label: 'Pages', copyHint: 'Copy in Pages', copyUrl: '/control/collections/pages', copyLabel: 'Open Pages' },
+  ] }) }))
+  expect(payload.calls.some(call => call.method === 'findByID')).toBe(false)
 })

@@ -1,6 +1,5 @@
 import type { PayloadRequest } from 'payload'
 import type { DocId } from '../types/contracts.js'
-import { latestDraftContent } from './publishedContent.js'
 
 /** §7.8: version-identical compares published content raw (ids stripped). */
 export async function pageVersionContent(req: PayloadRequest, collection: string, id: DocId) {
@@ -23,5 +22,12 @@ export async function statusPageContent(req: PayloadRequest, collection: string,
     // Adapter read: status computes a page's published (or never-published draft) path.
     overrideAccess: true,
   } as Parameters<PayloadRequest['payload']['db']['findVersions']>[0])
-  return published.docs.length ? doc : await latestDraftContent(req, collection, id) ?? doc
+  if (published.docs.length) return doc
+  // §7.8: status computes a page's published (or never-published draft) path.
+  const latest = await req.payload.db.findVersions<Record<string, unknown>>({ collection, req, limit: 1, pagination: false,
+    sort: '-updatedAt', where: { and: [{ parent: { equals: id } }, { latest: { equals: true } }] },
+    // Adapter read: status computes a page's published (or never-published draft) path.
+    overrideAccess: true,
+  } as Parameters<PayloadRequest['payload']['db']['findVersions']>[0])
+  return latest.docs[0] ? { ...latest.docs[0].version, id } : doc
 }

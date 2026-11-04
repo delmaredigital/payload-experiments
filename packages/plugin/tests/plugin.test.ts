@@ -1,4 +1,3 @@
-import { pageGuardBeforeChange } from '../src/hooks/pageGuard.js'
 import type { Config } from 'payload'
 import { expect, test, vi } from 'vitest'
 import { contentChangesBeforeHook, contentChangesHook } from '../src/hooks/contentChanges.js'
@@ -45,7 +44,7 @@ test('appends contentChangesHook to listed collections while preserving existing
   options.puck = { enabled: true, collections: ['pages'] }
   const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [pages, posts] })
   expect(config.collections?.[0]?.hooks?.afterChange).toEqual([previous, contentChangesHook])
-  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange, pageGuardBeforeChange, contentChangesBeforeHook])
+  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange, contentChangesBeforeHook])
   expect(config.collections?.[1]).toBe(posts)
   expect(pages.hooks.afterChange).toEqual([previous])
 })

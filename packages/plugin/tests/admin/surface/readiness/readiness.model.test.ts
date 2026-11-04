@@ -115,3 +115,9 @@ test('page conflict readiness names the next action and tolerates missing path d
     expect(READINESS['page-in-use'].next(detail, ctx)).toBe('Another running or decided test already uses this page. Choose a different page, or finish that test first.')
   }
 })
+
+test('identical-version action names the page to edit', () => {
+  const action = READINESS['version-identical'].nextStep
+  expect(typeof action).toBe('function')
+  expect(typeof action === 'function' && action({ arm: 'variantA', path: '/version' }, ctx)).toBe('Edit /version')
+})

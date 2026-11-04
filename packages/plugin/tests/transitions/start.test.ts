@@ -265,6 +265,7 @@ test('page arms are looked up concurrently and unpublished targets retain arm or
   const findByPath = vi.fn((path: string) => new Promise<null>(resolve => { finish.set(path, resolve) }))
   options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath }] }
   const pending = unpublishedPageTargets(req, options, experiment)
+  await Promise.resolve()
   try {
     expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant'])
   } finally {
@@ -284,7 +285,7 @@ test.each(['missing', 'draft', 'throws'] as const)('unpublished page target (%s)
   const result = await preflightData(req, { experimentId: 1, options })
   expect(result!.checks).toContainEqual({ code: 'page-target-unpublished', ok: false, detail: '/variant' })
   await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-target-unpublished', message: "/variant isn't a published page. Publish it, or pick another page." })
-  expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant', '/original', '/original', '/variant', '/original', '/variant'])
+  expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant', '/original', '/variant', '/original', '/variant'])
   for (const call of findByPath.mock.calls) expect(call[1]).toBe(req)
   expect(experiment.status).toBe('draft')
   expect(executor.calls).toHaveLength(2)
@@ -469,3 +470,55 @@ test.each([
     }
   } finally { await database.close() }
 }, 60_000)
+
+test.each(['findByPath', 'contentOf'] as const)('a throwing %s comparison preserves preflight, Start and Tests home readiness', async failure => {
+  const f = fixture()
+  Object.assign(f.payload.db, { defaultIDType: 'number' })
+  Object.assign(f.experiment, { kind: 'page', exposurePolicy: 'pageview', pageCollection: 'pages', arms: defaultArms('page').map((arm, i) => ({ ...arm, pageTarget: i ? '/version' : '/original' })) })
+  const lookup = vi.fn(async (path: string) => {
+    if (failure === 'findByPath') throw new Error('host lookup failed')
+    return { id: path === '/original' ? 10 : 11, published: true }
+  })
+  f.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: lookup,
+    contentOf: () => { throw new Error('host content failed') } }] }
+  f.payload.documents.pages = [{ id: 10, title: 'Original' }, { id: 11, title: 'Version' }]
+  Object.assign(f.payload.db, { findOne: vi.fn(async () => ({ _status: 'published', layout: [] })) })
+  const { handlePreflight } = await import('../../src/endpoints/preflight.js')
+  f.req.routeParams = { id: '1' }
+  const preflight = await handlePreflight(f.req, { options: f.options })
+  expect(preflight.status).toBe(200)
+  const checks = (await preflight.json()).checks
+  expect(checks.some((check: { code: string }) => check.code === 'version-identical')).toBe(false)
+  if (failure === 'findByPath') expect(checks).toContainEqual(expect.objectContaining({ code: 'page-target-unpublished', ok: false }))
+  const { handleSummary } = await import('../../src/endpoints/summary.js')
+  Object.assign(f.req, { url: 'https://host/api/xp/experiments/summary?ids=1' })
+  const home = await (await handleSummary(f.req, { options: f.options })).json()
+  expect(home['1'].ready).toBe(failure !== 'findByPath')
+  if (failure === 'findByPath') {
+    expect(home['1'].next.code).toBe('page-target-unpublished')
+    await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'page-target-unpublished', status: 422 })
+  } else {
+    await expect(start(f.req, { experimentId: 1, options: f.options })).resolves.toMatchObject({ doc: { status: 'running' } })
+  }
+  expect(f.payload.logs.some(log => log.args.includes('Experiment version comparison failed'))).toBe(true)
+})
+
+test('preflight page placements treat a failed title read as unavailable', async () => {
+  const f = fixture()
+  Object.assign(f.payload.db, { defaultIDType: 'number' })
+  Object.assign(f.experiment, { kind: 'page', exposurePolicy: 'pageview', arms: defaultArms('page').map((arm, i) => ({ ...arm, pageTarget: i ? '/version' : '/original' })) })
+  f.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: async () => ({ id: 10, published: true }) }] }
+  const read = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    if (args.collection === 'pages') throw new Error('page title lookup failed')
+    return read(args)
+  })
+  const { handlePreflight } = await import('../../src/endpoints/preflight.js')
+  f.req.routeParams = { id: '1' }
+  const response = await handlePreflight(f.req, { options: f.options })
+  expect(response.status).toBe(200)
+  expect((await response.json()).pagePlacements).toEqual([
+    { arm: 'control', path: '/original', collection: 'pages', id: null, published: false },
+    { arm: 'variantA', path: '/version', collection: 'pages', id: null, published: false },
+  ])
+})

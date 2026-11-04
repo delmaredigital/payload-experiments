@@ -1,13 +1,25 @@
 import { safeError } from '../log.js'
-import type { PayloadRequest } from 'payload'
+import type { PayloadRequest, Where } from 'payload'
 import { retireSlug } from '../db/slugs.js'
 import { txExecutor } from '../db/executor.js'
 import { deleteExperimentSnapshots, serializeDelete } from '../db/delete.js'
 import { deleteExperimentEvents } from '../db/events.js'
-import { lockTransitionScope } from '../db/locks.js'
+import { lockTransitionScope, sortLockKeys } from '../db/locks.js'
 import { buildAndStoreManifest } from '../manifest/compile.js'
 import type { DocId } from '../types/contracts.js'
 import { readExperiment, refuse } from './start.js'
+
+/** Lock the entire bulk scope before any per-document hook can take state. */
+export async function prepareBulkDelete(req: PayloadRequest, where: Where): Promise<void> {
+  await serializeDelete(req, async () => {
+    // §7.8 transition exception: hook read only discovers the lock set; delete still checks access.
+    const { docs } = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: true,
+      depth: 0, limit: 0, pagination: false, select: { id: true }, where })
+    for (const experimentId of sortLockKeys(docs.map(doc => String(doc.id)))) {
+      await lockTransitionScope(txExecutor(req), { experimentId })
+    }
+  })
+}
 
 /** Payload deleteByID owns the request transaction; never commit inside hooks. */
 export async function deleteExperiment(req: PayloadRequest, experimentId: DocId): Promise<void> {
@@ -16,7 +28,6 @@ export async function deleteExperiment(req: PayloadRequest, experimentId: DocId)
     await lockTransitionScope(exec, { experimentId })
     const current = await readExperiment(req, experimentId)
     if (current.status !== 'draft' && current.status !== 'archived') refuse('invalid-status')
-    await retireSlug(exec, current.slug)
     try {
       const collection = 'xp-phases'
       // §7.8 transition exception: cascade while FK references still exist.
@@ -29,6 +40,7 @@ export async function deleteExperiment(req: PayloadRequest, experimentId: DocId)
       }
       await deleteExperimentSnapshots(exec, experimentId)
       await deleteExperimentEvents(exec, experimentId)
+      state.retiredSlugs.add(current.slug)
       state.excludedIds.set(String(experimentId), experimentId)
       const decision = current.decision as { discardedAt?: string | null } | undefined
       if (current.status !== 'archived' || decision?.discardedAt) state.pruneFlagDefaultIds.set(String(experimentId), experimentId)
@@ -41,6 +53,8 @@ export async function deleteExperiment(req: PayloadRequest, experimentId: DocId)
 
 export async function deleteExperimentAfter(req: PayloadRequest, experimentId: DocId): Promise<void> {
   await serializeDelete(req, async state => {
+    for (const slug of state.retiredSlugs) await retireSlug(txExecutor(req), slug)
+    state.retiredSlugs.clear()
     await buildAndStoreManifest(req, { excludeIds: [...state.excludedIds.values(), experimentId], pruneFlagDefaultIds: [...state.pruneFlagDefaultIds.values()] })
   })
 }

@@ -15,13 +15,13 @@ const slots = ['control', 'variantA', 'variantB', 'variantC'] as const
  * in one document: content elsewhere in the document cannot hide an empty slot.
  */
 export function scanBlockPlacements(req: PayloadRequest, args: {
-  slug: string; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections?: NonNullable<ResolvedOptions['blocks']>['collections']
+  slug: string; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']
 }): Promise<BlockPlacement[]>
 export function scanBlockPlacements(req: PayloadRequest, args: {
-  slugs: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections?: NonNullable<ResolvedOptions['blocks']>['collections']
+  slugs: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']
 }): Promise<Map<string, BlockPlacement[]>>
 export async function scanBlockPlacements(req: PayloadRequest, args: {
-  slug?: string; slugs?: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections?: NonNullable<ResolvedOptions['blocks']>['collections']
+  slug?: string; slugs?: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']
 }): Promise<BlockPlacement[] | Map<string, BlockPlacement[]>> {
   const { puckCollections } = args
   const slugs = args.slugs ?? new Set([args.slug!])
@@ -42,11 +42,11 @@ export async function scanBlockPlacements(req: PayloadRequest, args: {
           if (!draft && doc._status === 'draft') continue
           if (draft && doc._status !== 'draft' && publishedIds.has(String(doc.id))) continue
           if (!draft) {
-            editors.set(String(doc.id), documentEditor({ puck: { enabled: true, collections: puckCollections }, blocks: { collections: args.blocksCollections ?? [] } }, collection, doc))
+            editors.set(String(doc.id), documentEditor({ puck: { enabled: true, collections: puckCollections }, blocks: { collections: args.blocksCollections } }, collection, doc))
             publishedIds.add(String(doc.id))
             if (typeof doc.slug === 'string') publishedSlugs.set(String(doc.id), doc.slug)
           }
-          const editor = editors.get(String(doc.id)) ?? documentEditor({ puck: { enabled: true, collections: puckCollections }, blocks: { collections: args.blocksCollections ?? [] } }, collection, doc)
+          const editor = editors.get(String(doc.id)) ?? documentEditor({ puck: { enabled: true, collections: puckCollections }, blocks: { collections: args.blocksCollections } }, collection, doc)
           if (editor !== 'puck') continue
           function walk(value: unknown): void {
             if (!value || typeof value !== 'object') return

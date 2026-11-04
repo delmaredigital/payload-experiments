@@ -1,6 +1,4 @@
 import type { PayloadRequest } from 'payload'
-import { identicalPageVersions } from './pageVersions.js'
-import { resolvePageCollection } from './pageCollection.js'
 import { lockPagePaths } from '../db/locks.js'
 import { lockMetricsForFreeze } from '../db/metricUsage.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
@@ -94,7 +92,6 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
         let unpublished: string[]
         try {
           unpublished = await unpublishedPageTargets(req, options, current)
-          if (options.pages.collections.some(entry => entry.contentOf)) await identicalPageVersions(req, await resolvePageCollection(req, options, current), current.arms)
         } finally { req.transactionID = transactionID }
         if (unpublished.length) refuse('page-target-unpublished', unpublished[0])
       }

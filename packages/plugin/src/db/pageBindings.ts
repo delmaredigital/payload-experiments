@@ -5,6 +5,7 @@ import { qualifiedTable, quoteIdentifier as q } from './sql.js'
 import { normalisePath } from '../runtime/normalisePath.js'
 
 /** Current running round, independent of manifest compilation and typed targeting. */
+// Legacy tests without pageCollection match the same path in any collection; stored collections narrow the match.
 export async function pageContentBindings(exec: Executor, collection: string, paths: readonly string[]): Promise<DocId[]> {
   if (!paths.length) return []
   const e = COLUMNS.experiments, p = COLUMNS.phases

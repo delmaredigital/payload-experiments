@@ -7,6 +7,7 @@ import { qualifiedTable, quoteIdentifier as quote } from './sql.js'
 
 interface DeleteState {
   tail: Promise<void>
+  retiredSlugs: Set<string>
   excludedIds: Map<string, DocId>
   pruneFlagDefaultIds: Map<string, DocId>
 }
@@ -26,7 +27,7 @@ export async function serializeDelete<T>(req: PayloadRequest, fn: (state: Delete
   if (!session) throw new XpNoTransactionError()
   let state = transactions.get(session)
   if (!state) {
-    state = { tail: Promise.resolve(), excludedIds: new Map(), pruneFlagDefaultIds: new Map() }
+    state = { tail: Promise.resolve(), retiredSlugs: new Set(), excludedIds: new Map(), pruneFlagDefaultIds: new Map() }
     transactions.set(session, state)
   }
   const current = state

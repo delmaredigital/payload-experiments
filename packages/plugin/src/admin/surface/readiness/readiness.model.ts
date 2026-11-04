@@ -21,7 +21,7 @@ const row = (section: SectionId | 'header', next: (detail: unknown, ctx: Readine
 const versions = row('versions', detail => versionsNext(detailText(detail, C.versionFallback)))
 
 /** Exhaustive mapping of the checkStart ReadinessCode union, including all ten invariant checks. */
-export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; next(detail: unknown, ctx: ReadinessContext): string | null; nextStep?: string }> = {
+export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; next(detail: unknown, ctx: ReadinessContext): string | null; nextStep?: string | ((detail: unknown, ctx: ReadinessContext) => string) }> = {
   'make-content-unsupported': row('header', detail => unsupportedContentCopy(text(detail, 'This page'))),
   'invalid-status': row('header', () => null),
   'no-placements': row('what', detail => detail === undefined ? C.noPlacements : placementFailureCopy(detail)),
@@ -61,7 +61,7 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   }), nextStep: C.chooseDifferentPage },
   'page-no-targets': { ...row('versions', () => C.noTargets), nextStep: 'Choose pages' },
   'unknown-collection': row('versions', () => "That page type isn't set up for tests."),
-  'version-identical': { ...row('versions', (detail, ctx) => identicalVersionCopy(text(object(detail).path, group(object(detail).arm, ctx)))), nextStep: 'Edit the version' },
+  'version-identical': { ...row('versions', (detail, ctx) => identicalVersionCopy(text(object(detail).path, group(object(detail).arm, ctx)))), nextStep: (detail, ctx) => `Edit ${text(object(detail).path, group(object(detail).arm, ctx))}` },
   'version-same-address': { ...row('versions', (detail, ctx) => sameAddressCopy(group(object(detail).arm, ctx), group(object(detail).otherArm, ctx), text(object(detail).path, 'this address'))), nextStep: 'Choose pages' },
   'page-target-unpublished': row('versions', detail => unpublishedPageCopy(text(detail, 'This page'))),
   'page-targets-unchecked': row('versions', () => C.uncheckedPages),
@@ -88,7 +88,8 @@ export function nextStep(preflight: PreflightResult | null, ctx: ReadinessContex
       const mapping = READINESS[check.code]
       if (check.ok || mapping.section !== section) continue
       const sentence = mapping.next(check.detail, ctx)
-      if (sentence) return { section, sentence, code: check.code, ...(mapping.nextStep ? { nextStep: mapping.nextStep } : {}) }
+      const nextStep = typeof mapping.nextStep === 'function' ? mapping.nextStep(check.detail, ctx) : mapping.nextStep
+      if (sentence) return { section, sentence, code: check.code, ...(nextStep ? { nextStep } : {}) }
     }
   }
   return null

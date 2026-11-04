@@ -42,13 +42,13 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
           const page = options.pages?.collections.some(entry => entry.slug === collection.slug)
           const blocks = options.blocks?.collections.some(entry => entry.slug === collection.slug)
           if (!puck && !page && !blocks) return collection
-          return { ...collection, fields: [{ name: 'xpPlacementStatus', type: 'ui' as const, admin: { position: 'sidebar' as const, components: { Field: paths.XP_PLACEMENT_STATUS } } }, ...collection.fields], hooks: { ...collection.hooks,
-            beforeChange: [...(collection.hooks?.beforeChange ?? []), pageGuardBeforeChange, contentChangesBeforeHook],
-            ...({
+          return { ...collection, fields: [...(page ? [{ name: 'xpPlacementStatus', type: 'ui' as const, admin: { position: 'sidebar' as const, components: { Field: paths.XP_PLACEMENT_STATUS } } }] : []), ...collection.fields], hooks: { ...collection.hooks,
+            beforeChange: [...(collection.hooks?.beforeChange ?? []), ...(page ? [pageGuardBeforeChange] : []), contentChangesBeforeHook],
+            ...(page ? {
               beforeOperation: [...(collection.hooks?.beforeOperation ?? []), pageGuardBeforeOperation],
               beforeDelete: [...(collection.hooks?.beforeDelete ?? []), pageGuardBeforeDelete],
               afterOperation: [pageGuardAfterOperation, ...(collection.hooks?.afterOperation ?? [])],
-            }),
+            } : {}),
             afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook],
           } }
         }),

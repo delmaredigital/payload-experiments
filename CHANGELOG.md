@@ -11,13 +11,12 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-- Register whole-page content checks and copying guidance per page collection. Page tests can choose their collection, report identical versions and refuse versions at the same address.
-- Browse pages and read page/test status through manager-only endpoints, with published addresses preserved while drafts are edited. Registered collections get a sidebar status field and content-change auditing for whole-page tests.
-- Test host metadata and sitemap wiring with `pageKindSeoContract` from `/rsc`.
-- Deleted test short names are retired permanently; new tests automatically choose an unused suffix.
-- Register legacy blocks collections alongside Puck, with a shared document-editor rule and richer `editorUrl` context.
-- Migration impact: nullable `xp_state.retired_slugs`, `xp_experiments.page_collection` and its version column (`_xp_experiments_v.version_page_collection`). Hosts with a `pages` or `blocks` registration get the status field and content-change hooks; run `payload migrate:create` and `payload generate:importmap` on upgrade.
-
+- Added: whole-page content checks and copying guidance per page collection, `admin.descriptions.page`, and page collection selection on tests. Identical versions warn; versions at the same address are refused. Migration impact: nullable `xp_experiments.page_collection` and `_xp_experiments_v.version_page_collection`; run `payload migrate:create`.
+- Added: manager-only page browsing and page/test status endpoints, preserving published addresses while drafts are edited. Page registrations get a sidebar status field; page and blocks registrations get composed content-change auditing. Migration impact: hosts with `pages` run `payload generate:importmap`; auditing adds no columns.
+- Added: `pageKindSeoContract` from `/rsc` to test host metadata and sitemap wiring. Migration impact: none.
+- Added: permanent retirement of deleted test short names; new tests choose an unused suffix. Migration impact: nullable `xp_state.retired_slugs`; run `payload migrate:create`.
+- Changed: legacy page tests resolve one collection from the Original (or the sole registration), then use it for every version. Migration impact: none; register `pageCollection` explicitly when several collections share an address.
+- Changed: Puck consumers share the document-editor `appliesTo` rule, and `admin.editorUrl` receives `editor` and `doc`. Migration impact: none; legacy blocks registration is reserved for the next lane.
 
 - Added: `@delmaredigital/payload-experiments/admin/theme.css` and `/admin/ui.css` stylesheet exports, for hosts that run Puck outside Payload's admin; such a page also loads Payload's admin styles and sets `data-theme` (see the README). Inside the admin nothing changes.
 - Fixed: the block's test picker in the Puck sidebar renders inside its own field root, styled by the plugin's admin styles.

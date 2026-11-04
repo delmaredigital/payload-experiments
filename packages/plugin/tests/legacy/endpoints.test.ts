@@ -56,3 +56,79 @@ test('legacy fallback resolves one collection from the Original, never each vers
   expect(await unpublishedPageTargets(req, options, { id: 1, arms })).toEqual(['/version'])
   expect(second.findByPath).not.toHaveBeenCalled()
 })
+
+test('archived-from-stopped has no page status or winner lookup', async () => {
+  const lookup = vi.fn(async () => ({ id: 1, published: true }))
+  const options = { ...sampleOptions(), pages: { collections: [{ ...page, findByPath: lookup }] } }
+  const payload = fakePayload({ config: { collections: [] }, collections: {
+    pages: [{ id: 1, path: '/' }],
+    'xp-experiments': [{ id: 10, slug: 'stopped', name: 'Stopped', kind: 'page', status: 'archived', arms }],
+    'xp-phases': [{ id: 1, experiment: 10, phaseKind: 'test', arms }],
+  } })
+  Object.assign(payload.db, { findOne: vi.fn(async () => ({ id: 1, path: '/' })) })
+  const req = fakeReq({ payload, body: JSON.stringify({ docs: [{ collection: 'pages', id: 1 }] }) })
+  expect(await (await handlePlacementStatus(req, { options })).json()).toEqual({ docs: { 'pages:1': { path: '/', tests: [] } }, slugs: {} })
+  expect(lookup).not.toHaveBeenCalled()
+  expect(payload.calls[0]!.args.where).toEqual({ kind: { equals: 'page' } })
+})
+
+test.each(['control', 'variantA'])('status freezes labels and rollout while %s wins, caching the winner per request', async winnerArm => {
+  const lookup = vi.fn(async (path: string) => ({ id: path === '/' ? 1 : 2, published: true }))
+  const options = { ...sampleOptions(), pages: { collections: [{ ...page, findByPath: lookup }] } }
+  const frozen = arms.map(arm => ({ ...arm, label: `Frozen ${arm.label}` }))
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', admin: { useAsTitle: 'title' } }] }, overrides: { findGlobal: vi.fn(async () => ({ retiredSlugs: [] })) }, collections: {
+    pages: [{ id: 1, title: 'Home', path: '/' }, { id: 2, title: 'Version', path: '/version' }],
+    'xp-experiments': [{ id: 10, name: 'Rollout', slug: 'rollout', pageCollection: 'pages', kind: 'page', status: 'decided', arms, decision: { winnerArm } }],
+    'xp-phases': [{ id: 2, experiment: 10, phase: 2, phaseKind: 'rollout', arms }, { id: 1, experiment: 10, phase: 1, phaseKind: 'test', arms: frozen }],
+  } })
+  Object.assign(payload.db, { findOne: vi.fn(async ({ where }) => payload.documents.pages!.find(doc => doc.id === where.id.equals)) })
+  for (const released of [false, true]) {
+    lookup.mockClear()
+    payload.documents['xp-experiments']![0]!.decision = { winnerArm, ...(released ? { holdoutReleasedAt: 'now' } : {}) }
+    const req = fakeReq({ payload, body: JSON.stringify({ docs: [{ collection: 'pages', id: 1 }, { collection: 'pages', id: 2 }], slugs: ['rollout'] }) })
+    const result = await (await handlePlacementStatus(req, { options })).json()
+    expect(result.slugs.rollout).toMatchObject({ arms: frozen.map(({ key, label }) => ({ key, label })), winnerArm, rollout: !released })
+    expect(result.docs['pages:1'].tests[0]).toMatchObject({ armLabel: 'Frozen Original', winner: winnerArm === 'control', rollout: !released })
+    expect(result.docs['pages:2'].tests[0]).toMatchObject({ armLabel: 'Frozen Variant A', winner: winnerArm === 'variantA', rollout: !released })
+    expect(lookup).toHaveBeenCalledTimes(1)
+    expect(payload.calls.filter(call => call.method === 'findByID' && call.args.req === req && call.args.disableErrors === true)).toHaveLength(1)
+  }
+})
+
+test('winner title failures omit the title without failing document status', async () => {
+  const options = { ...sampleOptions(), pages: { collections: [page] } }
+  const payload = fakePayload({ config: { collections: [] }, collections: {
+    pages: [{ id: 1, path: '/' }],
+    'xp-experiments': [{ id: 10, name: 'Decided', slug: 'test', pageCollection: 'pages', kind: 'page', status: 'decided', arms, decision: { winnerArm: 'variantA' } }],
+  } })
+  Object.assign(payload.db, { findOne: vi.fn(async () => ({ id: 1, path: '/' })) })
+  const read = payload.findByID.bind(payload)
+  vi.spyOn(payload, 'findByID').mockImplementation(async args => {
+    if (args.disableErrors) throw new Error('unreadable winner')
+    return read(args)
+  })
+  const req = fakeReq({ payload, body: JSON.stringify({ docs: [{ collection: 'pages', id: 1 }] }) })
+  const result = await (await handlePlacementStatus(req, { options })).json()
+  expect(result.docs['pages:1'].tests).toHaveLength(1)
+  expect(result.docs['pages:1'].tests[0]).not.toHaveProperty('winnerTitle')
+})
+
+test('a sole page registration resolves legacy tests even when their Original is missing', async () => {
+  const missing = { ...page, findByPath: vi.fn(async () => null) }
+  const options = { ...sampleOptions(), pages: { collections: [missing] } }
+  expect(await resolvePageCollection(fakeReq(), options, { arms })).toBe(missing)
+  expect(missing.findByPath).not.toHaveBeenCalled()
+})
+test('page picker avoids numeric-id title searches and bounds query and page', async () => {
+  const { handlePages } = await import('../../src/endpoints/pages.js')
+  const options = { ...sampleOptions(), pages: { collections: [page] } }
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', admin: { useAsTitle: 'id' } }] } })
+  const req = fakeReq({ payload, url: 'https://host/api/xp/pages?collection=pages&q=anything&page=1000' })
+  expect((await handlePages(req, { options })).status).toBe(200)
+  expect(payload.calls[0]!.args).toMatchObject({ page: 1000, where: undefined })
+  payload.config.collections[0]!.admin.useAsTitle = 'title'
+  const find = vi.spyOn(payload, 'find')
+  await handlePages(fakeReq({ payload, url: `https://host/api/xp/pages?collection=pages&q=${'x'.repeat(101)}` }), { options })
+  expect(find).toHaveBeenLastCalledWith(expect.objectContaining({ where: { title: { like: 'x'.repeat(100) } } }))
+  await expect(handlePages(fakeReq({ payload, url: 'https://host/api/xp/pages?collection=pages&page=1001' }), { options })).rejects.toMatchObject({ code: 'invalid-body', status: 422 })
+})

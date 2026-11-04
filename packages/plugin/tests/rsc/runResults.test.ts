@@ -570,7 +570,7 @@ test('page health re-check writes missing and unchecked paths for running tests 
     { key: 'variantC', kind: 'variant', label: 'Version C', weight: 1, pageTarget: '/missing' },
     { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 1 },
   ] })
-  await database.db.update(xp_experiments).set({ kind: 'page', status: 'running', phase: 1 }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  await database.db.update(xp_experiments).set({ kind: 'page', status: 'running', phase: 1, pageCollection: 'pages' }).where(eq(xp_experiments.id, Number(phase.experiment)))
   const context = payload()
   const lookup = vi.fn(async (path: string, req: import('payload').PayloadRequest) => {
     expect(req.user).toBeNull()
@@ -579,9 +579,11 @@ test('page health re-check writes missing and unchecked paths for running tests 
     if (path === '/throwing') throw new Error('secret-value lookup failed')
     return path === '/original' ? { id: 1, published: true } : { id: 2, published: false }
   })
-  context.options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath: lookup }] }
+  const otherLookup = vi.fn(async () => ({ id: 999, published: true }))
+  context.options.pages = { collections: [{ slug: 'other', pathOf: () => null, findByPath: otherLookup }, { slug: 'pages', pathOf: () => null, findByPath: lookup }] }
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(otherLookup).not.toHaveBeenCalled()
   expect(await snapshots()).toHaveLength(2)
   const snapshot = (await snapshots())[0]!.snapshot as Snapshot
   expect(snapshot.health).toEqual([

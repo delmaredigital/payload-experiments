@@ -42,9 +42,7 @@ export async function loadPageTestsInUse(req: PayloadRequest): Promise<NonNullab
  * unpublished (logged). Start calls it again under its page-path locks on a detached request. */
 export async function unpublishedPageTargets<TUser extends { id: DocId }>(req: PayloadRequest, options: ResolvedOptions<TUser>,
   experiment: Pick<StartExperiment, 'id' | 'arms' | 'pageCollection'>): Promise<string[]> {
-  const registered = options.pages?.collections ?? []
-  const resolved = experiment.pageCollection ? registered.find(entry => entry.slug === experiment.pageCollection)
-    : registered.length === 1 ? registered[0] : await resolvePageCollection(req, options, experiment)
+  const resolved = await resolvePageCollection(req, options, experiment)
   const collections = resolved ? [resolved] : []
   const targets = await Promise.all(experiment.arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget?.trim()).map(async arm => {
     for (const collection of collections) {
@@ -102,7 +100,7 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
       }
       if (experiment.kind === 'block') {
         try {
-          blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, puckCollections: options.puck?.collections ?? [], blocksCollections: options.blocks?.collections })
+          blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, puckCollections: options.puck?.collections ?? [], blocksCollections: options.blocks?.collections ?? [] })
           input.placements = (await blocks).get(experiment.slug) ?? []
         } catch (cause) { input.placementError = placementFailure(cause) }
       }
@@ -323,7 +321,13 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
       try { page = path && collection ? await collection.findByPath(path, req) : null }
       catch (cause) { onPreviewFailure(cause, { collection: collection!.slug, id: path, title: path, published: false, slots: { control: 0, variantA: 0, variantB: 0, variantC: 0 } }) }
       if (!page || !collection) { pagePlacements.push({ arm: arm.key, path, published: false, id: null, ...(collection ? { collection: collection.slug } : {}) }); continue }
-      const doc = await req.payload.findByID({ collection: collection.slug, id: page.id, req, overrideAccess: false, depth: 0, draft: !page.published })
+      let doc
+      try { doc = await req.payload.findByID({ collection: collection.slug, id: page.id, req, overrideAccess: false, depth: 0, draft: !page.published }) }
+      catch (cause) {
+        onPreviewFailure(cause, { collection: collection.slug, id: page.id, title: path, published: false, slots: { control: 0, variantA: 0, variantB: 0, variantC: 0 } })
+        pagePlacements.push({ arm: arm.key, path, collection: collection.slug, published: false, id: null })
+        continue
+      }
       const titleField = req.payload.config.collections?.find(entry => entry.slug === collection.slug)?.admin.useAsTitle ?? 'title'
       const placement: BlockPlacement = { collection: collection.slug, id: page.id, title: String(doc[titleField] ?? doc.id), published: page.published,
         ...(page.published && typeof doc.slug === 'string' ? { slug: doc.slug } : {}), slots: { control: 0, variantA: 0, variantB: 0, variantC: 0 }, editor: 'page', doc }

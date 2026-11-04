@@ -1,3 +1,4 @@
+import { safeError } from '../log.js'
 import { isDeepStrictEqual } from 'node:util'
 import type { PayloadRequest } from 'payload'
 import type { Arm, ExperimentsPageCollection } from '../types/contracts.js'
@@ -14,11 +15,16 @@ export function comparableContent(value: unknown): unknown {
 export async function identicalPageVersions(req: PayloadRequest, collection: ExperimentsPageCollection | undefined, arms: Arm[]) {
   if (!collection?.contentOf) return []
   const content = await Promise.all(arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget).map(async arm => {
-    const page = await collection.findByPath(arm.pageTarget!, req)
-    if (!page?.published) return null
-    const raw = await pageVersionContent(req, collection.slug, page.id)
-    if (!raw || raw._status === 'draft') return null
-    return { arm, id: page.id, value: comparableContent(collection.contentOf!(raw)) }
+    try {
+      const page = await collection.findByPath(arm.pageTarget!, req)
+      if (!page?.published) return null
+      const raw = await pageVersionContent(req, collection.slug, page.id)
+      if (!raw || raw._status === 'draft') return null
+      return { arm, id: page.id, value: comparableContent(collection.contentOf!(raw)) }
+    } catch (cause) {
+      req.payload.logger.error({ err: safeError(cause), collection: collection.slug, id: arm.pageTarget }, 'Experiment version comparison failed')
+      return null
+    }
   }))
   const control = content.find(row => row?.arm.kind === 'control')
   if (!control) return []

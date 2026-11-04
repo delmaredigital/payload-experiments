@@ -1,6 +1,7 @@
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, ExperimentKind, Status } from '../types/contracts.js'
 import type { EndpointContext, PlacementStatusBody, PlacementStatusResult } from '../types/endpoints.js'
+import { safeError } from '../log.js'
 import { statusPageContent } from '../db/pageContent.js'
 import { normalisePath } from '../runtime/normalisePath.js'
 import { puckCollections } from '../options.js'
@@ -47,7 +48,7 @@ export async function handlePlacementStatus<TUser extends { id: DocId }>(req: Pa
   const result: PlacementStatusResult = { docs: Object.create(null), slugs: Object.create(null) }
   const wanted = body.slugs ?? []
   const { docs } = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, pagination: false, limit: 0,
-    where: !body.docs?.length ? { slug: { in: wanted } } : undefined })
+    where: !body.docs?.length ? { slug: { in: wanted } } : !wanted.length ? { kind: { equals: 'page' } } : undefined })
   const tests = docs as unknown as Test[]
   const state = wanted.length ? await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: false, depth: 0 }) : null
   const retired = Array.isArray(state?.retiredSlugs) ? state.retiredSlugs : []
@@ -74,6 +75,8 @@ export async function handlePlacementStatus<TUser extends { id: DocId }>(req: Pa
       arms: round.arms.map(({ key, label, slot }) => ({ key, label, ...(slot ? { slot } : {}) })),
       ...(test.decision?.winnerArm ? { winnerArm: test.decision.winnerArm } : {}), rollout: round.rollout }
   }
+  const collections = new Map<string, Awaited<ReturnType<typeof resolvePageCollection>>>()
+  const winnerTitles = new Map<string, string | undefined>()
   for (const { collection, id } of body.docs ?? []) {
     // Check document access before the raw path read. A refused read propagates.
     await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: false })
@@ -84,20 +87,29 @@ export async function handlePlacementStatus<TUser extends { id: DocId }>(req: Pa
     const pathKey = path === null ? null : normalisePath(path)
     const status: PlacementStatusResult['docs'][string] = { path, tests: [] }
     for (const test of tests) {
-      if (test.kind !== 'page' || path === null || test.decision?.pagesReleasedAt || test.decision?.discardedAt) continue
+      if (test.kind !== 'page' || path === null || test.decision?.pagesReleasedAt || test.decision?.discardedAt || test.status === 'archived' && !test.decision?.winnerArm) continue
       const round = rounds.get(test.slug)!
-      const testCollection = await resolvePageCollection(req, options, { ...test, arms: round.arms })
+      if (!collections.has(test.slug)) collections.set(test.slug, await resolvePageCollection(req, options, { ...test, arms: round.arms }))
+      const testCollection = collections.get(test.slug)
       if (testCollection?.slug !== collection) continue
       const arm = round.arms.find(arm => arm.kind !== 'holdout' && arm.pageTarget && normalisePath(arm.pageTarget) === pathKey)
       if (!arm) continue
       const winner = round.arms.find(arm => arm.key === test.decision?.winnerArm)
       const original = round.arms.find(arm => arm.kind === 'control')
-      const winnerPage = winner?.pageTarget && registration ? await registration.findByPath(winner.pageTarget, req) : null
-      const winnerDoc = winnerPage ? await req.payload.findByID({ collection, id: winnerPage.id, req, overrideAccess: false, depth: 0, draft: false }) : null
-      const titleField = req.payload.config.collections.find(entry => entry.slug === collection)?.admin.useAsTitle ?? 'title'
+      if (!winnerTitles.has(test.slug)) {
+        let title: string | undefined
+        try {
+          const winnerPage = winner?.pageTarget && registration ? await registration.findByPath(winner.pageTarget, req) : null
+          const winnerDoc = winnerPage ? await req.payload.findByID({ collection, id: winnerPage.id, req, overrideAccess: false, depth: 0, draft: false, disableErrors: true }) : null
+          const titleField = req.payload.config.collections.find(entry => entry.slug === collection)?.admin.useAsTitle ?? 'title'
+          if (winnerDoc) title = String(winnerDoc[titleField] ?? winnerDoc.id)
+        } catch (cause) { req.payload.logger.error({ err: safeError(cause), experimentId: test.id }, 'Experiment winner title lookup failed') }
+        winnerTitles.set(test.slug, title)
+      }
+      const winnerTitle = winnerTitles.get(test.slug)
       status.tests.push({ slug: test.slug, name: test.name, status: test.status, role: arm.kind === 'control' ? 'original' : 'version',
         armLabel: arm.label, winner: ['decided', 'archived'].includes(test.status) && winner?.key === arm.key,
-        ...(winner ? { winnerLabel: winner.label, winnerPath: winner.pageTarget } : {}), ...(winnerDoc ? { winnerTitle: String(winnerDoc[titleField] ?? winnerDoc.id) } : {}),
+        ...(winner ? { winnerLabel: winner.label, winnerPath: winner.pageTarget } : {}), ...(winnerTitle ? { winnerTitle } : {}),
         ...(original?.pageTarget ? { originalPath: normalisePath(original.pageTarget) } : {}), rollout: round.rollout, pagesReleased: false })
     }
     result.docs[`${collection}:${id}`] = status

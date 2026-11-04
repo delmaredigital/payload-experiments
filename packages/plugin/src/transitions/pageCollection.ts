@@ -7,6 +7,7 @@ export async function resolvePageCollection(req: PayloadRequest, options: Pick<R
   experiment: { pageCollection?: string | null; arms: readonly { kind?: string; pageTarget?: string }[] }): Promise<ExperimentsPageCollection | undefined> {
   const collections = options.pages?.collections ?? []
   if (experiment.pageCollection) return collections.find(entry => entry.slug === experiment.pageCollection)
+  if (collections.length === 1) return collections[0]
   const path = experiment.arms.find(arm => arm.kind === 'control')?.pageTarget
   if (!path) return undefined
   for (const entry of collections) {

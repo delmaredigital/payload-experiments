@@ -62,7 +62,7 @@ test.each(['draft', 'archived'])('delete %s cascades by id in the same request b
   expect(f.payload.documents['xp-phases']).toEqual([])
   expect(f.payload.documents['xp-results-snapshots']).toEqual([])
   expect(f.executor.calls.some(c => c.text.startsWith('DELETE FROM') && c.params[0] === 1)).toBe(true)
-  expect(f.executor.calls.filter(c => c.text.includes('advisory')).map(c => c.params)).toEqual([['1'], []])
+  expect(f.executor.calls.filter(c => c.text.includes('advisory')).map(c => c.params)).toEqual([['1']])
   const calls = f.payload.calls.filter(c => c.method === 'delete')
   expect(calls).toHaveLength(1)
   for (const call of calls) expect(call.args).toMatchObject({ req: f.req, overrideAccess: true, id: expect.any(Number) })
@@ -138,4 +138,47 @@ test.each(['draft', 'discard', 'stopped', 'after-content', 'hard-coded'] as cons
   expect(f.payload.calls.filter(call => call.args.collection === 'xp-results-snapshots')).toEqual([])
   await buildAndStoreManifest(f.req)
   expect(f.manifests.at(-1).flagDefaults).toEqual(defaults)
+})
+
+test.each([false, true])('Payload real delete hooks retire every deleted slug after all experiment locks (single=%s)', async single => {
+  const { BasePayload } = await import('payload')
+  const { experimentsCollection } = await import('../../src/collections/experiments/config.js')
+  const f = fixture('draft')
+  const ids = single ? [2] : [2, 1]
+  f.payload.documents['xp-experiments'] = ids.map(id => ({ ...structuredClone(f.experiment), id, slug: `delete-${id}` }))
+  f.payload.documents['xp-phases'] = []
+  const hooks = experimentsCollection(sampleOptions()).hooks!
+  const completedBefore = new Set<number>()
+  hooks.beforeDelete!.push(async ({ id }) => { completedBefore.add(Number(id)) })
+  // Adapter boundary fake only; Local API dispatch, beforeOperation, per-doc hooks and afterRead are Payload's.
+  const config = { slug: 'xp-experiments', fields: [], flattenedFields: [], hooks, access: { delete: () => true }, versions: false, upload: false, trash: false, auth: false }
+  Object.assign(f.payload, { collections: { 'xp-experiments': { config } } })
+  Object.assign(f.payload.config, { admin: { user: 'users' }, collections: [config], defaultDepth: 0, maxDepth: 0 })
+  Object.assign(f.req, { i18n: { t: vi.fn(), language: 'en' } })
+  const originalQuery = f.executor.query.bind(f.executor)
+  const retired: string[] = []
+  f.executor.query = async <R>(text: string, params: unknown[] = []) => {
+    if (text.startsWith('UPDATE') && text.includes('retired_slugs')) {
+      // Retirement must happen after both beforeDelete bodies, never while acquiring later E locks.
+      expect([...completedBefore].sort()).toEqual([...ids].sort())
+      retired.push(String(params[1]))
+    }
+    return originalQuery<R>(text, params)
+  }
+  Object.assign(f.payload.db, {
+    find: vi.fn(async () => ({ docs: structuredClone(f.payload.documents['xp-experiments']) })),
+    findOne: vi.fn(async ({ where }) => structuredClone(f.payload.documents['xp-experiments']!.find(doc => doc.id === where.id?.equals || doc.id === where.and?.[0]?.id?.equals))),
+    deleteOne: vi.fn(async ({ where }) => {
+      const doc = f.payload.documents['xp-experiments']!.find(doc => doc.id === where.id.equals)
+      f.payload.documents['xp-experiments'] = f.payload.documents['xp-experiments']!.filter(row => row.id !== where.id.equals)
+      return doc
+    }),
+    deleteMany: vi.fn(async () => undefined),
+  })
+  const result = await BasePayload.prototype.delete.call(f.payload, { collection: 'xp-experiments', req: f.req, overrideAccess: false,
+    ...(single ? { id: 2 } : { where: { id: { in: ids } } }) } as never)
+  if (!single) expect(result).toMatchObject({ errors: [], docs: expect.any(Array) })
+  expect([...new Set(retired)].sort()).toEqual(ids.map(id => `delete-${id}`).sort())
+  const locks = f.executor.calls.filter(call => call.text.includes('xp:experiment')).map(call => call.params[0])
+  expect(locks.slice(0, ids.length)).toEqual(ids.map(String).sort())
 })

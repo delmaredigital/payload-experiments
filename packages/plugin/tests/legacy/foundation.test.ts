@@ -108,3 +108,40 @@ test('serialized page copying links honour a non-default admin route and keep cu
   expect(serializePageCollections([page()], req)).toEqual([{ slug: 'pages', label: 'Pages', copyUrl: '/staff/collections/pages', copyLabel: 'Open Pages' }])
   expect(serializePageCollections([{ ...page(), copyUrl: '/tree?copy=1', copyLabel: 'Open Tree', copyHint: 'Use Duplicate' }], req)).toEqual([{ slug: 'pages', label: 'Pages', copyUrl: '/tree?copy=1', copyLabel: 'Open Tree', copyHint: 'Use Duplicate' }])
 })
+
+const statusBase: PageTestStatus = { slug: 'test', name: 'Test', status: 'draft', role: 'version', winner: false,
+  armLabel: 'Variant A', winnerLabel: 'Original', winnerTitle: 'Home', originalPath: '/original', rollout: false, pagesReleased: false }
+test.each([
+  [{}, 'This page is Variant A in the draft test Test.'],
+  [{ status: 'stopped' }, 'This page is Variant A in the stopped test Test. Visitors to /original see the Original.'],
+  [{ status: 'stopped', role: 'original', armLabel: 'Original' }, 'This page is Original in the stopped test Test. Visitors see this page.'],
+  [{ status: 'stopped', originalPath: '/' }, 'This page is Variant A in the stopped test Test. Visitors to the homepage (/) see the Original.'],
+  [{ status: 'stopped', originalPath: undefined }, 'This page is Variant A in the stopped test Test. Visitors see the Original.'],
+  [{ status: 'running' }, 'This page is the Variant A of a running test: Test.'],
+  [{ status: 'decided' }, 'This page is Variant A of a decided test; visitors see Original (Home).'],
+  [{ status: 'decided', rollout: true }, 'This page is Variant A of a decided test; most visitors see Original (Home); a holdout still sees the Original.'],
+  [{ status: 'archived' }, "This page's address now shows Original (Home). To show this page again, open the test and choose \"Release pages\"."],
+  [{ status: 'archived', winner: true }, "This page is also shown at the other versions' addresses because test Test made it the winner. To free it, open the test and choose \"Release pages\"."],
+  [{ status: 'archived', role: 'original', armLabel: 'Original', winnerLabel: 'Variant A', winnerTitle: 'Version' }, "This page's address now shows the winner of test Test. To free it, open the test and choose \"Release pages\"."],
+] as Array<[Partial<PageTestStatus>, string]>)('status copy is exact for %j', (changes, expected) => {
+  expect(pageStatusCopy({ ...statusBase, ...changes })).toBe(expected)
+})
+test('page collection validation accepts an unchanged unregistered value but refuses a changed one', async () => {
+  const config = await createExperimentsPlugin(sampleOptions())({ collections: [] } as unknown as Config)
+  const choice = field(config.collections!.find(c => c.slug === 'xp-experiments')!.fields, 'pageCollection', 'text')
+  expect(validate(choice.validate, 'retired', { previousValue: 'retired' })).toBe(true)
+  expect(validate(choice.validate, 'retired', { previousValue: 'other' })).toBe('Choose a registered page collection.')
+})
+
+test('content audit records no Puck binding for a blocks document with stale slots', async () => {
+  const executor = createFakeExecutor()
+  const options = { ...sampleOptions(), puck: { enabled: true, collections: ['pages'] },
+    blocks: { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => true }] } }
+  const payload = fakePayload({ executor, config: { custom: { xp: options } } })
+  const req = executor.withSession({ payload })
+  const slot = (text: string) => ({ content: [{ type: 'ExperimentSlot', props: { experiment: 'hero', control: [{ text }], variantA: [] } }] })
+  const previous = { id: 1, puckData: slot('Before') }, current = { id: 1, puckData: slot('After') }
+  await contentChangesHook({ req, collection: { slug: 'pages', fields: [] }, previousDoc: previous, doc: current } as never)
+  expect(executor.calls.some(call => call.text.includes('xp_experiments'))).toBe(false)
+  expect(executor.calls.some(call => call.text.startsWith('UPDATE'))).toBe(false)
+})

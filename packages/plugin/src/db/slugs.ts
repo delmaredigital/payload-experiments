@@ -6,6 +6,7 @@ import { qualifiedTable, quoteIdentifier as q } from './sql.js'
 
 /** Each candidate is locked before its live and retired checks, including suffix collisions. */
 export async function pickSlug(exec: Executor, stem: string, transactional: boolean): Promise<string> {
+  // Overlapping stems across creates in one host transaction can deadlock; hashtext collisions can wait. The unique index remains the backstop.
   const e = COLUMNS.experiments, s = COLUMNS.state
   for (let n = 1; ; n++) {
     const suffix = n === 1 ? '' : `-${n}`
@@ -31,6 +32,7 @@ export async function retireSlug(exec: Executor, slug: string): Promise<void> {
 export const preserveRetiredSlugs: GlobalBeforeChangeHook = async ({ req, data }) => {
   const transactional = await req.transactionID != null
   const exec = transactional ? txExecutor(req) : pooledExecutor(req.payload)
+  // A host write with disableTransaction can race a retirement and lose its append; plugin writes always use a transaction.
   if (transactional) await exec.query("SELECT pg_advisory_xact_lock(hashtext('xp:state'), 0)")
   const { rows } = await exec.query<{ retired: string[] | null }>(`SELECT ${q(COLUMNS.state.retiredSlugs)} AS retired FROM ${qualifiedTable(exec, TABLES.state)} LIMIT 1`)
   data.retiredSlugs = rows[0]?.retired ?? null

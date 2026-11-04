@@ -68,3 +68,33 @@ test('a cascade failure in beforeDelete leaves experiment, phases, events and sn
   }
   expect((await readState(f.exec))!.revision).toBe(before!.revision)
 })
+
+test('two-id bulk delete concurrent with Start on the second id completes without a lock cycle', async () => {
+  const { start } = await import('../src/transitions/start.js')
+  const { sampleOptions } = await import('../tests/collections/fixtures.js')
+  const { payload } = harness
+  const req = await createLocalReq({}, payload)
+  const metric = await payload.create({ collection: 'xp-metrics', req, overrideAccess: true, data: {
+    name: 'Bulk Start goal', slug: 'bulk-start-goal', source: 'binomial', direction: 'increase', attributionWindowHours: 24,
+  } })
+  const drafts = []
+  for (const slug of ['bulk-start-first', 'bulk-start-second']) drafts.push(await payload.create({ collection: 'xp-experiments', req, overrideAccess: true, data: {
+    name: slug, slug, kind: 'code', unitType: 'visitor', exposurePolicy: 'manual', allocation: 100,
+    arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 50 }, { key: 'variantA', label: 'Version', kind: 'variant', weight: 50 }],
+    metrics: { primary: metric.id }, analysis: { plannedDurationDays: 14, reachPerDay: 100 },
+  } }))
+  const first = drafts[0]!, second = drafts[1]!
+  const options = sampleOptions()
+  const deleting = await createLocalReq({}, payload), starting = await createLocalReq({}, payload)
+  const outcomes = await Promise.allSettled([
+    payload.delete({ collection: 'xp-experiments', req: deleting, overrideAccess: false, where: { id: { in: [first.id, second.id] } } }),
+    start(starting, { experimentId: second.id, options }),
+  ])
+  // Either winner is valid: Start may see a deleted row, or Delete may see the newly running test.
+  for (const outcome of outcomes) {
+    if (outcome.status === 'rejected') expect(outcome.reason).toMatchObject({ code: expect.stringMatching(/^(not-found|invalid-status)$/) })
+    if (outcome.status === 'fulfilled' && outcome.value && 'errors' in outcome.value) {
+      for (const error of outcome.value.errors) expect(error.message).toBe('This action is not available in the current status.')
+    }
+  }
+}, 30_000)

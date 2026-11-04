@@ -232,7 +232,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
         const transactionID = req.transactionID
         delete req.transactionID
         try {
-          scanned.push(...await scanBlockPlacements(req, { slug: current.slug, puckCollections: [registration], blocksCollections: options.blocks?.collections }))
+          scanned.push(...await scanBlockPlacements(req, { slug: current.slug, puckCollections: [registration], blocksCollections: options.blocks?.collections ?? [] }))
         } catch (error) {
           // A collection made unreadable since the last attempt still has
           // retained placements to report below. Never sacrifice the outer tx.

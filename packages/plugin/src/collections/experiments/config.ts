@@ -9,7 +9,7 @@ import { createDefaults } from './createDefaults.js'
 import { flagControlParams } from './flagControlParams.js'
 import { pickExperimentSlug } from './pickSlug.js'
 import { lockHook } from './lockHook.js'
-import { deleteGuard, deleteGuardAfter } from './deleteGuard.js'
+import { deleteGuard, deleteGuardAfter, deleteGuardBeforeOperation } from './deleteGuard.js'
 import { checkArms } from './armInvariants.js'
 import { XpNotImplemented, XpRefusal } from '../../errors.js'
 
@@ -41,7 +41,7 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
       } } },
     },
     hooks: {
-      beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook, pickExperimentSlug], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter],
+      beforeOperation: [deleteGuardBeforeOperation], beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook, pickExperimentSlug], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter],
       afterError: [({ error }) => {
         // Payload preserves public Error status/message, but omits custom codes.
         if (error instanceof XpRefusal && error.code === 'stale-edit') {
@@ -57,7 +57,7 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
           { name: 'slug', type: 'text', required: true, unique: true },
           { name: 'hypothesis', type: 'textarea' },
           { name: 'kind', type: 'select', required: true, options: ['block', 'page', 'flag', 'code'], access: { read: async args => args.doc?.kind !== 'code' || adminOnly(args) } },
-          { name: 'pageCollection', type: 'text', validate: (value: unknown) => value == null || value === '' || options.pages?.collections.some(entry => entry.slug === value) || 'Choose a registered page collection.' },
+          { name: 'pageCollection', type: 'text', validate: (value: unknown, { previousValue }: { previousValue?: unknown }) => value === previousValue || value == null || value === '' || options.pages?.collections.some(entry => entry.slug === value) || 'Choose a registered page collection.' },
           { name: 'flagPoint', type: 'text',
             validate: (value: unknown, { data }: ValidationContext) => (!value && data?.kind !== 'flag') || flagPoints.some(point => point.id === value) || 'Choose a registered flag point.' },
           { name: 'exposurePolicy', type: 'select', required: true, options: ['render', 'viewport', 'pageview', 'manual'],

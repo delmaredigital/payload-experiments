@@ -1,6 +1,6 @@
 import { accentStyles } from '../../ui/accent.js'
 import type { AdminViewServerProps } from 'payload'
-import { formatAdminURL } from 'payload/shared'
+import { flattenTopLevelFields, formatAdminURL } from 'payload/shared'
 import { notFound, redirect } from 'next/navigation.js'
 import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'
 import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } from '../../collections/serialize.js'
@@ -75,17 +75,19 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
       const config = req.payload.config.collections.find(item => item.slug === collection)
       const useAsTitle = config?.admin.useAsTitle ?? 'id'
       const collectionLabel = resolveLabel(config?.labels.plural, collection, req)
+      // appliesTo may inspect any stored field; ordinary Puck lists keep their title-only projection.
+      const predicateFields = options.blocks?.collections.some(entry => entry.slug === collection)
+        ? Object.fromEntries(flattenTopLevelFields(config?.fields ?? []).map(field => [field.name, true])) : {}
       const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0,
-        limit: 50, sort: '-updatedAt', draft: false })
-      return (await Promise.all(result.docs.map(async main => {
-        const doc = main._status === 'draft' ? await req.payload.findByID({ collection, id: main.id, req, overrideAccess: false, depth: 0, draft: true }) : main
+        limit: 50, sort: '-updatedAt', draft: true, select: { [useAsTitle]: true, ...predicateFields } })
+      return result.docs.map(doc => {
         if (documentEditor(options, collection, doc) !== 'puck') return null
         const id = doc.id
-        const customUrl = options.admin?.editorUrl?.({ collection, id, draft: doc._status === 'draft', editor: documentEditor(options, collection, doc), doc })
+        const customUrl = options.admin?.editorUrl?.({ collection, id, draft: true, editor: documentEditor(options, collection, doc), doc })
         const title = doc[useAsTitle]
         return { collection, collectionLabel, id, title: typeof title === 'string' || typeof title === 'number' ? String(title) : String(id),
           editorUrl: typeof customUrl === 'string' ? customUrl : formatAdminURL({ adminRoute, path: `/collections/${collection}/${encodeURIComponent(String(id))}` }) }
-      }))).filter((page): page is NonNullable<typeof page> => page !== null)
+      }).filter((page): page is NonNullable<typeof page> => page !== null)
     } catch { return [] }
   }))).flat() : undefined
   const descriptions = options.admin?.descriptions

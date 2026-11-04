@@ -2,6 +2,7 @@
 import { useConfig, useDocumentInfo } from '@payloadcms/ui'
 import { useEffect, useMemo, useState } from 'react'
 import type { UIFieldClientProps } from 'payload'
+import { formatAdminURL } from 'payload/shared'
 import type { PageTestStatus } from '../types/endpoints.js'
 import { createApi } from './api.js'
 import { pageStatusCopy } from './placementStatus.model.js'
@@ -22,6 +23,6 @@ export function PlacementStatus(_props: UIFieldClientProps) {
   }, [api, collectionSlug, id])
   return <>{tests.map(test => {
     const copy = pageStatusCopy(test)
-    return copy ? <p key={test.slug}>{copy}{' '}<a href={`${config.routes.admin.replace(/\/$/, '')}/experiments/by-slug/${encodeURIComponent(test.slug)}`}>Back to the test</a></p> : null
+    return copy ? <p key={test.slug}>{copy}{' '}<a href={formatAdminURL({ adminRoute: config.routes.admin, path: `/experiments/by-slug/${encodeURIComponent(test.slug)}` })}>Back to the test</a></p> : null
   })}</>
 }

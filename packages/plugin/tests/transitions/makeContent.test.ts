@@ -1013,3 +1013,13 @@ test.each([false, true])('make-content host publish with expanded links records 
   const markers = f.executor.calls.filter(call => call.text.startsWith('UPDATE') && call.text.includes('"content_changes"'))
   expect(markers).toHaveLength(changed ? 1 : 0)
 })
+
+test('make-content leaves a blocks document Puck field untouched even in a previous content report', async () => {
+  const f = fixture()
+  f.options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => true }] }
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
+  const before = structuredClone(f.payload.documents.pages)
+  await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(hostUpdates(f)).toEqual([])
+  expect(f.payload.documents.pages).toEqual(before)
+})

@@ -4,7 +4,7 @@ import { buildCollections } from '../../src/collections/index.js'
 import { createDefaults } from '../../src/collections/experiments/createDefaults.js'
 import { lockHook } from '../../src/collections/experiments/lockHook.js'
 import { flagControlParams } from '../../src/collections/experiments/flagControlParams.js'
-import { deleteGuard, deleteGuardAfter } from '../../src/collections/experiments/deleteGuard.js'
+import { deleteGuard, deleteGuardAfter, deleteGuardBeforeOperation } from '../../src/collections/experiments/deleteGuard.js'
 import { checkArms } from '../../src/collections/experiments/armInvariants.js'
 import { XpNotImplemented } from '../../src/errors.js'
 import * as paths from '../../src/admin/paths.js'
@@ -64,7 +64,7 @@ test('unnamed editor tabs preserve document paths and hook ordering', () => {
   expect(tabs[0]).not.toHaveProperty('name')
   expect(tabs[0]!.tabs.map(tab => ({ label: tab.label, description: tab.description }))).toEqual(['What', 'Who', 'Groups', 'Metrics'].map(label => ({ label, description: undefined })))
   for (const tab of tabs[0]!.tabs) expect(tab).not.toHaveProperty('name')
-  expect(experiments.hooks).toEqual({ beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook, pickExperimentSlug], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter], afterError: [expect.any(Function)] })
+  expect(experiments.hooks).toEqual({ beforeOperation: [deleteGuardBeforeOperation], beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook, pickExperimentSlug], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter], afterError: [expect.any(Function)] })
 })
 
 test.each([undefined, []])('create defaults populate missing/empty arms (%j)', arms => {
