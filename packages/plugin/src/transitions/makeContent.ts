@@ -201,7 +201,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
         docs.push({ collection, id, ok: true })
       }
       catch (error) {
-        const detail = isNotFound(error) ? 'not-found' : contentFailureReason(error)
+        const detail = isNotFound(error) ? missingOk ? 'forbidden' : 'not-found' : contentFailureReason(error)
         req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content update failed')
         docs.push({ collection, id, ok: Boolean(missing), detail: missing ? 'not-found' : detail, ...(!missing ? { error: detail } : {}) })
       }
@@ -234,31 +234,26 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
         const transactionID = req.transactionID
         delete req.transactionID
         try {
-          const config = req.payload.config.collections.find(config => config.slug === collection)
-          const access = config?.access?.read ? await config.access.read({ id, req }) : true
           const doc = await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: true, includeLockStatus: true, disableErrors: true })
-          if (!doc) {
-            // Fail closed (exp-orch 16:20): only an unfiltered read proves the page is gone;
-            // a Where-filtered miss may be a page this manager cannot see.
-            const ok = access === true || (typeof access === 'object' && access !== null && Object.keys(access).length === 0)
-            const detail: ContentReportReason = ok ? 'not-found' : 'forbidden'
-            docs.push({ collection, id, ok, detail, ...(!ok ? { error: detail } : {}) })
-            skipped.add(key)
-          } else if (doc._isLocked === true || doc.locked === true) refuse('locked-placement', { collection, id })
+          // Null can also mean trashed or hidden by a host hook. Use the same
+          // unfiltered existence check as a thrown NotFound before reporting done.
+          if (!doc) throw new NotFound()
+          if (doc._isLocked === true || doc.locked === true) refuse('locked-placement', { collection, id })
         } catch (error) {
           if (error && typeof error === 'object' && 'code' in error && error.code === 'locked-placement') throw error
           let missing = false
+          let detail: ContentReportReason = isNotFound(error) ? 'forbidden' : contentFailureReason(error)
           if (isNotFound(error)) {
             try {
               await hostTransaction(req, async () => { missing = !await readPublishedContent(req, collection, id) })
             } catch (checkError) {
               missing = false
+              detail = 'update-failed'
               req.payload.logger.error({ err: safeError(checkError), experimentId, collection, id }, 'Experiment content existence check failed')
             }
           }
           req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content read failed')
-          const detail: ContentReportReason = isNotFound(error) ? 'not-found' : contentFailureReason(error)
-          docs.push({ collection, id, ok: Boolean(missing), detail, ...(!missing ? { error: detail } : {}) })
+          docs.push({ collection, id, ok: Boolean(missing), detail: missing ? 'not-found' : detail, ...(!missing ? { error: detail } : {}) })
           skipped.add(key)
         } finally { req.transactionID = transactionID }
       }

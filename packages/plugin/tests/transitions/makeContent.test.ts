@@ -289,6 +289,26 @@ test.each([true, {}])('retry after a failed placement is deleted reports it ok a
   expect(result.doc.status).toBe('archived')
   expect(result.docs).toContainEqual({ collection: 'pages', id: 3, ok: true, detail: 'not-found' })
 })
+test.each([true, {}])('a trashed placement hidden by the outer probe is forbidden and stays decided (read=%j)', async access => {
+  const f = fixture()
+  Object.assign(f.payload.config.collections[0]!, { trash: true, access: { read: () => access } })
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
+  const trashed = f.payload.documents.pages![0]!
+  trashed.deletedAt = '2026-11-03T00:00:00.000Z'
+  const original = structuredClone(trashed)
+  const read = f.payload.findByID.bind(f.payload)
+  vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
+    // Payload's Local API hides trash by default; adapter findOne does not.
+    if (args.collection === 'pages' && args.id === 3 && !args.trash) return null as never
+    return read(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('decided')
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'forbidden', error: 'forbidden' }, { id: 4, ok: true }])
+  expect(f.payload.db.findOne).toHaveBeenCalledWith(expect.objectContaining({ collection: 'pages', where: { id: { equals: 3 } } }))
+  expect(hostUpdates(f).some(call => call.args.id === 3)).toBe(false)
+  expect(trashed).toEqual(original)
+})
 test('a retained page made unreadable is reported without killing the outer transaction', async () => {
   const f = fixture()
   f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 3, ok: false }] } }
@@ -798,18 +818,21 @@ test.each(['outer probe', 'inner probe', 'publish', 'draft'] as const)('NotFound
   })
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(result.doc.status).toBe('decided')
-  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'not-found', error: 'not-found' }, { id: 4, ok: true }])
+  expect(result.docs).toMatchObject([{ id: 3, ok: false, detail: 'forbidden', error: 'forbidden' }, { id: 4, ok: true }])
   expect(f.payload.documents.pages![0]).toEqual(original)
   expect(checks.length).toBeGreaterThanOrEqual(2)
   expect(checks).not.toContain('fake-transaction-1')
   if (stage !== 'outer probe') expect(f.payload.dbCalls).toContainEqual({ method: 'rollbackTransaction', args: [failedTransactions[0]] })
 })
 
-test('an existence re-check failure after NotFound fails closed', async () => {
+test.each(['inner probe', 'outer probe', 'outer null'] as const)('an existence re-check failure after %s fails closed', async stage => {
   const f = fixture()
   const read = f.payload.findByID.bind(f.payload)
   vi.spyOn(f.payload, 'findByID').mockImplementation(async args => {
-    if (args.collection === 'pages' && !args.disableErrors) throw new NotFound()
+    if (args.collection === 'pages') {
+      if (stage === 'outer null' && args.disableErrors) return null as never
+      if (stage === 'outer probe' && args.disableErrors || stage === 'inner probe' && !args.disableErrors) throw new NotFound()
+    }
     return read(args)
   })
   vi.spyOn(f.payload.db, 'findOne').mockRejectedValue(new Error('secret-value adapter error'))
