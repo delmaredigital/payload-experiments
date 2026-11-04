@@ -12,8 +12,7 @@ function refusalMessage(body: unknown): string {
 }
 
 /** Shared lookup, complete draft creation and one retry for a racing slug collision. */
-export async function createTest(apiRoute: string, input: Omit<Parameters<typeof newTestBody>[0], 'slug'>): Promise<ExperimentRef> {
-  const api = apiRoute.replace(/\/$/, '')
+export async function createTest(api: string, input: Omit<Parameters<typeof newTestBody>[0], 'slug'>): Promise<ExperimentRef> {
   const base = slugify(input.name) || 'test'
   for (let attempt = 0; ; attempt++) {
     // Suffixes shorten a 64-character base; include those neighbouring slugs in the lookup.

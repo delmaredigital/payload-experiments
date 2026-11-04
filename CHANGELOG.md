@@ -12,6 +12,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### plugin
 
 - Fixed: an event recorded in a visitor's own browser is always credited to that visitor when they saw the test, even if their link to a signed-in account can't be used. Migration impact: none.
+- Changed: the Experiment block in the Puck editor uses the new layout: name and status, a tab per version, and clear actions.
+- Added: `createExperimentSlotEditor` / `createExperimentSlot` take the host's admin and API routes (and accent); hosts on non-default routes switch to them.
 
 ## [0.3.0-rc.1] - 2026-11-03
 

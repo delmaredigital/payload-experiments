@@ -6,10 +6,10 @@ export const slotLabels = {
 } as const
 
 export const pickerCopy = {
-  label: 'Experiment',
-  none: 'No experiment',
-  loading: 'Loading experiments…',
-  error: "Couldn't load experiments.",
+  label: 'Test',
+  none: 'No test',
+  loading: 'Loading tests…',
+  error: "Couldn't load tests.",
   forbidden: "You can't see tests. Ask an admin.",
   statuses: {
     draft: 'Draft',

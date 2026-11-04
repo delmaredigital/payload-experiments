@@ -1,8 +1,16 @@
 'use client'
 
 import { createUsePuck, registerOverlayPortal, useGetPuck, type ComponentConfig } from '@puckeditor/core'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { ArmSlot, ExperimentRef, ExperimentSlotProps } from '../../types/puck.js'
+import { Button } from '../../ui/Button.js'
+import { StatusChip } from '../../ui/StatusChip.js'
+import { Banner } from '../../ui/Banner.js'
+import { Tabs } from '../../ui/Tabs.js'
+import { accentVariables, deriveAccent, validateAccent } from '../../ui/accent.js'
+import { createExperimentSlotField } from '../experimentSlotField.js'
+import { resolvePuckRoutes, type PuckRoutes } from '../routes.js'
+import { PuckHostProvider, usePuckRoutes } from '../hostContext.js'
 import { pickerCopy } from '../copy.js'
 import { experimentSlotDefaultProps, experimentSlotFields, experimentSlotLabel } from '../slotConfig.js'
 import { bannerFor, tabsFor, type EditorExperiment } from './editor.model.js'
@@ -25,9 +33,22 @@ function isExperiment(value: unknown): value is EditorExperiment {
       ['control', 'variant', 'holdout'].includes(arm.kind) && typeof arm.label === 'string')
 }
 
-function EditorRender(props: RenderProps) {
+function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAccent> }) {
   const getPuck = useGetPuck()
-  const tabId = useId()
+  const { admin, api } = usePuckRoutes()
+  const root = useRef<HTMLElement>(null)
+  const [mode, setMode] = useState<'light' | 'dark'>('light')
+  useEffect(() => {
+    const node = root.current
+    if (!node || !props.accent) return
+    const update = () => setMode(node.closest('[data-theme="dark"], .dark') ? 'dark' : 'light')
+    update()
+    const observer = new MutationObserver(update)
+    for (let ancestor = node.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      observer.observe(ancestor, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+    }
+    return () => observer.disconnect()
+  }, [props.accent])
   const experimentId = props.experiment?.id
   const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean }>()
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
@@ -47,7 +68,7 @@ function EditorRender(props: RenderProps) {
     let current = true
     async function load() {
       try {
-        const response = await fetch(`/api/xp-experiments/${encodeURIComponent(experimentId!)}?depth=0`, {
+        const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(experimentId!)}?depth=0`, {
           credentials: 'include', signal: controller.signal,
         })
         if (!response.ok) throw new Error('load')
@@ -60,7 +81,7 @@ function EditorRender(props: RenderProps) {
     }
     void load()
     return () => { current = false; controller.abort() }
-  }, [experimentId])
+  }, [experimentId, api])
 
   const result = experimentId === undefined || loaded?.id !== experimentId ? undefined : loaded
   const experiment = result?.doc
@@ -102,55 +123,46 @@ function EditorRender(props: RenderProps) {
     })
   }
 
-  return <section className="xp-slot-root xp-slot-editor">
+  return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
     <div className="xp-slot-chrome" ref={registerControls}>
-    <header className="xp-slot-header">
-      <h3 className="xp-slot-title">{experiment?.name ?? pickerCopy.label}</h3>
-      {experiment ? <span className="xp-slot-status" data-status={experiment.status}>{pickerCopy.statuses[experiment.status]}</span> : null}
-      <div className="xp-slot-actions">
-        {/* Creating a test replaces the binding, so it is offered only on an unbound block. */}
-        {experimentId === undefined ? <button className="xp-slot-button xp-slot-button-primary" type="button" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</button> : null}
-        {/* Configurable admin routes are owed on ADM-11, alongside the existing /api prefix. */}
-        {/* Open outside the canvas iframe because hosts may deny framing admin pages. */}
-        {experiment ? <a className="xp-slot-button xp-slot-button-primary" href={`/admin/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`} target="_blank" rel="noopener noreferrer">{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</a> : null}
+      <header className="xp-slot-header">
+        <h3 className="xp-slot-title">{experiment?.name ?? experimentSlotLabel}</h3>
+        {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
+      </header>
+      <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
+        {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
+      </Banner>
+      <div className="xp-ui-button-group">
+        {experimentId === undefined ? <Button variant="primary" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</Button> : null}
+        {experiment ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`} target="_blank" rel="noopener noreferrer">{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</Button> : null}
+        {slot !== 'control' ? <Button disabled={!selected || originalEmpty} onClick={() => requestCopy(slot)}>{editorCopy.copy}</Button> : null}
       </div>
-    </header>
-    <p className={experiment?.status === 'running' ? 'xp-slot-notice xp-slot-warning' : 'xp-slot-notice'} role="status">
-      {experiment?.status === 'running' ? <svg className="xp-slot-warning-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3 2 21h20L12 3Z" /><path d="M12 9v5m0 3v1" /></svg> : null}
-      {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
-    </p>
-    {creating ? <CreateExperimentDrawer initialName={pageTitle} onCreate={bind} onClose={() => setCreating(false)} /> : null}
-    {confirming ? <div className="xp-slot-confirm" role="alert"><p className="xp-slot-notice">{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming)}</p>
-      <div className="xp-slot-actions">
-        <button className="xp-slot-button xp-slot-button-primary" type="button" onClick={() => copyTo(confirming)}>{editorCopy.replace}</button>
-        <button className="xp-slot-button" type="button" onClick={() => setConfirming(null)}>{editorCopy.cancel}</button>
-      </div></div> : null}
-    <div className="xp-slot-toolbar">
-    <div className="xp-slot-tabs" role="tablist" aria-label={editorCopy.tabs}>
-      {tabs.map((tab, index) => <button className="xp-slot-tab" key={tab.slot} type="button" role="tab" id={`${tabId}-${tab.slot}`} aria-selected={tab.slot === slot} tabIndex={tab.slot === slot ? 0 : -1} aria-controls={`${tabId}-panel`} onClick={() => setActive({ id: experimentId, slot: tab.slot })} onKeyDown={event => {
-        const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : undefined
-        if (next === undefined) return
-        event.preventDefault()
-        setActive({ id: experimentId, slot: tabs[next]!.slot })
-        const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-        buttons?.[next]?.focus()
-      }}>{tab.label}</button>)}
+      {creating ? <CreateExperimentDrawer initialName={pageTitle} onCreate={bind} onClose={() => setCreating(false)} /> : null}
+      {confirming ? <div className="xp-slot-confirm" role="alert"><p>{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming)}</p>
+        <div className="xp-ui-button-group">
+          <Button variant="primary" onClick={() => copyTo(confirming)}>{editorCopy.replace}</Button>
+          <Button onClick={() => setConfirming(null)}>{editorCopy.cancel}</Button>
+        </div></div> : null}
     </div>
-    {slot !== 'control' ? <div className="xp-slot-actions">
-      <button className="xp-slot-button" type="button" disabled={!selected || originalEmpty} onClick={() => requestCopy(slot)}>{editorCopy.copy}</button>
-    </div> : null}
-    </div>
-    </div>
-    <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'} role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-${slot}`}>
-      <Slot className="xp-slot-drop-target" />
-      {slotEmpty ? <span className="xp-slot-drop-label">{editorCopy.dropZone(slot)}</span> : null}
-    </div>
+    <Tabs label={editorCopy.tabs} value={slot} tabListRef={registerControls} onChange={value => setActive({ id: experimentId, slot: value as ArmSlot })}
+      items={tabs.map(tab => ({ id: tab.slot, label: tab.label, content: tab.slot === slot ?
+        <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'}>
+          <Slot className="xp-slot-drop-target" />
+          {slotEmpty ? <span className="xp-slot-drop-label">{editorCopy.dropZone(slot)}</span> : null}
+        </div> : null }))} />
   </section>
 }
 
-export const ExperimentSlotEditor: ComponentConfig<ExperimentSlotProps> = {
-  label: experimentSlotLabel,
-  fields: experimentSlotFields,
-  defaultProps: experimentSlotDefaultProps,
-  render: EditorRender,
+export function createExperimentSlotEditor({ routes: inputRoutes, accent }: { routes?: PuckRoutes; accent?: string } = {}): ComponentConfig<ExperimentSlotProps> {
+  validateAccent(accent)
+  const sets = accent ? deriveAccent(accent) : undefined
+  const routes = resolvePuckRoutes(inputRoutes)
+  return {
+    label: experimentSlotLabel,
+    fields: { ...experimentSlotFields, experiment: createExperimentSlotField({ routes }) },
+    defaultProps: experimentSlotDefaultProps,
+    render: props => <PuckHostProvider routes={routes}><EditorRender {...props} accent={sets} /></PuckHostProvider>,
+  }
 }
+
+export const ExperimentSlotEditor = createExperimentSlotEditor()

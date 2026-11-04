@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { CreateExperimentDrawer } from '../../../src/puck/editor/CreateExperimentDrawer.js'
 
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+})
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 const collision = { errors: [{ message: 'That slug is already in use.', data: { errors: [{ path: 'slug', message: 'Value must be unique' }] } }] }
@@ -27,10 +31,11 @@ test('posts the exact complete draft body, without a slug input, and binds the r
   expect(screen.queryByLabelText('Slug')).toBeNull()
   expect(screen.getByRole('heading', { name: 'Test this block' })).toBeTruthy()
   expect(screen.getByRole('dialog').getAttribute('aria-labelledby')).toBe(screen.getByRole('heading').id)
-  expect(screen.getByRole('dialog').classList.contains('xp-slot-root')).toBe(true)
-  expect(screen.getByLabelText('Name').classList.contains('xp-slot-input')).toBe(true)
-  expect(screen.getByRole('button', { name: 'Test this block' }).classList.contains('xp-slot-button-primary')).toBe(true)
-  expect(screen.getByRole('button', { name: 'Cancel' }).classList.contains('xp-slot-button-primary')).toBe(false)
+  expect(screen.getByRole('dialog').tagName).toBe('DIALOG')
+  expect(document.activeElement).toBe(screen.getByLabelText('Name'))
+  expect(screen.getByLabelText('Name').classList.contains('xp-ui-input')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Test this block' }).classList.contains('xp-ui-button--primary')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Cancel' }).classList.contains('xp-ui-button--primary')).toBe(false)
   create()
   await waitFor(() => expect(onCreate).toHaveBeenCalledWith({ id: 42, slug: 'new-test' }))
   expect(onClose).toHaveBeenCalledOnce()

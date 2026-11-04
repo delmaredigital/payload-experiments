@@ -1,5 +1,8 @@
+import { ARM_LABELS } from '../../labels/arms.js'
+
 export const editorCopy = {
-  labels: { control: 'Original', variantA: 'Variant A', variantB: 'Variant B', variantC: 'Variant C' },
+  labels: ARM_LABELS,
+  notSetUp: 'Not set up',
   unbound: 'Choose or create a test to show different versions.',
   draft: 'This block shows the Original to everyone until the test starts.',
   running: 'Changing this content mid-test mixes two versions in one result',

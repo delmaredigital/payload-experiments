@@ -1,4 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
+import { resolvePuckRoutes } from '../../../src/puck/routes.js'
 import { CreateRefused, createTest } from '../../../src/puck/editor/createTest.js'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -10,7 +11,7 @@ test('a racing slug collision re-queries and retries exactly once', async () => 
   const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response(collision, 400))
     .mockResolvedValueOnce(response({ docs: [{ slug: 'welcome' }] })).mockResolvedValueOnce(response({ doc: { id: 12, slug: 'welcome-2' } }))
   vi.stubGlobal('fetch', fetch)
-  expect(await createTest('/data/', input)).toEqual({ id: 12, slug: 'welcome-2' })
+  expect(await createTest(resolvePuckRoutes({ api: '/data/' }).api, input)).toEqual({ id: 12, slug: 'welcome-2' })
   expect(fetch).toHaveBeenCalledTimes(4)
   expect(fetch.mock.calls[0]![0]).toBe('/data/xp-experiments?where[slug][like]=welcome&depth=0&limit=200&select[slug]=true')
   expect(fetch.mock.calls[2]![0]).toBe(fetch.mock.calls[0]![0])

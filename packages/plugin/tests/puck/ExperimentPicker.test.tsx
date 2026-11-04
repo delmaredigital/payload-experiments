@@ -19,17 +19,17 @@ function mockFetch(body: unknown = { docs }, status = 200) {
   return fetch
 }
 
-test('loads block experiments with editor credentials and shows names, status labels, and No experiment', async () => {
+test('loads block experiments with editor credentials and shows names, status labels, and No test', async () => {
   const fetch = mockFetch()
   render(<ExperimentPicker value={null} onChange={vi.fn()} />)
-  expect(screen.getByRole('status').textContent).toBe('Loading experiments…')
+  expect(screen.getByRole('status').textContent).toBe('Loading tests…')
   expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(true)
   await screen.findByRole('option', { name: 'First example · Draft' })
   expect(fetch).toHaveBeenCalledWith('/api/xp-experiments?where[kind][equals]=block&depth=0&limit=100&sort=-updatedAt', {
     credentials: 'include', signal: expect.any(AbortSignal),
   })
   expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual([
-    'No experiment', 'First example · Draft', 'Second example · Running', 'Third example · Stopped', 'Fourth example · Decided', 'Fifth example · Archived',
+    'No test', 'First example · Draft', 'Second example · Running', 'Third example · Stopped', 'Fourth example · Decided', 'Fifth example · Archived',
   ])
   expect(screen.queryByRole('status')).toBeNull()
 })
@@ -51,19 +51,19 @@ test('selection stores only id and slug, preserves id types, and clears to null'
 
 test.each([
   [403, "You can't see tests. Ask an admin."],
-  [500, "Couldn't load experiments."],
+  [500, "Couldn't load tests."],
 ])('HTTP %s shows the error copy', async (status, message) => {
   mockFetch({}, status)
   render(<ExperimentPicker value={null} onChange={vi.fn()} />)
   expect((await screen.findByRole('alert')).textContent).toBe(message)
-  // Enabled on error so an editor can still choose "No experiment" to unbind.
+  // Enabled on error so an editor can still choose "No test" to unbind.
   expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(false)
 })
 
 test('network failure never throws and displays the load error', async () => {
   vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
   expect(() => render(<ExperimentPicker value={null} onChange={vi.fn()} />)).not.toThrow()
-  expect((await screen.findByRole('alert')).textContent).toBe("Couldn't load experiments.")
+  expect((await screen.findByRole('alert')).textContent).toBe("Couldn't load tests.")
 })
 
 test('malformed responses show the load error; invalid documents never crash rendering', async () => {
@@ -92,4 +92,20 @@ test('unmount aborts the pending request', () => {
   const signal = fetch.mock.calls[0]![1].signal as AbortSignal
   view.unmount()
   expect(signal.aborted).toBe(true)
+})
+
+test.each(['render', 'editor'] as const)('%s factory supplies custom sidebar routes', async kind => {
+  const { createExperimentSlot } = await import('../../src/puck/ExperimentSlot.js')
+  // Importing the editor requires Puck's browser measurement API in jsdom.
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+  const { createExperimentSlotEditor } = await import('../../src/puck/editor/ExperimentSlotEditor.js')
+  const factory = kind === 'render' ? createExperimentSlot : createExperimentSlotEditor
+  const config = factory({ routes: { api: '/content-api/', admin: '/manage/' } })
+  const field = config.fields!.experiment
+  if (field.type !== 'custom') throw new Error('Expected custom picker field')
+  const fetch = mockFetch()
+  render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'test' }))
+  await screen.findByRole('option', { name: 'First example · Draft' })
+  expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments?where[kind][equals]=block&depth=0&limit=100&sort=-updatedAt', expect.objectContaining({ credentials: 'include' }))
+  expect(screen.getByRole('combobox', { name: 'Test' }).classList.contains('xp-ui-select')).toBe(true)
 })
