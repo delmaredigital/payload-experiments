@@ -8,6 +8,14 @@ import { TEST_PAGE } from '../src/admin/copy/testPage.js'
 import type { TestDocument } from '../src/admin/surface/testDocument.model.js'
 import { createIntegrationHarness } from './harness.js'
 
+// jsdom installs its own-realm Uint8Array/ArrayBuffer globals, while Node's TextEncoder and Buffer
+// return Node-realm bytes, so jose's `instanceof Uint8Array` checks (Payload login and JWT verify)
+// fail. The hook needs jsdom; Payload's server code needs Node's typed arrays. Restore Node's for
+// this file only, and put jsdom's back afterwards.
+const jsdomTypedArrays = { Uint8Array: globalThis.Uint8Array, ArrayBuffer: globalThis.ArrayBuffer }
+globalThis.Uint8Array = Object.getPrototypeOf(Buffer.prototype).constructor as Uint8ArrayConstructor
+globalThis.ArrayBuffer = Buffer.from('x').buffer.constructor as ArrayBufferConstructor
+
 // Train-only: no database fallback, and no mocked hook, REST response or lock.
 describe.skipIf(!process.env.INTEGRATION_DATABASE_URL)('admin stale-edit REST round trip', () => {
   let harness: Awaited<ReturnType<typeof createIntegrationHarness>>
@@ -74,6 +82,8 @@ describe.skipIf(!process.env.INTEGRATION_DATABASE_URL)('admin stale-edit REST ro
     vi.unstubAllGlobals()
     restoreCache?.()
     await harness?.teardown()
+    globalThis.Uint8Array = jsdomTypedArrays.Uint8Array
+    globalThis.ArrayBuffer = jsdomTypedArrays.ArrayBuffer
   })
 
   test('two managers conflict, Reload recovers, and one manager can save twice with returned timestamps', async () => {
