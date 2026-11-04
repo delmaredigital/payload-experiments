@@ -1,4 +1,5 @@
 import type { PayloadRequest } from 'payload'
+import { lockMetricsForFreeze } from '../db/metricUsage.js'
 import { readState } from '../db/state.js'
 import { XpRefusal } from '../errors.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
@@ -26,7 +27,14 @@ export async function addMetric<TUser extends { id: DocId }>(req: PayloadRequest
     if (current.status !== 'running') refuse('invalid-status')
     const ids = [current.metrics?.primary, ...current.metrics?.secondary ?? [], ...current.metrics?.guardrails ?? []].map(relationshipId)
     if (ids.some(id => id !== undefined && String(id) === String(metric))) refuse('duplicate-metric', { message: 'This metric is already part of the experiment.' })
+    const lockedMetrics = await lockMetricsForFreeze(exec, caps.definitions.map(metric => metric.id))
+    if (!lockedMetrics) {
+      throw new XpRefusal('stale-draft', 'This goal was deleted. Choose another goal.', undefined, 409)
+    }
     const definition = caps.definitions[0]!
+    if (lockedMetrics[0]!.slug !== definition.slug || lockedMetrics[0]!.source !== definition.source) {
+      throw new XpRefusal('stale-draft', 'This goal changed. Review it again before adding it.', undefined, 409)
+    }
     if (current.unitType === 'user' && definition.keyedBy === 'visitor' && !definition.source.startsWith('events:')) refuse('unit-source-mismatch')
     // §7.8: phase lookup serves the access-authorised transition write.
     const phases = await req.payload.find({ collection: 'xp-phases', req, overrideAccess: true, depth: 0, limit: 1,
