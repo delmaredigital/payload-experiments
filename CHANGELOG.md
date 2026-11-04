@@ -18,6 +18,12 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed: legacy page tests resolve one collection from the Original (or the sole registration), then use it for every version. Migration impact: none; register `pageCollection` explicitly when several collections share an address.
 - Changed: Puck consumers share the document-editor `appliesTo` rule, and `admin.editorUrl` receives `editor` and `doc`. Migration impact: none; legacy blocks registration is reserved for the next lane.
 
+## [0.3.0-rc.4] - 2026-11-04
+
+### plugin
+
+- Changed: the accent contrast grid tests are restructured to finish within CI's time limit; no runtime change. Migration impact: none.
+
 ## [0.3.0-rc.3] - 2026-11-04
 
 ### plugin

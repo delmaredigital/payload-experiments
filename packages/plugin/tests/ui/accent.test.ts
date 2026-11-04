@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { beforeAll, expect, test } from 'vitest'
 import { accentStyles, contrast, deriveAccent, deriveAccentFor, validateAccent } from '../../src/ui/accent.js'
 import { resolveOptions } from '../../src/options.js'
 import { sampleOptions } from '../collections/fixtures.js'
@@ -76,30 +76,57 @@ test('#3377cc in dark has a visible hover at the foreground contrast limit', () 
   expect(contrast(hover, accent)).toBeGreaterThanOrEqual(1.1)
 })
 
+const grid: Array<{
+  input: string
+  sets: ReturnType<typeof deriveAccent>
+  acceptedBefore: boolean
+  validationThrew: boolean
+  validationMessage: string
+}> = []
+beforeAll(() => {
+  const started = performance.now()
+  for (let r = 0; r <= 255; r += 17) for (let g = 0; g <= 255; g += 17) for (let b = 0; b <= 255; b += 17) {
+    const input = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')
+    const sets = deriveAccent(input)
+    // Freeze the old acceptance rule independently of validateAccent's derivation.
+    const acceptedBefore = Object.values(sets).every(set => Math.max(contrast(set.accent, '#ffffff'), contrast(set.accent, '#141414')) >= 4.5)
+    let validationThrew = false, validationMessage = ''
+    try { validateAccent(input) } catch (error) {
+      validationThrew = true
+      validationMessage = error instanceof Error ? error.message : String(error)
+    }
+    grid.push({ input, sets, acceptedBefore, validationThrew, validationMessage })
+  }
+  console.log(`accent grid beforeAll: ${Math.round(performance.now() - started)} ms`)
+}, 120_000) // Measured locally: 7.3 s alone, 13.4 s in the full plugin set; CI runners ran ~2.7× slower (~36 s loaded), so the cap is ≥3× that.
+
 test.each([
   ['light', 3742, 161], ['dark', 2303, 1600],
 ] as const)('%s: 16-level RGB grid (17 channel increments), 3903 accepted; preferred %i, other %i, insufficient 0', (mode, preferredCount, otherCount) => {
   const counts = { accepted: 0, refused: 0, preferred: 0, other: 0 }
-  const insufficient: string[] = []
-  for (let r = 0; r <= 255; r += 17) for (let g = 0; g <= 255; g += 17) for (let b = 0; b <= 255; b += 17) {
-    const input = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')
-    // Freeze the old acceptance rule independently of validateAccent's derivation.
-    const sets = deriveAccent(input)
-    const acceptedBefore = Object.values(sets).every(set => Math.max(contrast(set.accent, '#ffffff'), contrast(set.accent, '#141414')) >= 4.5)
-    if (!acceptedBefore) { expect(() => validateAccent(input)).toThrow(/foreground contrast/); counts.refused++; continue }
-    expect(() => validateAccent(input), input).not.toThrow()
+  const refusalViolations: string[] = [], unexpectedRefusals: string[] = [], lowContrastFills: string[] = [], insufficient: string[] = []
+  for (const { input, sets, acceptedBefore, validationThrew, validationMessage } of grid) {
+    if (!acceptedBefore) {
+      if (!validationThrew || !/foreground contrast/.test(validationMessage)) refusalViolations.push(`${input}: ${validationThrew ? validationMessage : 'accepted'}`)
+      counts.refused++
+      continue
+    }
+    if (validationThrew) unexpectedRefusals.push(`${input}: ${validationMessage}`)
     counts.accepted++
     const set = sets[mode]
     const hoverStep = contrast(set.accent, set.hover), activeStep = contrast(set.hover, set.active)
     if (hoverStep < 1.1 || activeStep < 1.1) insufficient.push(input)
-    for (const fill of [set.accent, set.hover, set.active]) expect(contrast(fill, set.fg), `${input} ${mode} ${fill}`).toBeGreaterThanOrEqual(4.5)
+    for (const fill of [set.accent, set.hover, set.active]) if (contrast(fill, set.fg) < 4.5) lowContrastFills.push(`${input} ${mode} ${fill}`)
     const lightens = contrast(set.hover, '#000000') > contrast(set.accent, '#000000')
     counts[lightens === (mode === 'dark' || set.fg === '#141414') ? 'preferred' : 'other']++
   }
   console.log(`${mode}: ${JSON.stringify(counts)}; insufficient (${insufficient.length}): ${JSON.stringify(insufficient)}`)
+  expect(refusalViolations, `${mode} old-rule refusals accepted or missing foreground contrast error: ${refusalViolations.join(', ')}`).toEqual([])
+  expect(unexpectedRefusals, `${mode} old-rule accepted colours refused: ${unexpectedRefusals.join(', ')}`).toEqual([])
+  expect(lowContrastFills, `${mode} fills below 4.5:1 foreground contrast: ${lowContrastFills.join(', ')}`).toEqual([])
   expect(insufficient, `${mode} colours without two 1.1:1 steps: ${insufficient.join(', ')}`).toEqual([])
   expect(counts).toEqual({ accepted: 3903, refused: 193, preferred: preferredCount, other: otherCount })
-}, 30_000)
+})
 
 const originalFixtures = {
   "#3377cc": {
