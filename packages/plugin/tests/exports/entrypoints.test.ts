@@ -109,3 +109,9 @@ test('captureContentBaseline is the same wrapped hook installed by the plugin', 
   const { contentChangesBeforeHook } = await import('../../src/hooks/contentChanges.js')
   expect(captureContentBaseline).toBe(contentChangesBeforeHook)
 })
+
+test('surface-injected accent derivation stays module-only', () => {
+  for (const file of readdirSync(directory).filter(file => file.endsWith('.ts'))) {
+    expect(namedExports(parse(file), false).has('deriveAccentFor'), file).toBe(false)
+  }
+})

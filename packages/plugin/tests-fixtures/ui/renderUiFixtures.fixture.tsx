@@ -72,23 +72,23 @@ test('writes the complete UI, accent, dialog and isolated editor fixtures in bot
   for (const css of [payloadCss, adminCss]) readFileSync(css)
   mkdirSync(output, { recursive: true })
   const paths: string[] = []
-  for (const theme of ['light', 'dark'] as const) for (const kind of ['ui', 'ui-accent', 'ui-dialog', 'editor'] as const) {
+  for (const theme of ['light', 'dark'] as const) for (const kind of ['ui', 'ui-accent', 'ui-accent-limit', 'ui-dialog', 'editor'] as const) {
     const editor = kind === 'editor'
     const links = editor ? [join(src, 'puck/editor/editor.css')] : [adminCss, payloadCss, join(src, 'admin/theme.css'), join(src, 'ui/ui.css')]
     let html = '<!DOCTYPE html>' + renderToStaticMarkup(<html lang="en" data-theme={theme}><head>
       <meta charSet="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>{kind} — {theme}</title>
       {links.map(path => <link key={path} rel="stylesheet" href={pathToFileURL(path).href} />)}
-      {kind === 'ui-accent' ? <style>{accentStyles('#1f3a68')}</style> : null}
-      <style>{`body { margin: 0; } main { box-sizing: border-box; width: 100%; min-width: 0; padding: 32px; background: var(--xp-bg); color: var(--xp-text); font: var(--xp-text-body); min-height: 100vh; } .fixture-group { margin-bottom: 32px; max-width: 960px; } .fixture-group > h2 { font: var(--xp-text-title); margin: 0 0 16px; } .fixture-items { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; } .fixture-row { min-width: 0; max-width: 100%; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }`}</style>
+      {kind.startsWith('ui-accent') ? <style>{accentStyles(kind === 'ui-accent-limit' ? '#3377cc' : '#1f3a68')}</style> : null}
+      <style>{`body { margin: 0; } main { box-sizing: border-box; width: 100%; min-width: 0; padding: 32px; background: var(--xp-bg); color: var(--xp-text); font: var(--xp-text-body); min-height: 100vh; } .fixture-group { margin-bottom: 32px; max-width: 960px; } .fixture-group > h2 { font: var(--xp-text-title); margin: 0 0 16px; } .fixture-items { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; } .fixture-hover { background: var(--xp-accent-hover) !important; border-color: var(--xp-accent-hover) !important; } .fixture-active { background: var(--xp-accent-active) !important; border-color: var(--xp-accent-active) !important; } .fixture-row { min-width: 0; max-width: 100%; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }`}</style>
     </head><body><main className={editor ? 'xp-slot-root' : undefined}>{kind === 'ui-dialog'
       ? <Dialog open title="Stop the test?" onClose={noop}><p>Everyone will see the Original.</p><Button>Keep running</Button><Button variant="danger">Stop test</Button></Dialog>
-      : <>{editor ? <Chrome /> : null}<Primitives /></>}</main></body></html>)
+      : <>{editor ? <Chrome /> : null}{kind.startsWith('ui-accent') ? <Group title="Primary button states"><div className="fixture-row"><Button variant="primary">Rest</Button><Button variant="primary" className="fixture-hover">Hover</Button><Button variant="primary" className="fixture-active">Pressed</Button></div></Group> : null}<Primitives /></>}</main></body></html>)
     // Effects do not run in static HTML; show the actual Dialog markup for visual review.
     if (kind === 'ui-dialog') html = html.replace('<dialog ', '<dialog open="" ')
     const path = join(output, `${kind}-${theme}.html`)
     writeFileSync(path, html); paths.push(path)
     if (editor) expect(html).not.toContain('theme.css')
   }
-  expect(paths).toHaveLength(8)
+  expect(paths).toHaveLength(10)
   console.log(paths.join('\n'))
 })
