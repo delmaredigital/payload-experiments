@@ -40,6 +40,39 @@ test('runResults end to end uses the phase config and user_id despite a visitor 
   } finally { await harness.teardown() }
 }, 60_000)
 
+test('a visitor conversion credits its exposed browser after account proof makes its link ineligible', async () => {
+  const harness = await createIntegrationHarness()
+  try {
+    const { payload } = harness
+    const experiment = await payload.create({ collection: 'xp-experiments', overrideAccess: true, data: {
+      name: 'Own browser credit', slug: 'own-browser-credit', kind: 'code', unitType: 'visitor', exposurePolicy: 'manual',
+    } })
+    const start = Date.now() - 86_400_000, proof = start + 2000
+    await payload.create({ collection: 'xp-phases', overrideAccess: true, data: {
+      experiment: experiment.id, phase: 1, phaseKind: 'test', startedAt: new Date(start).toISOString(), seed: 'own-credit-it|', allocation: 100,
+      arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 50 }, { key: 'variantA', label: 'Variant', kind: 'variant', weight: 50 }],
+      metricDefinitions: [{ metricId: 'signup', name: 'Signup', kind: 'binomial', source: 'events:signup', role: 'primary', direction: 'increase', attributionWindowHours: 168, minSampleSize: 150 }],
+      analysis: { method: 'sequential', cuped: 'off', minExposuresPerArm: 200, plannedDurationDays: 14, sequentialTuningParameter: 5000 },
+    } })
+    await payload.update({ collection: 'xp-experiments', id: experiment.id, overrideAccess: true, context: { xpTransition: true }, data: { status: 'running', phase: 1 } })
+    const exec = pooledExecutor(payload)
+    await insertIdentity(exec, { anonymousId: 'own-browser', userId: 'own-user', verified: false })
+    await insertIdentity(exec, { anonymousId: 'unexposed-proof', userId: 'own-user', verified: true })
+    await exec.query('UPDATE "' + harness.schemaName + '".xp_identities SET verified_at = $1 WHERE anonymous_id = $2', [new Date(proof).toISOString(), 'unexposed-proof'])
+    await insertEvents(exec, [
+      { type: 'exposure', experimentId: experiment.id, phase: 1, arm: 'control', unitId: 'own-browser', unitType: 'visitor', ts: new Date(start + 1000).toISOString(), dedupeKey: 'own-credit-exposure' },
+      { type: 'exposure', experimentId: experiment.id, phase: 1, arm: 'variantA', unitId: 'other-browser', unitType: 'visitor', ts: new Date(start + 1000).toISOString(), dedupeKey: 'own-credit-other' },
+      { type: 'conversion', unitId: 'own-browser', userId: 'own-user', unitType: 'visitor', eventName: 'signup', value: 1, ts: new Date(proof + 1000).toISOString(), dedupeKey: 'own-credit-conversion' },
+    ])
+    expect(await runResults(payload, { experimentId: experiment.id, sweep: false })).toMatchObject({ ran: 1, failed: 0, unavailableMetrics: [] })
+    const { docs } = await payload.find({ collection: 'xp-results-snapshots', overrideAccess: true, where: { experiment: { equals: experiment.id } } })
+    expect(docs).toHaveLength(1)
+    const snapshot = docs[0]!.snapshot as import('../src/types/snapshot.js').Snapshot
+    expect(snapshot.metrics[0]!.perArm.map(arm => arm.converters)).toEqual([1, 0])
+    expect(snapshot.exposures).toMatchObject({ total: 2, identityConflictShare: 0 })
+  } finally { await harness.teardown() }
+}, 60_000)
+
 // Revenue from the account owner must never reach an earlier unverified browser.
 test('attack registration keeps its own event but not the victim later revenue', async () => {
   const harness = await createIntegrationHarness()

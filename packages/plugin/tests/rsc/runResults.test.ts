@@ -15,6 +15,7 @@ import { runResults } from '../../src/server/runResults.js'
 import { handleRecompute } from '../../src/endpoints/recompute.js'
 import type { Snapshot } from '../../src/types/snapshot.js'
 import * as snapshotAnalysis from '../../src/results/snapshot.js'
+import * as aggregation from '../../src/results/aggregate.js'
 import type { ResultsPhase } from '../../src/db/snapshots.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
@@ -287,6 +288,81 @@ test('visitor user-keyed sources credit earliest linked visitor and report cross
   expect(snapshot.exposures).toMatchObject({ total: 2, identityConflictShare: 1 })
   expect(snapshot.metrics[0]!.perArm.map(arm => arm.converters)).toEqual([1, 0])
   expect(context.options.metricSources![0]!.query).toHaveBeenCalledWith({ from: new Date(start), to: new Date(now), unitIds: ['credit-user'] })
+})
+
+test.each([
+  { ownExposed: true, eligible: false, expected: [0, 1], conflict: 0 },
+  { ownExposed: true, eligible: true, expected: [0, 1], conflict: 1 },
+  { ownExposed: false, eligible: true, expected: [1, 0], conflict: 0 },
+  { ownExposed: false, eligible: false, expected: [0, 0], conflict: 0 },
+])('visitor-keyed events: ownExposed=$ownExposed eligible=$eligible', async ({ ownExposed, eligible, expected, conflict }) => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { metricDefinitions: [
+    { metricId: 'count', name: 'Count', kind: 'count', role: 'primary', source: 'count', keyedBy: 'visitor', direction: 'increase', attributionWindowHours: 168, minSampleSize: 150 },
+    { metricId: 'signup', name: 'Signup', kind: 'binomial', role: 'secondary', source: 'events:signup', direction: 'increase', attributionWindowHours: 168, minSampleSize: 150 },
+  ] })
+  const earlier = `own-earlier-${phase.experiment}`, own = `own-browser-${phase.experiment}`, userId = `own-user-${phase.experiment}`
+  await events(phase, [
+    { unitId: earlier },
+    { unitId: ownExposed ? own : `other-${phase.experiment}`, ts: new Date(start + 1500).toISOString() },
+    { type: 'conversion', unitId: own, userId, eventName: 'signup', value: 1, ts: new Date(start + 3000).toISOString() },
+  ])
+  const context = payload(), exec = pooledExecutor(context.payload)
+  await insertIdentity(exec, { anonymousId: earlier, userId, verified: false })
+  if (ownExposed) await insertIdentity(exec, { anonymousId: own, userId, verified: false })
+  if (!eligible) {
+    await insertIdentity(exec, { anonymousId: `proof-${phase.experiment}`, userId, verified: true })
+    await exec.query('UPDATE xp_identities SET verified_at = $1 WHERE user_id = $2 AND verified_at IS NOT NULL', [new Date(start + 2000).toISOString(), userId])
+  }
+  const source = context.options.metricSources!.find(source => source.id === 'count')!
+  source.keyedBy = 'visitor'
+  source.query = async () => [{ unitId: own, userId, value: 1, ts: new Date(start + 3000) }]
+  const aggregated = vi.spyOn(aggregation, 'perUnitValues')
+  expect(await runResults(context.payload, { experimentId: phase.experiment, sweep: false })).toMatchObject({ ran: 1, failed: 0, unavailableMetrics: [] })
+  const snapshot = (await snapshots())[0]!.snapshot as Snapshot
+  expect(snapshot.metrics[0]!.perArm.map(arm => arm.sum)).toEqual(expected)
+  expect(snapshot.metrics[1]!.perArm.map(arm => arm.converters)).toEqual(expected)
+  expect(snapshot.exposures.identityConflictShare).toBe(conflict)
+  // A stored conversion can match both lookups. Binomial aggregation would hide
+  // double credit, so check the actual event list handed to the aggregator too.
+  for (const [, credited] of aggregated.mock.calls) expect(credited).toHaveLength(expected.reduce((a, b) => a + b, 0))
+})
+
+test('identity conflicts include direct visitor credits across arms even when every link is ineligible', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed()
+  const earlier = `span-earlier-${phase.experiment}`, own = `span-own-${phase.experiment}`, userId = `span-user-${phase.experiment}`
+  await events(phase, [
+    { unitId: earlier }, { unitId: own, ts: new Date(start + 1500).toISOString() },
+    ...[earlier, own].map(unitId => ({ type: 'conversion' as const, unitId, userId, eventName: 'signup', value: 1, ts: new Date(start + 3000).toISOString() })),
+  ])
+  const context = payload(), exec = pooledExecutor(context.payload)
+  for (const anonymousId of [earlier, own]) await insertIdentity(exec, { anonymousId, userId, verified: false })
+  await insertIdentity(exec, { anonymousId: `span-proof-${phase.experiment}`, userId, verified: true })
+  await exec.query('UPDATE xp_identities SET verified_at = $1 WHERE user_id = $2 AND verified_at IS NOT NULL', [new Date(start + 2000).toISOString(), userId])
+  expect(await runResults(context.payload, { experimentId: phase.experiment, sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const snapshot = (await snapshots())[0]!.snapshot as Snapshot
+  expect(snapshot.metrics[0]!.perArm.map(arm => arm.converters)).toEqual([1, 1])
+  expect(snapshot.exposures.identityConflictShare).toBe(1)
+})
+
+test.each([true, false])('a user-keyed source still requires eligible links when the user ID matches an exposed visitor ID: eligible=%s', async eligible => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { metricDefinitions: [
+    { metricId: 'count', name: 'Count', kind: 'count', role: 'primary', source: 'count', keyedBy: 'user', direction: 'increase', attributionWindowHours: 168, minSampleSize: 150 },
+  ] })
+  const earlier = `user-key-earlier-${phase.experiment}`, userId = `user-key-${phase.experiment}`
+  await events(phase, [{ unitId: earlier }, { unitId: userId, ts: new Date(start + 1500).toISOString() }])
+  const context = payload(), exec = pooledExecutor(context.payload)
+  await insertIdentity(exec, { anonymousId: earlier, userId, verified: false })
+  if (!eligible) {
+    await insertIdentity(exec, { anonymousId: `user-key-proof-${phase.experiment}`, userId, verified: true })
+    await exec.query('UPDATE xp_identities SET verified_at = $1 WHERE user_id = $2 AND verified_at IS NOT NULL', [new Date(start + 2000).toISOString(), userId])
+  }
+  context.options.metricSources!.find(source => source.id === 'count')!.query = async () => [{ unitId: userId, value: 1, ts: new Date(start + 3000) }]
+  expect(await runResults(context.payload, { experimentId: phase.experiment, sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const snapshot = (await snapshots())[0]!.snapshot as Snapshot
+  expect(snapshot.metrics[0]!.perArm.map(arm => arm.sum)).toEqual([eligible ? 1 : 0, 0])
 })
 
 test('throwing source makes only that metric unavailable; broken experiment does not stall the next', async () => {
