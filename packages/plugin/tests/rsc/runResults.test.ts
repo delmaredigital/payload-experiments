@@ -320,7 +320,7 @@ test('CUPED requests the pre-period per exposed unit, and frozen revenue cap als
   await events(phase, ids.map(unitId => ({ unitId, unitType: 'user' as const })))
   const context = payload(), source = context.options.metricSources![2]!
   source.query = async () => ids.map((unitId, i) => ({ unitId, value: 20 + i, ts: new Date(start + 2000) }))
-  source.covariate = vi.fn(async () => ids.map((unitId, i) => ({ unitId, value: [0, 20, 5, 15][i]!, ts: new Date(start - 1000) })))
+  source.covariate = vi.fn(async () => ids.map((unitId, i) => ({ unitId, value: [0, 20, 5, 15][i]! })))
   await runResults(context.payload)
   expect(source.covariate).toHaveBeenCalledWith({ lookbackDays: 14, units: ids.map(unitId => ({ unitId, firstExposureTs: new Date(start + 1000) })) })
   const snapshot = (await snapshots())[0]!.snapshot as import('../../src/types/snapshot.js').Snapshot
@@ -478,7 +478,7 @@ test.each(['source-unavailable', 'unit-type-unavailable', 'non-finite-values', '
   const context = payload(), metric = context.options.metricSources![0]!
   if (reason === 'unit-type-unavailable') metric.keyedBy = 'visitor'
   if (reason === 'non-finite-values') metric.query = async () => [{ unitId: 'a', value: NaN, ts: new Date(start) }]
-  if (reason === 'non-finite-covariates') metric.covariate = async () => [{ unitId: 'a', value: Infinity, ts: new Date(start - 1000) }]
+  if (reason === 'non-finite-covariates') metric.covariate = async () => [{ unitId: 'a', value: Infinity }]
   const summary = await runResults(context.payload, { sweep: false })
   expect(summary).toMatchObject({ ran: 1, unavailableMetrics: [{ experimentId: phase.experiment, metricId: 'primary', reason }] })
   expect(((await snapshots())[0]!.snapshot as Snapshot).metrics[0]!.unavailable).toBe(reason)
@@ -650,26 +650,46 @@ test('page phases beyond retention never reanalyse swept events, but existing sn
   expect(rows.every(row => (row.snapshot as Snapshot).exposures.total === 0)).toBe(true)
 })
 
-test.each(['revenue', 'count', 'binomial'] as const)('CUPED %s applies eligibility at each row timestamp, including proof on an unexposed browser', async kind => {
+test.each(['revenue', 'count', 'binomial'] as const)('CUPED %s credits one aggregate per user with eligibility at firstExposureTs', async kind => {
   vi.spyOn(Date, 'now').mockReturnValue(now)
   const phase = await seed('visitor', { analysis: { method: 'sequential', cuped: 'auto', sequentialTuningParameter: 5000, minExposuresPerArm: 200, plannedDurationDays: 14 },
     metricDefinitions: [{ metricId: 'pre', name: 'Pre', kind, role: 'primary', source: kind, keyedBy: 'user', direction: 'increase', attributionWindowHours: 168, minSampleSize: 150 }] })
-  const a = `cov-a-${phase.experiment}`, b = `cov-b-${phase.experiment}`, owner = `cov-owner-${phase.experiment}`
-  await events(phase, [{ unitId: a }, { unitId: b }])
-  const context = payload(), exec = pooledExecutor(context.payload), source = context.options.metricSources!.find(source => source.id === kind)!
-  await insertIdentity(exec, { anonymousId: a, userId: owner, verified: false })
-  await insertIdentity(exec, { anonymousId: `unexposed-${phase.experiment}`, userId: owner, verified: true })
-  const ownedAt = start - 2000
-  await exec.query('UPDATE xp_identities SET verified_at = $1 WHERE user_id = $2 AND verified_at IS NOT NULL', [new Date(ownedAt).toISOString(), owner])
-  source.query = async () => []
-  source.covariate = vi.fn(async () => [
-    { unitId: owner, value: 3, ts: new Date(ownedAt - 1) },
-    { unitId: owner, value: 7, ts: new Date(ownedAt - 2) },
-    { unitId: owner, value: 1000, ts: new Date(ownedAt) },
-    { unitId: owner, value: 2000, ts: new Date(ownedAt + 1) },
+  const a = `cov-a-${phase.experiment}`, b = `cov-b-${phase.experiment}`, c = `cov-c-${phase.experiment}`
+  const owner = `cov-owner-${phase.experiment}`, laterOwner = `cov-later-owner-${phase.experiment}`
+  await events(phase, [
+    { unitId: b, ts: new Date(start + 3000).toISOString() },
+    { unitId: a },
+    { unitId: c, ts: new Date(start + 3000).toISOString() },
   ])
+  const context = payload(), exec = pooledExecutor(context.payload), source = context.options.metricSources!.find(source => source.id === kind)!
+  for (const anonymousId of [b, a]) await insertIdentity(exec, { anonymousId, userId: owner, verified: false })
+  await insertIdentity(exec, { anonymousId: c, userId: laterOwner, verified: false })
+  for (const userId of [owner, laterOwner]) {
+    await insertIdentity(exec, { anonymousId: `unexposed-${userId}`, userId, verified: true })
+    await exec.query('UPDATE xp_identities SET verified_at = $1 WHERE user_id = $2 AND verified_at IS NOT NULL', [new Date(start + 2000).toISOString(), userId])
+  }
+  source.query = async () => []
+  const value = kind === 'binomial' ? 1 : 10
+  source.covariate = vi.fn(async () => [{ unitId: owner, value }])
+  expect(await runResults(context.payload, { experimentId: phase.experiment })).toMatchObject({ ran: 1, unavailableMetrics: [] })
+  // A was exposed before proof; B and C after proof. Only A can receive the aggregate, even though now is after proof.
+  expect(source.covariate).toHaveBeenCalledWith({ units: [{ unitId: owner, firstExposureTs: new Date(start + 1000) }], lookbackDays: 14 })
+  const snapshot = (await snapshots())[0]!.snapshot as Snapshot
+  expect(snapshot.metrics[0]!.perArm.map(arm => arm.covariate?.preSum)).toEqual([0, value])
+})
+
+test('CUPED credits a user aggregate once to the earliest eligible visitor with a stable ID tie-break', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { analysis: { method: 'sequential', cuped: 'auto', sequentialTuningParameter: 5000, minExposuresPerArm: 200, plannedDurationDays: 14 },
+    metricDefinitions: [{ metricId: 'pre', name: 'Pre', kind: 'revenue', role: 'primary', source: 'revenue', keyedBy: 'user', direction: 'increase', attributionWindowHours: 168, minSampleSize: 150 }] })
+  const a = `cov-first-a-${phase.experiment}`, b = `cov-first-b-${phase.experiment}`, c = `cov-first-c-${phase.experiment}`, owner = `cov-first-owner-${phase.experiment}`
+  await events(phase, [{ unitId: b }, { unitId: a }, { unitId: c, ts: new Date(start + 2000).toISOString() }])
+  const context = payload(), exec = pooledExecutor(context.payload), source = context.options.metricSources![2]!
+  for (const anonymousId of [c, b, a]) await insertIdentity(exec, { anonymousId, userId: owner, verified: false })
+  source.query = async () => []
+  source.covariate = vi.fn(async () => [{ unitId: owner, value: 10 }])
   expect(await runResults(context.payload, { experimentId: phase.experiment })).toMatchObject({ ran: 1, unavailableMetrics: [] })
   expect(source.covariate).toHaveBeenCalledWith({ units: [{ unitId: owner, firstExposureTs: new Date(start + 1000) }], lookbackDays: 14 })
   const snapshot = (await snapshots())[0]!.snapshot as Snapshot
-  expect(snapshot.metrics[0]!.perArm.find(arm => arm.arm === 'control')!.covariate?.preSum).toBe(kind === 'revenue' ? 10 : kind === 'count' ? 2 : 1)
+  expect(snapshot.metrics[0]!.perArm.map(arm => arm.covariate?.preSum)).toEqual([0, 10])
 })

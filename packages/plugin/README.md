@@ -1,6 +1,6 @@
 # @delmaredigital/payload-experiments
 
-> ⚠️ Upgrading to 0.3? For 0.3.0-rc.1, every `linkIdentity` call must supply `verified`; it now returns an outcome. Run `payload migrate:create` for the nullable `xp_identities.verified_at` column and `user_id` index, plus the release-pages columns listed in the CHANGELOG (`decision_pages_released_at` / `decision_pages_released_by` on `xp_experiments` and their `version_` counterparts on `_xp_experiments_v`). Existing identity links become unverified; see the CHANGELOG for optional backfill. Metric-source `covariate` rows now require their own `ts: Date` for eligibility at the time of each row.
+> ⚠️ Upgrading to 0.3? For 0.3.0-rc.1, every `linkIdentity` call must supply `verified`; it now returns an outcome. Run `payload migrate:create` for the nullable `xp_identities.verified_at` column and `user_id` index, plus the release-pages columns listed in the CHANGELOG (`decision_pages_released_at` / `decision_pages_released_by` on `xp_experiments` and their `version_` counterparts on `_xp_experiments_v`). Existing identity links become unverified; see the CHANGELOG for optional backfill.
 
 > ⚠️ Upgrading to 0.2? After upgrading, run `payload generate:importmap`: the Tests surface is registered through admin.dependencies, and without it the Tests routes show a 'not installed' message instead of the Tests screen. In 0.2.0-rc.2, the Tests server views moved from `/rsc` to `/admin/rsc`, so the import map must be regenerated when upgrading from rc.1 too. The old experiments edit-form components are gone from `/admin/client`, and the `xp-experiments` admin list and edit views now redirect to the Tests surface.
 
@@ -319,8 +319,9 @@ For visitor experiments with user-keyed events, verified links are always
 eligible. Unverified links are eligible only before the first verification
 across all of that user's browsers, or indefinitely if nobody ever verifies.
 Each event goes to the earliest exposed eligible visitor. Eligible links
-spanning groups are reported as a diagnostic. CUPED uses the same rule at
-each covariate row's own timestamp.
+spanning groups are reported as a diagnostic. User-keyed CUPED covariates use
+the same eligibility rule at each visitor's first exposure and credit one
+aggregate value to the earliest eligible visitor per user.
 
 Accepted limits:
 
@@ -425,8 +426,8 @@ a user-keyed source. Visitor experiments can use a user-keyed source through
 linked identities.
 
 Optional `covariate({ units: [{ unitId, firstExposureTs }], lookbackDays })`
-returns `[{ unitId, value, ts }]`, one row per pre-exposure event with its own
-`ts: Date`, for CUPED adjustment (the plugin asks for a 14-day lookback). Percentile
+returns `[{ unitId, value }]`, one aggregate value per unit for pre-exposure
+CUPED adjustment (the plugin asks for a 14-day lookback). Percentile
 revenue capping reuses `query` over the 90 days before Start; the resolved cap
 is frozen for the round. Capping affects decision statistics, while results
 also show uncapped totals. Count and binomial metrics are never capped.

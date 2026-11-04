@@ -13,7 +13,7 @@ import { raceDeadline, ResultsBudgetError, RESULTS_TIMEOUT_MARGIN_MS } from '../
 import { analysePhase, type MetricUnitData } from '../results/analyse.js'
 import { firstExposures, perUnitValues, timestampMs, type MetricEvent } from '../results/aggregate.js'
 import { rolloutAnalysisUnits } from '../results/rolloutUnits.js'
-import { creditUserEvents } from '../results/identityCredit.js'
+import { creditUserEvents, eligibleIdentityLinks } from '../results/identityCredit.js'
 
 type UnavailableMetric = { experimentId: DocId; phase: number; metricId: DocId; reason: MetricUnavailableReason }
 async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, options: ResolvedOptions, now: Date, deadline: number, unavailableMetrics: UnavailableMetric[], logger: Payload['logger']) {
@@ -78,21 +78,28 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
         const sourceIds = userKeyed ? userIds : ids
         events = credit(await raceDeadline(deadline, () => source.query({ from, to, unitIds: sourceIds })), userKeyed)
         if (phase.analysis.cuped === 'auto' && source.covariate) {
-          // Ask for every linked user's pre-period even if their link is no longer
-          // eligible now: eligibility is evaluated at each returned row's timestamp.
-          const userStarts = new Map<string, number>()
+          const userUnits = new Map<string, { unitId: string; firstExposureTs: Date }>()
           if (userKeyed) for (const link of identities) {
             const unit = units.get(link.anonymousId)
-            if (unit) userStarts.set(link.userId, Math.min(userStarts.get(link.userId) ?? Infinity, timestampMs(unit.firstTs)))
+            if (!unit) continue
+            // Hosts aggregate pre-period values in SQL; per-event rows over 14 days would break the one-row-per-unit contract and multiply host traffic.
+            // CUPED only reduces variance: mis-credited pre-exposure values add noise, but cannot bias the effect because they are independent of assignment.
+            if (!eligibleIdentityLinks([link], unit.firstTs).length) continue
+            const previous = userUnits.get(link.userId)
+            if (!previous || +unit.firstTs < +previous.firstExposureTs
+              || +unit.firstTs === +previous.firstExposureTs && link.anonymousId < previous.unitId) {
+              userUnits.set(link.userId, { unitId: link.anonymousId, firstExposureTs: unit.firstTs })
+            }
           }
           const sourceUnits = userKeyed
-            ? [...userStarts].map(([unitId, ts]) => ({ unitId, firstExposureTs: new Date(ts) }))
+            ? [...userUnits].map(([unitId, unit]) => ({ unitId, firstExposureTs: unit.firstExposureTs }))
             : [...units].map(([unitId, unit]) => ({ unitId, firstExposureTs: new Date(timestampMs(unit.firstTs)) }))
           const pre = await raceDeadline(deadline, () => source.covariate!({ units: sourceUnits, lookbackDays: 14 }))
           if (pre.some(row => !Number.isFinite(row.value))) throw new XpAnalysisError('non-finite-covariates')
-          const credited = credit(pre, userKeyed)
-          const preUnits = new Map([...units].map(([id, unit]) => [id, { arm: unit.arm, firstTs: new Date(timestampMs(unit.firstTs) - 14 * 86_400_000) }]))
-          covariates = perUnitValues(preUnits, credited, { kind, windowHours: 14 * 24 })
+          covariates = new Map(pre.flatMap(row => {
+            const unitId = userKeyed ? userUnits.get(row.unitId)?.unitId : row.unitId
+            return unitId === undefined ? [] : [[unitId, row.value] as const]
+          }))
         }
       }
       if (events.some(event => !Number.isFinite(event.value))) throw new XpAnalysisError('non-finite-values')
