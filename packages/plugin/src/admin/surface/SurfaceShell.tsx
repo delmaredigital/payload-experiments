@@ -15,9 +15,10 @@ export interface SurfaceShellProps {
   title?: string
   status?: ReactNode
   actions?: ReactNode
+  subtitle?: ReactNode
 }
 export function SurfaceShell({ adminRoute, children, crumbs = [{ label: SURFACE_COPY.title }],
-  title = SURFACE_COPY.title, status, actions }: SurfaceShellProps) {
+  title = SURFACE_COPY.title, status, actions, subtitle }: SurfaceShellProps) {
   return <div className="xp-tests-surface">
     <header className="xp-tests-shell-header">
       <div className="xp-tests-container xp-tests-shell-top">
@@ -25,7 +26,8 @@ export function SurfaceShell({ adminRoute, children, crumbs = [{ label: SURFACE_
         <Button variant="quiet" size="sm" href={formatAdminURL({ adminRoute })}>{SURFACE_COPY.backToAdmin}</Button>
       </div>
       <div className="xp-tests-container xp-tests-shell-main">
-        <div className="xp-tests-shell-title"><h1>{title}</h1>{status}</div>
+        <div className="xp-tests-shell-heading"><div className="xp-tests-shell-title"><h1>{title}</h1>{status}</div>
+          {subtitle ? <div className="xp-tests-shell-subtitle">{subtitle}</div> : null}</div>
         {actions ? <div className="xp-tests-shell-actions">{actions}</div> : null}
       </div>
     </header>

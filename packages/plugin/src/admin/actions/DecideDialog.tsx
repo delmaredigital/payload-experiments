@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Button, SelectInput, TextareaInput, TextInput } from '@payloadcms/ui'
+import { Button } from '../../ui/Button.js'
+import { Select, Textarea, TextInput } from '../../ui/Inputs.js'
 import type { DocId } from '../../types/contracts.js'
 import type { ResultsResponse } from '../../types/endpoints.js'
 import type { ApiResult } from '../api.js'
 import { useApi } from '../useApi.js'
 import { reloadPage } from '../reload.js'
+import { RESULTS_COPY } from '../copy/results.js'
 import { ACTIONS_COPY as C, decideCopy } from '../copy/actions.js'
 import type { ActionGroup } from './actions.model.js'
 import { decideState } from './decide.model.js'
@@ -65,24 +67,24 @@ export function DecideDialog({ id, arms, onClose }: { id: DocId; arms: readonly 
   }
   const enabled = !busy && !loading && !loadFailed && state.canSubmit
   const label = state.options.find(option => option.value === chosenArm)?.label
-  return <DialogFrame initialFocus="cancel" title={C.decide} onClose={() => { if (!busy) onClose() }}>
+  return <DialogFrame dismissible={!busy} initialFocus="cancel" title={C.decide} onClose={() => { if (!busy) onClose() }}>
     {loading ? <p role="status">{C.loading}</p> : null}
-    <SelectInput path="xp-winner" name="xp-winner" label={C.group} options={state.options} value={chosenArm ?? ''}
-      readOnly={busy || loading} required onChange={option => {
-        setChosenArm(option && !Array.isArray(option) ? String(option.value) : null)
+    <Select id="xp-winner" name="xp-winner" label={C.group} value={chosenArm ?? ''}
+      disabled={busy || loading} required onChange={event => {
+        setChosenArm(event.target.value || null)
         setTyped('')
-      }} />
+      }}><option value="">{RESULTS_COPY.chooseGroup}</option>{state.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>
     {label ? <p>{decideCopy(label, arms.some(group => group.key === 'holdout'), chosenArm === 'control')}</p> : null}
     {state.reason ? <p>{state.reason}</p> : null}
-    <TextareaInput path="xp-note" label={C.note} value={note} required={state.guarded} readOnly={busy}
+    <Textarea id="xp-note" label={C.note} value={note} required={state.guarded} readOnly={busy}
       onChange={event => setNote(event.target.value)} />
     {state.guarded && label ? <><p>{C.typePhrase} <strong>{state.phrase}</strong></p>
-      <TextInput path="xp-decide-confirmation" hasMany={false} label={C.confirmation} value={typed} readOnly={busy}
+      <TextInput id="xp-decide-confirmation" label={C.confirmation} value={typed} readOnly={busy}
         onChange={event => setTyped(event.target.value)} /></> : null}
     {error ? <p role="alert">{error.message}</p> : null}
     <Button disabled={!enabled} onClick={() => { void submit() }}>{C.decide}</Button>
     {error?.retryable ? <Button disabled={busy || loading || (!loadFailed && !state.canSubmit)}
       onClick={() => { if (loadFailed) { setError(null); void refresh() } else void submit() }}>{C.retry}</Button> : null}
-    <Button extraButtonProps={{ 'data-dialog-cancel': true }} disabled={busy} onClick={onClose}>{C.cancel}</Button>
+    <Button data-dialog-cancel disabled={busy} onClick={onClose}>{C.cancel}</Button>
   </DialogFrame>
 }

@@ -60,3 +60,6 @@
 .xp-tests-toolbar label { display: grid; gap: var(--xp-space-1); }
 .xp-tests-toolbar input, .xp-tests-toolbar button:not(.xp-ui-button) { color: var(--xp-text); background: var(--xp-input-bg); border: 1px solid var(--xp-input-border); border-radius: var(--xp-radius); padding: var(--xp-space-2); }
 .xp-tests-primary { color: var(--xp-text); padding: var(--xp-space-2) var(--xp-space-4); border: 1px solid var(--xp-accent); border-radius: var(--xp-radius); }
+.xp-tests-shell-heading { min-width: 0; }
+.xp-tests-shell-subtitle { margin-top: var(--xp-space-2); color: var(--xp-text-2); font: var(--xp-text-small); }
+.xp-tests-shell-subtitle p { margin: 0; }

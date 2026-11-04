@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Button } from '@payloadcms/ui'
+import { Button } from '../../ui/Button.js'
 import type { MakeContentResult as Result } from '../../types/endpoints.js'
 import { ACTIONS_COPY as C, contentReportCopy } from '../copy/actions.js'
 

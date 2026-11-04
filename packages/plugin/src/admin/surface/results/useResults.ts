@@ -9,6 +9,7 @@ import { defaultRound } from '../../results/results.model.js'
 import type { PageReleaseDecision } from '../../results/releasePages.model.js'
 
 export interface ResultsDocument {
+  flagPoint?: string
   kind?: string
   status: Status
   arms: Array<{ key: string; kind?: string; label?: string }>

@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Changed: the results page leads with the verdict and three key numbers, shows each outcome as a clear table ("Rate" or "Average"), and keeps the confidence chart under Details.
+
 - Changed: test page sections use the new controls: a versions grid with a traffic split bar, rule cards for who takes part, and plain-language advanced settings.
 - Added: an archived whole-page test's results offer "Release pages", which lets every address show its own page again; the result stays recorded.
 - Added: Release pages on archived whole-page tests removes their archived routing and page protection, and records who released them and when. Migration impact: four nullable columns: decision_pages_released_at and decision_pages_released_by on xp_experiments, and version_decision_pages_released_at and version_decision_pages_released_by on _xp_experiments_v; run payload migrate:create.

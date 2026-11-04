@@ -1,10 +1,16 @@
 import type { MetricUnavailableReason } from '../../types/reasons.js'
 
 export const RESULTS_COPY = {
+  chooseGroup: 'Choose a group',
+  tests: 'Tests', results: 'Results', test: 'Test', backToSetup: 'Back to setup',
+  days: 'Days', methods: { sequential: 'Sequential', bayesian: 'Bayesian' },
+  kinds: { binomial: 'yes/no', count: 'amount', revenue: 'amount' },
+  qualityStates: { ok: 'OK', watch: 'Watch', problem: 'Problem' },
+  qualityOK: 'No data quality problems found.', previews: 'Preview links',
   releasePages: 'Release pages',
   releasePagesBody: 'Every address shows its own page again. The result stays recorded.',
   you: 'you',
-  group: 'Group', people: 'People', conversions: 'Conversions', mean: 'Mean',
+  group: 'Group', people: 'People', conversions: 'Conversions', average: 'Average', rate: 'Rate',
   lift: 'Lift', ci: 'Confidence interval', adjustedCI: 'Adjusted confidence interval',
   pValue: 'p-value', adjustedPValue: 'Adjusted p-value', chanceToWin: 'Chance to win', risk: 'Risk',
   comparison: 'Comparison', original: 'Original', holdout: 'Measured, not compared',
@@ -68,3 +74,5 @@ export const metricUnavailable = (name: string, reason: string) => `${name} ${RE
 export const chartSummary = (metric: string, groups: string, from: string, to: string, changes: string[] = []) =>
   `${metric}: lift and confidence intervals for ${groups}, ${from} to ${to}.${changes.length ? ` Content changed on ${new Intl.ListFormat('en-US', { style: 'long', type: 'conjunction' }).format(changes)}.` : ''}`
 export const contentChangeTitle = (date: string) => `Content changed ${date} by an editor`
+
+export const daysOfPlan = (days: string, planned: string) => `${days} of ${planned}`

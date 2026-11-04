@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { beforeEach, afterEach, expect, test, vi } from 'vitest'
 import { DecideDialog } from '../../../src/admin/actions/DecideDialog.js'
 import { reloadPage } from '../../../src/admin/reload.js'
 import { expectedConfirm } from '../../../src/transitions/confirmPhrases.js'
@@ -13,6 +13,10 @@ import { resetPayloadUiMock } from '../_helpers/payloadUiMock.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
 vi.mock('../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+})
 afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const arms = [{ key: 'control' }, { key: 'variantA' }, { key: 'holdout' }]
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status })
@@ -185,4 +189,17 @@ test('Escape consumed by the group dropdown leaves the dialog open', async () =>
   expect((screen.getByLabelText('Confirmation') as HTMLInputElement).value).toBe('Variant A')
   fireEvent.keyDown(group, { key: 'Escape' })
   expect(onClose).toHaveBeenCalledTimes(1)
+})
+
+
+test('no recommendation displays an explicit empty selection before choosing Original', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ phases: [], snapshot: null })))
+  render(<DecideDialog id={1} arms={arms} onClose={vi.fn()} />)
+  await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+  const group = screen.getByLabelText('Group') as HTMLSelectElement
+  expect(group.value).toBe('')
+  expect(group.selectedOptions[0]?.textContent).toBe('Choose a group')
+  fireEvent.change(group, { target: { value: 'control' } })
+  expect(group.value).toBe('control')
+  expect(screen.getByText('Everyone will see the Original.')).toBeTruthy()
 })
