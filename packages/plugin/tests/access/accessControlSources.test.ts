@@ -1,20 +1,34 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { BasePayload } from 'payload'
 import ts from 'typescript'
 import { describe, expect, test } from 'vitest'
 import { OVERRIDE_ACCESS_ALLOW_LIST } from './allowList.js'
 
 const pluginRoot = fileURLToPath(new URL('../../', import.meta.url))
-// Payload 3.90.2: payload/dist/{collections,globals,auth}/operations/local/*.js.
-// Every overrideAccess reader is covered; auth/verifyEmail are conservative additions.
-const methods = new Set([
+// Local API operations whose callers must state their access posture.
+// auth/verifyEmail remain conservative additions. updateByID/deleteByID are
+// internal operation exports, not BasePayload methods (update/delete dispatch them).
+const operationMethods = [
   'find', 'findByID', 'findDistinct', 'findVersions', 'findVersionByID', 'restoreVersion',
-  'count', 'countVersions', 'create', 'update', 'updateByID', 'delete', 'deleteByID',
+  'count', 'countVersions', 'create', 'update', 'delete',
   'duplicate', 'findGlobal', 'updateGlobal', 'findGlobalVersions',
   'findGlobalVersionByID', 'restoreGlobalVersion', 'countGlobalVersions',
   'login', 'forgotPassword', 'resetPassword', 'unlock', 'verifyEmail', 'auth',
-])
+]
+const nonOperationMethods = [
+  '_initializeCrons', 'bin', 'decrypt', 'destroy', 'encrypt', 'getAdminURL', 'getAPIURL', 'init',
+  // Assigned during init rather than by the constructor; no access-controlled operation.
+  'sendEmail',
+]
+const methods = new Set(operationMethods)
+// Construct without init: no config, database connection or server is needed.
+const payloadMethods = (() => {
+  const payload = new BasePayload()
+  const names = new Set([...Object.getOwnPropertyNames(payload), ...Object.getOwnPropertyNames(BasePayload.prototype)])
+  return [...names].filter(name => name !== 'constructor' && typeof Reflect.get(payload, name) === 'function')
+})()
 type Violation = { file: string; line: number; rule: string }
 
 function matchesGlob(file: string, glob: string): boolean {
@@ -337,6 +351,16 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
 }
 
 describe('access and SQL source boundaries', () => {
+  test('every BasePayload method is classified as an operation or non-operation', () => {
+    const unclassified = payloadMethods.filter(name => !methods.has(name) && !nonOperationMethods.includes(name))
+    expect(unclassified, `Unclassified BasePayload methods: ${unclassified.join(', ')}`).toEqual([])
+  })
+
+  test('every operation method still exists on BasePayload', () => {
+    const stale = operationMethods.filter(name => !payloadMethods.includes(name))
+    expect(stale, `Stale BasePayload operation methods: ${stale.join(', ')}`).toEqual([])
+  })
+
   test('every src file states its access posture and keeps SQL inside src/db', () => {
     const violations = filesUnder(join(pluginRoot, 'src')).flatMap(path =>
       scan(readFileSync(path, 'utf8'), relative(pluginRoot, path).replaceAll('\\', '/')),

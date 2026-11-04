@@ -158,7 +158,7 @@ test('discarded archived tests hold no manifest paths and their pages are free',
     await expect(f.remove(page.id)).resolves.toBeDefined()
   }
 })
-test('archive then release advances the manifest and allows unpublishing the winner', async () => {
+test('archive then release advances the manifest and allows unpublishing the winner and Original', async () => {
   const f = await fixture()
   await f.choose()
   await f.payload.update({ collection: 'xp-experiments', id: f.testDoc.id, req: f.req, overrideAccess: true,
@@ -176,6 +176,7 @@ test('archive then release advances the manifest and allows unpublishing the win
   expect(manifest.revision).toBe(released.revision)
   expect(Object.values(manifest.archivedPages).some(entry => entry.slug === f.testDoc.slug)).toBe(false)
   await expect(f.update(f.winner.id, { _status: 'draft' }, false)).resolves.toMatchObject({ _status: 'draft' })
+  await expect(f.update(f.original.id, { _status: 'draft' }, false)).resolves.toMatchObject({ _status: 'draft' })
 })
 
 test('title-only publishes are allowed', async () => {
