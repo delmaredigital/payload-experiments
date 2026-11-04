@@ -92,7 +92,7 @@ export function GoalForm({ surface, id, returnToTest, onTitleChange }: { surface
     inFlight.current = true; setPending('save'); setError('')
     try {
       // Use an explicit body: loaded metadata and presentation fields never go back to Payload.
-      const body = { name: draft.name, slug: usedBy && goal ? goal.slug : draft.slug, source: draft.source, direction: draft.direction,
+      const body = { name: draft.name, slug: usedBy && goal ? goal.slug : draft.slug, source: usedBy && goal ? goal.source : draft.source, direction: draft.direction,
         attributionWindowHours: draft.attributionWindowHours, minSampleSize: draft.minSampleSize,
         capping: { type: draft.capType || null, value: capValue }, guardrailThreshold: warningPercent / 100 }
       const response = await fetch(`${base}/xp-metrics${id === undefined ? '' : `/${encodeURIComponent(id)}`}`, {
@@ -136,7 +136,7 @@ export function GoalForm({ surface, id, returnToTest, onTitleChange }: { surface
               <TextInput id="xp-goal-slug" label={C.slug} required value={draft.slug} readOnly={usedBy > 0}
                 help={usedBy ? C.slugLocked : C.slugHelp} error={fieldErrors.slug}
                 onChange={event => { setSlugEdited(true); set('slug', event.currentTarget.value) }} />
-              <Select id="xp-goal-source" label={C.source} required value={draft.source} help={hint || undefined} error={fieldErrors.source} onChange={event => {
+              <Select id="xp-goal-source" label={C.source} required value={draft.source} disabled={usedBy > 0} help={usedBy ? C.sourceLocked : hint || undefined} error={fieldErrors.source} onChange={event => {
                 const sourceId = event.currentTarget.value
                 const revenue = surface.metricSources.find(source => source.id === sourceId)?.kind === 'revenue'
                 setDraft(current => ({ ...current, source: sourceId, capType: revenue ? 'percentile' : '', capValue: revenue ? '0.99' : '' }))

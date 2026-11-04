@@ -4,6 +4,7 @@ export const GOALS_COPY = {
   inUse: 'In use', unused: 'Not used yet', empty: 'No goals yet. A goal is what a test tries to improve.',
   loading: 'Loading goals…', loadError: "Couldn't load goals. Try again.", retry: 'Try again',
   slug: 'Short name', slugHelp: 'A unique short name for this goal.', slugLocked: 'The short name stays the same once a test uses this goal.',
+  sourceLocked: 'What this goal measures stays the same once a test uses it.',
   chooseSource: 'Choose an outcome', window: 'Count results for (hours)', minimum: 'Minimum completions before deciding',
   advanced: 'Advanced', capping: 'Limit very large values', capType: 'Limit by', capValue: 'Limit value',
   noCap: 'No limit', percentile: 'Based on past amounts', absolute: 'Fixed amount',

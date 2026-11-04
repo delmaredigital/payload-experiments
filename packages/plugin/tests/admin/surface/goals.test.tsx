@@ -176,6 +176,9 @@ test('existing goal keeps a linked Goals crumb and a generic Goal title while lo
 test('a used goal locks its short name and disables Delete with its usage count', async () => {
   const fetch = await loadForm([{ id: 1, metrics: { secondary: [7], primary: 7 } }, { id: 2, metrics: { guardrails: [7] } }])
   expect((screen.getByLabelText('Short name') as HTMLInputElement).readOnly).toBe(true)
+  // The server refuses a source change on a used goal (CORE-29), so the form never offers one.
+  expect((screen.getByLabelText('Measured by') as HTMLSelectElement).disabled).toBe(true)
+  expect(screen.getByText('What this goal measures stays the same once a test uses it.')).toBeTruthy()
   expect((screen.getByRole('button', { name: 'Delete goal' }) as HTMLButtonElement).disabled).toBe(true)
   expect(screen.getByText('Used by 2 tests. Remove it from those tests first.')).toBeTruthy()
   expect(within(shellHeader()).getByText('In use by 2 tests')).toBeTruthy()
