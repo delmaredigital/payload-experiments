@@ -34,8 +34,9 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
     save(test, 'allocation', () => ({ allocation }))
   }
   return <Section test={test} sectionId="versions">
-    <div className="xp-version-grid-head" aria-hidden="true"><span>{C.label}</span><span>{C.weight}</span><span /><span /></div>
-    <div className="xp-version-rows">{ordered.map(({ arm, index }) => <article className="xp-version-row" key={arm.key}>
+    {reason ? <p className="xp-ui-help">{reason}</p> : null}
+    <div className="xp-version-rows"><div className="xp-version-grid-head" aria-hidden="true"><span>{C.label}</span><span>{C.weight}</span><span /><span /></div>
+    {ordered.map(({ arm, index }) => <article className="xp-version-row" key={arm.key}>
       <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.label}`} value={arm.label} reason={reason} hideLabel disabled={Boolean(reason)}
         onCommit={label => update(arms => arms.map(current => current.key === arm.key ? { ...current, label } : current))} />
       <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.weight}`} type="number" min={0} max={100} value={doc.arms[index]!.weight} reason={reason} hideLabel disabled={Boolean(reason)}
@@ -43,9 +44,9 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
         onDraft={value => setWeightEdit({ key: arm.key, weight: Number(value) })}
         onCommit={value => update(arms => balanceWeight(arms, arm.key, Number(value)))} />
       <parts.VersionContent test={test} surface={surface} armIndex={index} />
+      <div className="xp-ui-button-group xp-version-remove">{arm.kind !== 'control' ? <Button variant="quiet" size="sm" disabled={Boolean(reason)} title={reason ?? undefined} onClick={() => update(arms => splitEvenly(removeArm(arms, arm.key)))}>{C.remove}</Button> : null}</div>
       {issues.rows[index]?.map((issue, i) => <p role="alert" key={i}>{issueMessage(issue, totalWeight(live))}</p>)}
       <FieldErrors test={test} path={`arms.${index}`} />
-      {arm.kind !== 'control' ? <div className="xp-ui-button-group xp-version-remove"><Button variant="quiet" size="sm" disabled={Boolean(reason)} title={reason ?? undefined} onClick={() => update(arms => splitEvenly(removeArm(arms, arm.key)))}>{C.remove}</Button></div> : null}
     </article>)}</div>
     <div className="xp-traffic-bar" role="img" aria-label={`${C.traffic}: ${ordered.map(({ arm }) => `${arm.label} ${arm.weight}%`).join(', ')}`}>
       {ordered.map(({ arm }, i) => <span key={arm.key} style={{ width: `${shares[i]}%`, background: COLOURS[arm.key] }} />)}</div>
@@ -56,7 +57,7 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
     <div className="xp-section-actions xp-ui-button-group" title={reason ?? undefined}>
       <Button disabled={Boolean(reason) || doc.arms.filter(arm => arm.kind === 'variant').length >= 3} onClick={() => update(arms => addVariant(arms, doc.kind))}>{C.addVersion}</Button>
       <Button disabled={Boolean(reason) || doc.arms.some(arm => arm.kind === 'holdout')} onClick={() => update(addHoldoutArm)}>{C.addHoldout}</Button>
-      <Button disabled={Boolean(reason)} onClick={() => update(splitEvenly)}>{C.split}</Button></div><p className="xp-ui-help">{ARMS_COPY.holdout}</p>
+      <Button disabled={Boolean(reason)} onClick={() => update(splitEvenly)}>{C.split}</Button></div>{doc.arms.some(arm => arm.kind === 'holdout') ? <p className="xp-ui-help">{ARMS_COPY.holdout}</p> : null}
     {reasonFor(test, 'allocation') ? <ReadOnly label={C.allocation} value={`${doc.allocation}%`} reason={reasonFor(test, 'allocation')} />
       : <Range id={id} label={C.allocation} help={`${allocation}%`} min={1} max={100} value={allocation}
         onChange={e => { releasedAllocation.current = null; setAllocation(Number(e.target.value)) }} onPointerUp={commitAllocation} onKeyUp={e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) commitAllocation() }}

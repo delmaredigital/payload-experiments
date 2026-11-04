@@ -6,13 +6,12 @@ import type { SectionProps } from '../contracts.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
 import { metricSourceOptions } from '../../metricSource.model.js'
 import { reviewView } from '../../review/review.model.js'
-import { CheckboxList, FieldErrors, reasonFor, save, SelectEdit, TextEdit } from './fields.js'
+import { CheckboxList, FieldErrors, reasonFor, save, SelectEdit } from './fields.js'
 import { Section } from './Section.js'
 
 type Metric = { id: string | number; name: string; source: string }
 export function GoalSection({ test, surface }: SectionProps) {
   const [metrics, setMetrics] = useState<Metric[]>([])
-  const [query, setQuery] = useState('')
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -57,7 +56,7 @@ export function GoalSection({ test, surface }: SectionProps) {
   const unknownGoal = loaded ? C.missingGoal : C.goalUnavailable
   const options = metrics.map(metric => ({ value: String(metric.id), label: `${metric.name} · ${sources.find(source => source.value === metric.source)?.badge ?? metric.source}` }))
   const chosen = [doc.metrics?.primary, ...(doc.metrics?.guardrails ?? []), ...(doc.metrics?.secondary ?? [])].filter(id => id != null).map(String)
-  const visible = options.filter(option => chosen.includes(option.value) || option.label.toLowerCase().includes(query.toLowerCase()))
+  const visible = [...options]
   for (const id of chosen) if (!visible.some(option => option.value === id)) visible.push({ value: id, label: unknownGoal })
   const roleOptions = (role: 'primary' | 'guardrails' | 'secondary') => {
     const blocked = new Set([...(role !== 'primary' && doc.metrics?.primary != null ? [doc.metrics.primary] : []),
@@ -85,14 +84,13 @@ export function GoalSection({ test, surface }: SectionProps) {
   const baseline = test.preflight?.baseline && String(test.preflight.baseline.metricId) === String(doc.metrics?.primary)
     ? reviewView(test.preflight, { primaryMetricKind: kind }).baseline : null
   return <Section test={test} sectionId="win">
-    {!reason ? <TextEdit label={C.searchGoals} value={query} onDraft={setQuery} onCommit={setQuery} /> : null}
     {failed ? <p role="alert">{C.goalsError} <span className="xp-ui-button-group"><Button onClick={() => setAttempt(n => n + 1)}>{C.retry}</Button></span></p> : null}
-    <SelectEdit label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
-    <p>{C.goalHelp}</p><div className="xp-ui-button-group"><Button variant="quiet" size="sm" href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${!reason ? `?${new URLSearchParams({ return: String(doc.id) })}` : ''}` })}>{C.manageGoals}</Button></div>
+    <SelectEdit labelAction={<span className="xp-ui-button-group"><Button variant="link" size="sm" href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${!reason ? `?${new URLSearchParams({ return: String(doc.id) })}` : ''}` })}>{C.manageGoals}</Button></span>} label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
+    <p>{C.goalHelp}</p>
     <FieldErrors test={test} path="metrics.primary" />
-    <CheckboxList label={C.guardrails} value={(doc.metrics?.guardrails ?? []).map(String)} options={roleOptions('guardrails')} reason={reason} readOnlyValue={display(doc.metrics?.guardrails ?? [])} onToggle={(value, checked) => toggle('guardrails', value, checked)} />
+    <CheckboxList searchable={metrics.length > 8} label={C.guardrails} value={(doc.metrics?.guardrails ?? []).map(String)} options={roleOptions('guardrails')} reason={reason} readOnlyValue={display(doc.metrics?.guardrails ?? [])} onToggle={(value, checked) => toggle('guardrails', value, checked)} />
     <p>{C.guardrailHelp}</p><FieldErrors test={test} path="metrics.guardrails" />
-    <CheckboxList label={C.secondary} value={(doc.metrics?.secondary ?? []).map(String)} options={roleOptions('secondary')} reason={reason} readOnlyValue={display(doc.metrics?.secondary ?? [])} onToggle={(value, checked) => toggle('secondary', value, checked)} />
+    <CheckboxList searchable={metrics.length > 8} label={C.secondary} value={(doc.metrics?.secondary ?? []).map(String)} options={roleOptions('secondary')} reason={reason} readOnlyValue={display(doc.metrics?.secondary ?? [])} onToggle={(value, checked) => toggle('secondary', value, checked)} />
     <FieldErrors test={test} path="metrics.secondary" />
     {baseline ? <p>{primary?.name ? `${primary.name}: ` : ''}{baseline}</p> : null}
     {test.errors.metrics ? <p role="alert">{test.errors.metrics}</p> : null}

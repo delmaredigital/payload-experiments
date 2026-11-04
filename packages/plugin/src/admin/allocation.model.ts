@@ -1,7 +1,7 @@
 import type { Arm, Status, UnitType } from '../types/contracts.js'
 import { armLabel } from './labels.js'
 import { LOCKED_MESSAGES } from './copy/common.js'
-import { eachVersion, groupShare, holdoutClause, layerSentence, participation, peopleLabel, uncounted } from './copy/audience.js'
+import { eachVersion, groupShare, holdoutClause, holdoutRemainder, layerSentence, participation, peopleLabel, uncounted } from './copy/audience.js'
 
 export type AllocationGroup = Pick<Arm, 'key' | 'weight' | 'kind'> & { label?: string }
 export type AllocationLayer = { name: string; used: number; free: number }
@@ -16,8 +16,9 @@ export function allocationSentence({ allocation, unitType, arms, layer, status }
   const shares = equal ? eachVersion(percent(allocation * groups[0]!.weight / 100))
     : groups.map(group => groupShare(percent(allocation * group.weight / 100), armLabel(group.key, group.label))).join(', ')
   const holdout = arms.find(group => group.kind === 'holdout')
-  let sentence = participation(percent(allocation), peopleLabel[unitType], shares) + (holdout ? holdoutClause(percent(holdout.weight)) : uncounted)
-  if ((layer || status === 'running') && !sentence.endsWith('.')) sentence += '.'
+  let sentence = participation(percent(allocation), peopleLabel[unitType], shares) + (holdout ? holdoutClause(percent(holdout.weight)) : '')
+    + (allocation < 100 ? holdout ? holdoutRemainder : uncounted : '')
+  if ((holdout || layer || status === 'running') && !sentence.endsWith('.')) sentence += '.'
   if (layer) sentence += layerSentence(layer.name, layer.used, layer.free)
   if (status === 'running') sentence += ` ${LOCKED_MESSAGES.runningAllocation}`
   return sentence

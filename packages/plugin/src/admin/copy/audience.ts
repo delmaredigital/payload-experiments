@@ -12,6 +12,7 @@ export const participation = (allocation: string, people: string, groups: string
 export const eachVersion = (share: string) => `${share}% see each version`
 export const groupShare = (share: string, label: string) => `${share}% see ${label === 'Original' ? 'the Original' : label}`
 export const uncounted = '; the rest see the Original and are not counted'
-export const holdoutClause = (weight: string) => `; the holdout (${weight}% of them) sees the Original and is measured; everyone else sees the Original and is not counted.`
+export const holdoutClause = (weight: string) => `; the holdout (${weight}% of them) sees the Original and is measured`
+export const holdoutRemainder = '; everyone else sees the Original and is not counted'
 export const layerSentence = (name: string, used: number, free: number) => ` Uses ${used} of the 100 slices in layer ${name}; ${free} are free.`
 export const peopleLabel = { visitor: 'visitors', user: 'signed-in users' } as const

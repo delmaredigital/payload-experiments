@@ -11,6 +11,8 @@
 .xp-ui-button--danger { color: var(--xp-error); border-color: var(--xp-error-border); background: var(--xp-surface); }
 .xp-ui-button--danger:hover { background: var(--xp-error-bg); }
 .xp-ui-button--sm { height: 30px; padding: 0 10px; font-size: 13px; }
+.xp-ui-button--link { padding-inline: 0; color: var(--xp-accent-text); text-decoration: var(--xp-accent-text-decoration); }
+.xp-ui-button--link:hover { text-decoration: underline; }
 .xp-ui-button:disabled, .xp-ui-button[aria-disabled='true'], .xp-ui-input:disabled, .xp-ui-toggle:disabled { opacity: .5; cursor: not-allowed; }
 .xp-ui-button:focus-visible, .xp-ui-input:focus-visible, .xp-ui-toggle:focus-visible, .xp-ui-tab:focus-visible, .xp-ui-tabpanel:focus-visible, .xp-ui-breadcrumb a:focus-visible, .xp-ui-dialog:focus-visible { outline: 2px solid var(--xp-focus); outline-offset: 2px; }
 .xp-ui-field { min-width: 0; max-width: 100%; display: grid; gap: 6px; color: var(--xp-text); font: var(--xp-text-body); }
@@ -80,8 +82,11 @@
 .xp-ui-checkbox-label { display: flex; align-items: baseline; gap: var(--xp-space-2); cursor: pointer; }
 .xp-ui-checkbox { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--xp-accent); }
 .xp-ui-checkbox-list { margin: 0; padding: 0; border: 0; }
-.xp-ui-checkbox-list legend { margin-bottom: var(--xp-space-2); font-weight: 500; }
+.xp-ui-checkbox-list legend { padding: 0; margin-bottom: var(--xp-space-2); font-weight: 500; }
 .xp-ui-range { box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; margin: 0; accent-color: var(--xp-accent); cursor: pointer; }
 .xp-ui-checkbox:disabled, .xp-ui-range:disabled { opacity: .5; cursor: not-allowed; }
 .xp-ui-checkbox:focus-visible, .xp-ui-range:focus-visible { outline: 2px solid var(--xp-focus); outline-offset: 2px; }
 .xp-ui-checkbox[aria-invalid='true'], .xp-ui-range[aria-invalid='true'] { outline: 1px solid var(--xp-error); }
+
+.xp-ui-field-label { display: flex; align-items: center; justify-content: space-between; gap: var(--xp-space-3); }
+.xp-ui-field-label > label { font-weight: 500; }

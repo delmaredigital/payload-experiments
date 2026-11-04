@@ -48,3 +48,13 @@ test('reads flattened form rows in order and omits incomplete layer data', () =>
   expect(allocationLayer({ name: 'Layer', used: 20, free: 80 })).toEqual({ name: 'Layer', used: 20, free: 80 })
   expect(sentence([], 50)).toBe('')
 })
+
+
+test.each([100, 60])('allocation %s describes only people who exist, with and without a holdout', allocation => {
+  const remainder = allocation < 100 ? '; the rest see the Original and are not counted' : ''
+  expect(sentence([50, 50], allocation)).toBe(`${allocation}% of visitors take part: about ${allocation / 2}% see each version${remainder}`)
+  const holdoutRemainder = allocation < 100 ? '; everyone else sees the Original and is not counted' : ''
+  expect(allocationSentence({ allocation, unitType: 'visitor', status: 'draft', arms: [
+    ...groups([45, 45]), { key: 'holdout', kind: 'holdout', weight: 10 },
+  ] })).toBe(`${allocation}% of visitors take part: about ${allocation * .45}% see each version; the holdout (10% of them) sees the Original and is measured${holdoutRemainder}.`)
+})

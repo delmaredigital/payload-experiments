@@ -50,7 +50,7 @@ export function TargetingSection({ test, surface }: SectionProps) {
           : input.kind === 'boolean' ? <SelectEdit label={C.value} reason={reason} value={String(rule.value)} options={[{ value: 'true', label: C.yes }, { value: 'false', label: C.no }]} onCommit={changeValue} />
           : <TextEdit label={C.value} reason={reason} value={Array.isArray(rule.value) ? rule.value.join(', ') : String(rule.value)} type={input.kind === 'number' ? 'number' : 'text'} onCommit={changeValue} />}
         {hint ? <p>{hint}</p> : null}<FieldErrors test={test} path={`targeting.${index}`} />
-        {!reason ? <div className="xp-ui-button-group"><Button variant="quiet" size="sm" onClick={() => { setRowsRevision(revision => revision + 1); update(current => current.filter((_, i) => i !== index)) }}>{C.removeRule}</Button></div> : null}
+        {!reason ? <div className="xp-ui-button-group"><Button variant="link" size="sm" onClick={() => { setRowsRevision(revision => revision + 1); update(current => current.filter((_, i) => i !== index)) }}>{C.removeRule}</Button></div> : null}
       </div>
     })}
     {!reason ? <div className="xp-ui-button-group"><Button disabled={!keys.length} onClick={() => {

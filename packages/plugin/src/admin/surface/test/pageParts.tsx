@@ -9,7 +9,7 @@ function VersionContent({ test, armIndex }: SectionProps & { armIndex: number })
   if (!arm || !test.doc) return null
   if (!showsPageTarget(test.doc.kind, arm.kind)) return <span className="xp-content-chip">{C.holdoutContent}</span>
   const issue = pageTargetIssue(arm.pageTarget, arm.kind)
-  return <div className="xp-version-content"><span className={`xp-content-chip ${issue ? 'xp-content-empty' : 'xp-content-ready'}`}>{issue ? 'Add a page address' : 'Page ready'}</span><TextEdit label={`${arm.label}: ${C.pageAddress}`} value={arm.pageTarget ?? ''} reason={reasonFor(test, 'arms')}
+  return <div className="xp-version-content"><span className={`xp-content-chip ${issue ? 'xp-content-empty' : 'xp-content-ready'}`}>{issue ? C.addPageAddress : C.pageReady}</span><TextEdit label={`${arm.label}: ${C.pageAddress}`} value={arm.pageTarget ?? ''} reason={reasonFor(test, 'arms')}
     onCommit={value => save(test, 'arms', () => ({ arms: test.doc!.arms.map(current => current.key === arm.key ? setPageTarget(current, value) : current) }))} />
     {issue ? <p role="alert">{issue}</p> : null}<FieldErrors test={test} path={`arms.${armIndex}.pageTarget`} /></div>
 }

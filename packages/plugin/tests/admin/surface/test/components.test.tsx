@@ -25,7 +25,7 @@ vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessPa
 } }))
 vi.mock('../../../../src/admin/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
-const doc = (partial: Partial<TestDocument> = {}): TestDocument => ({ id: 'test/1', name: 'Welcome test', slug: 'welcome', status: 'draft', kind: 'block', unitType: 'visitor', arms: defaultArms('block'), allocation: 100, exposurePolicy: 'render', analysis: { plannedDurationDays: 28, minExposuresPerArm: 200 }, ...partial })
+const doc = (partial: Partial<TestDocument> = {}): TestDocument => ({ id: 1, name: 'Welcome test', slug: 'welcome', status: 'draft', kind: 'block', unitType: 'visitor', arms: defaultArms('block'), allocation: 100, exposurePolicy: 'render', analysis: { plannedDurationDays: 28, minExposuresPerArm: 200 }, ...partial })
 const surface: SurfaceProps = { adminRoute: '/cms', apiRoute: '/cms-api', canManage: true, canReadResults: true, isAdmin: true, flagPoints: [], attributeKeys: { country: { type: 'string', values: ['US', 'CA'] }, path: { type: 'string' }, age: { type: 'number' }, member: { type: 'boolean' } }, metricSources: [{ id: 'signup', label: 'Signups', kind: 'binomial', keyedBy: 'visitor', clientWritable: true }] }
 function props(partial: Partial<TestDocument> = {}): SectionProps {
   return { surface, test: { doc: doc(partial), preflight: { checks: [], placements: [], baseline: null, trafficPerDay: null, estimate: null }, preflightError: null, preflightPending: false,
@@ -58,7 +58,7 @@ test.each(['running', 'draft'] as const)('returned goals do not replace an exist
   await waitFor(() => expect(window.location.search).toBe(''))
   expect(p.test.stage).not.toHaveBeenCalled()
   expect(p.test.commit).not.toHaveBeenCalled()
-  expect(screen.getByText('Manage goals').getAttribute('href')).toBe(status === 'draft' ? '/cms/experiments/goals?return=test%2F1' : '/cms/experiments/goals')
+  expect(screen.getByText('Manage goals').getAttribute('href')).toBe(status === 'draft' ? '/cms/experiments/goals?return=1' : '/cms/experiments/goals')
   window.history.replaceState(null, '', '/')
 })
 
@@ -144,7 +144,10 @@ test('running sections show read-only values and the exact lock reason', async (
   expect(screen.queryByLabelText('Goal')).toBeNull()
   expect((screen.getByRole('button', { name: 'Add a version' }) as HTMLButtonElement).disabled).toBe(true)
   expect((screen.getByRole('button', { name: 'Remove version' }) as HTMLButtonElement).disabled).toBe(true)
-  expect(screen.getAllByText(lockedReason('running', 'arms', EDITABLE_BY_STATUS)! as string).length).toBeGreaterThan(0)
+  const versionsSection = document.querySelector<HTMLElement>('#section-versions')!
+  const notice = within(versionsSection).getByText(lockedReason('running', 'arms', EDITABLE_BY_STATUS)!)
+  expect(notice.tagName).toBe('P')
+  expect(notice.className).toBe('xp-ui-help')
   expect(p.test.stage).not.toHaveBeenCalled()
   await waitFor(() => expect(screen.getByText('Goal')).toBeTruthy())
 })
@@ -240,7 +243,7 @@ test('goals load via the host API and preserve the current metrics group on sele
   view.rerender(<GoalSection {...p} />)
   fireEvent.change(screen.getByLabelText('Goal'), { target: { value: '' } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: null, guardrails: [], secondary: [2] } })
-  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/experiments/goals?return=test%2F1')
+  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/experiments/goals?return=1')
 })
 test('save refusals render inline', () => {
   const p = props()
@@ -434,7 +437,7 @@ test('deleting a list rule cannot transfer its unfinished chip draft to the next
 
 test('real Shell owns the setup title, name breadcrumb, chips and Results link with Start only at the bottom', async () => {
   metricsFetch()
-  const p = props({ status: 'running' })
+  const p = props({ id: 'test/1', status: 'running' })
   hook.mockReturnValue(p.test)
   const view = render(<TestPage id={p.test.doc!.id} surface={surface} />)
   const shell = view.container.querySelector<HTMLElement>('.xp-tests-shell-header')!
@@ -476,6 +479,10 @@ test('versions use one visible header, accessible inputs, exact split widths and
   const view = render(<VersionsSection {...p} parts={pageBlockParts} />)
   expect(view.container.querySelectorAll('.xp-version-grid-head')).toHaveLength(1)
   expect(view.container.querySelectorAll('.xp-version-row')).toHaveLength(5)
+  const original = view.container.querySelector('.xp-version-row')!
+  expect(original.children).toHaveLength(4)
+  expect(original.children[3]!.classList.contains('xp-version-remove')).toBe(true)
+  expect(original.children[3]!.childElementCount).toBe(0)
   expect(screen.getByRole('textbox', { name: 'Original: Version label' })).toBeTruthy()
   const segments = Array.from(screen.getByRole('img').children) as HTMLElement[]
   expect(segments.map(node => node.style.width)).toEqual(['40%', '20%', '15%', '15%', '10%'])
@@ -525,4 +532,44 @@ test('whole-page versions show Page ready or Add a page address for their curren
   render(<VersionsSection {...p} parts={pageParts} />)
   expect(screen.getByText('Page ready')).toBeTruthy()
   expect(screen.getByText('Add a page address')).toBeTruthy()
+})
+
+
+test('holdout explanation appears only when there is a holdout arm', () => {
+  const p = props()
+  const view = render(<VersionsSection {...p} parts={pageBlockParts} />)
+  expect(screen.queryByText(/The holdout sees the Original and is measured/)).toBeNull()
+  p.test.doc!.arms = [...p.test.doc!.arms, { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 0 }]
+  view.rerender(<VersionsSection {...p} parts={pageBlockParts} />)
+  expect(screen.getByText(/The holdout sees the Original and is measured/)).toBeTruthy()
+})
+
+test.each([2, 8])('there is no goal search with %s goals', async count => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: Array.from({ length: count }, (_, i) => ({ id: i + 1, name: `Goal ${i + 1}`, source: 'signup' })) }) })))
+  render(<GoalSection {...props()} />)
+  await waitFor(() => expect(screen.getAllByText('Goal 1 · yes/no')).toHaveLength(3))
+  expect(screen.queryByRole('searchbox')).toBeNull()
+  expect(screen.queryByRole('textbox', { name: 'Search goals' })).toBeNull()
+})
+
+test('large goal lists search independently inside each list and retain checked options', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `Goal ${i + 1}`, source: 'signup' })) }) })))
+  const p = props({ metrics: { primary: 1, guardrails: [2], secondary: [3] } })
+  render(<GoalSection {...p} />)
+  await waitFor(() => expect(screen.getAllByRole('searchbox')).toHaveLength(2))
+  const guardrails = within(screen.getByRole('group', { name: 'Must not get worse (optional)' }))
+  const secondary = within(screen.getByRole('group', { name: 'Also keep an eye on (optional)' }))
+  fireEvent.change(guardrails.getByRole('searchbox'), { target: { value: 'GOAL 9' } })
+  expect(guardrails.getByRole('checkbox', { name: 'Goal 2 · yes/no' })).toBeTruthy()
+  expect(guardrails.getByRole('checkbox', { name: 'Goal 9 · yes/no' })).toBeTruthy()
+  expect(guardrails.queryByRole('checkbox', { name: 'Goal 4 · yes/no' })).toBeNull()
+  expect(secondary.getByRole('checkbox', { name: 'Goal 4 · yes/no' })).toBeTruthy()
+  fireEvent.change(secondary.getByRole('searchbox'), { target: { value: 'Goal 8' } })
+  expect(secondary.getByRole('checkbox', { name: 'Goal 3 · yes/no' })).toBeTruthy()
+  expect(secondary.getByRole('checkbox', { name: 'Goal 8 · yes/no' })).toBeTruthy()
+  expect(secondary.queryByRole('checkbox', { name: 'Goal 4 · yes/no' })).toBeNull()
+  fireEvent.click(guardrails.getByRole('checkbox', { name: 'Goal 9 · yes/no' }))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [2, 9], secondary: [3] } })
+  expect(within(screen.getByRole('combobox', { name: 'Goal' })).getByRole('option', { name: 'Goal 4 · yes/no' })).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Manage goals' }).closest('.xp-ui-field-label')?.querySelector('label')?.textContent).toBe('Goal')
 })

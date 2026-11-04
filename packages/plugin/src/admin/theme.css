@@ -48,6 +48,16 @@
   --xp-text-body: 400 15px/22px var(--xp-font);
   --xp-text-small: 400 13px/18px var(--xp-font);
   --xp-motion: 120ms;
+  --xp-space-half: 2px;
+  --xp-space-one-half: 6px;
+  --xp-version-share-width: 96px;
+  --xp-version-share-width-mobile: 84px;
+  --xp-version-state-width: 192px;
+  --xp-version-remove-width: 128px;
+  --xp-targeting-attribute-width: 150px;
+  --xp-targeting-comparison-width: 140px;
+  --xp-legend-key-size: 10px;
+  --xp-legend-key-radius: 3px;
   --xp-space-1: 4px;
   --xp-space-2: 8px;
   --xp-space-3: 12px;

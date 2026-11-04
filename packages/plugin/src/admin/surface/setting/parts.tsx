@@ -114,7 +114,7 @@ function VersionContent({ test, surface, armIndex }: SectionProps & { armIndex: 
   const point = surface.flagPoints.find(point => point.id === doc.flagPoint)
   if (!point) return <p>{SETTING_COPY.choose}</p>
   const ready = Object.entries(point.params).every(([key, field]) => !paramIssue(field, paramsForArm(arm, point)[key]))
-  return <div className="xp-setting-values"><span className={`xp-content-chip ${ready ? 'xp-content-ready' : 'xp-content-empty'}`}>{ready ? 'Values ready' : 'Set values'}</span>{Object.entries(point.params).map(([key, field]) =>
+  return <div className="xp-setting-values"><span className={`xp-content-chip ${ready ? 'xp-content-ready' : 'xp-content-empty'}`}>{ready ? SETTING_COPY.valuesReady : SETTING_COPY.setValues}</span>{Object.entries(point.params).map(([key, field]) =>
     <Parameter key={`${doc.id}:${point.id}:${arm.key}:${key}:${doc.status}:${surface.canManage}`} test={test} surface={surface} armIndex={armIndex} paramKey={key} field={field} />)}</div>
 }
 

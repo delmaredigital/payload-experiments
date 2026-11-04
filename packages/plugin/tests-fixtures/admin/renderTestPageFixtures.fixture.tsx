@@ -100,6 +100,7 @@ test('writes real Shell/TestPage fixtures for ready, blocked, running, page, set
       // restore the conservative CSS fallback for the non-hydrated review fixture.
       const page = view.container.querySelector<HTMLElement>('.xp-test-page')!
       page.style.removeProperty('padding-bottom')
+      view.container.querySelectorAll('option').forEach(o => o.toggleAttribute('selected', o.selected))
       const html = `<!DOCTYPE html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${state} — ${theme}</title>${cssPaths.map(path => `<link rel="stylesheet" href="${pathToFileURL(path).href}">`).join('')}<style>body { margin: 0; }</style></head><body>${view.container.innerHTML}</body></html>`
       const path = join(output, `test-${state}-${theme}.html`)
       writeFileSync(path, html); paths.push(path)

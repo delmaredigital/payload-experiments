@@ -53,3 +53,20 @@ test('plain surface links use neutral text and underline on hover without overri
   expect(surface).toMatch(/\.xp-tests-surface a:not\(\.xp-ui-button\) \{[^}]*color: var\(--xp-text\)/)
   expect(surface).toMatch(/\.xp-tests-surface a:not\(\.xp-ui-button\):hover \{[^}]*text-decoration: underline/)
 })
+
+
+test('surface button defaults cannot restyle chip remove buttons', () => {
+  const surface = readFileSync(new URL('../../src/admin/surface/surface.css', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../../src/admin/surface/test/testPage.css', import.meta.url), 'utf8')
+  expect(surface).not.toContain('.xp-tests-surface button')
+  expect(surface).toContain('.xp-tests-toolbar button:not(.xp-ui-button)')
+  expect(page).not.toContain('.xp-test-page button:not(.xp-ui-button)')
+  expect(rule('.xp-ui-chips .xp-ui-chips-item button')).toContain('background: transparent')
+})
+
+test('inline link actions have no horizontal padding and checkbox legends align flush', () => {
+  expect(rule('.xp-ui-button--link')).toContain('padding-inline: 0')
+  expect(rule('.xp-ui-button--link')).toContain('color: var(--xp-accent-text)')
+  expect(rule('.xp-ui-button--link:hover')).toContain('text-decoration: underline')
+  expect(rule('.xp-ui-checkbox-list legend')).toContain('padding: 0')
+})
