@@ -28,6 +28,7 @@ const required = {
     ExperimentSlot: '../puck/ExperimentSlot.js',
     createExperimentSlot: '../puck/ExperimentSlot.js',
     createExperimentSlotField: '../puck/experimentSlotField.js',
+    experimentsPuck: '../puck/integration.js',
     EXPERIMENT_SLOT_TYPE: '../types/puck.js',
   },
   rsc: { pageKindSeoContract: '../server/pageKindSeoContract.js', captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
@@ -37,7 +38,7 @@ const required = {
     CollectionListRedirect: '../admin/views/CollectionListRedirect.js',
     CollectionEditRedirect: '../admin/views/CollectionEditRedirect.js',
   },
-  puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', createExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', experimentOutlinePlugin: '../puck/editor/experimentOutlinePlugin.js' },
+  puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', createExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', experimentOutlinePlugin: '../puck/editor/experimentOutlinePlugin.js', experimentsPuckEditor: '../puck/editor/integration.js' },
   index: { createArmSelectField: '../fields/armSelect.js', contentDone: '../contentDone.js' },
 } as const
 const requiredTypes = {
@@ -48,7 +49,9 @@ const requiredTypes = {
     ExperimentSlotProps: '../types/puck.js',
     ExperimentRef: '../types/puck.js',
     ArmSlot: '../types/puck.js',
+    ExperimentsPuckIntegration: '../types/puck.js',
   },
+  puckEditor: { ExperimentsPuckIntegration: '../types/puck.js' },
 } as const
 const directory = new URL('../../src/exports/', import.meta.url)
 

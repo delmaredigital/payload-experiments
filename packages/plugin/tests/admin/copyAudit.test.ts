@@ -104,7 +104,7 @@ test('admin and Puck JSX text uses surface vocabulary', () => {
 })
 test('all admin and Puck helper copy uses surface vocabulary', () => {
   expect(helperPaths.flatMap(path =>
-    hits(helperStrings(readFileSync(path, 'utf8'))).map(value => ({ path, value })))).toEqual([])
+    hits(helperStrings(readFileSync(path, 'utf8'), path)).map(value => ({ path, value })))).toEqual([])
 })
 test('goal and test-group collection labels, descriptions and option labels use surface vocabulary', () => {
   for (const config of [metricsCollection(sampleOptions()), layersCollection(sampleOptions())]) {

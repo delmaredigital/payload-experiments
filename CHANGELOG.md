@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: `experimentsPuck()` and `experimentsPuckEditor()` bundle the test block, its sidebar category and the outline plugin into one object per side for payload-puck 0.11's `integrations`; the separate pieces stay exported.
+
 - Added: whole-page content checks and copying guidance per page collection, `admin.descriptions.page`, and page collection selection on tests. Identical versions warn; versions at the same address are refused. Migration impact: nullable `xp_experiments.page_collection` and `_xp_experiments_v.version_page_collection`; run `payload migrate:create`.
 - Added: manager-only page browsing and page/test status endpoints, preserving published addresses while drafts are edited. Page registrations get a sidebar status field; page and blocks registrations get composed content-change auditing. Migration impact: hosts with `pages` run `payload generate:importmap`; auditing adds no columns.
 - Added: `pageKindSeoContract` from `/rsc` to test host metadata and sitemap wiring. Migration impact: none.
