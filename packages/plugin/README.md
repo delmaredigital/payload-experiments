@@ -696,9 +696,11 @@ The editor CSS includes its own light and dark palette, selected by
 `data-theme="dark"` or the `dark` class on the iframe's `<html>`. The client component's CSS import alone
 does not reach an iframe configured with `syncHostStyles: false`.
 
-If Puck runs outside Payload's admin, load the plugin's admin styles on that page so the test picker is styled (inside the admin they are already loaded):
+If Puck runs outside Payload's admin, the page needs Payload's admin styles (the plugin's tokens map onto them) and the plugin's admin styles, plus `data-theme="light"` or `data-theme="dark"` on `<html>`. Inside the admin all of this is already in place:
 
 ```css
+@import "@payloadcms/next/css";
+@import "@payloadcms/ui/styles.css";
 @import "@delmaredigital/payload-experiments/admin/theme.css";
 @import "@delmaredigital/payload-experiments/admin/ui.css";
 ```

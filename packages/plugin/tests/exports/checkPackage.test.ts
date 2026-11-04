@@ -89,7 +89,7 @@ test('source check reports missing license and readme, and emitted files when re
   expect(failures).toContain('./admin/ui.css: missing built target ./dist/ui/ui.css')
   for (const [entry, conditions] of Object.entries(pkg.exports) as Array<[string, Record<string, string>]>) {
     if (entry === './package.json' && (conditions as unknown) === './package.json') continue
-    if (typeof (conditions as unknown) === 'string' && (conditions as unknown as string).endsWith('.css')) continue
+    if (['./puck/editor.css', './admin/theme.css', './admin/ui.css'].includes(entry)) continue
     for (const condition of ['import', 'types', 'default']) {
       expect(failures).toContain(`${entry}.${condition}: missing built target ${conditions[condition]}`)
       expect(failures.some(failure => failure.startsWith(`${entry}.${condition}: missing source counterpart`))).toBe(true)
