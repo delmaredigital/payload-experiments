@@ -40,12 +40,40 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
   const userIds = [...new Set(identities.map(identity => identity.userId))]
   const linked = new Set(userIds)
   const identityConflicts = new Set<string>()
+  const userByVisitor = new Map(identities.map(identity => [identity.anonymousId, identity.userId]))
+  const linksByUser = new Map<string, typeof identities>()
+  for (const identity of identities) {
+    const links = linksByUser.get(identity.userId) ?? []
+    links.push(identity)
+    linksByUser.set(identity.userId, links)
+  }
+  // Last arm credited per user: enough to detect that a user's credited events span arms (a conflict).
+  const creditedArms = new Map<string, string>()
+  const noteCredit = (userId: string, unitId: string) => {
+    const arm = units.get(unitId)?.arm
+    if (arm === undefined) return
+    const previous = creditedArms.get(userId)
+    if (previous !== undefined && previous !== arm) identityConflicts.add(userId)
+    creditedArms.set(userId, arm)
+  }
   const credit = (events: Array<{ unitId: string; value: number; ts: Date | number; userId?: string | null }>, userKeyed: boolean): MetricEvent[] => {
     if (candidate.unitType === 'user') return events.map(event => ({ ...event, unitId: event.userId ?? event.unitId }))
-    const userEvents = events.filter(event => userKeyed || event.userId != null && linked.has(event.userId))
+    // §8.3's earliest exposed linked visitor applies only when the event has no
+    // exposed unit of its own. A visitor-keyed event stays on its own exposed
+    // browser even if an earlier linked browser saw another arm or is ineligible.
+    const direct = userKeyed ? [] : events.filter(event => units.has(event.unitId) || event.userId == null || !linked.has(event.userId))
+    const userEvents = events.filter(event => userKeyed || !units.has(event.unitId) && event.userId != null && linked.has(event.userId))
       .map(event => ({ userId: String(event.userId ?? event.unitId), value: event.value, ts: event.ts }))
     const credited = creditUserEvents(units, identities, userEvents, userId => identityConflicts.add(userId)).events
-    return userKeyed ? credited : [...events.filter(event => event.userId == null || !linked.has(event.userId)), ...credited]
+    for (const event of direct) if (event.userId != null && linked.has(event.userId)) {
+      noteCredit(event.userId, event.unitId)
+      // Keep the eligible-link diagnostic when direct credit bypasses the helper.
+      const arms = new Set(eligibleIdentityLinks(linksByUser.get(event.userId)!, event.ts).map(link => units.get(link.anonymousId)!.arm))
+      arms.add(units.get(event.unitId)!.arm)
+      if (arms.size > 1) identityConflicts.add(event.userId)
+    }
+    for (const event of credited) noteCredit(userByVisitor.get(event.unitId)!, event.unitId)
+    return [...direct, ...credited]
   }
   const metricData: MetricUnitData[] = []
   for (const definition of phase.metricDefinitions) {
@@ -63,7 +91,8 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
           if (candidate.unitType === 'user') return metricEventRows(exec, { eventName, userIds: ids, from: start, to })
           const direct = await metricEventRows(exec, { eventName, unitIds: ids, from: start, to })
           const signedIn = await metricEventRows(exec, { eventName, userIds, from: start, to })
-          return [...direct, ...signedIn]
+          // The two lookups overlap when a linked user's own browser was exposed.
+          return [...direct, ...signedIn.filter(event => !units.has(event.unitId))]
         }
         events = credit(await read(phase.analysis.cuped === 'auto' ? preFrom : from), false)
         if (phase.analysis.cuped === 'auto') {
