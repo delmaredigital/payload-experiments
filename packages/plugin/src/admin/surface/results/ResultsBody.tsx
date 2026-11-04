@@ -103,7 +103,8 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased }: ResultsB
         setReleasing(true)
       }}>{C.releasePages}</ActionButton> : null}
     </div>
-    {decision?.pagesReleasedAt ? <PagesReleased decision={decision} apiRoute={surface.apiRoute} /> : null}
+    {/* Release details come only from the manager's own test document; readers never receive them. */}
+    {manage && doc?.decision?.pagesReleasedAt ? <PagesReleased decision={doc.decision} apiRoute={surface.apiRoute} /> : null}
     {phases.length > 0 ? <label>{C.round}<select disabled={deciding || releasing} value={round ?? ''} onChange={event => results.setRound(Number(event.target.value))}>
       {roundOptions(phases).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select></label> : null}

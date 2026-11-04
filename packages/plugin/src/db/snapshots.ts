@@ -118,9 +118,8 @@ export async function newestSnapshotIds(exec: Executor, ids: DocId[], per: 'phas
 
 /** Called only behind the endpoint's readResults gate. Experiment collection
  * reads require manage, so read only the decision metadata needed by results. */
-export async function resultsMetadata(exec: Executor, id: DocId): Promise<{ status: string; snapshotId: DocId | null; winnerArm: string | null; pagesReleasedAt?: string | null; pagesReleasedBy?: string | null } | null> {
+export async function resultsMetadata(exec: Executor, id: DocId): Promise<{ status: string; snapshotId: DocId | null; winnerArm: string | null } | null> {
   const c = COLUMNS.experiments
-  const { rows } = await exec.query<{ status: string; snapshotId: DocId | null; winnerArm: string | null; pagesReleasedAt: string | Date | null; pagesReleasedBy: string | null }>(`SELECT ${q(c.status)} AS "status", ${q(c.decisionSnapshotId)} AS "snapshotId", ${q(c.decisionWinnerArm)} AS "winnerArm", ${q(c.decisionPagesReleasedAt)} AS "pagesReleasedAt", ${q(c.decisionPagesReleasedBy)} AS "pagesReleasedBy" FROM ${qualifiedTable(exec, TABLES.experiments)} WHERE ${q(c.id)} = $1`, [id])
-  const row = rows[0]
-  return row ? { ...row, pagesReleasedAt: row.pagesReleasedAt instanceof Date ? row.pagesReleasedAt.toISOString() : row.pagesReleasedAt } : null
+  const { rows } = await exec.query<{ status: string; snapshotId: DocId | null; winnerArm: string | null }>(`SELECT ${q(c.status)} AS "status", ${q(c.decisionSnapshotId)} AS "snapshotId", ${q(c.decisionWinnerArm)} AS "winnerArm" FROM ${qualifiedTable(exec, TABLES.experiments)} WHERE ${q(c.id)} = $1`, [id])
+  return rows[0] ?? null
 }

@@ -103,24 +103,6 @@ test('a readResults-only caller gets the decision through the gated endpoint', a
   expect(payload.calls.every(call => call.args.collection !== 'xp-experiments' && call.args.overrideAccess === false && call.args.req === req)).toBe(true)
 })
 
-test('a readResults-only caller gets the release audit fields through the gated endpoint', async () => {
-  const readerOptions = sampleOptions()
-  readerOptions.access = { manage: vi.fn(() => false), readResults: vi.fn(() => true) }
-  vi.mocked(resultsMetadata).mockResolvedValue({ status: 'archived', snapshotId: null, winnerArm: 'variantA',
-    pagesReleasedAt: '2026-11-03T12:00:00.000Z', pagesReleasedBy: 'editor' })
-  vi.mocked(newestSnapshotIds).mockResolvedValue([])
-  const payload = fakePayload({ collections: { 'xp-phases': [phase(1)] } })
-  const req = fakeReq({ payload, user: { id: 'reader' }, routeParams: { id: 'exp' } })
-  const endpoint = buildEndpoints({ options: readerOptions }).find(route => route.path === '/xp/experiments/:id/results')!
-  const response = await endpoint.handler(req)
-  expect(response.status).toBe(200)
-  expect(await response.json()).toMatchObject({ decision: { phase: 1, winnerArm: 'variantA',
-    pagesReleasedAt: '2026-11-03T12:00:00.000Z', pagesReleasedBy: 'editor' } })
-  expect(readerOptions.access.readResults).toHaveBeenCalledWith({ req })
-  expect(readerOptions.access.manage).not.toHaveBeenCalled()
-  expect(payload.calls.every(call => call.args.collection !== 'xp-experiments' && call.args.overrideAccess === false && call.args.req === req)).toBe(true)
-})
-
 test.each(['', 'abc', '-1', '0', '1.2', '9007199254740992'])('ill-typed phase=%s is 400 invalid-body before database reads', async phase => {
   const response = await handleResults(fakeReq({ routeParams: { id: 'exp' }, url: `http://localhost/results?phase=${phase}` }), { options })
   expect(response.status).toBe(400)

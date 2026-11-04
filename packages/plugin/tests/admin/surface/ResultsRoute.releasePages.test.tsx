@@ -77,10 +77,11 @@ test('non-managers have no release action or manager document read', async () =>
   expect(fetcher.mock.calls.some(([url]) => url.includes('/xp-experiments/'))).toBe(false)
 })
 
-test('results-only readers see a recorded release without a manager document read', async () => {
+test('results-only readers never see a release line or who released, even if a release is recorded', async () => {
   const fetcher = setup({ ...eligible, decision: { phase: 1, winnerArm: 'variantA', pagesReleasedAt: at, pagesReleasedBy: '7' } })
   render(<ResultsRoute id={eligible.id} surface={{ ...surface, canManage: false }} />)
-  expect(await screen.findByText('Pages released 3 Nov 2026 by you')).toBeTruthy()
+  await screen.findByText(/No results yet/)
+  expect(screen.queryByText(/Pages released/)).toBeNull()
   expect(screen.queryByRole('button', { name: 'Release pages' })).toBeNull()
   expect(fetcher.mock.calls.some(([url]) => url.includes('/xp-experiments/'))).toBe(false)
 })
