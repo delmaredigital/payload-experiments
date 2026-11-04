@@ -180,7 +180,8 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
               // Keep every typed value visible, but discard all queued sends until Reload.
               session.pending = [...session.queue, session.pending].reduce((draft, edit) => ({ ...draft, ...edit }), {})
               session.queue = []
-              session.view.errors = { _section: staleError.message || TEST_PAGE.staleEdit }
+              // Server text is never shown; the stale-edit sentence is the admin's own.
+              session.view.errors = { _section: TEST_PAGE.staleEdit }
             } else if (!response.ok) session.view.errors = { ...session.view.errors, ...payloadFieldErrors(body) }
             else {
               // Payload collection PATCH returns { doc, message }; GET returns the doc itself.

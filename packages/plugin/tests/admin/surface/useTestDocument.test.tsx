@@ -661,7 +661,8 @@ test.each([undefined, 'A newer edit was saved. Reload this test.'])('stale-edit 
   })
   expect(result.current.stale).toBe(true)
   expect(result.current.saving).toBe('error')
-  expect(result.current.errors).toEqual({ _section: message ?? 'Someone else changed this test. Reload to see their changes.' })
+  // The server's message is never shown, whether or not it sends one.
+  expect(result.current.errors).toEqual({ _section: 'Someone else changed this test. Reload to see their changes.' })
   expect(result.current.doc).toMatchObject({ name: 'Refused name', hypothesis: 'Queued hypothesis', allocation: 80 })
   await act(async () => { result.current.stage({ name: 'Must not save' }); await result.current.commit() })
   expect(patches()).toHaveLength(1)
