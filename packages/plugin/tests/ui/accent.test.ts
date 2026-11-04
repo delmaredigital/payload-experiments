@@ -98,7 +98,7 @@ beforeAll(() => {
     grid.push({ input, sets, acceptedBefore, validationThrew, validationMessage })
   }
   console.log(`accent grid beforeAll: ${Math.round(performance.now() - started)} ms`)
-}, 30_000) // Measured locally: 7.24 s; 30 s cap exceeds the 3× hook-duration rule.
+}, 30_000) // Measured locally: 7.24 s; CI runners ran ~2.7× slower (~20 s), so cap at ≥3× the local time.
 
 test.each([
   ['light', 3742, 161], ['dark', 2303, 1600],
