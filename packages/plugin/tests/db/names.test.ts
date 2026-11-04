@@ -7,7 +7,7 @@ import * as schema from '../_fixtures/generated-schema.js'
 const pluginTable = (name: string) => /^_?xp_/.test(name)
 const tables = Object.values(schema).filter(value => is(value, Table)).map(table => getTableConfig(table))
 const pluginTables = tables.filter(table => pluginTable(table.name))
-const enumNames = Object.values(schema).flatMap(value => isPgEnum(value) ? [value.enumName] : [])
+const enumNames = Object.values(schema).flatMap(value => isPgEnum(value) ? (/^enum__?xp_/.test(value.enumName) ? [value.enumName] : []) : [])
 
 describe('SQL identifiers match the generated Payload schema', () => {
   test('every plugin table, column and enum is represented, with no invented identifiers', () => {
@@ -57,4 +57,11 @@ describe('SQL identifiers match the generated Payload schema', () => {
       expect(column.notNull).toBe(false)
     }
   })
+})
+
+test('Experiment block reuses host block tables with no _2 table or unique slot index', () => {
+  expect(tables.filter(t => /_2$/.test(t.name))).toEqual([])
+  const slots = tables.filter(t => t.name.includes('slots'))
+  expect(slots.length).toBeGreaterThanOrEqual(2)
+  expect(slots.flatMap(t => t.indexes).filter(i => i.config.unique && i.config.columns.some(c => 'name' in c && c.name === 'slot'))).toEqual([])
 })

@@ -6,7 +6,8 @@ import { isStylesheetExport } from './check-node-esm.mjs'
 
 const packageRoot = fileURLToPath(new URL('..', import.meta.url))
 const statsPackage = '@delmaredigital/experiments-stats'
-const releaseVersion = JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8')).version
+const sourcePackage = JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8'))
+const releaseVersion = sourcePackage.version
 const packageFiles = Object.freeze(['dist', 'LICENSE', 'README.md'])
 // Release contract: changes require a separately reviewed compatibility decision.
 const peerRanges = Object.freeze({
@@ -81,6 +82,7 @@ function isSemverRange(value) {
 
 export function checkPackedPackage(pkg) {
   const failures = []
+  if (JSON.stringify(pkg.exports) !== JSON.stringify(sourcePackage.exports)) failures.push('Packed exports must match the source package exports')
   if (pkg.version !== releaseVersion) failures.push(`Packed version must be ${releaseVersion}`)
   for (const group of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
     for (const [name, specifier] of Object.entries(pkg[group] ?? {})) {

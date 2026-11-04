@@ -6,7 +6,9 @@ import { expect, test, vi } from 'vitest'
 vi.setConfig({ testTimeout: 30_000 })
 
 const required = {
+  blocks: { controlOnlyBlocks: '../blocks/model.js', segmentExperimentBlocks: '../blocks/model.js', EXPERIMENT_BLOCK_SLUG: '../blocks/model.js' },
   client: {
+    ExperimentGroup: '../client/ExperimentGroup.js',
     ExperimentsProvider: '../client/ExperimentsProvider.js',
     useFlagPoint: '../client/useFlagPoint.js',
     useExperiment: '../client/useExperiment.js',
@@ -30,7 +32,7 @@ const required = {
     createExperimentSlotField: '../puck/experimentSlotField.js',
     EXPERIMENT_SLOT_TYPE: '../types/puck.js',
   },
-  rsc: { pageKindSeoContract: '../server/pageKindSeoContract.js', captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
+  rsc: { resolveExperimentBlocks: '../server/resolveExperimentBlocks.js', pageKindSeoContract: '../server/pageKindSeoContract.js', captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
   adminRsc: {
     TestsNavLinkServer: '../admin/views/TestsNavLinkServer.js',
     ExperimentsRootView: '../admin/views/ExperimentsRootView.js',
@@ -38,7 +40,7 @@ const required = {
     CollectionEditRedirect: '../admin/views/CollectionEditRedirect.js',
   },
   puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', createExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', experimentOutlinePlugin: '../puck/editor/experimentOutlinePlugin.js' },
-  index: { createArmSelectField: '../fields/armSelect.js', contentDone: '../contentDone.js' },
+  index: { createExperimentBlock: '../blocks/createExperimentBlock.js', createArmSelectField: '../fields/armSelect.js', contentDone: '../contentDone.js' },
 } as const
 const requiredTypes = {
   rsc: { MetricUnavailableReason: '../types/reasons.js', ContentReportReason: '../types/reasons.js', ManifestInputs: '../manifest/compile.js', ManifestInputExperiment: '../manifest/compile.js', ManifestPhase: '../manifest/compile.js', ManifestCompileOptions: '../manifest/compile.js', Manifest: '../types/manifest.js', ManifestExperiment: '../types/manifest.js' },

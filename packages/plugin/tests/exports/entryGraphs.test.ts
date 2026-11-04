@@ -15,7 +15,7 @@ const adminEntries = ['adminClient', 'adminRsc']
 const routeSafeEntries = readdirSync(fileURLToPath(new URL('../../src/exports/', import.meta.url))).filter(file => file.endsWith('.ts')).map(file => file.slice(0, -3)).filter(name => !adminEntries.includes(name))
 
 test('every non-admin entry is checked for next/navigation', () => {
-  expect(routeSafeEntries.sort()).toEqual(['client', 'index', 'proxy', 'puck', 'puckEditor', 'rsc', 'runtimeProxy', 'runtimeServer'])
+  expect(routeSafeEntries.sort()).toEqual(['blocks', 'client', 'index', 'proxy', 'puck', 'puckEditor', 'rsc', 'runtimeProxy', 'runtimeServer'])
 })
 
 test.each(routeSafeEntries)('%s has no next/navigation value imports', name => {
@@ -121,4 +121,10 @@ test('every Next subpath value import in src has a Node ESM extension', () => {
 
 test('rsc reaches the host SEO contract fixture', () => {
   expect(collectImports(entry('rsc')).files).toContain(fileURLToPath(new URL('../../src/server/pageKindSeoContract.ts', import.meta.url)))
+})
+
+test('blocks is pure and independent of the plugin runtime', () => {
+  const graph = collectImports(entry('blocks'))
+  expect([...graph.bare, ...graph.dynamic]).toEqual([])
+  expect(graph.files.every(file => /\/src\/(exports\/blocks|blocks\/model)\.ts$/.test(file))).toBe(true)
 })

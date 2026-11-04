@@ -28,6 +28,7 @@ const routes = [
   ['get', '/xp/experiments/:id/results', 'readResults'],
   ['post', '/xp/experiments/:id/recompute', 'manage'],
   ['get', '/xp/experiments/summary', 'readResults'],
+  ['post', '/xp/blocks/wrap', 'manage'],
   ['get', '/xp/pages', 'manage'],
   ['post', '/xp/placements/status', 'manage'],
 ] as const

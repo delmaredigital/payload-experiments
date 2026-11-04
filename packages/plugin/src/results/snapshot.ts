@@ -12,6 +12,7 @@ const count: Check = value => number(value) && Number.isInteger(value) && (value
 const string: Check = value => typeof value === 'string'
 const boolean: Check = value => typeof value === 'boolean'
 const nullable = (check: Check): Check => value => value === null || check(value)
+const union = (...checks: Check[]): Check => value => checks.some(check => check(value))
 const list = (check: Check): Check => value => Array.isArray(value) && value.every(check)
 const oneOf = (...values: unknown[]): Check => value => values.includes(value)
 const isObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -55,7 +56,7 @@ const shape = object({
     finding: string, action: nullable(string), headline: string, detail: string, recommendedArm: nullable(string),
   }, { guardrailLine: string }),
   contentChanges: list(object({ at: timestamp, doc: object({ collection: string, id }), by: nullable(id) })),
-}, { health: list(object({ code: oneOf('version-page-unavailable', 'version-page-unchecked'), path: string })) })
+}, { health: list(union(object({ code: oneOf('version-page-unavailable', 'version-page-unchecked'), path: string }), object({ code: oneOf('goal-in-some-versions'), metricId: id, name: string }))) })
 
 /** Validate the frozen JSON shape and headline/rollout invariants before storage.
  * This also accepts the shared CORE-13/admin fixtures without any I/O.

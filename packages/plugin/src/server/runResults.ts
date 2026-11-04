@@ -1,4 +1,5 @@
 import { XpAnalysisError } from '../errors.js'
+import { canonicalHealth, mergePageHealth } from '../results/health.js'
 import { safeError } from '../log.js'
 import { createLocalReq, type Payload } from 'payload'
 import type { MetricUnavailableReason } from '../types/reasons.js'
@@ -225,13 +226,11 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
           }
           if (!published) health.push({ code: !found && (unchecked || !options.pages?.collections.length) ? 'version-page-unchecked' : 'version-page-unavailable', path })
         }
-        for (const snapshot of snapshots) snapshot.health = health
+        for (const snapshot of snapshots) snapshot.health = mergePageHealth(snapshot.health ?? [], health)
       }
       if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
       // Order and optional empty health are semantically identical. Frozen
       // inference gets a new row only when its page availability changes.
-      const canonicalHealth = (snapshot: Snapshot) => JSON.stringify((snapshot.health ?? [])
-        .map(({ code, path }) => [code, path]).map(entry => JSON.stringify(entry)).sort((a, b) => a < b ? -1 : a > b ? 1 : 0))
       const changed = snapshots.filter((snapshot, index) => !phases[index]!.frozenSnapshot
         || canonicalHealth(snapshot) !== canonicalHealth(phases[index]!.frozenSnapshot!))
       // Unchanged health is a successful refresh with nothing to write.

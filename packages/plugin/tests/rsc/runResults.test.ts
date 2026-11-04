@@ -690,7 +690,7 @@ test('frozen page health compares canonically, writes changes once, and keeps in
   await runResults(context.payload, { sweep: false })
   const row = (await snapshots())[0]!, frozen = row.snapshot as Snapshot
   // JSON key order and list order must not make health appear changed.
-  await database.db.update(xp_results_snapshots).set({ snapshot: { ...frozen, health: [...frozen.health!].reverse().map(({ code, path }) => ({ path, code })) } })
+  await database.db.update(xp_results_snapshots).set({ snapshot: { ...frozen, health: [...frozen.health!].reverse().map(row => ({ ...row })) } })
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, skipped: 0 })
   expect(await snapshots()).toHaveLength(1)
   lookup.mockResolvedValue({ id: 1, published: true })

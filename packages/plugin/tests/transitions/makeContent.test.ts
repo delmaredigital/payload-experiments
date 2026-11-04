@@ -1023,3 +1023,27 @@ test('make-content leaves a blocks document Puck field untouched even in a previ
   expect(hostUpdates(f)).toEqual([])
   expect(f.payload.documents.pages).toEqual(before)
 })
+
+
+test('Experiment-block make-content preserves published and draft data and writes fresh nested row ids', async () => {
+  const f = fixture()
+  f.options.puck = { enabled: false, collections: [] }
+  f.options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  f.payload.config.collections[0]!.fields = [{ name: 'layout', type: 'blocks', blocks: [] }]
+  const wrapper = { id: 'wrapper', blockType: 'xpExperiment', experiment: 'hero', slots: [
+    { id: 'control-row', slot: 'control', blocks: [{ id: 'original', blockType: 'text', text: 'Original' }] },
+    { id: 'winner-row', slot: 'variantA', blocks: [{ id: 'winner', blockType: 'text', rows: [{ id: 'nested', text: 'Winner' }] }] },
+  ] }
+  for (const page of f.payload.documents.pages!) { page.layout = [structuredClone(wrapper)]; delete page.puckData }
+  await makeContent(f.req, { experimentId: 1, options: f.options })
+  const writes = hostUpdates(f)
+  expect(writes.length).toBe(4)
+  for (const write of writes) {
+    const rows = (write.args.data as { layout: Array<{ id: string; blockType: string; rows: Array<{ id: string; text: string }> }> }).layout
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ blockType: 'text', rows: [{ text: 'Winner' }] })
+    expect(rows[0]!.id).not.toBe('winner')
+    expect(rows[0]!.rows[0]!.id).not.toBe('nested')
+    expect(write.args).toMatchObject({ overrideAccess: false, overrideLock: false })
+  }
+})

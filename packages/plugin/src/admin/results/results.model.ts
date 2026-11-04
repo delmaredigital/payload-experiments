@@ -150,8 +150,8 @@ export function collectingLine({ snapshot, phaseKind }: RoundLineInput, ctx: Res
 export interface DataQualityItem { id: string; message: string; detail?: string; nextStep: string; shares?: string[] }
 export function dataQuality(snapshot: DisplaySnapshot, ctx: ResultsContext = {}): DataQualityItem[] {
   const items: DataQualityItem[] = (snapshot.health ?? []).map(item => ({
-    id: `${item.code}:${item.path}`, message: READINESS_COPY.needsAttention,
-    nextStep: item.code === 'version-page-unavailable' ? versionPageUnavailableCopy(item.path, ctx.status) : versionPageUncheckedCopy(item.path, ctx.status),
+    id: `${item.code}:${'path' in item ? item.path : item.metricId}`, message: item.code === 'goal-in-some-versions' ? `${item.name} now appears in some versions but not all, so this result is no longer a fair comparison. Add it to every version, or remove it.` : READINESS_COPY.needsAttention,
+    nextStep: item.code === 'goal-in-some-versions' ? 'Edit the versions' : item.code === 'version-page-unavailable' ? versionPageUnavailableCopy(item.path, ctx.status) : versionPageUncheckedCopy(item.path, ctx.status),
   }))
   // Test snapshots store null by design; only rollout snapshots record the shipped winner.
   if (!isLegacySnapshot(snapshot) && snapshot.phaseKind === 'rollout' && snapshot.winnerArm === null) items.push({

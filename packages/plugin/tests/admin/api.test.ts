@@ -195,3 +195,11 @@ test('page picker and placement status use the configured API base', async () =>
   await api.placementStatus({ docs: [{ collection: 'pages', id: 1 }] })
   expect(fetcher).toHaveBeenLastCalledWith('/custom-api/xp/placements/status', expect.objectContaining({ method: 'POST', body: JSON.stringify({ docs: [{ collection: 'pages', id: 1 }] }) }))
 })
+
+
+test('wrapBlock calls the always-built manage endpoint with row ids', async () => {
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ id: 1 }))
+  const body = { collection: 'pages', id: 1, field: 'layout', blockId: 'row', experiment: 'hero' }
+  await createApi('/api').wrapBlock(body)
+  expect(fetcher).toHaveBeenCalledWith('/api/xp/blocks/wrap', expect.objectContaining({ method: 'POST', body: JSON.stringify(body), credentials: 'include' }))
+})

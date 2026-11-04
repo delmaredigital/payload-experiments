@@ -185,6 +185,7 @@ export const COLUMNS = {
     targeting: 'targeting',
     metricDefinitions: 'metric_definitions',
     analysis: 'analysis',
+    placementDocs: 'placement_docs',
     contentChanges: 'content_changes',
     updatedAt: 'updated_at',
     createdAt: 'created_at',

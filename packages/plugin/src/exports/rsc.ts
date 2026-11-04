@@ -18,3 +18,5 @@ export type { ManifestInputs, ManifestInputExperiment, ManifestPhase, ManifestCo
 export type { Manifest, ManifestExperiment } from '../types/manifest.js'
 export { contentChangesBeforeHook as captureContentBaseline } from '../hooks/contentChanges.js'
 export { pageKindSeoContract, type PageKindSeoContractOptions, type PageKindSeoContractRow } from '../server/pageKindSeoContract.js'
+export { resolveExperimentBlocks } from '../server/resolveExperimentBlocks.js'
+export type { HostBlock, ExperimentBlock, ExperimentBlockGroup, ResolvedHostBlock, ResolvedExperimentBlocks } from '../blocks/model.js'
