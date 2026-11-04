@@ -24,7 +24,7 @@ export const READINESS_COPY = {
   differentPeople: "This test's group counts different people. Create the test again without the group.",
   uncheckedPages: "Version pages aren't checked; make sure each one is published.",
   chooseDifferentPage: 'Choose a different page',
-  noTargets: 'Add a page address for each version.',
+  noTargets: 'Choose a page for each version.',
   pageVisitors: 'Whole-page tests count visitors. Create the test again counting visitors.',
   blockPathRule: 'Remove the page-path rule in Who takes part; page block tests run on their page.',
   // Next steps repeat the button label verbatim (testPage.ts removeRule).
@@ -66,3 +66,6 @@ export const pageGuardCopy = (name: string, status: 'running' | 'decided' | 'arc
     : `This page is part of the running test "${name}". Stop the test before you delete, rename or unpublish it.`
 export const versionPageUnavailableCopy = (path: string, status = 'running') => `${path} isn't published, so visitors assigned to it see an error. Republish it, or ${status === 'decided' ? 'discard the winner' : 'stop the test'}.`
 export const versionPageUncheckedCopy = (path: string, status = 'running') => `Couldn't check whether ${path} is published. Check that it is still published, or ${status === 'decided' ? 'discard the winner' : 'stop the test'}.`
+
+export const sameAddressCopy = (label: string, other: string, path: string) => `${label} has the same address (${path}) as ${other}. Choose a different page.`
+export const identicalVersionCopy = (version: string) => `${version} looks the same as the Original, so the test would compare nothing. Change it before you start.`

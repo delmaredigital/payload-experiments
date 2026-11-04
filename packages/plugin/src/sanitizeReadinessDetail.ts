@@ -15,6 +15,12 @@ const failure = (value: unknown) => value === 'placements-failed' || value === '
  */
 export function sanitizeReadinessDetail(code: ReadinessCode, detail: unknown): unknown {
   switch (code) {
+    case 'version-same-address':
+      return object(detail) && arm(detail.arm) && arm(detail.otherArm) && path(detail.path)
+        ? { arm: detail.arm, otherArm: detail.otherArm, path: detail.path } : undefined
+    case 'version-identical':
+      return object(detail) && arm(detail.arm) && path(detail.path) && key(detail.collection) && (key(detail.id) || typeof detail.id === 'number' && Number.isSafeInteger(detail.id))
+        ? { arm: detail.arm, path: detail.path, collection: detail.collection, id: detail.id } : undefined
     case 'block-path-rule':
       return object(detail) && Array.isArray(detail.rules) && detail.rules.length
         && detail.rules.every(index => Number.isSafeInteger(index) && index >= 0)

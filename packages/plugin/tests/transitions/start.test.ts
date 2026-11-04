@@ -128,7 +128,7 @@ test.each([
   ['control-count', { arms: [{ ...defaultArms('code')[1], weight: 100 }] }], ['control-first', { arms: defaultArms('code').reverse() }],
   ['no-planned-duration', { analysis: { reachPerDay: 100 } }], ['no-primary-metric', { metrics: {} }],
   ['no-reach-per-day', { analysis: { plannedDurationDays: 14 } }], ['page-no-targets', { kind: 'page' }],
-  ['page-user-unit', { kind: 'page', unitType: 'user', arms: defaultArms('page').map(arm => ({ ...arm, pageTarget: '/x' })) }],
+  ['page-user-unit', { kind: 'page', unitType: 'user', arms: defaultArms('page').map(arm => ({ ...arm, pageTarget: `/${arm.key}` })) }],
   ['flag-no-point', { kind: 'flag' }], ['no-placements', { kind: 'block', arms: defaultArms('block') }],
   ['undeclared-targeting-key', { targeting: [{ attribute: 'unknown', op: 'eq', value: 'x' }] }],
 ])('first failing check %s is returned without opening a transaction', async (code, changes) => {
@@ -229,6 +229,7 @@ import { preflightData, unpublishedPageTargets } from '../../src/transitions/pre
 function pageFixture() {
   const f = fixture()
   const arms: import('../../src/types/contracts.js').Arm[] = defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/variant' : '/original' }))
+  f.payload.documents.pages = [{ id: 10, slug: 'original', title: 'Original', _status: 'published' }, { id: 11, slug: 'variant', title: 'Variant', _status: 'draft' }]
   const experiment = Object.assign(f.experiment, { kind: 'page', arms })
   return { ...f, experiment }
 }
@@ -241,7 +242,7 @@ test('page lookups stop after the first collection reports a published page', as
     { slug: 'second', pathOf: () => null, findByPath: second },
   ] }
   expect(await unpublishedPageTargets(req, options, experiment)).toEqual([])
-  expect(first.mock.calls.map(call => call[0])).toEqual(['/original', '/variant'])
+  expect(first.mock.calls.map(call => call[0])).toEqual(['/original', '/original', '/variant'])
   expect(second).not.toHaveBeenCalled()
 })
 test('a throwing page collection is logged and the next collection can report it published', async () => {
@@ -253,9 +254,9 @@ test('a throwing page collection is logged and the next collection can report it
     { slug: 'second', pathOf: () => null, findByPath: second },
   ] }
   expect(await unpublishedPageTargets(req, options, experiment)).toEqual([])
-  expect(first).toHaveBeenCalledTimes(2)
-  expect(second.mock.calls.map(call => call[0])).toEqual(['/original', '/variant'])
-  expect(payload.logs).toHaveLength(2)
+  expect(first).toHaveBeenCalledTimes(1)
+  expect(second.mock.calls.map(call => call[0])).toEqual(['/original', '/original', '/variant'])
+  expect(payload.logs).toHaveLength(1)
   expect(JSON.stringify(payload.logs)).not.toContain('secret-value')
 })
 test('page arms are looked up concurrently and unpublished targets retain arm order', async () => {
@@ -283,7 +284,7 @@ test.each(['missing', 'draft', 'throws'] as const)('unpublished page target (%s)
   const result = await preflightData(req, { experimentId: 1, options })
   expect(result!.checks).toContainEqual({ code: 'page-target-unpublished', ok: false, detail: '/variant' })
   await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-target-unpublished', message: "/variant isn't a published page. Publish it, or pick another page." })
-  expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant', '/original', '/variant'])
+  expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant', '/original', '/original', '/variant', '/original', '/variant'])
   for (const call of findByPath.mock.calls) expect(call[1]).toBe(req)
   expect(experiment.status).toBe('draft')
   expect(executor.calls).toHaveLength(2)
@@ -306,9 +307,9 @@ test('published targets start; holdouts are not looked up, multiple collections 
   ] }
   expect((await start(req, { experimentId: 1, options })).doc.status).toBe('running')
   // Preflight, then again under the page-path locks on a detached request (CORE-54).
-  expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant', '/original', '/variant'])
+  expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/original', '/variant', '/original', '/original', '/variant'])
   // The recheck ran with the transaction id detached, and it is restored afterwards.
-  expect(seenTransaction).toEqual([true, true, false, false])
+  expect(seenTransaction).toEqual([true, true, true, false, false, false])
 })
 test('Start refuses a page unpublished while it waited on the page-path lock', async () => {
   const { options, req, experiment } = pageFixture()

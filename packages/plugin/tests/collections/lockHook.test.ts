@@ -10,8 +10,8 @@ import { fakePayload } from '../_fakes/payload.js'
 
 const statuses: Status[] = ['draft', 'stopped', 'running', 'decided', 'archived']
 const expected: Record<Status, string[]> = {
-  draft: ['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'flagPoint', 'metrics', 'analysis', 'exposurePolicy'],
-  stopped: ['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'metrics', 'analysis', 'exposurePolicy'],
+  draft: ['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'flagPoint', 'metrics', 'analysis', 'exposurePolicy', 'pageCollection'],
+  stopped: ['name', 'hypothesis', 'arms', 'targeting', 'allocation', 'metrics', 'analysis', 'exposurePolicy', 'pageCollection'],
   running: ['name', 'hypothesis'], decided: ['name', 'hypothesis'], archived: [],
 }
 const request = (admin?: unknown, context = {}) => fakeReq({ context, payload: fakePayload({ config: { custom: { xp: {
@@ -35,7 +35,7 @@ function run(data: Record<string, unknown>, originalDoc = fixture(), req = reque
 }
 const changes: Record<string, unknown> = {
   id: 2, name: 'New name', hypothesis: 'New hypothesis', slug: 'another-slug', kind: 'page', unitType: 'user', status: 'running',
-  allocation: 90, flagPoint: 'another-point', layer: 11, layerSlices: [3], phase: 2, seed: 'another-seed',
+  pageCollection: 'pages', allocation: 90, flagPoint: 'another-point', layer: 11, layerSlices: [3], phase: 2, seed: 'another-seed',
   arms: fixture().arms.map(arm => ({ ...arm, label: `${arm.label} edited` })),
   targeting: [{ attribute: 'locale', op: 'eq', value: 'fr' }],
   metrics: { primary: 20 }, analysis: { plannedDurationDays: 21 }, exposurePolicy: 'viewport',
@@ -82,7 +82,7 @@ test.each(['draft', 'stopped'] as const)('Restore of a complete older %s version
   const older = {
     ...structuredClone(original), name: 'Older name', hypothesis: 'Older hypothesis', updatedAt: '2026-10-29T15:00:00Z',
     arms: original.arms.map((arm, index) => ({ ...arm, label: `Older ${arm.label}`, weight: index === 0 ? 40 : 60 })),
-    allocation: 90, metrics: { primary: 20, secondary: [], guardrails: [] },
+    pageCollection: 'pages', allocation: 90, metrics: { primary: 20, secondary: [], guardrails: [] },
     analysis: { ...original.analysis, plannedDurationDays: 21 },
   }
   await expect(run(older, original, request(false, { isRestoringVersion: true }))).resolves.toBe(older)

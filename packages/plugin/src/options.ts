@@ -35,7 +35,7 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
     if (admin.descriptions !== undefined) {
       if (!admin.descriptions || typeof admin.descriptions !== 'object' || Array.isArray(admin.descriptions)) throw new Error('Experiments admin.descriptions must be an object')
       for (const [key, value] of Object.entries(admin.descriptions)) {
-        if (!['block', 'document', 'setting'].includes(key)) throw new Error(`Unknown experiments admin.descriptions option: ${key}`)
+        if (!['block', 'document', 'setting', 'page'].includes(key)) throw new Error(`Unknown experiments admin.descriptions option: ${key}`)
         if (value !== undefined && typeof value !== 'string') throw new Error(`Experiments admin.descriptions.${key} must be a string`)
       }
     }
@@ -47,6 +47,24 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
       if (!entry || typeof entry.slug !== 'string' || !entry.slug.trim() || slugs.has(entry.slug) || typeof entry.pathOf !== 'function' || typeof entry.findByPath !== 'function') {
         throw new Error('Experiments pages.collections requires unique slugs, pathOf and findByPath functions')
       }
+      if (entry.contentOf !== undefined && typeof entry.contentOf !== 'function') throw new Error('Experiments contentOf must be a function')
+      for (const [key, max] of [['copyHint', 200], ['copyLabel', 40]] as const) {
+        const value = entry[key]
+        if (value !== undefined && (typeof value !== 'string' || !value.trim() || value.length > max)) throw new Error(`Experiments ${key} must be a non-empty string of at most ${max} characters`)
+      }
+      if (entry.copyUrl !== undefined && !validCopyUrl(entry.copyUrl)) throw new Error('Experiments copyUrl must be a root-relative path')
+      if (entry.copyLabel !== undefined && entry.copyUrl === undefined) throw new Error('Experiments copyLabel requires copyUrl')
+      slugs.add(entry.slug)
+    }
+  }
+  if (input.blocks !== undefined) {
+    if (!input.blocks || !Array.isArray(input.blocks.collections) || !input.blocks.collections.length) throw new Error('Experiments blocks.collections must be a non-empty array')
+    const slugs = new Set<string>()
+    for (const entry of input.blocks.collections) {
+      if (!entry || typeof entry.slug !== 'string' || !entry.slug.trim() || slugs.has(entry.slug) || typeof entry.field !== 'string' || !entry.field.trim()
+        || entry.blockSlug !== undefined && (typeof entry.blockSlug !== 'string' || !entry.blockSlug.trim())
+        || entry.appliesTo !== undefined && typeof entry.appliesTo !== 'function') throw new Error('Invalid experiments blocks collection')
+      if (puckCollections(input).some(puck => puck.slug === entry.slug) && !entry.appliesTo) throw new Error('A collection registered in puck and blocks requires appliesTo')
       slugs.add(entry.slug)
     }
   }
@@ -92,4 +110,17 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
     events: { ...input.events, retentionDays, maxBodyBytes, dimensions: Array.isArray(dimensions) ? [...dimensions] : dimensions },
     puck: { ...input.puck, enabled: input.puck?.enabled ?? Boolean(input.puck?.collections?.length), collections: puckCollections(input) },
   }
+}
+
+function validCopyUrl(value: unknown): boolean {
+  if (typeof value !== 'string' || !/^\/(?![/\\])/.test(value) || /[\s\x00-\x1f\x7f]/.test(value)) return false
+  try { return new URL(value, 'http://x').origin === 'http://x' } catch { return false }
+}
+
+/** One published-row rule shared by scans, bindings, writes and editor links. */
+export function documentEditor(options: Pick<ExperimentsPluginOptions, 'puck' | 'blocks'>, collection: string, doc: Record<string, unknown>): 'puck' | 'blocks' | 'page' {
+  const block = options.blocks?.collections.find(entry => entry.slug === collection)
+  const puck = puckCollections(options).some(entry => entry.slug === collection)
+  if (block && (block.appliesTo ? block.appliesTo(doc) : true)) return 'blocks'
+  return puck ? 'puck' : 'page'
 }

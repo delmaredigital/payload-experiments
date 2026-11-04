@@ -144,14 +144,14 @@ test('new route loads recent Puck pages with access checked and preserves numeri
     pageDocs: { pages: [{ id: 12, title: 'Welcome' }], articles: [{ id: 'uuid', heading: 'Story' }] }, editorUrl })
   await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
   expect(find.mock.calls).toEqual([
-    [{ collection: 'pages', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: true, select: { title: true } }],
-    [{ collection: 'articles', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: true, select: { heading: true } }],
+    [{ collection: 'pages', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: false }],
+    [{ collection: 'articles', req, overrideAccess: false, depth: 0, limit: 50, sort: '-updatedAt', draft: false }],
   ])
   expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [
     { collection: 'pages', collectionLabel: 'Pages', id: 12, title: 'Welcome', editorUrl: '/page-editor/12' },
     { collection: 'articles', collectionLabel: 'Articles', id: 'uuid', title: 'Story', editorUrl: '/page-editor/uuid' },
   ] }) }))
-  expect(editorUrl).toHaveBeenCalledWith({ collection: 'pages', id: 12, draft: true })
+  expect(editorUrl).toHaveBeenCalledWith({ collection: 'pages', id: 12, draft: false, editor: 'puck', doc: { id: 12, title: 'Welcome' } })
 })
 test('failed collection reads are skipped, missing titles and editor URLs have configured-route fallbacks', async () => {
   const { props, find } = setup({ puck: { enabled: true, collections: ['pages', 'articles', 'other'] }, deniedCollections: ['pages'],
@@ -162,7 +162,7 @@ test('failed collection reads are skipped, missing titles and editor URLs have c
     { collection: 'articles', collectionLabel: 'Articles', id: 'uuid', title: 'uuid', editorUrl: '/control/collections/articles/uuid' },
     { collection: 'other', collectionLabel: 'other', id: 7, title: '7', editorUrl: '/control/collections/other/7' },
   ] }) }))
-  expect(find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'other', select: { id: true } }))
+  expect(find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'other', draft: false, depth: 0 }))
 })
 test.each([[], ['12'], ['12', 'results']].map(segments => [segments]))('pages are not loaded for route %j', async segments => {
   const { props, find } = setup({ puck: { enabled: true, collections: ['pages'] } })

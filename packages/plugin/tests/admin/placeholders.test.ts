@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import * as paths from '../../src/admin/paths.js'
 const admin = [
+  ['XP_PLACEMENT_STATUS', 'PlacementStatus', 'PlacementStatus'],
   ['XP_TESTS_SURFACE', 'TestsSurface', 'surface/TestsSurface'],
   ['XP_TESTS_DASHBOARD_CARDS', 'TestsDashboardCards', 'TestsDashboardCards'],
   ['XP_TESTS_NAV_LINK', 'TestsNavLink', 'TestsNavLink'],

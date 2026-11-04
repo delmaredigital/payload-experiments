@@ -1,5 +1,6 @@
 import { safeError } from '../log.js'
 import type { PayloadRequest } from 'payload'
+import { retireSlug } from '../db/slugs.js'
 import { txExecutor } from '../db/executor.js'
 import { deleteExperimentSnapshots, serializeDelete } from '../db/delete.js'
 import { deleteExperimentEvents } from '../db/events.js'
@@ -15,6 +16,7 @@ export async function deleteExperiment(req: PayloadRequest, experimentId: DocId)
     await lockTransitionScope(exec, { experimentId })
     const current = await readExperiment(req, experimentId)
     if (current.status !== 'draft' && current.status !== 'archived') refuse('invalid-status')
+    await retireSlug(exec, current.slug)
     try {
       const collection = 'xp-phases'
       // §7.8 transition exception: cascade while FK references still exist.

@@ -4,7 +4,9 @@ import { formatAdminURL } from 'payload/shared'
 import { notFound, redirect } from 'next/navigation.js'
 import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'
 import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } from '../../collections/serialize.js'
-import { puckCollections } from '../../options.js'
+import { serializePageCollections } from '../pageCollections.js'
+import { collectionLabel as resolveLabel } from '../../collections/labels.js'
+import { documentEditor, puckCollections } from '../../options.js'
 import { xpOptionsFromReq } from '../../options/fromReq.js'
 import type { ExperimentsAccess } from '../../types/contracts.js'
 import type { FlagDefault } from '../../types/manifest.js'
@@ -26,6 +28,7 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
   else if (tail.length === 1 && tail[0] === 'goals') route = 'goals'
   else if (tail.length === 2 && tail[0] === 'goals') { route = tail[1] === 'new' ? 'goalNew' : 'goal'; if (route === 'goal') id = tail[1] }
   else if (tail.length === 1) { route = 'test'; id = tail[0] }
+  else if (tail.length === 2 && tail[0] === 'by-slug') { route = 'test'; id = tail[1] }
   else if (tail.length === 2 && tail[1] === 'results') { route = 'results'; id = tail[0] }
   else return notFound()
 
@@ -54,6 +57,11 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     return <RootViewMessage>{SURFACE_COPY.noAccess}</RootViewMessage>
   }
 
+  if (canManage && id && tail[0] === 'by-slug') {
+    const result = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 1, where: { slug: { equals: id } } })
+    if (!result.docs[0]) return notFound()
+    id = String(result.docs[0].id)
+  }
   const flagPoints = serializeFlagPoints(options)
   // xp-state is manager-readable only. Results-only readers do not edit settings.
   if (canManage && flagPoints.length) {
@@ -66,21 +74,18 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     try {
       const config = req.payload.config.collections.find(item => item.slug === collection)
       const useAsTitle = config?.admin.useAsTitle ?? 'id'
-      const label = config?.labels.plural
-      // Keep /rsc dependency-safe: translations is not a declared runtime dependency,
-      // so a per-language label picks the request language, then English, then any string.
-      const byLanguage: Record<string, unknown> = label && typeof label === 'object' ? label : {}
-      const collectionLabel = typeof label === 'string' ? label
-        : [byLanguage[req.i18n?.language ?? 'en'], byLanguage.en, ...Object.values(byLanguage)].find((value): value is string => typeof value === 'string') ?? collection
+      const collectionLabel = resolveLabel(config?.labels.plural, collection, req)
       const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0,
-        limit: 50, sort: '-updatedAt', draft: true, select: { [useAsTitle]: true } })
-      return result.docs.map(doc => {
+        limit: 50, sort: '-updatedAt', draft: false })
+      return (await Promise.all(result.docs.map(async main => {
+        const doc = main._status === 'draft' ? await req.payload.findByID({ collection, id: main.id, req, overrideAccess: false, depth: 0, draft: true }) : main
+        if (documentEditor(options, collection, doc) !== 'puck') return null
         const id = doc.id
-        const customUrl = options.admin?.editorUrl?.({ collection, id, draft: true })
+        const customUrl = options.admin?.editorUrl?.({ collection, id, draft: doc._status === 'draft', editor: documentEditor(options, collection, doc), doc })
         const title = doc[useAsTitle]
         return { collection, collectionLabel, id, title: typeof title === 'string' || typeof title === 'number' ? String(title) : String(id),
           editorUrl: typeof customUrl === 'string' ? customUrl : formatAdminURL({ adminRoute, path: `/collections/${collection}/${encodeURIComponent(String(id))}` }) }
-      })
+      }))).filter((page): page is NonNullable<typeof page> => page !== null)
     } catch { return [] }
   }))).flat() : undefined
   const descriptions = options.admin?.descriptions
@@ -89,6 +94,7 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     ...(typeof returnToTest === 'string' && /^[\w-]+$/.test(returnToTest) ? { returnToTest } : {}),
     route, ...(id === undefined ? {} : { id }), adminRoute, apiRoute: req.payload.config.routes.api,
     canManage, canReadResults, isAdmin, flagPoints, ...(pages === undefined ? {} : { pages }),
+    pageCollections: serializePageCollections(options.pages?.collections ?? [], req),
     attributeKeys: serializeAttributeKeys(options), metricSources: serializeMetricSources(options),
     ...(descriptions ? { admin: { descriptions: { ...descriptions } } } : {}),
   }

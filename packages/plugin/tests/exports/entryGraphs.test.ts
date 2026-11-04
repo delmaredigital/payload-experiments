@@ -118,3 +118,7 @@ test('every Next subpath value import in src has a Node ESM extension', () => {
   }
   expect([...imports].filter(value => !/\.(?:js|mjs|cjs|json)$/.test(value))).toEqual([])
 }, 30_000)
+
+test('rsc reaches the host SEO contract fixture', () => {
+  expect(collectImports(entry('rsc')).files).toContain(fileURLToPath(new URL('../../src/server/pageKindSeoContract.ts', import.meta.url)))
+})

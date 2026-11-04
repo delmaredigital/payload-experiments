@@ -1,4 +1,6 @@
 export const OVERRIDE_ACCESS_ALLOW_LIST: Array<{ file: string; reason: string }> = [
+  { file: 'src/db/pageContent.ts', reason: 'version-identical compares published content raw (ids stripped)' },
+  { file: 'src/db/pageContent.ts', reason: "status computes a page's published (or never-published draft) path" },
   { file: 'src/db/publishedContent.ts', reason: "§7.8 make-content: the published main row, so Payload's draft baseline never fills a field (KI-1)" },
   { file: 'src/db/publishedContent.ts', reason: '§7.8 make-content: the latest draft version, so restoring the draft never drops fields the manager cannot read (KI-1)' },
   { file: "src/hooks/pageGuard.ts", reason: "§7.8 page guard: the hook must see test placements regardless of the editor's access" },

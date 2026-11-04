@@ -456,6 +456,21 @@ are recorded with `trackConversion`. Beacon conversions for a non-writable name
 are dropped silently. Only listed names become `events:<name>` sources. They
 support visitor and user units and do not represent counts or revenue in v1.
 
+### Testing page SEO in the host
+
+`pageKindSeoContract({ secret, original, versions, state, winner? })` from `/rsc`
+returns `{ manifest, rows }`. States are `running`, `decided` and `archived`;
+provide a winner path for the latter two. Build the host's test runtime with
+`loadManifest: async () => manifest` and the same secret. For each row, set
+`next/headers` to its signed `headers`, render metadata for `servedPath`, and
+assert `expect.robots`, `expect.canonical` and `expect.inSitemap` against the
+host's metadata and sitemap functions. This includes the Original served as
+each version, including the homepage.
+
+A cc-lms-style host test mocks four boundaries: `next/headers`, the page loader,
+the runtime and the site URL. Set `metadataBase` so relative canonical paths
+resolve to your site URL.
+
 ### Whole-page options
 
 | Option | Purpose |
@@ -489,7 +504,18 @@ pages: {
 Adapt both callbacks for the site's homepage path. These checks run before Start;
 they do not protect pages from later deletion, unpublishing or renaming. Keep an
 archived winner published at the same address: archived test URLs still point to it.
-No migration is needed.
+Whole-page registrations also install the sidebar test status and content-change hooks.
+For 0.4.0, run `payload migrate:create` for `xp_state.retired_slugs`,
+`xp_experiments.page_collection` and its version column, then
+`payload generate:importmap`.
+
+`contentOf(doc)` optionally selects the content your site renders (for example,
+`doc.layout`). Published copies are compared with nested `id` and `blockName`
+keys removed. Without it, content checks and page content-change comparisons
+are skipped. `copyHint` (up to 200 characters), `copyUrl` (a root-relative path)
+and `copyLabel` (up to 40 characters, requires `copyUrl`) customize the guidance
+for making version pages. The default copy link opens the registered collection's
+list under the configured admin route.
 
 ### `admin` options
 
@@ -504,7 +530,7 @@ For example, pass:
 
 ```ts
 admin: {
-  editorUrl: ({ collection, id, draft }) =>
+  editorUrl: ({ collection, id, draft, editor, doc }) =>
     `/admin/puck-editor/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}`,
   previewUrl: async ({ collection, slug }) => {
     if (collection !== 'pages' || slug === undefined) return null

@@ -62,7 +62,7 @@ test.each(['draft', 'archived'])('delete %s cascades by id in the same request b
   expect(f.payload.documents['xp-phases']).toEqual([])
   expect(f.payload.documents['xp-results-snapshots']).toEqual([])
   expect(f.executor.calls.some(c => c.text.startsWith('DELETE FROM') && c.params[0] === 1)).toBe(true)
-  expect(f.executor.calls.filter(c => c.text.includes('advisory')).map(c => c.params)).toEqual([['1']])
+  expect(f.executor.calls.filter(c => c.text.includes('advisory')).map(c => c.params)).toEqual([['1'], []])
   const calls = f.payload.calls.filter(c => c.method === 'delete')
   expect(calls).toHaveLength(1)
   for (const call of calls) expect(call.args).toMatchObject({ req: f.req, overrideAccess: true, id: expect.any(Number) })

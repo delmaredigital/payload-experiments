@@ -1,3 +1,4 @@
+import { pageGuardBeforeChange } from '../../src/hooks/pageGuard.js'
 import type { Config } from 'payload'
 import { expect, test } from 'vitest'
 import { createExperimentsPlugin } from '../../src/plugin.js'
@@ -11,7 +12,7 @@ test('capture installs only on configured and enabled Puck collections', async (
   const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [
     { slug: 'pages', fields: [], versions: { drafts: {} } }, asks,
   ] })
-  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([contentChangesBeforeHook])
+  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([pageGuardBeforeChange, contentChangesBeforeHook])
   expect(config.collections?.[0]?.hooks?.afterChange).toEqual([contentChangesHook])
   expect(config.collections?.[1]).toBe(asks)
   options.puck.enabled = false

@@ -43,9 +43,9 @@ const exportsByEntry = [
   [runtimeProxy, ['defineExperimentsProxyRuntime', 'createPostgresManifestLoader', 'createHttpManifestLoader']],
   [runtimeServer, ['defineExperimentsServerRuntime']],
   [proxy, ['resolveExperiments', 'applyExperiments', 'createExperimentProxy']],
-  [rsc, ['getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments', 'compileManifest']],
+  [rsc, ['getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments', 'compileManifest', 'pageKindSeoContract']],
   [client, ['ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
-  [adminClient, ['XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField']],
+  [adminClient, ['XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField', 'PlacementStatus']],
   [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect']],
   [puck, ['ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
   [puckEditor, ['ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent', 'experimentOutlinePlugin']],
@@ -82,7 +82,7 @@ test.each(exportsByEntry)('entry exports every contracted value (%j)', (barrel, 
 })
 
 test('every route resolves a handler', () => {
-  expect(ROUTES).toHaveLength(18)
+  expect(ROUTES).toHaveLength(20)
   for (const route of ROUTES) expect(typeof route.handler, route.path).toBe('function')
 })
 

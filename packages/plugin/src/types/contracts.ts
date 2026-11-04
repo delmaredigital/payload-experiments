@@ -41,6 +41,10 @@ export type RateLimiter = (args: { req: PayloadRequest; unitId: string }) => boo
 export type ExperimentsAccess = (args: { req: PayloadRequest }) => boolean | Promise<boolean>
 export interface ExperimentsPageCollection {
   slug: string
+  contentOf?: (doc: Record<string, unknown>) => unknown
+  copyHint?: string
+  copyUrl?: string
+  copyLabel?: string
   pathOf: (doc: Record<string, unknown>) => string | null
   /** Lookup with the supplied req and overrideAccess: false. Under an anonymous req (results checks) only published pages are visible, so a hit is { published: true } or null. Under a req that can read drafts (Start), a draft-only page may be reported as { published: false }. */
   findByPath: (path: string, req: PayloadRequest) => Promise<{ id: string | number; published: boolean } | null>
@@ -50,15 +54,16 @@ export interface ExperimentsPluginOptions<TUser extends { id: string | number } 
   access: { manage: ExperimentsAccess; admin?: ExperimentsAccess; readResults?: ExperimentsAccess; readIdentities?: ExperimentsAccess }
   theme?: { accent?: string }
   admin?: {
-    editorUrl?: (args: { collection: string; id: DocId; draft?: boolean }) => string
+    editorUrl?: (args: { collection: string; id: DocId; draft?: boolean; editor: 'puck' | 'blocks' | 'page'; doc?: Record<string, unknown> }) => string
     previewUrl?: (placement: PreviewPlacement) => string | null | undefined | Promise<string | null | undefined>
-    descriptions?: { block?: string; document?: string; setting?: string }
+    descriptions?: { page?: string; block?: string; document?: string; setting?: string }
   }
   metricSources?: MetricSource[]
   eventSources?: Array<string | { name: string; clientWritable: boolean }>
   flagPoints?: FlagPoint[]
   attributeKeys?: Record<string, { type: 'string' | 'number' | 'boolean'; values?: string[] }>
   pages?: { collections: ExperimentsPageCollection[] }
+  blocks?: { collections: Array<{ slug: string; field: string; blockSlug?: string; appliesTo?: (doc: Record<string, unknown>) => boolean }> }
   puck?: { enabled: boolean; collections: Array<string | { slug: string; field?: string }> }
   events?: { retentionDays?: number; maxBodyBytes?: number; rateLimit?: RateLimiter; dimensions?: string[] }
 }

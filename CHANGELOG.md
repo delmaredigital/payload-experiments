@@ -11,6 +11,14 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Register whole-page content checks and copying guidance per page collection. Page tests can choose their collection, report identical versions and refuse versions at the same address.
+- Browse pages and read page/test status through manager-only endpoints, with published addresses preserved while drafts are edited. Registered collections get a sidebar status field and content-change auditing for whole-page tests.
+- Test host metadata and sitemap wiring with `pageKindSeoContract` from `/rsc`.
+- Deleted test short names are retired permanently; new tests automatically choose an unused suffix.
+- Register legacy blocks collections alongside Puck, with a shared document-editor rule and richer `editorUrl` context.
+- Migration impact: nullable `xp_state.retired_slugs`, `xp_experiments.page_collection` and its version column (`_xp_experiments_v.version_page_collection`). Hosts with a `pages` or `blocks` registration get the status field and content-change hooks; run `payload migrate:create` and `payload generate:importmap` on upgrade.
+
+
 - Added: `@delmaredigital/payload-experiments/admin/theme.css` and `/admin/ui.css` stylesheet exports, for hosts that run Puck outside Payload's admin; such a page also loads Payload's admin styles and sets `data-theme` (see the README). Inside the admin nothing changes.
 - Fixed: the block's test picker in the Puck sidebar renders inside its own field root, styled by the plugin's admin styles.
 - Added: the ExperimentsPageCollection type names one entry of the pages option. Migration impact: none.

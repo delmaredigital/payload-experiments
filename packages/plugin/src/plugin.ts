@@ -18,6 +18,9 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
     for (const { slug } of options.pages?.collections ?? []) {
       if (!config.collections?.some(collection => collection.slug === slug)) throw new Error(`Unknown experiments page collection: ${slug}`)
     }
+    for (const { slug } of options.blocks?.collections ?? []) {
+      if (!config.collections?.some(collection => collection.slug === slug)) throw new Error(`Unknown experiments blocks collection: ${slug}`)
+    }
     // The frozen factories consume registration/access metadata, never TUser callbacks.
     // Erase the user subtype only at this non-generic factory boundary.
     const { collections, globals } = buildCollections(options as unknown as Parameters<typeof buildCollections>[0])
@@ -37,15 +40,16 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
         ...(config.collections ?? []).map(collection => {
           const puck = options.puck?.enabled && registrations.some(entry => entry.slug === collection.slug)
           const page = options.pages?.collections.some(entry => entry.slug === collection.slug)
-          if (!puck && !page) return collection
-          return { ...collection, hooks: { ...collection.hooks,
-            beforeChange: [...(collection.hooks?.beforeChange ?? []), ...(page ? [pageGuardBeforeChange] : []), ...(puck ? [contentChangesBeforeHook] : [])],
-            ...(page ? {
+          const blocks = options.blocks?.collections.some(entry => entry.slug === collection.slug)
+          if (!puck && !page && !blocks) return collection
+          return { ...collection, fields: [{ name: 'xpPlacementStatus', type: 'ui' as const, admin: { position: 'sidebar' as const, components: { Field: paths.XP_PLACEMENT_STATUS } } }, ...collection.fields], hooks: { ...collection.hooks,
+            beforeChange: [...(collection.hooks?.beforeChange ?? []), pageGuardBeforeChange, contentChangesBeforeHook],
+            ...({
               beforeOperation: [...(collection.hooks?.beforeOperation ?? []), pageGuardBeforeOperation],
               beforeDelete: [...(collection.hooks?.beforeDelete ?? []), pageGuardBeforeDelete],
               afterOperation: [pageGuardAfterOperation, ...(collection.hooks?.afterOperation ?? [])],
-            } : {}),
-            ...(puck ? { afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook] } : {}),
+            }),
+            afterChange: [...(collection.hooks?.afterChange ?? []), contentChangesHook],
           } }
         }),
         ...collections,

@@ -156,7 +156,7 @@ test('block preflight resolves host URLs with publication state and carries ever
     { collection: 'pages', id: 11, title: 'Draft landing', detail: 'Draft', ok: false, url: '/page/11', editorUrl: '/editor/11?draft=true', slots: { control: 1, variantA: 0, variantB: 0, variantC: 0 } },
   ])
   expect(previewUrl.mock.calls).toEqual([[{ collection: 'pages', id: 10, title: 'Landing', published: true, slug: 'landing' }], [{ collection: 'pages', id: 11, title: 'Draft landing', published: false }]])
-  expect(editorUrl.mock.calls).toEqual([[{ collection: 'pages', id: 10, draft: false }], [{ collection: 'pages', id: 11, draft: true }]])
+  expect(editorUrl.mock.calls).toEqual([[expect.objectContaining({ collection: 'pages', id: 10, draft: false, editor: 'puck', doc: expect.objectContaining({ id: 10 }) })], [expect.objectContaining({ collection: 'pages', id: 11, draft: true, editor: 'puck', doc: expect.objectContaining({ id: 11 }) })]])
 })
 
 test('several slots on one page version share one host preview lookup', async () => {
@@ -321,4 +321,25 @@ test('timed-out host callbacks retain their permits and remaining placements kee
   await vi.advanceTimersByTimeAsync(0)
   expect(previewUrl).toHaveBeenCalledTimes(8)
   expect(vi.getTimerCount()).toBe(0)
+})
+
+test('page preflight uses its registered collection and passes the manager-read document to editorUrl', async () => {
+  const { options, req, payload } = setup()
+  const findByPath = vi.fn(async (path: string) => ({ id: path === '/original' ? 1 : 2, published: true }))
+  const other = vi.fn(async () => null)
+  options.pages = { collections: [{ slug: 'other', pathOf: () => null, findByPath: other }, { slug: 'pages', pathOf: doc => String(doc.path), findByPath }] }
+  options.admin = { editorUrl: vi.fn(({ doc, editor }) => `/edit/${editor}/${doc?.id}`) }
+  Object.assign(payload.config, { collections: [{ slug: 'pages', admin: { useAsTitle: 'title' } }] })
+  payload.documents.pages = [{ id: 1, title: 'Original', path: '/original', slug: 'original', _status: 'published' }, { id: 2, title: 'Version', path: '/version', slug: 'version', _status: 'published' }]
+  Object.assign(payload.documents['xp-experiments']![0]!, { kind: 'page', pageCollection: 'pages', exposurePolicy: 'pageview', arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/version' : '/original' })) })
+  const response = await handlePreflight(req, { options })
+  const result = await response.json() as PreflightResult
+  expect(result.placements).toEqual([])
+  expect(result.pagePlacements).toEqual([
+    { arm: 'control', path: '/original', collection: 'pages', id: 1, title: 'Original', published: true, slug: 'original', editorUrl: '/edit/page/1' },
+    { arm: 'variantA', path: '/version', collection: 'pages', id: 2, title: 'Version', published: true, slug: 'version', editorUrl: '/edit/page/2' },
+  ])
+  expect(options.admin.editorUrl).toHaveBeenCalledWith({ collection: 'pages', id: 1, draft: false, editor: 'page', doc: payload.documents.pages[0] })
+  expect(other).not.toHaveBeenCalled()
+  expect(payload.calls.filter(call => call.method === 'findByID').every(call => call.args.req === req && call.args.overrideAccess === false)).toBe(true)
 })

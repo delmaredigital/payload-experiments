@@ -55,7 +55,7 @@ describe('checkStart', () => {
   })
   test('all checks pass and remain in fixed order even when many checks fail', () => {
     const input = ready()
-    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-in-use', 'page-target-unpublished', 'page-targets-unchecked', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'empty-slot', 'make-content-unsupported', 'layer-unit-mismatch', 'layer-full', 'unknown-metric-source', 'unit-source-mismatch', 'block-path-rule', 'undeclared-targeting-key', 'invalid-targeting-rule']
+    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'unknown-collection', 'version-same-address', 'page-in-use', 'page-target-unpublished', 'page-targets-unchecked', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'empty-slot', 'make-content-unsupported', 'layer-unit-mismatch', 'layer-full', 'unknown-metric-source', 'unit-source-mismatch', 'block-path-rule', 'undeclared-targeting-key', 'invalid-targeting-rule']
     expect(checkStart(input)).toEqual(order.map(code => ({ code, ok: true })))
     for (const [, mutate] of cases) {
       const changed = ready(); mutate(changed)
@@ -82,7 +82,7 @@ describe('checkStart', () => {
     input.experiment.arms.push({ key: 'holdout', label: 'Holdout', kind: 'holdout', weight: 0 })
     expect(checkStart(input).every(check => check.ok)).toBe(true)
     input.experiment.kind = 'page'
-    input.experiment.arms = input.experiment.arms.map(arm => arm.kind === 'holdout' ? arm : { ...arm, pageTarget: '/hello' })
+    input.experiment.arms = input.experiment.arms.map(arm => arm.kind === 'holdout' ? arm : { ...arm, pageTarget: `/${arm.key}` })
     expect(checkStart(input).every(check => check.ok)).toBe(true)
   })
   test.each(['user', 'visitor'] as const)('events sources serve %s experiments', unitType => {

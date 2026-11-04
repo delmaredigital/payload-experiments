@@ -17,6 +17,7 @@ export interface ResultsCandidate {
   phase: ResultsPhase
   frozenSnapshot?: Snapshot | null
   kind?: ExperimentKind
+  pageCollection?: string | null
   currentPhase?: number
   winnerArm?: string | null
   unitType: UnitType
@@ -56,7 +57,7 @@ export async function resultsCandidates(exec: Executor, { cutoff, experimentId }
       'startedAt', p.${q(p.startedAt)}, 'endedAt', p.${q(p.endedAt)}, 'seed', p.${q(p.seed)},
       'arms', p.${q(p.arms)}, 'allocation', p.${q(p.allocation)}, 'metricDefinitions', p.${q(p.metricDefinitions)},
       'analysis', p.${q(p.analysis)}, 'contentChanges', p.${q(p.contentChanges)}) AS "phase",
-    e.${q(e.kind)} AS "kind", e.${q(e.phase)} AS "currentPhase", e.${q(e.unitType)} AS "unitType", e.${q(e.status)} AS "status", e.${q(e.decisionWinnerArm)} AS "winnerArm",
+    e.${q(e.pageCollection)} AS "pageCollection", e.${q(e.kind)} AS "kind", e.${q(e.phase)} AS "currentPhase", e.${q(e.unitType)} AS "unitType", e.${q(e.status)} AS "status", e.${q(e.decisionWinnerArm)} AS "winnerArm",
     latest."computedAt" AS "latestComputedAt",
     (SELECT t.${q(p.arms)} FROM ${phases} t WHERE t.${q(p.experimentId)} = p.${q(p.experimentId)} AND t.${q(p.phaseKind)} = 'test' AND t.${q(p.phase)} <= p.${q(p.phase)} ORDER BY t.${q(p.phase)} DESC LIMIT 1) AS "testArms",
     frozen."snapshot" AS "frozenSnapshot",

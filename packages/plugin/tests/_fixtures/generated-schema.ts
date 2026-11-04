@@ -1,5 +1,5 @@
 /**
- * Payload 3.90.2 — regenerated 2026-11-03, without a database connection.
+ * Payload 3.90.2 — regenerated 2026-11-04, without a database connection.
  * Built directly from src/collections (including its global factory).
  * Regenerate from packages/plugin:
  * NODE_OPTIONS=--conditions=@delmaredigital/source PAYLOAD_CONFIG_PATH=tests/_fixtures/schema/config.ts pnpm exec payload generate:db-schema
@@ -268,6 +268,7 @@ export const xp_experiments = pgTable(
     slug: varchar("slug").notNull(),
     hypothesis: varchar("hypothesis"),
     kind: enum_xp_experiments_kind("kind").notNull(),
+    pageCollection: varchar("page_collection"),
     flagPoint: varchar("flag_point"),
     exposurePolicy:
       enum_xp_experiments_exposure_policy("exposure_policy").notNull(),
@@ -469,6 +470,7 @@ export const _xp_experiments_v = pgTable(
     version_slug: varchar("version_slug").notNull(),
     version_hypothesis: varchar("version_hypothesis"),
     version_kind: enum__xp_experiments_v_version_kind("version_kind").notNull(),
+    version_pageCollection: varchar("version_page_collection"),
     version_flagPoint: varchar("version_flag_point"),
     version_exposurePolicy: enum__xp_experiments_v_version_exposure_policy(
       "version_exposure_policy",
@@ -1111,6 +1113,7 @@ export const payload_migrations = pgTable(
 export const xp_state = pgTable("xp_state", {
   id: serial("id").primaryKey(),
   revision: numeric("revision", { mode: "number" }).default(0),
+  retiredSlugs: jsonb("retired_slugs"),
   manifest: jsonb("manifest"),
   flagDefaults: jsonb("flag_defaults"),
   updatedAt: timestamp("updated_at", {

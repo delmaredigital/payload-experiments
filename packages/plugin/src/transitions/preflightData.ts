@@ -1,4 +1,6 @@
 import { Forbidden, NotFound, type PayloadRequest } from 'payload'
+import { resolvePageCollection } from './pageCollection.js'
+import { identicalPageVersions } from './pageVersions.js'
 import { safeError } from '../log.js'
 import { powerMetricWeeks } from '@delmaredigital/experiments-stats'
 import type { PowerMetricParams, PowerWeeksInput, PowerWeeksResult } from '@delmaredigital/experiments-stats'
@@ -39,9 +41,13 @@ export async function loadPageTestsInUse(req: PayloadRequest): Promise<NonNullab
 /** Page targets no registered collection reports as published. A lookup that throws counts as
  * unpublished (logged). Start calls it again under its page-path locks on a detached request. */
 export async function unpublishedPageTargets<TUser extends { id: DocId }>(req: PayloadRequest, options: ResolvedOptions<TUser>,
-  experiment: Pick<StartExperiment, 'id' | 'arms'>): Promise<string[]> {
+  experiment: Pick<StartExperiment, 'id' | 'arms' | 'pageCollection'>): Promise<string[]> {
+  const registered = options.pages?.collections ?? []
+  const resolved = experiment.pageCollection ? registered.find(entry => entry.slug === experiment.pageCollection)
+    : registered.length === 1 ? registered[0] : await resolvePageCollection(req, options, experiment)
+  const collections = resolved ? [resolved] : []
   const targets = await Promise.all(experiment.arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget?.trim()).map(async arm => {
-    for (const collection of options.pages?.collections ?? []) {
+    for (const collection of collections) {
       try {
         const page = await collection.findByPath(arm.pageTarget!, req)
         if (page?.published === true) return null
@@ -88,11 +94,15 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
         pageTestsInUse ??= loadPageTestsInUse(req)
         input.pageTestsInUse = await pageTestsInUse
         input.pageTargetsUnchecked = options.pages === undefined
-        if (options.pages) input.unpublishedPageTargets = await unpublishedPageTargets(req, options, experiment)
+        input.unknownPageCollection = Boolean(experiment.pageCollection && !options.pages?.collections.some(entry => entry.slug === experiment.pageCollection))
+        if (options.pages) {
+          input.unpublishedPageTargets = await unpublishedPageTargets(req, options, experiment)
+          if (options.pages.collections.some(entry => entry.contentOf)) input.identicalVersions = await identicalPageVersions(req, await resolvePageCollection(req, options, experiment), experiment.arms)
+        }
       }
       if (experiment.kind === 'block') {
         try {
-          blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, puckCollections: options.puck?.collections ?? [] })
+          blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, puckCollections: options.puck?.collections ?? [], blocksCollections: options.blocks?.collections })
           input.placements = (await blocks).get(experiment.slug) ?? []
         } catch (cause) { input.placementError = placementFailure(cause) }
       }
@@ -175,7 +185,7 @@ async function placementUrls<TUser extends { id: DocId }>(options: ResolvedOptio
   const url = await preview
   if (url !== undefined) result.url = url
   try {
-    const url = options.admin?.editorUrl?.({ collection, id, draft: !published })
+    const url = options.admin?.editorUrl?.({ collection, id, draft: !published, editor: placement.editor ?? 'puck', doc: placement.doc })
     if (typeof url === 'string') result.editorUrl = url
   } catch { /* Keep the client's default editor link available. */ }
   return result
@@ -304,5 +314,22 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
     }
   }))
   for (const placement of input.flagPlacements ?? []) placements.push({ collection: e.flagPoint ?? '', id: placement.arm, title: placement.arm, ok: placement.ok, ...(placement.detail ? { detail: placement.detail } : {}) })
-  return { checks: checkStart(input), placements, baseline, trafficPerDay, estimate: power }
+  const pagePlacements: NonNullable<PreflightResult['pagePlacements']> = []
+  if (e.kind === 'page') {
+    const collection = await resolvePageCollection(req, options, e)
+    for (const arm of e.arms.filter(arm => arm.kind !== 'holdout')) {
+      const path = arm.pageTarget ?? ''
+      let page = null
+      try { page = path && collection ? await collection.findByPath(path, req) : null }
+      catch (cause) { onPreviewFailure(cause, { collection: collection!.slug, id: path, title: path, published: false, slots: { control: 0, variantA: 0, variantB: 0, variantC: 0 } }) }
+      if (!page || !collection) { pagePlacements.push({ arm: arm.key, path, published: false, id: null, ...(collection ? { collection: collection.slug } : {}) }); continue }
+      const doc = await req.payload.findByID({ collection: collection.slug, id: page.id, req, overrideAccess: false, depth: 0, draft: !page.published })
+      const titleField = req.payload.config.collections?.find(entry => entry.slug === collection.slug)?.admin.useAsTitle ?? 'title'
+      const placement: BlockPlacement = { collection: collection.slug, id: page.id, title: String(doc[titleField] ?? doc.id), published: page.published,
+        ...(page.published && typeof doc.slug === 'string' ? { slug: doc.slug } : {}), slots: { control: 0, variantA: 0, variantB: 0, variantC: 0 }, editor: 'page', doc }
+      pagePlacements.push({ arm: arm.key, path, collection: collection.slug, id: page.id, title: placement.title, published: placement.published,
+        ...(placement.slug ? { slug: placement.slug } : {}), ...await placementUrls(options, placement, pendingPreviews, onPreviewFailure, previews) })
+    }
+  }
+  return { checks: checkStart(input), placements, ...(e.kind === 'page' ? { pagePlacements } : {}), baseline, trafficPerDay, estimate: power }
 }

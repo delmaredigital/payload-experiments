@@ -3,7 +3,11 @@ import { isDeepStrictEqual } from 'node:util'
 import type { CollectionAfterChangeHook, CollectionBeforeChangeHook } from 'payload'
 import { appendContentChange, contentChangeSavepoint, previousPublishedContent, runningContentExperiment, storedContent } from '../db/appends.js'
 import { txExecutor } from '../db/executor.js'
-import { puckCollections } from '../options.js'
+import { pageContentBindings } from '../db/pageBindings.js'
+import { sortLockKeys } from '../db/locks.js'
+import { normalisePath } from '../runtime/normalisePath.js'
+import { comparableContent } from '../transitions/pageVersions.js'
+import { documentEditor, puckCollections } from '../options.js'
 import { withTransition } from '../transitions/kernel.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 import { normaliseContentRelationships } from './normaliseContentRelationships.js'
@@ -93,8 +97,8 @@ async function auditContentChange({ doc, previousDoc, req, collection }: Content
   const options = req.payload.config.custom?.xp as ResolvedOptions | undefined
   const registration = puckCollections(options ?? {}).find(entry => entry.slug === collection.slug)
   const changes = (previous: unknown, current: unknown) => {
-    const after = bindings(registration && object(current) ? current[registration.field] : current, Boolean(registration))
-    const before = bindings(registration && object(previous) ? previous[registration.field] : previous, Boolean(registration))
+    const after = bindings(registration && object(current) ? current[registration.field] : current, Boolean(registration) && documentEditor(options ?? {}, collection.slug, object(current) ? current : {}) === 'puck')
+    const before = bindings(registration && object(previous) ? previous[registration.field] : previous, Boolean(registration) && documentEditor(options ?? {}, collection.slug, object(previous) ? previous : {}) === 'puck')
     return [...new Set([...before.keys(), ...after.keys()])]
       .filter(key => !isDeepStrictEqual(before.get(key)?.contents, after.get(key)?.contents))
       .map(key => after.get(key) ?? before.get(key)!)
@@ -109,18 +113,30 @@ async function auditContentChange({ doc, previousDoc, req, collection }: Content
     const locales = req.payload.config.localization ? req.payload.config.localization.localeCodes : []
     const normalise = (value: unknown) => normaliseContentRelationships(value, collection.fields, req.payload.config.blocks, locales)
     let changed
+    let beforeRow: unknown, afterRow: unknown
     if (baseline) {
       const current = await storedContent(req, collection.slug, doc.id)
       if (!current) throw new Error('The saved content row was not found.')
-      changed = changes(baseline.doc, current)
-    } else changed = changes(normalise(previousDoc), normalise(doc))
+      beforeRow = baseline.doc
+      afterRow = current
+      changed = changes(beforeRow, afterRow)
+    } else { beforeRow = normalise(previousDoc); afterRow = normalise(doc); changed = changes(beforeRow, afterRow) }
     const experiments = new Map<string, DocId>()
     for (const binding of changed) {
       const experiment = await runningContentExperiment(executor, binding)
       if (experiment) experiments.set(String(experiment.id), experiment.id)
     }
+    const page = options?.pages?.collections.find(entry => entry.slug === collection.slug)
+    if (page?.contentOf && !isDeepStrictEqual(comparableContent(object(beforeRow) ? page.contentOf(beforeRow) : undefined), comparableContent(object(afterRow) ? page.contentOf(afterRow) : undefined))) {
+      const paths = [beforeRow, afterRow].flatMap(row => {
+        const path = object(row) ? page.pathOf(row) : null
+        return path === null ? [] : [normalisePath(path)]
+      })
+      for (const id of await pageContentBindings(executor, collection.slug, paths)) experiments.set(String(id), id)
+    }
     // Successful audit locks persist until commit; acquire multiple E locks in order.
-    for (const [, experimentId] of [...experiments].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const key of sortLockKeys([...experiments.keys()])) {
+      const experimentId = experiments.get(key)!
       await withTransition(req, { experimentId, bump: false, audit: true }, async ({ exec }) => {
         const experiment = await runningContentExperiment(exec, { field: 'id', value: experimentId })
         if (!experiment) return

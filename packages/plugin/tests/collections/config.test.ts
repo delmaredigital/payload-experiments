@@ -1,3 +1,4 @@
+import { pickExperimentSlug } from '../../src/collections/experiments/pickSlug.js'
 import { describe, expect, test, vi } from 'vitest'
 import { buildCollections } from '../../src/collections/index.js'
 import { createDefaults } from '../../src/collections/experiments/createDefaults.js'
@@ -63,7 +64,7 @@ test('unnamed editor tabs preserve document paths and hook ordering', () => {
   expect(tabs[0]).not.toHaveProperty('name')
   expect(tabs[0]!.tabs.map(tab => ({ label: tab.label, description: tab.description }))).toEqual(['What', 'Who', 'Groups', 'Metrics'].map(label => ({ label, description: undefined })))
   for (const tab of tabs[0]!.tabs) expect(tab).not.toHaveProperty('name')
-  expect(experiments.hooks).toEqual({ beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter], afterError: [expect.any(Function)] })
+  expect(experiments.hooks).toEqual({ beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook, pickExperimentSlug], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter], afterError: [expect.any(Function)] })
 })
 
 test.each([undefined, []])('create defaults populate missing/empty arms (%j)', arms => {

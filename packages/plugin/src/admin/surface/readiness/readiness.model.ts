@@ -3,7 +3,7 @@ import type { SerializedFlagPoint } from '../../../types/admin.js'
 import type { TestDocument } from '../testDocument.model.js'
 import { formatDate } from '../../format/date.js'
 import { actionGroupLabel } from '../../actions/actions.model.js'
-import { unsupportedContentCopy, versionPageUnavailableCopy, versionPageUncheckedCopy, placementFailureCopy, pageInUseCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
+import { sameAddressCopy, identicalVersionCopy, unsupportedContentCopy, versionPageUnavailableCopy, versionPageUncheckedCopy, placementFailureCopy, pageInUseCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
 
 import { SECTION_ORDER, type SectionId } from '../contracts.js'
 export type ReadinessContext = Pick<TestDocument, 'arms' | 'unitType' | 'flagPoint'> & {
@@ -59,7 +59,10 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
     const paths = object(detail).paths
     return pageInUseCopy(text(Array.isArray(paths) ? paths[0] : undefined, 'this page'))
   }), nextStep: C.chooseDifferentPage },
-  'page-no-targets': row('versions', () => C.noTargets),
+  'page-no-targets': { ...row('versions', () => C.noTargets), nextStep: 'Choose pages' },
+  'unknown-collection': row('versions', () => "That page type isn't set up for tests."),
+  'version-identical': { ...row('versions', (detail, ctx) => identicalVersionCopy(text(object(detail).path, group(object(detail).arm, ctx)))), nextStep: 'Edit the version' },
+  'version-same-address': { ...row('versions', (detail, ctx) => sameAddressCopy(group(object(detail).arm, ctx), group(object(detail).otherArm, ctx), text(object(detail).path, 'this address'))), nextStep: 'Choose pages' },
   'page-target-unpublished': row('versions', detail => unpublishedPageCopy(text(detail, 'This page'))),
   'page-targets-unchecked': row('versions', () => C.uncheckedPages),
   'version-page-unavailable': row('versions', detail => versionPageUnavailableCopy(text(detail, 'This page'))),

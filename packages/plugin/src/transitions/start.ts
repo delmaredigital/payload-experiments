@@ -1,4 +1,6 @@
 import type { PayloadRequest } from 'payload'
+import { identicalPageVersions } from './pageVersions.js'
+import { resolvePageCollection } from './pageCollection.js'
 import { lockPagePaths } from '../db/locks.js'
 import { lockMetricsForFreeze } from '../db/metricUsage.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
@@ -27,6 +29,7 @@ export async function readExperiment(req: PayloadRequest, id: DocId): Promise<Tr
 }
 export function refuse(code: RefusalCode, detail?: unknown): never {
   const messages: Partial<Record<RefusalCode, string>> = {
+    'unknown-collection': "That page type isn't set up for tests.",
     'page-in-use': pageInUseCopy((detail as { paths?: string[] } | undefined)?.paths?.[0] ?? 'this page'),
     'page-target-unpublished': unpublishedPageCopy(typeof detail === 'string' ? detail : 'This page'),
     'invalid-status': 'This action is not available in the current status.',
@@ -89,7 +92,10 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
         const transactionID = req.transactionID
         delete req.transactionID
         let unpublished: string[]
-        try { unpublished = await unpublishedPageTargets(req, options, current) } finally { req.transactionID = transactionID }
+        try {
+          unpublished = await unpublishedPageTargets(req, options, current)
+          if (options.pages.collections.some(entry => entry.contentOf)) await identicalPageVersions(req, await resolvePageCollection(req, options, current), current.arms)
+        } finally { req.transactionID = transactionID }
         if (unpublished.length) refuse('page-target-unpublished', unpublished[0])
       }
     }

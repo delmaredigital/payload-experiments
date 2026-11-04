@@ -8,7 +8,7 @@ import { lockContentDefaults } from '../db/appends.js'
 import { pooledExecutor, txExecutor } from '../db/executor.js'
 import { currentTxid, txidStatus } from '../db/txid.js'
 import { buildAndStoreManifest } from '../manifest/compile.js'
-import { puckCollections } from '../options.js'
+import { documentEditor, puckCollections } from '../options.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 import { contentDone } from '../contentDone.js'
 import { archive } from './archive.js'
@@ -232,7 +232,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
         const transactionID = req.transactionID
         delete req.transactionID
         try {
-          scanned.push(...await scanBlockPlacements(req, { slug: current.slug, puckCollections: [registration] }))
+          scanned.push(...await scanBlockPlacements(req, { slug: current.slug, puckCollections: [registration], blocksCollections: options.blocks?.collections }))
         } catch (error) {
           // A collection made unreadable since the last attempt still has
           // retained placements to report below. Never sacrifice the outer tx.
@@ -286,6 +286,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           const drafts = Boolean(config?.versions && config.versions.drafts)
           const published = await readPublishedContent(req, collection, id)
           if (!published) throw new NotFound()
+          if (documentEditor(options, collection, published) !== 'puck') return
           const draft = drafts ? await latestDraftContent(req, collection, id) ?? published : published
           const draftValue = draft[field] ?? null
           const draftContent = unwrap(draftValue, current.slug, winner.slot!)

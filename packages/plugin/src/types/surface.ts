@@ -10,10 +10,11 @@ export interface TestsSurfaceProps {
   apiRoute: string
   isAdmin: boolean
   pages?: Array<{ collection: string; collectionLabel: string; id: DocId; title: string; editorUrl: string }>
+  pageCollections?: Array<{ slug: string; label: string; copyHint?: string; copyUrl?: string; copyLabel?: string }>
   canManage: boolean
   canReadResults: boolean
   flagPoints: SerializedFlagPoint[]
   attributeKeys: SerializedAttributeKeys
   metricSources: SerializedMetricSource[]
-  admin?: { descriptions?: { block?: string; document?: string; setting?: string } }
+  admin?: { descriptions?: { page?: string; block?: string; document?: string; setting?: string } }
 }

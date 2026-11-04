@@ -186,3 +186,12 @@ test.each(['dismissContentEntry', 'restoreContentEntry'] as const)('%s uses the 
     method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ collection: 'pages', id: 12 }),
   })
 })
+
+test('page picker and placement status use the configured API base', async () => {
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ docs: [], hasNextPage: false }))
+  const api = createApi('/custom-api')
+  await api.pages({ collection: 'pages', q: 'new copy', page: 2 })
+  expect(fetcher).toHaveBeenLastCalledWith('/custom-api/xp/pages?collection=pages&q=new+copy&page=2', expect.objectContaining({ method: 'GET' }))
+  await api.placementStatus({ docs: [{ collection: 'pages', id: 1 }] })
+  expect(fetcher).toHaveBeenLastCalledWith('/custom-api/xp/placements/status', expect.objectContaining({ method: 'POST', body: JSON.stringify({ docs: [{ collection: 'pages', id: 1 }] }) }))
+})

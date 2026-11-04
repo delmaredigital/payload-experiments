@@ -30,7 +30,7 @@ const required = {
     createExperimentSlotField: '../puck/experimentSlotField.js',
     EXPERIMENT_SLOT_TYPE: '../types/puck.js',
   },
-  rsc: { captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
+  rsc: { pageKindSeoContract: '../server/pageKindSeoContract.js', captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
   adminRsc: {
     ExperimentsRootView: '../admin/views/ExperimentsRootView.js',
     CollectionListRedirect: '../admin/views/CollectionListRedirect.js',

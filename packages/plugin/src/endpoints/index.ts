@@ -12,6 +12,8 @@ import { handlePreflight } from './preflight.js'
 import { handlePreviewToken } from './previewToken.js'
 import { handleResults } from './results.js'
 import { handleRecompute } from './recompute.js'
+import { handlePages } from './pages.js'
+import { handlePlacementStatus } from './placementStatus.js'
 import { handleSummary } from './summary.js'
 
 export const ROUTES: Array<{ method: Endpoint['method']; path: string; access: AccessKind; handler: <TUser extends { id: string | number }>(req: PayloadRequest, ctx: EndpointContext<TUser>) => Promise<Response> }> = [
@@ -33,6 +35,8 @@ export const ROUTES: Array<{ method: Endpoint['method']; path: string; access: A
   { method: 'get', path: '/xp/experiments/:id/results', access: 'readResults', handler: handleResults },
   { method: 'post', path: '/xp/experiments/:id/recompute', access: 'manage', handler: handleRecompute },
   { method: 'get', path: '/xp/experiments/summary', access: 'readResults', handler: handleSummary },
+  { method: 'get', path: '/xp/pages', access: 'manage', handler: handlePages },
+  { method: 'post', path: '/xp/placements/status', access: 'manage', handler: handlePlacementStatus },
 ]
 function error(status: number, code: RefusalCode, message: string, detail?: unknown): Response {
   return Response.json({ errors: [{ code, message, ...(detail === undefined ? {} : { detail }) }] } satisfies ErrorEnvelope, { status })

@@ -1,6 +1,6 @@
 import type { DocId } from '../types/contracts.js'
 import type {
-  RestoreContentEntryBody, RestoreContentEntryResult, DismissContentEntryBody, DismissContentEntryResult, AddMetricBody, AllocateBody, ArchiveBody, DecideBody, ErrorEnvelope, MakeContentResult,
+  PagesResult, PlacementStatusBody, PlacementStatusResult, RestoreContentEntryBody, RestoreContentEntryResult, DismissContentEntryBody, DismissContentEntryResult, AddMetricBody, AllocateBody, ArchiveBody, DecideBody, ErrorEnvelope, MakeContentResult,
   PreflightResult, PreviewTokenResult, RefusalCode, ResultsResponse, SummaryResponse, TransitionSuccess,
 } from '../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from './copy/common.js'
@@ -44,6 +44,8 @@ export function createApi(apiBase: string) {
   }
   const post = <T>(id: DocId, action: string, body?: unknown, options?: RequestOptions) => request<T>(() => route(id, action), 'POST', body, options)
   return {
+    pages: (query: { collection: string; q?: string; page?: number }) => request<PagesResult>(() => `${apiBase.replace(/\/$/, '')}/xp/pages?${new URLSearchParams({ collection: query.collection, ...(query.q ? { q: query.q } : {}), ...(query.page ? { page: String(query.page) } : {}) })}`, 'GET'),
+    placementStatus: (body: PlacementStatusBody) => request<PlacementStatusResult>(() => `${apiBase.replace(/\/$/, '')}/xp/placements/status`, 'POST', body),
     start: (id: DocId) => post<TransitionSuccess>(id, 'start'),
     allocate: (id: DocId, body: AllocateBody, options?: RequestOptions) => post<TransitionSuccess>(id, 'allocate', body, options),
     addMetric: (id: DocId, body: AddMetricBody, options?: RequestOptions) => post<TransitionSuccess>(id, 'add-metric', body, options),

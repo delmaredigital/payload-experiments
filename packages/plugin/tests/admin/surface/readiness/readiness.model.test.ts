@@ -24,7 +24,10 @@ const fixtures = {
   'layer-full': ['versions', undefined, "This test's group is full. Lower how many people take part, or create the test again without the group."],
   'layer-unit-mismatch': ['header', undefined, "This test's group counts different people. Create the test again without the group."],
   'page-in-use': ['versions', { paths: ['/original', '/variant'] }, 'Another running or decided test already uses /original. Choose a different page, or finish that test first.'],
-  'page-no-targets': ['versions', undefined, 'Add a page address for each version.'],
+  'page-no-targets': ['versions', undefined, 'Choose a page for each version.'],
+  'unknown-collection': ['versions', undefined, "That page type isn't set up for tests."],
+  'version-identical': ['versions', { arm: 'variantA', path: '/version' }, '/version looks the same as the Original, so the test would compare nothing. Change it before you start.'],
+  'version-same-address': ['versions', { arm: 'variantA', otherArm: 'control', path: '/' }, 'Short headline has the same address (/) as Original. Choose a different page.'],
   'page-target-unpublished': ['versions', '/variant', "/variant isn't a published page. Publish it, or pick another page."],
   'page-targets-unchecked': ['versions', undefined, "Version pages aren't checked; make sure each one is published."],
   'version-page-unavailable': ['versions', '/variant', "/variant isn't published, so visitors assigned to it see an error. Republish it, or stop the test."],
@@ -53,11 +56,11 @@ test('covers every literal start check and every member of both source unions (3
   const readinessUnion = source.split('export type ReadinessCode = ArmIssueCode')[1]!.split('export interface')[0]!
   const armUnion = endpoints.split('export type ArmIssueCode =')[1]!.split('\n')[0]!
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(23)
+  expect(literals).toHaveLength(25)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(35)
+  expect(members).toHaveLength(38)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
-  expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'version-page-unavailable', 'version-page-unchecked'].sort())
+  expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'version-identical', 'version-page-unavailable', 'version-page-unchecked'].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())
 })
 test('block path readiness names the removal step', () => {

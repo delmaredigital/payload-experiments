@@ -10,6 +10,9 @@ export type ReadinessCode = ArmIssueCode
   | 'no-planned-duration'
   | 'no-primary-metric'
   | 'no-reach-per-day'
+  | 'version-identical'
+  | 'version-same-address'
+  | 'unknown-collection'
   | 'page-no-targets'
   | 'page-in-use'
   | 'page-target-unpublished'
@@ -34,6 +37,7 @@ export type ReadinessCode = ArmIssueCode
 
 export interface StartExperiment {
   id: DocId; slug: string; status: Status; kind: ExperimentKind; unitType: UnitType
+  pageCollection?: string | null
   arms: Arm[]; allocation: number; exposurePolicy: ExposurePolicy; flagPoint?: string | null
   layer?: DocId | { id: DocId } | null; targeting?: TargetingRule[] | null
   metrics?: { primary?: DocId | { id: DocId } | null; secondary?: Array<DocId | { id: DocId }> | null; guardrails?: Array<DocId | { id: DocId }> | null } | null
@@ -45,6 +49,7 @@ export interface CheckStartInput {
   experiment: StartExperiment; metrics: StartMetric[]; metricSources?: Pick<MetricSource, 'id' | 'keyedBy'>[]
   flagPoints?: FlagPoint[]; placements?: BlockPlacement[]; flagPlacements?: FlagPlacement[]
   placementError?: PlacementFailure; flagPlacementError?: PlacementFailure; flagPointBusy?: boolean
+  unknownPageCollection?: boolean; identicalVersions?: Array<{ arm: string; path: string; collection: string; id: DocId }>
   unpublishedPageTargets?: string[]; pageTargetsUnchecked?: boolean
   pageTestsInUse?: Pick<StartExperiment, 'id' | 'arms'>[]
   layer?: { unitType: UnitType; usedSlices: number[] } | null
@@ -96,6 +101,16 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('no-primary-metric', primary !== undefined && input.metrics.some(metric => String(metric.id) === String(primary)))
   add('no-reach-per-day', !['manual', 'viewport'].includes(e.exposurePolicy) || positive(e.analysis?.reachPerDay))
   add('page-no-targets', e.kind !== 'page' || e.arms.filter(arm => arm.kind !== 'holdout').every(arm => typeof arm.pageTarget === 'string' && arm.pageTarget.trim().length > 0))
+  add('unknown-collection', !input.unknownPageCollection)
+  const addressed = new Map<string, string>()
+  const duplicate = e.kind === 'page' ? e.arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget).flatMap(arm => {
+    const path = normalisePath(arm.pageTarget!)
+    const otherArm = addressed.get(path)
+    addressed.set(path, arm.key)
+    return otherArm ? [{ arm: arm.key, otherArm, path }] : []
+  }) : []
+  add('version-same-address', duplicate.length === 0, duplicate[0])
+  for (const detail of input.identicalVersions ?? []) checks.push({ code: 'version-identical', ok: true, warning: true, detail })
   const occupiedPaths = new Set((input.pageTestsInUse ?? []).filter(other => String(other.id) !== String(e.id))
     .flatMap(other => pageTargetPaths(other.arms)))
   const sharedPaths = e.kind === 'page' ? pageTargetPaths(e.arms).filter(path => occupiedPaths.has(path)) : []

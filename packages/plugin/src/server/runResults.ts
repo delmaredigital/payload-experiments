@@ -212,7 +212,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
         const targets = new Set(arms.flatMap(arm => arm.pageTarget ? [arm.pageTarget] : []))
         for (const path of targets) {
           let published = false, found = false, unchecked = false
-          for (const collection of options.pages?.collections ?? []) {
+          for (const collection of current.pageCollection ? options.pages?.collections.filter(entry => entry.slug === current.pageCollection) ?? [] : options.pages?.collections ?? []) {
             try {
               const page = await raceDeadline(analysisDeadline, () => collection.findByPath(path, req))
               found ||= page != null

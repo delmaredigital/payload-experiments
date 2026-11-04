@@ -82,7 +82,7 @@ test('server runtime infers the host session user without a Payload collection',
     attributesOf: u => ({ loggedIn: Boolean(u), staff: Boolean(u && (u.role !== 'user' || u.impersonatedBy)) }),
   })
   const pluginOptions = { runtime, access: { manage: () => true } } satisfies ExperimentsPluginOptions<typeof user>
-  expect(buildEndpoints({ options: pluginOptions })).toHaveLength(18)
+  expect(buildEndpoints({ options: pluginOptions })).toHaveLength(20)
   expectTypeOf(runtime).toEqualTypeOf<ExperimentsServerRuntime<typeof user>>()
   expectTypeOf<Parameters<typeof runtime.userIdOf>[0]>().toEqualTypeOf<typeof user>()
   expectTypeOf<NonNullable<ExperimentsServerRuntimeOptions<typeof user>['getUser']>>().returns.toEqualTypeOf<Promise<typeof user | null>>()
