@@ -28,6 +28,12 @@ const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManag
   flagPoints: [], attributeKeys: {}, metricSources: [] }
 
 // Illustrative mockup values, only in this visual fixture. No inference is run here.
+// A decided round shows the stored winner verdict (as the server writes it), with the fixture's arm labels.
+function decisionSnapshot(base: ReturnType<typeof fixture>) {
+  const stored = fixture('T7-bayesian').verdict
+  const relabel = (text: string | null | undefined) => text?.replaceAll('Shorter form', 'Variant A') ?? text
+  return { ...base, verdict: { ...stored, finding: relabel(stored.finding)!, headline: relabel(stored.headline)!, action: relabel(stored.action) ?? null, detail: relabel(stored.detail)! } }
+}
 function mockupSnapshot() {
   const snapshot = fixture('T7-bayesian')
   snapshot.window = { from: '2026-10-25T12:00:00Z', to: '2026-11-03T12:00:00Z' }
@@ -85,7 +91,7 @@ test('writes real Shell and ResultsRoute scenarios in light and dark', async () 
         : url.endsWith('/preflight') ? { checks: [], placements: [{ collection: 'pages', id: 1, title: 'Registration thank you', url: '/thank-you', ok: true }] }
           : url.includes('/xp-experiments/') ? doc
             : url.includes('/summary?') ? { [state]: { exposures: snapshot.exposures.total, days: 9, verdict: snapshot.verdict } }
-              : { phases: state === 'rollout' ? [{ ...phase, phase: 1, phaseKind: 'test' }, phase] : [phase], snapshot, decision: doc.decision, decisionSnapshot: decided ? snapshot : undefined,
+              : { phases: state === 'rollout' ? [{ ...phase, phase: 1, phaseKind: 'test' }, phase] : [phase], snapshot, decision: doc.decision, decisionSnapshot: decided ? decisionSnapshot(snapshot) : undefined,
                 series: ['2026-10-26', '2026-10-28', '2026-11-03'].flatMap(computedAt => ['variantA', 'variantB'].map((arm, i) => ({ computedAt, metricId: snapshot.metrics[0]!.metricId, arm, lift: i === 0 ? .31 : .07, ci: i === 0 ? [-.08, .74] : [-.27, .45] }))) },
     )))
     vi.stubGlobal('fetch', fetcher)
