@@ -9,6 +9,20 @@ const cache = new Map<string, Arms>()
 const listeners = new Set<() => void>()
 type Pending = { controller: AbortController; consumers: AbortSignal[]; promise: Promise<EditorExperiment> }
 const pending = new Map<string, Pending>()
+const mounted = new Map<string, number>()
+
+/** Only the first mounted block discards a document left by an earlier editor. */
+export function acquireArms(testId: DocId): () => void {
+  const key = String(testId)
+  const count = mounted.get(key) ?? 0
+  mounted.set(key, count + 1)
+  if (count === 0 && !pending.has(key)) setArms(testId, undefined)
+  return () => {
+    const count = mounted.get(key)! - 1
+    if (count === 0) mounted.delete(key)
+    else mounted.set(key, count)
+  }
+}
 
 /** Share the request, but abort it only after its last mounted consumer leaves. */
 export function loadArms(testId: DocId, load: (signal: AbortSignal) => Promise<EditorExperiment>, signal: AbortSignal): Promise<EditorExperiment> {

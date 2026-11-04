@@ -173,6 +173,41 @@ test('during a refetch hidden rows stay hidden without flicker and the orphan wa
   expect(visibility('orphan')).toEqual([true, true, false, true])
 })
 
+test.each([false, true])('a second block joins known arms and the pending fetch; the next editor clears stale arms (orphan: %s)', async orphan => {
+  function AddBlock() {
+    const getPuck = useGetPuck()
+    return <button onClick={() => {
+      const { appState, dispatch } = getPuck()
+      dispatch({ type: 'setData', data: { ...appState.data, content: [...appState.data.content, block('orphan')] } })
+    }}>Add block</button>
+  }
+  const view = render(<Puck config={config} data={{ root: { props: {} }, content: [block('two-arm', 'test', orphan)] }}
+    plugins={[experimentOutlinePlugin()]} iframe={{ enabled: false }} ui={{ itemExpanded: { 'two-arm': true, orphan: true } }}>
+    <Puck.Outline /><Puck.Preview /><AddBlock />
+  </Puck>)
+  const knownVisibility = [true, true, false, orphan]
+  await waitFor(() => expect(visibility('two-arm')).toEqual(knownVisibility))
+  expect(fetch).toHaveBeenCalledTimes(1)
+  let finish!: (response: Response) => void
+  vi.mocked(fetch).mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+  returnToTab()
+  expect(fetch).toHaveBeenCalledTimes(2)
+  fireEvent.click(screen.getByRole('button', { name: 'Add block' }))
+  await waitFor(() => expect(document.querySelectorAll('.xp-slot-editor')).toHaveLength(2))
+  expect(visibility('two-arm')).toEqual(knownVisibility)
+  expect(visibility('orphan')).toEqual([true, true, false, false])
+  expect(Boolean(screen.queryByText(/Variant C has content/))).toBe(orphan)
+  expect(fetch).toHaveBeenCalledTimes(2)
+  await act(async () => { finish({ ok: true, json: async () => doc } as Response) })
+  view.unmount()
+
+  // No mounted consumer remains: a fresh editor must not trust the old document.
+  vi.mocked(fetch).mockReturnValueOnce(new Promise(() => {}))
+  mount({ root: { props: {} }, content: [block('two-arm')] }, true)
+  expect(visibility('two-arm')).toEqual([true, true, true, true])
+  expect(fetch).toHaveBeenCalledTimes(3)
+})
+
 test('a failed refetch clears known arms to unknown', async () => {
   mount({ root: { props: {} }, content: [block('two-arm')] }, true)
   await waitFor(() => expect(visibility('two-arm')).toEqual([true, true, false, false]))
@@ -190,7 +225,7 @@ test('SSR of the real outline with an unbound block needs no CSS browser global'
   expect(html).not.toContain('data-xp-outline')
 })
 
-test('typing in an unrelated field preserves the generated style node and text without mutations', () => {
+test('typing in an unrelated field does not regenerate rules and preserves the style without mutations', () => {
   setArms('test', ['control', 'variantA'])
   function UnrelatedField() {
     const getPuck = useGetPuck()
@@ -208,7 +243,10 @@ test('typing in an unrelated field preserves the generated style node and text w
   expect(text).toContain('display: none')
   const observer = new MutationObserver(() => {})
   observer.observe(style.parentNode!, { childList: true, subtree: true, characterData: true })
+  const escapes = vi.mocked(CSS.escape).mock.calls.length
+  expect(escapes).toBeGreaterThan(0)
   for (const value of ['H', 'He', 'Hello']) fireEvent.change(screen.getByLabelText('Unrelated field'), { target: { value } })
+  expect(CSS.escape).toHaveBeenCalledTimes(escapes)
   expect(document.querySelector('style[data-xp-outline="two-arm"]')).toBe(style)
   expect(style.textContent).toBe(text)
   expect(observer.takeRecords().filter(record => record.target === style || style.contains(record.target))).toEqual([])

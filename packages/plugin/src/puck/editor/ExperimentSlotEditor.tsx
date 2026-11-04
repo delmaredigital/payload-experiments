@@ -17,7 +17,7 @@ import { bannerFor, tabsFor, type EditorExperiment } from './editor.model.js'
 import { cloneSlot } from './cloneSlot.js'
 import { CreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
-import { loadArms, setArms, useArms } from './armsCache.js'
+import { acquireArms, loadArms, useArms } from './armsCache.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
@@ -76,8 +76,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     const controller = new AbortController()
     let current = true
     let request = 0
-    // A new binding starts unknown; same-id refreshes retain the last known arms.
-    setArms(experimentId, undefined)
+    const releaseArms = acquireArms(experimentId)
     async function load() {
       const revision = ++request
       try {
@@ -103,7 +102,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     // The linked test opens in another tab; refresh this same document source on return.
     const onVisible = () => { if (document.visibilityState === 'visible') void load() }
     document.addEventListener('visibilitychange', onVisible)
-    return () => { current = false; controller.abort(); document.removeEventListener('visibilitychange', onVisible) }
+    return () => { current = false; controller.abort(); releaseArms(); document.removeEventListener('visibilitychange', onVisible) }
   }, [experimentId, api])
 
   const result = experimentId === undefined || loaded?.id !== experimentId ? undefined : loaded
