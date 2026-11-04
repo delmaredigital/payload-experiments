@@ -15,37 +15,34 @@ const actions: Array<{ labels: string[]; endpointPath?: string; host?: true; sta
   { labels: ['Discard winner', 'discard the winner'], endpointPath: '/xp/experiments/:id/archive', statuses: ['decided'], body: { mode: 'discard', confirmation: 'discard winner' } },
   { labels: ['Release pages'], endpointPath: '/xp/experiments/:id/release-pages', statuses: ['archived'], body: {} },
   // Republishing is the editor's own publish of the host page, not an experiment transition.
-  { labels: ['Republish'], host: true, statuses: ['running', 'decided'] },
+  { labels: ['Republish it', 'Check that it is still published'], host: true, statuses: ['running', 'decided'] },
 ]
 const actionFor = (label: string) => actions.find(action => action.labels.some(value => value.toLowerCase() === label.toLowerCase()))
 
-test.each(['running', 'decided', 'archived'] as const)('every quoted guard action exists and allows %s', status => {
-  const name = '__test_name__'
-  const copy = pageGuardCopy(name, status)
-  const labels = [...copy.matchAll(/"([^"]+)"/g)].map(match => match[1]!).filter(label => label !== name)
-  if (/Stop the test/.test(copy)) labels.push('stop the test')
-  expect(labels.length).toBeGreaterThan(0)
-  for (const label of labels) {
-    const action = actionFor(label)
-    expect(action, `No route mapping for guard action "${label}"`).toBeDefined()
-    expect(action!.statuses).toContain(status)
-    if (!action!.host) expect(ROUTES.find(route => route.path === action!.endpointPath && route.method === 'post'), label).toMatchObject({ access: 'manage' })
-  }
-})
+// Explicit copy-state contract: changing an action's wording must update this table.
+const copyStates = {
+  'guard.running': { status: 'running', copy: pageGuardCopy('__test_name__', 'running'), labels: ['Stop the test'] },
+  'guard.decided': { status: 'decided', copy: pageGuardCopy('__test_name__', 'decided'), labels: ['Make it the content', 'Discard winner'] },
+  'guard.archived.winner': { status: 'archived', copy: pageGuardCopy('__test_name__', 'archived', 'winner'), labels: ['Release pages'] },
+  'guard.archived.original': { status: 'archived', copy: pageGuardCopy('__test_name__', 'archived', 'original'), labels: ['Release pages'] },
+  'unavailable.running': { status: 'running', copy: versionPageUnavailableCopy('/page', 'running'), labels: ['Republish it', 'stop the test'] },
+  'unavailable.decided': { status: 'decided', copy: versionPageUnavailableCopy('/page', 'decided'), labels: ['Republish it', 'discard the winner'] },
+  'unchecked.running': { status: 'running', copy: versionPageUncheckedCopy('/page', 'running'), labels: ['Check that it is still published', 'stop the test'] },
+  'unchecked.decided': { status: 'decided', copy: versionPageUncheckedCopy('/page', 'decided'), labels: ['Check that it is still published', 'discard the winner'] },
+} as const
 
-test.each(['running', 'decided'])('every version-page health action has a transition in %s', status => {
-  const unavailable = versionPageUnavailableCopy('/page', status)
-  const unchecked = versionPageUncheckedCopy('/page', status)
-  const labels = [
-    ...unavailable.slice(unavailable.lastIndexOf('. ') + 2).replace(/\.$/, '').split(', or ').map(label => label === 'Republish it' ? 'Republish' : label),
-    unchecked.split(', or ')[1]!.replace(/\.$/, ''),
-  ]
+test.each(Object.entries(copyStates))('%s names each mapped action verbatim and allows its status', (state, { copy, labels, status }) => {
+  // The copy names no action beyond the table: guard copy quotes its actions; health copy ends with them.
+  if (state.startsWith('guard.')) expect([...copy.matchAll(/"([^"]+)"/g)].map(match => match[1])
+    .filter(label => label !== '__test_name__' && !(labels as readonly string[]).includes(label!)), `${state}: unmapped quoted action`).toEqual([])
+  else expect(copy.endsWith(` ${labels.join(', or ')}.`), `${state}: actions sentence is not exactly the table's labels`).toBe(true)
   for (const label of labels) {
+    expect(copy, `${state}: missing verbatim action "${label}"`).toContain(label)
     const action = actionFor(label)
-    expect(action, `No route mapping for health action "${label}"`).toBeDefined()
-    expect(action!.statuses).toContain(status)
+    expect(action, `${state}: no route mapping for action "${label}"`).toBeDefined()
+    expect(action!.statuses, `${state}: action "${label}" refuses ${status}`).toContain(status)
     if (!action!.host) expect(ROUTES.find(route => route.path === action!.endpointPath && route.method === 'post'),
-      `Health copy action "${label}" has no experiment transition (${action!.endpointPath})`).toBeDefined()
+      `${state}: action "${label}" has no manager transition (${action!.endpointPath})`).toMatchObject({ access: 'manage' })
   }
 })
 

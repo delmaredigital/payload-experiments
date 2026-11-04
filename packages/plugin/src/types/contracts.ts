@@ -39,6 +39,12 @@ export interface FlagPoint {
 /** Host adapter: true permits the request; false drops it. */
 export type RateLimiter = (args: { req: PayloadRequest; unitId: string }) => boolean | Promise<boolean>
 export type ExperimentsAccess = (args: { req: PayloadRequest }) => boolean | Promise<boolean>
+export interface ExperimentsPageCollection {
+  slug: string
+  pathOf: (doc: Record<string, unknown>) => string | null
+  /** Lookup with the supplied req and overrideAccess: false. Under an anonymous req (results checks) only published pages are visible, so a hit is { published: true } or null. Under a req that can read drafts (Start), a draft-only page may be reported as { published: false }. */
+  findByPath: (path: string, req: PayloadRequest) => Promise<{ id: string | number; published: boolean } | null>
+}
 export interface ExperimentsPluginOptions<TUser extends { id: string | number } = { id: string | number }> {
   runtime: ExperimentsServerRuntime<TUser>
   access: { manage: ExperimentsAccess; admin?: ExperimentsAccess; readResults?: ExperimentsAccess; readIdentities?: ExperimentsAccess }
@@ -52,12 +58,7 @@ export interface ExperimentsPluginOptions<TUser extends { id: string | number } 
   eventSources?: Array<string | { name: string; clientWritable: boolean }>
   flagPoints?: FlagPoint[]
   attributeKeys?: Record<string, { type: 'string' | 'number' | 'boolean'; values?: string[] }>
-  pages?: { collections: Array<{
-    slug: string
-    pathOf: (doc: Record<string, unknown>) => string | null
-    /** Lookup with the supplied req and overrideAccess: false. Under an anonymous req (results checks) only published pages are visible, so a hit is { published: true } or null. Under a req that can read drafts (Start), a draft-only page may be reported as { published: false }. */
-    findByPath: (path: string, req: PayloadRequest) => Promise<{ id: string | number; published: boolean } | null>
-  }> }
+  pages?: { collections: ExperimentsPageCollection[] }
   puck?: { enabled: boolean; collections: Array<string | { slug: string; field?: string }> }
   events?: { retentionDays?: number; maxBodyBytes?: number; rateLimit?: RateLimiter; dimensions?: string[] }
 }

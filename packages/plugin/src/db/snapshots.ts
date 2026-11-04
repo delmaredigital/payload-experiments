@@ -57,12 +57,14 @@ export async function resultsCandidates(exec: Executor, { cutoff, experimentId }
       'arms', p.${q(p.arms)}, 'allocation', p.${q(p.allocation)}, 'metricDefinitions', p.${q(p.metricDefinitions)},
       'analysis', p.${q(p.analysis)}, 'contentChanges', p.${q(p.contentChanges)}) AS "phase",
     e.${q(e.kind)} AS "kind", e.${q(e.phase)} AS "currentPhase", e.${q(e.unitType)} AS "unitType", e.${q(e.status)} AS "status", e.${q(e.decisionWinnerArm)} AS "winnerArm",
-    (SELECT max(s.${q(s.computedAt)}) FROM ${snapshots} s WHERE s.${q(s.experimentId)} = p.${q(p.experimentId)} AND s.${q(s.phase)} = p.${q(p.phase)}) AS "latestComputedAt",
+    latest."computedAt" AS "latestComputedAt",
     (SELECT t.${q(p.arms)} FROM ${phases} t WHERE t.${q(p.experimentId)} = p.${q(p.experimentId)} AND t.${q(p.phaseKind)} = 'test' AND t.${q(p.phase)} <= p.${q(p.phase)} ORDER BY t.${q(p.phase)} DESC LIMIT 1) AS "testArms",
     frozen."snapshot" AS "frozenSnapshot",
     l.${q(l.slug)} AS "layerSlug", e.${q(e.layerSlices)} AS "layerSlices"
     FROM ${phases} p JOIN ${qualifiedTable(exec, TABLES.experiments)} e ON e.${q(e.id)} = p.${q(p.experimentId)}
     LEFT JOIN ${qualifiedTable(exec, TABLES.layers)} l ON l.${q(l.id)} = e.${q(e.layerId)}
+    LEFT JOIN LATERAL (SELECT max(s.${q(s.computedAt)}) AS "computedAt" FROM ${snapshots} s
+      WHERE s.${q(s.experimentId)} = p.${q(p.experimentId)} AND s.${q(s.phase)} = p.${q(p.phase)}) latest ON true
     LEFT JOIN LATERAL (SELECT s.${q(s.snapshot)} AS "snapshot" FROM ${snapshots} s
       WHERE s.${q(s.experimentId)} = p.${q(p.experimentId)} AND s.${q(s.phase)} = p.${q(p.phase)}
         AND p.${q(p.endedAt)} IS NOT NULL
@@ -78,8 +80,7 @@ export async function resultsCandidates(exec: Executor, { cutoff, experimentId }
           AND done.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond')))
       ${experimentId === undefined ? '' : ` AND p.${q(p.experimentId)} = $3`}
     ORDER BY (frozen."snapshot" IS NOT NULL),
-      CASE WHEN frozen."snapshot" IS NULL THEN
-        (SELECT max(s.${q(s.computedAt)}) FROM ${snapshots} s WHERE s.${q(s.experimentId)} = p.${q(p.experimentId)} AND s.${q(s.phase)} = p.${q(p.phase)}) END NULLS FIRST,
+      CASE WHEN frozen."snapshot" IS NULL THEN latest."computedAt" END NULLS FIRST,
       CASE WHEN frozen."snapshot" IS NOT NULL THEN random() END,
       p.${q(p.experimentId)}, p.${q(p.phase)}`, params)
   return rows

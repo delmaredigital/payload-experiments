@@ -225,12 +225,53 @@ test('manager field access does not strip the frozen analysis method or leak hid
 })
 
 
-import { preflightData } from '../../src/transitions/preflightData.js'
+import { preflightData, unpublishedPageTargets } from '../../src/transitions/preflightData.js'
 function pageFixture() {
   const f = fixture()
-  Object.assign(f.experiment, { kind: 'page', arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/variant' : '/original' })) })
-  return f
+  const arms: import('../../src/types/contracts.js').Arm[] = defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/variant' : '/original' }))
+  const experiment = Object.assign(f.experiment, { kind: 'page', arms })
+  return { ...f, experiment }
 }
+test('page lookups stop after the first collection reports a published page', async () => {
+  const { options, req, experiment } = pageFixture()
+  const first = vi.fn(async (path: string) => ({ id: path, published: true }))
+  const second = vi.fn(async () => null)
+  options.pages = { collections: [
+    { slug: 'first', pathOf: () => null, findByPath: first },
+    { slug: 'second', pathOf: () => null, findByPath: second },
+  ] }
+  expect(await unpublishedPageTargets(req, options, experiment)).toEqual([])
+  expect(first.mock.calls.map(call => call[0])).toEqual(['/original', '/variant'])
+  expect(second).not.toHaveBeenCalled()
+})
+test('a throwing page collection is logged and the next collection can report it published', async () => {
+  const { options, req, experiment, payload } = pageFixture()
+  const first = vi.fn(async () => { throw new Error('secret-value') })
+  const second = vi.fn(async (path: string) => ({ id: path, published: true }))
+  options.pages = { collections: [
+    { slug: 'first', pathOf: () => null, findByPath: first },
+    { slug: 'second', pathOf: () => null, findByPath: second },
+  ] }
+  expect(await unpublishedPageTargets(req, options, experiment)).toEqual([])
+  expect(first).toHaveBeenCalledTimes(2)
+  expect(second.mock.calls.map(call => call[0])).toEqual(['/original', '/variant'])
+  expect(payload.logs).toHaveLength(2)
+  expect(JSON.stringify(payload.logs)).not.toContain('secret-value')
+})
+test('page arms are looked up concurrently and unpublished targets retain arm order', async () => {
+  const { options, req, experiment } = pageFixture()
+  const finish = new Map<string, (page: null) => void>()
+  const findByPath = vi.fn((path: string) => new Promise<null>(resolve => { finish.set(path, resolve) }))
+  options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath }] }
+  const pending = unpublishedPageTargets(req, options, experiment)
+  try {
+    expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant'])
+  } finally {
+    finish.get('/variant')?.(null)
+    finish.get('/original')?.(null)
+  }
+  expect(await pending).toEqual(['/original', '/variant'])
+})
 test.each(['missing', 'draft', 'throws'] as const)('unpublished page target (%s) refuses both preflight and start', async mode => {
   const { options, req, experiment, executor, payload } = pageFixture()
   const findByPath = vi.fn(async (path: string, _req: import('payload').PayloadRequest) => {

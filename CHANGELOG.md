@@ -13,7 +13,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added: `@delmaredigital/payload-experiments/admin/theme.css` and `/admin/ui.css` stylesheet exports, for hosts that run Puck outside Payload's admin (inside the admin they are already loaded).
 - Fixed: the block's test picker in the Puck sidebar renders inside its own field root, styled by the plugin's admin styles.
-
+- Added: the ExperimentsPageCollection type names one entry of the pages option. Migration impact: none.
+- Changed: page lookups at start stop at the first collection that has the page published, and run per version in parallel. Migration impact: none.
 - Fixed: the Tests home, goal and layer lists, the block's test picker and new-test names read every page, so sites with many tests no longer lose items past the first 100–200 or fail to create a test with a common name.
 - Changed: CI workflows pin every action to a commit and give each job only the permissions it needs; only the publish job can request an npm OIDC token. Migration impact: none.
 
