@@ -32,6 +32,7 @@ const required = {
   },
   rsc: { pageKindSeoContract: '../server/pageKindSeoContract.js', captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
   adminRsc: {
+    TestsNavLinkServer: '../admin/views/TestsNavLinkServer.js',
     ExperimentsRootView: '../admin/views/ExperimentsRootView.js',
     CollectionListRedirect: '../admin/views/CollectionListRedirect.js',
     CollectionEditRedirect: '../admin/views/CollectionEditRedirect.js',
@@ -108,4 +109,10 @@ test('captureContentBaseline is the same wrapped hook installed by the plugin', 
   const { captureContentBaseline } = await import('../../src/exports/rsc.js')
   const { contentChangesBeforeHook } = await import('../../src/hooks/contentChanges.js')
   expect(captureContentBaseline).toBe(contentChangesBeforeHook)
+})
+
+test('surface-injected accent derivation stays module-only', () => {
+  for (const file of readdirSync(directory).filter(file => file.endsWith('.ts'))) {
+    expect(namedExports(parse(file), false).has('deriveAccentFor'), file).toBe(false)
+  }
 })

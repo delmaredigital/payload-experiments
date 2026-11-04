@@ -6,7 +6,7 @@ import { formatAdminURL } from 'payload/shared'
 import { usePathname } from 'next/navigation.js'
 import { SURFACE_COPY } from './copy/surface.js'
 
-function TestsNav() {
+function TestsNav({ isOpen = true }: { isOpen?: boolean }) {
   const { config } = useConfig()
   const { permissions } = useAuth()
   const pathname = usePathname()
@@ -23,8 +23,7 @@ function TestsNav() {
     { id: 'nav-xp-tests', href, label: SURFACE_COPY.navAllTests, active: testsActive },
     { id: 'nav-xp-goals', href: goalsHref, label: SURFACE_COPY.navGoals, active: goalsActive },
   ]
-  // getPreference is async and can fetch; let NavGroup default to open.
-  return <NavGroup label={SURFACE_COPY.title}>
+  return <NavGroup label={SURFACE_COPY.title} isOpen={isOpen}>
     {entries.map(entry => {
       const props = { className: 'nav__link', id: entry.id, 'aria-current': entry.active ? 'page' as const : undefined }
       const content = <>

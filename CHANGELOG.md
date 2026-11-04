@@ -18,6 +18,12 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed: legacy page tests resolve one collection from the Original (or the sole registration), then use it for every version. Migration impact: none; register `pageCollection` explicitly when several collections share an address.
 - Changed: Puck consumers share the document-editor `appliesTo` rule, and `admin.editorUrl` receives `editor` and `doc`. Migration impact: none; legacy blocks registration is reserved for the next lane.
 
+## [0.3.0-rc.3] - 2026-11-04
+
+### plugin
+
+- Fixed: the Tests group in the admin nav remembers being collapsed. A host nav group must not also be called "Tests" (it would share the group's state). The nav slot moves to `/admin/rsc#TestsNavLinkServer`; regenerate the import map (it adds `/admin/rsc#TestsNavLinkServer`; until then the Tests nav group does not appear). The old `/admin/client#TestsNavLink` export remains available.
+- Fixed: with a custom `theme.accent`, buttons always show a visible hover and pressed state, including accents right at the contrast limit; in dark mode such accents darken on hover so the step stays visible.
 - Added: `@delmaredigital/payload-experiments/admin/theme.css` and `/admin/ui.css` stylesheet exports, for hosts that run Puck outside Payload's admin; such a page also loads Payload's admin styles and sets `data-theme` (see the README). Inside the admin nothing changes.
 - Fixed: the block's test picker in the Puck sidebar renders inside its own field root, styled by the plugin's admin styles.
 - Added: the ExperimentsPageCollection type names one entry of the pages option. Migration impact: none.

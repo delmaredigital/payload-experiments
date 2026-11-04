@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { accentStyles, contrast, deriveAccent } from '../../src/ui/accent.js'
+import { accentStyles, contrast, deriveAccent, deriveAccentFor, validateAccent } from '../../src/ui/accent.js'
 import { resolveOptions } from '../../src/options.js'
 import { sampleOptions } from '../collections/fixtures.js'
 test.each(['#1f3a68', '#888888', '#ffffff', '#000000', '#fff', '#000', '#136'])('accepts accessible fill %s in both themes', accent => {
@@ -53,11 +53,11 @@ test('a light accent with dark foreground visibly lightens on hover and active',
     expect(contrast(set.active, '#000')).toBeGreaterThan(contrast(set.hover, '#000'))
   }
 })
-test('custom dark-theme hover follows the lighter default direction even with white text', () => {
+test('dark white-text fill switches direction when lightening cannot fit two visible steps', () => {
   const set = deriveAccent('#000').dark
   expect(set.fg).toBe('#ffffff')
   expect(set.hover).not.toBe(set.accent)
-  expect(contrast(set.hover, '#000')).toBeGreaterThan(contrast(set.accent, '#000'))
+  expect(contrast(set.hover, '#000')).toBeLessThan(contrast(set.accent, '#000'))
   for (const fill of [set.hover, set.active]) expect(contrast(set.fg, fill)).toBeGreaterThanOrEqual(4.5)
 })
 
@@ -68,4 +68,198 @@ test('host CSS publishes accessible text and decoration tokens for both themes',
     expect(css).toContain(`--xp-accent-text-decoration:${set.accentTextDecoration};`)
   }
   expect(accentStyles()).toBeUndefined()
+})
+
+test('#3377cc in dark has a visible hover at the foreground contrast limit', () => {
+  const { accent, hover } = deriveAccent('#3377cc').dark
+  expect(hover).not.toBe(accent)
+  expect(contrast(hover, accent)).toBeGreaterThanOrEqual(1.1)
+})
+
+test.each([
+  ['light', 3742, 161], ['dark', 2303, 1600],
+] as const)('%s: 16-level RGB grid (17 channel increments), 3903 accepted; preferred %i, other %i, insufficient 0', (mode, preferredCount, otherCount) => {
+  const counts = { accepted: 0, refused: 0, preferred: 0, other: 0 }
+  const insufficient: string[] = []
+  for (let r = 0; r <= 255; r += 17) for (let g = 0; g <= 255; g += 17) for (let b = 0; b <= 255; b += 17) {
+    const input = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')
+    // Freeze the old acceptance rule independently of validateAccent's derivation.
+    const sets = deriveAccent(input)
+    const acceptedBefore = Object.values(sets).every(set => Math.max(contrast(set.accent, '#ffffff'), contrast(set.accent, '#141414')) >= 4.5)
+    if (!acceptedBefore) { expect(() => validateAccent(input)).toThrow(/foreground contrast/); counts.refused++; continue }
+    expect(() => validateAccent(input), input).not.toThrow()
+    counts.accepted++
+    const set = sets[mode]
+    const hoverStep = contrast(set.accent, set.hover), activeStep = contrast(set.hover, set.active)
+    if (hoverStep < 1.1 || activeStep < 1.1) insufficient.push(input)
+    for (const fill of [set.accent, set.hover, set.active]) expect(contrast(fill, set.fg), `${input} ${mode} ${fill}`).toBeGreaterThanOrEqual(4.5)
+    const lightens = contrast(set.hover, '#000000') > contrast(set.accent, '#000000')
+    counts[lightens === (mode === 'dark' || set.fg === '#141414') ? 'preferred' : 'other']++
+  }
+  console.log(`${mode}: ${JSON.stringify(counts)}; insufficient (${insufficient.length}): ${JSON.stringify(insufficient)}`)
+  expect(insufficient, `${mode} colours without two 1.1:1 steps: ${insufficient.join(', ')}`).toEqual([])
+  expect(counts).toEqual({ accepted: 3903, refused: 193, preferred: preferredCount, other: otherCount })
+}, 30_000)
+
+const originalFixtures = {
+  "#3377cc": {
+    "light": {
+      "accent": "#3377cc",
+      "hover": "#2d69b4",
+      "active": "#275a9b",
+      "subtle": "#eff4fb",
+      "fg": "#ffffff",
+      "focus": "#3377cc",
+      "accentText": "#3377cc",
+      "accentTextDecoration": "none"
+    },
+    "dark": {
+      "accent": "#3377cc",
+      "hover": "#3377cc",
+      "active": "#3477cc",
+      "subtle": "#232930",
+      "fg": "#ffffff",
+      "focus": "#3377cc",
+      "accentText": "#508bd3",
+      "accentTextDecoration": "none"
+    }
+  },
+  "#1f3a68": {
+    "light": {
+      "accent": "#1f3a68",
+      "hover": "#1b335c",
+      "active": "#182c4f",
+      "subtle": "#edeff3",
+      "fg": "#ffffff",
+      "focus": "#1f3a68",
+      "accentText": "#1f3a68",
+      "accentTextDecoration": "none"
+    },
+    "dark": {
+      "accent": "#386abd",
+      "hover": "#4070c0",
+      "active": "#4976c3",
+      "subtle": "#24282e",
+      "fg": "#ffffff",
+      "focus": "#386abd",
+      "accentText": "#6189cb",
+      "accentTextDecoration": "none"
+    }
+  },
+  "#888888": {
+    "light": {
+      "accent": "#888888",
+      "hover": "#969696",
+      "active": "#a5a5a5",
+      "subtle": "#f5f5f5",
+      "fg": "#141414",
+      "focus": "#888888",
+      "accentText": "#767676",
+      "accentTextDecoration": "none"
+    },
+    "dark": {
+      "accent": "#888888",
+      "hover": "#969696",
+      "active": "#a5a5a5",
+      "subtle": "#2a2a2a",
+      "fg": "#141414",
+      "focus": "#888888",
+      "accentText": "#898989",
+      "accentTextDecoration": "none"
+    }
+  },
+  "#ffffff": {
+    "light": {
+      "accent": "#ffffff",
+      "hover": "#ffffff",
+      "active": "#ffffff",
+      "subtle": "#ffffff",
+      "fg": "#141414",
+      "focus": "#949494",
+      "accentText": "#767676",
+      "accentTextDecoration": "none"
+    },
+    "dark": {
+      "accent": "#ffffff",
+      "hover": "#ffffff",
+      "active": "#ffffff",
+      "subtle": "#343434",
+      "fg": "#141414",
+      "focus": "#ffffff",
+      "accentText": "#ffffff",
+      "accentTextDecoration": "none"
+    }
+  },
+  "#000000": {
+    "light": {
+      "accent": "#000000",
+      "hover": "#000000",
+      "active": "#000000",
+      "subtle": "#ebebeb",
+      "fg": "#ffffff",
+      "focus": "#000000",
+      "accentText": "#000000",
+      "accentTextDecoration": "none"
+    },
+    "dark": {
+      "accent": "#6c6c6c",
+      "hover": "#717171",
+      "active": "#767676",
+      "subtle": "#282828",
+      "fg": "#ffffff",
+      "focus": "#6c6c6c",
+      "accentText": "#898989",
+      "accentTextDecoration": "none"
+    }
+  },
+  "#113366": {
+    "light": {
+      "accent": "#113366",
+      "hover": "#0f2d5a",
+      "active": "#0d274e",
+      "subtle": "#eceff3",
+      "fg": "#ffffff",
+      "focus": "#113366",
+      "accentText": "#113366",
+      "accentTextDecoration": "none"
+    },
+    "dark": {
+      "accent": "#2368d0",
+      "hover": "#2d6fd2",
+      "active": "#3775d4",
+      "subtle": "#222830",
+      "fg": "#ffffff",
+      "focus": "#2368d0",
+      "accentText": "#5389da",
+      "accentTextDecoration": "none"
+    }
+  }
+} as const
+test.each(Object.entries(originalFixtures))('%s preserves every original token except hover/active', (input, original) => {
+  for (const mode of ['light', 'dark'] as const) {
+    const { hover: _hover, active: _active, ...before } = original[mode]
+    const { hover, active, ...after } = deriveAccent(input)[mode]
+    expect(after).toEqual(before)
+    expect(contrast(after.accent, hover)).toBeGreaterThanOrEqual(1.1)
+    expect(contrast(hover, active)).toBeGreaterThanOrEqual(1.1)
+  }
+})
+
+test('injected reference surfaces reproduce the standard derivation', () => {
+  expect(deriveAccentFor('#1f3a68', { light: '#ffffff', dark: '#222222' })).toEqual(deriveAccent('#1f3a68'))
+})
+
+test('accent text and focus fall back to the text token when no mix reaches the floor', () => {
+  // Black or white always clears 4.5:1 and 3:1 on a real surface, so raise the floors past 21:1.
+  const sets = deriveAccentFor('#3377cc', { light: '#ffffff', dark: '#222222' }, { text: 22, focus: 22 })
+  for (const set of [sets.light, sets.dark]) {
+    expect(set.accentText).toBe('var(--xp-text)')
+    expect(set.accentTextDecoration).toBe('underline')
+    expect(set.focus).toBe('var(--xp-text)')
+  }
+})
+test('the default floors never take the fallback on the reference surfaces', () => {
+  const sets = deriveAccentFor('#3377cc', { light: '#ffffff', dark: '#222222' })
+  expect(sets.light.accentTextDecoration).toBe('none')
+  expect(sets.dark.focus).not.toBe('var(--xp-text)')
 })

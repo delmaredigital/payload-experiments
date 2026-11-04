@@ -36,11 +36,10 @@ function againstSurface(accent: string, surface: string, minimum: number): strin
   }
   return undefined
 }
-function set(accent: string, surface: string, dark = false): AccentSet {
-  const fg = contrast(accent, '#ffffff') >= contrast(accent, '#141414') ? '#ffffff' : '#141414'
-  // Light fills with dark text lighten on interaction. Dark-theme fills follow
-  // the default dark tokens and also lighten. Clamp to preserve one foreground.
-  const target = dark || fg === '#141414' ? '#ffffff' : '#000000'
+type Interaction = Pick<AccentSet, 'hover' | 'active'>
+const interactionStep = (accent: string, states: Interaction) => Math.min(contrast(accent, states.hover), contrast(states.hover, states.active))
+/** Keep the old 12/24% steps when visible, otherwise search the full direction. */
+function interaction(accent: string, fg: string, target: string): Interaction {
   let low = 0, high = 0.24
   for (let i = 0; i < 24; i++) {
     const amount = (low + high) / 2
@@ -48,19 +47,52 @@ function set(accent: string, surface: string, dark = false): AccentSet {
     else high = amount
   }
   const amount = contrast(mix(accent, target, 0.24), fg) >= 4.5 ? 0.24 : low
-  const accentText = againstSurface(accent, surface, 4.5)
-  return { accent, hover: mix(accent, target, amount / 2), active: mix(accent, target, amount),
-    subtle: mix(surface, accent, 0.08), fg, focus: againstSurface(accent, surface, 3) ?? 'var(--xp-text)',
+  const original = { hover: mix(accent, target, amount / 2), active: mix(accent, target, amount) }
+  if (interactionStep(accent, original) >= 1.1) return original
+
+  const candidates = [accent]
+  let hover: string | undefined
+  for (let step = 1; step <= 1000; step++) {
+    const candidate = mix(accent, target, step / 1000)
+    if (contrast(candidate, fg) < 4.5) break
+    candidates.push(candidate)
+    if (!hover && contrast(accent, candidate) >= 1.1) hover = candidate
+    else if (hover && contrast(hover, candidate) >= 1.1) return { hover, active: candidate }
+  }
+  // If two full steps cannot fit, maximise the smaller step to the last safe fill.
+  const active = candidates[candidates.length - 1]!
+  return candidates.reduce<Interaction>((best, candidate) => {
+    const next = { hover: candidate, active }
+    return interactionStep(accent, next) > interactionStep(accent, best) ? next : best
+  }, { hover: accent, active })
+}
+/** Contrast floors for accent text and focus rings. Black or white always clears them on a real
+ * surface, so the fallbacks below are defensive; tests raise the floors to exercise them. */
+type Floors = { text: number; focus: number }
+const FLOORS: Floors = { text: 4.5, focus: 3 }
+function set(accent: string, surface: string, dark = false, floors: Floors = FLOORS): AccentSet {
+  const fg = contrast(accent, '#ffffff') >= contrast(accent, '#141414') ? '#ffffff' : '#141414'
+  const target = dark || fg === '#141414' ? '#ffffff' : '#000000'
+  const preferred = interaction(accent, fg, target)
+  const other = interaction(accent, fg, target === '#ffffff' ? '#000000' : '#ffffff')
+  const states = interactionStep(accent, preferred) >= 1.1 || interactionStep(accent, preferred) >= interactionStep(accent, other) ? preferred : other
+  const accentText = againstSurface(accent, surface, floors.text)
+  return { accent, ...states,
+    subtle: mix(surface, accent, 0.08), fg, focus: againstSurface(accent, surface, floors.focus) ?? 'var(--xp-text)',
     accentText: accentText ?? 'var(--xp-text)', accentTextDecoration: accentText ? 'none' : 'underline' }
 }
-/** Pure shared host-accent derivation. Reference surfaces match theme.css's Payload
- * 3.90.2 white / elevation-50 dark. Dark adjustment increases HSL lightness until
- * the quantised hex reaches 3:1. Hover/active move up to 12/24% in the interaction direction, clamped to preserve text contrast; subtle is 8% tint. */
+/** Pure shared host-accent derivation using theme.css's reference surfaces. */
 export function deriveAccent(input: string): { light: AccentSet; dark: AccentSet } {
+  return deriveAccentFor(input, { light: '#ffffff', dark: '#222222' })
+}
+/** Module-only surface injection; not a package API. Dark adjustment raises HSL
+ * lightness to 3:1. Interaction steps preserve the foreground and prefer the
+ * original direction when both steps reach 1.1:1; subtle remains an 8% tint. */
+export function deriveAccentFor(input: string, surfaces: { light: string; dark: string }, floors: Floors = FLOORS): { light: AccentSet; dark: AccentSet } {
   const accent = hexOf(rgb(input))
   let dark = accent
-  for (let step = 1; contrast(dark, '#222222') < 3 && step <= 1000; step++) dark = lighten(accent, step / 1000)
-  return { light: set(accent, '#ffffff'), dark: set(dark, '#222222', true) }
+  for (let step = 1; contrast(dark, surfaces.dark) < 3 && step <= 1000; step++) dark = lighten(accent, step / 1000)
+  return { light: set(accent, surfaces.light, false, floors), dark: set(dark, surfaces.dark, true, floors) }
 }
 /** Validated hex values only; specificity exceeds theme.css regardless of load order. */
 export function accentStyles(input?: string): string | undefined {
