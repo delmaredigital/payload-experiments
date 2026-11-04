@@ -1,3 +1,4 @@
+import { XpAnalysisError } from '../../src/errors.js'
 import { expect, test } from 'vitest'
 import { creditUserEvents } from '../../src/results/identityCredit.js'
 
@@ -75,7 +76,7 @@ test('accepts timestamp text and epoch milliseconds when choosing the earliest l
 
 test.each([new Date(NaN), 'invalid', NaN, Infinity, 8.64e15 + 1])('rejects invalid timestamps %s', ts => {
   expect(() => creditUserEvents(new Map([['a', { arm: 'control', firstTs: ts }]]), [], []))
-    .toThrow(RangeError)
+    .toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
   expect(() => creditUserEvents(new Map(), [], [{ userId: 'unexposed', value: 1, ts }]))
-    .toThrow(RangeError)
+    .toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
 })
