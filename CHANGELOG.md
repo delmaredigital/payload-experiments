@@ -11,6 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: the retention sweep logs its "made no progress" warning whenever the results budget ends before it deletes anything, including between statements. Migration impact: none.
 - Changed: the Tests home shows tests as compact rows grouped by what needs doing, with a health label and one-line status for each; draft tests name the next step to finish setting them up.
 - Fixed: a test's round records the sequential tuning value it started with (5,000 when left on Automatic), and a rollout round keeps the test round's value, so results never change if the default changes later. Migration impact: none.
 - Added: the tests summary includes each draft or stopped test's next readiness step (`next: { code, detail? }`, ids only), so the home list can say what to do next. Migration impact: none.
