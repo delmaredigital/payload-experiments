@@ -4,12 +4,13 @@ import type {
   PreflightResult, PreviewTokenResult, RefusalCode, ResultsResponse, SummaryResponse, TransitionSuccess,
 } from '../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from './copy/common.js'
+import { CONTENT_ENTRY_REFUSALS } from './copy/actions.js'
 
 // `data` is undefined when a 2xx response has no JSON body (the server always sends one; callers must not assume it).
 export type ApiResult<T> = { ok: true; data: T | undefined } | {
   ok: false; status: number; code?: RefusalCode; message: string; retryable: boolean
 }
-type RequestOptions = { notFound?: string }
+type RequestOptions = NonNullable<Parameters<typeof refusalMessage>[3]>
 
 export function createApi(apiBase: string) {
   const base = `${apiBase.replace(/\/$/, '')}/xp/experiments`
@@ -51,8 +52,8 @@ export function createApi(apiBase: string) {
     releaseHoldout: (id: DocId) => post<TransitionSuccess>(id, 'release-holdout'),
     releasePages: (id: DocId) => post<TransitionSuccess>(id, 'release-pages'),
     makeContent: (id: DocId) => post<MakeContentResult>(id, 'make-content'),
-    dismissContentEntry: (id: DocId, body: DismissContentEntryBody) => post<DismissContentEntryResult>(id, 'content-report/dismiss', body),
-    restoreContentEntry: (id: DocId, body: RestoreContentEntryBody) => post<RestoreContentEntryResult>(id, 'content-report/restore', body),
+    dismissContentEntry: (id: DocId, body: DismissContentEntryBody) => post<DismissContentEntryResult>(id, 'content-report/dismiss', body, CONTENT_ENTRY_REFUSALS),
+    restoreContentEntry: (id: DocId, body: RestoreContentEntryBody) => post<RestoreContentEntryResult>(id, 'content-report/restore', body, CONTENT_ENTRY_REFUSALS),
     archive: (id: DocId, body: ArchiveBody) => post<TransitionSuccess>(id, 'archive', body),
     preflight: (id: DocId) => request<PreflightResult>(() => route(id, 'preflight'), 'GET'),
     previewToken: (id: DocId, arm: string) => request<PreviewTokenResult>(() => `${route(id, 'preview-token')}?arm=${encodeURIComponent(arm)}`, 'GET'),

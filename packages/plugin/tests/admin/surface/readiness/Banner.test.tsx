@@ -364,3 +364,71 @@ test('Escape during a busy transition does not prevent dismissal after its refus
   fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
   expect(screen.queryByRole('dialog')).toBeNull()
 })
+
+test('make-content Dismiss/Undo and Finish use the surface API and existing archive reload', async () => {
+  const p = props({ status: 'decided', decision: { winnerArm: 'variantA' } })
+  const entry = { collection: 'pages', id: 2, ok: false, error: 'locked' }
+  const dismissed = { ...entry, dismissedAt: '2026-11-03T12:00:00Z' }
+  let resolveDismiss!: (value: Response) => void
+  const fetcher = vi.fn().mockResolvedValueOnce(response({ doc: {}, revision: 2, docs: [entry] }))
+    .mockReturnValueOnce(new Promise<Response>(resolve => { resolveDismiss = resolve }))
+    .mockResolvedValueOnce(response({ doc: { decision: { contentReport: { docs: [entry] } } } }))
+    .mockResolvedValueOnce(response({ doc: { decision: { contentReport: { docs: [dismissed] } } } }))
+    .mockResolvedValueOnce(success())
+  vi.stubGlobal('fetch', fetcher)
+  render(<Banner {...p} />)
+  fireEvent.click(button('Make it the content'))
+  fireEvent.click(dialogButton('Make it the content'))
+  const dismiss = await screen.findByRole('button', { name: 'Dismiss pages/2' })
+  act(() => { dismiss.click(); dismiss.click() })
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  expect(dialogButton('Done').disabled).toBe(true)
+  resolveDismiss(response({ doc: { decision: { contentReport: { docs: [dismissed] } } } }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Undo dismiss pages/2' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Dismiss pages/2' }))
+  const finish = await screen.findByRole('button', { name: 'Finish archiving' })
+  act(() => { finish.click(); finish.click() })
+  await waitFor(() => expect(p.test.reload).toHaveBeenCalledOnce())
+  expect(fetcher.mock.calls.map(call => call[0])).toEqual([
+    '/custom-api/xp/experiments/xp1/make-content',
+    '/custom-api/xp/experiments/xp1/content-report/dismiss',
+    '/custom-api/xp/experiments/xp1/content-report/restore',
+    '/custom-api/xp/experiments/xp1/content-report/dismiss',
+    '/custom-api/xp/experiments/xp1/archive',
+  ])
+  expect(JSON.parse(fetcher.mock.calls[4]?.[1].body)).toEqual({ mode: 'after-content' })
+})
+
+test('surface clears a stale retry error as soon as Dismiss starts', async () => {
+  const p = props({ status: 'decided', decision: { winnerArm: 'variantA' } })
+  const entry = { collection: 'pages', id: 2, ok: false, error: 'locked' }
+  let dismiss!: (value: Response) => void
+  const fetcher = vi.fn().mockResolvedValueOnce(response({ doc: {}, revision: 2, docs: [entry] }))
+    .mockResolvedValueOnce(response({ errors: [{ code: 'commit-unverified' }] }, 500))
+    .mockReturnValueOnce(new Promise<Response>(resolve => { dismiss = resolve }))
+  vi.stubGlobal('fetch', fetcher)
+  render(<Banner {...p} />)
+  fireEvent.click(button('Make it the content'))
+  fireEvent.click(dialogButton('Make it the content'))
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+  await screen.findByRole('alert')
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss pages/2' }))
+  expect(screen.queryByRole('alert')).toBeNull()
+  await act(async () => { dismiss(response({ doc: { decision: { contentReport: { docs: [{ ...entry, dismissedAt: '2026-11-03T12:00:00Z' }] } } } })) })
+})
+
+test.each([false, true])('surface uses the returned archived status to hide Finish (after Retry=%s)', async retry => {
+  const p = props({ status: 'decided', decision: { winnerArm: 'variantA' } })
+  const entry = { collection: 'pages', id: 1, ok: false }
+  const fetcher = vi.fn()
+  if (retry) fetcher.mockResolvedValueOnce(response({ doc: { status: 'decided' }, docs: [entry] }))
+  fetcher.mockResolvedValueOnce(response({ doc: { status: 'archived' }, docs: [{ ...entry, ok: true }] }))
+  vi.stubGlobal('fetch', fetcher)
+  render(<Banner {...p} />)
+  fireEvent.click(button('Make it the content'))
+  fireEvent.click(dialogButton('Make it the content'))
+  if (retry) fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+  await screen.findByText('pages/1: Updated')
+  expect(screen.queryByRole('button', { name: 'Finish archiving' })).toBeNull()
+  expect(dialogButton('Done')).toBeTruthy()
+})

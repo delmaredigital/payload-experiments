@@ -14,7 +14,18 @@ export const ACTIONS_COPY = {
   different: 'You chose a different group than the results recommend.',
   group: 'Group', note: 'Decision note', confirmation: 'Confirmation',
   typePhrase: 'Type the following to confirm:', cancel: 'Cancel', retry: 'Retry', done: 'Done',
-  loading: 'Loading results…', updated: 'Updated', failed: 'Failed', dismissed: 'Dismissed',
+  dismiss: 'Dismiss', dismissed: 'Dismissed', undo: 'Undo',
+  contentArchived: 'The winner is now the content and the test is archived.',
+  dismissLabel: (page: string) => `Dismiss ${page}`, undoLabel: (page: string) => `Undo dismiss ${page}`,
+  dismissHelp: "Dismiss a page you'll update by hand, then finish archiving.",
+  contentEntryNotDecided: "This test isn't decided, so its pages can't be changed.",
+  contentEntryMissing: 'This page is no longer in the list. Reload to see the current list.',
+  contentEntryDismissed: 'This page was already dismissed.',
+  contentEntryNotDismissed: "This page isn't dismissed. Reload to see its current state.",
+  contentEntryUpdated: 'This page is already updated.',
+  contentEntryNotFound: 'This test no longer exists.',
+  contentEntryFallback: "This page can't be changed right now. Reload to see its current state.",
+  loading: 'Loading results…', updated: 'Updated', failed: 'Failed',
   contentReasons: {
     localized: "This page has more than one language; Make it the content can't publish it safely yet. Copy the winning version by hand.",
     locked: 'Someone is editing this page. Wait for them to finish, then retry.',
@@ -39,3 +50,16 @@ export const hardCodedLabel = (winner: string) => `The developer has hard-coded 
 /** Old reports can contain host error text: never interpolate an unknown string. */
 export const contentReportCopy = (reason: string | undefined, ok = false) => reason === 'not-found' && ok ? ACTIONS_COPY.missingContent
   : ACTIONS_COPY.contentReasons[reason !== undefined && Object.hasOwn(ACTIONS_COPY.contentReasons, reason) ? reason as ContentReportReason : 'update-failed']
+
+// Each dismiss/restore refusal code has its own sentence; server text is never shown.
+export const CONTENT_ENTRY_REFUSALS = {
+  notFound: ACTIONS_COPY.contentEntryNotFound,
+  codes: {
+    'not-decided': ACTIONS_COPY.contentEntryNotDecided,
+    'entry-not-found': ACTIONS_COPY.contentEntryMissing,
+    'entry-ok': ACTIONS_COPY.contentEntryUpdated,
+    'entry-dismissed': ACTIONS_COPY.contentEntryDismissed,
+    'entry-not-dismissed': ACTIONS_COPY.contentEntryNotDismissed,
+  },
+  fallback: ACTIONS_COPY.contentEntryFallback,
+} as const

@@ -2,7 +2,9 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, afterEach, expect, test, vi } from 'vitest'
 import { ACTIONS_COPY } from '../../../src/admin/copy/actions.js'
-import { MakeContentResult } from '../../../src/admin/actions/MakeContentResult.js'
+import { MakeContentResult as Report } from '../../../src/admin/actions/MakeContentResult.js'
+import { createApi } from '../../../src/admin/api.js'
+import type { ComponentProps } from 'react'
 import { ConfirmDialog } from '../../../src/admin/actions/ConfirmDialog.js'
 import { availableActions } from '../../../src/admin/actions/actions.model.js'
 import { reloadPage } from '../../../src/admin/reload.js'
@@ -15,6 +17,10 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
 })
 afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.clearAllMocks() })
+const api = createApi('/api')
+function MakeContentResult(props: ComponentProps<typeof Report>) {
+  return <Report id={1} api={api} canManage isDecided {...props} />
+}
 const partial = { doc: {}, revision: 2, docs: [
   { collection: 'pages', id: 1, ok: true, title: 'Home' },
   { collection: 'pages', id: 2, ok: false, error: 'locked' },
@@ -34,7 +40,7 @@ test('make-content retry reposts and keeps results visible until Done reloads', 
   vi.stubGlobal('fetch', fetcher)
   const action = availableActions({ status: 'decided', kind: 'block', arms: [{ key: 'variantA' }],
     decision: { winnerArm: 'variantA' }, canManage: true }).find(item => item.id === 'make-content')!
-  render(<ConfirmDialog id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  render(<ConfirmDialog canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: 'Make it the content' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull())
@@ -48,20 +54,31 @@ test('make-content retry reposts and keeps results visible until Done reloads', 
   expect(reloadPage).toHaveBeenCalledTimes(1)
 })
 
-test('Retry synchronously prevents rapid duplicate calls and disables itself while pending', async () => {
+test('Retry synchronously prevents rapid duplicate calls and stays focusable while pending', async () => {
   let resolve!: () => void
   const pending = new Promise<void>(done => { resolve = done })
   const retry = vi.fn(() => pending)
   render(<MakeContentResult result={partial} onRetry={retry} />)
   const button = screen.getByRole('button', { name: 'Retry' }) as HTMLButtonElement
+  button.focus()
   act(() => { button.click(); button.click() })
   expect(retry).toHaveBeenCalledTimes(1)
-  expect(button.disabled).toBe(true)
+  expect(button.getAttribute('aria-disabled')).toBe('true')
+  expect(button.disabled).toBe(false)
+  expect(document.activeElement).toBe(button)
   resolve()
-  await waitFor(() => expect(button.disabled).toBe(false))
+  await waitFor(() => expect(button.getAttribute('aria-disabled')).toBeNull())
+  expect(document.activeElement).toBe(button)
 })
 
-test('make-content and Retry each POST once on rapid clicks with pending controls disabled', async () => {
+test('a make-content result that archived the test says so', () => {
+  const { rerender } = render(<MakeContentResult result={{ ...partial, doc: { status: 'archived' }, docs: [] }} onRetry={vi.fn()} />)
+  expect(screen.getByText(ACTIONS_COPY.contentArchived)).toBeTruthy()
+  rerender(<MakeContentResult result={{ ...partial, doc: { status: 'decided' } }} onRetry={vi.fn()} />)
+  expect(screen.queryByText(ACTIONS_COPY.contentArchived)).toBeNull()
+})
+
+test('make-content and Retry each POST once on rapid clicks while pending', async () => {
   let resolveFirst!: (value: Response) => void
   let resolveRetry!: (value: Response) => void
   const fetcher = vi.fn().mockReturnValueOnce(new Promise<Response>(done => { resolveFirst = done }))
@@ -69,7 +86,7 @@ test('make-content and Retry each POST once on rapid clicks with pending control
   vi.stubGlobal('fetch', fetcher)
   const action = availableActions({ status: 'decided', kind: 'block', arms: [{ key: 'variantA' }],
     decision: { winnerArm: 'variantA' }, canManage: true }).find(item => item.id === 'make-content')!
-  render(<ConfirmDialog id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  render(<ConfirmDialog canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
   const submit = screen.getByRole('button', { name: 'Make it the content' }) as HTMLButtonElement
   act(() => { submit.click(); submit.click() })
   expect(fetcher).toHaveBeenCalledTimes(1)
@@ -79,7 +96,7 @@ test('make-content and Retry each POST once on rapid clicks with pending control
   const retry = await screen.findByRole('button', { name: 'Retry' }) as HTMLButtonElement
   act(() => { retry.click(); retry.click() })
   expect(fetcher).toHaveBeenCalledTimes(2)
-  expect(retry.disabled).toBe(true)
+  expect(retry.getAttribute('aria-disabled')).toBe('true')
   expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true)
   resolveRetry(new Response(JSON.stringify({ ...partial, docs: partial.docs.map(doc => ({ ...doc, ok: true })) })))
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull())
@@ -107,13 +124,176 @@ test('an absent page already counted as done explains that no change is needed',
   expect(screen.getByText(`pages/1: Updated — ${ACTIONS_COPY.missingContent}`)).toBeTruthy()
 })
 
-test.each([false, true])('dismissed entries are handled; Retry depends on remaining active failures (%s)', active => {
-  render(<MakeContentResult result={{ doc: {}, revision: 2, docs: [
-    { collection: 'pages', id: 1, ok: true },
-    { collection: 'pages', id: 2, ok: false, detail: 'forbidden', dismissedAt: '2026-11-03T10:00:00.000Z', dismissedBy: '42' },
-    ...(active ? [{ collection: 'pages', id: 3, ok: false }] : []),
-  ] }} onRetry={vi.fn()} />)
-  expect(screen.getByText(`pages/2: Dismissed — ${ACTIONS_COPY.contentReasons.forbidden}`)).toBeTruthy()
-  expect(Boolean(screen.queryByRole('button', { name: 'Retry' }))).toBe(active)
-  expect(Boolean(screen.queryByText(ACTIONS_COPY.partial))).toBe(active)
+const failedEntry = { collection: 'pages', id: 2, ok: false, error: 'locked' }
+const dismissedEntry = { ...failedEntry, dismissedAt: '2026-11-03T12:00:00Z', dismissedBy: 'manager' }
+const entryResponse = (entry: typeof failedEntry) => new Response(JSON.stringify({ doc: { decision: { contentReport: { docs: [entry] } } } }))
+
+test('Dismiss and Undo keep keyboard focus while pending and focus the updated entry action', async () => {
+  let dismiss!: (response: Response) => void
+  let restore!: (response: Response) => void
+  const fetcher = vi.fn().mockReturnValueOnce(new Promise<Response>(resolve => { dismiss = resolve }))
+    .mockReturnValueOnce(new Promise<Response>(resolve => { restore = resolve }))
+  vi.stubGlobal('fetch', fetcher)
+  const otherEntry = { ...failedEntry, id: 3, title: 'About' }
+  render(<><button>Outside report</button><MakeContentResult result={{ ...partial, docs: [failedEntry, otherEntry] }} onRetry={vi.fn()} onFinish={vi.fn()} /></>)
+  const button = screen.getByRole('button', { name: 'Dismiss pages/2' }) as HTMLButtonElement
+  button.focus()
+  act(() => { button.click(); button.click() })
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  expect(button.getAttribute('aria-disabled')).toBe('true')
+  expect(document.activeElement).toBe(button)
+  // JSDOM does not blur a newly disabled button like a browser. Move away
+  // explicitly, then prove the pending control can receive focus again.
+  screen.getByRole('button', { name: 'Outside report' }).focus()
+  button.focus()
+  expect(document.activeElement).toBe(button)
+  expect(button.disabled).toBe(false)
+  expect(fetcher.mock.calls[0]?.[0]).toBe('/api/xp/experiments/1/content-report/dismiss')
+  expect(JSON.parse(fetcher.mock.calls[0]?.[1].body)).toEqual({ collection: 'pages', id: 2 })
+  dismiss(entryResponse(dismissedEntry))
+  const undo = await screen.findByRole('button', { name: 'Undo dismiss pages/2' }) as HTMLButtonElement
+  expect(document.activeElement).toBe(undo)
+  expect(undo.textContent).toBe('Undo')
+  expect(screen.getByText('pages/2: Dismissed')).toBeTruthy()
+  expect(undo.parentElement?.textContent).toBe('pages/2: Dismissed · Undo')
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Finish archiving' })).toBeNull()
+  act(() => { undo.click(); undo.click() })
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  expect(undo.getAttribute('aria-disabled')).toBe('true')
+  expect(undo.disabled).toBe(false)
+  expect(document.activeElement).toBe(undo)
+  expect(fetcher.mock.calls[1]?.[0]).toBe('/api/xp/experiments/1/content-report/restore')
+  expect(JSON.parse(fetcher.mock.calls[1]?.[1].body)).toEqual({ collection: 'pages', id: 2 })
+  restore(entryResponse(failedEntry))
+  const dismissAgain = await screen.findByRole('button', { name: 'Dismiss pages/2' })
+  expect(document.activeElement).toBe(dismissAgain)
+  expect(screen.getByText(`pages/2: Failed — ${ACTIONS_COPY.contentReasons.locked}`)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Finish archiving' })).toBeNull()
+})
+
+test('the last Dismiss focuses Finish archiving and hides actionable help', async () => {
+  const entry = { ...failedEntry, title: 'Landing page' }
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(entryResponse({ ...entry, ...dismissedEntry })))
+  render(<MakeContentResult result={{ ...partial, docs: [entry] }} onRetry={vi.fn()} onFinish={vi.fn()} />)
+  const dismiss = screen.getByRole('button', { name: 'Dismiss Landing page' })
+  expect(dismiss.textContent).toBe('Dismiss')
+  dismiss.focus()
+  fireEvent.click(dismiss)
+  const finish = await screen.findByRole('button', { name: 'Finish archiving' })
+  expect(document.activeElement).toBe(finish)
+  expect(screen.getByRole('button', { name: 'Undo dismiss Landing page' })).toBeTruthy()
+  expect(screen.queryByText(ACTIONS_COPY.dismissHelp)).toBeNull()
+  expect(screen.queryByText(ACTIONS_COPY.partial)).toBeNull()
+})
+
+test.each([
+  ['all updated', [partial.docs[0]!], true],
+  ['mixed updated and dismissed', [partial.docs[0]!, dismissedEntry], true],
+  ['still failed', [failedEntry], false],
+  ['empty', [], true],
+] as const)('Finish appears only when done: %s', (_name, docs, done) => {
+  render(<MakeContentResult result={{ ...partial, docs: [...docs] }} onRetry={vi.fn()} onFinish={vi.fn()} />)
+  expect(Boolean(screen.queryByRole('button', { name: 'Finish archiving' }))).toBe(done)
+})
+
+// Each server refusal code maps to its own sentence; unknown codes use the neutral fallback.
+test.each([
+  ['not decided', 'not-decided', 409, ACTIONS_COPY.contentEntryNotDecided],
+  ['entry no longer listed (404)', 'entry-not-found', 404, ACTIONS_COPY.contentEntryMissing],
+  ['entry already updated', 'entry-ok', 409, ACTIONS_COPY.contentEntryUpdated],
+  ['entry already dismissed', 'entry-dismissed', 409, ACTIONS_COPY.contentEntryDismissed],
+  ['entry not dismissed', 'entry-not-dismissed', 409, ACTIONS_COPY.contentEntryNotDismissed],
+  ['missing test', 'not-found', 404, ACTIONS_COPY.contentEntryNotFound],
+  ['unknown refusal', 'future-code', 422, ACTIONS_COPY.contentEntryFallback],
+] as const)('dismiss/restore refusal: %s uses persona copy and retains the entry', async (_case, code, status, expected) => {
+  const fetcher = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ errors: [{ code, message: 'Experiment not found' }] }), { status })))
+  vi.stubGlobal('fetch', fetcher)
+  const view = render(<MakeContentResult result={{ ...partial, docs: [failedEntry] }} onRetry={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss pages/2' }))
+  expect((await screen.findByRole('alert')).textContent).toBe(expected)
+  expect(view.container.textContent).not.toContain('Experiment not found')
+  expect(screen.getByRole('button', { name: 'Dismiss pages/2' })).toBeTruthy()
+  view.rerender(<MakeContentResult result={{ ...partial, docs: [dismissedEntry] }} onRetry={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Undo dismiss pages/2' }))
+  expect((await screen.findByRole('alert')).textContent).toBe(expected)
+  expect(screen.getByRole('button', { name: 'Undo dismiss pages/2' })).toBeTruthy()
+  expect(view.container.textContent).not.toContain('Experiment not found')
+})
+
+test.each([
+  [false, true], [true, false], [false, false],
+])('readers/non-decided tests have no report actions (manage=%s decided=%s)', (canManage, isDecided) => {
+  render(<MakeContentResult result={{ ...partial, docs: [failedEntry, dismissedEntry] }} onRetry={vi.fn()} onFinish={vi.fn()} canManage={canManage} isDecided={isDecided} />)
+  expect(screen.queryAllByRole('button')).toHaveLength(0)
+  expect(screen.queryByText(ACTIONS_COPY.dismissHelp)).toBeNull()
+  expect(screen.queryByText(ACTIONS_COPY.partial)).toBeNull()
+  expect(screen.getByText('pages/2: Dismissed')).toBeTruthy()
+})
+
+test('ConfirmDialog clears a stale retry error as soon as Dismiss starts', async () => {
+  let dismiss!: (response: Response) => void
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(partial)))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ errors: [{ code: 'commit-unverified' }] }), { status: 500 }))
+    .mockReturnValueOnce(new Promise<Response>(resolve => { dismiss = resolve }))
+  vi.stubGlobal('fetch', fetcher)
+  const action = availableActions({ status: 'decided', kind: 'block', arms: [], canManage: true }).find(item => item.id === 'make-content')!
+  render(<ConfirmDialog canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Make it the content' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+  await screen.findByRole('alert')
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss pages/2' }))
+  expect(screen.queryByRole('alert')).toBeNull()
+  await act(async () => { dismiss(entryResponse(dismissedEntry)) })
+})
+
+test('ConfirmDialog finishes through after-content archive once all failures are dismissed', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ...partial, docs: [failedEntry] })))
+    .mockResolvedValueOnce(entryResponse(dismissedEntry))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ doc: { status: 'archived' }, revision: 3 })))
+  vi.stubGlobal('fetch', fetcher)
+  const action = availableActions({ status: 'decided', kind: 'block', arms: [], canManage: true }).find(item => item.id === 'make-content')!
+  render(<ConfirmDialog canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Make it the content' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Dismiss pages/2' }))
+  const finish = await screen.findByRole('button', { name: 'Finish archiving' })
+  act(() => { finish.click(); finish.click() })
+  await waitFor(() => expect(reloadPage).toHaveBeenCalledOnce())
+  expect(fetcher).toHaveBeenCalledTimes(3)
+  expect(fetcher.mock.calls[2]?.[0]).toBe('/api/xp/experiments/1/archive')
+  expect(JSON.parse(fetcher.mock.calls[2]?.[1].body)).toEqual({ mode: 'after-content' })
+})
+
+test.each([false, true])('already archived make-content response offers Done without Finish (after Retry=%s)', async retry => {
+  const archived = { ...partial, doc: { status: 'archived' }, docs: partial.docs.map(entry => ({ ...entry, ok: true })) }
+  const fetcher = vi.fn()
+  if (retry) fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ ...partial, doc: { status: 'decided' } })))
+  fetcher.mockResolvedValueOnce(new Response(JSON.stringify(archived)))
+  vi.stubGlobal('fetch', fetcher)
+  const action = availableActions({ status: 'decided', kind: 'block', arms: [], canManage: true }).find(item => item.id === 'make-content')!
+  render(<ConfirmDialog canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Make it the content' }))
+  if (retry) fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+  await waitFor(() => expect(screen.getByText('pages/2: Updated — Someone is editing this page. Wait for them to finish, then retry.')).toBeTruthy())
+  expect(screen.queryByRole('button', { name: 'Finish archiving' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Dismiss pages/2' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
+})
+
+test('a refused Finish can be attempted again without reposting make-content', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ...partial, doc: { status: 'decided' }, docs: [dismissedEntry] })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ errors: [{ code: 'commit-unverified' }] }), { status: 500 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ doc: { status: 'archived' }, revision: 3 })))
+  vi.stubGlobal('fetch', fetcher)
+  const action = availableActions({ status: 'decided', kind: 'block', arms: [], canManage: true }).find(item => item.id === 'make-content')!
+  render(<ConfirmDialog canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Make it the content' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Finish archiving' }))
+  await screen.findByRole('alert')
+  expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Finish archiving' }))
+  await waitFor(() => expect(reloadPage).toHaveBeenCalledOnce())
+  expect(fetcher.mock.calls.map(call => call[0])).toEqual([
+    '/api/xp/experiments/1/make-content', '/api/xp/experiments/1/archive', '/api/xp/experiments/1/archive',
+  ])
 })
