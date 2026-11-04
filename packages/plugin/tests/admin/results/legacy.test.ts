@@ -84,6 +84,7 @@ test.each(['R2', 'R3'])('legacy %s recommendation keeps the recommended-arm and 
   expect(recommendation({ snapshot, phase: phaseFor(snapshot) })).toContain('Since shipping the winner:')
 })
 
+// The writer refuses a rollout snapshot without a winner, so this covers damaged stored data only.
 test('a decided current rollout with a null stored winner reports a data problem without borrowing a winner', () => {
   const snapshot = { ...fixture('R3'), winnerArm: null }
   const phase = phaseFor(snapshot)
