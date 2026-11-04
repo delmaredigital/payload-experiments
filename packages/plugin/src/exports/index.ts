@@ -13,6 +13,7 @@ export type {
   ClientAssignments,
   RenderedExposure,
   DocId,
+  PreviewPlacement,
   Attributes,
   ExposurePolicy,
   ExperimentKind,

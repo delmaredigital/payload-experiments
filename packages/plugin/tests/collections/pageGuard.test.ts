@@ -39,7 +39,7 @@ for (const status of ['running', 'decided', 'archived']) {
     describe(`${status} ${path}`, () => {
       test('refuses delete of the published main row', async () => {
         const f = setup(status, path)
-        await expect(f.remove()).rejects.toMatchObject({ status: 409, isPublic: true, message: pageGuardCopy('Better page', status as 'running' | 'decided' | 'archived') })
+        await expect(f.remove()).rejects.toMatchObject({ status: 409, isPublic: true, message: pageGuardCopy('Better page', status as 'running' | 'decided' | 'archived', status === 'archived' && path === '/original' ? 'original' : 'winner') })
         expect(f.read).toHaveBeenCalledWith(expect.objectContaining({ collection: 'pages', req: f.req, where: { id: { equals: 1 } } }))
         expect(f.payload.calls[0]!.args).toMatchObject({ req: f.req, overrideAccess: true })
         expect(f.findByPath).not.toHaveBeenCalled()

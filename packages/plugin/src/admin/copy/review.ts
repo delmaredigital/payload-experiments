@@ -1,8 +1,8 @@
 export const REVIEW_COPY = {
   noBaseline: 'No data yet for this metric.',
   preview: 'Preview',
+  previewBlocked: 'Your browser blocked the preview window. Allow pop-ups for this site, then try again.',
   placedTimes: (n: number) => `(placed ${n} times on this page)`,
-  noPreview: "Preview isn't set up for this page type",
   raise: 'Raise allocation',
   addMetric: 'Add a metric',
   allocationBody: 'Raising allocation adds people; nobody already taking part changes group. Lowering needs a new round.',

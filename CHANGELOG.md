@@ -12,6 +12,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### plugin
 
 - Added: `experimentOutlinePlugin()` (from `/puck/editor`) hides a block's empty version slots that its test doesn't use from the Puck outline; a slot with content that isn't part of the test stays visible with a warning. Add it to your Puck plugins.
+- Fixed: after a whole-page test is archived, trying to delete, rename or unpublish the Original page now says its address shows the winner, instead of calling the Original the winner. Migration impact: none.
+- Fixed: Preview opens its new tab in Safari and other browsers that block pop-ups opened after a delay; a refused preview shows plain-language copy instead of the server's message.
+- Added: `admin.previewUrl` may be async and receives the placement's title, published state and slug; returning null hides preview for that placement, and the admin never shows "Preview isn't set up". The old `({ collection, id }) => string` form still works, and several slots on one page version share one lookup. Migration impact: none.
 - Fixed: an event recorded in a visitor's own browser is always credited to that visitor when they saw the test, even if their link to a signed-in account can't be used. Migration impact: none.
 - Changed: the Experiment block in the Puck editor uses the new layout: name and status, a tab per version, and clear actions.
 - Added: `createExperimentSlotEditor` / `createExperimentSlot` take the host's admin and API routes (and accent); hosts on non-default routes switch to them.

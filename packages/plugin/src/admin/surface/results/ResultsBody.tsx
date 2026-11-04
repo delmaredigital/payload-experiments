@@ -16,6 +16,7 @@ import { METRICS_COPY } from '../../copy/metrics.js'
 import { API_MESSAGES } from '../../copy/common.js'
 import { armLabel } from '../../labels.js'
 import { PreviewLinks } from '../../PreviewLinks.js'
+import { actionablePreviewPages } from '../../previewLinks.model.js'
 import { VerdictHero } from '../../results/VerdictHero.js'
 import { StatTile } from '../../results/StatTile.js'
 import { DataTable, Swatch } from '../../results/DataTable.js'
@@ -149,7 +150,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
       {(['guardrail', 'secondary'] as const).map(role => phase.metrics.filter(metric => metric.role === role).map(metric =>
         <MetricTable key={metric.metricId} metric={metric} snapshot={shown} phase={phase} />))}
     </> : <>{meta}{state === 'empty' || state === 'ready' ? <p>{C.empty}</p> : null}</>}
-    {manage && placements && placements.length > 0 ? <section className="xp-results-block"><div className="xp-results-block-head"><h2>{C.previews}</h2></div><PreviewLinks experimentId={id} flagPoint={doc?.flagPoint} placements={placements} arms={doc?.arms ?? []} /></section> : null}
+    {manage && placements && actionablePreviewPages(placements, doc?.flagPoint).length > 0 ? <section className="xp-results-block"><div className="xp-results-block-head"><h2>{C.previews}</h2></div><PreviewLinks experimentId={id} flagPoint={doc?.flagPoint} placements={placements} arms={doc?.arms ?? []} /></section> : null}
     {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retryPreview}</Button></> : null}
     {deciding && manage && phase ? <DecideDialog id={id} arms={phase.arms} checks={checks} onClose={() => setDeciding(false)} /> : null}
     {releasing && manage ? <ReleasePagesDialog id={id} apiRoute={surface.apiRoute} onClose={() => setReleasing(false)}

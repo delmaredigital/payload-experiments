@@ -488,13 +488,23 @@ No migration is needed.
 ### `admin` options
 
 Host links and kind descriptions are optional. For a host using payload-puck's
-editor route and a `puck-templates` collection, pass:
+editor route, public pages and a `puck-templates` collection:
+
+| Option | Signature and behavior |
+| --- | --- |
+| `admin.previewUrl` | `(placement: PreviewPlacement) => string \| null \| undefined \| Promise<string \| null \| undefined>`. Receives `collection`, `id`, `title`, `published`, and optional `slug`. May be async; return `null` to hide preview for that placement. Each call has a 2 s limit, with at most 8 lookups awaited concurrently. |
+
+For example, pass:
 
 ```ts
 admin: {
   editorUrl: ({ collection, id, draft }) =>
     `/admin/puck-editor/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}`,
-  previewUrl: ({ id }) => `/preview/template/${encodeURIComponent(String(id))}`,
+  previewUrl: async ({ collection, slug }) => {
+    if (collection !== 'pages' || slug === undefined) return null
+    // Match the site's public page routing, including its homepage convention.
+    return slug === 'home' ? '/' : `/${slug}`
+  },
   descriptions: {
     block: 'Try different content on a landing page.',
     document: 'Try different versions of a donation ask.',
@@ -503,11 +513,21 @@ admin: {
 }
 ```
 
-Use your host's preview route for `previewUrl`. Preflight resolves both URL
-callbacks on the server for block placements; it passes only URL strings to the
-client. Missing or failed callbacks leave the URL unset, and the client uses the
-admin collection route when no editor URL is supplied. Kind descriptions are
-available to the server views through `config.custom.xp`.
+`PreviewPlacement` is exported from the package root and `/rsc`. Its `slug` is
+the published main row's string slug, including for a placement found in a newer
+draft with a different slug. It is absent for unpublished documents. `published`
+describes the placement's version; the callback receives no other document fields.
+An async callback can also look up the public path by `collection` and `id` using
+the host's own data access. The old `({ collection, id }) => string` form still works.
+
+Preflight resolves the URL callbacks on the server for block placements and sends
+only URL strings to the client. A null/undefined result, a non-string, an exception,
+a rejected promise or a timeout leaves preview hidden for that placement. When an
+editor URL exists, the admin offers "Edit on page"; when neither URL exists, it
+omits the row. Timed-out host work cannot be cancelled and keeps its concurrency
+slot until it settles; if all 8 slots remain occupied, further preview lookups
+are skipped for that preflight. Kind descriptions are available to the server views through
+`config.custom.xp`.
 
 A flag point can also declare `description?: string` to explain the setting below its label.
 

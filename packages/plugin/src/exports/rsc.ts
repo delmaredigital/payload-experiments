@@ -6,6 +6,7 @@ export { linkIdentity, type LinkIdentityOutcome } from '../server/linkIdentity.j
 export { trackConversion } from '../server/trackConversion.js'
 export { eraseUser } from '../server/eraseUser.js'
 export type { MetricUnavailableReason, ContentReportReason } from '../types/reasons.js'
+export type { PreviewPlacement } from '../types/contracts.js'
 export { runResults } from '../server/runResults.js'
 export { recordContentChange } from '../server/recordContentChange.js'
 export { experimentSitemapFilter } from '../server/sitemap.js'

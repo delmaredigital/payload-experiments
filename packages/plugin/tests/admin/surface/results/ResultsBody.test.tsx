@@ -372,7 +372,7 @@ test('reader sees the round but never the analysis method', async () => {
   expect(screen.getByRole('combobox', { name: 'Round' })).toBeTruthy()
   expect(screen.queryByText(/Sequential|Bayesian/)).toBeNull()
 })
-test('flag placement rows stay separate without page-slot counts', async () => {
+test('flag placements without preview or editor links do not render dead-end rows', async () => {
   const fetcher = setup()
   const original = fetcher.getMockImplementation()!
   fetcher.mockImplementation((url, init) => url.includes('/xp-experiments/') ? Promise.resolve(json({ ...doc, flagPoint: 'signup-choice' }))
@@ -381,9 +381,12 @@ test('flag placement rows stay separate without page-slot counts', async () => {
       { collection: 'signup-choice', id: 'variantA', title: 'Another signup page', ok: true },
     ] })) : original(url, init))
   const { container } = render(<ResultsBody id={1} surface={surface} />)
-  await screen.findByText('Another signup page')
-  expect(container.querySelectorAll('.xp-preview-row')).toHaveLength(2)
+  await screen.findByRole('table', { name: 'Registrations' })
+  expect(screen.queryByText('Another signup page')).toBeNull()
+  expect(screen.queryByText(/Preview isn't set up/)).toBeNull()
+  expect(container.querySelectorAll('.xp-preview-row')).toHaveLength(0)
   expect(container.textContent).not.toMatch(/placed \d+ times/)
+  expect(screen.queryByRole('heading', { name: 'Preview links' })).toBeNull()
 })
 test('Decide receives the localized warning from the existing preflight request', async () => {
   const fetcher = setup()
