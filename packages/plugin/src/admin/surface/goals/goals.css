@@ -1,15 +1,10 @@
+/* Compact rows reuse surface.css's xp-tests-list / xp-tests-row classes. */
 .xp-goals { display: grid; gap: var(--xp-space-4); }
-.xp-goals-breadcrumb { display: flex; flex-wrap: wrap; gap: var(--xp-space-2); align-items: center; }
-.xp-goals-table { overflow-x: auto; }
-.xp-goals-table table { width: 100%; border-collapse: collapse; text-align: left; }
-.xp-goals-table th, .xp-goals-table td { padding: var(--xp-space-3); border-bottom: 1px solid var(--xp-border); }
+.xp-goals > .xp-ui-field { max-width: 20rem; }
 .xp-goal-form { max-width: 48rem; display: grid; gap: var(--xp-space-4); }
-.xp-goal-form fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: var(--xp-space-3); }
-.xp-goal-form .xp-field { display: grid; gap: var(--xp-space-2); }
-.xp-goal-form input, .xp-goal-form select {
-  padding: var(--xp-space-3); color: var(--xp-text); background: var(--xp-input-bg); border: 1px solid var(--xp-input-border);
-}
-.xp-goal-form input[readonly] { background: var(--xp-surface); }
-.xp-goal-form details { padding: var(--xp-space-4); border: 1px solid var(--xp-border); }
-.xp-goal-form summary { cursor: pointer; margin-bottom: var(--xp-space-3); }
-.xp-goal-cancel { padding: var(--xp-space-2) var(--xp-space-4); color: var(--xp-text); }
+.xp-goal-form fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: var(--xp-space-4); }
+.xp-goal-form input[readonly] { background: var(--xp-surface-2); }
+.xp-goal-advanced { border: 1px solid var(--xp-border); border-radius: var(--xp-radius); }
+.xp-goal-advanced > summary { padding: var(--xp-space-4); cursor: pointer; font: var(--xp-text-body); }
+.xp-goal-advanced > summary:focus-visible { outline: 2px solid var(--xp-focus); outline-offset: 2px; }
+.xp-goal-advanced-fields { display: grid; gap: var(--xp-space-4); padding: 0 var(--xp-space-4) var(--xp-space-4); }
