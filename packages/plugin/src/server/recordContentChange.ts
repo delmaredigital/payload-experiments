@@ -106,7 +106,8 @@ async function auditContentChange({ doc, previousDoc, req, collection }: Content
     // Compare like with like. A captured baseline is adapter-raw, so it meets the stored row after the
     // write. Without one, previousDoc and doc are both afterRead documents (same locale projection,
     // hidden fields and field hooks) that differ only in depth, so only relationships are normalised.
-    const normalise = (value: unknown) => normaliseContentRelationships(value, collection.fields, req.payload.config.blocks)
+    const locales = req.payload.config.localization ? req.payload.config.localization.localeCodes : []
+    const normalise = (value: unknown) => normaliseContentRelationships(value, collection.fields, req.payload.config.blocks, locales)
     let changed
     if (baseline) {
       const current = await storedContent(req, collection.slug, doc.id)

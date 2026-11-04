@@ -9,7 +9,10 @@ const id = (value: unknown): unknown => object(value) && 'id' in value ? value.i
  * relationship expansion is the only depth-dependent transformation to undo.
  * Other objects (especially JSON content with its own ids) must stay intact.
  */
-export function normaliseContentRelationships(data: unknown, fields: Field[], blocks: Block[] = []): unknown {
+export function normaliseContentRelationships(data: unknown, fields: Field[], blocks: Block[] = [], locales: readonly string[] = []): unknown {
+  // With locale 'all', a localized field's value is { [locale]: value }: normalise each locale's value.
+  const localeMap = (value: unknown): value is Record<string, unknown> => locales.length > 0 && object(value)
+    && Object.keys(value).length > 0 && Object.keys(value).every(key => locales.includes(key))
   function lexical(value: unknown): unknown {
     if (!object(value)) return value
     const result = { ...value }
@@ -43,7 +46,12 @@ export function normaliseContentRelationships(data: unknown, fields: Field[], bl
           } else result = walk(result, tab.fields) as Record<string, unknown>
         }
       } else if ('name' in field && field.name) {
-        if (field.name in result) result[field.name] = fieldValue(result[field.name], field)
+        if (field.name in result) {
+          const value = result[field.name]
+          result[field.name] = 'localized' in field && field.localized && localeMap(value)
+            ? Object.fromEntries(Object.entries(value).map(([locale, entry]) => [locale, fieldValue(entry, field)]))
+            : fieldValue(value, field)
+        }
       } else if ('fields' in field) result = walk(result, field.fields) as Record<string, unknown>
     }
     return result

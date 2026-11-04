@@ -49,3 +49,15 @@ test('null, missing and unpopulated relationships stay unchanged; linked id chan
   }
   expect(normaliseContentRelationships({ link: { id: 'new' } }, fields)).not.toEqual({ link: 'old' })
 })
+
+test('locale all: a localized relationship map is normalised per locale, and a same-shaped group without locales is left alone', () => {
+  const fields = [
+    { name: 'image', type: 'upload', relationTo: 'media', localized: true },
+    { name: 'meta', type: 'group', fields: [{ name: 'en', type: 'text' }] },
+  ] as never
+  const doc = { image: { en: { id: 1, url: '/a.png' }, fr: 2 }, meta: { en: 'kept' } }
+  expect(normaliseContentRelationships(doc, fields, [], ['en', 'fr'])).toEqual({ image: { en: 1, fr: 2 }, meta: { en: 'kept' } })
+  expect(normaliseContentRelationships(doc, fields)).toEqual(doc)
+  expect(doc.image.en).toEqual({ id: 1, url: '/a.png' })
+})
+
