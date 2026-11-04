@@ -114,6 +114,7 @@
 }
 .xp-slot-version-menu .xp-ui-button { justify-content: start; }
 .xp-slot-weight-inputs, .xp-slot-people { display: flex; flex-wrap: wrap; gap: var(--xp-space-3); }
+.xp-slot-weight-inputs { align-items: flex-start; }
 .xp-slot-weight-inputs .xp-ui-field { flex: 1 1 120px; max-width: 200px; }
 .xp-slot-readout { display: grid; gap: var(--xp-space-2); }
 .xp-slot-readout > .xp-ui-button { justify-self: start; }
