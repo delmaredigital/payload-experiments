@@ -167,3 +167,11 @@ test('with a transaction the guard takes the page-path lock before reading tests
   expect(lock?.params).toEqual(['/original'])
 })
 
+test('an arm stored with a trailing slash protects the page the runtime routes to it', async () => {
+  const f = setup('running', '/original')
+  const test = f.payload.documents['xp-experiments']![0]! as unknown as { arms: Array<{ pageTarget?: string }> }
+  const phase = f.payload.documents['xp-phases']![0]! as unknown as { arms: Array<{ pageTarget?: string }> }
+  for (const arms of [test.arms, phase.arms]) for (const arm of arms) if (arm.pageTarget === '/original') arm.pageTarget = '/original/'
+  await expect(f.remove()).rejects.toMatchObject({ status: 409 })
+})
+

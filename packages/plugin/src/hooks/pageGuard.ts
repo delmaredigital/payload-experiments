@@ -60,7 +60,7 @@ async function protect(req: PayloadRequest, path: string): Promise<void> {
     if (!phase) throw new XpRefusal('invalid-phase', READINESS_COPY.missingVersions, { experimentId: test.id }, 409)
     const arms = phase.arms as Arm[]
     const protectedArms = archived ? arms.filter(arm => arm.kind === 'control' || arm.key === decision!.winnerArm) : arms
-    const matched = protectedArms.find(arm => arm.pageTarget === path)
+    const matched = protectedArms.find(arm => arm.pageTarget !== undefined && normalisePath(arm.pageTarget) === normalisePath(path))
     if (matched) {
       const role = archived && matched.key !== decision!.winnerArm ? 'original' : 'winner'
       throw new XpRefusal('locked-placement', pageGuardCopy(String(test.name), test.status as 'running' | 'decided' | 'archived', role), { experimentId: test.id }, 409)
