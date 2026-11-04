@@ -2,7 +2,10 @@ import type { TargetingRule } from '../../types/contracts.js'
 import type { SerializedAttributeKeys } from '../../types/admin.js'
 import { TARGETING_OPS, isOpValid } from '../../targeting/ops.js'
 import type { TargetingOp } from '../../targeting/ops.js'
+import { coerceListValue, readListValue } from '../../targeting/values.js'
 import { NUMBER_OP_LABELS, STRING_OP_LABELS, AUDIENCE_COPY } from '../copy/audience.js'
+
+export { readListValue } from '../../targeting/values.js'
 
 type Attribute = SerializedAttributeKeys[string]
 export type AttributeType = Attribute['type']
@@ -23,7 +26,7 @@ export function valueInput(attribute?: Attribute, op: TargetingOp = 'eq'): {
 export function coerceValue(type: AttributeType, op: TargetingOp, raw: unknown): string | number | boolean | string[] | null {
   if (!isOpValid(type, op)) return null
   if (type === 'string') {
-    if (op === 'in' || op === 'nin') return [...new Set((Array.isArray(raw) ? raw.map(String) : [String(raw ?? '')]).map(value => value.trim()).filter(Boolean))]
+    if (op === 'in' || op === 'nin') return coerceListValue(raw)
     return raw == null ? '' : String(raw)
   }
   if (type === 'number') {
@@ -32,10 +35,6 @@ export function coerceValue(type: AttributeType, op: TargetingOp, raw: unknown):
     return Number.isFinite(value) ? value : null
   }
   return raw === true || raw === 'true' ? true : raw === false || raw === 'false' ? false : null
-}
-/** Only the read boundary accepts legacy comma-separated document values. */
-export function readListValue(raw: unknown): string[] {
-  return coerceValue('string', 'in', typeof raw === 'string' ? raw.split(',') : raw) as string[]
 }
 /** Normalize the read boundary before any whole-group edit. */
 export function readTargetingRules(rules: TargetingRule[]): TargetingRule[] {

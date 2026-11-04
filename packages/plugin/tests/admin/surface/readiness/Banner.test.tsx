@@ -41,7 +41,7 @@ test('block path refusal shows its message and removal line in Who takes part an
   render(<Banner {...props({}, { preflight: preflight([{ code: 'block-path-rule', ok: false, detail: { rules: [1] } }]) })} />)
   const message = 'Remove the page-path rule in Who takes part; page block tests run on their page.'
   expect(screen.getByRole('status').textContent).toContain(message)
-  expect(screen.getByText('Remove the rule').closest('a')?.getAttribute('href')).toBe('#section-who')
+  expect(screen.getByText('Remove rule').closest('a')?.getAttribute('href')).toBe('#section-who')
   expect(button('Start').disabled).toBe(true)
   expect(button('Start').closest('[title]')?.getAttribute('title')).toBe(message)
 })

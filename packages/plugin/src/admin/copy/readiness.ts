@@ -26,7 +26,8 @@ export const READINESS_COPY = {
   noTargets: 'Add a page address for each version.',
   pageVisitors: 'Whole-page tests count visitors. Create the test again counting visitors.',
   blockPathRule: 'Remove the page-path rule in Who takes part; page block tests run on their page.',
-  removeRule: 'Remove the rule',
+  // Next steps repeat the button label verbatim (testPage.ts removeRule).
+  removeRule: 'Remove rule',
   ruleFallback: 'check the value', versionFallback: 'check the group settings',
   groupFallback: 'each version', parameterFallback: 'each setting', attributeFallback: 'this attribute',
 } as const

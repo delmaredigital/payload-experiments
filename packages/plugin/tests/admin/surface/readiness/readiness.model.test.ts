@@ -60,9 +60,9 @@ test('covers every literal start check and every member of both source unions (3
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())
 })
 test('block path readiness names the removal step', () => {
-  expect(READINESS['block-path-rule'].nextStep).toBe('Remove the rule')
+  expect(READINESS['block-path-rule'].nextStep).toBe('Remove rule')
   expect(nextStep(preflight([{ code: 'block-path-rule', ok: false, detail: { rules: [1] } }]), ctx))
-    .toEqual({ section: 'who', code: 'block-path-rule', sentence: fixtures['block-path-rule'][2], nextStep: 'Remove the rule' })
+    .toEqual({ section: 'who', code: 'block-path-rule', sentence: fixtures['block-path-rule'][2], nextStep: 'Remove rule' })
 })
 for (const code of Object.keys(fixtures) as ReadinessCode[]) {
   test(`${code} maps to its exact section and sentence`, () => {
