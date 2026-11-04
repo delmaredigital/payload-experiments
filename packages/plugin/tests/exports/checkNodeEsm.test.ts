@@ -13,7 +13,9 @@ const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.ur
 
 test('real export map exempts exactly the two CSS-bearing client entries', () => {
   const entries = listExportTargets(pkg.exports)
-  expect(entries.map(({ entry }) => entry)).toEqual(Object.keys(pkg.exports).filter(entry => !['./package.json', './puck/editor.css'].includes(entry)))
+  const stylesheets = ['./puck/editor.css', './admin/theme.css', './admin/ui.css']
+  expect(entries.map(({ entry }) => entry)).toEqual(Object.keys(pkg.exports).filter(entry => !['./package.json', ...stylesheets].includes(entry)))
+  for (const sheet of stylesheets) expect(entries.some(({ entry }) => entry === sheet), sheet).toBe(false)
   expect(entries.some(({ entry }) => entry === './package.json')).toBe(false)
   expect(entries.some(({ entry }) => entry === './puck/editor.css')).toBe(false)
   expect(NODE_ESM_EXEMPT_ENTRIES).toEqual(['./admin/client', './puck/editor'])

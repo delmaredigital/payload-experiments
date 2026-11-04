@@ -68,6 +68,8 @@
       "default": "./dist/exports/puckEditor.js"
     },
     "./puck/editor.css": "./dist/puck/editor/editor.css",
+    "./admin/theme.css": "./dist/admin/theme.css",
+    "./admin/ui.css": "./dist/ui/ui.css",
     "./package.json": "./package.json"
   },
   "files": ["dist", "LICENSE", "README.md"],

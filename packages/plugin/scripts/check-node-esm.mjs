@@ -7,6 +7,17 @@ import { pathToFileURL } from 'node:url'
 // importMap and Next's bundler (exp-orch 2026-10-31 01:30).
 export const NODE_ESM_EXEMPT_ENTRIES = Object.freeze(['./admin/client', './puck/editor'])
 
+// Public stylesheets: consumed by the host's stylesheet pipeline, not the Node loader.
+export const STYLESHEET_EXPORTS = Object.freeze({
+  './puck/editor.css': './dist/puck/editor/editor.css',
+  './admin/theme.css': './dist/admin/theme.css',
+  './admin/ui.css': './dist/ui/ui.css',
+})
+
+export function isStylesheetExport(entry, conditions) {
+  return Object.hasOwn(STYLESHEET_EXPORTS, entry) && STYLESHEET_EXPORTS[entry] === conditions
+}
+
 export function isExemptEntry(entry) {
   return NODE_ESM_EXEMPT_ENTRIES.includes(entry)
 }
@@ -15,8 +26,7 @@ export function isExemptEntry(entry) {
 export function listExportTargets(exportsMap) {
   return Object.entries(exportsMap).filter(([entry, conditions]) =>
     !(entry === './package.json' && conditions === './package.json') &&
-    // CSS is consumed by the host's stylesheet pipeline, not the Node loader.
-    !(entry === './puck/editor.css' && conditions === './dist/puck/editor/editor.css')
+    !isStylesheetExport(entry, conditions)
   ).map(([entry, conditions]) => ({
     entry,
     exempt: isExemptEntry(entry),

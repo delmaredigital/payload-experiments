@@ -11,6 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: `@delmaredigital/payload-experiments/admin/theme.css` and `/admin/ui.css` stylesheet exports, for hosts that run Puck outside Payload's admin (inside the admin they are already loaded).
 - Fixed: the block's test picker in the Puck sidebar renders inside its own field root, styled by the plugin's admin styles.
 
 - Fixed: the Tests home, goal and layer lists, the block's test picker and new-test names read every page, so sites with many tests no longer lose items past the first 100–200 or fail to create a test with a common name.

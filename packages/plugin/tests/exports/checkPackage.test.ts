@@ -24,6 +24,8 @@ afterEach(() => { for (const path of temporary.splice(0)) rmSync(path, { recursi
 test('source export counterparts, files and frozen dependency contracts pass without dist', () => {
   expect(pkg.exports['./package.json']).toBe('./package.json')
   expect(pkg.exports['./puck/editor.css']).toBe('./dist/puck/editor/editor.css')
+  expect(pkg.exports['./admin/theme.css']).toBe('./dist/admin/theme.css')
+  expect(pkg.exports['./admin/ui.css']).toBe('./dist/ui/ui.css')
   expect(checkSourcePackage(pkg, root)).toEqual([])
   expect(readFileSync(join(root, 'LICENSE'))).toEqual(readFileSync(new URL('../../../../LICENSE', import.meta.url)))
 })
@@ -83,9 +85,11 @@ test('source check reports missing license and readme, and emitted files when re
   expect(failures).toContain('Missing README.md')
   expect(failures).toContain('./puck/editor.css: missing source counterpart: ./src/puck/editor/editor.css')
   expect(failures).toContain('./puck/editor.css: missing built target ./dist/puck/editor/editor.css')
+  expect(failures).toContain('./admin/theme.css: missing source counterpart: ./src/admin/theme.css')
+  expect(failures).toContain('./admin/ui.css: missing built target ./dist/ui/ui.css')
   for (const [entry, conditions] of Object.entries(pkg.exports) as Array<[string, Record<string, string>]>) {
     if (entry === './package.json' && (conditions as unknown) === './package.json') continue
-    if (entry === './puck/editor.css' && (conditions as unknown) === './dist/puck/editor/editor.css') continue
+    if (typeof conditions === 'string' && conditions.endsWith('.css')) continue
     for (const condition of ['import', 'types', 'default']) {
       expect(failures).toContain(`${entry}.${condition}: missing built target ${conditions[condition]}`)
       expect(failures.some(failure => failure.startsWith(`${entry}.${condition}: missing source counterpart`))).toBe(true)
