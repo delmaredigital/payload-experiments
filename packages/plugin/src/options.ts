@@ -1,4 +1,4 @@
-import { contrast, deriveAccent } from './ui/accent.js'
+import { validateAccent } from './ui/accent.js'
 import { DEFAULT_MAX_BODY_BYTES } from './constants.js'
 import type { ExperimentsPluginOptions, ResolvedOptions } from './types/contracts.js'
 
@@ -53,14 +53,7 @@ export function resolveOptions<TUser extends { id: string | number }>(input: Exp
   if (input.theme !== undefined) {
     if (!input.theme || typeof input.theme !== 'object' || Array.isArray(input.theme)) throw new Error('Experiments theme must be an object')
     for (const key of Object.keys(input.theme)) if (key !== 'accent') throw new Error(`Unknown experiments theme option: ${key}`)
-    const accent = input.theme.accent
-    if (accent !== undefined && accent !== '') {
-      if (typeof accent !== 'string' || !/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(accent)) throw new Error('Experiments theme.accent must be a CSS hex colour (#rgb or #rrggbb)')
-      for (const [mode, set] of Object.entries(deriveAccent(accent))) {
-        const ratio = contrast(set.accent, set.fg)
-        if (ratio < 4.5) throw new Error(`Experiments theme.accent ${accent}: ${mode} foreground contrast ${ratio.toFixed(2)}:1 is below 4.5:1`)
-      }
-    }
+    validateAccent(input.theme.accent)
   }
   const ids = new Set<string>()
   for (const point of input.flagPoints ?? []) {

@@ -74,3 +74,16 @@ test('only a slug uniqueness 400 can be retried', () => {
   expect(isSlugCollision(400, { errors: [{ message: 'Name is required' }] })).toBe(false)
   expect(isSlugCollision(400, { errors: [{ data: { errors: [{ path: 'slug', message: 'Required' }] } }] })).toBe(false)
 })
+
+test('Original comes first even when stored later; labels are trimmed with neutral fallbacks', () => {
+  expect(tabsFor({ arms: [
+    { key: 'variantB', kind: 'variant', label: '   ' },
+    { key: 'variantA', kind: 'variant', label: '  Short headline  ' },
+    { key: 'control', kind: 'control', label: ' Original ' },
+    { key: 'holdout', kind: 'holdout', label: 'Holdout' },
+  ] })).toEqual([
+    { slot: 'control', label: 'Original' },
+    { slot: 'variantB', label: 'Variant B' },
+    { slot: 'variantA', label: 'Short headline' },
+  ])
+})

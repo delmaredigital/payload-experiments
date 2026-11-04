@@ -323,7 +323,7 @@ test.each([
   expect(container.querySelector('.xp-results-chips')?.textContent).toContain(frozen ? 'OK' : 'Watch')
   if (frozen) expect(screen.getByText(stored.verdict.finding)).toBeTruthy()
   // The decision's numbers never move, so the page says why and offers no Recompute.
-  expect(container.querySelector('.xp-results-as-of')?.textContent ?? null).toEqual(frozen ? expect.stringMatching(/^· as of the decision, \d{1,2} [A-Z][a-z]{2} \d{4}$/) : null)
+  expect(container.querySelector('.xp-results-as-of')?.textContent ?? null).toEqual(frozen ? expect.stringMatching(/^· numbers from \d{1,2} [A-Z][a-z]{2} \d{4}, used for the decision$/) : null)
   expect(screen.queryByRole('button', { name: 'Recompute' }) === null).toBe(frozen)
   if (status !== 'decided') expect(screen.getByRole('heading', { name: newest.verdict.headline })).toBeTruthy()
   for (const table of screen.getAllByRole('table')) {
@@ -427,6 +427,6 @@ test('readers see when a decided round was recorded, with no leading separator a
   setup({ phases: [phaseFor(stored)], snapshot: stored, decisionSnapshot: stored, decision: { phase: 1, winnerArm: 'variantA' } })
   const { container } = render(<ResultsBody id={1} surface={{ ...surface, canManage: false }} />)
   await screen.findByRole('table', { name: 'Registrations' })
-  expect(container.querySelector('.xp-results-as-of')?.textContent).toMatch(/^as of the decision, \d{1,2} [A-Z][a-z]{2} \d{4}$/)
+  expect(container.querySelector('.xp-results-as-of')?.textContent).toMatch(/^numbers from \d{1,2} [A-Z][a-z]{2} \d{4}, used for the decision$/)
   expect(screen.queryByRole('button', { name: 'Recompute' })).toBeNull()
 })

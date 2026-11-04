@@ -12,7 +12,8 @@ export type EditorExperiment = {
 export function tabsFor(experiment?: Pick<EditorExperiment, 'arms'> | null): Array<{ slot: ArmSlot; label: string }> {
   if (!experiment) return [{ slot: 'control', label: editorCopy.labels.control }]
   return experiment.arms.flatMap(arm => arm.kind === 'holdout' || arm.key === 'holdout'
-    ? [] : [{ slot: arm.key, label: arm.label?.trim() ? arm.label : editorCopy.labels[arm.key] }])
+    ? [] : [{ slot: arm.key, label: arm.label.trim() || editorCopy.labels[arm.key] }])
+    .sort((a, b) => Number(b.slot === 'control') - Number(a.slot === 'control'))
 }
 
 export function bannerFor(status?: Status | null, winner: string = editorCopy.labels.control): string {

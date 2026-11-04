@@ -1,15 +1,15 @@
 'use client'
 import { useId, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import './ui.css'
 export interface Tab { id: string; label: string; content: ReactNode; disabled?: boolean }
-export function Tabs({ items, label, value, onChange }: { items: Tab[]; label: string; value?: string; onChange?: (id: string) => void }) {
+export function Tabs({ items, label, value, onChange, tabListRef }: { items: Tab[]; label: string; value?: string; onChange?: (id: string) => void; tabListRef?: Ref<HTMLDivElement> }) {
   const prefix = useId()
   const [local, setLocal] = useState(() => items.find(item => !item.disabled)?.id)
   const requested = value ?? local
   const selected = items.find(item => item.id === requested && !item.disabled)?.id ?? items.find(item => !item.disabled)?.id
   function select(id: string) { setLocal(id); onChange?.(id) }
-  return <div className="xp-ui-tabs"><div role="tablist" aria-label={label} className="xp-ui-tablist">
+  return <div className="xp-ui-tabs"><div ref={tabListRef} role="tablist" aria-label={label} className="xp-ui-tablist">
     {items.map(item => <button type="button" role="tab" key={item.id} id={`${prefix}-tab-${item.id}`} aria-controls={`${prefix}-panel-${item.id}`}
       aria-selected={selected === item.id} tabIndex={selected === item.id ? 0 : -1} disabled={item.disabled}
       className="xp-ui-tab" onClick={() => select(item.id)} onKeyDown={event => {

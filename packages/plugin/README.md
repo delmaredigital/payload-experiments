@@ -640,18 +640,31 @@ configured to allow client writes; record revenue on the server.
 
 ### Puck render and editor configs
 
-Register `ExperimentSlot` from `@delmaredigital/payload-experiments/puck` in
-your render config and `ExperimentSlotEditor` from
-`@delmaredigital/payload-experiments/puck/editor` in your editor config, using
-the same `ExperimentSlot` component name:
+Register the factories from `/puck` and `/puck/editor`, using the same
+`ExperimentSlot` component name in both configs. Pass the host's Payload routes:
 
 ```ts
+import { createExperimentSlot } from '@delmaredigital/payload-experiments/puck'
+import { createExperimentSlotEditor } from '@delmaredigital/payload-experiments/puck/editor'
+
+const routes = { admin: '/manage', api: '/content-api' } // Same as Payload config.routes
+const accent = '#1f3a68' // Same as the plugin's theme.accent
+
 // Render config
-components: { ExperimentSlot }
+components: { ExperimentSlot: createExperimentSlot({ routes }) }
 
 // Editor config
-components: { ExperimentSlot: ExperimentSlotEditor }
+components: { ExperimentSlot: createExperimentSlotEditor({ routes, accent }) }
 ```
+
+Routes default to Payload's `/admin` and `/api` when omitted. The existing
+`ExperimentSlot` and `ExperimentSlotEditor` exports remain available with these
+defaults. Hosts on non-default routes switch to the factories. The standalone
+`createExperimentSlotField({ routes })` also accepts the host's routes.
+
+Pass the same accent as the plugin's `theme.accent`: the editor cannot read
+Payload config. Both use the same validator and report the same error for an
+invalid colour. Without an accent the editor uses the neutral palette.
 
 Load the editor stylesheet inside the Puck iframe. With Tailwind v4, add the
 package import **after** Tailwind in the CSS that builds your editor iframe

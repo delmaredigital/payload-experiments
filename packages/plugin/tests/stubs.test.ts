@@ -47,8 +47,8 @@ const exportsByEntry = [
   [client, ['ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
   [adminClient, ['XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField']],
   [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect']],
-  [puck, ['ExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
-  [puckEditor, ['ExperimentSlotEditor', 'deriveAccent']],
+  [puck, ['ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
+  [puckEditor, ['ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent']],
 ] as const
 
 test('root barrel keeps public types and excludes internal contracts and the Puck Slot peer type', () => {

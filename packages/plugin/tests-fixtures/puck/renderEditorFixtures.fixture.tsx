@@ -4,23 +4,23 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, test, vi } from 'vitest'
-import { ExperimentSlotEditor } from '../../src/puck/editor/ExperimentSlotEditor.js'
-import { CreateExperimentDrawer } from '../../src/puck/editor/CreateExperimentDrawer.js'
+import { createExperimentSlotEditor } from '../../src/puck/editor/ExperimentSlotEditor.js'
 import type { EditorExperiment } from '../../src/puck/editor/editor.model.js'
 
 const fixture = vi.hoisted(() => ({
   doc: undefined as EditorExperiment | undefined,
-  inEditor: false, stateIndex: 0, filled: false,
+  inEditor: false, stateIndex: 0, filled: false, drawer: false, theme: 'light' as 'light' | 'dark',
 }))
 
-// Static rendering cannot run the editor's fetch effect. Seed only its loaded
-// document state; keep the real React dispatcher and all other state/hooks.
+// Static rendering cannot run effects. Seed the chrome's theme, loaded document,
+// selected version and drawer state; keep the real dispatcher and other hooks.
 vi.mock('react', async importOriginal => {
   const react = await importOriginal<typeof import('react')>()
   return { ...react, useState: (initial: unknown) => {
     const index = fixture.inEditor ? fixture.stateIndex++ : -1
-    const seeded = index === 0 ? { id: 1, doc: fixture.doc }
-      : index === 1 && fixture.doc?.status === 'running' ? { id: 1, slot: 'variantA' } : initial
+    const seeded = index === 0 ? fixture.theme : index === 1 ? { id: 1, doc: fixture.doc }
+      : index === 2 && fixture.doc?.status === 'running' ? { id: 1, slot: 'variantA' }
+      : index === 3 ? fixture.drawer : initial
     return react.useState(seeded)
   } }
 })
@@ -46,7 +46,7 @@ const source = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 
 // Not part of the test suite: run by `pnpm fixtures:puck-editor` (vitest.fixtures.config.ts), which requires both env paths.
 describe('editor visual fixtures (coordinator only)', () => {
-  test('writes four editor states in light and dark, with host CSS first', () => {
+  test('writes six editor states in light and dark, with host CSS first', () => {
     const output = process.env.XP_FIXTURE_OUT ?? ''
     const hostCss = process.env.XP_HOST_CSS
     if (!isAbsolute(output) || !hostCss || !isAbsolute(hostCss)) {
@@ -54,21 +54,21 @@ describe('editor visual fixtures (coordinator only)', () => {
     }
     readFileSync(hostCss) // Fail before writing if the supplied stylesheet is missing.
     mkdirSync(output, { recursive: true })
-    const Editor = ExperimentSlotEditor.render
     const paths: string[] = []
-    for (const state of ['draft-empty', 'draft-filled', 'running', 'drawer'] as const) {
+    for (const state of ['unbound', 'draft', 'running', 'decided', 'drawer', 'accent'] as const) {
       for (const theme of ['light', 'dark'] as const) {
-        fixture.inEditor = state !== 'drawer'
+        fixture.inEditor = true
+        fixture.drawer = state === 'drawer'
+        fixture.theme = theme
         fixture.stateIndex = 0
-        fixture.filled = state !== 'draft-empty'
-        fixture.doc = { name: 'September appeal', status: state === 'running' ? 'running' : 'draft', arms: [
+        fixture.filled = state !== 'unbound' && state !== 'drawer'
+        fixture.doc = state === 'unbound' || state === 'drawer' ? undefined : { name: 'September appeal', status: state === 'running' ? 'running' : state === 'decided' ? 'decided' : 'draft', decision: { winnerArm: 'variantA' }, arms: [
           { key: 'control', kind: 'control', label: 'Original' },
           { key: 'variantA', kind: 'variant', label: 'Variant A' },
-          { key: 'variantB', kind: 'variant', label: 'Variant B' },
+          ...(state === 'running' ? [{ key: 'variantB' as const, kind: 'variant' as const, label: 'Shorter appeal' }] : []),
         ] }
-        const content = state === 'drawer'
-          ? <CreateExperimentDrawer initialName="September appeal" onCreate={() => {}} onClose={() => {}} />
-          : <Editor id="slot-1" experiment={{ id: 1, slug: 'september-appeal' }}
+        const Editor = createExperimentSlotEditor({ accent: state === 'accent' ? '#1f3a68' : undefined }).render
+        const content = <Editor id="slot-1" experiment={fixture.doc ? { id: 1, slug: 'september-appeal' } : null}
               control={({ className }: { className?: string } = {}) => <div className={className}>{fixture.filled ? <article><h2>Support the September appeal</h2><p>Help students continue their education.</p></article> : null}</div>}
               variantA={({ className }: { className?: string } = {}) => <div className={className} />}
               variantB={({ className }: { className?: string } = {}) => <div className={className} />}
@@ -82,13 +82,13 @@ describe('editor visual fixtures (coordinator only)', () => {
             <link rel="stylesheet" href={pathToFileURL(join(source, 'puck/editor/editor.css')).href} />
             <style>{`body { margin: 0; padding: 32px; background: ${theme === 'dark' ? '#141414' : '#fff'}; } main { max-width: 1100px; margin: auto; }`}</style>
           </head>
-          <body><main>{content}</main></body>
+          <body><main>{content}</main>{state === 'drawer' ? <script dangerouslySetInnerHTML={{ __html: "const dialog = document.querySelector('dialog'); dialog.showModal(); dialog.querySelector('input').focus();" }} /> : null}</body>
         </html>)
         const path = join(output, `${state}-${theme}.html`)
         writeFileSync(path, page)
         paths.push(path)
       }
     }
-    expect(paths).toHaveLength(8)
+    expect(paths).toHaveLength(12)
   })
 })
