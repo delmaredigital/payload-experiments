@@ -25,10 +25,13 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
         where: { and: [{ flagPoint: { equals: current.flagPoint } }, { status: { in: ['running', 'decided'] } }] } })
       if (busy.docs.some(doc => String(doc.id) !== String(experimentId))) refuse('flag-point-busy')
     }
+    const test = await readPhaseRecord(req, experimentId, current.phase!)
+    if (test.phaseKind !== 'test') refuse('invalid-status')
     if (current.kind === 'page' && current.status === 'stopped') {
       // Deciding a stopped page test restores its routing: recheck page occupancy under the
       // sorted path locks Start takes, so another test that started on these pages meanwhile wins.
-      const mine = pageTargetPaths(current.arms as Arm[])
+      // The frozen test-round arms are what decide restores; the stopped document's arms may have been edited.
+      const mine = pageTargetPaths(test.arms as Arm[])
       await lockPagePaths(exec, mine)
       // §7.8: recheck page occupancy under its lock before restoring live routing.
       const live = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: true, depth: 0, limit: 0,
@@ -37,8 +40,6 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
       const shared = mine.filter(path => occupied.has(path))
       if (shared.length) refuse('page-in-use', { paths: shared })
     }
-    const test = await readPhaseRecord(req, experimentId, current.phase!)
-    if (test.phaseKind !== 'test') refuse('invalid-status')
     const winner = test.arms.find(arm => arm.key === winnerArm && arm.kind !== 'holdout')
     if (!winner) refuse('invalid-winner')
     // §7.8: decision snapshot lookup serves the authorised transition.

@@ -170,6 +170,14 @@ test.each(['running', 'decided'])('stopped page decision refuses pages now used 
   expect(f.executor.calls.some(call => call.text.includes("hashtext('xp:pagepath')"))).toBe(true)
   expect(f.payload.documents['xp-phases']).toHaveLength(1)
 })
+test('stopped page decision checks the frozen round arms, not the edited document', async () => {
+  const f = fixture('stopped')
+  f.experiment.kind = 'page'
+  // The stopped document was edited away from /original; the frozen round still restores it.
+  f.experiment.arms = (f.experiment.arms as Arm[]).map(arm => arm.kind === 'control' ? { ...arm, pageTarget: '/edited' } : arm)
+  f.payload.documents['xp-experiments']!.push({ id: 2, kind: 'page', status: 'running', arms: [{ key: 'control', kind: 'control', weight: 100, pageTarget: '/original' }] })
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantA' })).rejects.toMatchObject({ code: 'page-in-use', detail: { paths: ['/original'] } })
+})
 test('stopped page decision proceeds when no other live page test shares its pages', async () => {
   const f = fixture('stopped')
   f.experiment.kind = 'page'

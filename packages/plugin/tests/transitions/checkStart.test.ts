@@ -141,7 +141,7 @@ test('localized placements warn without refusing Start', () => {
   expect(checkStart(input).every(check => check.ok)).toBe(true)
 })
 
-test('page conflicts contain only distinct normalised shared paths, excluding self and own holdout', () => {
+test('page conflicts contain only distinct normalised shared paths, excluding self; a holdout target counts as the runtime matches it', () => {
   const input = ready()
   input.experiment.kind = 'page'
   input.experiment.arms = [
@@ -153,9 +153,20 @@ test('page conflicts contain only distinct normalised shared paths, excluding se
     { id: '1', arms: [{ ...input.experiment.arms[0]!, pageTarget: '/self' }] },
     { id: 2, arms: ['/Original', '/variant/', '/variant', '/unshared', '/holdout'].map(pageTarget => ({ ...input.experiment.arms[0]!, pageTarget })) },
   ]
-  expect(checkStart(input)).toContainEqual({ code: 'page-in-use', ok: false, detail: { paths: ['/Original', '/variant'] } })
+  expect(checkStart(input)).toContainEqual({ code: 'page-in-use', ok: false, detail: { paths: ['/Original', '/holdout', '/variant'] } })
   input.pageTestsInUse = [{ id: '1', arms: input.experiment.arms }]
   expect(checkStart(input)).toContainEqual({ code: 'page-in-use', ok: true })
   input.pageTestsInUse = [{ id: 2, arms: [{ ...input.experiment.arms[0]!, pageTarget: '/original' }] }]
   expect(checkStart(input)).toContainEqual({ code: 'page-in-use', ok: true }) // Runtime paths are case-sensitive.
 })
+
+test('pageTargetPaths covers every path the runtime matches, holdout and empty targets included', async () => {
+  const { pageTargetPaths } = await import('../../src/transitions/checkStart.js')
+  expect(pageTargetPaths([
+    { key: 'control', kind: 'control', weight: 50, pageTarget: '/a/' },
+    { key: 'variantA', kind: 'variant', weight: 48, pageTarget: '' },
+    { key: 'holdout', kind: 'holdout', weight: 2, pageTarget: '/h' },
+    { key: 'variantB', kind: 'variant', weight: 0 },
+  ] as never)).toEqual(['/', '/a', '/h'])
+})
+

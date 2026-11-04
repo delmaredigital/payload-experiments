@@ -55,8 +55,10 @@ export const ARM_CHECK_ORDER: readonly ArmIssueCode[] = [
   'invalid-key', 'duplicate-key', 'slot-required', 'duplicate-slot',
 ]
 export const relationshipId = (value: DocId | { id: DocId } | null | undefined): DocId | undefined => value == null ? undefined : typeof value === 'object' ? value.id : value
+/** Every path the runtime would match for these arms (pageRewrite, experimentMetadata): any string
+ * pageTarget, holdout included, normalised the same way ('' is '/'). Occupancy and lock keys use this. */
 export const pageTargetPaths = (arms: readonly Arm[]): string[] => [...new Set(arms
-  .filter(arm => arm.kind !== 'holdout' && typeof arm.pageTarget === 'string' && arm.pageTarget.trim())
+  .filter(arm => typeof arm.pageTarget === 'string')
   .map(arm => normalisePath(arm.pageTarget!)))].sort()
 const positive = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value) && value > 0
 
