@@ -3,9 +3,9 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import * as paths from '../../src/admin/paths.js'
 const admin = [
+  ['XP_TESTS_NAV_CLIENT', 'TestsNavLink', 'TestsNavLink'],
   ['XP_TESTS_SURFACE', 'TestsSurface', 'surface/TestsSurface'],
   ['XP_TESTS_DASHBOARD_CARDS', 'TestsDashboardCards', 'TestsDashboardCards'],
-  ['XP_TESTS_NAV_LINK', 'TestsNavLink', 'TestsNavLink'],
   ['XP_METRIC_SOURCE_SELECT', 'MetricSourceSelect', 'MetricSourceSelect'],
   ['XP_LAYER_USAGE', 'LayerUsage', 'LayerUsage'],
   ['XP_ARM_SELECT', 'ArmSelectField', 'armSelect/ArmSelectField'],
@@ -26,6 +26,7 @@ const retiredFiles = [
   'admin/results/ResultsView.tsx',
 ]
 const views = [
+  ['XP_TESTS_NAV_LINK', 'TestsNavLinkServer'],
   ['XP_TESTS_VIEW', 'ExperimentsRootView'], ['XP_TESTS_LIST_REDIRECT', 'CollectionListRedirect'], ['XP_TEST_EDIT_REDIRECT', 'CollectionEditRedirect'],
 ] as const
 const files = [

@@ -32,6 +32,7 @@ const required = {
   },
   rsc: { captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
   adminRsc: {
+    TestsNavLinkServer: '../admin/views/TestsNavLinkServer.js',
     ExperimentsRootView: '../admin/views/ExperimentsRootView.js',
     CollectionListRedirect: '../admin/views/CollectionListRedirect.js',
     CollectionEditRedirect: '../admin/views/CollectionEditRedirect.js',

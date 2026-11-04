@@ -101,6 +101,7 @@ test('registers the Tests root and appends its nav link without replacing host c
   expect(config.admin?.components?.beforeDashboard).toEqual(['host#Dashboard', paths.XP_TESTS_DASHBOARD_CARDS])
   expect(admin.components?.beforeDashboard).toEqual(['host#Dashboard'])
   expect(config.admin?.components?.beforeNavLinks).toEqual(['host#BeforeNav', paths.XP_TESTS_NAV_LINK])
+  expect(config.admin?.dependencies?.xpTestsNav).toEqual({ path: paths.XP_TESTS_NAV_CLIENT, type: 'component' })
   expect(config.admin?.components?.afterNavLinks).toEqual(['host#Nav'])
   expect(admin.components?.beforeNavLinks).toEqual(['host#BeforeNav'])
   expect(config.admin?.custom).toEqual({ host: true })

@@ -4,11 +4,15 @@ import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { renderToStaticMarkup } from 'react-dom/server'
+import type { ReactNode } from 'react'
 import { Card, ConfigProvider, Link, NavGroup, NavProvider, PreferencesProvider, WindowInfoProvider } from '@payloadcms/ui'
 import type { ClientConfig } from 'payload'
 import { expect, test, vi } from 'vitest'
 import { TestsNavLink } from '../../src/admin/TestsNavLink.js'
 import { TestsDashboardCards } from '../../src/admin/TestsDashboardCards.js'
+import { TestsNavLinkServer } from '../../src/admin/views/TestsNavLinkServer.js'
+import { XP_TESTS_NAV_CLIENT } from '../../src/admin/paths.js'
+import { fakePayload } from '../../tests/_fakes/payload.js'
 
 const fixture = vi.hoisted(() => ({ pathname: '/admin/experiments', manager: true }))
 // Only supply the auth result to our two components. Payload's real providers,
@@ -48,13 +52,13 @@ const collectionCss = `
 `
 const entities = [{ slug: 'users', label: 'Users' }, { slug: 'pages', label: 'Pages' }]
 
-function Comparison() {
+function Comparison({ nav }: { nav: ReactNode }) {
   return <ConfigProvider config={config}>
     <PreferencesProvider>
       <WindowInfoProvider breakpoints={{ l: '1440px', m: '1024px', s: '768px', xs: '400px' }}>
         <NavProvider initialIsOpen>
           <aside className="nav nav--nav-open"><div className="nav__scroll"><nav className="nav__wrap">
-            <TestsNavLink />
+            {nav}
             <NavGroup label="Collections">
               {entities.map(({ slug, label }) => <Link className="nav__link" id={`nav-${slug}`} prefetch={false} href={`/admin/collections/${slug}`} key={slug}>
                 <span className="nav__link-label">{label}</span>
@@ -76,7 +80,7 @@ function Comparison() {
   </ConfigProvider>
 }
 
-test('writes real Payload nav and dashboard comparisons in light and dark', () => {
+test('writes real Payload nav open and collapsed in both themes at 1280 and 390', async () => {
   const output = process.env.XP_FIXTURE_OUT ?? ''
   if (!isAbsolute(output)) throw new Error('XP_FIXTURE_OUT must be an absolute path')
   const payloadCss = join(uiDist, 'styles.css')
@@ -89,32 +93,44 @@ test('writes real Payload nav and dashboard comparisons in light and dark', () =
     for (const route of (manager ? ['tests', 'goals'] : ['tests']) as Array<'tests' | 'goals'>) {
       fixture.pathname = route === 'tests' ? '/admin/experiments' : '/admin/experiments/goals/new'
       for (const theme of ['light', 'dark']) {
-        const html = '<!DOCTYPE html>' + renderToStaticMarkup(<html lang="en" data-theme={theme}>
-          <head>
-            <meta charSet="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-            <title>{`Tests navigation — ${manager ? 'manager' : 'reader'} — ${route} — ${theme}`}</title>
-            <link rel="stylesheet" href={pathToFileURL(adminCss).href} />
-            <link rel="stylesheet" href={pathToFileURL(payloadCss).href} />
-            <link rel="stylesheet" href={pathToFileURL(join(source, 'theme.css')).href} />
-            <link rel="stylesheet" href={pathToFileURL(join(source, 'dashboard.css')).href} />
-            <style>{collectionCss}</style>
-            <style>{`body { display: flex; margin: 0; background: var(--theme-bg); color: var(--theme-text); } aside.nav { position: sticky; top: 0; flex-shrink: 0; } .fixture-dashboard { flex: 1; min-width: 0; padding: 40px; }`}</style>
-          </head>
-          <body><Comparison /></body>
-        </html>)
-        expect(html).toContain('nav-group__content')
-        expect(html).toContain('card__click')
-        if (!manager) {
-          expect(html).not.toContain('nav-xp-tests')
-          expect(html).not.toContain('xp-dash-group')
-          expect(html).toContain('nav-users')
+        for (const isOpen of manager ? [true, false] : [true]) {
+          for (const width of [1280, 390]) {
+            const payload = fakePayload({ overrides: {
+              find: vi.fn(async () => ({ docs: [{ value: { groups: { Tests: { open: isOpen } } } }] })),
+              importMap: { [XP_TESTS_NAV_CLIENT]: TestsNavLink },
+            } })
+            const nav = await TestsNavLinkServer({ payload, user: { id: 'fixture-manager', collection: 'users' },
+              permissions: { collections: { 'xp-experiments': { fields: {}, update: manager ? true : undefined } } } })
+            const html = '<!DOCTYPE html>' + renderToStaticMarkup(<html lang="en" data-theme={theme}>
+              <head>
+                <meta charSet="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+                <title>{`Tests navigation — ${manager ? 'manager' : 'reader'} — ${route} — ${isOpen ? 'open' : 'collapsed'} — ${theme} — ${width}`}</title>
+                <link rel="stylesheet" href={pathToFileURL(adminCss).href} />
+                <link rel="stylesheet" href={pathToFileURL(payloadCss).href} />
+                <link rel="stylesheet" href={pathToFileURL(join(source, 'theme.css')).href} />
+                <link rel="stylesheet" href={pathToFileURL(join(source, 'dashboard.css')).href} />
+                <style>{collectionCss}</style>
+                <style>{`body { width: ${width}px; display: flex; margin: 0; background: var(--theme-bg); color: var(--theme-text); } aside.nav { position: sticky; top: 0; flex-shrink: 0; } .fixture-dashboard { flex: 1; min-width: 0; padding: 40px; }`}</style>
+              </head>
+              <body><Comparison nav={nav} /></body>
+            </html>)
+            expect(html).toContain('nav-group__content')
+            expect(html).toContain('card__click')
+            expect(html.includes('nav-group Tests nav-group--collapsed')).toBe(manager && !isOpen)
+            if (manager) expect(html).toContain(`nav-group__toggle--${isOpen ? 'open' : 'collapsed'}`)
+            if (!manager) {
+              expect(html).not.toContain('nav-xp-tests')
+              expect(html).not.toContain('xp-dash-group')
+              expect(html).toContain('nav-users')
+            }
+            const path = join(output, `admin-nav-${manager ? 'manager' : 'reader'}-${route}-${isOpen ? 'open' : 'collapsed'}-${theme}-${width}.html`)
+            writeFileSync(path, html)
+            paths.push(path)
+          }
         }
-        const path = join(output, `admin-nav-${manager ? 'manager' : 'reader'}-${route}-${theme}.html`)
-        writeFileSync(path, html)
-        paths.push(path)
       }
     }
   }
-  expect(paths).toHaveLength(6)
+  expect(paths).toHaveLength(20)
   console.log(paths.join('\n'))
 })

@@ -27,7 +27,10 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
     return {
       ...config,
       admin: { ...config.admin,
-        dependencies: { ...config.admin?.dependencies, xpTestsSurface: { path: paths.XP_TESTS_SURFACE, type: 'component' } },
+        dependencies: { ...config.admin?.dependencies,
+          xpTestsSurface: { path: paths.XP_TESTS_SURFACE, type: 'component' },
+          xpTestsNav: { path: paths.XP_TESTS_NAV_CLIENT, type: 'component' },
+        },
         components: { ...config.admin?.components,
         views: { ...config.admin?.components?.views, xpTests: { Component: paths.XP_TESTS_VIEW, path: '/experiments/:segments*' } },
         beforeDashboard: beforeDashboard.includes(paths.XP_TESTS_DASHBOARD_CARDS) ? beforeDashboard : [...beforeDashboard, paths.XP_TESTS_DASHBOARD_CARDS],

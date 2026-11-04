@@ -27,6 +27,14 @@ test('the Tests root reaches the surface only by import-map path', () => {
   expect(graph.bare).not.toContain('@payloadcms/ui')
 })
 
+test('the Tests server nav reaches its client boundary only by import-map path', () => {
+  const root = fileURLToPath(new URL('../../src/admin/views/TestsNavLinkServer.tsx', import.meta.url))
+  const graph = collectImports(root)
+  expect(graph.files.filter(file => hasClientDirective(readFileSync(file, 'utf8')))).toEqual([])
+  expect(graph.bare).toContain('@payloadcms/ui/elements/RenderServerComponent')
+  expect(graph.bare.some(name => name.startsWith('next/'))).toBe(false)
+})
+
 test('contentDone is pure and the admin result imports it without a server graph', () => {
   const helper = fileURLToPath(new URL('../../src/contentDone.ts', import.meta.url))
   const graph = collectImports(helper)

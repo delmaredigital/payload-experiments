@@ -11,6 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: the Tests group in the admin nav remembers being collapsed. A host nav group must not also be called "Tests" (it would share the group's state). The nav slot moves to `/admin/rsc#TestsNavLinkServer`; regenerate the import map (`importMap.js` reorders). The old `/admin/client#TestsNavLink` export remains available.
 - Fixed: with a custom `theme.accent`, buttons always show a visible hover and pressed state, including accents right at the contrast limit; in dark mode such accents darken on hover so the step stays visible.
 - Added: `@delmaredigital/payload-experiments/admin/theme.css` and `/admin/ui.css` stylesheet exports, for hosts that run Puck outside Payload's admin; such a page also loads Payload's admin styles and sets `data-theme` (see the README). Inside the admin nothing changes.
 - Fixed: the block's test picker in the Puck sidebar renders inside its own field root, styled by the plugin's admin styles.

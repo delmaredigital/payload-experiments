@@ -27,7 +27,7 @@ test('manager sees both links inside a Tests group, with stable ids and labels',
     expect(link.querySelector('.nav__link-label')?.textContent).toBe(name)
     expect(group.contains(link)).toBe(true)
   }
-  expect(group.hasAttribute('data-is-open')).toBe(false)
+  expect(group.getAttribute('data-is-open')).toBe('true')
 })
 
 test.each([false, undefined, { where: {} }])('non-manager with update=%j sees no Tests group', update => {

@@ -59,7 +59,7 @@ test('every XP_* path constant names a public admin export', () => {
 
 // Explicit public-file inventory: adding a new public component means extending this gate.
 test.each([
-  'constants.ts', 'admin/paths.ts', 'admin/TestsNavLink.tsx', 'admin/TestsDashboardCards.tsx', 'admin/surface/TestsSurface.tsx',
+  'constants.ts', 'admin/paths.ts', 'admin/TestsNavLink.tsx', 'admin/views/TestsNavLinkServer.tsx', 'admin/TestsDashboardCards.tsx', 'admin/surface/TestsSurface.tsx',
   'admin/views/ExperimentsRootView.tsx', 'admin/views/CollectionListRedirect.tsx', 'admin/views/CollectionEditRedirect.tsx',
   'client/ExperimentsProvider.tsx', 'client/context.ts', 'client/useFlagPoint.ts', 'client/useExperiment.ts',
   'client/ExperimentPageview.tsx', 'client/beacon.ts', 'client/idempotency.ts', 'client/trackConversionBeacon.ts', 'client/ViewportExposure.tsx',

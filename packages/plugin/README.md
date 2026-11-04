@@ -593,7 +593,8 @@ dashboard also includes **Tests** and **Goals** cards above its widgets. Goals
 appears only for users who can manage tests. Both additions follow the host's
 admin route and keep host-provided navigation and dashboard entries first.
 After upgrading, run `payload generate:importmap` to register the dashboard card
-component.
+component and the server nav wrapper.
+A host nav group also labelled "Tests" shares Payload's NavGroup DOM id and open-state preference with the plugin's group, so pick another label.
 
 ### Client assignments and exposure
 
