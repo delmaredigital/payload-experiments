@@ -6,11 +6,13 @@ import type { PhaseSummary, ResultsResponse } from '../../../types/endpoints.js'
 import { createApi, type ApiResult } from '../../api.js'
 import { API_MESSAGES, refusalMessage } from '../../copy/common.js'
 import { defaultRound } from '../../results/results.model.js'
+import type { PageReleaseDecision } from '../../results/releasePages.model.js'
 
 export interface ResultsDocument {
+  kind?: string
   status: Status
   arms: Array<{ key: string; kind?: string; label?: string }>
-  decision?: { phase: number; winnerArm?: string } | null
+  decision?: PageReleaseDecision & { phase: number; winnerArm?: string } | null
   analysis?: { plannedDurationDays?: number | null } | null
   layer?: unknown
   layerSlices?: number[]

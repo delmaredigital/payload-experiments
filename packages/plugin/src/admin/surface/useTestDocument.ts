@@ -134,8 +134,8 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
       session.publish()
     }
 
-    async function readDocument(): Promise<TestDocument> {
-      const response = await fetch(url, { method: 'GET', credentials: 'include', signal: controller.signal })
+    async function readDocument(forSave = false): Promise<TestDocument> {
+      const response = await fetch(url, { method: 'GET', credentials: 'include', ...(forSave ? {} : { signal: controller.signal }) })
       if (!response.ok) throw new Error(API_MESSAGES.unreadable)
       const doc = await response.json() as TestDocument | null
       if (!doc || doc.id == null || !doc.status) throw new Error(API_MESSAGES.unreadable)
@@ -157,6 +157,10 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
         let failed = false
         try {
           if (!session.saved) return
+          if (typeof session.saved.updatedAt !== 'string' || !session.saved.updatedAt) {
+            session.saved = await readDocument(true)
+            if (typeof session.saved.updatedAt !== 'string' || !session.saved.updatedAt) throw new Error(API_MESSAGES.unreadable)
+          }
           const patch = changedPatch(session.saved, queued)
           changed = Object.keys(patch).length > 0
           if (changed) {
@@ -183,8 +187,8 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
               const doc = (body as { doc?: TestDocument } | undefined)?.doc
               const readable = doc && doc.id != null && doc.status
               // A 2xx has applied even if its response body was lost. Preserve it while re-reading.
-              // The old timestamp is no longer a valid baseline. Omit the header until a
-              // readable PATCH or GET restores it, including when this read is aborted.
+              // The old timestamp is no longer a valid baseline. The next queued save
+              // must recover it with a GET before sending another PATCH.
               session.saved = readable ? doc : { ...session.saved, ...patch, updatedAt: undefined }
               saved = true
               // Keep readiness pending even while recovering an unreadable successful PATCH body.

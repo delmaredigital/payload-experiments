@@ -1,7 +1,7 @@
 'use client'
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from 'react'
 import './ui.css'
-type Shared = { variant?: 'primary' | 'secondary' | 'quiet' | 'danger'; size?: 'md' | 'sm'; disabled?: boolean; busy?: boolean }
+type Shared = { variant?: 'primary' | 'secondary' | 'quiet' | 'link' | 'danger'; size?: 'md' | 'sm'; disabled?: boolean; busy?: boolean }
 export type ButtonProps = Shared & (ButtonHTMLAttributes<HTMLButtonElement> & { href?: never } | AnchorHTMLAttributes<HTMLAnchorElement> & { href: string })
 export function Button({ variant = 'secondary', size = 'md', disabled, busy, className = '', children, ...props }: ButtonProps) {
   const classes = `xp-ui-button xp-ui-button--${variant} xp-ui-button--${size} ${className}`

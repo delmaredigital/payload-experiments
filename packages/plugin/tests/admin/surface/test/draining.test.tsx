@@ -17,7 +17,7 @@ vi.mock('../../../../src/admin/surface/setting/parts.js', () => ({ settingParts:
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
 const response = (value: unknown, status = 200) => ({ ok: status === 200, status, json: async () => value }) as Response
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
-const document = (id = 'drain'): TestDocument => ({ id, name: 'Before', slug: id, kind: 'block', status: 'draft', unitType: 'visitor', arms: defaultArms('block'), allocation: 100, exposurePolicy: 'render', analysis: { plannedDurationDays: 28 } })
+const document = (id = 'drain'): TestDocument => ({ updatedAt: '2026-11-03T09:00:00.000Z', id, name: 'Before', slug: id, kind: 'block', status: 'draft', unitType: 'visitor', arms: defaultArms('block'), allocation: 100, exposurePolicy: 'render', analysis: { plannedDurationDays: 28 } })
 const preflight = { checks: [], placements: [], baseline: null, trafficPerDay: null, estimate: null }
 
 test('reopening waits for every submitted save before reading the document', async () => {

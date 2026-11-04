@@ -64,6 +64,7 @@ test('writes the real home and shell, empty and search-empty fixtures', async ()
       expect(view.getByText('No tests match "newsletter".')).toBeTruthy()
     }
     for (const theme of state === 'home-search-empty' ? ['light'] : ['light', 'dark']) {
+      view.container.querySelectorAll('option').forEach(o => o.toggleAttribute('selected', o.selected))
       const html = `<!DOCTYPE html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Tests — ${theme}</title>${cssPaths.map(path => `<link rel="stylesheet" href="${pathToFileURL(path).href}">`).join('')}<style>body { margin: 0; }</style></head><body>${view.container.innerHTML}</body></html>`
       const path = join(output, `${state}-${theme}.html`)
       writeFileSync(path, html)

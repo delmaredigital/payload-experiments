@@ -26,7 +26,7 @@ function Group({ title, children }: { title: string; children: ReactNode }) { re
 function Primitives() {
   return <>
     <Group title="Breadcrumb"><Breadcrumb items={[{ label: 'Tests', href: '#' }, { label: 'Registration donation ask' }]} /></Group>
-    <Group title="Buttons">{(['primary', 'secondary', 'quiet', 'danger'] as const).map(variant => (['md', 'sm'] as const).map(size =>
+    <Group title="Buttons">{(['primary', 'secondary', 'quiet', 'link', 'danger'] as const).map(variant => (['md', 'sm'] as const).map(size =>
       <div key={`${variant}-${size}`} className="fixture-row"><span>{variant} / {size}</span>
         <Button variant={variant} size={size}>Normal</Button><Button variant={variant} size={size} disabled>Disabled</Button>
         <Button variant={variant} size={size} busy>Saving…</Button><Button variant={variant} size={size} href="#">Link</Button>
