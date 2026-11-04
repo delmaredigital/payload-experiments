@@ -44,7 +44,9 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     const update = () => setMode(node.closest('[data-theme="dark"], .dark') ? 'dark' : 'light')
     update()
     const observer = new MutationObserver(update)
-    observer.observe(node.ownerDocument.documentElement, { attributes: true, subtree: true, attributeFilter: ['class', 'data-theme'] })
+    for (let ancestor = node.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      observer.observe(ancestor, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+    }
     return () => observer.disconnect()
   }, [props.accent])
   const experimentId = props.experiment?.id

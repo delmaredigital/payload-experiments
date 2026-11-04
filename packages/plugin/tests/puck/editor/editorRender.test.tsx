@@ -294,7 +294,7 @@ test('unbound header names the registered block and marks it Not set up', () => 
 
 test.each(['draft', 'running'] as const)('custom routes reach the bound %s fetch and link', async status => {
   vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status })))
-  const Editor = createExperimentSlotEditor({ routes: { api: '/content-api', admin: '/manage' } }).render
+  const Editor = createExperimentSlotEditor({ routes: { api: '/content-api/', admin: '/manage/' } }).render
   render(<Editor {...props({ experiment: { id: 'id/with space', slug: 'example' } })} />)
   const link = await screen.findByRole('link', { name: status === 'draft' ? 'Set up the test' : 'View results' })
   expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments/id%2Fwith%20space?depth=0', expect.objectContaining({ credentials: 'include' }))
@@ -307,7 +307,7 @@ test.each(['draft', 'running'] as const)('custom routes reach the bound %s fetch
 test('custom API route reaches both drawer requests', async () => {
   vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] })))
     .mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'new', slug: 'welcome-page' } })))
-  const Editor = createExperimentSlotEditor({ routes: { api: '/content-api' } }).render
+  const Editor = createExperimentSlotEditor({ routes: { api: '/content-api/' } }).render
   render(<Editor {...props({ experiment: null })} />)
   fireEvent.click(screen.getByRole('button', { name: 'Test this block' }))
   expect(document.activeElement).toBe(screen.getByLabelText('Name'))

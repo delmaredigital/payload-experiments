@@ -60,7 +60,7 @@ test('config defines four slots, a custom experiment field, and empty serialized
   expect(ExperimentSlot.label).toBe('Experiment block')
   expect(Object.keys(ExperimentSlot.fields!)[0]).toBe('experiment')
   expect(ExperimentSlot.fields).toEqual({
-    experiment: { type: 'custom', label: 'Experiment', render: expect.any(Function) },
+    experiment: { type: 'custom', label: 'Test', render: expect.any(Function) },
     variantC: { type: 'slot', label: 'Variant C' }, variantB: { type: 'slot', label: 'Variant B' },
     variantA: { type: 'slot', label: 'Variant A' }, control: { type: 'slot', label: 'Original' },
   })

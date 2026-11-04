@@ -34,3 +34,20 @@ test('valid host accent sets every derived inline variable and follows the ifram
   document.documentElement.removeAttribute('data-theme')
   await waitFor(() => expect(root.style.getPropertyValue('--xp-accent')).toBe(sets.light.accent))
 })
+
+test('accent observes only theme ancestors and disconnects on unmount', async () => {
+  const observe = vi.spyOn(MutationObserver.prototype, 'observe')
+  const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect')
+  const Editor = createExperimentSlotEditor({ accent: '#1f3a68' }).render
+  const Slot = () => null
+  const view = render(<Editor id="one" experiment={null} control={Slot} variantA={Slot} variantB={Slot} variantC={Slot}
+    puck={{ renderDropZone: () => null, metadata: {}, isEditing: true, dragRef: null }} />)
+  const root = view.container.querySelector<HTMLElement>('.xp-slot-root')!
+  const ancestors: HTMLElement[] = []
+  for (let ancestor = root.parentElement; ancestor; ancestor = ancestor.parentElement) ancestors.push(ancestor)
+  expect(observe.mock.calls).toEqual(ancestors.map(ancestor => [ancestor, { attributes: true, attributeFilter: ['class', 'data-theme'] }]))
+  view.container.classList.add('dark')
+  await waitFor(() => expect(root.style.getPropertyValue('--xp-accent')).toBe(deriveAccent('#1f3a68').dark.accent))
+  view.unmount()
+  expect(disconnect.mock.contexts.filter(observer => observer === observe.mock.contexts[0])).toHaveLength(1)
+})

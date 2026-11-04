@@ -4,7 +4,6 @@ import { ViewportExposure } from '../client/ViewportExposure.js'
 import { experimentSlotDefaultProps, experimentSlotFields, experimentSlotLabel } from './slotConfig.js'
 import { createExperimentSlotField } from './experimentSlotField.js'
 import { resolvePuckRoutes, type PuckRoutes } from './routes.js'
-import { PuckHostProvider } from './hostContext.js'
 import { slotToRender } from './slot.model.js'
 
 export function createExperimentSlot({ routes: inputRoutes }: { routes?: PuckRoutes } = {}): ComponentConfig<ExperimentSlotProps> {
@@ -15,7 +14,7 @@ export function createExperimentSlot({ routes: inputRoutes }: { routes?: PuckRou
     defaultProps: experimentSlotDefaultProps,
     render: props => {
       const Slot = props[slotToRender(props)]
-      return <PuckHostProvider routes={routes}><ViewportExposure expose={props.xpExpose}><Slot /></ViewportExposure></PuckHostProvider>
+      return <ViewportExposure expose={props.xpExpose}><Slot /></ViewportExposure>
     },
   }
 }

@@ -14,7 +14,7 @@ test('/puck reaches only server-safe code and the approved client leaves', () =>
   expect(graph.files.filter(file => /\/src\/(db|server|endpoints|admin)\/|\/src\/puck\/editor\//.test(file))).toEqual([])
   const allowedClient = new Set([
     'client/ViewportExposure.tsx', 'puck/ExperimentPicker.tsx',
-    'client/beacon.ts', 'puck/hostContext.tsx', 'ui/Inputs.tsx',
+    'client/beacon.ts', 'puck/hostContext.tsx',
   ].map(path))
   const clients = graph.files.filter(file => hasClientDirective(readFileSync(file, 'utf8')))
   expect(clients).toContain(path('client/ViewportExposure.tsx'))
@@ -23,6 +23,11 @@ test('/puck reaches only server-safe code and the approved client leaves', () =>
   for (const file of ['exports/puck.ts', 'puck/ExperimentSlot.tsx', 'puck/experimentSlotField.ts']) {
     expect(hasClientDirective(readFileSync(path(file), 'utf8'))).toBe(false)
   }
+})
+
+test('/puck source graph reaches no CSS imports', () => {
+  const graph = collectImports(path('exports/puck.ts'))
+  expect(graph.files.filter(file => /\.css$/i.test(file))).toEqual([])
 })
 
 test('bundle directive detection includes comments and earlier directives, but stops after code', () => {

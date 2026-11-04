@@ -2,8 +2,6 @@
 
 import { useEffect, useId, useState } from 'react'
 import type { ExperimentRef } from '../types/puck.js'
-import { Select } from '../ui/Select.js'
-import { Banner } from '../ui/Banner.js'
 import { usePuckRoutes } from './hostContext.js'
 import { pickerCopy } from './copy.js'
 
@@ -57,16 +55,17 @@ export function ExperimentPicker({ value, onChange }: {
   }, [api])
 
   const selected = value ? String(value.id) : ''
-  return <div>
-    <Select id={id} label={pickerCopy.label} value={selected} disabled={state === 'loading'} /* stays enabled on error so a saved experiment can still be unbound */ onChange={event => {
+  return <div className="xp-ui-field">
+    <label htmlFor={id}>{pickerCopy.label}</label>
+    <select id={id} className="xp-ui-input xp-ui-select" value={selected} disabled={state === 'loading'} /* stays enabled on error so a saved experiment can still be unbound */ onChange={event => {
       const experiment = experiments.find(doc => String(doc.id) === event.currentTarget.value)
       onChange(experiment ? { id: experiment.id, slug: experiment.slug } : null)
     }}>
       <option value="">{pickerCopy.none}</option>
       {value && !experiments.some(doc => String(doc.id) === selected) ? <option value={selected}>{value.slug}</option> : null}
       {experiments.map(doc => <option key={doc.id} value={String(doc.id)}>{doc.name} · {pickerCopy.statuses[doc.status]}</option>)}
-    </Select>
-    {state === 'loading' ? <Banner>{pickerCopy.loading}</Banner> : null}
-    {state === 'error' || state === 'forbidden' ? <Banner tone="error">{pickerCopy[state]}</Banner> : null}
+    </select>
+    {state === 'loading' ? <p className="xp-ui-banner xp-ui-banner--info" role="status">{pickerCopy.loading}</p> : null}
+    {state === 'error' || state === 'forbidden' ? <p className="xp-ui-banner xp-ui-banner--error" role="alert">{pickerCopy[state]}</p> : null}
   </div>
 }
