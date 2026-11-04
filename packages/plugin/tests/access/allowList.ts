@@ -1,4 +1,6 @@
 export const OVERRIDE_ACCESS_ALLOW_LIST: Array<{ file: string; reason: string }> = [
+  { file: 'src/db/publishedContent.ts', reason: "§7.8 make-content: the published main row, so Payload's draft baseline never fills a field (KI-1)" },
+  { file: 'src/db/publishedContent.ts', reason: '§7.8 make-content: the latest draft version, so restoring the draft never drops fields the manager cannot read (KI-1)' },
   { file: "src/hooks/pageGuard.ts", reason: "§7.8 page guard: the hook must see test placements regardless of the editor's access" },
   { file: "src/collections/experiments/flagControlParams.ts", reason: "§7.8: \"nested reads inside plugin hooks (CORE-21): a refused nested operation kills the caller's transaction\"" },
   { file: "src/collections/layers.ts", reason: "§7.8: \"nested reads inside plugin hooks (CORE-21): a refused nested operation kills the caller's transaction\"" },

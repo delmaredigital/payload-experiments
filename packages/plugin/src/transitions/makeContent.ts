@@ -1,4 +1,6 @@
-import { Forbidden, NotFound, ValidationError, Locked, commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field } from 'payload'
+import { Forbidden, NotFound, ValidationError, Locked, commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field, type Block } from 'payload'
+import { latestDraftContent, publishedContent as readPublishedContent } from '../db/publishedContent.js'
+import { contentBlocks, hasLocalizedFields } from './contentFields.js'
 import { safeError } from '../log.js'
 import { XpRefusal } from '../errors.js'
 import type { ContentReportReason } from '../types/reasons.js'
@@ -20,12 +22,18 @@ type ContentDoc = { collection: string; id: DocId; ok: boolean; detail?: Content
 function contentFailureReason(error: unknown): ContentReportReason {
   // Payload classes may use APIError as their name, so check instances too.
   const name = error instanceof Error ? error.name : undefined
+  if (error instanceof LocalizedContent) return 'localized'
   if (error instanceof Forbidden || name === 'Forbidden') return 'forbidden'
   if (error instanceof NotFound || name === 'NotFound') return 'not-found'
   if (error instanceof ValidationError || name === 'ValidationError') return 'validation'
   if (error instanceof Locked || name === 'Locked' || error instanceof XpRefusal && error.code === 'locked-placement') return 'locked'
   return 'update-failed'
 }
+
+class LocalizedContent extends Error {}
+
+const isNotFound = (error: unknown) => contentFailureReason(error) === 'not-found'
+  || Boolean(error && typeof error === 'object' && 'status' in error && error.status === 404)
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
 
@@ -49,46 +57,89 @@ function unwrap(value: unknown, slug: string, slot: string): unknown {
 /** Payload update merges omissions from the latest version even on publish.
  * Restore each captured document's fields, omitting API/adapter metadata.
  */
-function contentData(doc: Record<string, unknown>, field: string, content: unknown): Record<string, unknown> {
-  const metadata = new Set(['id', 'createdAt', 'updatedAt', '_isLocked', '_userEditing'])
-  return { ...Object.fromEntries(Object.entries(doc).filter(([key]) => !metadata.has(key))), [field]: content }
+const contentMetadata = new Set(['id', 'createdAt', 'updatedAt', '_isLocked', '_userEditing'])
+
+function contentData(doc: Record<string, unknown>, field: string, content: unknown, fields: Field[], blocks: Block[] = []): Record<string, unknown> {
+  const data = { ...Object.fromEntries(Object.entries(doc).filter(([key]) => !contentMetadata.has(key))), [field]: content }
+  return fillContentFields(fields, data, blocks)
 }
 
-/** Refuse unsafe collection shapes before rebuilding complete host documents. */
-async function fieldRefusal(fields: Field[], req: PayloadRequest, doc: Record<string, unknown> & { id: DocId },
-  operation: 'read' | 'update' = 'read', data: Record<string, unknown> = doc,
-  siblingData: Record<string, unknown> = data, blockData?: Record<string, unknown>, seen = new Set<Field>()): Promise<string | undefined> {
+/** Adapter reads can omit empty fields (notably single polymorphic links).
+ * Make every stored value explicit so Payload cannot fill it from the other version.
+ */
+function fillContentFields(fields: Field[], source: Record<string, unknown>, blocks: Block[] = []): Record<string, unknown> {
+  const result = { ...source }
   for (const field of fields) {
-    if (seen.has(field)) continue
-    const branch = new Set(seen).add(field)
-    if ('localized' in field && field.localized) return 'This page is localized; update it by hand.'
-    if ('hidden' in field && field.hidden === true) return 'This page has hidden fields; update it by hand.'
-    if ('access' in field && field.access?.[operation] && !await field.access[operation]({ id: doc.id, req, doc, data, siblingData, blockData })) {
-      return operation === 'read' ? 'This page has fields you cannot read; update it by hand.' : 'This page has fields you cannot update; update it by hand.'
+    if (field.type === 'ui' || field.type === 'join' || 'virtual' in field && field.virtual) continue
+    const name = 'name' in field ? field.name : undefined
+    if (name && contentMetadata.has(name)) continue
+    if (name && result[name] === undefined) result[name] = field.type === 'array' || field.type === 'blocks' || 'hasMany' in field && field.hasMany ? [] : null
+    if ('tabs' in field) for (const tab of field.tabs) {
+      if ('name' in tab && tab.name) {
+        const value = result[tab.name]
+        // Payload traverses groups/tabs as objects; null would be dereferenced.
+        result[tab.name] = fillContentFields(tab.fields, object(value) ? value : {}, blocks)
+      } else Object.assign(result, fillContentFields(tab.fields, result, blocks))
+    }
+    const value = name ? result[name] : result
+    if ('fields' in field) {
+      if (Array.isArray(value)) result[name!] = value.map(row => object(row) ? fillContentFields(field.fields, row, blocks) : row)
+      else if (object(value) || field.type === 'group') {
+        const filled = fillContentFields(field.fields, object(value) ? value : {}, blocks)
+        if (name) result[name] = filled
+        else Object.assign(result, filled)
+      }
+    }
+    if (field.type === 'blocks' && Array.isArray(value)) {
+      const definitions = contentBlocks(field, blocks)
+      result[name!] = value.map(row => {
+        const block = object(row) ? definitions.find(block => block.slug === row.blockType) : undefined
+        return block && object(row) ? fillContentFields(block.fields, row, blocks) : row
+      })
+    }
+  }
+  return result
+}
+
+/** Payload strips denied updates and fills them from the latest version. Only
+ * refuse when that substitution would change the proposed value (KI-1).
+ */
+// Payload beforeChange/getExistingRowDoc.js matches array/block rows by ID.
+const existingRow = (row: unknown, original: unknown): Record<string, unknown> => object(row) && row.id && Array.isArray(original)
+  ? original.find(value => object(value) && value.id === row.id) ?? {} : {}
+
+async function fieldRefusal(fields: Field[], req: PayloadRequest, doc: Record<string, unknown> & { id: DocId },
+  operation: 'update' = 'update', data: Record<string, unknown> = doc,
+  siblingData: Record<string, unknown> = data, blockData?: Record<string, unknown>, originalSibling: Record<string, unknown> = fillContentFields(fields, doc, req.payload.config.blocks)): Promise<string | undefined> {
+  for (const field of fields) {
+    if (field.type === 'ui' || field.type === 'join' || 'virtual' in field && field.virtual) continue
+    if ('name' in field && !['id', 'createdAt', 'updatedAt'].includes(field.name) && JSON.stringify(siblingData[field.name] ?? null) !== JSON.stringify(originalSibling[field.name] ?? null) && 'access' in field && field.access?.[operation] && !await field.access[operation]({ id: doc.id, req, doc, data, siblingData, blockData })) {
+      return 'This page has fields you cannot update; update it by hand.'
     }
     const value = 'name' in field ? siblingData[field.name] : siblingData
     if ('tabs' in field) for (const tab of field.tabs) {
-      if ('localized' in tab && tab.localized) return 'This page is localized; update it by hand.'
-      if ('hidden' in tab && tab.hidden === true) return 'This page has hidden fields; update it by hand.'
-      if ('access' in tab && tab.access?.[operation] && !await tab.access[operation]({ id: doc.id, req, doc, data, siblingData, blockData })) {
-        return operation === 'read' ? 'This page has fields you cannot read; update it by hand.' : 'This page has fields you cannot update; update it by hand.'
+      if ('name' in tab && tab.name && JSON.stringify(siblingData[tab.name] ?? null) !== JSON.stringify(originalSibling[tab.name] ?? null) && 'access' in tab && tab.access?.[operation] && !await tab.access[operation]({ id: doc.id, req, doc, data, siblingData, blockData })) {
+        return 'This page has fields you cannot update; update it by hand.'
       }
       const tabData = 'name' in tab && tab.name ? siblingData[tab.name] : siblingData
-      const refusal = await fieldRefusal(tab.fields, req, doc, operation, data, object(tabData) ? tabData : {}, blockData, branch)
+      const originalTab = 'name' in tab && tab.name ? originalSibling[tab.name] : originalSibling
+      const refusal = await fieldRefusal(tab.fields, req, doc, operation, data, object(tabData) ? tabData : {}, blockData, object(originalTab) ? originalTab : {})
       if (refusal) return refusal
     }
+    const originalValue = 'name' in field ? originalSibling[field.name] : originalSibling
     if ('fields' in field) for (const row of Array.isArray(value) && value.length ? value : [value]) {
-      const refusal = await fieldRefusal(field.fields, req, doc, operation, data, object(row) ? row : {}, blockData, branch)
+      const original = Array.isArray(value) ? existingRow(row, originalValue) : originalValue
+      const refusal = await fieldRefusal(field.fields, req, doc, operation, data, object(row) ? row : {}, blockData, object(original) ? original : {})
       if (refusal) return refusal
     }
     if (field.type === 'blocks') {
-      const blocks = [...field.blocks, ...(field.blockReferences ?? []).map(slug => req.payload.config.blocks?.find(block => block.slug === slug)).filter(block => block !== undefined)]
-      for (const block of blocks) {
-        const rows = Array.isArray(value) ? value.filter(row => object(row) && row.blockType === block.slug) : []
-        for (const row of rows.length ? rows : [{}]) {
-          const refusal = await fieldRefusal(block.fields, req, doc, operation, data, row, row, branch)
-          if (refusal) return refusal
-        }
+      const blocks = contentBlocks(field, req.payload.config.blocks)
+      for (const row of Array.isArray(value) ? value : []) {
+        const block = object(row) ? blocks.find(block => block.slug === row.blockType) : undefined
+        if (!block || !object(row)) continue
+        const original = existingRow(row, originalValue)
+        const refusal = await fieldRefusal(block.fields, req, doc, operation, data, row, row, object(original) ? original : {})
+        if (refusal) return refusal
       }
     }
   }
@@ -130,12 +181,29 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
     const winner = current.arms.find(arm => arm.key === decision?.winnerArm && arm.kind !== 'holdout')
     if (!winner) refuse('invalid-winner')
     const docs: ContentDoc[] = []
-    const attempt = async (collection: string, id: DocId, fn: () => Promise<void>) => {
-      try { await hostTransaction(req, fn); docs.push({ collection, id, ok: true }) }
+    const attempt = async (collection: string, id: DocId, fn: () => Promise<void>, missingOk = false) => {
+      let missing = false
+      try {
+        await hostTransaction(req, async () => {
+          try { await fn() }
+          catch (error) {
+            if (missingOk && isNotFound(error)) {
+              // Payload may already have killed the failed write's transaction.
+              // Roll back any remaining writes, then check the row while still
+              // detached from the outer transition and its privileged context.
+              await killTransaction(req)
+              if (!await initTransaction(req)) throw new Error('A content transaction could not be started.')
+              missing = !await readPublishedContent(req, collection, id)
+            }
+            throw error
+          }
+        })
+        docs.push({ collection, id, ok: true })
+      }
       catch (error) {
-        const detail = contentFailureReason(error)
+        const detail = isNotFound(error) ? missingOk ? 'forbidden' : 'not-found' : contentFailureReason(error)
         req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content update failed')
-        docs.push({ collection, id, ok: false, detail, error: detail })
+        docs.push({ collection, id, ok: Boolean(missing), detail: missing ? 'not-found' : detail, ...(!missing ? { error: detail } : {}) })
       }
     }
     if (current.kind === 'block') {
@@ -166,24 +234,26 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
         const transactionID = req.transactionID
         delete req.transactionID
         try {
-          const config = req.payload.config.collections.find(config => config.slug === collection)
-          const access = config?.access?.read ? await config.access.read({ id, req }) : true
           const doc = await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: true, includeLockStatus: true, disableErrors: true })
-          if (!doc) {
-            // Fail closed (exp-orch 16:20): only an unfiltered read proves the page is gone;
-            // a Where-filtered miss may be a page this manager cannot see.
-            const ok = access === true || (typeof access === 'object' && access !== null && Object.keys(access).length === 0)
-            const detail: ContentReportReason = ok ? 'not-found' : 'forbidden'
-            docs.push({ collection, id, ok, detail, ...(!ok ? { error: detail } : {}) })
-            skipped.add(key)
-          } else if (doc._isLocked === true || doc.locked === true) refuse('locked-placement', { collection, id })
+          // Null can also mean trashed or hidden by a host hook. Use the same
+          // unfiltered existence check as a thrown NotFound before reporting done.
+          if (!doc) throw new NotFound()
+          if (doc._isLocked === true || doc.locked === true) refuse('locked-placement', { collection, id })
         } catch (error) {
           if (error && typeof error === 'object' && 'code' in error && error.code === 'locked-placement') throw error
-          const missing = error && typeof error === 'object' && 'status' in error && error.status === 404
+          let missing = false
+          let detail: ContentReportReason = isNotFound(error) ? 'forbidden' : contentFailureReason(error)
+          if (isNotFound(error)) {
+            try {
+              await hostTransaction(req, async () => { missing = !await readPublishedContent(req, collection, id) })
+            } catch (checkError) {
+              missing = false
+              detail = 'update-failed'
+              req.payload.logger.error({ err: safeError(checkError), experimentId, collection, id }, 'Experiment content existence check failed')
+            }
+          }
           req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content read failed')
-          // A 404 means the placement is gone: nothing to update, so ok and detail must agree.
-          const detail: ContentReportReason = missing ? 'not-found' : contentFailureReason(error)
-          docs.push({ collection, id, ok: Boolean(missing), detail, ...(!missing ? { error: detail } : {}) })
+          docs.push({ collection, id, ok: Boolean(missing), detail: missing ? 'not-found' : detail, ...(!missing ? { error: detail } : {}) })
           skipped.add(key)
         } finally { req.transactionID = transactionID }
       }
@@ -192,31 +262,27 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
         await attempt(collection, id, async () => {
           const field = registrations.find(entry => entry.slug === collection)?.field
           if (!field) throw new Error('This content collection is no longer configured.')
-          const draft = await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: true })
           const config = req.payload.config.collections.find(config => config.slug === collection)
+          if (hasLocalizedFields(config?.fields ?? [], req.payload.config)) throw new LocalizedContent()
+          await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: true })
           const drafts = Boolean(config?.versions && config.versions.drafts)
-          const published = drafts ? await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: false }) : draft
-          const draftContent = unwrap(draft[field], current.slug, winner.slot!)
+          const published = await readPublishedContent(req, collection, id)
+          if (!published) throw new NotFound()
+          const draft = drafts ? await latestDraftContent(req, collection, id) ?? published : published
+          const draftValue = draft[field] ?? null
+          const draftContent = unwrap(draftValue, current.slug, winner.slot!)
           const publishedContent = unwrap(published[field], current.slug, winner.slot!)
-          const changedDraft = JSON.stringify(draftContent) !== JSON.stringify(draft[field])
+          const changedDraft = JSON.stringify(draftContent) !== JSON.stringify(draftValue)
           const changedPublished = JSON.stringify(publishedContent) !== JSON.stringify(published[field])
-          // Nothing left to rewrite (e.g. an editor already did it by hand): done, before any refusal —
-          // but only when the content field was really read (not stripped as hidden/unreadable, not localized).
-          const contentField = topLevelField(config?.fields ?? [], field)
-          // Payload strips hidden and read-denied fields from a read, so presence in both proves readability;
-          // a localized content field compares only one locale, so it never takes the shortcut.
-          const contentReadable = Object.hasOwn(draft, field) && Object.hasOwn(published, field) && !contentField?.localized
-          if (contentReadable && !changedDraft && !changedPublished) return
-          for (const doc of [draft, published]) {
-            const refusal = await fieldRefusal(config?.fields ?? [], req, doc)
-            if (refusal) throw new ValidationError({ errors: [{ message: refusal, path: field }] })
-          }
-          const publishedData = contentData(published, field, publishedContent)
-          const draftData = { ...contentData(draft, field, draftContent), _status: 'draft' }
+          if (!changedDraft && !changedPublished) return
+          const publishedData = contentData(published, field, publishedContent, config?.fields ?? [], req.payload.config.blocks)
+          const draftData = { ...contentData(draft, field, draftContent, config?.fields ?? [], req.payload.config.blocks), _status: 'draft' }
           // Payload beforeValidate receives the latest version as doc, and the
           // proposed write as data/siblingData (blockData is the proposed row).
-          const publicationRefusal = await fieldRefusal(config?.fields ?? [], req, draft, 'update', publishedData)
-          if (publicationRefusal) throw new ValidationError({ errors: [{ message: publicationRefusal, path: field }] })
+          if (changedPublished) {
+            const publicationRefusal = await fieldRefusal(config?.fields ?? [], req, draft, 'update', publishedData)
+            if (publicationRefusal) throw new ValidationError({ errors: [{ message: publicationRefusal, path: field }] })
+          }
           if (drafts) {
             const draftOriginal = changedPublished ? { ...published, ...publishedData } : draft
             const draftRefusal = await fieldRefusal(config?.fields ?? [], req, draftOriginal, 'update', draftData)
@@ -227,7 +293,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
             data: publishedData })
           if (drafts) await req.payload.update({ collection, id, req, overrideAccess: false, overrideLock: false, draft: true,
             data: draftData })
-        })
+        }, true)
       }
     } else if (current.kind === 'flag') {
       const point = options.flagPoints?.find(point => point.id === current.flagPoint)
@@ -250,19 +316,4 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
     return { doc, revision: manifest.revision, docs }
   })
   return result
-}
-
-/** The top-level data field with this name, looking through unnamed rows, collapsibles and tabs. */
-function topLevelField(fields: readonly unknown[], name: string): { hidden?: boolean; localized?: boolean; access?: { read?: unknown } } | undefined {
-  for (const raw of fields) {
-    const field = raw as { name?: string; type?: string; fields?: unknown[]; tabs?: Array<{ name?: string; fields?: unknown[] }> }
-    if (field.name === name) return field as never
-    if (!field.name && (field.type === 'row' || field.type === 'collapsible') && field.fields) {
-      const found = topLevelField(field.fields, name); if (found) return found
-    }
-    if (field.type === 'tabs') for (const tab of field.tabs ?? []) if (!tab.name && tab.fields) {
-      const found = topLevelField(tab.fields, name); if (found) return found
-    }
-  }
-  return undefined
 }
