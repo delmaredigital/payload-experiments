@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.3.0-rc.1] - 2026-11-03
+
+### plugin
+
 - Added: a manager can dismiss one failed entry in the "Make it the content" report (for a page deleted or copied by hand), so the test can be archived with its result. In the admin, each page that couldn't be updated has Dismiss (and Undo), Finish archiving appears once every page is updated or dismissed, and a test that archives itself says so. `POST /xp/experiments/:id/content-report/dismiss` dismisses an entry; `POST /xp/experiments/:id/content-report/restore` undoes a dismissal so the entry can be retried; `contentDone(report)` (exported from the package root) returns true when every entry is ok or dismissed (a present but empty report, as for page tests, is done; an absent report is not). Dismiss and restore refuse with `not-decided`, `entry-not-found`, `entry-ok`, `entry-dismissed` or `entry-not-dismissed` (new `RefusalCode` members; hosts switching exhaustively add them). Migration impact: none.
 - Fixed: a registration from someone else's browser no longer receives credit for the account owner's later activity. The identity conflict share now counts only users whose credited events span arms, so it can read lower than in 0.2.x. Migration impact: see BREAKING.
 - Changed: the Goals pages use the new layout; deleting a goal now asks for confirmation; choosing "Use this goal" from a test makes it that test's main goal.
