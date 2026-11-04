@@ -192,7 +192,7 @@ test('rollouts have no Decide; decided tests retain their frozen decision findin
   expect(screen.queryByRole('button', { name: 'Decide' })).toBeNull()
 })
 test('errors, missing and empty results render distinct states', async () => {
-  for (const [status, expected] of [[403, "You don't have access to results."], [404, 'This experiment no longer exists.'], [500, 'Retry']] as const) {
+  for (const [status, expected] of [[403, "You don't have access to results."], [404, 'This test no longer exists.'], [500, 'Retry']] as const) {
     vi.stubGlobal('fetch', vi.fn(async () => json({}, status)))
     const view = render(<ResultsBody id={1} surface={{ ...surface, canManage: false }} />)
     await screen.findByText(expected)

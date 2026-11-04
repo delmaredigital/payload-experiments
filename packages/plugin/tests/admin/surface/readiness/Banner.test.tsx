@@ -25,7 +25,7 @@ test.each([
   ['Add a goal', 'Metric not found', 'That goal no longer exists. Choose another goal.'],
   ['Add a goal', 'The phase record was not found.', 'That goal no longer exists. Choose another goal.'],
   ['Let more people in', 'The phase record was not found.', 'This round has changed. Reload the page.'],
-  ['Stop', 'Experiment not found', 'This experiment no longer exists.'],
+  ['Stop', 'Experiment not found', 'This test no longer exists.'],
 ])('%s names what is missing for a 404: %s', async (action, message, expected) => {
   const p = props({ status: 'running' })
   const fetcher = vi.fn()

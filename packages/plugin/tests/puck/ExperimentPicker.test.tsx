@@ -50,7 +50,7 @@ test('selection stores only id and slug, preserves id types, and clears to null'
 })
 
 test.each([
-  [403, "You can't see experiments. Ask an admin."],
+  [403, "You can't see tests. Ask an admin."],
   [500, "Couldn't load experiments."],
 ])('HTTP %s shows the error copy', async (status, message) => {
   mockFetch({}, status)

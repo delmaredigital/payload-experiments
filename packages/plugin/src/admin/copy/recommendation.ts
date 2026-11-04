@@ -17,7 +17,6 @@ export const mixedRecommendation = (better: string, worse: string) => `Mixed: ${
 export const runningRecommendation = (date: string) => `No difference so far. Keep running until ${date}.`
 export const rolloutCollectingRecommendation = (winner: string) => `Since shipping ${winner}: still collecting data.`
 export const rolloutReadoutRecommendation = (winner: string, lift: string) => `Since shipping ${winner}: ${lift} compared with the holdout.`
-export const RESULTS_SURFACE_COPY = { missing: "This test couldn't be found." } as const
 
 /** Matches the stored server finding; it is not a new statistical decision. */
 export const storedGuardrailFinding = (group: string, guardrail: string) => `Stop: ${group} harms ${guardrail}.`

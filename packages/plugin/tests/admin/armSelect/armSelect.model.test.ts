@@ -11,7 +11,7 @@ test('live wins over a stored candidate; stale copy identifies the earlier exper
   const result = bindArmSelect({ live, candidates: [draft], stored: { experiment: 1, arm: 'variantA' } })
   expect(result.bound).toBe(live)
   expect(result.pickable).toBe(false)
-  expect(result.stale).toBe("This was set for an earlier experiment (Earlier test) and won't be used now.")
+  expect(result.stale).toBe("This was set for an earlier test (Earlier test) and won't be used now.")
 })
 test('picks the stored candidate, comparing numeric and string ids', () => {
   const result = bindArmSelect({ candidates: [draft], stored: { experiment: '1' } })
@@ -24,7 +24,7 @@ test('no candidate is selected implicitly; a populated stale reference keeps its
   expect(bindArmSelect({ candidates: [draft], stored: {} }).bound).toBeNull()
   const result = bindArmSelect({ candidates: [], stored: { experiment: { id: 9, name: 'Old copy' } } })
   expect(result.pickable).toBe(true)
-  expect(result.stale).toBe("This was set for an earlier experiment (Old copy) and won't be used now.")
+  expect(result.stale).toBe("This was set for an earlier test (Old copy) and won't be used now.")
   expect(bindArmSelect({ candidates: [], stored: { experiment: null, arm: null } }).stale).toBeNull()
 })
 test.each(['draft', 'stopped', 'running', 'decided'] as const)('banner only while running (%s)', status => {
@@ -35,5 +35,5 @@ test.each(['draft', 'stopped', 'running', 'decided'] as const)('banner only whil
 })
 test('a stale reference without a known name has no parenthetical placeholder', () => {
   expect(bindArmSelect({ candidates: [], stored: { experiment: 'deleted', arm: 'variantA' } }).stale)
-    .toBe("This was set for an earlier experiment and won't be used now.")
+    .toBe("This was set for an earlier test and won't be used now.")
 })

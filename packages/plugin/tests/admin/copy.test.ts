@@ -31,7 +31,8 @@ test('other uncoded refusals retain the generic fallback', () => {
 })
 
 function checkStrings(value: unknown) {
-  if (typeof value === 'string') expect(value).not.toMatch(/\b(arms?|phases?)\b/i)
+  // "Experiment block" is the Puck block's own name; every other user-facing string says "test".
+  if (typeof value === 'string') expect(value.replace(/Experiment block/g, ''), value).not.toMatch(/\b(arms?|phases?|experiments?)\b/i)
   else if (value && typeof value === 'object') for (const item of Object.values(value)) checkStrings(item)
 }
 function modules(directory: URL): URL[] {
