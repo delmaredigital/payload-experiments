@@ -14,7 +14,7 @@ test('adds collections, global, endpoints and resolved custom options without mu
   const result = await createExperimentsPlugin(sampleOptions())(config)
   expect(result.collections?.map(c => c.slug)).toEqual(['pages', 'xp-experiments', 'xp-phases', 'xp-layers', 'xp-metrics', 'xp-events', 'xp-identities', 'xp-results-snapshots'])
   expect(result.globals?.map(g => g.slug)).toEqual(['settings', 'xp-state'])
-  expect(result.endpoints).toHaveLength(17)
+  expect(result.endpoints).toHaveLength(19)
   expect(result.endpoints?.[0]).toBe(endpoint)
   expect(result.custom).toMatchObject({ host: true, xp: { events: { retentionDays: 180 }, puck: { collections: [] } } })
   expect(config.collections).toEqual([collection])

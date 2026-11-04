@@ -13,7 +13,7 @@ import { raceDeadline, ResultsBudgetError, RESULTS_TIMEOUT_MARGIN_MS } from '../
 import { analysePhase, type MetricUnitData } from '../results/analyse.js'
 import { firstExposures, perUnitValues, timestampMs, type MetricEvent } from '../results/aggregate.js'
 import { rolloutAnalysisUnits } from '../results/rolloutUnits.js'
-import { creditUserEvents } from '../results/identityCredit.js'
+import { creditUserEvents, eligibleIdentityLinks } from '../results/identityCredit.js'
 
 type UnavailableMetric = { experimentId: DocId; phase: number; metricId: DocId; reason: MetricUnavailableReason }
 async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, options: ResolvedOptions, now: Date, deadline: number, unavailableMetrics: UnavailableMetric[], logger: Payload['logger']) {
@@ -39,14 +39,14 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
   const identities = candidate.unitType === 'visitor' ? await identityRows(exec, { anonymousIds: ids }) : []
   const userIds = [...new Set(identities.map(identity => identity.userId))]
   const linked = new Set(userIds)
+  const identityConflicts = new Set<string>()
   const credit = (events: Array<{ unitId: string; value: number; ts: Date | number; userId?: string | null }>, userKeyed: boolean): MetricEvent[] => {
     if (candidate.unitType === 'user') return events.map(event => ({ ...event, unitId: event.userId ?? event.unitId }))
     const userEvents = events.filter(event => userKeyed || event.userId != null && linked.has(event.userId))
       .map(event => ({ userId: String(event.userId ?? event.unitId), value: event.value, ts: event.ts }))
-    const credited = creditUserEvents(units, identities, userEvents).events
+    const credited = creditUserEvents(units, identities, userEvents, userId => identityConflicts.add(userId)).events
     return userKeyed ? credited : [...events.filter(event => event.userId == null || !linked.has(event.userId)), ...credited]
   }
-  const diagnostics = creditUserEvents(units, identities, [])
   const metricData: MetricUnitData[] = []
   for (const definition of phase.metricDefinitions) {
     try {
@@ -78,16 +78,28 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
         const sourceIds = userKeyed ? userIds : ids
         events = credit(await raceDeadline(deadline, () => source.query({ from, to, unitIds: sourceIds })), userKeyed)
         if (phase.analysis.cuped === 'auto' && source.covariate) {
+          const userUnits = new Map<string, { unitId: string; firstExposureTs: Date }>()
+          if (userKeyed) for (const link of identities) {
+            const unit = units.get(link.anonymousId)
+            if (!unit) continue
+            // Hosts aggregate pre-period values in SQL; per-event rows over 14 days would break the one-row-per-unit contract and multiply host traffic.
+            // CUPED only reduces variance: mis-credited pre-exposure values add noise, but cannot bias the effect because they are independent of assignment.
+            if (!eligibleIdentityLinks([link], unit.firstTs).length) continue
+            const previous = userUnits.get(link.userId)
+            if (!previous || +unit.firstTs < +previous.firstExposureTs
+              || +unit.firstTs === +previous.firstExposureTs && link.anonymousId < previous.unitId) {
+              userUnits.set(link.userId, { unitId: link.anonymousId, firstExposureTs: unit.firstTs })
+            }
+          }
           const sourceUnits = userKeyed
-            ? creditUserEvents(units, identities, userIds.map(userId => ({ userId, ts: now, value: 0 }))).events.map(event => ({
-              unitId: identities.find(identity => identity.anonymousId === event.unitId)!.userId,
-              firstExposureTs: units.get(event.unitId)!.firstTs,
-            }))
-            : [...units].map(([unitId, unit]) => ({ unitId, firstExposureTs: unit.firstTs }))
+            ? [...userUnits].map(([unitId, unit]) => ({ unitId, firstExposureTs: unit.firstExposureTs }))
+            : [...units].map(([unitId, unit]) => ({ unitId, firstExposureTs: new Date(timestampMs(unit.firstTs)) }))
           const pre = await raceDeadline(deadline, () => source.covariate!({ units: sourceUnits, lookbackDays: 14 }))
           if (pre.some(row => !Number.isFinite(row.value))) throw new XpAnalysisError('non-finite-covariates')
-          const credited = credit(pre.map(row => ({ ...row, ts: now })), userKeyed)
-          covariates = new Map(credited.map(row => [row.unitId, row.value]))
+          covariates = new Map(pre.flatMap(row => {
+            const unitId = userKeyed ? userUnits.get(row.unitId)?.unitId : row.unitId
+            return unitId === undefined ? [] : [[unitId, row.value] as const]
+          }))
         }
       }
       if (events.some(event => !Number.isFinite(event.value))) throw new XpAnalysisError('non-finite-values')
@@ -112,7 +124,7 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
   const snapshot = analysePhase({ phase: analysisPhase, now, units, metricData, status,
     onMetricError: (error, metricId) => logger.error({ err: safeError(error), experimentId: phase.experiment, metricId }, 'Experiment metric analysis failed'),
     excludedMultiArm: exposed.excludedMultiArm, armMismatch: await armMismatchCount(exec, query),
-    identityConflictShare: userIds.length ? diagnostics.conflicts / userIds.length : 0,
+    identityConflictShare: userIds.length ? identityConflicts.size / userIds.length : 0,
     ...(phase.phaseKind === 'rollout' ? { winnerArm: phase.arms.find(arm => arm.kind !== 'holdout')!.key } : {}),
   })
   return snapshot

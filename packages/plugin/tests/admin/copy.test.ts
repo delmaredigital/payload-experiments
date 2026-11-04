@@ -32,6 +32,12 @@ test('other uncoded refusals retain the generic fallback', () => {
   expect(refusalMessage(undefined, 400, undefined, { notFound: 'Choose another goal.' })).toBe(API_MESSAGES.failed)
 })
 
+test.each(['toString', 'constructor'])('refusal codes ignore inherited %s', code => {
+  expect(refusalMessage(code, 422, 'Server explanation', { codes: {}, fallback: 'Try again.' })).toBe('Try again.')
+  expect(refusalMessage(code, 422, 'Server explanation', { codes: {} })).toBe('Server explanation')
+  expect(refusalMessage(code, 422, undefined, { codes: { [code]: 'Authored copy' } })).toBe('Authored copy')
+})
+
 function checkStrings(value: unknown) {
   // "Experiment block" is the Puck block's own name; every other user-facing string says "test".
   if (typeof value === 'string') expect(value.replace(/Experiment block/g, ''), value).not.toMatch(/\b(arms?|phases?|experiments?)\b/i)

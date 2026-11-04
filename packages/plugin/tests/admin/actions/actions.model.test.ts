@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { availableActions } from '../../../src/admin/actions/actions.model.js'
+import { availableActions, type ContentReport } from '../../../src/admin/actions/actions.model.js'
+import { contentDone } from '../../../src/contentDone.js'
 import { decideCopy, makeContentCopy, releaseCopy } from '../../../src/admin/copy/actions.js'
 
 type Input = Parameters<typeof availableActions>[0]
@@ -24,8 +25,8 @@ const cases: Case[] = [
   { name: 'Original wins', input: { decision: { winnerArm: 'control' } }, expected: [['make-content', 'Make it the content', 'primary'], ['discard', 'Discard winner', 'danger']] },
   { name: 'no winner', input: { decision: { winnerArm: null } }, expected: [['make-content', 'Make it the content', 'primary'], ['discard', 'Discard winner', 'danger']] },
   { name: 'released holdout', input: { decision: { winnerArm: 'variantA', holdoutReleasedAt: '2026-10-30' } }, expected: [['make-content', 'Make it the content', 'primary'], ['discard', 'Discard winner', 'danger']] },
-  { name: 'empty array report', input: { decision: { winnerArm: 'variantA', contentReport: [] } }, expected: [['release-holdout', 'Release holdout', 'secondary'], ['make-content', 'Make it the content', 'primary'], ['discard', 'Discard winner', 'danger']] },
-  { name: 'empty docs report', input: { decision: { winnerArm: 'variantA', contentReport: { docs: [] } } }, expected: [['release-holdout', 'Release holdout', 'secondary'], ['make-content', 'Make it the content', 'primary'], ['discard', 'Discard winner', 'danger']] },
+  { name: 'empty array report', input: { decision: { winnerArm: 'variantA', contentReport: [] } }, expected: [['release-holdout', 'Release holdout', 'secondary'], ['make-content', 'Make it the content', 'primary'], ['after-content', 'Finish archiving', 'secondary'], ['discard', 'Discard winner', 'danger']] },
+  { name: 'empty docs report', input: { decision: { winnerArm: 'variantA', contentReport: { docs: [] } } }, expected: [['release-holdout', 'Release holdout', 'secondary'], ['make-content', 'Make it the content', 'primary'], ['after-content', 'Finish archiving', 'secondary'], ['discard', 'Discard winner', 'danger']] },
   { name: 'all-ok array report', input: { decision: { winnerArm: 'variantA', contentReport: [ok] } }, expected: [['release-holdout', 'Release holdout', 'secondary'], ['make-content', 'Make it the content', 'primary'], ['after-content', 'Finish archiving', 'secondary'], ['discard', 'Discard winner', 'danger']] },
   { name: 'all-ok docs report', input: { decision: { winnerArm: 'variantA', contentReport: { docs: [ok] } } }, expected: [['release-holdout', 'Release holdout', 'secondary'], ['make-content', 'Make it the content', 'primary'], ['after-content', 'Finish archiving', 'secondary'], ['discard', 'Discard winner', 'danger']] },
   { name: 'some-failed array report', input: { decision: { winnerArm: 'variantA', contentReport: [ok, failed] } }, expected: [['release-holdout', 'Release holdout', 'secondary'], ['make-content', 'Make it the content', 'primary'], ['discard', 'Discard winner', 'danger']] },
@@ -66,4 +67,24 @@ test('decide copy covers Original and variants with and without a holdout', () =
   expect(decideCopy('Short headline', true, false)).toBe('Everyone except the holdout will see Short headline. The holdout keeps seeing the Original so we can measure the shipped change.')
   expect(decideCopy('Short headline', false, false)).toBe('Everyone will see Short headline.')
   expect(releaseCopy('Short headline')).toBe('The holdout will see Short headline too. Measuring since shipping ends.')
+})
+
+test.each([
+  ['all updated', { docs: [ok] }, true],
+  ['updated and dismissed', { docs: [ok, { ...failed, dismissedAt: '2026-11-03T12:00:00Z' }] }, true],
+  ['dismissed array report', [{ ...failed, dismissedAt: '2026-11-03T12:00:00Z' }], true],
+  ['one outstanding failure', { docs: [ok, failed] }, false],
+  ['empty', { docs: [] }, true],
+  ['empty array', [], true],
+  ['absent', undefined, false],
+  ['null', null, false],
+] as const)('contentDone: %s', (_name, report, done) => {
+  expect(contentDone(report as ContentReport | null | undefined)).toBe(done)
+})
+
+test('a dismissed failure permits the existing after-content archive action', () => {
+  const action = availableActions({ status: 'decided', kind: 'block', arms, canManage: true,
+    decision: { winnerArm: 'variantA', contentReport: { docs: [ok, { ...failed, dismissedAt: '2026-11-03T12:00:00Z' }] } } })
+    .find(action => action.id === 'after-content')
+  expect(action?.archive).toEqual({ mode: 'after-content' })
 })

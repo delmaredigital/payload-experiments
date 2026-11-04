@@ -1,11 +1,12 @@
 import type { ExperimentKind, Status } from '../../types/contracts.js'
-import type { ArchiveBody, MakeContentResult } from '../../types/endpoints.js'
+import type { ArchiveBody, ContentReport } from '../../types/endpoints.js'
+import { contentDone } from '../../contentDone.js'
 import { armLabel } from '../labels.js'
 import { ACTIONS_COPY as C, hardCodedLabel, makeContentCopy, releaseCopy } from '../copy/actions.js'
 import { REVIEW_COPY } from '../copy/review.js'
 
 export type ActionGroup = { key: string; label?: string; kind?: string }
-export type ContentReport = { docs: MakeContentResult['docs'] } | MakeContentResult['docs']
+export type { ContentReport } from '../../types/endpoints.js'
 export type ActionDecision = { winnerArm?: string | null; holdoutReleasedAt?: string | null; contentReport?: ContentReport | null }
 export type ActionId = 'start' | 'stop' | 'decide' | 'release-holdout' | 'make-content' | 'after-content' | 'archive' | 'discard' | 'hard-coded' | 'allocate' | 'add-metric'
 export type ExperimentAction = {
@@ -36,12 +37,10 @@ export function availableActions({ status, kind, arms, decision, canManage }: {
   const label = actionGroupLabel(decision?.winnerArm ?? 'control', winner?.label)
   const rolloutOpen = arms.some(group => group.key === 'holdout') && Boolean(decision?.winnerArm)
     && decision?.winnerArm !== 'control' && !decision?.holdoutReleasedAt
-  const report = decision?.contentReport
-  const docs = Array.isArray(report) ? report : report?.docs
   return [
     ...(rolloutOpen ? [action('release-holdout', C.release, releaseCopy(label))] : []),
     ...(kind !== 'code' ? [action('make-content', C.makeContent, makeContentCopy(label, kind), 'primary')] : []),
-    ...(docs?.length && docs.every(doc => doc.ok) ? [action('after-content', C.finish, C.finishBody, 'secondary', { mode: 'after-content' })] : []),
+    ...(contentDone(decision?.contentReport) ? [action('after-content', C.finish, C.finishBody, 'secondary', { mode: 'after-content' })] : []),
     action('discard', C.discard, C.discardBody, 'danger', { mode: 'discard' }, 'discard'),
     ...(kind === 'code' ? [action('hard-coded', hardCodedLabel(label), hardCodedLabel(label), 'primary', { mode: 'hard-coded' }, 'hard-coded')] : []),
   ]

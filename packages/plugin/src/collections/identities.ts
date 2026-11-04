@@ -8,7 +8,8 @@ export function identitiesCollection(options: ResolvedOptions): CollectionConfig
     access: readOnlyAccess(options.access.readIdentities ?? options.access.admin ?? options.access.manage),
     fields: [
       { name: 'anonymousId', type: 'text', unique: true, required: true },
-      { name: 'userId', type: 'text', required: true }, { name: 'linkedAt', type: 'date', required: true },
+      { name: 'userId', type: 'text', required: true, index: true }, { name: 'linkedAt', type: 'date', required: true },
+      { name: 'verifiedAt', type: 'date' },
     ],
   }
 }

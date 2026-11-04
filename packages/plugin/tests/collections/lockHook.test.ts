@@ -245,3 +245,11 @@ test.each(statuses)('unchanged page release audit is accepted in %s', async stat
   await expect(run({ decision: { pagesReleasedAt: null } }, original)).rejects.toMatchObject({ field: 'decision.pagesReleasedAt' })
   await expect(run({ decision: { pagesReleasedBy: null } }, original)).rejects.toMatchObject({ field: 'decision.pagesReleasedBy' })
 })
+
+
+test.each(statuses)('REST updates cannot dismiss a content report entry in %s', async status => {
+  const entry = { collection: 'pages', id: 1, ok: false }
+  const original = { ...fixture(status), decision: { ...fixture(status).decision, contentReport: { docs: [entry] } } }
+  await expect(run({ decision: { contentReport: { docs: [{ ...entry, dismissedAt: '2026-11-03T10:00:00.000Z', dismissedBy: '42' }] } } }, original))
+    .rejects.toMatchObject({ field: 'decision.contentReport' })
+})

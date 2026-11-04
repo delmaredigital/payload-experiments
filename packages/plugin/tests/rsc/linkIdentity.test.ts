@@ -21,23 +21,23 @@ function fixture() {
 test('duplicate signed cookies link the last visitor, matching the proxy', async () => {
   const { runtime, query } = fixture()
   const cookie = `custom_xp=${encodeUnitCookie('first', ['new'])}; custom_xp=${encodeUnitCookie('last', ['old'])}`
-  await linkIdentity(runtime, { headers: new Headers({ cookie }), userId: 'user' })
-  expect(query.mock.calls[0]![0]).toMatchObject({ values: ['last', 'user'] })
+  await linkIdentity(runtime, { headers: new Headers({ cookie }), userId: 'user', verified: true })
+  expect(query.mock.calls[0]![0]).toMatchObject({ values: ['last', 'user', true] })
 })
 
 test.each([undefined, 'visitor', encodeUnitCookie('visitor', ['wrong']), `visitor.${sign('visitor', ['new'])}`])('rejects absent/unsigned/tampered/old-format cookies (%s)', async cookie => {
   const { runtime, connect } = fixture()
-  await linkIdentity(runtime, { headers: new Headers(cookie ? { cookie: `custom_xp=${cookie}` } : {}), userId: 'user' })
+  await expect(linkIdentity(runtime, { headers: new Headers(cookie ? { cookie: `custom_xp=${cookie}` } : {}), userId: 'user', verified: true })).resolves.toBe('skipped')
   expect(connect).not.toHaveBeenCalled()
 })
 
 test('uses a separate pool checkout and releases it, supporting rotating secrets', async () => {
   const { runtime, query, connect, release, transaction } = fixture()
-  await linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['old'])}` }), userId: 'user' })
+  await linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['old'])}` }), userId: 'user', verified: true })
   expect(connect).toHaveBeenCalledOnce()
   expect(transaction).not.toHaveBeenCalled()
-  expect(query.mock.calls[0]![0]).toMatchObject({ text: expect.stringContaining('"isolated"."xp_identities"'), values: ['visitor', 'user'] })
-  expect(query.mock.calls[0]![0].text).toContain('ON CONFLICT ("anonymous_id") DO NOTHING')
+  expect(query.mock.calls[0]![0]).toMatchObject({ text: expect.stringContaining('"isolated"."xp_identities"'), values: ['visitor', 'user', true] })
+  expect(query.mock.calls[0]![0].text).toContain('ON CONFLICT ("anonymous_id") DO UPDATE')
   expect(release).toHaveBeenCalledOnce()
 })
 
@@ -45,7 +45,7 @@ test('insert failure resolves, logs and releases the checkout', async () => {
   const { runtime, query, release, error } = fixture()
   const queryError = new Error('down')
   query.mockRejectedValue(queryError)
-  await expect(linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['new'])}` }), userId: 'user' })).resolves.toBeUndefined()
+  await expect(linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['new'])}` }), userId: 'user', verified: true })).resolves.toBe('failed')
   expect(error).toHaveBeenCalledOnce()
   expect(release).toHaveBeenCalledOnce()
   expect(release).toHaveBeenCalledWith(queryError)
@@ -58,7 +58,7 @@ test.each(['false', 'throw'])('consent %s makes linking a valid cookie to a user
     return false
   })
   Object.assign(runtime.proxyRuntime.cookie, { consent })
-  await expect(linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['new'])}` }), userId: 'user' })).resolves.toBeUndefined()
+  await expect(linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['new'])}` }), userId: 'user', verified: true })).resolves.toBe(outcome === 'throw' ? 'failed' : 'skipped')
   expect(consent).toHaveBeenCalledOnce()
   expect(runtime.getPayload).not.toHaveBeenCalled()
   expect(connect).not.toHaveBeenCalled()
@@ -75,8 +75,32 @@ test('consent true receives cookies and headers on a placeholder request and all
     return true
   })
   Object.assign(runtime.proxyRuntime.cookie, { consent })
-  await linkIdentity(runtime, { headers: new Headers({ cookie: `permission=yes; custom_xp=${encodeUnitCookie('visitor', ['new'])}`, 'x-consent': 'allowed' }), userId: 'user' })
+  await linkIdentity(runtime, { headers: new Headers({ cookie: `permission=yes; custom_xp=${encodeUnitCookie('visitor', ['new'])}`, 'x-consent': 'allowed' }), userId: 'user', verified: true })
   expect(consent).toHaveBeenCalledOnce()
   expect(query).toHaveBeenCalledOnce()
-  expect(query.mock.calls[0]![0]).toMatchObject({ values: ['visitor', 'user'] })
+  expect(query.mock.calls[0]![0]).toMatchObject({ values: ['visitor', 'user', true] })
+})
+
+test.each([
+  [{ rows: [{ inserted: true }], rowCount: 1 }, 'linked'],
+  [{ rows: [{ inserted: false }], rowCount: 1 }, 'verified'],
+  [{ rows: [], rowCount: 0 }, 'skipped'],
+] as const)('returns the database outcome %s', async (result, outcome) => {
+  const { runtime, query } = fixture()
+  query.mockResolvedValue(result)
+  await expect(linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['new'])}` }), userId: 'user', verified: true })).resolves.toBe(outcome)
+})
+
+test('payload failure and a throwing logger never escape sign-in', async () => {
+  const { runtime, query, error } = fixture()
+  query.mockRejectedValue(new Error('private'))
+  error.mockImplementation(() => { throw new Error('logger') })
+  await expect(linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['new'])}` }), userId: 'user', verified: false })).resolves.toBe('failed')
+})
+
+
+test('payload initialization failure returns failed without throwing', async () => {
+  const { runtime } = fixture()
+  vi.mocked(runtime.getPayload).mockRejectedValue(new Error('private connection details'))
+  await expect(linkIdentity(runtime, { headers: new Headers({ cookie: `custom_xp=${encodeUnitCookie('visitor', ['new'])}` }), userId: 'user', verified: true })).resolves.toBe('failed')
 })

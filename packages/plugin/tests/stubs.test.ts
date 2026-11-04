@@ -39,7 +39,7 @@ import { decideGuard } from '../src/results/decideGuard.js'
 import { contentChangesHook } from '../src/hooks/contentChanges.js'
 
 const exportsByEntry = [
-  [index, ['createExperimentsPlugin', 'defineFlagPoint', 'defineMetricSource', 'createArmSelectField']],
+  [index, ['createExperimentsPlugin', 'defineFlagPoint', 'defineMetricSource', 'createArmSelectField', 'contentDone']],
   [runtimeProxy, ['defineExperimentsProxyRuntime', 'createPostgresManifestLoader', 'createHttpManifestLoader']],
   [runtimeServer, ['defineExperimentsServerRuntime']],
   [proxy, ['resolveExperiments', 'applyExperiments', 'createExperimentProxy']],
@@ -56,7 +56,7 @@ test('root barrel keeps public types and excludes internal contracts and the Puc
   const source = ts.createSourceFile(filename.pathname, readFileSync(filename, 'utf8'), ts.ScriptTarget.Latest, true)
   const names = source.statements.flatMap(statement => ts.isExportDeclaration(statement) && statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)
     ? statement.exportClause.elements.map(element => element.name.text) : [])
-  expect(names).toEqual(expect.arrayContaining(['ReadinessCode', 'ExperimentsPluginOptions', 'MetricSource', 'FlagPoint', 'ParamField', 'Attributes', 'ExperimentsProxyRuntimeOptions', 'ExperimentsProxyRuntime', 'ExperimentsServerRuntimeOptions', 'ExperimentsServerRuntime', 'Manifest', 'Assignments', 'ClientAssignments', 'Snapshot', 'ResultsResponse', 'DocId']))
+  expect(names).toEqual(expect.arrayContaining(['ContentReport', 'RestoreContentEntryBody', 'RestoreContentEntryResult', 'ReadinessCode', 'ExperimentsPluginOptions', 'MetricSource', 'FlagPoint', 'ParamField', 'Attributes', 'ExperimentsProxyRuntimeOptions', 'ExperimentsProxyRuntime', 'ExperimentsServerRuntimeOptions', 'ExperimentsServerRuntime', 'Manifest', 'Assignments', 'ClientAssignments', 'Snapshot', 'ResultsResponse', 'DocId']))
   for (const name of ['ResolvedOptions', 'EndpointContext', 'AccessKind', 'Slot']) expect(names).not.toContain(name)
 })
 
@@ -82,7 +82,7 @@ test.each(exportsByEntry)('entry exports every contracted value (%j)', (barrel, 
 })
 
 test('every route resolves a handler', () => {
-  expect(ROUTES).toHaveLength(16)
+  expect(ROUTES).toHaveLength(18)
   for (const route of ROUTES) expect(typeof route.handler, route.path).toBe('function')
 })
 

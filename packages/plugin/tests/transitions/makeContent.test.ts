@@ -2,6 +2,8 @@ import { Forbidden, Locked, NotFound, ValidationError, killTransaction, type Fie
 import { afterEach, expect, test, vi } from 'vitest'
 import { contentReportCopy } from '../../src/admin/copy/actions.js'
 import { preflightData } from '../../src/transitions/preflightData.js'
+import { dismissContentEntry } from '../../src/transitions/dismissContentEntry.js'
+import { restoreContentEntry } from '../../src/transitions/restoreContentEntry.js'
 import { makeContent } from '../../src/transitions/makeContent.js'
 import { fakeReq } from '../_fakes/req.js'
 import { fakePayload } from '../_fakes/payload.js'
@@ -916,3 +918,57 @@ test.each(['inline reference', 'recursive reference'] as const)('update-denied l
   expect(access).toHaveBeenCalledTimes(2)
   expect(hostUpdates(f)).toEqual([])
 })
+
+test.each(['read', 'update'])('retry keeps dismissed failures unchanged and skips host %s even when the page is locked', async stage => {
+  const f = fixture()
+  const dismissed = { collection: 'pages', id: 3, ok: false, detail: 'forbidden', dismissedAt: '2026-11-03T10:00:00.000Z', dismissedBy: '42' }
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [dismissed] } }
+  f.payload.documents.pages![0]!._isLocked = true
+  const method = stage === 'read' ? 'findByID' : 'update'
+  const original = f.payload[method].bind(f.payload)
+  const spy = vi.spyOn(f.payload, method).mockImplementation(async args => {
+    if (args.collection === 'pages' && String(args.id) === '3') throw new Forbidden()
+    return original(args)
+  })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs).toEqual([dismissed, { collection: 'pages', id: 4, ok: true }])
+  expect(result.doc.status).toBe('archived')
+  expect(spy.mock.calls.some(([args]) => args.collection === 'pages' && String(args.id) === '3')).toBe(false)
+})
+test.each(['read', 'update'] as const)('retry after restore attempts the entry again (%s failure or success)', async stage => {
+  for (const succeeds of [false, true]) {
+    const f = fixture()
+    const entry = { collection: 'pages', id: 3, ok: false, detail: 'forbidden' }
+    f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [entry] } }
+    await dismissContentEntry(f.req, { experimentId: 1, collection: 'pages', id: 3 })
+    expect((f.experiment.decision as any).contentReport.docs[0].dismissedAt).toEqual(expect.any(String))
+    await restoreContentEntry(f.req, { experimentId: 1, collection: 'pages', id: '3' })
+    const method = stage === 'read' ? 'findByID' : 'update'
+    const original = f.payload[method].bind(f.payload)
+    const spy = vi.spyOn(f.payload, method).mockImplementation(async args => {
+      if (!succeeds && args.collection === 'pages' && args.id === 3) throw new Forbidden()
+      return original(args)
+    })
+    const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+    expect(spy.mock.calls.some(([args]) => args.collection === 'pages' && args.id === 3)).toBe(true)
+    const retried = result.docs.find(doc => doc.id === 3)
+    expect(retried).toEqual(succeeds
+      ? { collection: 'pages', id: 3, ok: true }
+      : { ...entry, error: 'forbidden' })
+    expect(retried).not.toHaveProperty('dismissedAt')
+    expect(retried).not.toHaveProperty('dismissedBy')
+    expect(result.doc.status).toBe(succeeds ? 'archived' : 'decided')
+  }
+})
+test.each([false, true])('dismissed flag failure is retained without calling the host again (callback removed=%s)', async removed => {
+  const f = fixture('flag')
+  const callback = vi.fn()
+  f.options.flagPoints = [{ id: 'setting', label: 'Setting', defaultParams: {}, params: {}, ...(removed ? {} : { makeContent: callback }) }]
+  const dismissed = { collection: 'xp-experiments', id: '1', ok: false, dismissedAt: '2026-11-03T10:00:00.000Z', dismissedBy: null }
+  f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [dismissed] } }
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs).toEqual([dismissed])
+  expect(result.doc.status).toBe('archived')
+  expect(callback).not.toHaveBeenCalled()
+})
+
