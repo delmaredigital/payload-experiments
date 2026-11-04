@@ -6,8 +6,11 @@ const ok = { collection: 'pages', id: 1, ok: true }
 const failed = { collection: 'pages', id: 2, ok: false, detail: 'forbidden' }
 const dismissed = { ...failed, dismissedAt: '2026-11-03T10:00:00.000Z', dismissedBy: '42' }
 
-test.each([undefined, null, [], { docs: [] }])('absent or empty report is not done: %j', report => {
-  expect(contentDone(report)).toBe(false)
+test.each([undefined, null, {}])('an absent report is not done: %j', report => {
+  expect(contentDone(report as ContentReport | null | undefined)).toBe(false)
+})
+test.each([[], { docs: [] }])('a present but empty report is done (page and callback-free flag tests): %j', report => {
+  expect(contentDone(report)).toBe(true)
 })
 test.each([false, true])('completion handles current and legacy reports (array=%s)', legacy => {
   for (const [docs, expected] of [

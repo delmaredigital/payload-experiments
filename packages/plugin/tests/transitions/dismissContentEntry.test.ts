@@ -28,7 +28,7 @@ function fixture() {
 const target = { experimentId: 1, collection: 'pages', id: '3' }
 test.each(['draft', 'running', 'stopped', 'archived'])('refuses status %s', async status => {
   const f = fixture(); f.doc.status = status
-  await expect(dismissContentEntry(f.req, target)).rejects.toMatchObject({ code: 'invalid-status' })
+  await expect(dismissContentEntry(f.req, target)).rejects.toMatchObject({ code: 'not-decided' })
   expect(f.payload.calls.some(call => call.method === 'update')).toBe(false)
 })
 test.each([undefined, {}, { winnerArm: null }, { winnerArm: '' },
@@ -36,17 +36,18 @@ test.each([undefined, {}, { winnerArm: null }, { winnerArm: '' },
 ])('refuses absent/discarded winner %j', async change => {
   const f = fixture()
   f.doc.decision = change === undefined ? undefined : { ...f.doc.decision as object, winnerArm: undefined, ...change }
-  await expect(dismissContentEntry(f.req, target)).rejects.toMatchObject({ code: 'invalid-status' })
+  await expect(dismissContentEntry(f.req, target)).rejects.toMatchObject({ code: 'not-decided' })
 })
-test.each([undefined, {}, { docs: [] }, { docs: {} },
-  { docs: [{ collection: 'articles', id: 3, ok: false }] },
-  { docs: [{ collection: 'pages', id: 9, ok: false }] },
-  { docs: [{ collection: 'pages', id: 3, ok: true }] },
-  { docs: [{ collection: 'pages', id: 3 }] },
-  { docs: [{ collection: 'pages', id: 3, ok: false, dismissedAt: '2026-11-03T00:00:00Z' }] },
-])('refuses a missing, successful or already dismissed entry %j', async contentReport => {
+test.each([
+  [undefined, 'entry-not-found'], [{}, 'entry-not-found'], [{ docs: [] }, 'entry-not-found'], [{ docs: {} }, 'entry-not-found'],
+  [{ docs: [{ collection: 'articles', id: 3, ok: false }] }, 'entry-not-found'],
+  [{ docs: [{ collection: 'pages', id: 9, ok: false }] }, 'entry-not-found'],
+  [{ docs: [{ collection: 'pages', id: 3, ok: true }] }, 'entry-ok'],
+  [{ docs: [{ collection: 'pages', id: 3 }] }, 'entry-ok'],
+  [{ docs: [{ collection: 'pages', id: 3, ok: false, dismissedAt: '2026-11-03T00:00:00Z' }] }, 'entry-dismissed'],
+] as const)('refuses a missing, successful or already dismissed entry %j with %s', async (contentReport, code) => {
   const f = fixture(); f.doc.decision = { winnerArm: 'variantA', contentReport }
-  await expect(dismissContentEntry(f.req, target)).rejects.toMatchObject({ code: 'invalid-status' })
+  await expect(dismissContentEntry(f.req, target)).rejects.toMatchObject({ code })
   expect(f.payload.calls.some(call => call.method === 'update')).toBe(false)
   expect(f.payload.logger.info).not.toHaveBeenCalled()
 })
@@ -70,7 +71,7 @@ test.each([42, 'opaque-user', null, undefined])('dismisses exactly one entry as 
   expect(f.payload.dbCalls.some(call => call.method === 'commitTransaction')).toBe(true)
   expect(f.req.context.xpTransition).toBeUndefined()
   expect(f.payload.logger.info).toHaveBeenCalledExactlyOnceWith({ experimentId: 1, collection: 'pages', id: '3' }, 'Experiment content entry dismissed')
-  await expect(dismissContentEntry(f.req, target)).rejects.toMatchObject({ code: 'invalid-status' })
+  await expect(dismissContentEntry(f.req, target)).rejects.toMatchObject({ code: 'entry-dismissed' })
 })
 test('re-reads the entry under locks before accepting dismissal', async () => {
   const f = fixture()
@@ -80,7 +81,7 @@ test('re-reads the entry under locks before accepting dismissal', async () => {
     if (!f.req.context.xpTransition) f.doc.status = 'archived'
     return result
   })
-  await expect(dismissContentEntry(f.req, target)).rejects.toMatchObject({ code: 'invalid-status' })
+  await expect(dismissContentEntry(f.req, target)).rejects.toMatchObject({ code: 'not-decided' })
   expect(f.payload.calls.filter(call => call.method === 'find')).toHaveLength(2)
   expect(f.payload.calls.some(call => call.method === 'update')).toBe(false)
 })

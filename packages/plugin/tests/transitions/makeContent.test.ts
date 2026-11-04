@@ -157,19 +157,19 @@ test.each([false, true])('flag writes defaults and supplies winner params; host 
   expect(result.docs[0]).toMatchObject({ ok: !throws })
   expect(hostUpdates(f)).toEqual([])
 })
-test('flag without a host callback ships defaults but an empty report stays decided', async () => {
+test('flag without a host callback ships defaults and archives', async () => {
   const f = fixture('flag')
   f.options.flagPoints = [{ id: 'setting', label: 'Setting', defaultParams: {}, params: {} }]
-  expect((await makeContent(f.req, { experimentId: 1, options: f.options })).doc.status).toBe('decided')
+  expect((await makeContent(f.req, { experimentId: 1, options: f.options })).doc.status).toBe('archived')
 })
-test('page performs no host writes and an empty report keeps decided winner routing', async () => {
+test('page performs no host writes and archives winner routing', async () => {
   const f = fixture('page')
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
-  expect(result.doc.status).toBe('decided')
+  expect(result.doc.status).toBe('archived')
   expect(result.docs).toEqual([])
   expect(hostUpdates(f)).toEqual([])
   const manifest = f.executor.calls.find(call => call.text.includes('"manifest" ='))!
-  expect(JSON.parse(manifest.params[0] as string).experiments).toMatchObject([{ slug: 'hero', status: 'decided', winnerArm: 'variantA' }])
+  expect(JSON.parse(manifest.params[0] as string).archivedPages).toEqual({ '/original': { slug: 'hero', winnerPath: '/winner' } })
 })
 
 test('Payload latest-version merge preserves published and draft fields outside Puck', async () => {
@@ -972,10 +972,3 @@ test.each([false, true])('dismissed flag failure is retained without calling the
   expect(callback).not.toHaveBeenCalled()
 })
 
-test('an empty content report stays decided rather than auto-archiving', async () => {
-  const f = fixture()
-  f.payload.documents.pages = []
-  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
-  expect(result.docs).toEqual([])
-  expect(result.doc.status).toBe('decided')
-})

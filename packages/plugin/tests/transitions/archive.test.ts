@@ -74,10 +74,15 @@ test.each(['block', 'page', 'flag'])('hard-coded refuses kind %s', async kind =>
   f.experiment.kind = kind
   await expect(archive(f.req, { experimentId: 1, mode: 'hard-coded', confirmation: 'the developer has hard-coded Better title' })).rejects.toMatchObject({ code: 'invalid-status' })
 })
-test.each([undefined, null, {}, [], { docs: [] }, { docs: [{ ok: false }] }, { docs: [{ ok: true }, { ok: false }] }])('after-content requires a nonempty, completed report %j', async contentReport => {
+test.each([undefined, null, {}, { docs: [{ ok: false }] }, { docs: [{ ok: true }, { ok: false }] }])('after-content requires a present, completed report %j', async contentReport => {
   const f = fixture('decided')
   f.experiment.decision = { winnerArm: 'variantA', contentReport }
   await expect(archive(f.req, { experimentId: 1, mode: 'after-content' })).rejects.toMatchObject({ code: 'invalid-status' })
+})
+test.each([[], { docs: [] }])('after-content accepts a present but empty report %j', async contentReport => {
+  const f = fixture('decided')
+  f.experiment.decision = { winnerArm: 'variantA', contentReport }
+  expect((await archive(f.req, { experimentId: 1, mode: 'after-content' })).doc.status).toBe('archived')
 })
 test.each(['discard', 'hard-coded'] as const)('%s requires exact typed phrase', async mode => {
   const f = fixture('decided')

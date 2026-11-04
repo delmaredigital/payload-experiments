@@ -16,7 +16,9 @@ export async function restoreContentEntry(req: PayloadRequest, { experimentId, c
     const report = decision?.contentReport as { docs?: MakeContentResult['docs'] } | undefined
     const index = Array.isArray(report?.docs) ? report.docs.findIndex(entry => entry.collection === collection && String(entry.id) === String(id)) : -1
     const entry = report?.docs?.[index]
-    if (current.status !== 'decided' || !decision?.winnerArm || decision.discardedAt || !entry || !entry.dismissedAt) refuse('invalid-status')
+    if (current.status !== 'decided' || !decision?.winnerArm || decision.discardedAt) refuse('not-decided')
+    if (!entry) refuse('entry-not-found')
+    if (!entry.dismissedAt) refuse('entry-not-dismissed')
     const docs = report!.docs!.map((entry, i) => {
       if (i !== index) return entry
       const { dismissedAt: _at, dismissedBy: _by, ...restored } = entry
