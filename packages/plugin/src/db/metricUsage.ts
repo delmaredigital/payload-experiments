@@ -16,6 +16,7 @@ export async function lockMetricRow(exec: Executor, id: DocId, mode: 'delete' | 
  * txExecutor throws if the request no longer has a transaction session.
  */
 export async function lockMetricsForFreeze(exec: Executor, ids: DocId[]): Promise<Array<{ id: DocId; slug: string; source: string }> | null> {
+  // Deduplicate for the row-count check; SQL ORDER BY sets the lock order.
   const sorted = [...new Map(ids.map(id => [String(id), id])).values()]
     .sort((a, b) => typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b)))
   const m = COLUMNS.metrics, id = q(m.id)

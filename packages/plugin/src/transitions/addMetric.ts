@@ -29,7 +29,7 @@ export async function addMetric<TUser extends { id: DocId }>(req: PayloadRequest
     if (ids.some(id => id !== undefined && String(id) === String(metric))) refuse('duplicate-metric', { message: 'This metric is already part of the experiment.' })
     const lockedMetrics = await lockMetricsForFreeze(exec, caps.definitions.map(metric => metric.id))
     if (!lockedMetrics) {
-      throw new XpRefusal('not-found', 'Metric not found', undefined, 404)
+      throw new XpRefusal('stale-draft', 'This goal was deleted. Choose another goal.', undefined, 409)
     }
     const definition = caps.definitions[0]!
     if (lockedMetrics[0]!.slug !== definition.slug || lockedMetrics[0]!.source !== definition.source) {

@@ -288,7 +288,7 @@ test('Start refuses a goal deleted after preflight without freezing its definiti
   const { req, options, executor, payload } = fixture()
   const query = executor.query
   executor.query = async (text, params) => text.includes('FOR SHARE') ? { rows: [], rowCount: 0 } : query(text, params)
-  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'not-found', status: 404 })
+  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'stale-draft', status: 409 })
   expect(payload.documents['xp-phases']).toEqual([])
 })
 

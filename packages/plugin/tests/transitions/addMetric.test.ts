@@ -114,7 +114,7 @@ test('addMetric refuses a goal deleted after its initial lookup without appendin
   const { req, options, executor, payload } = fixture('running')
   const query = executor.query
   executor.query = async (text, params) => text.includes('FOR SHARE') ? { rows: [], rowCount: 0 } : query(text, params)
-  await expect(addMetric(req, { experimentId: 1, metric: 4, role: 'secondary', options })).rejects.toMatchObject({ code: 'not-found', status: 404 })
+  await expect(addMetric(req, { experimentId: 1, metric: 4, role: 'secondary', options })).rejects.toMatchObject({ code: 'stale-draft', status: 409 })
   expect(payload.documents['xp-phases']![0]!.metricDefinitions).toHaveLength(1)
 })
 

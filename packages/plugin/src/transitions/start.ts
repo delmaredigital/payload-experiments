@@ -77,8 +77,9 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
     }
     const lockedMetrics = await lockMetricsForFreeze(exec, caps.definitions.map(metric => metric.id))
     if (!lockedMetrics) {
-      throw new XpRefusal('not-found', 'Metric not found', undefined, 404)
+      throw new XpRefusal('stale-draft', 'A goal in this test was deleted. Review the goals before starting.', undefined, 409)
     }
+    // Reachable: a slug/source change takes FOR NO KEY UPDATE, which a draft's FK check does not wait on.
     if (caps.definitions.some(metric => {
       const locked = lockedMetrics.find(row => String(row.id) === String(metric.id))!
       return locked.slug !== metric.slug || locked.source !== metric.source
