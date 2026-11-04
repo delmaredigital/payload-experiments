@@ -21,7 +21,14 @@ test('loading then empty state with the creation and Goals links', async () => {
   expect(await screen.findByText('Create a test to learn what works.')).toBeTruthy()
   expect(screen.getAllByRole('link', { name: 'New test' }).every(link => link.getAttribute('href') === '/control/experiments/new')).toBe(true)
   expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/experiments/goals')
-  expect(fetch.mock.calls[0]?.[0]).toBe('/data/xp-experiments?depth=0&sort=-updatedAt&limit=200')
+  const url = new URL(fetch.mock.calls[0]![0], 'https://example.test')
+  expect(url.pathname).toBe('/data/xp-experiments')
+  expect(Object.fromEntries(url.searchParams)).toEqual({
+    depth: '0', sort: '-updatedAt', limit: '200',
+    'select[name]': 'true', 'select[kind]': 'true', 'select[status]': 'true',
+    'select[analysis]': 'true', 'select[arms]': 'true', 'select[decidedAt]': 'true',
+    'select[decision]': 'true', 'select[unitType]': 'true', 'select[flagPoint]': 'true',
+  })
   expect(fetch).toHaveBeenCalledOnce()
   expect(screen.queryByText('Showing the 200 most recent tests.')).toBeNull()
 })
@@ -152,7 +159,7 @@ test('compact rows show all health labels, sentences and custom-route links', as
   expect(screen.getByText('Running 9 days of 28 · 1,204 people so far')).toBeTruthy()
   expect(screen.queryByText('Collecting detail')).toBeNull()
   expect(screen.getByText('Decided 12 Oct 2026: Short form')).toBeTruthy()
-  expect(screen.getByText('Next: finish setting up')).toBeTruthy()
+  expect(screen.getByText('Next: Review setup')).toBeTruthy()
   for (const [name, id, action, suffix] of [
     ['Data trouble', 'red', 'View results', '/results'], ['Ready test', 'ready', 'Continue setup', ''],
     ['Setup test', 'next', 'Continue setup', ''], ['Decided test', 'decided', 'View results', '/results'],
@@ -164,4 +171,33 @@ test('compact rows show all health labels, sentences and custom-route links', as
   }
   expect(container.querySelector('details')!.open).toBe(false)
   expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/experiments/goals')
+})
+
+test('home renders shared readiness sentences, context and safe fallback copy', async () => {
+  const secret = 'pg: password=hunter2'
+  const rows = [
+    ['goal', 'draft', 'no-primary-metric', { message: secret }, 'Next: Choose a goal.'],
+    ['placement', 'stopped', 'no-placements', secret, 'Next: Not on a page yet. Open a page, add an Experiment block and choose this test.'],
+    ['length', 'draft', 'no-planned-duration', secret, 'Next: Choose how long to run it.'],
+    ['versions', 'draft', 'weights-total', { message: secret }, 'Next: Fix the versions: check the group settings.'],
+    ['raw-versions', 'draft', 'weights-total', secret, 'Next: Fix the versions: check the group settings.'],
+    ['unknown', 'draft', 'future-check', secret, 'Next: Review setup'],
+    ['missing', 'stopped', undefined, undefined, 'Next: Review setup'],
+    ['parameter', 'draft', 'flag-params-invalid', [{ arm: 'variantA', field: 'show' }], 'Next: Set a value for Show the form on Short form.'],
+    ['people', 'stopped', 'unit-source-mismatch', undefined, "Next: This goal can't be measured for signed-in users. Choose another goal."],
+  ] as const
+  fetchData(rows.map(([id, status]) => ({ id, name: id, status, kind: 'flag', unitType: 'user', flagPoint: 'form',
+    arms: [{ key: 'variantA', label: 'Short form', kind: 'variant', weight: 50 }] })),
+  Object.fromEntries(rows.map(([id, , code, detail]) => [id, { ready: false, ...(code ? { next: { code, detail } } : {}) }])))
+  const props: TestsSurfaceProps = { route: 'home', adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true,
+    isAdmin: false, metricSources: [], attributeKeys: {},
+    flagPoints: [{ id: 'form', label: 'Form', params: { show: { type: 'checkbox', label: 'Show the form' } }, defaultParams: { show: true }, effectiveDefaults: { show: true } }] }
+  const { container } = render(<TestsSurface {...props} />)
+  await screen.findByText('goal')
+  for (const [id, , , , sentence] of rows) {
+    expect(within(screen.getByRole('link', { name: id }).closest('article')!).getByText(sentence)).toBeTruthy()
+  }
+  expect(container.textContent).not.toContain(secret)
+  expect(container.textContent).not.toContain('future-check')
+  expect(container.textContent).not.toContain('finish setting up')
 })

@@ -44,7 +44,7 @@ function SurfacePage(props: TestsSurfaceProps) {
       }
     } else crumbs.push({ label: props.route === 'new' ? SURFACE_COPY.newTest : props.route === 'results' ? SURFACE_COPY.resultsTitle : SURFACE_COPY.test })
   }
-  if (props.route === 'home') return <TestsHome adminRoute={props.adminRoute} apiRoute={props.apiRoute} canManage={props.canManage} crumbs={crumbs} />
+  if (props.route === 'home') return <TestsHome adminRoute={props.adminRoute} apiRoute={props.apiRoute} canManage={props.canManage} flagPoints={props.flagPoints} crumbs={crumbs} />
   return <SurfaceShell adminRoute={props.adminRoute} crumbs={crumbs} title={title}>
     {props.route === 'goals' ? <GoalsList surface={surface} returnToTest={props.returnToTest} />
         : props.route === 'goalNew' || props.route === 'goal' ? <GoalForm key={props.route === 'goalNew' ? 'new' : props.id} surface={surface} onTitleChange={setLoadedTitle} id={props.route === 'goal' ? props.id : undefined} returnToTest={props.returnToTest} />

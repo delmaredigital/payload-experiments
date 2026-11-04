@@ -24,20 +24,22 @@ const cssPaths = [require.resolve('@payloadcms/next/css'), join(entry.slice(0, e
   join(src, 'admin/theme.css'), join(src, 'ui/ui.css'), join(src, 'admin/surface/surface.css')]
 const config = { collections: [], globals: [], routes: { admin: '/admin', api: '/api' } } as unknown as ClientConfig
 const docs: HomeTest[] = [
-  { id: 'hero', name: 'Course catalogue hero image', kind: 'block', status: 'running', analysis: { plannedDurationDays: 28 } },
-  { id: 'donation', name: 'Registration donation ask', kind: 'block', status: 'running', analysis: { plannedDurationDays: 28 } },
-  { id: 'apply', name: 'Apply page button wording', kind: 'flag', status: 'draft' },
-  { id: 'summer', name: 'Summer program landing page', kind: 'page', status: 'draft' },
-  { id: 'chapel', name: 'Chapel livestream banner', kind: 'block', status: 'draft' },
-  { id: 'info', name: 'Request info form length', kind: 'flag', status: 'decided', decidedAt: '2026-10-12T12:00:00Z',
-    arms: [{ key: 'variantA', label: 'Variant A' }], decision: { winnerArm: 'variantA' } },
-  { id: 'video', name: 'Homepage video autoplay', kind: 'block', status: 'archived' },
-  { id: 'giving', name: 'Giving Tuesday headline', kind: 'block', status: 'archived' },
+  { id: 'hero', name: 'Course catalogue hero image', kind: 'block', unitType: 'visitor', status: 'running', analysis: { plannedDurationDays: 28 } },
+  { id: 'donation', name: 'Registration donation ask', kind: 'block', unitType: 'visitor', status: 'running', analysis: { plannedDurationDays: 28 } },
+  { id: 'apply', name: 'Apply page button wording', kind: 'flag', unitType: 'visitor', status: 'draft' },
+  { id: 'summer', name: 'Summer program landing page', kind: 'page', unitType: 'visitor', status: 'draft' },
+  { id: 'chapel', name: 'Chapel livestream banner', kind: 'block', unitType: 'visitor', status: 'draft' },
+  { id: 'info', name: 'Request info form length', kind: 'flag', unitType: 'visitor', status: 'decided', decidedAt: '2026-10-12T12:00:00Z',
+    arms: [{ key: 'variantA', label: 'Variant A', kind: 'variant', weight: 50 }], decision: { winnerArm: 'variantA' } },
+  { id: 'video', name: 'Homepage video autoplay', kind: 'block', unitType: 'visitor', status: 'archived' },
+  { id: 'giving', name: 'Giving Tuesday headline', kind: 'block', unitType: 'visitor', status: 'archived' },
 ]
 const summaries: SummaryResponse = {
   hero: { days: 31, exposures: 2940, verdict: { code: 'collecting', headline: 'Collecting data' } },
   donation: { days: 9, exposures: 1204, verdict: { code: 'collecting', headline: 'Collecting data' } },
   apply: { days: 0, exposures: 0, verdict: null, ready: true },
+  summer: { days: 0, exposures: 0, verdict: null, ready: false, next: { code: 'no-primary-metric' } },
+  chapel: { days: 0, exposures: 0, verdict: null, ready: false, next: { code: 'no-placements' } },
 }
 
 test('writes the real home and shell, empty and search-empty fixtures', async () => {
@@ -53,6 +55,10 @@ test('writes the real home and shell, empty and search-empty fixtures', async ()
     await waitFor(() => expect(view.queryByText('Loading tests…')).toBeNull())
     if (state === 'home-empty') expect(view.getByText('Create a test to learn what works.')).toBeTruthy()
     else expect(view.container.querySelectorAll('article')).toHaveLength(8)
+    if (state === 'home') {
+      expect(view.getByText('Next: Choose a goal.')).toBeTruthy()
+      expect(view.getByText('Next: Not on a page yet. Open a page, add an Experiment block and choose this test.')).toBeTruthy()
+    }
     if (state === 'home-search-empty') {
       fireEvent.change(view.getByRole('searchbox'), { target: { value: 'newsletter' } })
       expect(view.getByText('No tests match "newsletter".')).toBeTruthy()

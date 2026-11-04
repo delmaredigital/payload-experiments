@@ -1,14 +1,19 @@
-import type { DocId, ExperimentKind, Status } from '../../types/contracts.js'
+import type { Arm, DocId, ExperimentKind, Status, UnitType } from '../../types/contracts.js'
 import { formatAdminURL } from 'payload/shared'
 import type { SummaryResponse } from '../../types/endpoints.js'
 import { armLabel } from '../labels.js'
 import { statusPill } from '../status.model.js'
 import { decidedLine, runningLine, SURFACE_COPY } from '../copy/surface.js'
+import { nextCopy } from '../copy/readiness.js'
+import { READINESS } from './readiness/readiness.model.js'
+import type { ReadinessContext } from './readiness/readiness.model.js'
+import { sanitizeReadinessDetail } from '../../sanitizeReadinessDetail.js'
 
 export interface HomeTest {
-  id: DocId; name: string; kind: ExperimentKind; status: Status
+  id: DocId; name: string; kind: ExperimentKind; status: Status; unitType: UnitType
+  flagPoint?: string | null
   analysis?: { plannedDurationDays?: number | null } | null
-  arms?: Array<{ key: string; label?: string }> | null
+  arms?: Arm[] | null
   decidedAt?: string | null
   decision?: { winnerArm?: string | null; holdoutReleasedAt?: string | null } | null
 }
@@ -37,10 +42,16 @@ export function groupTests(tests: readonly HomeTest[], summaries: SummaryRespons
 }
 const number = (value: number | null | undefined) => value != null && Number.isFinite(value)
   ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value) : '—'
-export function homeCard(test: HomeTest, summary: Summary, adminRoute: string) {
+export function homeCard(test: HomeTest, summary: Summary, adminRoute: string, flagPoints?: ReadinessContext['flagPoints']) {
   const results = ['running', 'stopped', 'decided', 'archived'].includes(test.status)
   const href = formatAdminURL({ adminRoute, path: `/experiments/${encodeURIComponent(test.id)}${results ? '/results' : ''}` })
-  let line = summary?.ready ? SURFACE_COPY.ready : SURFACE_COPY.next as string
+  let line: string = summary?.ready === true ? SURFACE_COPY.ready : nextCopy(SURFACE_COPY.next)
+  const next = summary?.next
+  if ((test.status === 'draft' || test.status === 'stopped') && summary?.ready !== true && next && Object.hasOwn(READINESS, next.code)) {
+    // Keep unexpected text out of authored copy, including responses from older servers.
+    const sentence = READINESS[next.code].next(sanitizeReadinessDetail(next.code, next.detail), { ...test, arms: test.arms ?? [], flagPoints })
+    if (sentence) line = nextCopy(sentence)
+  }
   if (test.status === 'running') line = runningLine(number(summary?.days), number(test.analysis?.plannedDurationDays), number(summary?.exposures))
   if (test.status === 'decided') {
     const date = test.decidedAt ? new Date(test.decidedAt) : undefined
