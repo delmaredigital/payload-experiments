@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { renderToString } from 'react-dom/server'
 
 vi.hoisted(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
@@ -90,7 +91,7 @@ test('walks nested slots and legacy zones and escapes item ids', () => {
   expect(CSS.escape).toHaveBeenCalledWith('escaped"id')
 })
 
-test('editor fetch fills cache, focus refetch updates it, warning uses static label, and saved page data stays unchanged', async () => {
+test('editor fetch fills cache, tab-return refetch updates it, warning uses static label, and saved page data stays unchanged', async () => {
   const data: Data = { root: { props: {} }, content: [block('orphan', 'test', true)], zones: {} }
   const before = structuredClone(data)
   let saved: Data | undefined
@@ -113,9 +114,8 @@ test('editor fetch fills cache, focus refetch updates it, warning uses static la
   vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => ({ ...doc, arms: [doc.arms[0],
     { key: 'variantB', kind: 'variant', label: 'New B' }, { key: 'variantC', kind: 'variant', label: 'Custom name' },
   ] }) } as Response)
-  fireEvent(window, new Event('focus'))
-  // Unknown during loading also reveals B/C and removes the warning; A becoming
-  // hidden proves that the refetch response has actually repopulated the cache.
+  returnToTab()
+  // A becoming hidden proves the refetch response has repopulated the cache.
   await waitFor(() => expect(visibility('orphan')).toEqual([true, false, true, true]))
   expect(screen.queryByText(/Variant C has content/)).toBeNull()
   expect(fetch).toHaveBeenCalledTimes(2)
@@ -136,4 +136,98 @@ test('bound loading and failed fetch keep every zone visible, even with a previo
   await act(async () => { fail(new Error('offline')) })
   await screen.findByText("Couldn't load this test. Try selecting it again.")
   expect(visibility('pending')).toEqual([true, true, true, true])
+})
+
+function returnToTab() {
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  fireEvent(document, new Event('visibilitychange'))
+}
+
+test('visibility return refetches once for two blocks on the same test; focus and hidden do not refetch; unmount removes listeners', async () => {
+  const view = mount({ root: { props: {} }, content: [block('two-arm'), block('orphan')] }, true)
+  await waitFor(() => expect(visibility('two-arm')).toEqual([true, true, false, false]))
+  expect(fetch).toHaveBeenCalledTimes(1)
+  fireEvent(window, new Event('focus'))
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+  fireEvent(document, new Event('visibilitychange'))
+  expect(fetch).toHaveBeenCalledTimes(1)
+  returnToTab()
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+  await act(async () => {})
+  expect(visibility('orphan')).toEqual([true, true, false, false])
+  view.unmount()
+  returnToTab()
+  expect(fetch).toHaveBeenCalledTimes(2)
+})
+
+test('during a refetch hidden rows stay hidden without flicker and the orphan warning stays visible', async () => {
+  mount({ root: { props: {} }, content: [block('orphan', 'test', true)] }, true)
+  await screen.findByText(/Variant C has content/)
+  let finish!: (response: Response) => void
+  vi.mocked(fetch).mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+  returnToTab()
+  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(visibility('orphan')).toEqual([true, true, false, true])
+  expect(screen.getByText(/Variant C has content/)).toBeTruthy()
+  await act(async () => { finish({ ok: true, json: async () => doc } as Response) })
+  expect(visibility('orphan')).toEqual([true, true, false, true])
+})
+
+test('a failed refetch clears known arms to unknown', async () => {
+  mount({ root: { props: {} }, content: [block('two-arm')] }, true)
+  await waitFor(() => expect(visibility('two-arm')).toEqual([true, true, false, false]))
+  vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'))
+  returnToTab()
+  await screen.findByText("Couldn't load this test. Try selecting it again.")
+  expect(visibility('two-arm')).toEqual([true, true, true, true])
+})
+
+test('SSR of the real outline with an unbound block needs no CSS browser global', () => {
+  vi.stubGlobal('CSS', undefined)
+  let html = ''
+  expect(() => { html = renderToString(<Puck config={config} data={{ root: { props: {} }, content: [block('unbound', null)] }}
+    plugins={[experimentOutlinePlugin()]} iframe={{ enabled: false }}><Puck.Outline /></Puck>) }).not.toThrow()
+  expect(html).not.toContain('data-xp-outline')
+})
+
+test('typing in an unrelated field preserves the generated style node and text without mutations', () => {
+  setArms('test', ['control', 'variantA'])
+  function UnrelatedField() {
+    const getPuck = useGetPuck()
+    return <input aria-label="Unrelated field" onChange={event => {
+      const { appState, dispatch } = getPuck()
+      dispatch({ type: 'setData', data: { ...appState.data, root: { props: { title: event.target.value } } } })
+    }} />
+  }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block('two-arm')] }}
+    plugins={[experimentOutlinePlugin()]} iframe={{ enabled: false }} ui={{ itemExpanded: { 'two-arm': true } }}>
+    <Puck.Outline /><UnrelatedField />
+  </Puck>)
+  const style = document.querySelector('style[data-xp-outline="two-arm"]')!
+  const text = style.textContent
+  expect(text).toContain('display: none')
+  const observer = new MutationObserver(() => {})
+  observer.observe(style.parentNode!, { childList: true, subtree: true, characterData: true })
+  for (const value of ['H', 'He', 'Hello']) fireEvent.change(screen.getByLabelText('Unrelated field'), { target: { value } })
+  expect(document.querySelector('style[data-xp-outline="two-arm"]')).toBe(style)
+  expect(style.textContent).toBe(text)
+  expect(observer.takeRecords().filter(record => record.target === style || style.contains(record.target))).toEqual([])
+  observer.disconnect()
+})
+
+test('30 root items use real Puck virtualized Layer markup and hide absent empty version rows', async () => {
+  // jsdom has no layout; provide scroll geometry so TanStack can mount the real virtual rows.
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(800)
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+    x: 0, y: 0, top: 0, left: 0, bottom: 800, right: 800, width: 800, height: 800, toJSON() {},
+  })
+  setArms('test', ['control', 'variantA'])
+  const content = [block('two-arm'), ...Array.from({ length: 29 }, (_, index) => ({ type: 'Text', props: { id: `text-${index}`, text: `Item ${index}` } }))]
+  render(<div style={{ overflow: 'auto', height: 800 }}><Puck config={config} data={{ root: { props: {} }, content }}
+    plugins={[experimentOutlinePlugin()]} iframe={{ enabled: false }} ui={{ itemExpanded: { 'two-arm': true } }}>
+    <Puck.Outline />
+  </Puck></div>)
+  await waitFor(() => expect(document.querySelector('li[data-puck-layer-tree-id="two-arm"][data-index="0"]')).toBeTruthy())
+  expect(visibility('two-arm')).toEqual([true, true, false, false])
 })

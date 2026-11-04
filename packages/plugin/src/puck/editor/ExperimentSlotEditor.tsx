@@ -17,7 +17,7 @@ import { bannerFor, tabsFor, type EditorExperiment } from './editor.model.js'
 import { cloneSlot } from './cloneSlot.js'
 import { CreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
-import { setArms, useArms } from './armsCache.js'
+import { loadArms, setArms, useArms } from './armsCache.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
@@ -76,31 +76,34 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     const controller = new AbortController()
     let current = true
     let request = 0
+    // A new binding starts unknown; same-id refreshes retain the last known arms.
+    setArms(experimentId, undefined)
     async function load() {
       const revision = ++request
-      setArms(experimentId!, undefined)
       try {
-        const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(experimentId!)}?depth=0`, {
-          credentials: 'include', signal: controller.signal,
-        })
-        if (!response.ok) throw new Error('load')
-        const doc: unknown = await response.json()
-        if (!isExperiment(doc)) throw new Error('document')
+        const doc = await loadArms(experimentId!, async signal => {
+          const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(experimentId!)}?depth=0`, {
+            credentials: 'include', signal,
+          })
+          if (!response.ok) throw new Error('load')
+          const doc: unknown = await response.json()
+          if (!isExperiment(doc)) throw new Error('document')
+          return doc
+        }, controller.signal)
         if (current && revision === request) {
-          setArms(experimentId!, doc.arms.map(arm => arm.key))
           setLoaded({ id: experimentId, doc })
         }
       } catch {
         if (current && revision === request) {
-          setArms(experimentId!, undefined)
           setLoaded({ id: experimentId, error: true })
         }
       }
     }
     void load()
     // The linked test opens in another tab; refresh this same document source on return.
-    window.addEventListener('focus', load)
-    return () => { current = false; controller.abort(); window.removeEventListener('focus', load) }
+    const onVisible = () => { if (document.visibilityState === 'visible') void load() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { current = false; controller.abort(); document.removeEventListener('visibilitychange', onVisible) }
   }, [experimentId, api])
 
   const result = experimentId === undefined || loaded?.id !== experimentId ? undefined : loaded
