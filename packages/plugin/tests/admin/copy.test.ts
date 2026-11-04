@@ -1,6 +1,7 @@
-import { readdirSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
+import { helperPaths, helperStrings } from './copySources.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../../src/constants.js'
 import { ADVANCED_COPY } from '../../src/admin/copy/advanced.js'
 import * as puckCopy from '../../src/puck/copy.js'
@@ -85,4 +86,21 @@ test('status tooltips are verbatim', () => {
 
 test('automatic sequential tuning copy matches the analysis default', () => {
   expect(ADVANCED_COPY.automaticTuning).toBe(`Automatic (${DEFAULT_SEQUENTIAL_TUNING_PARAMETER.toLocaleString('en-US')})`)
+})
+
+function helperCopyHits(source: string) {
+  return helperStrings(source).filter(value => /\b(arms?|phases?|experiments?)\b/i.test(value.replace(/Experiment block/g, '')))
+}
+
+test('all admin and Puck helper copy says test, not experiment', () => {
+  expect(helperPaths.flatMap(path => helperCopyHits(readFileSync(path, 'utf8'))
+    .map(value => ({ path, value })))).toEqual([])
+})
+
+test.each([
+  "export const label = () => 'Choose an experiment'",
+  "function fail() { throw new Error('Choose an experiment') }",
+  "const error = { message: 'Choose an experiment' }",
+])('helper test-vocabulary gate reports planted copy: %s', source => {
+  expect(helperCopyHits(source)).toEqual(['Choose an experiment'])
 })

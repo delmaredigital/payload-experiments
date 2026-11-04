@@ -1,14 +1,12 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import { expect, test } from 'vitest'
 import { ADVANCED_COPY } from '../../src/admin/copy/advanced.js'
 import { metricsCollection } from '../../src/collections/metrics.js'
 import { layersCollection } from '../../src/collections/layers.js'
 import { sampleOptions } from '../collections/fixtures.js'
+import { copyPaths, editorFiles, helperPaths, helperStrings } from './copySources.js'
 
-const src = fileURLToPath(new URL('../../src/', import.meta.url))
 const forbidden = /\b(?:arms?|phases?|flag ?points?|unit ?types?|unitType|CUPED|exposure ?polic(?:y|ies)|percentiles?)\b|\bin (?:Metrics|Who(?! takes part\b)|Groups|Review)\b|\b(?:Metrics|Who|Review) tab\b/i
 const hits = (strings: string[]) => strings.filter(value => forbidden.test(value))
 const samples: Record<string, unknown[][]> = {
@@ -39,34 +37,34 @@ function strings(value: unknown, name = '', skipAdvanced = false): string[] {
   if (value && typeof value === 'object') return Object.entries(value).flatMap(([key, item]) => strings(item, key, skipAdvanced))
   return []
 }
-function files(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
-    const path = join(directory, entry.name)
-    return entry.isDirectory() ? files(path) : [path]
-  })
-}
 /** Parse JSX text and literal text expressions/visible attributes, never source regex. */
 // `path` is also implementation metadata: Payload field paths such as analysis.cuped.
 const implementationAttributes = new Set(['className', 'id', 'htmlFor', 'key', 'href', 'type', 'name', 'role', 'rel', 'target', 'method', 'style', 'path'])
-const textExpressionAttributes = new Set(['label', 'title', 'placeholder', 'aria-label', 'description', 'alt'])
 function jsxStrings(source: string): string[] {
   const file = ts.createSourceFile('copy.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const result: string[] = []
   function text(node: ts.Node) {
     if (ts.isStringLiteralLike(node)) result.push(node.text)
     else if (ts.isConditionalExpression(node)) { text(node.whenTrue); text(node.whenFalse) }
-    else if (ts.isBinaryExpression(node)) { text(node.left); text(node.right) }
+    else if (ts.isBinaryExpression(node) && ![ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(node.operatorToken.kind)) { text(node.left); text(node.right) }
     else if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isNonNullExpression(node)) text(node.expression)
     else if (ts.isArrayLiteralExpression(node)) node.elements.forEach(text)
     else if (ts.isCallExpression(node)) {
       if (ts.isPropertyAccessExpression(node.expression)) text(node.expression.expression)
-      node.arguments.forEach(text)
+      // reasonFor's second argument is a computed document field path.
+      const args = ts.isIdentifier(node.expression) && node.expression.text === 'reasonFor' ? node.arguments.slice(0, 1) : node.arguments
+      args.forEach(text)
     } else if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) text(node.body)
     else if (ts.isBlock(node)) {
-      for (const statement of node.statements) if (ts.isReturnStatement(statement) && statement.expression) text(statement.expression)
+      function returns(child: ts.Node) {
+        if (ts.isReturnStatement(child) && child.expression) text(child.expression)
+        else ts.forEachChild(child, returns)
+      }
+      node.statements.forEach(returns)
     }
     else if (ts.isTemplateExpression(node)) {
-      result.push(node.head.text, ...node.templateSpans.map(span => span.literal.text))
+      result.push(node.head.text)
+      for (const span of node.templateSpans) { text(span.expression); result.push(span.literal.text) }
     }
   }
   function walk(node: ts.Node) {
@@ -75,32 +73,13 @@ function jsxStrings(source: string): string[] {
     else if (ts.isJsxAttribute(node) && node.initializer) {
       const name = node.name.getText(file)
       const optionKey = name === 'value' && node.parent.parent.tagName.getText(file) === 'option'
-      if (implementationAttributes.has(name) || name.startsWith('data-') || optionKey) return
+      if (implementationAttributes.has(name) || /^on[A-Z]/.test(name) || name.startsWith('data-') || optionKey) return
       if (ts.isJsxExpression(node.initializer) && node.initializer.expression) {
-        const expression = node.initializer.expression
-        // Every literal-valued prop is copy. Also follow computed text on known
-        // copy props, without treating callbacks or computed field paths as text.
-        if (ts.isStringLiteralLike(expression) || textExpressionAttributes.has(name)) text(expression)
+        text(node.initializer.expression)
       }
       else text(node.initializer)
     }
     ts.forEachChild(node, walk)
-  }
-  walk(file)
-  return result
-}
-/** Include returned literal prose in models, including concise arrows and template branches. */
-function modelStrings(source: string): string[] {
-  const file = ts.createSourceFile('copy.model.ts', source, ts.ScriptTarget.Latest, true)
-  const result: string[] = []
-  function literals(node: ts.Node) {
-    if (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) result.push(node.text)
-    ts.forEachChild(node, literals)
-  }
-  function walk(node: ts.Node) {
-    if (ts.isReturnStatement(node) && node.expression) literals(node.expression)
-    else if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) literals(node.body)
-    else ts.forEachChild(node, walk)
   }
   walk(file)
   return result
@@ -114,22 +93,18 @@ function collectionStrings(config: unknown): string[] {
 }
 
 test('exported editor copy and all copy functions use surface vocabulary', async () => {
-  const paths = [...files(join(src, 'admin/copy')).filter(file => file.endsWith('.ts')),
-    join(src, 'admin/labels.ts'), join(src, 'puck/copy.ts'), join(src, 'puck/editor/copy.ts')]
-  for (const path of paths) {
+  for (const path of copyPaths) {
     const module = await import(/* @vite-ignore */ path)
     expect(hits(strings(module, '', true)), path).toEqual([])
   }
 })
 test('admin and Puck JSX text uses surface vocabulary', () => {
-  for (const path of [...files(join(src, 'admin')), ...files(join(src, 'puck'))].filter(file => file.endsWith('.tsx'))) {
-    expect(hits(jsxStrings(readFileSync(path, 'utf8'))), path).toEqual([])
-  }
+  expect(editorFiles.filter(file => file.endsWith('.tsx')).flatMap(path =>
+    hits(jsxStrings(readFileSync(path, 'utf8'))).map(value => ({ path, value })))).toEqual([])
 })
-test('model return strings use surface vocabulary', () => {
-  for (const path of files(join(src, 'admin')).filter(file => file.endsWith('.model.ts'))) {
-    expect(hits(modelStrings(readFileSync(path, 'utf8'))), path).toEqual([])
-  }
+test('all admin and Puck helper copy uses surface vocabulary', () => {
+  expect(helperPaths.flatMap(path =>
+    hits(helperStrings(readFileSync(path, 'utf8'))).map(value => ({ path, value })))).toEqual([])
 })
 test('goal and test-group collection labels, descriptions and option labels use surface vocabulary', () => {
   for (const config of [metricsCollection(sampleOptions()), layersCollection(sampleOptions())]) {
@@ -152,7 +127,7 @@ test.each([
 })
 test('implementation strings outside JSX are not copy', () => {
   expect(hits(jsxStrings("const fields = ['unitType']; <p>{fields.map(key => <span>{labels[key]}</span>)}</p>"))).toEqual([])
-  expect(hits(jsxStrings('<Widget path={`${path}.arm`} required={fields.some(field => field.name === "arm")} />'))).toEqual([])
+  expect(hits(jsxStrings('<Widget path={`${path}.arm`} required={fields.some(field => field.name === "arm")} reason={reasonFor(test, "exposurePolicy")} />'))).toEqual([])
 })
 test('JSX nested inside a custom expression prop is still scanned', () => {
   expect(hits(jsxStrings('<Widget render={() => <span>Choose an arm</span>} />'))).toEqual(['Choose an arm'])
@@ -167,7 +142,7 @@ test('custom JSX copy attributes are scanned; only implementation attributes and
   expect(hits(jsxStrings('<option value="arm">Original</option>'))).toEqual([])
 })
 test('model return scanner reports prose in functions, arrows and branches', () => {
-  expect(hits(modelStrings("function label() { return 'Choose an arm' }; const hint = () => `Over the last phase: ${value}`; const branch = x => x ? 'in Metrics' : 'Who tab'")))
+  expect(hits(helperStrings("function label() { return 'Choose an arm' }; const hint = () => `Over the last phase: ${value}`; const branch = x => x ? 'in Metrics' : 'Who tab'")))
     .toEqual(['Choose an arm', 'Over the last phase: ', 'in Metrics', 'Who tab'])
 })
 test('branch samples exercise Original and variant copy', () => {
@@ -183,4 +158,46 @@ test('Advanced is the sole exception, by object identity', () => {
 test('readiness may name the Who takes part section', () => {
   expect(hits(strings({ message: 'Remove the page-path rule in Who takes part; page block tests run on their page.' }))).toEqual([])
   expect(hits(strings({ message: 'Fix this in Who' }))).toEqual(['Fix this in Who'])
+})
+
+test.each([
+  ["<Widget hint={x ? 'Choose an arm' : 'Pick'} />", 'Choose an arm'],
+  ['<Widget body={`Over the ${word} phase`} />', ' phase'],
+  ["<Widget notice={cond && 'in Metrics'} />", 'in Metrics'],
+  ["<Widget notice={cond || 'Choose an arm'} />", 'Choose an arm'],
+  ["<Widget hint={['Choose an arm']} />", 'Choose an arm'],
+  ["<Widget hint={String('Choose an arm')} />", 'Choose an arm'],
+  ["<Widget hint={() => 'Choose an arm'} />", 'Choose an arm'],
+  ["<Widget hint={() => { return 'Choose an arm' }} />", 'Choose an arm'],
+  ["<Widget hint={() => { if (ready) return 'Choose an arm'; return 'Pick' }} />", 'Choose an arm'],
+])('custom props follow computed text: %s', (source, expected) => {
+  expect(hits(jsxStrings(source))).toEqual([expected])
+})
+test.each(['onClick', 'onChange', 'onSubmit', 'onCustomAction'])('event handler %s is implementation', name => {
+  expect(hits(jsxStrings(`<Widget ${name}={() => send('Choose an arm')} />`))).toEqual([])
+})
+test.each([
+  ["export function label() { return 'Choose an arm' }", 'Choose an arm'],
+  ["export const label = () => 'Choose an arm'", 'Choose an arm'],
+  ["export function fail() { throw new Error('Choose an arm') }", 'Choose an arm'],
+  ...['message', 'label', 'title', 'headline', 'detail', 'hint'].map(key => [`const copy = { ${key}: 'Choose an arm' }`, 'Choose an arm']),
+])('helper scanner reports authored text: %s', (source, expected) => {
+  expect(hits(helperStrings(source))).toEqual([expected])
+})
+test.each([
+  "import { arm } from './phase.js'; export const result = () => arm",
+  "export const check = value => value === 'arm'",
+  "export const check = value => value !== 'phase'",
+  "export const load = () => fetch(`/phase/${id}/arm`, { method: 'GET' })",
+  "export const load = () => window.fetch('/phase/arm')",
+  "async function request(path: () => string) { return fetch(path()) }; export const load = () => request(() => `/phase/${id}/arm`)",
+  "function query() { const params = new URLSearchParams(); return params.set('phase', round) }",
+  "function query() { const params = new URLSearchParams(); return params.append('arm', version) }",
+  "export const data = () => ({ 'arm': 'Original', ['phase']: 'Round' })",
+  ...['className', 'classNames', 'clsx', 'cn', 'cx'].map(name => `export const css = () => ${name}('arm', { phase: active })`),
+])('helper scanner excludes implementation syntax: %s', source => {
+  expect(hits(helperStrings(source))).toEqual([])
+})
+test('fetch options can still contain authored messages', () => {
+  expect(hits(helperStrings("const load = () => fetch('/phase', { message: 'Choose an arm' })"))).toEqual(['Choose an arm'])
 })
