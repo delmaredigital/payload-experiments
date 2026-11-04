@@ -467,7 +467,7 @@ assert `expect.robots`, `expect.canonical` and `expect.inSitemap` against the
 host's metadata and sitemap functions. This includes the Original served as
 each version, including the homepage.
 
-A cc-lms-style host test mocks four boundaries: `next/headers`, the page loader,
+A host-level test mocks four boundaries: `next/headers`, the page loader,
 the runtime and the site URL. Set `metadataBase` so relative canonical paths
 resolve to your site URL.
 
