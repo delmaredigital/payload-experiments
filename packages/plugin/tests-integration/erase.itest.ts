@@ -9,8 +9,8 @@ test('eraseUser deletes direct attribution, user units, linked visitors and iden
   const harness = await createIntegrationHarness()
   try {
     const exec = pooledExecutor(harness.payload)
-    await insertIdentity(exec, { anonymousId: 'linked', userId: 'user' })
-    await insertIdentity(exec, { anonymousId: 'other-linked', userId: 'other' })
+    await insertIdentity(exec, { verified: false, anonymousId: 'linked', userId: 'user' })
+    await insertIdentity(exec, { verified: false, anonymousId: 'other-linked', userId: 'other' })
     const row: EventRow = { type: 'conversion', unitType: 'visitor', unitId: 'visitor', userId: 'user', dedupeKey: 'direct', ts: new Date().toISOString() }
     await insertEvents(exec, [row, { ...row, userId: undefined, unitId: 'user', unitType: 'user', dedupeKey: 'user-unit' },
       { ...row, userId: undefined, unitId: 'linked', dedupeKey: 'linked' }, { ...row, userId: 'other', unitId: 'other-linked', dedupeKey: 'other' }])

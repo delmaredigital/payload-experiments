@@ -1,6 +1,7 @@
 'use client'
 
 import { useLayoutEffect, useRef, useState } from 'react'
+import { contentDone } from '../../contentDone.js'
 import { Button } from '../../ui/Button.js'
 import { Banner } from '../../ui/Banner.js'
 import type { DocId } from '../../types/contracts.js'
@@ -8,7 +9,6 @@ import type { MakeContentResult as Result } from '../../types/endpoints.js'
 import type { createApi } from '../api.js'
 import { API_MESSAGES } from '../copy/common.js'
 import { ACTIONS_COPY as C, contentReportCopy } from '../copy/actions.js'
-import { contentDone } from './actions.model.js'
 
 type Props = {
   result: Result; onRetry: () => void | Promise<void>; busy?: boolean

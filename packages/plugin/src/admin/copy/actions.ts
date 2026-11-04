@@ -17,10 +17,13 @@ export const ACTIONS_COPY = {
   dismiss: 'Dismiss', dismissed: 'Dismissed', undo: 'Undo',
   dismissLabel: (page: string) => `Dismiss ${page}`, undoLabel: (page: string) => `Undo dismiss ${page}`,
   dismissHelp: "Dismiss a page you'll update by hand, then finish archiving.",
-  contentEntryNotDecided: "This test isn't decided yet, so pages can't be dismissed.",
+  contentEntryNotDecided: "This test isn't decided, so its pages can't be changed.",
+  contentEntryMissing: 'This page is no longer in the list. Reload to see the current list.',
   contentEntryDismissed: 'This page was already dismissed.',
+  contentEntryNotDismissed: "This page isn't dismissed. Reload to see its current state.",
   contentEntryUpdated: 'This page is already updated.',
   contentEntryNotFound: 'This test no longer exists.',
+  contentEntryFallback: "This page can't be changed right now. Reload to see its current state.",
   loading: 'Loading results…', updated: 'Updated', failed: 'Failed',
   contentReasons: {
     localized: "This page has more than one language; Make it the content can't publish it safely yet. Copy the winning version by hand.",
@@ -47,10 +50,15 @@ export const hardCodedLabel = (winner: string) => `The developer has hard-coded 
 export const contentReportCopy = (reason: string | undefined, ok = false) => reason === 'not-found' && ok ? ACTIONS_COPY.missingContent
   : ACTIONS_COPY.contentReasons[reason !== undefined && Object.hasOwn(ACTIONS_COPY.contentReasons, reason) ? reason as ContentReportReason : 'update-failed']
 
-// CORE-44 uses invalid-status for not-decided, already-dismissed and already-updated.
-// Prefer the test-state explanation; never infer a reason from server free text.
+// Each dismiss/restore refusal code has its own sentence; server text is never shown.
 export const CONTENT_ENTRY_REFUSALS = {
   notFound: ACTIONS_COPY.contentEntryNotFound,
-  codes: { 'invalid-status': ACTIONS_COPY.contentEntryNotDecided },
-  fallback: "Couldn't complete this change. Try again.",
+  codes: {
+    'not-decided': ACTIONS_COPY.contentEntryNotDecided,
+    'entry-not-found': ACTIONS_COPY.contentEntryMissing,
+    'entry-ok': ACTIONS_COPY.contentEntryUpdated,
+    'entry-dismissed': ACTIONS_COPY.contentEntryDismissed,
+    'entry-not-dismissed': ACTIONS_COPY.contentEntryNotDismissed,
+  },
+  fallback: ACTIONS_COPY.contentEntryFallback,
 } as const

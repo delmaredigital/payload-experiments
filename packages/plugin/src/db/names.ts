@@ -232,6 +232,7 @@ export const COLUMNS = {
     anonymousId: 'anonymous_id',
     userId: 'user_id',
     linkedAt: 'linked_at',
+    verifiedAt: 'verified_at',
     updatedAt: 'updated_at',
     createdAt: 'created_at',
   },

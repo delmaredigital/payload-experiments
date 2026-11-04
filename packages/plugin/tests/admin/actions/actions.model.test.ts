@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { availableActions, contentDone, type ContentReport } from '../../../src/admin/actions/actions.model.js'
+import { availableActions, type ContentReport } from '../../../src/admin/actions/actions.model.js'
+import { contentDone } from '../../../src/contentDone.js'
 import { decideCopy, makeContentCopy, releaseCopy } from '../../../src/admin/copy/actions.js'
 
 type Input = Parameters<typeof availableActions>[0]

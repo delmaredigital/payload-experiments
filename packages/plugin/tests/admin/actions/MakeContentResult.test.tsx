@@ -186,13 +186,15 @@ test.each([
   expect(Boolean(screen.queryByRole('button', { name: 'Finish archiving' }))).toBe(done)
 })
 
-// CORE-44 deliberately shares invalid-status for these three conditions.
+// Each server refusal code maps to its own sentence; unknown codes use the neutral fallback.
 test.each([
-  ['not decided', 'invalid-status', 409, ACTIONS_COPY.contentEntryNotDecided],
-  ['already dismissed', 'invalid-status', 409, ACTIONS_COPY.contentEntryNotDecided],
-  ['already updated', 'invalid-status', 409, ACTIONS_COPY.contentEntryNotDecided],
+  ['not decided', 'not-decided', 409, ACTIONS_COPY.contentEntryNotDecided],
+  ['entry no longer listed (404)', 'entry-not-found', 404, ACTIONS_COPY.contentEntryMissing],
+  ['entry already updated', 'entry-ok', 409, ACTIONS_COPY.contentEntryUpdated],
+  ['entry already dismissed', 'entry-dismissed', 409, ACTIONS_COPY.contentEntryDismissed],
+  ['entry not dismissed', 'entry-not-dismissed', 409, ACTIONS_COPY.contentEntryNotDismissed],
   ['missing test', 'not-found', 404, ACTIONS_COPY.contentEntryNotFound],
-  ['unknown refusal', 'future-code', 422, "Couldn't complete this change. Try again."],
+  ['unknown refusal', 'future-code', 422, ACTIONS_COPY.contentEntryFallback],
 ] as const)('dismiss/restore refusal: %s uses persona copy and retains the entry', async (_case, code, status, expected) => {
   const fetcher = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ errors: [{ code, message: 'Experiment not found' }] }), { status })))
   vi.stubGlobal('fetch', fetcher)

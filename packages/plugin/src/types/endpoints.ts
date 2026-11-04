@@ -5,7 +5,9 @@ import type { ReadinessCode } from '../transitions/checkStart.js'
 export type { ReadinessCode } from '../transitions/checkStart.js'
 import type { Snapshot, VerdictCode } from './snapshot.js'
 export type ArmIssueCode = 'weights-total' | 'control-count' | 'control-first' | 'holdout-last' | 'holdout-count' | 'variant-count' | 'duplicate-key' | 'duplicate-slot' | 'slot-required' | 'invalid-key'
-export type RefusalCode = ArmIssueCode | 'not-found' | 'no-planned-duration' | 'no-primary-metric' | 'no-placements' | 'empty-slot' | 'page-no-targets' | 'page-target-unpublished' | 'page-user-unit' | 'version-page-unavailable' | 'version-page-unchecked' | 'flag-no-point' | 'flag-params-invalid' | 'flag-point-busy' | 'flag-placement-missing' | 'layer-full' | 'layer-unit-mismatch' | 'unknown-metric-source' | 'unit-source-mismatch' | 'no-reach-per-day' | 'invalid-status' | 'stale-draft' | 'stale-edit' | 'commit-unverified' | 'allocation-lower' | 'confirmation-required' | 'invalid-winner' | 'slices-taken' | 'locked-placement' | 'not-implemented' | 'forbidden' | 'unauthenticated' | 'body-too-large' | 'invalid-body' | 'too-many-ids' | 'invalid-phase' | 'invalid-ids' | 'recompute-failed' | 'analysis-failed' | 'undeclared-targeting-key' | 'invalid-targeting-rule' | 'block-path-rule' | 'duplicate-metric'
+/** Content-report dismiss/restore refusals (CORE-44). */
+export type ContentEntryRefusal = 'not-decided' | 'entry-not-found' | 'entry-ok' | 'entry-dismissed' | 'entry-not-dismissed'
+export type RefusalCode = ArmIssueCode | 'not-found' | ContentEntryRefusal | 'no-planned-duration' | 'no-primary-metric' | 'no-placements' | 'empty-slot' | 'page-no-targets' | 'page-target-unpublished' | 'page-user-unit' | 'version-page-unavailable' | 'version-page-unchecked' | 'flag-no-point' | 'flag-params-invalid' | 'flag-point-busy' | 'flag-placement-missing' | 'layer-full' | 'layer-unit-mismatch' | 'unknown-metric-source' | 'unit-source-mismatch' | 'no-reach-per-day' | 'invalid-status' | 'stale-draft' | 'stale-edit' | 'commit-unverified' | 'allocation-lower' | 'confirmation-required' | 'invalid-winner' | 'slices-taken' | 'locked-placement' | 'not-implemented' | 'forbidden' | 'unauthenticated' | 'body-too-large' | 'invalid-body' | 'too-many-ids' | 'invalid-phase' | 'invalid-ids' | 'recompute-failed' | 'analysis-failed' | 'undeclared-targeting-key' | 'invalid-targeting-rule' | 'block-path-rule' | 'duplicate-metric'
 export type ErrorEnvelope = { errors: Array<{ code: RefusalCode; message: string; detail?: unknown }> }
 export type TransitionSuccess = { doc: Record<string, unknown>; revision: number }
 export type AllocateBody = { allocation: number }
@@ -14,6 +16,9 @@ export type DecideBody = { winnerArm: string; note?: string; confirmation?: stri
 export type ArchiveBody = { mode: 'stopped' | 'after-content' | 'discard' | 'hard-coded'; confirmation?: string }
 export type DismissContentEntryBody = { collection: string; id: DocId }
 export type DismissContentEntryResult = Pick<TransitionSuccess, 'doc'>
+export type RestoreContentEntryBody = DismissContentEntryBody
+export type RestoreContentEntryResult = Pick<TransitionSuccess, 'doc'>
+export type ContentReport = { docs: MakeContentResult['docs'] } | MakeContentResult['docs']
 export type MakeContentResult = TransitionSuccess & { docs: Array<{ collection: string; id: DocId; ok: boolean; detail?: ContentReportReason | string; error?: ContentReportReason | string; dismissedAt?: string; dismissedBy?: string | null }> }
 export type PreflightResult = {
   checks: Array<{ code: ReadinessCode; ok: boolean; detail?: unknown; warning?: boolean }>

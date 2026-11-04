@@ -23,10 +23,13 @@ export const LOCKED_MESSAGES = {
 } as const
 
 export function refusalMessage(code: string | undefined, status: number, message?: string, options?: { notFound?: string; codes?: Readonly<Record<string, string>>; fallback?: string }): string {
+  // A per-call code wins over the status branches: entry-not-found is a 404 that is not "this test no longer exists".
+  const mapped = code && options?.codes && Object.hasOwn(options.codes, code) ? options.codes[code] : undefined
+  if (mapped !== undefined) return mapped
   if (code === 'unauthenticated' || status === 401) return API_MESSAGES.unauthenticated
   if (code === 'not-found' || status === 404) return options?.notFound ?? API_MESSAGES.notFound
   if (code === 'commit-unverified') return API_MESSAGES.commitUnverified
   if (code === 'not-implemented' || status === 501) return API_MESSAGES.notImplemented
   if (code === 'forbidden' || status === 403) return API_MESSAGES.forbidden
-  return (code && options?.codes && Object.hasOwn(options.codes, code) ? options.codes[code] : undefined) ?? options?.fallback ?? (message || API_MESSAGES.failed)
+  return options?.fallback ?? (message || API_MESSAGES.failed)
 }

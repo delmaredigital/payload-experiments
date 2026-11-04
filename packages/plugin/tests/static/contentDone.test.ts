@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { expect, test } from 'vitest'
 
-// Removed at CORE-44 handover, when the model imports the root export instead.
-const allowList = new Set(['actions/actions.model.ts'])
+// The admin imports the package's contentDone; no file under src/admin may define its own.
+const allowList = new Set<string>()
 const admin = fileURLToPath(new URL('../../src/admin/', import.meta.url))
 function definitions(root: string): string[] {
   function visit(directory: string): string[] {

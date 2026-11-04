@@ -33,9 +33,14 @@ export function refuse(code: RefusalCode, detail?: unknown): never {
     'layer-full': 'There is not enough room in this layer.',
     'allocation-lower': 'Allocation can only increase while running. Stop and start a new round to lower it.',
     'invalid-body': 'Check the experiment settings and try again.',
+    'not-decided': 'This test has no standing winner.',
+    'entry-not-found': 'That page is not in the report.',
+    'entry-ok': 'That page was already updated.',
+    'entry-dismissed': 'That page was already dismissed.',
+    'entry-not-dismissed': 'That page is not dismissed.',
   }
-  const conflict = ['invalid-status', 'stale-draft', 'flag-point-busy', 'layer-full', 'allocation-lower'].includes(code)
-  throw new XpRefusal(code, messages[code] ?? 'The experiment is not ready to start.', detail, conflict ? 409 : 422)
+  const conflict = ['invalid-status', 'stale-draft', 'flag-point-busy', 'layer-full', 'allocation-lower', 'not-decided', 'entry-ok', 'entry-dismissed', 'entry-not-dismissed'].includes(code)
+  throw new XpRefusal(code, messages[code] ?? 'The experiment is not ready to start.', detail, code === 'entry-not-found' ? 404 : conflict ? 409 : 422)
 }
 export async function updateExperiment(req: PayloadRequest, id: DocId, data: Record<string, unknown>) {
   // §7.8: access-authorised transition writes locked plugin fields.

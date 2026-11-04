@@ -1,5 +1,5 @@
 /**
- * Payload 3.90.2 — generated 2026-10-30, without a database connection.
+ * Payload 3.90.2 — regenerated 2026-11-03, without a database connection.
  * Built directly from src/collections (including its global factory).
  * Regenerate from packages/plugin:
  * NODE_OPTIONS=--conditions=@delmaredigital/source PAYLOAD_CONFIG_PATH=tests/_fixtures/schema/config.ts pnpm exec payload generate:db-schema
@@ -830,6 +830,11 @@ export const xp_identities = pgTable(
       withTimezone: true,
       precision: 3,
     }).notNull(),
+    verifiedAt: timestamp("verified_at", {
+      mode: "string",
+      withTimezone: true,
+      precision: 3,
+    }),
     updatedAt: timestamp("updated_at", {
       mode: "string",
       withTimezone: true,
@@ -847,6 +852,7 @@ export const xp_identities = pgTable(
   },
   (columns) => [
     uniqueIndex("xp_identities_anonymous_id_idx").on(columns.anonymousId),
+    index("xp_identities_user_id_idx").on(columns.userId),
     index("xp_identities_updated_at_idx").on(columns.updatedAt),
     index("xp_identities_created_at_idx").on(columns.createdAt),
   ],

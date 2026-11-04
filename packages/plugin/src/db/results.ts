@@ -13,7 +13,7 @@ const epochMs = `round(extract(epoch from ${q(c.ts)}) * 1000)::bigint`
 export interface PhaseExposureRow { unitId: string; arm: string; ts: number }
 export interface RolloutExposureRow { unitId: string; phase: number; ts: number }
 export interface MetricEventRow { unitId: string; userId: string | null; value: number; ts: number }
-export interface IdentityRow { anonymousId: string; userId: string }
+export interface IdentityRow { anonymousId: string; userId: string; verifiedAt: number | null; ownedAt: number | null }
 type PhaseQuery = { experimentId: DocId; phase: number; endedAt?: Timestamp }
 
 function phaseFilter({ experimentId, phase, endedAt }: PhaseQuery, type: 'exposure' | 'arm-mismatch') {
@@ -78,8 +78,10 @@ export async function identityRows(exec: Executor, { anonymousIds }: { anonymous
   const i = COLUMNS.identities
   const rows: IdentityRow[] = []
   for (let offset = 0; offset < ids.length; offset += batchSize) {
-    const result = await exec.query<IdentityRow>(`SELECT ${q(i.anonymousId)} AS "anonymousId", ${q(i.userId)} AS "userId" FROM ${qualifiedTable(exec, TABLES.identities)} WHERE ${q(i.anonymousId)} = ANY($1::text[]) ORDER BY ${q(i.anonymousId)}`, [ids.slice(offset, offset + batchSize)])
-    rows.push(...result.rows.map(row => ({ anonymousId: row.anonymousId, userId: String(row.userId) })))
+    // Ownership is global to the user, including browsers outside these exposure batches.
+    const table = qualifiedTable(exec, TABLES.identities)
+    const result = await exec.query<IdentityRow>(`SELECT link.${q(i.anonymousId)} AS "anonymousId", link.${q(i.userId)} AS "userId", round(extract(epoch from link.${q(i.verifiedAt)}) * 1000)::bigint AS "verifiedAt", (SELECT round(extract(epoch from min(owner.${q(i.verifiedAt)})) * 1000)::bigint FROM ${table} owner WHERE owner.${q(i.userId)} = link.${q(i.userId)}) AS "ownedAt" FROM ${table} link WHERE link.${q(i.anonymousId)} = ANY($1::text[]) ORDER BY link.${q(i.anonymousId)}`, [ids.slice(offset, offset + batchSize)])
+    rows.push(...result.rows.map(row => ({ anonymousId: row.anonymousId, userId: String(row.userId), verifiedAt: row.verifiedAt == null ? null : Number(row.verifiedAt), ownedAt: row.ownedAt == null ? null : Number(row.ownedAt) })))
   }
   return rows
 }
