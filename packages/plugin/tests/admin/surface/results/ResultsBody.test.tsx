@@ -322,6 +322,9 @@ test.each([
   expect(screen.getByText(frozen ? '3 ignored.' : '7 ignored.')).toBeTruthy()
   expect(container.querySelector('.xp-results-chips')?.textContent).toContain(frozen ? 'OK' : 'Watch')
   if (frozen) expect(screen.getByText(stored.verdict.finding)).toBeTruthy()
+  // The decision's numbers never move, so the page says why and offers no Recompute.
+  expect(container.querySelector('.xp-results-as-of')?.textContent ?? null).toEqual(frozen ? expect.stringMatching(/^as of the decision, \d{1,2} [A-Z][a-z]{2} \d{4}$/) : null)
+  expect(screen.queryByRole('button', { name: 'Recompute' }) === null).toBe(frozen)
   if (status !== 'decided') expect(screen.getByRole('heading', { name: newest.verdict.headline })).toBeTruthy()
   for (const table of screen.getAllByRole('table')) {
     expect(table.parentElement?.getAttribute('aria-label')).toBe(table.querySelector('caption')?.textContent)

@@ -10,6 +10,7 @@ import type { DocId } from '../../../types/contracts.js'
 import type { PreflightResult, ResultsResponse } from '../../../types/endpoints.js'
 import type { SurfaceProps } from '../contracts.js'
 import { RESULTS_COPY as C } from '../../copy/results.js'
+import { formatDate } from '../../format/date.js'
 import { ACTIONS_COPY } from '../../copy/actions.js'
 import { METRICS_COPY } from '../../copy/metrics.js'
 import { API_MESSAGES } from '../../copy/common.js'
@@ -93,7 +94,8 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
   // ADM-06b: an older round never inherits the live test's running status.
   const lineStatus = status === 'running' && round === newestRound ? 'running' : 'stopped'
   const isDecidedTestRound = status === 'decided' && phase?.phaseKind === 'test' && decision?.phase === round
-  const shown = isDecidedTestRound && data?.decisionSnapshot ? data.decisionSnapshot : snapshot
+  const showingDecision = isDecidedTestRound && Boolean(data?.decisionSnapshot)
+  const shown = showingDecision ? data!.decisionSnapshot! : snapshot
   const winner = phase?.arms.find(arm => arm.key === decision?.winnerArm)?.label ?? armLabel(decision?.winnerArm ?? 'control')
   const card = shown ? verdictCard({ snapshot: shown, decisionSnapshot: data?.decisionSnapshot, isDecidedTestRound, winnerLabel: winner }) : null
   const context = { status, phase, inLayer: doc?.layer != null, layerSlices: doc?.layerSlices, allocation: doc?.allocation }
@@ -113,8 +115,8 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
   const meta = <><div className="xp-round-meta">
     {phases.length > 0 ? <Select id="xp-results-round" label={C.round} disabled={deciding || releasing} value={round ?? ''} onChange={event => results.setRound(Number(event.target.value))}>
       {roundOptions(phases).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </Select> : null}{manage && shown ? <span>· {C.methods[shown.method]}</span> : null}
-    </div>{manage ? <Button variant="quiet" size="sm" disabled={busy || deciding || releasing} onClick={() => { void recompute() }}>{busy ? C.recomputing : C.recompute}</Button> : null}</>
+    </Select> : null}{manage && shown ? <span>· {C.methods[shown.method]}</span> : null}{showingDecision ? <span className="xp-results-as-of">{C.asOfDecision(formatDate(data!.decisionSnapshot!.computedAt))}</span> : null}
+    </div>{/* The decided round shows the decision's numbers, so a recompute would change nothing here. */}{manage && !showingDecision ? <Button variant="quiet" size="sm" disabled={busy || deciding || releasing} onClick={() => { void recompute() }}>{busy ? C.recomputing : C.recompute}</Button> : null}</>
   const leader = shown?.verdict.recommendedArm
   const leadingComparison = shown?.metrics.find(metric => metric.role === 'primary')?.comparisons.find(item => item.arm === leader)
   const chance = shown?.method === 'bayesian' && !['collecting', 'rollout-collecting'].includes(shown.verdict.code)
