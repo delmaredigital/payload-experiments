@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { ARM_SELECT_COPY } from '../../../src/admin/copy/armSelect.js'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { ArmSelectField } from '../../../src/admin/armSelect/ArmSelectField.js'
@@ -80,6 +81,16 @@ test('403 displays the agreed access state', async () => {
   render(<ArmSelectField path="rows.0.tag" field={field} />)
   expect(await screen.findByText("You can't see tests. Ask an admin.")).toBeTruthy()
   expect(screen.queryByLabelText('Group')).toBeNull()
+})
+test.each([
+  ['an unreadable list', async () => new Response('{"nope":true}')],
+  ['a network failure', async () => { throw new TypeError('Failed to fetch') }],
+])('%s shows the unavailable copy, never a blank or raw message', async (_case, impl) => {
+  fields()
+  vi.stubGlobal('fetch', vi.fn(impl))
+  render(<ArmSelectField path="rows.0.tag" field={field} />)
+  expect(await screen.findByText(ARM_SELECT_COPY.unavailable)).toBeTruthy()
+  expect(document.body.textContent).not.toContain('Failed to fetch')
 })
 test('read-only fields cannot change either stored value', async () => {
   const { setExperiment, setArm } = fields(2, 'control')

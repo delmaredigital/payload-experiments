@@ -7,6 +7,10 @@ import type { ArmSelectExperiment, ExperimentReference } from './armSelect.model
 import { bindArmSelect, experimentId } from './armSelect.model.js'
 import { ARM_SELECT_COPY } from '../copy/armSelect.js'
 
+/** Only authored copy reaches the field; transport or parse errors read as unavailable. */
+const knownCopy = (reason: unknown): string => reason instanceof Error && (Object.values(ARM_SELECT_COPY) as unknown[]).includes(reason.message)
+  ? reason.message : ARM_SELECT_COPY.unavailable
+
 type Loaded = { key: string; live: ArmSelectExperiment | null; candidates: ArmSelectExperiment[] }
 export function ArmSelectField({ path, field, readOnly }: GroupFieldClientProps) {
   const { config } = useConfig()
@@ -35,7 +39,7 @@ export function ArmSelectField({ path, field, readOnly }: GroupFieldClientProps)
     void Promise.all([list('running,decided'), list('draft,stopped')]).then(([live, candidates]) => {
       if (!controller.signal.aborted) { setError(null); setLoaded({ key, live: live[0] ?? null, candidates }) }
     }).catch((reason: unknown) => {
-      if (!controller.signal.aborted) setError({ key, message: reason instanceof Error ? reason.message : ARM_SELECT_COPY.unavailable })
+      if (!controller.signal.aborted) setError({ key, message: knownCopy(reason) })
     })
     return () => controller.abort()
   }, [api, point, key])
