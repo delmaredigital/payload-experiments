@@ -18,6 +18,7 @@
     "generate:editor-css": "node scripts/generate-editor-css.mjs",
     "fixtures:admin-home": "vitest run --config vitest.fixtures.config.ts packages/plugin/tests-fixtures/admin/renderHomeFixtures.fixture.tsx",
     "fixtures:ui": "vitest run --config vitest.fixtures.config.ts packages/plugin/tests-fixtures/ui",
+    "fixtures:admin-goals": "vitest run --config vitest.fixtures.config.ts packages/plugin/tests-fixtures/admin/renderGoalsFixtures.fixture.tsx",
     "fixtures:admin-results": "vitest run --config vitest.fixtures.config.ts packages/plugin/tests-fixtures/admin/renderResultsFixtures.fixture.tsx",
     "fixtures:admin-test": "vitest run --config vitest.fixtures.config.ts packages/plugin/tests-fixtures/admin/renderTestPageFixtures.fixture.tsx"
   },

@@ -141,10 +141,13 @@ test('25,000 IDs use disjoint 10,000/10,000/5,000 ANY batches, with repeated IDs
     expect(call.params).toEqual(['conversion', 'signup', from.toISOString(), to, ids.slice(n * 10_000, (n + 1) * 10_000)])
   }
   const identities = createFakeExecutor({ results: [0, 1, 2].map(n => ({ rows: [{ anonymousId: ids[n * 10_000], userId: n + 10 }] })) })
-  expect(await identityRows(identities, { anonymousIds: [...ids, ids[0]!] })).toEqual([0, 1, 2].map(n => ({ anonymousId: ids[n * 10_000], userId: String(n + 10) })))
+  expect(await identityRows(identities, { anonymousIds: [...ids, ids[0]!] })).toEqual([0, 1, 2].map(n => ({ anonymousId: ids[n * 10_000], userId: String(n + 10), verifiedAt: null, ownedAt: null })))
   expect(identities.calls).toHaveLength(3)
   for (const [n, call] of identities.calls.entries()) {
-    expect(call).toEqual({ text: 'SELECT "anonymous_id" AS "anonymousId", "user_id" AS "userId" FROM "xp_identities" WHERE "anonymous_id" = ANY($1::text[]) ORDER BY "anonymous_id"', params: [ids.slice(n * 10_000, (n + 1) * 10_000)] })
+    expect(call.params).toEqual([ids.slice(n * 10_000, (n + 1) * 10_000)])
+    expect(call.text).toContain('link."anonymous_id" = ANY($1::text[])')
+    expect(call.text).toContain('owner."user_id" = link."user_id"')
+    expect(call.text).toContain('min(owner."verified_at")')
   }
 })
 

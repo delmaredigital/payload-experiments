@@ -11,9 +11,9 @@ test('erase removes all three event branches and only the target identities in o
   const { db, close } = await createPgliteDb()
   try {
     const exec = pooledExecutor({ db: { drizzle: db } } as unknown as Payload)
-    await insertIdentity(exec, { anonymousId: 'linked', userId: 'user' })
-    await insertIdentity(exec, { anonymousId: 'other-linked', userId: 'other' })
-    await insertIdentity(exec, { anonymousId: 'linked', userId: 'other' })
+    await insertIdentity(exec, { verified: false, anonymousId: 'linked', userId: 'user' })
+    await insertIdentity(exec, { verified: false, anonymousId: 'other-linked', userId: 'other' })
+    await insertIdentity(exec, { verified: false, anonymousId: 'linked', userId: 'other' })
     const base: EventRow = { type: 'conversion', unitId: 'visitor', unitType: 'visitor', dedupeKey: 'direct', userId: 'user', ts: new Date().toISOString() }
     await insertEvents(exec, [base, { ...base, dedupeKey: 'user-unit', userId: undefined, unitId: 'user', unitType: 'user' },
       { ...base, dedupeKey: 'linked', userId: undefined, unitId: 'linked' },
