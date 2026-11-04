@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: the Experiment block in the Puck editor is a test builder: add up to three variants, rename, copy the Original into a version, remove a version, and set the traffic split, while the test is a draft or stopped; a running test shows people per version and the current leader.
+
 - Added: `experimentOutlinePlugin()` (from `/puck/editor`) hides a block's empty version slots that its test doesn't use from the Puck outline; a slot with content that isn't part of the test stays visible with a warning. Add it to your Puck plugins.
 - Fixed: while a whole-page test is live, the Original's URL keeps a canonical to itself even when a visitor is served a version page there, so search engines never treat the Original as a copy of a noindexed version. Hosts merge `experimentMetadata` after their own metadata so its canonical wins. Migration impact: none.
 - Fixed: after a whole-page test is archived, trying to delete, rename or unpublish the Original page now says its address shows the winner, instead of calling the Original the winner. Migration impact: none.

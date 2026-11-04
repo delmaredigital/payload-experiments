@@ -101,3 +101,17 @@
 .xp-slot-editor .xp-ui-dialog {
   margin: auto;
 }
+
+.xp-slot-editor .xp-ui-tab-with-actions { display: flex; align-items: center; position: relative; }
+.xp-slot-version-actions { display: flex; align-items: center; gap: var(--xp-space-2); }
+.xp-slot-version-menu {
+  position: absolute; top: 100%; inset-inline-end: 0; z-index: 5;
+  display: grid; min-width: 180px; padding: var(--xp-space-2);
+  background: var(--xp-surface); border: 1px solid var(--xp-border); border-radius: var(--xp-radius);
+}
+.xp-slot-version-menu .xp-ui-button { justify-content: start; }
+.xp-slot-weight-inputs, .xp-slot-people { display: flex; flex-wrap: wrap; gap: var(--xp-space-3); }
+.xp-slot-weight-inputs .xp-ui-field { flex: 1 1 120px; max-width: 200px; }
+.xp-slot-readout { display: grid; gap: var(--xp-space-2); }
+.xp-slot-readout > .xp-ui-button { justify-self: start; }
+.xp-slot-editor .xp-ui-tablist { flex-wrap: wrap; }
