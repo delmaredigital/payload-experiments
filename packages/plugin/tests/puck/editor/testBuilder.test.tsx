@@ -353,6 +353,13 @@ test('menus close on outside pointerdown, focus leaving the wrapper, and Escape 
   expect(document.activeElement).toBe(screen.getByRole('button', { name: C.menu('Variant A') }))
 })
 
+test('a menu closes when focus leaves the canvas document or the window', async () => {
+  await mount(); menu()
+  expect(screen.getByRole('button', { name: C.rename })).toBeTruthy()
+  fireEvent.blur(window)
+  expect(screen.queryByRole('button', { name: C.rename })).toBeNull()
+})
+
 test('display contents preserves inside pointer paths and focus; null blur allows a menu click', async () => {
   const style = document.createElement('style')
   style.textContent = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../src/puck/editor/editor.chrome.css'), 'utf8')
