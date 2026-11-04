@@ -1,10 +1,11 @@
 .xp-test-page { color: var(--xp-text); background: var(--xp-bg); max-width: 90rem; margin: 0 auto; padding: 1.5rem; }
+.xp-test-page--setup { min-width: 0; padding: 0 0 160px; }
 .xp-test-header { position: sticky; top: 0; z-index: 10; background: var(--xp-bg); padding: 1rem 0; border-bottom: 1px solid var(--xp-border); }
 .xp-header-meta, .xp-section-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-block: 1rem; }
 .xp-kind-chip, .xp-status-pill { border: 1px solid var(--xp-border-control); border-radius: 1rem; padding: .25rem .75rem; }
 .xp-status-pill--success, .xp-content-ready, .xp-section-check--done { color: var(--xp-success-text); }
 .xp-content-empty, .xp-status-pill--warning { color: var(--xp-warning-text); }
-.xp-test-section { padding-block: 1.5rem; border-bottom: 1px solid var(--xp-border); scroll-margin-top: 15rem; }
+.xp-test-section, .xp-test-advanced { scroll-margin-top: var(--xp-space-6); }
 .xp-version-rows { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); }
 .xp-version-row { border: 1px solid var(--xp-border); border-radius: var(--xp-radius); padding: 1rem; }
 .xp-version-colour { display: inline-block; width: .75rem; height: .75rem; margin-right: .5rem; border-radius: 50%; }
@@ -17,7 +18,49 @@
 .xp-read-only { padding-block: .5rem; }
 .xp-read-only p { margin-block: .5rem; }
 .xp-field-error { color: var(--xp-error-text); }
-.xp-test-page button { cursor: pointer; color: var(--xp-text); background: var(--xp-surface-raised); border: 1px solid var(--xp-border-control); padding: .65rem 1rem; border-radius: var(--xp-radius); font: inherit; }
-.xp-test-page button:disabled { opacity: .5; cursor: default; }
-.xp-test-page summary { cursor: pointer; padding-block: .75rem; }
+.xp-test-page button:not(.xp-ui-button) { cursor: pointer; color: var(--xp-text); background: var(--xp-surface-raised); border: 1px solid var(--xp-border-control); padding: .65rem 1rem; border-radius: var(--xp-radius); font: inherit; }
+.xp-test-page button:not(.xp-ui-button):disabled { opacity: .5; cursor: default; }
+
 .xp-targeting-row { border-bottom: 1px solid var(--xp-border); padding-bottom: 1rem; }
+
+.xp-test-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: start; gap: var(--xp-space-8); }
+.xp-test-content { display: grid; gap: var(--xp-space-8); min-width: 0; max-width: 760px; }
+.xp-test-rail { position: sticky; top: var(--xp-space-6); min-width: 0; }
+.xp-test-rail-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--xp-space-1); }
+.xp-test-rail-item { display: flex; align-items: center; gap: var(--xp-space-2); padding: var(--xp-space-2); border-radius: var(--xp-radius-control); color: var(--xp-text-2); text-decoration: none; font: var(--xp-text-small); }
+.xp-test-rail-item:hover, .xp-test-rail-item.is-active { background: var(--xp-surface-2); color: var(--xp-text); }
+.xp-test-rail-item.is-active { font-weight: 600; }
+.xp-test-rail-item--advanced { margin-top: var(--xp-space-3); color: var(--xp-text-3); }
+.xp-test-rail-mark { flex: none; color: var(--xp-text-3); }
+.xp-test-rail-mark--done { color: var(--xp-success); }
+.xp-test-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.xp-test-rail-item:focus-visible, .xp-test-advanced > summary:focus-visible, .xp-test-content h2:focus { outline: 2px solid var(--xp-focus); outline-offset: 2px; }
+.xp-test-advanced { border: 1px solid var(--xp-border); border-radius: var(--xp-radius-card); background: var(--xp-surface); }
+.xp-test-advanced > summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: var(--xp-space-3); padding: var(--xp-space-4) var(--xp-space-5); color: var(--xp-text-2); }
+.xp-test-advanced > summary h2 { margin: 0; font: var(--xp-text-body); }
+.xp-test-advanced[open] > summary { border-bottom: 1px solid var(--xp-border); }
+.xp-test-readiness-bar { position: fixed; bottom: 0; inset-inline: 0; z-index: 20; background: var(--xp-surface); border-top: 1px solid var(--xp-border); }
+.xp-readiness { color: var(--xp-text); background: var(--xp-surface); padding: var(--xp-space-4); border: 1px solid var(--xp-border-strong); border-radius: var(--xp-radius-control); }
+.xp-readiness--ready:not(.xp-readiness--bar) { background: var(--xp-success-bg); }
+.xp-readiness--bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--xp-space-2) var(--xp-space-4); padding-block: var(--xp-space-3); min-height: 64px; border: 0; border-radius: 0; }
+.xp-readiness__state { display: flex; align-items: center; flex-wrap: wrap; gap: var(--xp-space-2); min-width: 0; }
+.xp-readiness__state p, .xp-readiness--bar > p { margin: 0; }
+.xp-readiness__state > p { font-weight: 500; }
+.xp-readiness--bar .xp-save-status, .xp-readiness__separator { color: var(--xp-text-3); font: var(--xp-text-small); }
+.xp-readiness__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xp-space-2); }
+.xp-readiness--bar > .xp-readiness__actions { grid-column: 2; grid-row: 1 / span 3; justify-content: flex-end; }
+@media (max-width: 960px) {
+  .xp-test-layout { grid-template-columns: minmax(0, 1fr); gap: var(--xp-space-5); }
+  .xp-test-rail { top: 0; z-index: 2; background: var(--xp-bg); padding-block: var(--xp-space-2); border-bottom: 1px solid var(--xp-border); }
+  .xp-test-rail-list { flex-direction: row; overflow-x: auto; }
+  .xp-test-rail-item { white-space: nowrap; }
+  .xp-test-rail-item--advanced { margin-top: 0; }
+  .xp-test-content { max-width: none; }
+  .xp-test-section, .xp-test-advanced { scroll-margin-top: 64px; }
+}
+@media (max-width: 720px) {
+  .xp-readiness--bar { grid-template-columns: minmax(0, 1fr); }
+  /* The sentence wraps under the save state here, so a trailing separator would dangle. */
+  .xp-readiness--bar .xp-readiness__separator { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .xp-readiness--bar > .xp-readiness__actions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+}

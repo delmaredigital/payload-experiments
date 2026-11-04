@@ -114,9 +114,9 @@ export function payloadUiMock() {
     },
     useDocumentInfo: () => useStateSnapshot().documentInfo,
     useFormModified: () => useStateSnapshot().formModified,
-    Button: ({ children, className, onClick, disabled, type = 'button' }: Children & {
-      onClick?: () => void; disabled?: boolean; type?: 'button' | 'submit' | 'reset'
-    }) => <button className={className} onClick={onClick} disabled={disabled} type={type}>{children}</button>,
+    Button: ({ children, className, onClick, disabled, extraButtonProps, type = 'button' }: Children & {
+      onClick?: () => void; disabled?: boolean; extraButtonProps?: ComponentProps<'button'>; type?: 'button' | 'submit' | 'reset'
+    }) => <button {...extraButtonProps} className={className} onClick={onClick} disabled={disabled} type={type}>{children}</button>,
     Banner: ({ children, className }: Children) => <div className={className} role="status">{children}</div>,
     Pill: ({ children, className }: Children) => <span className={className}>{children}</span>,
     FieldDescription, FieldLabel, TextInput, TextareaInput, CheckboxInput, SelectInput, toast,

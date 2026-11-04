@@ -2,7 +2,6 @@
 import type { SectionProps } from '../contracts.js'
 import type { TestDocument } from '../testDocument.model.js'
 import type { ExposurePolicy } from '../../../types/contracts.js'
-import { TEST_PAGE } from '../../copy/testPage.js'
 import { ADVANCED_COPY as C } from '../../copy/advanced.js'
 import { exposureOptions } from './testPage.model.js'
 import { FieldErrors, positiveInteger, ReadOnly, reasonFor, save, SelectEdit, TextEdit } from './fields.js'
@@ -17,7 +16,7 @@ export function AdvancedSection({ test, surface }: SectionProps) {
   const numbers = [
     ['minExposuresPerArm', 200, 1], ['attributionWindowHours', '', 1], ['sequentialTuningParameter', '', 0],
   ] as const
-  return <Section test={test} sectionId="advanced"><details><summary>{TEST_PAGE.sections.advanced}</summary>
+  return <Section test={test} sectionId="advanced">
     <SelectEdit label={C.exposurePolicy.label} value={doc.exposurePolicy} reason={reasonFor(test, 'exposurePolicy')}
       options={exposureOptions(doc.kind).map(value => ({ value, label: C.policies[value] }))}
       onCommit={value => save(test, 'exposurePolicy', () => ({ exposurePolicy: value as ExposurePolicy }))} />
@@ -33,5 +32,5 @@ export function AdvancedSection({ test, surface }: SectionProps) {
     {readOnlyFields.map(field => <div key={field}>
       <ReadOnly label={C[field].label} value={typeof doc[field] === 'string' || typeof doc[field] === 'number' ? String(doc[field]) : C.none} reason={reasonFor(test, field)} />
       <p>{C[field].help}</p></div>)}
-  </details></Section>
+  </Section>
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { ACTIONS_COPY } from '../../../../src/admin/copy/actions.js'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { Banner } from '../../../../src/admin/surface/readiness/Banner.js'
 import * as adminApi from '../../../../src/admin/api.js'
 import { SaveStatus } from '../../../../src/admin/surface/readiness/SaveStatus.js'
@@ -11,6 +11,10 @@ import { resetPayloadUiMock } from '../../_helpers/payloadUiMock.js'
 import { props, preflight, doc } from './fixtures.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+})
 afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks() })
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status })
 const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement
@@ -78,7 +82,7 @@ test('stopped test shows the date and restart copy, confirms before posting, the
   const fetcher = vi.fn().mockResolvedValue(success())
   vi.stubGlobal('fetch', fetcher)
   render(<Banner {...p} />)
-  expect(screen.getByText('Stopped Nov 1, 2026. Edit the versions, goal, audience or length below, then start again (results restart).')).toBeTruthy()
+  expect(screen.getByText('Stopped 1 Nov 2026. Edit the versions, goal, audience or length below, then start again (results restart).')).toBeTruthy()
   fireEvent.click(button('Start a new round'))
   expect(fetcher).not.toHaveBeenCalled()
   expect(screen.getByText('Starting again begins a new round; results restart.')).toBeTruthy()
@@ -92,7 +96,7 @@ test('running sentence omits unknown parts and offers only the three status acti
   vi.stubGlobal('fetch', fetcher)
   render(<Banner {...props({ status: 'running', analysis: null })} />)
   expect(screen.getByRole('status').textContent).toBe('Running')
-  expect(screen.getAllByRole('button').map(item => item.textContent)).toEqual(['Stop', 'Add a guardrail or something to watch', 'Let more people in'])
+  expect(screen.getAllByRole('button').map(item => item.textContent)).toEqual(['Stop', 'Add a goal', 'Let more people in'])
   expect(fetcher).not.toHaveBeenCalled()
 })
 test('running people count comes from the summary with results access, once per mount and status', async () => {
@@ -102,7 +106,7 @@ test('running people count comes from the summary with results access, once per 
   p.surface.canReadResults = true
   const view = render(<Banner {...p} />)
   await waitFor(() => expect(screen.getByRole('status').textContent).toContain('1,200 people so far'))
-  expect(screen.getByRole('status').textContent).toMatch(/^Running since Nov 1, 2026 · 1,200 people so far · about \d+ days to go$/)
+  expect(screen.getByRole('status').textContent).toMatch(/^Running since 1 Nov 2026 · 1,200 people so far · about \d+ days to go$/)
   expect(fetcher).toHaveBeenCalledTimes(1)
   expect(fetcher).toHaveBeenCalledWith('/custom-api/xp/experiments/summary?ids=xp1', { method: 'GET', credentials: 'include' })
   view.rerender(<Banner {...p} test={{ ...p.test, doc: { ...p.test.doc!, name: 'New name' } }} />)
@@ -157,6 +161,7 @@ test('Stop uses the established confirmation and displays a refusal inside the d
   const p = props({ status: 'running' })
   render(<Banner {...p} />)
   fireEvent.click(button('Stop'))
+  expect(document.activeElement).toBe(dialogButton('Cancel'))
   expect(screen.getByText('Everyone will see the Original. Starting again begins a new round; results restart.')).toBeTruthy()
   fireEvent.click(dialogButton('Stop'))
   expect((await screen.findByRole('alert')).textContent).toBe('This test was already stopped.')
@@ -169,7 +174,7 @@ test('decided uses saved winner label and model actions, including typed discard
   const fetcher = vi.fn().mockResolvedValue(success())
   vi.stubGlobal('fetch', fetcher)
   render(<Banner {...p} />)
-  expect(screen.getByRole('status').textContent).toBe('Decided Nov 1, 2026: Short headline.')
+  expect(screen.getByRole('status').textContent).toBe('Decided 1 Nov 2026: Short headline.')
   for (const name of ['Make it the content', 'Release holdout', 'Discard winner', 'Finish archiving']) expect(button(name)).toBeTruthy()
   fireEvent.click(button('Discard winner'))
   expect(dialogButton('Discard winner').disabled).toBe(true)
@@ -241,7 +246,9 @@ test.each(['secondary', 'guardrail'])('metric adapter excludes attached goals an
   const fetcher = vi.fn().mockResolvedValueOnce(response({ docs: [{ id: 1, name: 'Main' }, { id: 2, name: 'Attached' }, { id: 3, name: 'Guardrail' }, { id: 4, name: 'New outcome' }] })).mockResolvedValueOnce(success())
   vi.stubGlobal('fetch', fetcher)
   render(<Banner {...p} />)
-  fireEvent.click(button('Add a guardrail or something to watch'))
+  fireEvent.click(button('Add a goal'))
+  expect(screen.getByRole('dialog', { name: 'Add a goal' })).toBeTruthy()
+  expect(screen.getByText('Add a guardrail or something to watch')).toBeTruthy()
   await screen.findByRole('option', { name: 'New outcome' })
   expect(screen.queryByRole('option', { name: 'Main' })).toBeNull()
   expect(screen.queryByRole('option', { name: 'Attached' })).toBeNull()
@@ -250,13 +257,13 @@ test.each(['secondary', 'guardrail'])('metric adapter excludes attached goals an
   expect(screen.queryByRole('option', { name: 'Primary' })).toBeNull()
   fireEvent.change(screen.getByLabelText('Metric'), { target: { value: '4' } })
   fireEvent.change(screen.getByLabelText('Role'), { target: { value: role } })
-  act(() => { dialogButton('Add a guardrail or something to watch').click(); dialogButton('Add a guardrail or something to watch').click() })
+  act(() => { dialogButton('Add a goal').click(); dialogButton('Add a goal').click() })
   await waitFor(() => expect(p.test.reload).toHaveBeenCalledTimes(1))
   expect(fetcher).toHaveBeenCalledTimes(2)
   expect(fetcher.mock.calls[1]?.[0]).toBe('/custom-api/xp/experiments/xp1/add-metric')
   expect(JSON.parse(fetcher.mock.calls[1]?.[1].body)).toEqual({ metric: 4, role })
 })
-test.each([['idle', null], ['saving', 'Saving…'], ['saved', 'Saved'], ['error', "Couldn't save — see the highlighted field"]] as const)('SaveStatus %s', (saving, sentence) => {
+test.each([['idle', 'Saved'], ['saving', 'Saving…'], ['saved', 'Saved'], ['error', "Couldn't save — see the highlighted field"]] as const)('SaveStatus %s', (saving, sentence) => {
   render(<SaveStatus test={props({}, { saving }).test} />)
   if (sentence) expect(screen.getByText(sentence)).toBeTruthy()
   else expect(screen.queryByRole('status')).toBeNull()
@@ -264,7 +271,7 @@ test.each([['idle', null], ['saving', 'Saving…'], ['saved', 'Saved'], ['error'
 test('preflight error has a guarded retry that refreshes only the readiness check', async () => {
   const p = props({}, { preflightError: 'network error' })
   render(<SaveStatus test={p.test} />)
-  expect(screen.getByRole('alert').textContent).toBe("Couldn't check readiness. Try again.")
+  expect(screen.getByRole('alert').textContent).toBe('network error')
   act(() => { button('Try again').click(); button('Try again').click() })
   await waitFor(() => expect(p.test.refreshPreflight).toHaveBeenCalledTimes(1))
   expect(p.test.reload).not.toHaveBeenCalled()
@@ -305,4 +312,18 @@ test('unchecked version pages warn while Start stays enabled', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'page-targets-unchecked', ok: true, warning: true }]) })} />)
   expect(screen.getByText("Version pages aren't checked; make sure each one is published.")).toBeTruthy()
   expect(button('Start').disabled).toBe(false)
+})
+
+test('Escape during a busy transition does not prevent dismissal after its refusal', async () => {
+  let resolve!: (value: Response) => void
+  vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise<Response>(done => { resolve = done })))
+  render(<Banner {...props({ status: 'running' })} />)
+  fireEvent.click(button('Stop'))
+  fireEvent.click(dialogButton('Stop'))
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+  expect(screen.getByRole('dialog')).toBeTruthy()
+  await act(async () => { resolve(response({ errors: [{ message: 'Refused.' }] }, 409)) })
+  expect(await screen.findByRole('alert')).toBeTruthy()
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+  expect(screen.queryByRole('dialog')).toBeNull()
 })

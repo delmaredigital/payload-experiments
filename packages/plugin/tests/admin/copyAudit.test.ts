@@ -17,7 +17,7 @@ const samples: Record<string, unknown[][]> = {
   groupShare: [['50', 'Original'], ['50', 'Shorter form']],
   moreDays: [['1'], ['2']], staleExperiment: [[undefined], ['Earlier test']],
   placementNext: [['Example', ''], ['Example', 'Example']],
-  stoppedCopy: [[null], ['Nov 2, 2026']], decidedCopy: [[null, 'Example'], ['Nov 2, 2026', 'Example']],
+  stoppedCopy: [[null], ['2 Nov 2026']], decidedCopy: [[null, 'Example'], ['2 Nov 2026', 'Example']],
   chartSummary: [['Example', 'Example', 'Example', 'Example', []], ['Example', 'Example', 'Example', 'Example', ['Example']]],
   suggestedWeeks: [[3]], weeksHint: [[28]], layerSummary: [[30, 70]], layerRow: [['Example', 'Example', 30]],
   issueMessage: [[{ code: 'weights-total', message: 'Example' }, 50], [{ code: 'future', message: 'Example' }, 100]],

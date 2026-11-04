@@ -5,8 +5,7 @@ import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/adm
 import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
 import { defaultArms } from '../../../../src/admin/arms/arms.model.js'
 import { TestPage } from '../../../../src/admin/surface/test/TestPage.js'
-import { TestHeader } from '../../../../src/admin/surface/test/TestHeader.js'
-import { Hypothesis } from '../../../../src/admin/surface/test/fields.js'
+import { Hypothesis, TestName } from '../../../../src/admin/surface/test/fields.js'
 import { VersionsSection } from '../../../../src/admin/surface/test/VersionsSection.js'
 import { LengthSection } from '../../../../src/admin/surface/test/LengthSection.js'
 import { AdvancedSection } from '../../../../src/admin/surface/test/AdvancedSection.js'
@@ -17,6 +16,7 @@ import { pageBlockParts } from '../../../../src/admin/surface/pageBlock/parts.js
 import { EDITABLE_BY_STATUS } from '../../../../src/collections/experiments/editability.js'
 import { lockedReason } from '../../../../src/admin/lockedNotice.model.js'
 
+vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
 const hook = vi.hoisted(() => vi.fn())
 vi.mock('../../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: hook }))
 vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
@@ -68,6 +68,9 @@ test('page load states are clear and the ready view has stacked anchored section
   hook.mockReturnValue({ ...p.test, doc: null, loadState: 'loading' })
   const view = render(<TestPage id={1} surface={surface} />)
   expect(screen.getByText('Loading test…')).toBeTruthy()
+  const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' })
+  expect(within(breadcrumb).getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/cms/experiments')
+  expect(within(breadcrumb).getByText('Test').getAttribute('aria-current')).toBe('page')
   for (const [loadState, message] of [['forbidden', "You don't have access to this test."], ['missing', 'This test no longer exists.'], ['error', "Couldn't load this test."]] as const) {
     hook.mockReturnValue({ ...p.test, doc: null, loadState })
     view.rerender(<TestPage id={1} surface={surface} />)
@@ -78,11 +81,14 @@ test('page load states are clear and the ready view has stacked anchored section
   expect(hook).toHaveBeenLastCalledWith(1, { apiRoute: '/cms-api' })
   for (const id of ['what', 'versions', 'win', 'who', 'length', 'advanced']) expect(view.container.querySelector(`#section-${id}`)).toBeTruthy()
   expect(screen.queryByRole('tab')).toBeNull()
+  const what = view.container.querySelector('#section-what')!
+  expect(within(what as HTMLElement).getByLabelText('Test name')).toBe(view.container.querySelector('.xp-test-content input'))
+  expect(view.container.querySelector('.xp-test-header')).toBeNull()
   await waitFor(() => expect(screen.getAllByText('Registered · yes/no').length).toBeGreaterThan(0))
 })
 test('header and hypothesis save on blur or Enter, never on typing', () => {
   const p = props()
-  render(<><TestHeader {...p} /><Hypothesis {...p} /></>)
+  render(<><TestName {...p} /><Hypothesis {...p} /></>)
   const name = screen.getByLabelText('Test name')
   name.focus(); fireEvent.change(name, { target: { value: 'New title' } })
   expect(p.test.stage).not.toHaveBeenCalled()
@@ -131,20 +137,19 @@ test('allocation saves on release and keyboard release, not change', () => {
 test('running sections show read-only values and the exact lock reason', async () => {
   metricsFetch()
   const p = props({ status: 'running' })
-  render(<><VersionsSection {...p} parts={pageBlockParts} /><LengthSection {...p} /><AdvancedSection {...p} /><TargetingSection {...p} /><GoalSection {...p} /><TestHeader {...p} /></>)
+  render(<><VersionsSection {...p} parts={pageBlockParts} /><LengthSection {...p} /><AdvancedSection {...p} /><TargetingSection {...p} /><GoalSection {...p} /><TestName {...p} /></>)
   expect(screen.queryByRole('slider')).toBeNull()
   expect(screen.queryByLabelText('Original: Share (%)')).toBeNull()
   expect(screen.queryByLabelText('Planned length (days)')).toBeNull()
   expect(screen.queryByLabelText('Goal')).toBeNull()
   expect(screen.queryByText('Add a version')).toBeNull()
   expect(screen.getAllByText(lockedReason('running', 'arms', EDITABLE_BY_STATUS)! as string).length).toBeGreaterThan(0)
-  expect(screen.getByText('Results').getAttribute('href')).toBe('/cms/experiments/test%2F1/results')
   expect(p.test.stage).not.toHaveBeenCalled()
   await waitFor(() => expect(screen.getByText('Goal')).toBeTruthy())
 })
 test('archived name is read-only and the analysis method is hidden for non-admins', () => {
   const p = props({ status: 'archived' }); p.surface = { ...surface, isAdmin: false }
-  render(<><TestHeader {...p} /><AdvancedSection {...p} /></>)
+  render(<><TestName {...p} /><AdvancedSection {...p} /></>)
   expect(screen.queryByLabelText('Test name')).toBeNull()
   expect(screen.getByText('Welcome test')).toBeTruthy()
   expect(screen.queryByText('Analysis method')).toBeNull()
@@ -371,7 +376,7 @@ test('admins see the method control on editable tests and non-admins do not', ()
 })
 test('drafts have no Results link and unplaced blocks explain how to add them', () => {
   const p = props()
-  render(<><TestHeader {...p} /><pageBlockParts.Binding {...p} /></>)
+  render(<><TestName {...p} /><pageBlockParts.Binding {...p} /></>)
   expect(screen.queryByRole('link', { name: 'Results' })).toBeNull()
   expect(screen.getByText('Not on a page yet. Open a page, add an Experiment block and choose this test.')).toBeTruthy()
 })
@@ -381,6 +386,7 @@ test.each([
 ] as const)('Advanced renders exactly the allowed exposure options for %s', (kind, labels) => {
   const p = props({ kind, exposurePolicy: kind === 'block' ? 'render' : kind === 'page' ? 'pageview' : 'manual' })
   render(<AdvancedSection {...p} />)
+  fireEvent.click(screen.getByText('Advanced settings · for developers'))
   expect(within(screen.getByLabelText('Exposure policy')).getAllByRole('option').map(option => option.textContent)).toEqual(labels)
 })
 test('a goal missing from a successful load reads as no longer existing', async () => {
@@ -423,4 +429,36 @@ test('deleting a list rule cannot transfer its unfinished chip draft to the next
   fireEvent.keyDown(remaining, { key: 'Enter' })
   expect(p.test.stage).toHaveBeenCalledTimes(1)
   expect(p.test.doc!.targeting).toEqual([{ attribute: 'path', op: 'in', value: ['CA'] }])
+})
+
+test('real Shell owns the setup title, name breadcrumb, chips and Results link with Start only at the bottom', async () => {
+  metricsFetch()
+  const p = props({ status: 'running' })
+  hook.mockReturnValue(p.test)
+  const view = render(<TestPage id={p.test.doc!.id} surface={surface} />)
+  const shell = view.container.querySelector<HTMLElement>('.xp-tests-shell-header')!
+  expect(within(shell).getByRole('heading', { name: 'Welcome test', level: 1 })).toBeTruthy()
+  expect(within(within(shell).getByRole('navigation', { name: 'Breadcrumb' })).getByText('Welcome test').getAttribute('aria-current')).toBe('page')
+  expect(within(shell).getByText('Page block')).toBeTruthy()
+  expect(within(shell).getByText('Running')).toBeTruthy()
+  expect(within(shell).getByRole('link', { name: 'Results' }).getAttribute('href')).toBe('/cms/experiments/test%2F1/results')
+  expect(within(shell).queryByRole('button', { name: /^Start/ })).toBeNull()
+  expect(screen.getByRole('region', { name: 'Readiness' }).contains(screen.getByRole('button', { name: 'Stop' }))).toBe(true)
+  expect(view.container.querySelectorAll('.xp-ui-section')).toHaveLength(5)
+  expect(view.container.querySelectorAll('.xp-ui-section-number')).toHaveLength(5)
+  expect(view.container.querySelector('.xp-test-page--setup')?.getAttribute('style')).toContain('padding-bottom: 0px')
+  await waitFor(() => expect(screen.getByText('Goal')).toBeTruthy())
+})
+
+test('name validation errors appear with the first field inside What you are testing', async () => {
+  metricsFetch()
+  const p = props()
+  p.test.errors = { name: 'Give this test a name.' }
+  hook.mockReturnValue(p.test)
+  const view = render(<TestPage id={1} surface={surface} />)
+  const what = view.container.querySelector<HTMLElement>('#section-what')!
+  expect(within(what).getByRole('alert').textContent).toBe('Give this test a name.')
+  expect(within(what).getByLabelText('Test name')).toBe(what.querySelector('input'))
+  expect(screen.getAllByLabelText('Test name')).toHaveLength(1)
+  await waitFor(() => expect(screen.getAllByText('Registered · yes/no').length).toBeGreaterThan(0))
 })

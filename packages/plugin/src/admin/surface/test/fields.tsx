@@ -73,6 +73,10 @@ export function CheckboxList({ label, value, options, reason, onToggle, readOnly
     <input type="checkbox" checked={value.includes(option.value)} onChange={e => onToggle(option.value, e.target.checked)} />{option.label}
   </label>)}</fieldset>
 }
+export function TestName({ test }: SectionProps) {
+  return <><TextEdit label={C.name} value={test.doc?.name ?? ''} reason={reasonFor(test, 'name')}
+    onCommit={value => save(test, 'name', () => ({ name: value }))} /><FieldErrors test={test} path="name" /></>
+}
 export function Hypothesis({ test }: SectionProps) {
   return <><TextEdit label={C.hypothesis} value={test.doc?.hypothesis ?? ''} multiline
     placeholder={C.hypothesisPlaceholder} reason={reasonFor(test, 'hypothesis')}

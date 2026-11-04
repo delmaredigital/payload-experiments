@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ResultsRoute } from '../../../src/admin/surface/ResultsRoute.js'
 import { runningCopy } from '../../../src/admin/copy/readiness.js'
 import { props } from './readiness/fixtures.js'
@@ -8,6 +8,10 @@ import { props } from './readiness/fixtures.js'
 const mocks = vi.hoisted(() => ({ hook: vi.fn() }))
 vi.mock('../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: mocks.hook }))
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+})
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 const summaryResponse = (exposures: number) => json({ 12: { exposures, days: 1, verdict: null } })

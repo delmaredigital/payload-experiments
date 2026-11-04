@@ -12,6 +12,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### plugin
 
 - Added: Release pages on archived whole-page tests removes their archived routing and page protection, and records who released them and when. Migration impact: four nullable columns: decision_pages_released_at and decision_pages_released_by on xp_experiments, and version_decision_pages_released_at and version_decision_pages_released_by on _xp_experiments_v; run payload migrate:create.
+- Changed: the test page has a step list, numbered sections and a readiness bar with Start at the bottom.
 - Fixed: the retention sweep logs its "made no progress" warning whenever the results budget ends before it deletes anything, including between statements. Migration impact: none.
 - Changed: the Tests home shows tests as compact rows grouped by what needs doing, with a health label and one-line status for each; draft tests name the next step to finish setting them up.
 - Fixed: a test's round records the sequential tuning value it started with (5,000 when left on Automatic), and a rollout round keeps the test round's value, so results never change if the default changes later. Migration impact: none.

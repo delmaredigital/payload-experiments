@@ -1,6 +1,7 @@
 import type { Arm, DocId, ExperimentKind, Status, UnitType } from '../../types/contracts.js'
 import { formatAdminURL } from 'payload/shared'
 import type { SummaryResponse } from '../../types/endpoints.js'
+import { formatDate } from '../format/date.js'
 import { armLabel } from '../labels.js'
 import { statusPill } from '../status.model.js'
 import { decidedLine, runningLine, SURFACE_COPY } from '../copy/surface.js'
@@ -53,12 +54,9 @@ export function homeCard(test: HomeTest, summary: Summary, adminRoute: string, f
   }
   if (test.status === 'running') line = runningLine(number(summary?.days), number(test.analysis?.plannedDurationDays), number(summary?.exposures))
   if (test.status === 'decided') {
-    const date = test.decidedAt ? new Date(test.decidedAt) : undefined
     const winner = test.decision?.winnerArm
     const winnerLabel = test.arms?.find(arm => arm.key === winner)?.label?.trim()
-    line = decidedLine(date && Number.isFinite(date.valueOf()) ? date.toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
-    }) : '—',
+    line = decidedLine(formatDate(test.decidedAt),
       winner ? winnerLabel || armLabel(winner) : '—')
   }
   if (test.status === 'archived') line = statusPill(test).label

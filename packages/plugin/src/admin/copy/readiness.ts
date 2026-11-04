@@ -5,6 +5,7 @@ export const PLACEMENT_FAILURE_COPY = {
 } as const
 
 export const READINESS_COPY = {
+  label: 'Readiness', addGoal: 'Add a goal',
   needsAttention: 'Needs attention',
   missingVersions: 'This test is missing its saved versions. Open the test and check its setup before changing this page.',
   ready: 'Ready to start.', saveFirst: 'Save your changes first.',

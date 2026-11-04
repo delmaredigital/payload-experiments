@@ -65,7 +65,7 @@ export function DecideDialog({ id, arms, onClose }: { id: DocId; arms: readonly 
   }
   const enabled = !busy && !loading && !loadFailed && state.canSubmit
   const label = state.options.find(option => option.value === chosenArm)?.label
-  return <DialogFrame title={C.decide} onClose={() => { if (!busy) onClose() }}>
+  return <DialogFrame initialFocus="cancel" title={C.decide} onClose={() => { if (!busy) onClose() }}>
     {loading ? <p role="status">{C.loading}</p> : null}
     <SelectInput path="xp-winner" name="xp-winner" label={C.group} options={state.options} value={chosenArm ?? ''}
       readOnly={busy || loading} required onChange={option => {
@@ -83,6 +83,6 @@ export function DecideDialog({ id, arms, onClose }: { id: DocId; arms: readonly 
     <Button disabled={!enabled} onClick={() => { void submit() }}>{C.decide}</Button>
     {error?.retryable ? <Button disabled={busy || loading || (!loadFailed && !state.canSubmit)}
       onClick={() => { if (loadFailed) { setError(null); void refresh() } else void submit() }}>{C.retry}</Button> : null}
-    <Button disabled={busy} onClick={onClose}>{C.cancel}</Button>
+    <Button extraButtonProps={{ 'data-dialog-cancel': true }} disabled={busy} onClick={onClose}>{C.cancel}</Button>
   </DialogFrame>
 }

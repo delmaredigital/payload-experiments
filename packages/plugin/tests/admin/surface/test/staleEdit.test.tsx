@@ -38,6 +38,8 @@ test('a stale edit shows one alert with Reload, preserves typed values, and Relo
   await act(async () => { refuse(response({ errors: [{ code: 'stale-edit', message }] }, 409)) })
   const notice = await screen.findByRole('alert')
   expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(notice.classList.contains('xp-ui-banner--error')).toBe(true)
+  expect(notice.compareDocumentPosition(document.getElementById('section-what')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(within(notice).getByText(message)).toBeTruthy()
   expect(screen.queryByText(READINESS_COPY.saveError)).toBeNull()
   expect(screen.getByLabelText<HTMLInputElement>('Test name').value).toBe('My typed name')

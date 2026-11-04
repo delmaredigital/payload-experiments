@@ -22,7 +22,7 @@ function ManagedResults({ id, surface, onTitleChange }: { id: DocId; surface: Su
   const bodyKey = test.doc ? JSON.stringify([test.doc.status, test.doc.phase, test.doc.allocation, test.doc.metrics]) : 'loading'
   // ResultsBody's Decide is the shared DecideDialog, which reloads the page; Recompute keeps status.
   return <div className="xp-test-page">
-    {test.loadState === 'ready' && test.doc ? <TestHeader test={test} surface={surface} view="results" resultsVersion={resultsVersion} />
+    {test.loadState === 'ready' && test.doc ? <TestHeader test={test} surface={surface} resultsVersion={resultsVersion} />
       : <p role="status">{test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading}</p>}
     {test.loadState === 'error' ? <button type="button" onClick={() => void test.reload()}>{C.retry}</button> : null}
     {test.errors._section ? <p role="alert">{test.errors._section}</p> : null}

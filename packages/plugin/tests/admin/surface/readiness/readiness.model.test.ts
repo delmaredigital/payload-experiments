@@ -90,7 +90,7 @@ test('fills both people types, direct detail messages, and missing placement gro
   expect(READINESS['invalid-targeting-rule'].next({ message: 'Choose a number.' }, ctx)).toBe('Fix the rule: Choose a number.')
 })
 test('status helpers omit unknown dates and duration, clamp a finished duration', () => {
-  expect(displayDate('2026-11-01T10:00:00Z')).toBe('Nov 1, 2026')
+  expect(displayDate('2026-11-01T10:00:00Z')).toBe('1 Nov 2026')
   expect(displayDate('bad')).toBeNull()
   expect(daysRemaining(doc, Date.now())).toBeNull()
   expect(daysRemaining({ ...doc, startedAt: '2026-10-01T00:00:00Z' }, Date.parse('2026-11-02'))).toBe(0)
