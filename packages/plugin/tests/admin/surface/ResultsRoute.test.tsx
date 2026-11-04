@@ -99,7 +99,7 @@ test.each([true, false])('localized make-content warning appears in the decided 
   if (canManage) expect(warning?.closest('.xp-ui-banner--warning')).toBeTruthy()
 })
 test.each(['Donation form', undefined])('reader title and crumb use response name %s with Test as fallback', name => {
-  mocks.data = { name, phases: [], snapshot: null }
+  mocks.data = { ...(name ? { experiment: { name, kind: 'block' as const, status: 'running' as const } } : {}), phases: [], snapshot: null }
   const p = props()
   render(<ResultsRoute id={12} surface={{ ...p.surface, canManage: false, canReadResults: true }} />)
   const title = name ?? 'Test'
@@ -108,7 +108,7 @@ test.each(['Donation form', undefined])('reader title and crumb use response nam
   expect(mocks.hook).not.toHaveBeenCalled()
 })
 test('manager title and crumb keep the document name when the response has a name', () => {
-  mocks.data = { name: 'Response name', phases: [], snapshot: null }
+  mocks.data = { experiment: { name: 'Response name', kind: 'block', status: 'running' }, phases: [], snapshot: null }
   const p = props({ status: 'decided' })
   mocks.hook.mockReturnValue(p.test)
   render(<ResultsRoute id={12} surface={p.surface} />)

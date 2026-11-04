@@ -64,7 +64,7 @@ export function ResultsHeader({ test, surface, resultsVersion, children, actions
 }
 
 export function ReaderResultsShell({ surface, children, data }: { surface: SectionProps['surface']; children: ReactNode; data?: ResultsResponse }) {
-  const title = data?.name ?? C.test
+  const title = data?.experiment?.name ?? C.test
   return <SurfaceShell adminRoute={surface.adminRoute} title={title}
     crumbs={[{ label: C.tests, href: formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }) }, { label: title }, { label: C.results }]}>{children}</SurfaceShell>
 }
