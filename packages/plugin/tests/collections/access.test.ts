@@ -1,20 +1,10 @@
 import { expect, test } from 'vitest'
 import { buildCollections } from '../../src/collections/index.js'
 import { fakeReq } from '../_fakes/req.js'
-import { payloadOperations } from '../access/payloadOperations.js'
+import { collectionOperations as operations, globalOperations } from '../access/payloadOperations.js'
 import { invoke, sampleOptions } from './fixtures.js'
 
-const operations = ['create', 'read', 'update', 'delete', 'readVersions', 'unlock'] as const
-const globalOperations = ['read', 'update', 'readVersions'] as const
 const req = fakeReq()
-test('access operation lists cover every operation Payload defaults', async () => {
-  const defaults = await payloadOperations()
-  const missingCollection = defaults.collectionOperations.filter(operation => !(operations as readonly string[]).includes(operation))
-  const missingGlobal = defaults.globalOperations.filter(operation => !(globalOperations as readonly string[]).includes(operation))
-  expect(missingCollection, `Collection access list is missing Payload operations: ${missingCollection.join(', ')}`).toEqual([])
-  expect(missingGlobal, `Global access list is missing Payload operations: ${missingGlobal.join(', ')}`).toEqual([])
-})
-
 test('every supported collection and global access operation is explicit', () => {
   const { collections, globals } = buildCollections(sampleOptions())
   for (const config of collections) for (const op of operations) expect(typeof config.access?.[op], `${config.slug}.${op}`).toBe('function')

@@ -5,21 +5,11 @@ import { createExperimentsPlugin } from '../../src/plugin.js'
 import type { ExperimentsAccess, ExperimentsPluginOptions } from '../../src/types/contracts.js'
 import { fakeReq } from '../_fakes/req.js'
 import { invoke, sampleOptions } from '../collections/fixtures.js'
-import { payloadOperations } from './payloadOperations.js'
+import { collectionOperations as operations, globalOperations } from './payloadOperations.js'
 
-const operations = ['create', 'read', 'update', 'delete', 'readVersions', 'unlock'] as const
-const globalOperations = ['read', 'update', 'readVersions'] as const
 const req = fakeReq()
 const callback = (result: unknown) => (async () => result) as ExperimentsAccess
 const built = (options: ExperimentsPluginOptions) => createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'] })
-
-test('access operation lists cover every operation Payload defaults', async () => {
-  const defaults = await payloadOperations()
-  const missingCollection = defaults.collectionOperations.filter(operation => !(operations as readonly string[]).includes(operation))
-  const missingGlobal = defaults.globalOperations.filter(operation => !(globalOperations as readonly string[]).includes(operation))
-  expect(missingCollection, `Collection access list is missing Payload operations: ${missingCollection.join(', ')}`).toEqual([])
-  expect(missingGlobal, `Global access list is missing Payload operations: ${missingGlobal.join(', ')}`).toEqual([])
-})
 
 test.each([true, false, 'yes', {}])('every plugin operation enforces strict booleans (%j)', async value => {
   const options: ExperimentsPluginOptions = sampleOptions()
