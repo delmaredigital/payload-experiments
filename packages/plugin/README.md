@@ -281,7 +281,10 @@ Other server integrations:
   canonical; archived losing paths point canonically to the winner. It reads
   the signed request context via `headers()`, so it decides from the URL the
   visitor requested, not the rewritten route, and the Original's URL is never
-  noindex. Call it only from a dynamic `generateMetadata`, never inside
+  noindex. While a test is live the Original's URL also gets a canonical to
+  itself, even when it is served with a variant's route: merge this result after
+  your own metadata so its `alternates.canonical` wins over one derived from the
+  rendered route. Call it only from a dynamic `generateMetadata`, never inside
   `'use cache'`; `path` is the fallback when the proxy did not run.
   `experimentSitemapFilter(path, manifest)` is a synchronous build-time filter:
   pass a privately server-loaded manifest and keep paths for which it returns
@@ -645,7 +648,7 @@ Register the factories from `/puck` and `/puck/editor`, using the same
 
 ```ts
 import { createExperimentSlot } from '@delmaredigital/payload-experiments/puck'
-import { createExperimentSlotEditor } from '@delmaredigital/payload-experiments/puck/editor'
+import { createExperimentSlotEditor, experimentOutlinePlugin } from '@delmaredigital/payload-experiments/puck/editor'
 
 const routes = { admin: '/manage', api: '/content-api' } // Same as Payload config.routes
 const accent = '#1f3a68' // Same as the plugin's theme.accent
@@ -655,6 +658,15 @@ components: { ExperimentSlot: createExperimentSlot({ routes }) }
 
 // Editor config
 components: { ExperimentSlot: createExperimentSlotEditor({ routes, accent }) }
+```
+
+Add `experimentOutlinePlugin()` to Puck's `plugins` alongside this block config
+(with payload-puck, use its `plugins` option). It composes with the host's outline
+override and hides empty version slots that the block's test doesn't use. Content
+in an unused slot stays visible in the outline and gets a warning in the block.
+
+```ts
+plugins: [experimentOutlinePlugin()]
 ```
 
 Routes default to Payload's `/admin` and `/api` when omitted. The existing

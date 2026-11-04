@@ -36,7 +36,7 @@ const required = {
     CollectionListRedirect: '../admin/views/CollectionListRedirect.js',
     CollectionEditRedirect: '../admin/views/CollectionEditRedirect.js',
   },
-  puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', createExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js' },
+  puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', createExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', experimentOutlinePlugin: '../puck/editor/experimentOutlinePlugin.js' },
   index: { createArmSelectField: '../fields/armSelect.js', contentDone: '../contentDone.js' },
 } as const
 const requiredTypes = {

@@ -5,6 +5,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { TestPage } from '../../../../src/admin/surface/test/TestPage.js'
 import { SaveStatus } from '../../../../src/admin/surface/readiness/SaveStatus.js'
 import { READINESS_COPY } from '../../../../src/admin/copy/readiness.js'
+import { TEST_PAGE } from '../../../../src/admin/copy/testPage.js'
 import { doc, preflight, props } from '../readiness/fixtures.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
@@ -35,13 +36,15 @@ test('a stale edit shows one alert with Reload, preserves typed values, and Relo
   fireEvent.blur(screen.getByLabelText('Why are you testing this? (optional)'))
   const patches = () => fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH')
   await waitFor(() => expect(patches()).toHaveLength(1))
-  const message = 'Someone else changed this test. Reload to see their changes.'
-  await act(async () => { refuse(response({ errors: [{ code: 'stale-edit', message }] }, 409)) })
+  const message = TEST_PAGE.staleEdit
+  const serverText = 'Experiment 42 updatedAt mismatch (server)'
+  await act(async () => { refuse(response({ errors: [{ code: 'stale-edit', message: serverText }] }, 409)) })
   const notice = await screen.findByRole('alert')
   expect(screen.getAllByRole('alert')).toHaveLength(1)
   expect(notice.classList.contains('xp-ui-banner--error')).toBe(true)
   expect(notice.compareDocumentPosition(document.getElementById('section-what')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(within(notice).getByText(message)).toBeTruthy()
+  expect(document.body.textContent).not.toContain(serverText)
   expect(screen.queryByText(READINESS_COPY.saveError)).toBeNull()
   expect(screen.getByLabelText<HTMLInputElement>('Test name').value).toBe('My typed name')
   expect(screen.getByLabelText<HTMLTextAreaElement>('Why are you testing this? (optional)').value).toBe('Queued hypothesis')
