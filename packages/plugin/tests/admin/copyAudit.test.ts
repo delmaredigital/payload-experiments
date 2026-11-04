@@ -12,6 +12,8 @@ const src = fileURLToPath(new URL('../../src/', import.meta.url))
 const forbidden = /\b(?:arms?|phases?|flag ?points?|unit ?types?|unitType|CUPED|exposure ?polic(?:y|ies)|percentiles?)\b|\bin (?:Metrics|Who|Groups|Review)\b|\b(?:Metrics|Who|Review) tab\b/i
 const hits = (strings: string[]) => strings.filter(value => forbidden.test(value))
 const samples: Record<string, unknown[][]> = {
+  pageGuardCopy: [['Example', 'running'], ['Example', 'decided'], ['Example', 'archived']],
+  versionPageUnavailableCopy: [['/example', 'running'], ['/example', 'decided']], versionPageUncheckedCopy: [['/example', 'running'], ['/example', 'decided']],
   groupShare: [['50', 'Original'], ['50', 'Shorter form']],
   moreDays: [['1'], ['2']], staleExperiment: [[undefined], ['Earlier test']],
   placementNext: [['Example', ''], ['Example', 'Example']],

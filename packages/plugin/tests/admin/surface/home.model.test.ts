@@ -88,3 +88,12 @@ test.each([{ message: 'pg: password=hunter2' }, 'pg: password=hunter2'])('unexpe
   expect(homeCard(testDoc('setup'), { exposures: 0, days: 0, verdict: null, ready: false,
     next: { code: 'weights-total', detail } }, '/admin').line).toBe('Next: Fix the versions: check the group settings.')
 })
+
+test('page health moves a running test to Needs attention even without a verdict', () => {
+  const doc = testDoc('page', 'running')
+  const unavailable: SummaryResponse[string] = { exposures: 0, days: 0, verdict: null, health: [{ code: 'version-page-unavailable', path: '/page' }] }
+  expect(healthDot(doc, unavailable)).toBe('red')
+  expect(healthDot(doc, { ...unavailable, health: [{ code: 'version-page-unchecked', path: '/page' }] })).toBe('amber')
+  expect(healthDot(doc, { ...summary('data-problem'), health: [{ code: 'version-page-unchecked', path: '/page' }] })).toBe('red')
+  expect(groupTests([doc], { page: unavailable })[0]?.tests).toEqual([doc])
+})

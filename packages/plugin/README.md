@@ -397,7 +397,7 @@ support visitor and user units and do not represent counts or revenue in v1.
 
 | Option | Purpose |
 | --- | --- |
-| `pages.collections` | Optional array of `{ slug, pathOf, findByPath }`. `pathOf(doc)` derives a public path from the slug (reserved for page protection; not used yet); `findByPath(path, req)` resolves a published page to `{ id, published: true }`, or returns `null`. Start and readiness check every non-holdout version, including the Original. Without this option, readiness warns that pages are unchecked and Start keeps its existing behaviour. |
+| `pages.collections` | Optional array of `{ slug, pathOf, findByPath }`. `pathOf(doc)` derives a public path from the slug (used to protect live test paths); `findByPath(path, req)` resolves a published page to `{ id, published: true }`, or returns `null`. Start and readiness check every non-holdout version, including the Original. Registered collections must exist when this plugin runs. Localized publication status and field-level `beforeChange` hooks that rewrite paths after the collection guard are unsupported; derive paths from fields finalized before collection hooks. Without this option, readiness warns that pages are unchecked and Start keeps its existing behaviour. |
 
 For a collection with drafts enabled, use a published-only slug lookup with the
 manager's request and `overrideAccess: false`:

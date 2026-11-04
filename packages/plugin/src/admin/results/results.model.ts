@@ -1,6 +1,7 @@
 import type { DocId, Status } from '../../types/contracts.js'
 import type { PhaseSummary, ResultsResponse } from '../../types/endpoints.js'
 import type { Snapshot } from '../../types/snapshot.js'
+import { READINESS_COPY, versionPageUnavailableCopy, versionPageUncheckedCopy } from '../copy/readiness.js'
 import { armLabel, phaseKindLabel, verdictCodeLabel } from '../labels.js'
 import {
   RESULTS_COPY, cappedCount, collectingCopy, conflictCopy, decidedTitle, exclusionCopy,
@@ -116,7 +117,7 @@ export function powerLine({ snapshot, phaseKind, status }: RoundLineInput): stri
 }
 
 export interface ResultsContext {
-  phase?: PhaseSummary; minExposuresPerArm?: number
+  status?: string; phase?: PhaseSummary; minExposuresPerArm?: number
   inLayer?: boolean; layerSlices?: number | readonly number[]; allocation?: number
 }
 function comparedKeys(snapshot: Snapshot, phase?: PhaseSummary): string[] {
@@ -143,7 +144,10 @@ export function collectingLine({ snapshot, phaseKind }: RoundLineInput, ctx: Res
 
 export interface DataQualityItem { id: string; message: string; detail?: string; nextStep: string; shares?: string[] }
 export function dataQuality(snapshot: DisplaySnapshot, ctx: ResultsContext = {}): DataQualityItem[] {
-  const items: DataQualityItem[] = []
+  const items: DataQualityItem[] = (snapshot.health ?? []).map(item => ({
+    id: `${item.code}:${item.path}`, message: READINESS_COPY.needsAttention,
+    nextStep: item.code === 'version-page-unavailable' ? versionPageUnavailableCopy(item.path, ctx.status) : versionPageUncheckedCopy(item.path, ctx.status),
+  }))
   const srmTotal = Object.keys(snapshot.srm.expected).reduce((total, key) => total + (snapshot.exposures.perArm[key] ?? 0), 0)
   if (snapshot.srm.flagged) items.push({
     id: 'srm', message: srmP(formatProbability(snapshot.srm.p)), nextStep: RESULTS_COPY.srm,

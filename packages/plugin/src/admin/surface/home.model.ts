@@ -22,11 +22,10 @@ type Summary = SummaryResponse[DocId] | undefined
 export type Health = 'red' | 'amber' | 'green'
 export function healthDot(test: HomeTest, summary: Summary): Health | undefined {
   const code = summary?.verdict?.code
-  if (!code) return undefined
-  if (code === 'data-problem' || code === 'guardrail-failing') return 'red'
-  if (code === 'unavailable' || code === 'collecting' && test.analysis?.plannedDurationDays != null
+  if (summary?.health?.some(item => item.code === 'version-page-unavailable') || code === 'data-problem' || code === 'guardrail-failing') return 'red'
+  if (summary?.health?.length || code === 'unavailable' || code === 'collecting' && test.analysis?.plannedDurationDays != null
     && summary!.days > test.analysis.plannedDurationDays) return 'amber'
-  return 'green'
+  return code ? 'green' : undefined
 }
 export function groupTests(tests: readonly HomeTest[], summaries: SummaryResponse, search = '') {
   const groups = SURFACE_COPY.groups.map(label => ({ label, tests: [] as HomeTest[] }))
