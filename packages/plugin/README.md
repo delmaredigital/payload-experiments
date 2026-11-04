@@ -281,7 +281,10 @@ Other server integrations:
   canonical; archived losing paths point canonically to the winner. It reads
   the signed request context via `headers()`, so it decides from the URL the
   visitor requested, not the rewritten route, and the Original's URL is never
-  noindex. Call it only from a dynamic `generateMetadata`, never inside
+  noindex. While a test is live the Original's URL also gets a canonical to
+  itself, even when it is served with a variant's route: merge this result after
+  your own metadata so its `alternates.canonical` wins over one derived from the
+  rendered route. Call it only from a dynamic `generateMetadata`, never inside
   `'use cache'`; `path` is the fallback when the proxy did not run.
   `experimentSitemapFilter(path, manifest)` is a synchronous build-time filter:
   pass a privately server-loaded manifest and keep paths for which it returns
