@@ -1,4 +1,4 @@
-import { expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { handlePreflight } from '../../src/endpoints/preflight.js'
 import { buildEndpoints } from '../../src/endpoints/index.js'
 import { fakePayload } from '../_fakes/payload.js'
@@ -6,6 +6,8 @@ import { fakeReq } from '../_fakes/req.js'
 import { sampleOptions } from '../collections/fixtures.js'
 import { defaultArms } from '../../src/collections/experiments/armInvariants.js'
 import type { PreflightResult } from '../../src/types/endpoints.js'
+
+afterEach(() => { vi.useRealTimers() })
 
 function setup(kind: 'flag' | 'code' = 'code') {
   const options = sampleOptions()
@@ -133,9 +135,9 @@ function blockSetup() {
   const experiment = payload.documents['xp-experiments']![0]!
   Object.assign(experiment, { kind: 'block', arms: defaultArms('block'), exposurePolicy: 'render' })
   options.puck = { enabled: true, collections: ['pages'] }
-  payload.documents.pages = [{ id: 10, title: 'Landing', _status: 'published', puckData: { content: [{
+  payload.documents.pages = [{ id: 10, title: 'Landing', slug: 'landing', _status: 'published', puckData: { content: [{
     type: 'ExperimentSlot', props: { experiment: 'hero', control: [{}], variantA: [{}, {}] },
-  }] } }, { id: 11, title: 'Draft landing', _status: 'draft', puckData: { content: [{
+  }] } }, { id: 11, title: 'Draft landing', slug: 'draft-only', _status: 'draft', puckData: { content: [{
     type: 'ExperimentSlot', props: { experiment: 'hero', control: [{}], variantA: [] },
   }] } }]
   return { options, payload, req }
@@ -153,7 +155,7 @@ test('block preflight resolves host URLs with publication state and carries ever
     { collection: 'pages', id: 10, title: 'Landing', detail: 'Published', ok: true, url: '/page/10', editorUrl: '/editor/10?draft=false', slots: { control: 1, variantA: 2, variantB: 0, variantC: 0 } },
     { collection: 'pages', id: 11, title: 'Draft landing', detail: 'Draft', ok: false, url: '/page/11', editorUrl: '/editor/11?draft=true', slots: { control: 1, variantA: 0, variantB: 0, variantC: 0 } },
   ])
-  expect(previewUrl.mock.calls).toEqual([[{ collection: 'pages', id: 10 }], [{ collection: 'pages', id: 11 }]])
+  expect(previewUrl.mock.calls).toEqual([[{ collection: 'pages', id: 10, title: 'Landing', published: true, slug: 'landing' }], [{ collection: 'pages', id: 11, title: 'Draft landing', published: false }]])
   expect(editorUrl.mock.calls).toEqual([[{ collection: 'pages', id: 10, draft: false }], [{ collection: 'pages', id: 11, draft: true }]])
 })
 
@@ -167,10 +169,10 @@ test('flag placement rows never get URLs or slots even when host URL options exi
   expect(callback).not.toHaveBeenCalled()
 })
 
-test.each(['throws', 'non-string', 'unset'] as const)('optional block URLs tolerate %s independently', async mode => {
-  const { options, req } = blockSetup()
+test.each(['throws', 'rejects', 'non-string', 'unset'] as const)('optional block URLs tolerate %s independently', async mode => {
+  const { options, req, payload } = blockSetup()
   options.admin = mode === 'unset' ? {} : {
-    previewUrl: mode === 'throws' ? () => { throw new Error('host unavailable') } : vi.fn().mockReturnValue(12),
+    previewUrl: mode === 'throws' ? () => { throw new Error('host unavailable') } : mode === 'rejects' ? async () => { throw new Error('private adapter detail') } : vi.fn().mockReturnValue(12),
     editorUrl: ({ id }) => `/editor/${id}`,
   }
   const response = await handlePreflight(req, { options })
@@ -181,6 +183,8 @@ test.each(['throws', 'non-string', 'unset'] as const)('optional block URLs toler
     if (mode === 'unset') expect(placement).not.toHaveProperty('editorUrl')
     else expect(placement.editorUrl).toBe(`/editor/${placement.id}`)
   }
+  expect(payload.logs.filter(log => log.level === 'warn')).toHaveLength(mode === 'unset' ? 0 : 1)
+  expect(JSON.stringify(payload.logs)).not.toContain('private adapter detail')
 })
 
 test('saved duration does not replace the power-derived suggestion', async () => {
@@ -215,4 +219,93 @@ test.each(['Forbidden', 'NotFound'])(`placement %s is classified by name`, async
   const body = await (await handlePreflight(req, { options })).json()
   expect(body.checks).toContainEqual({ code: 'flag-placement-missing', ok: false, detail: name === 'Forbidden' ? 'forbidden' : 'not-found' })
   expect(JSON.stringify(body)).not.toContain('secret-value')
+})
+
+
+test.each(['/async-page', null, undefined])('async preview adapter returns %j without blocking preflight', async url => {
+  const { options, req } = blockSetup()
+  options.admin = { previewUrl: async () => url, editorUrl: ({ id }) => `/editor/${id}` }
+  const response = await handlePreflight(req, { options })
+  expect(response.status).toBe(200)
+  const body = await response.json() as PreflightResult
+  for (const placement of body.placements) {
+    if (url) expect(placement.url).toBe(url)
+    else expect(placement).not.toHaveProperty('url')
+    expect(placement.editorUrl).toBe(`/editor/${placement.id}`)
+  }
+})
+
+test('preview lookups time out after two seconds, log once, and consume late rejection', async () => {
+  vi.useFakeTimers()
+  const { options, req, payload } = blockSetup()
+  let reject!: (cause: Error) => void
+  options.admin = {
+    previewUrl: () => new Promise<string>((_, fail) => { reject = fail }),
+    editorUrl: ({ id }) => `/editor/${id}`,
+  }
+  let finished = false
+  const pending = handlePreflight(req, { options }).then(response => { finished = true; return response })
+  await vi.advanceTimersByTimeAsync(1999)
+  expect(finished).toBe(false)
+  await vi.advanceTimersByTimeAsync(1)
+  const response = await pending
+  expect(response.status).toBe(200)
+  const body = await response.json() as PreflightResult
+  expect(body.placements).toHaveLength(2)
+  expect(body.placements.every(p => !('url' in p) && p.editorUrl === `/editor/${p.id}`)).toBe(true)
+  expect(payload.logs.filter(log => log.level === 'warn')).toHaveLength(1)
+  expect(vi.getTimerCount()).toBe(0)
+  reject(new Error('late private rejection'))
+  await vi.advanceTimersByTimeAsync(0)
+  expect(payload.logs.filter(log => log.level === 'warn')).toHaveLength(1)
+})
+
+test('at most eight preview adapters run concurrently and placement order survives out-of-order results', async () => {
+  vi.useFakeTimers()
+  const { options, req, payload } = blockSetup()
+  payload.documents.pages = Array.from({ length: 19 }, (_, id) => ({ ...payload.documents.pages![0]!, id }))
+  let active = 0, peak = 0
+  const previewUrl = vi.fn(async ({ id }: { id: string | number }) => {
+    active++
+    peak = Math.max(peak, active)
+    await new Promise(resolve => setTimeout(resolve, 10 + (19 - Number(id))))
+    active--
+    return `/page/${id}`
+  })
+  options.admin = { previewUrl }
+  const pending = handlePreflight(req, { options })
+  await vi.advanceTimersByTimeAsync(0)
+  expect(previewUrl).toHaveBeenCalledTimes(8)
+  expect(active).toBe(8)
+  await vi.runAllTimersAsync()
+  const body = await (await pending).json() as PreflightResult
+  expect(peak).toBe(8)
+  expect(active).toBe(0)
+  expect(previewUrl).toHaveBeenCalledTimes(19)
+  expect(body.placements.map(p => p.url)).toEqual(Array.from({ length: 19 }, (_, id) => `/page/${id}`))
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+test('timed-out host callbacks retain their permits and remaining placements keep editor links', async () => {
+  vi.useFakeTimers()
+  const { options, req, payload } = blockSetup()
+  payload.documents.pages = Array.from({ length: 19 }, (_, id) => ({ ...payload.documents.pages![0]!, id }))
+  const rejects: Array<(cause: Error) => void> = []
+  const previewUrl = vi.fn(() => new Promise<string>((_, reject) => { rejects.push(reject) }))
+  options.admin = { previewUrl, editorUrl: ({ id }) => `/editor/${id}` }
+  const pending = handlePreflight(req, { options })
+  await vi.advanceTimersByTimeAsync(0)
+  expect(previewUrl).toHaveBeenCalledTimes(8)
+  await vi.advanceTimersByTimeAsync(2000)
+  const response = await pending
+  expect(response.status).toBe(200)
+  const body = await response.json() as PreflightResult
+  expect(body.placements).toHaveLength(19)
+  expect(previewUrl).toHaveBeenCalledTimes(8)
+  expect(body.placements.every(p => !('url' in p) && p.editorUrl === `/editor/${p.id}`)).toBe(true)
+  expect(payload.logs.filter(log => log.level === 'warn')).toHaveLength(1)
+  for (const reject of rejects) reject(new Error('late private rejection'))
+  await vi.advanceTimersByTimeAsync(0)
+  expect(previewUrl).toHaveBeenCalledTimes(8)
+  expect(vi.getTimerCount()).toBe(0)
 })

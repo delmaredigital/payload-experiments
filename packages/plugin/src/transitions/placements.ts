@@ -1,11 +1,10 @@
 import { hasLocalizedFields } from './contentFields.js'
 import type { PayloadRequest } from 'payload'
-import type { Arm, DocId, FlagPoint, ResolvedOptions } from '../types/contracts.js'
+import type { Arm, DocId, FlagPoint, PreviewPlacement, ResolvedOptions } from '../types/contracts.js'
 import type { ArmSlot } from '../types/puck.js'
 import { puckCollections as normalisePuckCollections } from '../options.js'
 
-export interface BlockPlacement {
-  collection: string; id: DocId; title: string; published: boolean
+export interface BlockPlacement extends PreviewPlacement {
   slots: Record<ArmSlot, number>; locked?: boolean; localized?: boolean
 }
 export type FlagPlacement = Awaited<ReturnType<NonNullable<FlagPoint['placements']>>>[number]
@@ -28,6 +27,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: {
   const placements = new Map([...slugs].map(slug => [slug, [] as BlockPlacement[]]))
   for (const { slug: collection, field } of normalisePuckCollections({ puck: { enabled: true, collections: puckCollections } })) {
     const publishedIds = new Set<string>()
+    const publishedSlugs = new Map<string, string>()
     const draftsEnabled = req.payload.config.collections?.some(config => config.slug === collection && config.versions && config.versions.drafts)
     for (const draft of [false, true]) {
       let page = 1
@@ -39,7 +39,10 @@ export async function scanBlockPlacements(req: PayloadRequest, args: {
         for (const doc of result.docs) {
           if (!draft && doc._status === 'draft') continue
           if (draft && doc._status !== 'draft' && publishedIds.has(String(doc.id))) continue
-          if (!draft) publishedIds.add(String(doc.id))
+          if (!draft) {
+            publishedIds.add(String(doc.id))
+            if (typeof doc.slug === 'string') publishedSlugs.set(String(doc.id), doc.slug)
+          }
           function walk(value: unknown): void {
             if (!value || typeof value !== 'object') return
             if (Array.isArray(value)) { value.forEach(walk); return }
@@ -50,6 +53,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: {
             if (node.type === 'ExperimentSlot' && props && typeof experiment === 'string' && slugs.has(experiment)) {
               placements.get(experiment)!.push({ collection, id: doc.id, title: String(doc.title ?? doc.name ?? doc.id),
                 published: !draft || doc._status === 'published',
+                ...(publishedSlugs.has(String(doc.id)) ? { slug: publishedSlugs.get(String(doc.id))! } : {}),
                 slots: Object.fromEntries(slots.map(slot => [slot, Array.isArray(props[slot]) ? props[slot].length : 0])) as Record<ArmSlot, number>,
                 ...(hasLocalizedFields(req.payload.config.collections?.find(config => config.slug === collection)?.fields ?? [], req.payload.config) ? { localized: true } : {}),
                 locked: doc._isLocked === true || doc.locked === true,

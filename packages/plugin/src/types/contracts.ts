@@ -4,6 +4,11 @@ import type { ArmSlot } from './puck.js'
 import type { TargetingOp } from '../targeting/ops.js'
 
 export type DocId = string | number
+export interface PreviewPlacement {
+  collection: string; id: DocId; title: string; published: boolean
+  /** The published main row's string slug, including on draft placements; absent for unpublished documents, never a draft/version row's slug. */
+  slug?: string
+}
 export type Attributes = Record<string, string | number | boolean>
 export type ExposurePolicy = 'render' | 'viewport' | 'pageview' | 'manual'
 export type ExperimentKind = 'block' | 'page' | 'flag' | 'code'
@@ -40,7 +45,7 @@ export interface ExperimentsPluginOptions<TUser extends { id: string | number } 
   theme?: { accent?: string }
   admin?: {
     editorUrl?: (args: { collection: string; id: DocId; draft?: boolean }) => string
-    previewUrl?: (args: { collection: string; id: DocId }) => string
+    previewUrl?: (placement: PreviewPlacement) => string | null | undefined | Promise<string | null | undefined>
     descriptions?: { block?: string; document?: string; setting?: string }
   }
   metricSources?: MetricSource[]
@@ -50,7 +55,7 @@ export interface ExperimentsPluginOptions<TUser extends { id: string | number } 
   pages?: { collections: Array<{
     slug: string
     pathOf: (doc: Record<string, unknown>) => string | null
-    /** Published-only lookup using the supplied req and overrideAccess: false. Results checks supply an anonymous req. */
+    /** Lookup with the supplied req and overrideAccess: false. Under an anonymous req (results checks) only published pages are visible, so a hit is { published: true } or null. Under a req that can read drafts (Start), a draft-only page may be reported as { published: false }. */
     findByPath: (path: string, req: PayloadRequest) => Promise<{ id: string | number; published: boolean } | null>
   }> }
   puck?: { enabled: boolean; collections: Array<string | { slug: string; field?: string }> }

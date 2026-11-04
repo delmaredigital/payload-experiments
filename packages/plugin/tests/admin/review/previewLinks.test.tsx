@@ -30,9 +30,12 @@ test('fetches a token on click, preserves query/hash, opens safely; no token in 
   expect(local).not.toHaveBeenCalled()
   expect(session).not.toHaveBeenCalled()
 })
-test('no placement url shows a disabled explanation', () => {
-  render(<PreviewLinks experimentId={1} placements={[{ collection: 'settings', id: 2, title: 'Ask', ok: true }]} arms={arms} />)
-  expect((screen.getByRole('button', { name: "Preview isn't set up for this page type" }) as HTMLButtonElement).disabled).toBe(true)
+test('no preview URL offers Edit on page only and hides rows without either link', () => {
+  render(<PreviewLinks experimentId={1} placements={[{ collection: 'pages', id: 2, title: 'Ask', editorUrl: '/editor/2', ok: true }, { collection: 'pages', id: 3, title: 'No links', ok: true }]} arms={arms} />)
+  expect(screen.getByRole('link', { name: 'Edit on page' }).getAttribute('href')).toBe('/editor/2')
+  expect(screen.queryByText(/Preview isn't set up/)).toBeNull()
+  expect(screen.queryByText('No links')).toBeNull()
+  expect(screen.queryByRole('button')).toBeNull()
 })
 test('one control/variant preview per page; no holdout even without kind', () => {
   render(<PreviewLinks experimentId={1} placements={[...placements, { ...placements[0]!, id: 2, title: 'About', url: '/about' }]} arms={[{ key: 'control' }, { key: 'variantA' }, { key: 'holdout' }]} />)

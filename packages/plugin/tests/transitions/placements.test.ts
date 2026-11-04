@@ -7,6 +7,22 @@ import { defaultArms } from '../../src/collections/experiments/armInvariants.js'
 import { checkStart } from '../../src/transitions/checkStart.js'
 
 const slot = (experiment: unknown, control: unknown[] = [{}], variantA: unknown[] = [{}, {}]) => ({ type: 'ExperimentSlot', props: { experiment, control, variantA } })
+test('all placements use only the published main slug, including when a latest draft moves the page', async () => {
+  const content = { content: [slot('hero'), slot('hero')] }
+  const find = vi.fn(async ({ draft }: { draft?: boolean }) => ({ docs: draft ? [
+    { id: 1, title: 'Moved draft', _status: 'draft', slug: 'draft-path', puckData: content },
+    { id: 2, title: 'Unpublished', _status: 'draft', slug: 'never-published', puckData: content },
+  ] : [
+    { id: 1, title: 'Live page', _status: 'published', slug: 'live-path', puckData: content },
+    { id: 3, title: 'No string slug', _status: 'published', slug: 123, puckData: content },
+  ], hasNextPage: false }))
+  const payload = fakePayload({ overrides: { find }, config: { collections: [{ slug: 'pages', versions: { drafts: true } }] } })
+  const placements = await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', puckCollections: ['pages'] })
+  const live = placements.filter(p => p.id === 1)
+  expect(live).toHaveLength(4)
+  expect(live.map(p => [p.published, p.slug])).toEqual([[true, 'live-path'], [true, 'live-path'], [false, 'live-path'], [false, 'live-path']])
+  for (const placement of placements.filter(p => p.id !== 1)) expect(placement).not.toHaveProperty('slug')
+})
 test('custom Puck fields are scanned without reading puckData', async () => {
   const payload = fakePayload({ collections: { templates: [{ id: 'template', content: { content: [slot('hero')] }, puckData: { content: [slot('wrong')] } }] } })
   const placements = await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', puckCollections: [{ slug: 'templates', field: 'content' }] })

@@ -144,13 +144,33 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
   return inputs
 }
 
-function placementUrls<TUser extends { id: DocId }>(options: ResolvedOptions<TUser>, placement: BlockPlacement): Pick<PreflightResult['placements'][number], 'url' | 'editorUrl'> {
+// Bound each optional host preview lookup so it cannot indefinitely hold preflight open.
+const PREVIEW_URL_TIMEOUT_MS = 2000
+// Resolve host preview lookups in a bounded pool instead of launching one per slot.
+const PREVIEW_URL_CONCURRENCY = 8
+
+async function placementUrls<TUser extends { id: DocId }>(options: ResolvedOptions<TUser>, placement: BlockPlacement, pendingPreviews: { count: number }, onFailure: (cause: unknown, placement: BlockPlacement) => void): Promise<Pick<PreflightResult['placements'][number], 'url' | 'editorUrl'>> {
   const result: Pick<PreflightResult['placements'][number], 'url' | 'editorUrl'> = {}
-  const { collection, id, published } = placement
-  try {
-    const url = options.admin?.previewUrl?.({ collection, id })
-    if (typeof url === 'string') result.url = url
-  } catch { /* Host links are optional; a broken link adapter must not block preflight. */ }
+  const { collection, id, title, published, slug } = placement
+  const previewUrl = options.admin?.previewUrl
+  if (previewUrl) {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      if (pendingPreviews.count >= PREVIEW_URL_CONCURRENCY) throw new Error('Preview URL lookups at capacity')
+      pendingPreviews.count++
+      // A timeout cannot cancel host work: retain its permit until that work settles.
+      const lookup = Promise.resolve()
+        .then(() => previewUrl({ collection, id, title, published, ...(slug !== undefined ? { slug } : {}) }))
+        .finally(() => { pendingPreviews.count-- })
+      const url = await Promise.race([
+        lookup,
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Preview URL lookup timed out')), PREVIEW_URL_TIMEOUT_MS) }),
+      ])
+      if (typeof url === 'string') result.url = url
+      else if (url !== null && url !== undefined) throw new TypeError('Invalid preview URL result')
+    } catch (cause) { onFailure(cause, placement) }
+    finally { clearTimeout(timer) }
+  }
   try {
     const url = options.admin?.editorUrl?.({ collection, id, draft: !published })
     if (typeof url === 'string') result.editorUrl = url
@@ -232,11 +252,27 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
     }
   }
   const requiredSlots = e.arms.filter(arm => arm.kind !== 'holdout').map(arm => arm.slot)
-  const placements: PreflightResult['placements'] = (input.placements ?? []).map(placement => ({
-    collection: placement.collection, id: placement.id, title: placement.title, slots: placement.slots,
-    ...placementUrls(options, placement),
-    ok: requiredSlots.every(slot => slot && placement.slots[slot] > 0),
-    detail: placement.published ? 'Published' : 'Draft',
+  const blocks = input.placements ?? []
+  const placements: PreflightResult['placements'] = new Array(blocks.length)
+  let nextPlacement = 0
+  const pendingPreviews = { count: 0 }
+  let loggedPreviewFailure = false
+  const onPreviewFailure = (cause: unknown, placement: BlockPlacement) => {
+    if (loggedPreviewFailure) return
+    loggedPreviewFailure = true
+    req.payload.logger.warn({ err: safeError(cause), experimentId: e.id, collection: placement.collection, id: placement.id }, 'Experiment preview URL lookup failed')
+  }
+  await Promise.all(Array.from({ length: Math.min(PREVIEW_URL_CONCURRENCY, blocks.length) }, async () => {
+    while (nextPlacement < blocks.length) {
+      const index = nextPlacement++
+      const placement = blocks[index]!
+      placements[index] = {
+        collection: placement.collection, id: placement.id, title: placement.title, slots: placement.slots,
+        ...await placementUrls(options, placement, pendingPreviews, onPreviewFailure),
+        ok: requiredSlots.every(slot => slot && placement.slots[slot] > 0),
+        detail: placement.published ? 'Published' : 'Draft',
+      }
+    }
   }))
   for (const placement of input.flagPlacements ?? []) placements.push({ collection: e.flagPoint ?? '', id: placement.arm, title: placement.arm, ok: placement.ok, ...(placement.detail ? { detail: placement.detail } : {}) })
   return { checks: checkStart(input), placements, baseline, trafficPerDay, estimate: power }

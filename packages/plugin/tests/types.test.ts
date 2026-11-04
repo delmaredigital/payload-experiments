@@ -1,6 +1,18 @@
 import { expectTypeOf, test } from 'vitest'
 import type { ExperimentsPluginOptions, MetricSource, EventBody, ErrorEnvelope, PreviewTokenResult, Snapshot, DocId, AddMetricBody, Assignment, FlagPointResult, ClientAssignments, ExperimentRef, ManifestExperiment, FlagDefault, FlagPoint, PreflightResult, MakeContentResult, ResultsResponse, EditableField, ArmIssueCode, RefusalCode, ExperimentsProxyRuntime } from '../src/types/index.js'
 
+test('preview adapters accept old sync callbacks and async nullable results through public exports', () => {
+  type Placement = import('../src/exports/index.js').PreviewPlacement
+  type RscPlacement = import('../src/exports/rsc.js').PreviewPlacement
+  type Preview = NonNullable<NonNullable<ExperimentsPluginOptions['admin']>['previewUrl']>
+  expectTypeOf<Placement>().toEqualTypeOf<RscPlacement>()
+  expectTypeOf<Placement>().toEqualTypeOf<{ collection: string; id: DocId; title: string; published: boolean; slug?: string }>()
+  expectTypeOf<Parameters<Preview>[0]>().toEqualTypeOf<Placement>()
+  expectTypeOf<({ collection, id }: { collection: string; id: DocId }) => string>().toExtend<Preview>()
+  expectTypeOf<(placement: Placement) => Promise<string | null | undefined>>().toExtend<Preview>()
+  expectTypeOf<ReturnType<Preview>>().toEqualTypeOf<string | null | undefined | Promise<string | null | undefined>>()
+})
+
 test('frozen shared contracts', () => {
   expectTypeOf<ExperimentsPluginOptions['access']>().toHaveProperty('manage')
   expectTypeOf<ExperimentsPluginOptions['access']['manage']>().toBeFunction()
