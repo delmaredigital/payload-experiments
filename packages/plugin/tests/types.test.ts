@@ -59,7 +59,7 @@ test('reason codes are public while snapshot and report readers accept old strin
   type ContentReason = import('../src/exports/index.js').ContentReportReason
   type Run = Awaited<ReturnType<typeof import('../src/exports/rsc.js').runResults>>
   expectTypeOf<MetricReason>().toEqualTypeOf<'source-failed' | 'source-unavailable' | 'unit-type-unavailable' | 'non-finite-values' | 'non-finite-covariates' | 'budget' | 'not-supplied' | 'analysis-failed'>()
-  expectTypeOf<ContentReason>().toEqualTypeOf<'locked' | 'forbidden' | 'not-found' | 'validation' | 'update-failed'>()
+  expectTypeOf<ContentReason>().toEqualTypeOf<'localized' | 'locked' | 'forbidden' | 'not-found' | 'validation' | 'update-failed'>()
   expectTypeOf<NonNullable<Run['unavailableMetrics']>[number]['reason']>().toEqualTypeOf<MetricReason>()
   expectTypeOf<Snapshot['metrics'][number]['unavailable']>().toEqualTypeOf<string | undefined>()
   expectTypeOf<MakeContentResult['docs'][number]['detail']>().toEqualTypeOf<string | undefined>()

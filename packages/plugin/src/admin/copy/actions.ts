@@ -16,6 +16,7 @@ export const ACTIONS_COPY = {
   typePhrase: 'Type the following to confirm:', cancel: 'Cancel', retry: 'Retry', done: 'Done',
   loading: 'Loading results…', updated: 'Updated', failed: 'Failed',
   contentReasons: {
+    localized: "This page has more than one language; Make it the content can't publish it safely yet. Copy the winning version by hand.",
     locked: 'Someone is editing this page. Wait for them to finish, then retry.',
     forbidden: "You can't read or update this page. Ask someone with access to update it by hand. If it was deleted, discard the winner to archive this test.",
     'not-found': 'This page could not be found. Check whether it was deleted.',

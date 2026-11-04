@@ -664,3 +664,15 @@ test('a global carrying copied Local API methods stays flagged (P1)', () => {
   expect(scan(text, 'src/example.ts').map(v => v.rule).length).toBeGreaterThan(0)
   expect(scan('export const a = Object.create(null)', 'src/example.ts')).toEqual([])
 })
+
+// §7.8 make-content: the published main row, so Payload's draft baseline never fills a field (KI-1).
+test('the published main-row adapter read is an explicit, named exception', () => {
+  expect(OVERRIDE_ACCESS_ALLOW_LIST).toContainEqual({ file: 'src/db/publishedContent.ts',
+    reason: "§7.8 make-content: the published main row, so Payload's draft baseline never fills a field (KI-1)" })
+})
+
+test('the latest draft-version adapter read is an explicit, named exception', () => {
+  const reason = 'make-content: the latest draft version, so restoring the draft never drops fields the manager cannot read (KI-1)'
+  expect(OVERRIDE_ACCESS_ALLOW_LIST).toContainEqual({ file: 'src/db/publishedContent.ts', reason: `§7.8 ${reason}` })
+  expect(readFileSync(join(pluginRoot, 'src/db/publishedContent.ts'), 'utf8')).toContain(reason)
+})

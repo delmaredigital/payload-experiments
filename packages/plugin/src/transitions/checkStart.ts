@@ -21,6 +21,7 @@ export type ReadinessCode = ArmIssueCode
   | 'flag-placement-missing'
   | 'no-placements'
   | 'empty-slot'
+  | 'make-content-unsupported'
   | 'layer-unit-mismatch'
   | 'layer-full'
   | 'unknown-metric-source'
@@ -103,6 +104,9 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('no-placements', e.kind !== 'block' || !input.placementError && placements.length > 0, input.placementError)
   const empty = placements.filter(placement => e.arms.some(arm => arm.kind !== 'holdout' && (!arm.slot || !(placement.slots[arm.slot] > 0))))
   add('empty-slot', e.kind !== 'block' || empty.length === 0, empty)
+  add('make-content-unsupported', true)
+  const localized = placements.find(placement => placement.localized)
+  if (localized) Object.assign(checks[checks.length - 1]!, { warning: true, detail: localized.title })
   add('layer-unit-mismatch', e.layer == null || input.layer?.unitType === e.unitType)
   const free = 100 - new Set(input.layer?.usedSlices).size
   add('layer-full', e.layer == null || !!input.layer && free >= e.allocation, { available: free, requested: e.allocation })
