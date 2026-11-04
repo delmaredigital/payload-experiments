@@ -7,7 +7,7 @@ import { ResultsBody } from '../../../../src/admin/surface/results/ResultsBody.j
 import * as resultsHook from '../../../../src/admin/surface/results/useResults.js'
 import { reloadPage } from '../../../../src/admin/reload.js'
 import type { SurfaceProps } from '../../../../src/admin/surface/contracts.js'
-import { fixture, phaseFor } from '../../results/fixtures.js'
+import { fixture, phaseFor, revenueSnapshot } from '../../results/fixtures.js'
 import type { ResultsResponse } from '../../../../src/types/endpoints.js'
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
 vi.mock('../../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
@@ -271,6 +271,77 @@ test.each(['T4', 'T7-bayesian'])('%s tiles use stored exposures, elapsed days an
   expect(tiles[2]?.querySelector('.xp-stat-tile-value')?.textContent).toBe(name === 'T4' ? '—' : '97.8%')
   if (name !== 'T4') expect(tiles[2]?.querySelector('.xp-results-swatch')).toBeTruthy()
   expect(container.textContent).not.toContain('Mean')
+})
+
+test.each([
+  { status: 'decided', hasDecisionSnapshot: true, frozen: true },
+  { status: 'running', hasDecisionSnapshot: true, frozen: false },
+  { status: 'stopped', hasDecisionSnapshot: true, frozen: false },
+  { status: 'decided', hasDecisionSnapshot: false, frozen: false },
+])('$status results use the right numbers throughout (decision snapshot: $hasDecisionSnapshot)', async ({ status, hasDecisionSnapshot, frozen }) => {
+  const stored = fixture('T7-bayesian')
+  const revenue = revenueSnapshot()
+  stored.metrics.push({ ...revenue.metrics[0]!, role: 'secondary' }, {
+    ...structuredClone(stored.metrics[0]!), metricId: 'visits', name: 'Visits', kind: 'count', role: 'secondary',
+    perArm: stored.metrics[0]!.perArm.map(arm => ({ ...arm, mean: 3.5 })),
+  })
+  stored.params.caps = revenue.params.caps
+  stored.exposures.armMismatch = 3
+  const newest = structuredClone(stored)
+  newest.exposures.total = 4999
+  newest.exposures.armMismatch = 7
+  newest.window.to = '2026-10-31T20:00:00.000Z'
+  newest.verdict.finding = newest.verdict.headline = 'Newest finding (71%).'
+  newest.guardrails[0]!.status = 'warning'
+  newest.params.caps.gifts!.resolvedCap = 300
+  for (const metric of newest.metrics) {
+    metric.perArm = metric.perArm.map(arm => ({ ...arm, n: 333, converters: 111, mean: metric.kind === 'binomial' ? .2 : 99,
+      ...(arm.capped ? { capped: { resolvedCap: 300, uncappedTotal: 999, cappedCount: 9 } } : {}) }))
+    metric.comparisons = metric.comparisons.map(comparison => ({ ...comparison, chanceToWin: .71 }))
+  }
+  setup({ phases: [phaseFor(stored)], snapshot: newest, ...(hasDecisionSnapshot ? { decisionSnapshot: stored } : {}),
+    decision: { phase: 1, winnerArm: 'variantA' }, series: response.series }, { ...doc, status })
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  const tiles = container.querySelectorAll('.xp-stat-tile-value')
+  expect(tiles[0]?.textContent).toBe(frozen ? '4,200' : '4,999')
+  expect(tiles[1]?.textContent).toBe(frozen ? '14 of 28' : '15 of 28')
+  expect(tiles[2]?.textContent).toBe(frozen ? '97.8%' : '71.0%')
+  const primary = screen.getByRole('table', { name: 'Registrations' })
+  const variantRow = within(primary).getByRole('rowheader', { name: 'Shorter form' }).parentElement!
+  const primaryCells = within(variantRow).getAllByRole('cell')
+  expect(primaryCells[0]?.textContent).toBe(frozen ? '1,980' : '333')
+  expect(primaryCells[1]?.textContent).toBe(frozen ? '887' : '111')
+  expect(primaryCells[5]?.textContent).toBe(frozen ? '97.8%' : '71.0%')
+  const guardrail = screen.getByRole('table', { name: 'Completed lessons' })
+  expect(within(guardrail).getAllByRole('cell')[1]?.textContent).toBe(frozen ? '80.0%' : '20.0%')
+  const visits = screen.getByRole('table', { name: 'Visits' })
+  expect(within(visits).getAllByRole('cell')[1]?.textContent).toBe(frozen ? '3.5' : '99')
+  const gifts = screen.getByRole('table', { name: 'Gifts' })
+  expect(within(gifts).getAllByText(frozen ? '0 capped at $100.00' : '9 capped at $300.00')).toHaveLength(3)
+  expect(screen.getByText(frozen ? '3 ignored.' : '7 ignored.')).toBeTruthy()
+  expect(container.querySelector('.xp-results-chips')?.textContent).toContain(frozen ? 'OK' : 'Watch')
+  if (frozen) expect(screen.getByText(stored.verdict.finding)).toBeTruthy()
+  if (status !== 'decided') expect(screen.getByRole('heading', { name: newest.verdict.headline })).toBeTruthy()
+  for (const table of screen.getAllByRole('table')) {
+    expect(table.parentElement?.getAttribute('aria-label')).toBe(table.querySelector('caption')?.textContent)
+    expect(table.parentElement?.tabIndex).toBe(0)
+  }
+  // The confidence chart retains the endpoint's historical series.
+  fireEvent.click(screen.getByText('Confidence interval over time'))
+  expect(screen.getByRole('img').querySelector('[data-series="variantA"] path')?.getAttribute('d')).toBeTruthy()
+})
+
+test('shipping round keeps the newest snapshot even when a decision snapshot is present', async () => {
+  const rollout = fixture('R3')
+  setup({ phases: [phase, phaseFor(rollout)], snapshot: rollout, decisionSnapshot: fixture('T7-bayesian'),
+    decision: { phase: 1, winnerArm: 'variantA' } }, { ...doc, status: 'decided' })
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Round' }), { target: { value: String(rollout.phase) } })
+  await screen.findByRole('heading', { name: rollout.verdict.headline })
+  expect(container.querySelector('.xp-stat-tile-value')?.textContent).toBe(rollout.exposures.total.toLocaleString('en-US'))
+  expect(screen.getByRole('heading', { name: rollout.verdict.headline })).toBeTruthy()
 })
 test('data quality opens automatically for Watch and stays collapsed for OK', async () => {
   setup({ ...response, snapshot: { ...snapshot, exposures: { ...snapshot.exposures, armMismatch: 1 } } })

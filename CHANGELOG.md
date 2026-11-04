@@ -11,6 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: a decided test's results show the numbers recorded at the decision everywhere on the page; results tables scroll sideways on narrow screens with a visible edge.
 - Changed: the results page leads with the verdict and three key numbers, shows each outcome as a clear table ("Rate" or "Average"), and keeps the confidence chart under Details.
 - Fixed: when something a test refers to was removed, the admin says what is missing (a goal or a round) instead of saying the test no longer exists.
 - Fixed: a goal can't be deleted or have its short name or measurement changed while another save or Start is adding it to a test at the same moment. Migration impact: none.
