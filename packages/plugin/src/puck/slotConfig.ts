@@ -1,9 +1,9 @@
 import type { ComponentConfig } from '@puckeditor/core'
 import type { ExperimentSlotProps } from '../types/puck.js'
 import { createExperimentSlotField } from './experimentSlotField.js'
-import { pickerCopy, slotLabels } from './copy.js'
+import { slotLabels } from './copy.js'
 
-export const experimentSlotLabel = pickerCopy.label
+export const experimentSlotLabel = 'Experiment block'
 
 export const experimentSlotFields: NonNullable<ComponentConfig<ExperimentSlotProps>['fields']> = {
   experiment: createExperimentSlotField(),

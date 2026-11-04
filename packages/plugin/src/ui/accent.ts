@@ -66,6 +66,23 @@ export function deriveAccent(input: string): { light: AccentSet; dark: AccentSet
 export function accentStyles(input?: string): string | undefined {
   if (!input) return undefined
   const sets = deriveAccent(input)
-  const declarations = (s: AccentSet) => Object.entries(s).map(([name, value]) => `--xp-${name === 'accentText' ? 'accent-text' : name === 'accentTextDecoration' ? 'accent-text-decoration' : name === 'focus' || name === 'accent' ? name : `accent-${name}`}:${value};`).join('')
+  const declarations = (s: AccentSet) => Object.entries(accentVariables(s)).map(([name, value]) => `${name}:${value};`).join('')
   return `:root:root, [data-theme="light"][data-theme="light"]{${declarations(sets.light)}}\n[data-theme="dark"][data-theme="dark"]{${declarations(sets.dark)}}`
+}
+
+/** The plugin and Puck factory accept exactly the same host accent. */
+export function validateAccent(accent: unknown): void {
+  if (accent === undefined || accent === '') return
+  if (typeof accent !== 'string' || !/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(accent)) throw new Error('Experiments theme.accent must be a CSS hex colour (#rgb or #rrggbb)')
+  for (const [mode, set] of Object.entries(deriveAccent(accent))) {
+    const ratio = contrast(set.accent, set.fg)
+    if (ratio < 4.5) throw new Error(`Experiments theme.accent ${accent}: ${mode} foreground contrast ${ratio.toFixed(2)}:1 is below 4.5:1`)
+  }
+}
+
+/** Inline variables use the same names as the admin accent stylesheet. */
+export function accentVariables(set: AccentSet): Record<string, string> {
+  return Object.fromEntries(Object.entries(set).map(([name, value]) => [
+    `--xp-${name === 'accentText' ? 'accent-text' : name === 'accentTextDecoration' ? 'accent-text-decoration' : name === 'focus' || name === 'accent' ? name : `accent-${name}`}`, value,
+  ]))
 }

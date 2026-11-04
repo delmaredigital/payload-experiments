@@ -93,3 +93,19 @@ test('unmount aborts the pending request', () => {
   view.unmount()
   expect(signal.aborted).toBe(true)
 })
+
+test.each(['render', 'editor'] as const)('%s factory supplies custom sidebar routes', async kind => {
+  const { createExperimentSlot } = await import('../../src/puck/ExperimentSlot.js')
+  // Importing the editor requires Puck's browser measurement API in jsdom.
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+  const { createExperimentSlotEditor } = await import('../../src/puck/editor/ExperimentSlotEditor.js')
+  const factory = kind === 'render' ? createExperimentSlot : createExperimentSlotEditor
+  const config = factory({ routes: { api: '/custom-api', admin: '/manage' } })
+  const field = config.fields!.experiment
+  if (field.type !== 'custom') throw new Error('Expected custom picker field')
+  const fetch = mockFetch()
+  render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'test' }))
+  await screen.findByRole('option', { name: 'First example · Draft' })
+  expect(fetch).toHaveBeenCalledWith('/custom-api/xp-experiments?where[kind][equals]=block&depth=0&limit=100&sort=-updatedAt', expect.objectContaining({ credentials: 'include' }))
+  expect(screen.getByRole('combobox').classList.contains('xp-ui-select')).toBe(true)
+})

@@ -50,17 +50,18 @@ test('Puck editor chrome uses scoped classes, tokens, and explicit reset-resista
   const rules = css.replace(/^(?:\[data-theme='dark'\] \.xp-slot-root,\s*\.dark )?\.xp-slot-root\s*\{[^}]+\}/gm, '')
   expect(rules).not.toMatch(/#[0-9a-f]{3,8}\b|\b(?:rgb|hsl)a?\(/i)
   expect(references(css).every(name => name.startsWith('--xp-'))).toBe(true)
-  const controls = css.match(/\.xp-slot-button,\s*\.xp-slot-tab,\s*\.xp-slot-input\s*\{([^}]+)\}/)?.[1] ?? ''
-  for (const declaration of ['appearance: none', 'background:', 'border:', 'padding:', 'border-radius:', 'font: inherit', 'font-size:', 'color:', 'cursor:', 'line-height:']) {
-    expect(controls, declaration).toContain(declaration)
-  }
+  const controls = css.match(/\.xp-slot-editor \.xp-ui-button,\s*\.xp-slot-editor \.xp-ui-tab,\s*\.xp-slot-editor \.xp-ui-input\s*\{([^}]+)\}/)?.[1] ?? ''
+  expect(controls).toContain('appearance: none')
   for (const control of ['button', 'tab', 'input']) {
-    expect(css).toContain(`.xp-slot-${control}:focus-visible`)
-    expect(css).toContain(`.xp-slot-${control}:disabled`)
+    const rule = css.match(new RegExp(`\\.xp-ui-${control} \\{([^}]+)\\}`))?.[1] ?? ''
+    for (const declaration of ['background:', 'border:', 'padding:', 'border-radius:', 'font:', 'color:']) expect(rule, `${control}: ${declaration}`).toContain(declaration)
+    expect(css).toContain(`.xp-ui-${control}:focus-visible`)
+    expect(css).toContain(`.xp-ui-${control}:disabled`)
   }
-  for (const file of ['ExperimentSlotEditor.tsx', 'CreateExperimentDrawer.tsx']) {
-    expect(readFileSync(join(src, 'puck/editor', file), 'utf8')).not.toContain('style=')
-  }
+  expect(css).toMatch(/\.xp-slot-editor \.xp-ui-dialog\s*\{[^}]*margin: auto;/)
+  // The only inline chrome style is the explicitly validated host accent.
+  expect(readFileSync(join(src, 'puck/editor/ExperimentSlotEditor.tsx'), 'utf8')).toContain('style={props.accent ? accentVariables(props.accent[mode])')
+  expect(readFileSync(join(src, 'puck/editor/CreateExperimentDrawer.tsx'), 'utf8')).not.toContain('style=')
 })
 
 test('Puck iframe styles define every used token as a literal on the light and dark roots', () => {

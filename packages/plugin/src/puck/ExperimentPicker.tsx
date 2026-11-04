@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { ExperimentRef } from '../types/puck.js'
+import { Select } from '../ui/Select.js'
+import { Banner } from '../ui/Banner.js'
+import { usePuckRoutes } from './hostContext.js'
 import { pickerCopy } from './copy.js'
 
 type ExperimentOption = ExperimentRef & { name: string; status: keyof typeof pickerCopy.statuses }
@@ -19,6 +22,8 @@ export function ExperimentPicker({ value, onChange }: {
   value: ExperimentRef | null
   onChange: (value: ExperimentRef | null) => void
 }) {
+  const { api } = usePuckRoutes()
+  const id = useId()
   const [experiments, setExperiments] = useState<ExperimentOption[]>([])
   const [state, setState] = useState<LoadState>('loading')
 
@@ -27,7 +32,7 @@ export function ExperimentPicker({ value, onChange }: {
     const controller = new AbortController()
     async function load() {
       try {
-        const response = await fetch('/api/xp-experiments?where[kind][equals]=block&depth=0&limit=100&sort=-updatedAt', {
+        const response = await fetch(`${api}/xp-experiments?where[kind][equals]=block&depth=0&limit=100&sort=-updatedAt`, {
           credentials: 'include', signal: controller.signal,
         })
         if (!active) return
@@ -49,19 +54,19 @@ export function ExperimentPicker({ value, onChange }: {
     }
     void load()
     return () => { active = false; controller.abort() }
-  }, [])
+  }, [api])
 
   const selected = value ? String(value.id) : ''
   return <div>
-    <select aria-label={pickerCopy.label} value={selected} disabled={state === 'loading'} /* stays enabled on error so a saved experiment can still be unbound */ onChange={event => {
+    <Select id={id} label={pickerCopy.label} value={selected} disabled={state === 'loading'} /* stays enabled on error so a saved experiment can still be unbound */ onChange={event => {
       const experiment = experiments.find(doc => String(doc.id) === event.currentTarget.value)
       onChange(experiment ? { id: experiment.id, slug: experiment.slug } : null)
     }}>
       <option value="">{pickerCopy.none}</option>
       {value && !experiments.some(doc => String(doc.id) === selected) ? <option value={selected}>{value.slug}</option> : null}
       {experiments.map(doc => <option key={doc.id} value={String(doc.id)}>{doc.name} · {pickerCopy.statuses[doc.status]}</option>)}
-    </select>
-    {state === 'loading' ? <p role="status">{pickerCopy.loading}</p> : null}
-    {state === 'error' || state === 'forbidden' ? <p role="alert">{pickerCopy[state]}</p> : null}
+    </Select>
+    {state === 'loading' ? <Banner>{pickerCopy.loading}</Banner> : null}
+    {state === 'error' || state === 'forbidden' ? <Banner tone="error">{pickerCopy[state]}</Banner> : null}
   </div>
 }

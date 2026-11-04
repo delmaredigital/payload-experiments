@@ -1,6 +1,11 @@
 'use client'
 
 import { useId, useRef, useState } from 'react'
+import { Dialog } from '../../ui/Dialog.js'
+import { TextInput } from '../../ui/TextInput.js'
+import { Button } from '../../ui/Button.js'
+import { Banner } from '../../ui/Banner.js'
+import { usePuckRoutes } from '../hostContext.js'
 import type { ExperimentRef } from '../../types/puck.js'
 import { CreateRefused, createTest } from './createTest.js'
 import { editorCopy } from './copy.js'
@@ -11,7 +16,7 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '' }: 
   onCreate: (experiment: ExperimentRef) => void
   onClose: () => void
 }) {
-  const titleId = useId()
+  const { api } = usePuckRoutes()
   const nameId = useId()
   const [name, setName] = useState(initialName)
   const inFlight = useRef(false)
@@ -24,7 +29,7 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '' }: 
     setPending(true)
     setError('')
     try {
-      const experiment = await createTest('/api', { name, kind: 'block', unitType: 'visitor' })
+      const experiment = await createTest(api, { name, kind: 'block', unitType: 'visitor' })
       onCreate(experiment)
       onClose()
     } catch (cause) {
@@ -35,16 +40,14 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '' }: 
     }
   }
 
-  return <aside className="xp-slot-root xp-slot-drawer" role="dialog" aria-labelledby={titleId}>
-    <h3 className="xp-slot-title" id={titleId}>{editorCopy.createLabel}</h3>
-    <div className="xp-slot-field">
-      <label className="xp-slot-label" htmlFor={nameId}>{editorCopy.name}</label>
-      <input className="xp-slot-input" id={nameId} value={name} disabled={pending} onChange={event => setName(event.currentTarget.value)} />
+  return <Dialog open title={editorCopy.createLabel} onClose={onClose} dismissible={!pending}>
+    <div className="xp-slot-drawer">
+      <TextInput id={nameId} label={editorCopy.name} value={name} disabled={pending} onChange={event => setName(event.currentTarget.value)} />
+      {error ? <Banner tone="error">{error}</Banner> : null}
+      <div className="xp-ui-button-group">
+        <Button variant="primary" disabled={pending || !name.trim()} onClick={() => { void submitNew() }}>{pending ? editorCopy.creating : editorCopy.createLabel}</Button>
+        <Button disabled={pending} onClick={onClose}>{editorCopy.cancel}</Button>
+      </div>
     </div>
-    {error ? <p className="xp-slot-error" role="alert">{error}</p> : null}
-    <div className="xp-slot-actions">
-      <button className="xp-slot-button xp-slot-button-primary" type="button" disabled={pending || !name.trim()} onClick={() => { void submitNew() }}>{pending ? editorCopy.creating : editorCopy.createLabel}</button>
-      <button className="xp-slot-button" type="button" disabled={pending} onClick={onClose}>{editorCopy.cancel}</button>
-    </div>
-  </aside>
+  </Dialog>
 }

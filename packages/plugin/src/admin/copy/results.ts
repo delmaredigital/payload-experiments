@@ -4,7 +4,7 @@ export const RESULTS_COPY = {
   chooseGroup: 'Choose a group',
   tests: 'Tests', results: 'Results', test: 'Test', backToSetup: 'Back to setup',
   days: 'Days', methods: { sequential: 'Sequential', bayesian: 'Bayesian' },
-  asOfDecision: (date: string) => `as of the decision, ${date}`,
+  asOfDecision: (date: string) => `numbers from ${date}, used for the decision`,
   kinds: { binomial: 'yes/no', count: 'amount', revenue: 'amount' },
   qualityStates: { ok: 'OK', watch: 'Watch', problem: 'Problem' },
   qualityOK: 'No data quality problems found.', previews: 'Preview links',

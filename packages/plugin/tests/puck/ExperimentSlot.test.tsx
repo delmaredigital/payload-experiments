@@ -1,3 +1,5 @@
+import type { ReactElement, ComponentProps } from 'react'
+import { PuckHostProvider } from '../../src/puck/hostContext.js'
 import { renderToString } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
 import type { ArmSlot } from '../../src/types/puck.js'
@@ -55,7 +57,7 @@ test('a viewport exposure renders the fixed wrapper and sentinel markup', () => 
 })
 
 test('config defines four slots, a custom experiment field, and empty serialized defaults', () => {
-  expect(ExperimentSlot.label).toBe('Experiment')
+  expect(ExperimentSlot.label).toBe('Experiment block')
   expect(Object.keys(ExperimentSlot.fields!)[0]).toBe('experiment')
   expect(ExperimentSlot.fields).toEqual({
     experiment: { type: 'custom', label: 'Experiment', render: expect.any(Function) },
@@ -77,9 +79,11 @@ test('custom field supports a label and passes the reference and change callback
   expect(field.label).toBe('Choose an experiment')
   const value = { id: 'uuid-1', slug: 'example' }
   const onChange = vi.fn()
-  const element = field.render({ field, name: 'experiment', id: 'experiment-1', value, onChange })
-  expect(element.type).toBe(ExperimentPicker)
-  expect(element.props).toEqual({ value, onChange })
+  const element = field.render({ field, name: 'experiment', id: 'experiment-1', value, onChange }) as ReactElement<ComponentProps<typeof PuckHostProvider>>
+  const picker = element.props.children as ReactElement<ComponentProps<typeof ExperimentPicker>>
+  expect(element.props.routes).toEqual({ admin: '/admin', api: '/api' })
+  expect(picker.type).toBe(ExperimentPicker)
+  expect(picker.props).toEqual({ value, onChange })
 })
 
 test('without xpExpose the slot renders exactly the bare Slot: no wrapper element', () => {

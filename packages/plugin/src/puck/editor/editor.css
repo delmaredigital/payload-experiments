@@ -263,36 +263,29 @@
 .xp-ui-field-label { display: flex; align-items: center; justify-content: space-between; gap: var(--xp-space-3); }
 .xp-ui-field-label > label { font-weight: 500; }
 
-/* These controls also render in the host's preflight-reset editor iframe. */
+/* Shared UI controls are assembled into editor.css for the isolated canvas. */
 .xp-slot-editor {
   min-width: 0;
-}
-
-.xp-slot-chrome,
-.xp-slot-drawer {
-  box-sizing: border-box;
-  background: var(--xp-bg);
   color: var(--xp-text);
-  border: 1px solid var(--xp-border);
-  border-radius: var(--xp-radius-large);
-  padding: var(--xp-space-3);
   font-family: var(--xp-font-body);
   font-size: var(--xp-font-size-body);
   line-height: 1.5;
 }
 
-.xp-slot-header,
-.xp-slot-toolbar,
-.xp-slot-actions {
+.xp-slot-chrome {
+  display: grid;
+  gap: var(--xp-space-3);
+  padding: var(--xp-space-4);
+  background: var(--xp-surface);
+  border: 1px solid var(--xp-border);
+  border-radius: var(--xp-radius-card) var(--xp-radius-card) 0 0;
+}
+
+.xp-slot-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--xp-space-2);
-}
-
-.xp-slot-header > .xp-slot-actions,
-.xp-slot-toolbar > .xp-slot-actions {
-  margin-inline-start: auto;
 }
 
 .xp-slot-title {
@@ -303,125 +296,14 @@
   overflow-wrap: anywhere;
 }
 
-.xp-slot-status {
-  display: inline-flex;
-  padding: var(--xp-space-1) var(--xp-space-2);
-  border: 1px solid var(--xp-border-strong);
-  border-radius: var(--xp-radius-large);
+.xp-slot-editor > .xp-ui-tabs > .xp-ui-tablist {
+  padding: var(--xp-space-2) var(--xp-space-4);
   background: var(--xp-surface);
-  color: var(--xp-text-strong);
-  font-size: var(--xp-font-size-small);
-  line-height: 1.2;
+  border-inline: 1px solid var(--xp-border);
 }
 
-.xp-slot-status[data-status='running'] {
-  background: var(--xp-success-surface);
-  border-color: var(--xp-success);
-  color: var(--xp-success-text-strong);
-}
-
-.xp-slot-notice {
-  margin: var(--xp-space-3) 0;
-  color: var(--xp-text-muted);
-}
-
-.xp-slot-warning {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--xp-space-2);
-  border: 1px solid var(--xp-warning);
-  border-radius: var(--xp-radius);
-  padding: var(--xp-space-2) var(--xp-space-3);
-  background: var(--xp-warning-surface);
-  color: var(--xp-warning-text-strong);
-}
-
-.xp-slot-warning-icon {
-  flex: 0 0 auto;
-  width: var(--xp-space-4);
-  height: var(--xp-space-4);
-}
-
-.xp-slot-button,
-.xp-slot-tab,
-.xp-slot-input {
-  box-sizing: border-box;
-  appearance: none;
-  background: var(--xp-bg);
-  border: 1px solid var(--xp-input-border);
-  padding: var(--xp-space-2) var(--xp-space-3);
-  border-radius: var(--xp-radius);
-  font: inherit;
-  font-size: var(--xp-font-size-body);
-  color: var(--xp-text);
-  cursor: pointer;
-  line-height: 1.4;
-}
-
-.xp-slot-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--xp-space-1);
-  text-decoration: none;
-  text-align: center;
-}
-
-.xp-slot-button:hover:not(:disabled),
-.xp-slot-tab:hover:not(:disabled) {
-  background: var(--xp-surface-raised);
-  border-color: var(--xp-border-accent);
-}
-
-.xp-slot-button-primary {
-  background: var(--xp-text-emphasis);
-  border-color: var(--xp-text-emphasis);
-  color: var(--xp-bg);
-  font-weight: 600;
-}
-
-.xp-slot-button-primary:hover:not(:disabled) {
-  background: var(--xp-text-strong);
-  border-color: var(--xp-text-strong);
-}
-
-.xp-slot-button:focus-visible,
-.xp-slot-tab:focus-visible,
-.xp-slot-input:focus-visible {
-  outline: 2px solid var(--xp-text);
-  outline-offset: 2px;
-}
-
-.xp-slot-button:disabled,
-.xp-slot-tab:disabled,
-.xp-slot-input:disabled {
-  background: var(--xp-surface);
-  border-color: var(--xp-border);
-  color: var(--xp-text-muted);
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-.xp-slot-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--xp-space-1);
-  padding: var(--xp-space-1);
-  border-radius: var(--xp-radius-large);
-  background: var(--xp-surface);
-}
-
-.xp-slot-tab {
-  background: transparent;
-  border-color: transparent;
-}
-
-.xp-slot-tab[aria-selected='true'] {
-  background: var(--xp-bg);
-  border-color: var(--xp-border-accent);
-  color: var(--xp-text-emphasis);
-  font-weight: 600;
-  box-shadow: 0 2px 0 var(--xp-text-emphasis);
+.xp-slot-editor .xp-ui-tabpanel {
+  padding: 0;
 }
 
 .xp-slot-panel {
@@ -463,38 +345,24 @@
 
 .xp-slot-drawer {
   display: grid;
-  gap: var(--xp-space-3);
-  margin-block: var(--xp-space-3);
-  padding: var(--xp-space-4);
-  border-color: var(--xp-border-accent);
-  background: var(--xp-surface);
-}
-
-.xp-slot-field {
-  display: grid;
-  gap: var(--xp-space-1);
-}
-
-.xp-slot-label {
-  font-weight: 600;
-}
-
-.xp-slot-input {
-  width: 100%;
-  min-width: 0;
-  background: var(--xp-input-bg);
-  cursor: text;
-}
-
-.xp-slot-error {
-  margin: 0;
-  color: var(--xp-error-text);
+  gap: var(--xp-space-4);
 }
 
 .xp-slot-confirm {
   padding: var(--xp-space-2) var(--xp-space-3);
-  margin-block: var(--xp-space-3);
   border: 1px solid var(--xp-warning);
   border-radius: var(--xp-radius);
   background: var(--xp-warning-surface);
+}
+
+/* Tailwind's preflight runs before these controls in the canvas document. */
+.xp-slot-editor .xp-ui-button,
+.xp-slot-editor .xp-ui-tab,
+.xp-slot-editor .xp-ui-input {
+  appearance: none;
+}
+
+/* Restore native modal centering after the host's universal margin reset. */
+.xp-slot-editor .xp-ui-dialog {
+  margin: auto;
 }

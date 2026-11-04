@@ -33,7 +33,7 @@ test('the real Puck outline names versions and lists the Original first', async 
     <Puck.Outline />
   </Puck>)
 
-  const item = (await screen.findByRole('button', { name: 'Experiment' })).closest('li')!
+  const item = (await screen.findByRole('button', { name: 'Experiment block' })).closest('li')!
   // Puck renders zone titles as plain divs, so query their visible text within this outline item.
   expect(within(item).getAllByText(/^(Original|Variant [ABC])$/).map(title => title.textContent)).toEqual([
     'Original', 'Variant A', 'Variant B', 'Variant C',

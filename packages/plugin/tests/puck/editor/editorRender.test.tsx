@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
+import { ExperimentSlotEditor, createExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
 import type { EditorExperiment } from '../../../src/puck/editor/editor.model.js'
 
 const puck = vi.hoisted(() => ({ item: {
@@ -45,6 +45,8 @@ function props(overrides: Partial<RenderProps> = {}): RenderProps {
 }
 
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
   puck.dispatch.mockReset()
   puck.getSelectorForId.mockReset().mockReturnValue({ index: 2, zone: 'parent:content' })
   puck.selectors.length = 0
@@ -154,7 +156,7 @@ test('load errors retain Original and show a readable message', async () => {
   vi.mocked(fetch).mockRejectedValue(new Error('offline'))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props()} />)
-  await waitFor(() => expect(screen.getByRole('status').textContent).toBe("Couldn't load this test. Try selecting it again."))
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("Couldn't load this test. Try selecting it again."))
   expect(screen.getByText('Original content')).toBeTruthy()
 })
 
@@ -203,7 +205,7 @@ test('tabs link to their panel, use roving focus, and support arrows, Home and E
     expect(to.tabIndex).toBe(0)
     expect(screen.getAllByRole('tab').filter(tab => tab.tabIndex === 0)).toHaveLength(1)
     const panel = screen.getByRole('tabpanel')
-    expect(panel.hasAttribute('tabindex')).toBe(false)
+    expect(panel.tabIndex).toBe(0)
     expect(panel.closest('.xp-slot-root')).toBe(screen.getByRole('tablist').closest('.xp-slot-root'))
     expect(panel.closest('.xp-slot-root')).not.toBeNull()
     expect(to.getAttribute('aria-controls')).toBe(panel.id)
@@ -216,13 +218,13 @@ test('empty slots have a labelled frame and filled slots have neither, even when
   const view = render(<Editor {...props()} />)
   fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
   expect(screen.getByText('Drop Variant A content here')).toBeTruthy()
-  expect(screen.getByRole('tabpanel').classList.contains('xp-slot-panel-empty')).toBe(true)
+  expect(screen.getByRole('tabpanel').querySelector('.xp-slot-panel')!.classList.contains('xp-slot-panel-empty')).toBe(true)
   fireEvent.click(screen.getByRole('tab', { name: 'Original' }))
   expect(screen.queryByText('Drop the original content here')).toBeNull()
-  expect(screen.getByRole('tabpanel').classList.contains('xp-slot-panel-empty')).toBe(false)
+  expect(screen.getByRole('tabpanel').querySelector('.xp-slot-panel')!.classList.contains('xp-slot-panel-empty')).toBe(false)
   puck.selected = false
   view.rerender(<Editor {...props()} />)
-  expect(screen.getByRole('tabpanel').classList.contains('xp-slot-panel-empty')).toBe(false)
+  expect(screen.getByRole('tabpanel').querySelector('.xp-slot-panel')!.classList.contains('xp-slot-panel-empty')).toBe(false)
   const control = puck.item.props.control
   puck.item.props.control = []
   try {
@@ -238,8 +240,8 @@ test.each(['draft', 'stopped', 'running', 'decided', 'archived'] as const)('only
   await screen.findByRole('tab', { name: 'New headline' })
   expect(screen.getByRole('heading', { name: 'Example' })).toBeTruthy()
   const banner = screen.getByRole('status')
-  expect(banner.classList.contains('xp-slot-warning')).toBe(status === 'running')
-  expect(Boolean(banner.querySelector('svg[aria-hidden="true"]'))).toBe(status === 'running')
+  expect(banner.classList.contains('xp-ui-banner--warning')).toBe(status === 'running')
+  expect(banner.classList.contains('xp-ui-banner')).toBe(true)
 })
 
 test('only the selected variant has a copy action', async () => {
@@ -280,4 +282,65 @@ test('a draft binding links to setup, a running binding links to results, and ne
   expect(screen.queryByRole('link', { name: 'Set up the test' })).toBeNull()
   expect(screen.getByRole('link', { name: 'View results' }).getAttribute('href')).toBe('/admin/experiments/2/results')
   expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
+})
+
+test('unbound header names the registered block and marks it Not set up', () => {
+  const Editor = ExperimentSlotEditor.render
+  render(<Editor {...props({ experiment: null })} />)
+  expect(screen.getByRole('heading', { name: 'Experiment block' })).toBeTruthy()
+  expect(screen.getByText('Not set up').classList.contains('xp-ui-status')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Test this block' }).classList.contains('xp-ui-button--primary')).toBe(true)
+})
+
+test.each(['draft', 'running'] as const)('custom routes reach the bound %s fetch and link', async status => {
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status })))
+  const Editor = createExperimentSlotEditor({ routes: { api: '/content-api', admin: '/manage' } }).render
+  render(<Editor {...props({ experiment: { id: 'id/with space', slug: 'example' } })} />)
+  const link = await screen.findByRole('link', { name: status === 'draft' ? 'Set up the test' : 'View results' })
+  expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments/id%2Fwith%20space?depth=0', expect.objectContaining({ credentials: 'include' }))
+  expect(link.getAttribute('href')).toBe(`/manage/experiments/id%2Fwith%20space${status === 'draft' ? '' : '/results'}`)
+  expect(link.getAttribute('target')).toBe('_blank')
+  expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+  expect(link.classList.contains('xp-ui-button--secondary')).toBe(true)
+})
+
+test('custom API route reaches both drawer requests', async () => {
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'new', slug: 'welcome-page' } })))
+  const Editor = createExperimentSlotEditor({ routes: { api: '/content-api' } }).render
+  render(<Editor {...props({ experiment: null })} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Test this block' }))
+  expect(document.activeElement).toBe(screen.getByLabelText('Name'))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Test this block' }))
+  await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
+  expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual([
+    '/content-api/xp-experiments?where[slug][like]=welcome-page&depth=0&limit=200&select[slug]=true', '/content-api/xp-experiments',
+  ])
+})
+
+test('the drawer opens in the chrome iframe document and focuses its name field', () => {
+  const iframe = document.createElement('iframe')
+  document.body.append(iframe)
+  const doc = iframe.contentDocument!
+  const prototype = Object.getPrototypeOf(doc.createElement('dialog')) as HTMLDialogElement
+  prototype.showModal = function () { this.setAttribute('open', '') }
+  prototype.close = function () { this.removeAttribute('open') }
+  const container = doc.createElement('div')
+  doc.body.append(container)
+  const Editor = ExperimentSlotEditor.render
+  const view = render(<Editor {...props({ experiment: null })} />, { container, baseElement: doc.body })
+  try {
+    const frame = within(doc.body)
+    const trigger = frame.getByRole('button', { name: 'Test this block' })
+    trigger.focus()
+    fireEvent.click(trigger)
+    const dialog = frame.getByRole('dialog')
+    expect(dialog.ownerDocument).toBe(doc)
+    expect(doc.querySelector('dialog')).toBe(dialog)
+    expect(document.querySelector('dialog')).toBeNull()
+    expect(doc.activeElement).toBe(frame.getByLabelText('Name'))
+    fireEvent.click(frame.getByRole('button', { name: 'Cancel' }))
+    expect(frame.queryByRole('dialog')).toBeNull()
+    expect(doc.activeElement).toBe(trigger)
+  } finally { view.unmount(); iframe.remove() }
 })

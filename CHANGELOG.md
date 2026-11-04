@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Changed: the Experiment block in the Puck editor uses the new layout: name and status, a tab per version, and clear actions.
+- Added: `createExperimentSlotEditor` / `createExperimentSlot` take the host's admin and API routes (and accent); hosts on non-default routes switch to them.
+
 - Changed: the Goals pages use the new layout; deleting a goal now asks for confirmation; choosing "Use this goal" from a test makes it that test's main goal.
 
 - Fixed: a decided test's results show the numbers recorded at the decision everywhere on the page; results tables scroll sideways on narrow screens with a visible edge.
