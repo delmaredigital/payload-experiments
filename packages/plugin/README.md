@@ -724,7 +724,7 @@ The separate pieces stay exported:
 - `/puck/editor`: `ExperimentSlotEditor`,
   `createExperimentSlotEditor({ routes, accent })` and `experimentOutlinePlugin()`.
 
-Register the render and editor blocks under the same `EXPERIMENT_SLOT_TYPE` key,
+Register the render and editor blocks under the same `EXPERIMENT_SLOT_TYPE` key (import it from `/puck`),
 add a sidebar category listing it, and add `experimentOutlinePlugin()` to Puck's
 `plugins`. It composes with the host's outline override.
 

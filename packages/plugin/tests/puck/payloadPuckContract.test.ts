@@ -30,5 +30,6 @@ test('a host component with the slot key wins', () => {
     const config = mergeConfigs({ base, integrations: [experimentsPuck()] })
     expect(config.components[EXPERIMENT_SLOT_TYPE]).toBe(host)
     expect(config.categories?.experiments?.components).toEqual([EXPERIMENT_SLOT_TYPE])
+    expect(warning).toHaveBeenCalledOnce()
   } finally { warning.mockRestore() }
 })
