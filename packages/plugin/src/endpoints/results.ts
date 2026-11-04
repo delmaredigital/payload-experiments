@@ -52,7 +52,9 @@ export async function handleResults<TUser extends { id: string | number } = { id
   const response: ResultsResponse = { phases, snapshot, ...(decision ? { decisionSnapshot: decision } : {}) }
   const decisionPhase = decision?.phase ?? records.filter(record => record.phaseKind === 'test').at(-1)?.phase
   if (typeof metadata.winnerArm === 'string' && metadata.winnerArm.length > 0 && decisionPhase !== undefined) {
-    response.decision = { phase: decisionPhase, winnerArm: metadata.winnerArm }
+    response.decision = { phase: decisionPhase, winnerArm: metadata.winnerArm,
+      ...(metadata.pagesReleasedAt ? { pagesReleasedAt: metadata.pagesReleasedAt,
+        ...(metadata.pagesReleasedBy ? { pagesReleasedBy: metadata.pagesReleasedBy } : {}) } : {}) }
   }
   if (params.get('series') === '1') {
     const series = phase === undefined ? [] : await readSnapshots(req, [id], { seriesPhase: phase })

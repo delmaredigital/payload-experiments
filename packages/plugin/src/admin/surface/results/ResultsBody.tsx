@@ -21,15 +21,19 @@ import { armRows, collectingLine, dataQuality, defaultRound, guardrailChips, pow
 import { recommendation } from './recommendation.model.js'
 import { useResults } from './useResults.js'
 import { DecideDialog } from '../../actions/DecideDialog.js'
+import { Button as ActionButton } from '../../../ui/Button.js'
+import { Banner } from '../../../ui/Banner.js'
+import { canReleasePages } from '../../results/releasePages.model.js'
+import { PagesReleased, ReleasePagesDialog } from './ReleasePages.js'
 
-type ResultsBodyProps = { id: DocId; surface: SurfaceProps; onRecomputed?: () => void }
+type ResultsBodyProps = { id: DocId; surface: SurfaceProps; onRecomputed?: () => void; onPagesReleased?: () => void }
 
-export function ResultsBody({ id, surface, onRecomputed }: ResultsBodyProps) {
+export function ResultsBody({ id, surface, onRecomputed, onPagesReleased }: ResultsBodyProps) {
   // A different test owns an independent selection and action lifecycle.
-  return <ResultsContent key={`${surface.apiRoute}/${id}`} id={id} surface={surface} onRecomputed={onRecomputed} />
+  return <ResultsContent key={`${surface.apiRoute}/${id}`} id={id} surface={surface} onRecomputed={onRecomputed} onPagesReleased={onPagesReleased} />
 }
 
-function ResultsContent({ id, surface, onRecomputed }: ResultsBodyProps) {
+function ResultsContent({ id, surface, onRecomputed, onPagesReleased }: ResultsBodyProps) {
   const results = useResults(id, surface)
   const { api, doc, round, phases, state, data } = results
   const manage = surface.canManage && surface.canReadResults
@@ -41,6 +45,7 @@ function ResultsContent({ id, surface, onRecomputed }: ResultsBodyProps) {
   const mounted = useRef(true)
   const [actionError, setActionError] = useState<string | null>(null)
   const [deciding, setDeciding] = useState(false)
+  const [releasing, setReleasing] = useState(false)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   useEffect(() => {
     let active = true
@@ -89,7 +94,17 @@ function ResultsContent({ id, surface, onRecomputed }: ResultsBodyProps) {
   const canDecide = manage && (status === 'running' || status === 'stopped') && phase?.phaseKind === 'test'
     && round === newestRound && state === 'ready' && Boolean(snapshot)
   return <div className="xp-results" style={{ color: theme.color.text }}>
-    {phases.length > 0 ? <label>{C.round}<select disabled={deciding} value={round ?? ''} onChange={event => results.setRound(Number(event.target.value))}>
+    {actionError ? <Banner tone="error">{actionError}</Banner> : null}
+    <div className="xp-ui-button-group">
+      {manage ? <Button disabled={busy || deciding || releasing} onClick={() => { void recompute() }}>{busy ? C.recomputing : C.recompute}</Button> : null}
+      {canDecide ? <Button disabled={busy || deciding || releasing} onClick={() => setDeciding(true)}>{ACTIONS_COPY.decide}</Button> : null}
+      {manage && doc && canReleasePages(doc) ? <ActionButton variant="secondary" disabled={busy || deciding || releasing} onClick={() => {
+        setActionError(null)
+        setReleasing(true)
+      }}>{C.releasePages}</ActionButton> : null}
+    </div>
+    {decision?.pagesReleasedAt ? <PagesReleased decision={decision} apiRoute={surface.apiRoute} /> : null}
+    {phases.length > 0 ? <label>{C.round}<select disabled={deciding || releasing} value={round ?? ''} onChange={event => results.setRound(Number(event.target.value))}>
       {roundOptions(phases).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select></label> : null}
     {state === 'loading' ? <p role="status">{data ? C.refreshing : C.loading}</p>
@@ -119,9 +134,8 @@ function ResultsContent({ id, surface, onRecomputed }: ResultsBodyProps) {
     </> : state === 'empty' || state === 'ready' ? <p>{C.empty}</p> : null}
     {manage && placements ? <PreviewLinks experimentId={id} placements={placements} arms={doc?.arms ?? []} /> : null}
     {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retryPreview}</Button></> : null}
-    {manage ? <Button disabled={busy || deciding} onClick={() => { void recompute() }}>{busy ? C.recomputing : C.recompute}</Button> : null}
-    {canDecide ? <Button disabled={busy || deciding} onClick={() => setDeciding(true)}>{ACTIONS_COPY.decide}</Button> : null}
     {deciding && manage && phase ? <DecideDialog id={id} arms={phase.arms} onClose={() => setDeciding(false)} /> : null}
-    {actionError ? <p role="alert">{actionError}</p> : null}
+    {releasing && manage ? <ReleasePagesDialog id={id} apiRoute={surface.apiRoute} onClose={() => setReleasing(false)}
+      onRefusal={setActionError} onSuccess={() => { results.reload(); onPagesReleased?.() }} /> : null}
   </div>
 }
