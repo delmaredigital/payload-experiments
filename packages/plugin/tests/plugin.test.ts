@@ -1,5 +1,6 @@
 import type { Config } from 'payload'
 import { expect, test, vi } from 'vitest'
+import { pageGuardBeforeChange, pageGuardAfterChange } from '../src/hooks/pageGuard.js'
 import { contentChangesBeforeHook, contentChangesHook } from '../src/hooks/contentChanges.js'
 import { createExperimentsPlugin } from '../src/plugin.js'
 import { fakePayload } from './_fakes/payload.js'
@@ -14,7 +15,7 @@ test('adds collections, global, endpoints and resolved custom options without mu
   const result = await createExperimentsPlugin(sampleOptions())(config)
   expect(result.collections?.map(c => c.slug)).toEqual(['pages', 'xp-experiments', 'xp-phases', 'xp-layers', 'xp-metrics', 'xp-events', 'xp-identities', 'xp-results-snapshots'])
   expect(result.globals?.map(g => g.slug)).toEqual(['settings', 'xp-state'])
-  expect(result.endpoints).toHaveLength(21)
+  expect(result.endpoints).toHaveLength(22)
   expect(result.endpoints?.[0]).toBe(endpoint)
   expect(result.custom).toMatchObject({ host: true, xp: { events: { retentionDays: 180 }, puck: { collections: [] } } })
   expect(config.collections).toEqual([collection])
@@ -43,8 +44,8 @@ test('appends contentChangesHook to listed collections while preserving existing
   const options = sampleOptions()
   options.puck = { enabled: true, collections: ['pages'] }
   const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [pages, posts] })
-  expect(config.collections?.[0]?.hooks?.afterChange).toEqual([previous, contentChangesHook])
-  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange, contentChangesBeforeHook])
+  expect(config.collections?.[0]?.hooks?.afterChange).toEqual([previous, pageGuardAfterChange, contentChangesHook])
+  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange, pageGuardBeforeChange, contentChangesBeforeHook])
   expect(config.collections?.[1]).toBe(posts)
   expect(pages.hooks.afterChange).toEqual([previous])
 })
@@ -59,7 +60,7 @@ test('object registrations install the wrapped hook and retain the custom field'
   const options = sampleOptions()
   options.puck = { enabled: true, collections: [{ slug: 'templates', field: 'content' }] }
   const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [{ slug: 'templates', fields: [] }] })
-  expect(config.collections?.[0]?.hooks?.afterChange).toEqual([contentChangesHook])
+  expect(config.collections?.[0]?.hooks?.afterChange).toEqual([pageGuardAfterChange, contentChangesHook])
   expect(config.custom?.xp.puck.collections).toEqual([{ slug: 'templates', field: 'content' }])
 })
 
@@ -132,7 +133,7 @@ test('page and Puck registrations compose once while preserving host hooks', asy
   expect(hooks.beforeDelete).toEqual([host, pageGuardBeforeDelete])
   expect(hooks.beforeOperation).toEqual([host, pageGuardBeforeOperation])
   expect(hooks.afterOperation).toEqual([pageGuardAfterOperation])
-  expect(hooks.afterChange).toEqual([contentChangesHook])
+  expect(hooks.afterChange).toEqual([pageGuardAfterChange, contentChangesHook])
 })
 test('unknown page collection fails at config time', () => {
   const options = sampleOptions()

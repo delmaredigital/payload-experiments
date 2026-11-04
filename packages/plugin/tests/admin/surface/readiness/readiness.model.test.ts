@@ -11,6 +11,9 @@ const fixtures = {
   'make-content-unsupported': ['header', 'Landing page', "Landing page has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand."],
   'invalid-status': ['header', undefined, null],
   'no-placements': ['what', undefined, 'Not on a page yet. Open a page, add an Experiment block and choose this test.'],
+  'placement-unpublished': ['versions', [{ title: 'Landing' }], "The block you're testing is only on a draft of Landing. Publish the page before you start."],
+  'duplicate-version-row': ['versions', [{ title: 'Landing' }], 'The Experiment block on Landing has the same version twice. Remove one of them, then save.'],
+  'interacting-tests': ['versions', [{ path: '/landing', name: 'Other', status: 'decided' }], 'This test uses /landing, which the decided test Other also changes. Finish one of them first.'],
   'empty-slot': ['versions', [{ slots: { control: 1, variantA: 0 } }], 'Add content for Short headline on the page.'],
   'flag-no-point': ['what', undefined, 'Choose the setting to test.'],
   'flag-params-invalid': ['versions', [{ arm: 'variantA', field: 'headline' }], 'Set a value for Headline text on Short headline.'],
@@ -56,9 +59,9 @@ test('covers every literal start check and every member of both source unions (3
   const readinessUnion = source.split('export type ReadinessCode = ArmIssueCode')[1]!.split('export interface')[0]!
   const armUnion = endpoints.split('export type ArmIssueCode =')[1]!.split('\n')[0]!
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(25)
+  expect(literals).toHaveLength(28)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(38)
+  expect(members).toHaveLength(41)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
   expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'version-identical', 'version-page-unavailable', 'version-page-unchecked'].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())

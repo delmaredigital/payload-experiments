@@ -4,7 +4,7 @@ import { sampleOptions, field, validate } from '../collections/fixtures.js'
 import { resolveOptions, documentEditor } from '../../src/options.js'
 import { createExperimentsPlugin } from '../../src/plugin.js'
 import { contentChangesBeforeHook, contentChangesHook } from '../../src/hooks/contentChanges.js'
-import { pageGuardBeforeChange, pageGuardBeforeDelete } from '../../src/hooks/pageGuard.js'
+import { pageGuardAfterChange, pageGuardBeforeChange, pageGuardBeforeDelete } from '../../src/hooks/pageGuard.js'
 import { serializePageCollections } from '../../src/admin/pageCollections.js'
 import { collectionLabel } from '../../src/collections/labels.js'
 import { sortLockKeys, lockPagePaths } from '../../src/db/locks.js'
@@ -38,7 +38,7 @@ test('triple registration composes one guarded audit pair and a column-free side
   const config = await createExperimentsPlugin({ ...sampleOptions(), pages: { collections: [page()] }, puck: { enabled: true, collections: ['pages'] }, blocks: { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => false }] } })({ collections: [{ slug: 'pages', fields: [] }] } as unknown as Config)
   const collection = config.collections![0]!
   expect(collection.hooks?.beforeChange).toEqual([pageGuardBeforeChange, contentChangesBeforeHook])
-  expect(collection.hooks?.afterChange).toEqual([contentChangesHook])
+  expect(collection.hooks?.afterChange).toEqual([pageGuardAfterChange, contentChangesHook])
   expect(collection.hooks?.beforeDelete).toEqual([pageGuardBeforeDelete])
   expect(collection.fields[0]).toMatchObject({ name: 'xpPlacementStatus', type: 'ui', admin: { position: 'sidebar' } })
   const experiment = config.collections!.find(entry => entry.slug === 'xp-experiments')!

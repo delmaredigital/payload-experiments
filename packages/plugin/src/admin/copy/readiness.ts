@@ -69,3 +69,15 @@ export const versionPageUncheckedCopy = (path: string, status = 'running') => `C
 
 export const sameAddressCopy = (label: string, other: string, path: string) => `${label} has the same address (${path}) as ${other}. Choose a different page.`
 export const identicalVersionCopy = (version: string) => `${version} looks the same as the Original, so the test would compare nothing. Change it before you start.`
+
+/** Keep named actions aligned with the actual transition buttons. */
+export function placementGuardCopy(page: { name: string; status: string }, block: { name: string; status: string }, preExisting: boolean): string {
+  const action = (test: { name: string; status: string }) => test.status === 'running' ? `stop ${test.name}` : `choose "Make it the content" or "Discard winner" on ${test.name}`
+  return preExisting
+    ? `This page is in two tests that change it, ${page.name} and ${block.name}. Before you publish, ${action(page)} or ${action(block)}.`
+    : `This page is part of the ${page.status} test ${page.name}, so a block from another test can't be added to it. Finish one of the tests first.`
+}
+
+export function interactingTestsCopy(page: string, state: string, name: string, version = false): string {
+  return `This test uses ${page}, which the ${state} test ${name} also changes. Finish one of them first${version ? `, or remove its block from ${page}` : ''}.`
+}

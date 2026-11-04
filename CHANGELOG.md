@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: Experiment blocks for registered Payload blocks fields, with Original/version rendering, viewport groups, draft wrapping and winner replacement in published content and drafts. Migration impact: hosts adopting `createExperimentBlock` add the Experiment block and slots tables and their version tables with `payload migrate:create`.
+- Added: frozen placement documents and guards against whole-page tests interacting with block or Puck tests, including bounded, retryable saves. The placement guard is installed on every `pages`, `blocks` and `puck` collection. Migration impact: nullable `xp_phases.placement_docs`; run `payload migrate:create` and `payload generate:importmap` (still required by the status field above).
+- Changed: results health preserves page and goal checks together. Migration impact: none.
 - Added: whole-page content checks and copying guidance per page collection, `admin.descriptions.page`, and page collection selection on tests. Identical versions warn; versions at the same address are refused. Migration impact: nullable `xp_experiments.page_collection` and `_xp_experiments_v.version_page_collection`; run `payload migrate:create`.
 - Added: manager-only page browsing and page/test status endpoints, preserving published addresses while drafts are edited. Page registrations get a sidebar status field; page and blocks registrations get composed content-change auditing. Migration impact: hosts with `pages` run `payload generate:importmap`; auditing adds no columns.
 - Added: `pageKindSeoContract` from `/rsc` to test host metadata and sitemap wiring. Migration impact: none.

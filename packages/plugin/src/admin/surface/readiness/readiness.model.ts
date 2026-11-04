@@ -3,7 +3,7 @@ import type { SerializedFlagPoint } from '../../../types/admin.js'
 import type { TestDocument } from '../testDocument.model.js'
 import { formatDate } from '../../format/date.js'
 import { actionGroupLabel } from '../../actions/actions.model.js'
-import { sameAddressCopy, identicalVersionCopy, unsupportedContentCopy, versionPageUnavailableCopy, versionPageUncheckedCopy, placementFailureCopy, pageInUseCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
+import { interactingTestsCopy, sameAddressCopy, identicalVersionCopy, unsupportedContentCopy, versionPageUnavailableCopy, versionPageUncheckedCopy, placementFailureCopy, pageInUseCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
 
 import { SECTION_ORDER, type SectionId } from '../contracts.js'
 export type ReadinessContext = Pick<TestDocument, 'arms' | 'unitType' | 'flagPoint'> & {
@@ -25,6 +25,9 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'make-content-unsupported': row('header', detail => unsupportedContentCopy(text(detail, 'This page'))),
   'invalid-status': row('header', () => null),
   'no-placements': row('what', detail => detail === undefined ? C.noPlacements : placementFailureCopy(detail)),
+  'placement-unpublished': { ...row('versions', detail => `The block you're testing is only on a draft of ${text(first(detail).title, 'this page')}. Publish the page before you start.`), nextStep: 'Publish the page' },
+  'duplicate-version-row': { ...row('versions', detail => `The Experiment block on ${text(first(detail).title, 'this page')} has the same version twice. Remove one of them, then save.`), nextStep: 'Edit the page' },
+  'interacting-tests': { ...row('versions', detail => interactingTestsCopy(text(first(detail).path, 'this page'), text(first(detail).status, 'running'), text(first(detail).name, 'another test'), first(detail).version === true)), nextStep: detail => `Open ${text(first(detail).name, 'the test')}` },
   'empty-slot': row('versions', (detail, ctx) => {
     const placements = Array.isArray(detail) ? detail : []
     const missing = ctx.arms.find(item => item.kind !== 'holdout' && placements.some(placement => {
@@ -61,7 +64,7 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   }), nextStep: C.chooseDifferentPage },
   'page-no-targets': { ...row('versions', () => C.noTargets), nextStep: 'Choose pages' },
   'unknown-collection': row('versions', () => "That page type isn't set up for tests."),
-  'version-identical': { ...row('versions', (detail, ctx) => identicalVersionCopy(text(object(detail).path, group(object(detail).arm, ctx)))), nextStep: (detail, ctx) => `Edit ${text(object(detail).path, group(object(detail).arm, ctx))}` },
+  'version-identical': { ...row('versions', (detail, ctx) => identicalVersionCopy(text(object(detail).path, object(detail).title ? `${group(object(detail).arm, ctx)} on ${text(object(detail).title, 'this page')}` : group(object(detail).arm, ctx)))), nextStep: (detail, ctx) => `Edit ${text(object(detail).path, group(object(detail).arm, ctx))}` },
   'version-same-address': { ...row('versions', (detail, ctx) => sameAddressCopy(group(object(detail).arm, ctx), group(object(detail).otherArm, ctx), text(object(detail).path, 'this address'))), nextStep: 'Choose pages' },
   'page-target-unpublished': row('versions', detail => unpublishedPageCopy(text(detail, 'This page'))),
   'page-targets-unchecked': row('versions', () => C.uncheckedPages),

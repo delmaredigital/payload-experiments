@@ -10,6 +10,9 @@ export type ReadinessCode = ArmIssueCode
   | 'no-planned-duration'
   | 'no-primary-metric'
   | 'no-reach-per-day'
+  | 'placement-unpublished'
+  | 'duplicate-version-row'
+  | 'interacting-tests'
   | 'version-identical'
   | 'version-same-address'
   | 'unknown-collection'
@@ -49,6 +52,7 @@ export interface CheckStartInput {
   experiment: StartExperiment; metrics: StartMetric[]; metricSources?: Pick<MetricSource, 'id' | 'keyedBy'>[]
   flagPoints?: FlagPoint[]; placements?: BlockPlacement[]; flagPlacements?: FlagPlacement[]
   placementError?: PlacementFailure; flagPlacementError?: PlacementFailure; flagPointBusy?: boolean
+  interactions?: import('./placementInteractions.js').InteractionDetail[]
   unknownPageCollection?: boolean; identicalVersions?: Array<{ arm: string; path: string; collection: string; id: DocId }>
   unpublishedPageTargets?: string[]; pageTargetsUnchecked?: boolean
   pageTestsInUse?: Pick<StartExperiment, 'id' | 'arms'>[]
@@ -101,6 +105,7 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('no-primary-metric', primary !== undefined && input.metrics.some(metric => String(metric.id) === String(primary)))
   add('no-reach-per-day', !['manual', 'viewport'].includes(e.exposurePolicy) || positive(e.analysis?.reachPerDay))
   add('page-no-targets', e.kind !== 'page' || e.arms.filter(arm => arm.kind !== 'holdout').every(arm => typeof arm.pageTarget === 'string' && arm.pageTarget.trim().length > 0))
+  add('interacting-tests', !input.interactions?.length, input.interactions)
   add('unknown-collection', !input.unknownPageCollection)
   const addressed = new Map<string, string>()
   const duplicate = e.kind === 'page' ? e.arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget).flatMap(arm => {
@@ -130,7 +135,14 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
     input.flagPlacementError ?? { missing: missing.map(arm => arm.key), placements: failed })
   const placements = input.placements ?? []
   add('no-placements', e.kind !== 'block' || !input.placementError && placements.length > 0, input.placementError)
-  const empty = placements.filter(placement => e.arms.some(arm => arm.kind !== 'holdout' && (!arm.slot || !(placement.slots[arm.slot] > 0))))
+  const unpublished = placements.filter(p => !p.published && !placements.some(other => other.published && other.collection === p.collection && String(other.id) === String(p.id)))
+  add('placement-unpublished', unpublished.length === 0, unpublished)
+  const duplicates = placements.filter(p => p.published && p.duplicateRows)
+  add('duplicate-version-row', duplicates.length === 0, duplicates)
+  for (const p of placements.filter(p => p.published)) for (const slot of p.identicalSlots ?? []) {
+    if (e.arms.some(a => a.slot === slot && a.kind !== 'holdout')) checks.push({ code: 'version-identical', ok: true, warning: true, detail: { arm: slot, collection: p.collection, id: p.id, title: p.title } })
+  }
+  const empty = placements.filter(placement => placement.published && e.arms.some(arm => arm.kind !== 'holdout' && (!arm.slot || !(placement.slots[arm.slot] > 0))))
   add('empty-slot', e.kind !== 'block' || empty.length === 0, empty)
   add('make-content-unsupported', true)
   const localized = placements.find(placement => placement.localized)

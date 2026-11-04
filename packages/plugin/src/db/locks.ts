@@ -38,3 +38,14 @@ export function sortLockKeys(keys: readonly string[]): string[] { return [...new
 export async function lockSlug(exec: Executor, slug: string): Promise<void> {
   await exec.query(LOCK_STATEMENTS.slug, [slug])
 }
+
+/** Guard takes the audit's entire E set first (KI-6), then its own path locks.
+ * SET LOCAL reverts on abort. Restore explicitly only after successful work.
+ */
+export async function lockPlacementScope(exec: Executor, experiments: readonly string[], paths: readonly string[]): Promise<void> {
+  const { rows } = await exec.query<{ timeout: string }>("SELECT current_setting('lock_timeout') AS timeout")
+  await exec.query("SELECT set_config('lock_timeout', '5s', true)")
+  for (const id of sortLockKeys(experiments)) await lockTransitionScope(exec, { experimentId: id })
+  await lockPagePaths(exec, paths)
+  await exec.query("SELECT set_config('lock_timeout', $1, true)", [rows[0]!.timeout])
+}

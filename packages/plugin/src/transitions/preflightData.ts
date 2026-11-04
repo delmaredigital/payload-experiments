@@ -1,4 +1,6 @@
+import { placementInteractions, placementPaths, uniquePlacementDocs } from './placementInteractions.js'
 import { Forbidden, NotFound, type PayloadRequest } from 'payload'
+import { normalisePath } from '../runtime/normalisePath.js'
 import { resolvePageCollection } from './pageCollection.js'
 import { identicalPageVersions } from './pageVersions.js'
 import { safeError } from '../log.js'
@@ -100,7 +102,7 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
       }
       if (experiment.kind === 'block') {
         try {
-          blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, puckCollections: options.puck?.collections ?? [], blocksCollections: options.blocks?.collections ?? [] })
+          blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, compareVersions: true, puckCollections: options.puck?.collections ?? [], blocksCollections: options.blocks?.collections ?? [] })
           input.placements = (await blocks).get(experiment.slug) ?? []
         } catch (cause) { input.placementError = placementFailure(cause) }
       }
@@ -157,6 +159,10 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
           return layer ? { unitType: layer.unitType as 'user' | 'visitor', usedSlices } : null
         })())
         input.layer = await layers.get(key)!
+      }
+      if ((experiment.kind === 'page' || experiment.kind === 'block') && options.pages?.collections.length) {
+        const paths = experiment.kind === 'page' ? experiment.arms.flatMap(a => typeof a.pageTarget === 'string' ? [a.pageTarget] : []) : await placementPaths(req, options, uniquePlacementDocs(input.placements ?? []))
+        input.interactions = await placementInteractions(req, await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload), options, experiment, paths.map(normalisePath))
       }
       inputs.set(String(experiment.id), input)
     } catch (cause) {

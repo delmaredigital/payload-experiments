@@ -1,5 +1,9 @@
+import { detached, scanPlacements, lockAndRescanPlacements, placementInteractions } from './placementInteractions.js'
+import type { ResolvedOptions } from '../types/contracts.js'
 import type { PayloadRequest } from 'payload'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
+import { refreshPlacementDocs } from '../db/placements.js'
+import { unpublishedPageTargets } from './preflightData.js'
 import { reclaimSlices } from '../db/slices.js'
 import { decideGuard } from '../results/decideGuard.js'
 import type { Arm, DocId } from '../types/contracts.js'
@@ -15,6 +19,8 @@ import { readExperiment, refuse, updateExperiment } from './start.js'
 
 export async function decide(req: PayloadRequest, { experimentId, winnerArm, note, confirmation }: DecideBody & { experimentId: DocId }) {
   const before = await readExperiment(req, experimentId)
+  const options = req.payload.config.custom?.xp as ResolvedOptions
+  const placements = before.status === 'stopped' && before.kind === 'block' ? await detached(req, () => scanPlacements(req, options, before.slug)) : []
   const { result: doc, revision } = await withTransition(req, {
     experimentId, layerId: relationshipId(before.layer), flagPointId: before.kind === 'flag' ? before.flagPoint : undefined,
   }, async ({ req, exec }) => {
@@ -28,6 +34,10 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
     }
     const test = await readPhaseRecord(req, experimentId, current.phase!)
     if (test.phaseKind !== 'test') refuse('invalid-status')
+    if (current.kind === 'block' && current.status === 'stopped') {
+      const rescan = await lockAndRescanPlacements(req, exec, options, { ...current, arms: test.arms }, placements)
+      await refreshPlacementDocs(exec, experimentId, test.phase, rescan.docs)
+    }
     if (current.kind === 'page' && current.status === 'stopped') {
       // Deciding a stopped page test restores its routing: recheck page occupancy under the
       // sorted path locks Start takes, so another test that started on these pages meanwhile wins.
@@ -38,6 +48,12 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
       const occupied = new Set((await routedPageTests(exec)).filter(other => String(other.id) !== String(experimentId)).flatMap(other => pageTargetPaths(other.arms)))
       const shared = mine.filter(path => occupied.has(path))
       if (shared.length) refuse('page-in-use', { paths: shared })
+      const conflicts = await placementInteractions(req, exec, options, { ...current, arms: test.arms }, mine)
+      if (conflicts.length) refuse('interacting-tests', conflicts)
+      if (options?.pages) {
+        const unpublished = await detached(req, () => unpublishedPageTargets(req, options, { ...current, arms: test.arms }))
+        if (unpublished.length) refuse('page-target-unpublished', unpublished[0])
+      }
     }
     const winner = test.arms.find(arm => arm.key === winnerArm && arm.kind !== 'holdout')
     if (!winner) refuse('invalid-winner')

@@ -12,7 +12,7 @@ export class XpLockedFieldError extends Error {
 }
 export class XpNoTransactionError extends Error {
   override name = 'XpNoTransactionError'
-  constructor() { super('An active transaction is required') }
+  constructor(message = 'An active transaction is required') { super(message) }
 }
 export class XpRefusal extends Error {
   override name = 'XpRefusal'

@@ -16,6 +16,7 @@ export interface PhaseRecord {
   targeting: TargetingRule[]
   metricDefinitions?: Array<Record<string, unknown>>
   analysis?: Record<string, unknown> & { sequentialTuningParameter?: number | null }
+  placementDocs?: import('../db/placements.js').PlacementDoc[] | null
   contentChanges?: ContentChange[]
 }
 
