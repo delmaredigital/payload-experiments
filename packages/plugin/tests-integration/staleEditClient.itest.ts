@@ -52,7 +52,6 @@ describe.skipIf(!process.env.INTEGRATION_DATABASE_URL)('admin stale-edit REST ro
       // All hook-supplied options, including credentials, headers and JSON, pass
       // through to the real handler. Never synthesize a stale-edit response.
       const request = new Request(typeof input === 'string' ? new URL(input, 'http://localhost') : input, init)
-      expect(request.credentials).toBe('include')
       request.headers.set('Authorization', `JWT ${tokens.get(manager)!}`)
       const url = new URL(request.url)
       const method = request.method
@@ -86,6 +85,8 @@ describe.skipIf(!process.env.INTEGRATION_DATABASE_URL)('admin stale-edit REST ro
         { key: 'variantA', kind: 'variant', label: 'Variant A', slot: 'variantA', weight: 50 },
       ],
     } })
+    // Payload timestamps have millisecond precision; make sure A's save advances past the fixture's.
+    while (Date.now() <= new Date(doc.updatedAt).getTime()) await new Promise(resolve => setTimeout(resolve, 1))
     const documentUrl = `/api/xp-experiments/${encodeURIComponent(String(doc.id))}?depth=0`
     const patches = () => exchanges.filter(exchange => exchange.method === 'PATCH')
     const open = async (manager: Manager) => {
@@ -97,6 +98,8 @@ describe.skipIf(!process.env.INTEGRATION_DATABASE_URL)('admin stale-edit REST ro
     const a = await open('A')
     const b = await open('B')
     const baseline = a.result.current.doc!.updatedAt
+    // Recorded in the router and asserted here, so a failure is not swallowed by the hook's catch.
+    expect(exchanges.every(exchange => exchange.credentials === 'include')).toBe(true)
     expect(b.result.current.doc!.updatedAt).toBe(baseline)
     expect(baseline).toMatch(/\.\d{3}Z$/)
     expect(patches()).toHaveLength(0) // No automatic default save can hide the shared baseline.
