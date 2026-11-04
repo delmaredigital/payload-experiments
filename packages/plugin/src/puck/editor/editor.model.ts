@@ -4,8 +4,9 @@ import { editorCopy } from './copy.js'
 
 export type EditorExperiment = {
   name: string
+  updatedAt?: string
   status: Status
-  arms: Array<Pick<Arm, 'key' | 'kind' | 'label'>>
+  arms: Array<Pick<Arm, 'key' | 'kind' | 'label'> & Partial<Arm>>
   decision?: { winnerArm?: string } | null
 }
 

@@ -17,7 +17,9 @@ import { bannerFor, tabsFor, type EditorExperiment } from './editor.model.js'
 import { cloneSlot } from './cloneSlot.js'
 import { CreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
-import { acquireArms, loadArms, useArms } from './armsCache.js'
+import { acquireArms, loadArms, setArms, useArms } from './armsCache.js'
+import { AddVariant, RemoveVersion, VersionActions, VersionWeights, useArmWrites } from './VersionBuilder.js'
+import { ResultsReadout } from './ResultsReadout.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
@@ -51,12 +53,21 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     return () => observer.disconnect()
   }, [props.accent])
   const experimentId = props.experiment?.id
+  const bindingKey = JSON.stringify([api, props.id, experimentId])
+  const binding = useRef({ key: bindingKey, live: true })
+  binding.current.key = bindingKey
+  useEffect(() => { binding.current.live = true; return () => { binding.current.live = false } }, [])
+  const isCurrentBinding = () => binding.current.live && binding.current.key === bindingKey
   const knownArms = useArms(experimentId)
   const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean }>()
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
+  const [openMenu, setOpenMenu] = useState<ArmSlot | null>(null)
+  const [clearError, setClearError] = useState<{ key: string; message: string } | null>(null)
   const [creating, setCreating] = useState(false)
   // A non-empty variant is only overwritten after an explicit second confirmation.
   const [confirming, setConfirming] = useState<ArmSlot | null>(null)
+  // Keep a failed removal open even if the recovery read no longer contains that version.
+  const [removing, setRemoving] = useState<{ key: string; arm: EditorExperiment['arms'][number] } | null>(null)
   const pageTitle = usePuckSelector(state => typeof state.appState.data.root.props?.title === 'string' ? state.appState.data.root.props.title : '')
   const selected = usePuckSelector(state => state.selectedItem?.props.id === props.id)
   const originalEmpty = usePuckSelector(state => {
@@ -107,6 +118,16 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
 
   const result = experimentId === undefined || loaded?.id !== experimentId ? undefined : loaded
   const experiment = result?.doc
+  const editable = experiment?.status === 'draft' || experiment?.status === 'stopped'
+  const [removed, setRemoved] = useState<{ key: string; revision: number } | null>(null)
+  useEffect(() => {
+    // Dialog cleanup must close the native modal before an outside tab can receive focus.
+    if (removed?.key === bindingKey) root.current?.querySelector<HTMLButtonElement>('[role="tab"]')?.focus()
+  }, [removed, bindingKey])
+  const writes = useArmWrites(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, doc => {
+    setArms(experimentId!, doc.arms.map(arm => arm.key))
+    if (isCurrentBinding()) setLoaded({ id: experimentId, doc })
+  }, isCurrentBinding, () => setClearError(null))
   const tabs = tabsFor(experiment)
   const activeSlot = active && active.id === experimentId ? active.slot : undefined
   const slot = tabs.find(tab => tab.slot === activeSlot)?.slot ?? tabs[0]?.slot ?? 'control'
@@ -136,6 +157,19 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     })
   }
 
+  function removeContent(slot: ArmSlot) {
+    if (!isCurrentBinding()) return
+    const { getItemById, dispatch, getSelectorForId } = getPuck()
+    const item = getItemById(props.id), selector = getSelectorForId(props.id)
+    if (!item || !selector) { setClearError({ key: bindingKey, message: editorCopy.removeUncleared }); return }
+    setClearError(null)
+    dispatch({ type: 'replace', destinationIndex: selector.index, destinationZone: selector.zone,
+      data: { ...item, props: { ...item.props, [slot]: [] } },
+    })
+    setRemoved(current => ({ key: bindingKey, revision: (current?.revision ?? 0) + 1 }))
+    setActive({ id: experimentId, slot: 'control' })
+  }
+
   function bind(experiment: ExperimentRef) {
     const { getItemById, dispatch, getSelectorForId } = getPuck()
     const item = getItemById(props.id), selector = getSelectorForId(props.id)
@@ -158,8 +192,15 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       <div className="xp-ui-button-group">
         {experimentId === undefined ? <Button variant="primary" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</Button> : null}
         {experiment ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`} target="_blank" rel="noopener noreferrer">{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</Button> : null}
-        {slot !== 'control' ? <Button disabled={!selected || originalEmpty} onClick={() => requestCopy(slot)}>{editorCopy.copy}</Button> : null}
+        {experiment && editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}
       </div>
+      {experiment && !editable ? <p className="xp-ui-help">{editorCopy.locked[experiment.status as keyof typeof editorCopy.locked]}</p> : null}
+      {experiment && editable ? <VersionWeights key={`weights-${experimentId}`} experiment={experiment} writes={writes} /> : null}
+      {writes.error ? <p role="alert" className="xp-ui-error">{writes.error}</p> : null}
+      {clearError?.key === bindingKey ? <p role="alert" className="xp-ui-error">{clearError.message}</p> : null}
+      {removed?.key === bindingKey ? <p className="xp-ui-help">{editorCopy.removed}</p> : null}
+      {experiment && experiment.status !== 'draft' ? <ResultsReadout key={`results-${experimentId}`} id={experimentId!} api={api} experiment={experiment} /> : null}
+      {removing?.key === bindingKey ? <RemoveVersion arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null}
       {creating ? <CreateExperimentDrawer initialName={pageTitle} onCreate={bind} onClose={() => setCreating(false)} /> : null}
       {confirming ? <div className="xp-slot-confirm" role="alert"><p>{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming)}</p>
         <div className="xp-ui-button-group">
@@ -167,8 +208,10 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           <Button onClick={() => setConfirming(null)}>{editorCopy.cancel}</Button>
         </div></div> : null}
     </div>
-    <Tabs label={editorCopy.tabs} value={slot} tabListRef={registerControls} onChange={value => setActive({ id: experimentId, slot: value as ArmSlot })}
-      items={tabs.map(tab => ({ id: tab.slot, label: tab.label, content: tab.slot === slot ?
+    <Tabs label={editorCopy.tabs} value={slot} tabListRef={registerControls} onChange={value => { setOpenMenu(null); setActive({ id: experimentId, slot: value as ArmSlot }) }}
+      items={tabs.map(tab => ({ id: tab.slot, label: tab.label, actions: experiment ? <VersionActions
+        key={`${experimentId}-${tab.slot}`} arm={experiment.arms.find(arm => arm.key === tab.slot)!} writes={writes} editable={editable} open={openMenu === tab.slot} onOpenChange={open => setOpenMenu(open ? tab.slot : null)}
+        canCopy={selected && !originalEmpty} onCopy={requestCopy} onRequestRemove={() => setRemoving({ key: bindingKey, arm: experiment.arms.find(arm => arm.key === tab.slot)! })} /> : undefined, content: tab.slot === slot ?
         <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'}>
           <Slot className="xp-slot-drop-target" />
           {slotEmpty ? <span className="xp-slot-drop-label">{editorCopy.dropZone(slot)}</span> : null}

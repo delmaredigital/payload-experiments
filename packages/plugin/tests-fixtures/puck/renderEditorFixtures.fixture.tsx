@@ -9,7 +9,7 @@ import type { EditorExperiment } from '../../src/puck/editor/editor.model.js'
 
 const fixture = vi.hoisted(() => ({
   doc: undefined as EditorExperiment | undefined,
-  inEditor: false, stateIndex: 0, filled: false, drawer: false, theme: 'light' as 'light' | 'dark',
+  state: '', inEditor: false, stateIndex: 0, filled: false, drawer: false, theme: 'light' as 'light' | 'dark',
 }))
 
 // Static rendering cannot run effects. Seed the chrome's theme, loaded document,
@@ -18,9 +18,16 @@ vi.mock('react', async importOriginal => {
   const react = await importOriginal<typeof import('react')>()
   return { ...react, useState: (initial: unknown) => {
     const index = fixture.inEditor ? fixture.stateIndex++ : -1
+    const editable = fixture.doc && ['draft', 'stopped'].includes(fixture.doc.status)
     const seeded = index === 0 ? fixture.theme : index === 1 ? { id: 1, doc: fixture.doc }
-      : index === 2 && fixture.doc?.status === 'running' ? { id: 1, slot: 'variantA' }
-      : index === 3 ? fixture.drawer : initial
+      : index === 2 && fixture.doc ? { id: 1, slot: 'variantA' }
+      : index === 3 ? ['draft', 'locked-menu'].includes(fixture.state) ? 'variantA' : null
+      : index === 5 ? fixture.drawer
+      : index === 7 && fixture.state === 'remove' ? { key: JSON.stringify(['/api', 'slot-1', 1]), arm: fixture.doc!.arms[1] }
+      : index === 11 && fixture.state === 'weights-invalid' ? { control: '101' }
+      : index === 11 && fixture.doc && !editable ? fixture.state === 'unavailable' ? 'unavailable'
+        : { headline: fixture.state === 'collecting' ? 'Collecting' : 'Variant A is ahead', people: fixture.state === 'collecting' ? null : { control: 1234, variantA: 1456, variantB: 1302 } }
+      : index === 13 && editable && fixture.state === 'rename' ? 'September headline' : initial
     return react.useState(seeded)
   } }
 })
@@ -46,7 +53,7 @@ const source = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 
 // Not part of the test suite: run by `pnpm fixtures:puck-editor` (vitest.fixtures.config.ts), which requires both env paths.
 describe('editor visual fixtures (coordinator only)', () => {
-  test('writes six editor states in light and dark, with host CSS first', () => {
+  test('writes builder and readout states in light and dark, with host CSS first', () => {
     const output = process.env.XP_FIXTURE_OUT ?? ''
     const hostCss = process.env.XP_HOST_CSS
     if (!isAbsolute(output) || !hostCss || !isAbsolute(hostCss)) {
@@ -55,17 +62,18 @@ describe('editor visual fixtures (coordinator only)', () => {
     readFileSync(hostCss) // Fail before writing if the supplied stylesheet is missing.
     mkdirSync(output, { recursive: true })
     const paths: string[] = []
-    for (const state of ['unbound', 'draft', 'running', 'decided', 'drawer', 'accent'] as const) {
+    for (const state of ['unbound', 'draft', 'running', 'decided', 'drawer', 'accent', 'remove', 'weights-invalid', 'collecting', 'unavailable', 'rename', 'locked-menu'] as const) {
       for (const theme of ['light', 'dark'] as const) {
+        fixture.state = state
         fixture.inEditor = true
         fixture.drawer = state === 'drawer'
         fixture.theme = theme
         fixture.stateIndex = 0
         fixture.filled = state !== 'unbound' && state !== 'drawer'
-        fixture.doc = state === 'unbound' || state === 'drawer' ? undefined : { name: 'September appeal', status: state === 'running' ? 'running' : state === 'decided' ? 'decided' : 'draft', decision: { winnerArm: 'variantA' }, arms: [
-          { key: 'control', kind: 'control', label: 'Original' },
-          { key: 'variantA', kind: 'variant', label: 'Variant A' },
-          ...(state === 'running' ? [{ key: 'variantB' as const, kind: 'variant' as const, label: 'Shorter appeal' }] : []),
+        fixture.doc = state === 'unbound' || state === 'drawer' ? undefined : { updatedAt: '2026-11-03T20:00:00.000Z', name: 'September appeal', status: ['running', 'collecting', 'unavailable', 'locked-menu'].includes(state) ? 'running' : state === 'decided' ? 'decided' : 'draft', decision: { winnerArm: 'variantA' }, arms: [
+          { key: 'control', kind: 'control', label: 'Original', weight: 50, slot: 'control' },
+          { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 50, slot: 'variantA' },
+          ...(state === 'running' ? [{ key: 'variantB' as const, kind: 'variant' as const, label: 'Shorter appeal', weight: 0, slot: 'variantB' as const }] : []),
         ] }
         const Editor = createExperimentSlotEditor({ accent: state === 'accent' ? '#1f3a68' : undefined }).render
         const content = <Editor id="slot-1" experiment={fixture.doc ? { id: 1, slug: 'september-appeal' } : null}
@@ -82,13 +90,24 @@ describe('editor visual fixtures (coordinator only)', () => {
             <link rel="stylesheet" href={pathToFileURL(join(source, 'puck/editor/editor.css')).href} />
             <style>{`body { margin: 0; padding: 32px; background: ${theme === 'dark' ? '#141414' : '#fff'}; } main { max-width: 1100px; margin: auto; }`}</style>
           </head>
-          <body><main>{content}</main>{state === 'drawer' ? <script dangerouslySetInnerHTML={{ __html: "const dialog = document.querySelector('dialog'); dialog.showModal(); dialog.querySelector('input').focus();" }} /> : null}</body>
+          <body><main>{content}</main>{state === 'drawer' || state === 'remove' ? <script dangerouslySetInnerHTML={{ __html: "const dialog = document.querySelector('dialog'); dialog.showModal(); (dialog.querySelector('[data-dialog-cancel]') || dialog.querySelector('input')).focus();" }} /> : null}</body>
         </html>)
         const path = join(output, `${state}-${theme}.html`)
         writeFileSync(path, page)
         paths.push(path)
       }
     }
-    expect(paths).toHaveLength(12)
+    expect(paths).toHaveLength(24)
+    expect(readFileSync(join(output, 'draft-light.html'), 'utf8')).toContain('Copy Original here')
+    expect(readFileSync(join(output, 'remove-dark.html'), 'utf8')).toContain('Remove Variant A?')
+    expect(readFileSync(join(output, 'weights-invalid-light.html'), 'utf8')).toContain('Use a whole number from 0 to 100.')
+    expect(readFileSync(join(output, 'rename-light.html'), 'utf8')).toContain('September headline')
+    const locked = readFileSync(join(output, 'locked-menu-dark.html'), 'utf8')
+    expect(locked).toContain('Copy Original here')
+    expect(locked).not.toContain('>Rename<')
+    expect(locked).not.toContain('>Remove<')
+    expect(readFileSync(join(output, 'running-dark.html'), 'utf8')).toContain('1,456 people')
+    expect(readFileSync(join(output, 'collecting-light.html'), 'utf8')).toContain('Collecting')
+    expect(readFileSync(join(output, 'unavailable-dark.html'), 'utf8')).toContain("Results aren&#x27;t available here.")
   })
 })
