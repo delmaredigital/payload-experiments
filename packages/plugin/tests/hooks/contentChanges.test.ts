@@ -81,7 +81,7 @@ test.each(['draft', 'autosave'])('host %s saves produce no audit reads or marker
   expect(executor.calls).toEqual([])
 })
 async function publishedBaseline(args: Parameters<CollectionAfterChangeHook>[0], published: unknown) {
-  const read = vi.fn(async () => published)
+  const read = vi.fn(async () => structuredClone(args.doc)).mockResolvedValueOnce(published)
   Object.assign(args.req.payload.db, { findOne: read, findVersions: vi.fn(() => { throw new Error('Version history must not be read') }) })
   args.collection.versions = { drafts: {} } as typeof args.collection.versions
   await contentChangesBeforeHook({ ...args, data: args.doc, originalDoc: args.previousDoc, operation: 'update' })
@@ -234,7 +234,7 @@ test('a draft-enabled arm-select host helper opts in with the public capture hoo
   args.doc = { id: 1, _status: 'published', vars: [{ experimentArm: tag, blocks: [{ text: 'New' }] }] }
   args.previousDoc = structuredClone(args.doc) // Latest autosaved draft equals publish.
   args.collection.versions = { drafts: {} } as typeof args.collection.versions
-  Object.assign(args.req.payload.db, { findOne: vi.fn(async () => published) })
+  Object.assign(args.req.payload.db, { findOne: vi.fn(async () => structuredClone(args.doc)).mockResolvedValueOnce(published) })
   await captureContentBaseline({ ...args, originalDoc: args.previousDoc, data: args.doc, operation: 'update' })
   await recordContentChange(args)
   expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(1)
@@ -244,7 +244,7 @@ test('first publish of a document created as draft records a marker despite iden
   const { args, executor } = setup()
   args.previousDoc = { ...structuredClone(args.doc), _status: 'draft' }
   args.collection.versions = { drafts: {} } as typeof args.collection.versions
-  Object.assign(args.req.payload.db, { findOne: vi.fn(async () => structuredClone(args.previousDoc)) })
+  Object.assign(args.req.payload.db, { findOne: vi.fn(async () => structuredClone(args.doc)).mockResolvedValueOnce(structuredClone(args.previousDoc)) })
   const versions = vi.fn(async () => ({ docs: [] }))
   Object.assign(args.req.payload.db, { findVersions: versions })
   // Re-capture using the real draft main-row shape and no published history.
@@ -258,7 +258,7 @@ test('unpublished main row with a published history uses main content, not versi
   const { args, executor } = setup()
   const main = { ...structuredClone(args.doc), _status: 'draft' }
   args.collection.versions = { drafts: {} } as typeof args.collection.versions
-  Object.assign(args.req.payload.db, { findOne: vi.fn(async () => main), findVersions: vi.fn(async () => ({ docs: [{ version: args.previousDoc }] })) })
+  Object.assign(args.req.payload.db, { findOne: vi.fn(async () => structuredClone(args.doc)).mockResolvedValueOnce(main), findVersions: vi.fn(async () => ({ docs: [{ version: args.previousDoc }] })) })
   await contentChangesBeforeHook({ ...args, originalDoc: args.previousDoc, data: args.doc, operation: 'update' })
   args.doc._status = 'published'
   await recordContentChange(args)
@@ -321,7 +321,7 @@ test('KI-2: draft-born page already contains a running slot; unchanged first pub
   args.collection.versions = { drafts: {} } as typeof args.collection.versions
   args.doc._status = 'draft'
   const main = structuredClone(args.doc)
-  Object.assign(args.req.payload.db, { findOne: vi.fn(async () => main), findVersions: vi.fn(async () => {
+  Object.assign(args.req.payload.db, { findOne: vi.fn(async () => structuredClone(args.doc)).mockResolvedValueOnce(main), findVersions: vi.fn(async () => {
     const queries = executor.calls.map(call => call.text)
     expect(queries.lastIndexOf('SAVEPOINT xp_content_change')).toBeGreaterThan(queries.lastIndexOf('RELEASE SAVEPOINT xp_content_change'))
     expect(args.req.transactionID).toBe('fake-transaction')
@@ -339,4 +339,54 @@ test('KI-2: draft-born page already contains a running slot; unchanged first pub
   expect(JSON.parse(markers[0]!.params[0] as string)[0]).toMatchObject({ doc: { collection: 'pages', id: 1 } })
   const savepoint = executor.calls.findIndex(call => call.text === 'SAVEPOINT xp_content_change')
   expect(savepoint).toBeGreaterThanOrEqual(0)
+})
+
+test.each(['upload', 'relationship'])('%s expansion at default depth records no marker; stored edits still record one at either depth', async field => {
+  for (const depth of [0, 2]) for (const changed of [false, true]) {
+    const { args, executor, payload } = setup()
+    args.collection.slug = 'asks'
+    args.collection.versions = { drafts: {} } as typeof args.collection.versions
+    const row = (text: string) => ({ id: 1, _status: 'published', layout: [{
+      id: 'block', blockType: 'linked', experimentArm: { experiment: 'exp', arm: 'variantA' },
+      text, [field]: 7,
+    }] })
+    const before = row('Original')
+    const after = row(changed ? 'Changed' : 'Original')
+    args.previousDoc = structuredClone(before)
+    args.doc = structuredClone(after)
+    if (depth) args.doc.layout[0][field] = { id: 7, title: 'Expanded linked document' }
+    const transaction = args.req.transactionID
+    const read = vi.fn(async (_args: unknown) => {
+      const queries = executor.calls.map(call => call.text)
+      expect(queries.lastIndexOf('SAVEPOINT xp_content_change')).toBeGreaterThan(queries.lastIndexOf('RELEASE SAVEPOINT xp_content_change'))
+      expect(args.req.transactionID).toBe(transaction)
+      return structuredClone(after)
+    }).mockResolvedValueOnce(before)
+    Object.assign(payload.db, { findOne: read })
+    await contentChangesBeforeHook({ ...args, originalDoc: args.previousDoc, data: args.doc, operation: 'update' })
+    expect(await contentChangesHook(args)).toBe(args.doc)
+    expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(changed ? 1 : 0)
+    expect(read).toHaveBeenCalledTimes(2)
+    for (const [call] of read.mock.calls) {
+      expect(call).toMatchObject({ collection: 'asks', req: args.req, where: { id: { equals: 1 } }, overrideAccess: false })
+    }
+    expect(payload.calls).toEqual([])
+    expect(args.req.transactionID).toBe(transaction)
+  }
+})
+
+test.each(['missing', 'error'])('a %s saved-row read recovers the audit savepoint without recording a removal', async failure => {
+  const { args, executor } = setup()
+  const read = await publishedBaseline(args, args.previousDoc)
+  const error = new Error('Saved row read failed')
+  if (failure === 'missing') read.mockResolvedValueOnce(undefined)
+  else read.mockRejectedValueOnce(error)
+  args.doc._status = 'published'
+  const transaction = args.req.transactionID
+  const report = vi.spyOn(console, 'error').mockImplementation(() => {})
+  expect(await contentChangesHook(args)).toBe(args.doc)
+  expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(0)
+  expect(executor.calls.some(call => call.text === 'ROLLBACK TO SAVEPOINT xp_content_change')).toBe(true)
+  expect(args.req.transactionID).toBe(transaction)
+  expect(report).toHaveBeenCalledOnce()
 })

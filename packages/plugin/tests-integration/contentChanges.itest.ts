@@ -1,6 +1,7 @@
 import { createLocalReq } from 'payload'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { createIntegrationHarness } from './harness.js'
+import { contentChangesBeforeHook, contentChangesHook } from '../src/hooks/contentChanges.js'
 import { start } from '../src/transitions/start.js'
 import type { ResolvedOptions } from '../src/types/contracts.js'
 
@@ -8,7 +9,17 @@ import type { ResolvedOptions } from '../src/types/contracts.js'
 let harness: Awaited<ReturnType<typeof createIntegrationHarness>>
 beforeAll(async () => {
   harness = await createIntegrationHarness({
-    collections: [{ slug: 'audit-pages', versions: { drafts: { autosave: true }, maxPerDoc: 2 },
+    collections: [{ slug: 'audit-media', upload: { disableLocalStorage: true, filesRequiredOnCreate: false }, fields: [] },
+      { slug: 'audit-links', fields: [{ name: 'title', type: 'text' }] },
+      { slug: 'linked-audit-pages', versions: { drafts: true },
+        access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true },
+        hooks: { beforeChange: [contentChangesBeforeHook], afterChange: [contentChangesHook] },
+        fields: [{ name: 'layout', type: 'blocks', blocks: [{ slug: 'linked', fields: [
+          { name: 'experimentArm', type: 'group', fields: [{ name: 'experiment', type: 'text' }, { name: 'arm', type: 'text' }] },
+          { name: 'text', type: 'text' }, { name: 'image', type: 'upload', relationTo: 'audit-media' },
+          { name: 'link', type: 'relationship', relationTo: 'audit-links' },
+        ] }] }],
+      }, { slug: 'audit-pages', versions: { drafts: { autosave: true }, maxPerDoc: 2 },
       access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true },
       fields: [{ name: 'title', type: 'text' }, { name: 'content', type: 'json' }],
     }], puckCollections: [{ slug: 'audit-pages', field: 'content' }],
@@ -16,7 +27,7 @@ beforeAll(async () => {
 }, 60_000)
 afterAll(async () => { await harness?.teardown() })
 
-async function setup(name: string, initialDraft = false) {
+async function setup(name: string, initialDraft = false, startNow = true) {
   const { payload } = harness
   const req = await createLocalReq({}, payload)
   const metric = await payload.create({ collection: 'xp-metrics', req, overrideAccess: true,
@@ -33,7 +44,8 @@ async function setup(name: string, initialDraft = false) {
   } }] })
   const page = await payload.create({ collection: 'audit-pages', req, overrideAccess: false,
     draft: initialDraft, data: { title: name, content: content('Published'), _status: initialDraft ? 'draft' : 'published' } })
-  await start(req, { experimentId: experiment.id, options: payload.config.custom!.xp as ResolvedOptions })
+  const begin = () => start(req, { experimentId: experiment.id, options: payload.config.custom!.xp as ResolvedOptions })
+  if (startNow) await begin()
   const save = (value: string, draft: boolean, autosave = false) => payload.update({ collection: 'audit-pages', id: page.id,
     req, overrideAccess: false, draft, autosave, data: { content: content(value), _status: draft ? 'draft' : 'published' } })
   const markers = async () => {
@@ -41,7 +53,7 @@ async function setup(name: string, initialDraft = false) {
       where: { and: [{ experiment: { equals: experiment.id } }, { phase: { equals: 1 } }] } })
     return phases.docs[0]!.contentChanges as unknown[]
   }
-  return { payload, req, page, save, markers }
+  return { payload, req, page, save, markers, experiment, begin }
 }
 
 test('autosave then publish records exactly one marker against the main published row', async () => {
@@ -73,5 +85,26 @@ test('first publish of unchanged slots created in a draft records one marker', a
   const f = await setup('audit-first-publish', true)
   expect(await f.markers()).toHaveLength(0)
   await f.save('Published', false)
+  expect(await f.markers()).toHaveLength(1)
+})
+
+
+test.each(['image', 'link'] as const)('default-depth unchanged %s publish records nothing; a stored content edit records one', async field => {
+  const f = await setup(`audit-expanded-${field}`, false, false)
+  const linked = await f.payload.create({ collection: field === 'image' ? 'audit-media' : 'audit-links',
+    req: f.req, overrideAccess: true, data: { title: 'Linked document', filename: 'linked.png', mimeType: 'image/png' } })
+  const page = await f.payload.create({ collection: 'linked-audit-pages', req: f.req, overrideAccess: false,
+    data: { _status: 'published', layout: [{ blockType: 'linked', text: 'Original', [field]: linked.id,
+      experimentArm: { experiment: String(f.experiment.id), arm: 'variantA' } }] } })
+  await f.begin()
+  const unchanged = await f.payload.update({ collection: 'linked-audit-pages', id: page.id, req: f.req,
+    overrideAccess: false, data: { _status: 'published' } })
+  expect(unchanged.layout[0][field]).toMatchObject({ id: linked.id })
+  expect(await f.markers()).toHaveLength(0)
+  await f.payload.update({ collection: 'linked-audit-pages', id: page.id, req: f.req, overrideAccess: false,
+    data: { _status: 'published', layout: [{ ...unchanged.layout[0], text: 'Changed', [field]: linked.id }] } })
+  expect(await f.markers()).toHaveLength(1)
+  await f.payload.update({ collection: 'linked-audit-pages', id: page.id, req: f.req, overrideAccess: false,
+    depth: 0, data: { _status: 'published' } })
   expect(await f.markers()).toHaveLength(1)
 })

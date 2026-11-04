@@ -1,7 +1,7 @@
 import { safeError } from '../log.js'
 import { isDeepStrictEqual } from 'node:util'
 import type { CollectionAfterChangeHook, CollectionBeforeChangeHook } from 'payload'
-import { appendContentChange, contentChangeSavepoint, previousPublishedContent, runningContentExperiment } from '../db/appends.js'
+import { appendContentChange, contentChangeSavepoint, previousPublishedContent, runningContentExperiment, storedContent } from '../db/appends.js'
 import { txExecutor } from '../db/executor.js'
 import { puckCollections } from '../options.js'
 import { withTransition } from '../transitions/kernel.js'
@@ -90,19 +90,23 @@ async function auditContentChange({ doc, previousDoc, req, collection }: Content
   }
   const options = req.payload.config.custom?.xp as ResolvedOptions | undefined
   const registration = puckCollections(options ?? {}).find(entry => entry.slug === collection.slug)
-  const after = bindings(registration ? doc[registration.field] : doc, Boolean(registration))
-  const changes = (previous: unknown) => {
+  const changes = (previous: unknown, current: unknown) => {
+    const after = bindings(registration && object(current) ? current[registration.field] : current, Boolean(registration))
     const before = bindings(registration && object(previous) ? previous[registration.field] : previous, Boolean(registration))
     return [...new Set([...before.keys(), ...after.keys()])]
       .filter(key => !isDeepStrictEqual(before.get(key)?.contents, after.get(key)?.contents))
       .map(key => after.get(key) ?? before.get(key)!)
   }
-  if (!drafts && !changes(previousDoc).length) return
+  if (!drafts && !changes(previousDoc, doc).length) return
   // Include discovery reads in the savepoint: a SQL read error also aborts Postgres.
   // An explicit host call must supply its afterChange request's transaction.
   const executor = txExecutor(req)
   const audit = await contentChangeSavepoint(executor, async () => {
-    const changed = changes(drafts ? baseline?.doc : previousDoc)
+    // The captured baseline is adapter-raw. afterChange's doc has already run
+    // through afterRead at the write's depth (including relationship expansion).
+    const current = drafts ? await storedContent(req, collection.slug, doc.id) : doc
+    if (!current) throw new Error('The saved content row was not found.')
+    const changed = changes(drafts ? baseline?.doc : previousDoc, current)
     const experiments = new Map<string, DocId>()
     for (const binding of changed) {
       const experiment = await runningContentExperiment(executor, binding)
