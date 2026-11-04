@@ -7,9 +7,11 @@ import { REVIEW_COPY } from '../copy/review.js'
 export type ActionGroup = { key: string; label?: string; kind?: string }
 // Local CORE-44 compatibility block: replace with root imports at handover.
 export type ContentReport = { docs: MakeContentResult['docs'] } | MakeContentResult['docs']
+/** Every recorded content entry is updated or handled by the manager. A present but empty report is done:
+ * page tests and flag tests without a host callback record no entries. An absent report is not done. */
 export function contentDone(report: ContentReport | null | undefined): boolean {
   const docs = Array.isArray(report) ? report : report?.docs
-  return Boolean(docs?.length && docs.every(doc => doc.ok === true || doc.dismissedAt))
+  return Array.isArray(docs) && docs.every(doc => doc?.ok === true || Boolean(doc?.dismissedAt))
 }
 // End CORE-44 compatibility block.
 export type ActionDecision = { winnerArm?: string | null; holdoutReleasedAt?: string | null; contentReport?: ContentReport | null }

@@ -180,7 +180,7 @@ test.each([
   ['all updated', [partial.docs[0]!], true],
   ['mixed updated and dismissed', [partial.docs[0]!, dismissedEntry], true],
   ['still failed', [failedEntry], false],
-  ['empty', [], false],
+  ['empty', [], true],
 ] as const)('Finish appears only when done: %s', (_name, docs, done) => {
   render(<MakeContentResult result={{ ...partial, docs: [...docs] }} onRetry={vi.fn()} onFinish={vi.fn()} />)
   expect(Boolean(screen.queryByRole('button', { name: 'Finish archiving' }))).toBe(done)
