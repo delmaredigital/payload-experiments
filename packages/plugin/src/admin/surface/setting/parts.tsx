@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { CheckboxInput, TextareaInput, TextInput } from '@payloadcms/ui'
+import { Checkbox, Textarea, TextInput, NumberInput, Select } from '../../../ui/Inputs.js'
 import { EDITABLE_BY_STATUS, isEditable } from '../../../collections/experiments/editability.js'
 import type { ParamField } from '../../../types/contracts.js'
 import { coerceParam, paramIssue, paramsForArm, setParam } from '../../arms/params.model.js'
@@ -19,8 +19,7 @@ function Binding({ test, surface }: SectionProps) {
   const editable = surface.canManage && isEditable(doc.status, 'flagPoint')
   const reason = lockedReason(doc.status, 'flagPoint', EDITABLE_BY_STATUS)
   return <div className="xp-setting-binding">
-    {editable ? <label htmlFor={id}>{SETTING_COPY.setting}
-      <select id={id} value={point?.id ?? ''} aria-describedby={point ? `${id}-description` : undefined} onChange={event => {
+    {editable ? <Select id={id} label={SETTING_COPY.setting} value={point?.id ?? ''} aria-describedby={point ? `${id}-description` : undefined} onChange={event => {
         const current = test.doc
         if (!current || !surface.canManage || !isEditable(current.status, 'flagPoint') || event.target.value === current.flagPoint) return
         const next = surface.flagPoints.find(point => point.id === event.target.value)
@@ -30,8 +29,7 @@ function Binding({ test, surface }: SectionProps) {
       }}>
         {!point ? <option value="">{SETTING_COPY.choose}</option> : null}
         {surface.flagPoints.map(point => <option key={point.id} value={point.id}>{point.label}</option>)}
-      </select>
-    </label> : <p title={reason ?? undefined}>{SETTING_COPY.setting}: {point?.label ?? SETTING_COPY.choose}</p>}
+      </Select> : <p title={reason ?? undefined}>{SETTING_COPY.setting}: {point?.label ?? SETTING_COPY.choose}</p>}
     {point ? <p id={`${id}-description`}>{point.description ?? point.label}</p> : null}
     {reason ? <p className="xp-setting-lock">{reason}</p> : null}
     {test.errors.flagPoint ? <p role="alert">{test.errors.flagPoint}</p> : null}
@@ -73,7 +71,7 @@ function Parameter({ test, surface, armIndex, paramKey, field }: ValueProps) {
     if (draft) { save(draft.value); setDraft(null) }
   }
   const control = paramControl(field)
-  const shared = { path: id, label: field.label, required: field.required }
+  const shared = { id, label: field.label, required: field.required }
   const inlineError = issue ? <p id={`${id}-error`} role="alert">{issue}</p> : null
   const editDraft = (value: string) => { setTouched(true); setDraft({ value }) }
   const text = typeof value === 'string' ? value : ''
@@ -84,8 +82,8 @@ function Parameter({ test, surface, armIndex, paramKey, field }: ValueProps) {
         ? SETTING_COPY.current.replace('{value}', displayParam(field, point?.effectiveDefaults[paramKey]))
         : displayParam(field, value)}</p>
       {reason ? <p className="xp-setting-lock">{reason}</p> : null}
-    </div> : control === 'checkbox' ? <CheckboxInput {...shared} id={id} name={id} checked={value === true}
-      onToggle={event => save(event.target.checked)} />
+    </div> : control === 'checkbox' ? <Checkbox {...shared} error={issue ?? undefined} name={id} checked={value === true}
+      onChange={event => save(event.target.checked)} />
       : control === 'segmented' ? <fieldset aria-describedby={issue ? `${id}-error` : undefined}>
         <legend>{field.label}</legend>
         <div className="xp-setting-segments">{field.options?.map(option => <label key={option.value}>
@@ -94,17 +92,17 @@ function Parameter({ test, surface, armIndex, paramKey, field }: ValueProps) {
           <span>{option.label}</span>
         </label>)}</div>
       </fieldset>
-      : control === 'select' ? <label htmlFor={id}>{field.label}<select id={id} value={text} required={field.required}
-        aria-invalid={!!issue} aria-describedby={issue ? `${id}-error` : undefined} onChange={event => save(event.target.value)}>
+      : control === 'select' ? <Select id={id} label={field.label} value={text} required={field.required}
+        error={issue ?? undefined} onChange={event => save(event.target.value)}>
         <option value="">{SETTING_COPY.empty}</option>
         {field.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select></label>
-      : control === 'number' ? <label htmlFor={id}>{field.label}<input id={id} type="number" min={field.min} max={field.max}
+      </Select>
+      : control === 'number' ? <NumberInput id={id} label={field.label} min={field.min} max={field.max}
         step="any" required={field.required} value={typeof value === 'number' && Number.isFinite(value) || typeof value === 'string' ? value : ''}
-        aria-invalid={!!issue} aria-describedby={issue ? `${id}-error` : undefined} onChange={event => editDraft(event.target.value)} /></label>
-      : control === 'textarea' ? <TextareaInput {...shared} Error={inlineError} showError={!!issue} value={text} onChange={event => editDraft(event.target.value)} />
-      : <TextInput {...shared} Error={inlineError} showError={!!issue} hasMany={false} value={text} onChange={event => editDraft(event.target.value)} />}
-    {arm.kind === 'control' || !editable || control !== 'text' && control !== 'textarea' ? inlineError : null}
+        error={issue ?? undefined} onChange={event => editDraft(event.target.value)} />
+      : control === 'textarea' ? <Textarea {...shared} error={issue ?? undefined} value={text} onChange={event => editDraft(event.target.value)} />
+      : <TextInput {...shared} error={issue ?? undefined} value={text} onChange={event => editDraft(event.target.value)} />}
+    {arm.kind === 'control' || !editable || control === 'segmented' ? inlineError : null}
   </div>
 }
 
@@ -112,10 +110,11 @@ function VersionContent({ test, surface, armIndex }: SectionProps & { armIndex: 
   const doc = test.doc
   const arm = doc?.arms[armIndex]
   if (!doc || !arm) return null
-  if (arm.kind === 'holdout') return <p>{SETTING_COPY.holdout}</p>
+  if (arm.kind === 'holdout') return <span className="xp-content-chip">{SETTING_COPY.holdout}</span>
   const point = surface.flagPoints.find(point => point.id === doc.flagPoint)
   if (!point) return <p>{SETTING_COPY.choose}</p>
-  return <div className="xp-setting-values">{Object.entries(point.params).map(([key, field]) =>
+  const ready = Object.entries(point.params).every(([key, field]) => !paramIssue(field, paramsForArm(arm, point)[key]))
+  return <div className="xp-setting-values"><span className={`xp-content-chip ${ready ? 'xp-content-ready' : 'xp-content-empty'}`}>{ready ? 'Values ready' : 'Set values'}</span>{Object.entries(point.params).map(([key, field]) =>
     <Parameter key={`${doc.id}:${point.id}:${arm.key}:${key}:${doc.status}:${surface.canManage}`} test={test} surface={surface} armIndex={armIndex} paramKey={key} field={field} />)}</div>
 }
 

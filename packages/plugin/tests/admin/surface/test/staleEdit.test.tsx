@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { TestPage } from '../../../../src/admin/surface/test/TestPage.js'
@@ -60,4 +61,25 @@ test('a stale edit shows one alert with Reload, preserves typed values, and Relo
 test('a normal save error still shows the SaveStatus alert', () => {
   render(<SaveStatus test={props({}, { saving: 'error' }).test} />)
   expect(screen.getByRole('alert').textContent).toBe(READINESS_COPY.saveError)
+})
+
+test.each(['draft', 'running'] as const)('real test page mounts in StrictMode (%s) with one fetch per resource and no errors', async status => {
+  const response = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
+  const fetcher = vi.fn(async (url: string) => response(url.endsWith('/preflight') ? preflight()
+    : url.includes('/xp-metrics') ? { docs: [], hasNextPage: false }
+      : url.includes('/summary?') ? { [doc.id]: { exposures: 12 } }
+        : { ...doc, status, updatedAt: '2026-11-03T10:00:00.000Z' }))
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.stubGlobal('fetch', fetcher)
+  try {
+    render(<StrictMode><TestPage id={doc.id} surface={{ ...props().surface, canReadResults: true }} /></StrictMode>)
+    await waitFor(() => expect(screen.getByText('Manage goals')).toBeTruthy())
+    await act(async () => {})
+    expect(fetcher.mock.calls.filter(([url]) => url.includes('/xp-experiments/'))).toHaveLength(1)
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/preflight'))).toHaveLength(1)
+    expect(fetcher.mock.calls.filter(([url]) => url.includes('/xp-metrics'))).toHaveLength(1)
+    expect(fetcher.mock.calls.filter(([url]) => url.includes('/summary?'))).toHaveLength(status === 'running' ? 1 : 0)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(error).not.toHaveBeenCalled()
+  } finally { error.mockRestore() }
 })

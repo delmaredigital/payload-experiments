@@ -27,8 +27,8 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
     let active = true
     // The id/status key resets the count; refreshes retain it while loading.
     if (surface.canReadResults && doc.status === 'running') {
-      void createApi(surface.apiRoute).summary([doc.id]).then(result => {
-        if (!result.ok) return
+      void Promise.resolve().then(() => active ? createApi(surface.apiRoute).summary([doc.id]) : undefined).then(result => {
+        if (!result?.ok) return
         const count = result.data?.[doc.id]?.exposures
         if (active) setPeople(typeof count === 'number' && Number.isFinite(count) ? count : null)
       }).catch(() => { /* Keep the last successful count when a refresh fails. */ })

@@ -37,6 +37,7 @@
   --xp-error-border: #efc3c3;
   --xp-series-a: #2a78d6;
   --xp-series-b: #eb6834;
+  --xp-series-c: #8056b3;
   --xp-radius-control: 8px;
   --xp-radius-card: 12px;
   --xp-radius-chip: 6px;
@@ -108,4 +109,5 @@
   --xp-error-border: #5a2626;
   --xp-series-a: #3987e5;
   --xp-series-b: #d95926;
+  --xp-series-c: #b48ade;
 }

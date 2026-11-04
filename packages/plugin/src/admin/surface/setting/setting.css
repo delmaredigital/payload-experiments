@@ -1,16 +1,4 @@
-.xp-setting-binding select,
-.xp-setting-parameter select,
-.xp-setting-parameter input[type='number'] {
-  display: block;
-  width: 100%;
-  padding: 0.65rem;
-  margin-top: 0.4rem;
-  border: 1px solid var(--xp-border);
-  border-radius: var(--xp-radius);
-  background: var(--xp-input-bg);
-  color: var(--xp-text);
-}
-.xp-setting-values { display: grid; gap: 1rem; }
+.xp-setting-values { display: grid; gap: var(--xp-space-3); }
 .xp-setting-value { white-space: pre-wrap; }
 .xp-setting-lock { color: var(--xp-text-muted); }
 .xp-setting-parameter fieldset { border: 0; padding: 0; margin: 0; }
@@ -25,5 +13,5 @@
   background: var(--xp-input-bg);
   color: var(--xp-text);
 }
-.xp-setting-segments input:checked + span { background: var(--xp-border); border-color: var(--xp-text); }
-.xp-setting-segments input:focus-visible + span { outline: 2px solid var(--xp-text); outline-offset: 2px; }
+.xp-setting-segments input:checked + span { background: var(--xp-accent-subtle); border-color: var(--xp-accent); }
+.xp-setting-segments input:focus-visible + span { outline: 2px solid var(--xp-focus); outline-offset: 2px; }

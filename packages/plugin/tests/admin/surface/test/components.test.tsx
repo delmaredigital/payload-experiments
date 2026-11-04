@@ -139,10 +139,11 @@ test('running sections show read-only values and the exact lock reason', async (
   const p = props({ status: 'running' })
   render(<><VersionsSection {...p} parts={pageBlockParts} /><LengthSection {...p} /><AdvancedSection {...p} /><TargetingSection {...p} /><GoalSection {...p} /><TestName {...p} /></>)
   expect(screen.queryByRole('slider')).toBeNull()
-  expect(screen.queryByLabelText('Original: Share (%)')).toBeNull()
+  expect((screen.getByLabelText('Original: Share (%)') as HTMLInputElement).disabled).toBe(true)
   expect(screen.queryByLabelText('Planned length (days)')).toBeNull()
   expect(screen.queryByLabelText('Goal')).toBeNull()
-  expect(screen.queryByText('Add a version')).toBeNull()
+  expect((screen.getByRole('button', { name: 'Add a version' }) as HTMLButtonElement).disabled).toBe(true)
+  expect((screen.getByRole('button', { name: 'Remove version' }) as HTMLButtonElement).disabled).toBe(true)
   expect(screen.getAllByText(lockedReason('running', 'arms', EDITABLE_BY_STATUS)! as string).length).toBeGreaterThan(0)
   expect(p.test.stage).not.toHaveBeenCalled()
   await waitFor(() => expect(screen.getByText('Goal')).toBeTruthy())
@@ -175,7 +176,7 @@ test('block placement links and slot readiness distinguish each page and group',
   render(<><pageBlockParts.Binding {...p} /><pageBlockParts.VersionContent {...p} armIndex={0} /><pageBlockParts.VersionContent {...p} armIndex={1} /></>)
   expect(screen.getByText('On: Landing (Published)')).toBeTruthy()
   expect(screen.getByText('Open the page').getAttribute('href')).toBe('/edit/page')
-  expect(screen.getByText('Content ready')).toBeTruthy(); expect(screen.getByText('Nothing in this slot yet')).toBeTruthy()
+  expect(screen.getByText('Content ready')).toBeTruthy(); expect(screen.getByText('Empty')).toBeTruthy()
 })
 test('suggestion Apply and reach blur preserve current analysis and write both suggestion fields', () => {
   const p = props({ exposurePolicy: 'viewport' })
@@ -461,4 +462,67 @@ test('name validation errors appear with the first field inside What you are tes
   expect(within(what).getByLabelText('Test name')).toBe(what.querySelector('input'))
   expect(screen.getAllByLabelText('Test name')).toHaveLength(1)
   await waitFor(() => expect(screen.getAllByText('Registered · yes/no').length).toBeGreaterThan(0))
+})
+
+
+test('versions use one visible header, accessible inputs, exact split widths and a muted holdout', () => {
+  const p = props({ arms: [
+    { key: 'control', kind: 'control', label: 'Original', weight: 40, slot: 'control' },
+    { key: 'variantA', kind: 'variant', label: 'Short ask', weight: 20, slot: 'variantA' },
+    { key: 'variantB', kind: 'variant', label: 'Long ask', weight: 15, slot: 'variantB' },
+    { key: 'variantC', kind: 'variant', label: 'New ask', weight: 15, slot: 'variantC' },
+    { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 10 },
+  ] })
+  const view = render(<VersionsSection {...p} parts={pageBlockParts} />)
+  expect(view.container.querySelectorAll('.xp-version-grid-head')).toHaveLength(1)
+  expect(view.container.querySelectorAll('.xp-version-row')).toHaveLength(5)
+  expect(screen.getByRole('textbox', { name: 'Original: Version label' })).toBeTruthy()
+  const segments = Array.from(screen.getByRole('img').children) as HTMLElement[]
+  expect(segments.map(node => node.style.width)).toEqual(['40%', '20%', '15%', '15%', '10%'])
+  expect(segments.map(node => node.style.background)).toEqual(['var(--xp-series-muted)', 'var(--xp-series-a)', 'var(--xp-series-b)', 'var(--xp-series-c)', 'var(--xp-series-muted)'])
+  expect(screen.getByText('Short ask 20%')).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Original: Share (%)'), { target: { value: '20' } })
+  expect(segments[0]!.style.width).toBe('20%')
+  expect(screen.getAllByRole('button', { name: 'Remove version' })).toHaveLength(4)
+  expect(screen.getAllByRole('button').every(button => button.closest('.xp-ui-button-group'))).toBe(true)
+})
+
+test('block binding groups repeated placements per page using the maximum count in one document version', () => {
+  const p = props()
+  const placement = { collection: 'pages', id: 1, title: 'Landing', editorUrl: '/edit/1', detail: 'Published', ok: true }
+  p.test.preflight!.placements = [placement, placement, { ...placement, detail: 'Draft' },
+    { ...placement, id: 2, title: 'Thank you', editorUrl: '/edit/2', detail: 'Draft' }]
+  const view = render(<pageBlockParts.Binding {...p} />)
+  expect(screen.getByText('On: Landing (Published) (placed 2 times)')).toBeTruthy()
+  expect(screen.getByText('On: Thank you (Draft)')).toBeTruthy()
+  expect(screen.getAllByRole('link', { name: 'Open the page' })).toHaveLength(2)
+  expect(view.container.querySelectorAll('.xp-page-binding > p')).toHaveLength(3)
+})
+
+test('Advanced opens when a threshold error arrives and leaves the field error visible', () => {
+  const p = props()
+  const view = render(<AdvancedSection {...p} />)
+  const details = view.container.querySelector('details')!
+  expect(details.open).toBe(false)
+  p.test.errors = { 'analysis.minExposuresPerArm': 'Enter a minimum of one person per version.' }
+  view.rerender(<AdvancedSection {...p} />)
+  expect(details.open).toBe(true)
+  expect(within(details).getByRole('alert').textContent).toBe('Enter a minimum of one person per version.')
+})
+
+test('a deleted primary goal displays Choose a goal with a matching old baseline present', async () => {
+  metricsFetch()
+  const p = props({ metrics: { primary: 99 } })
+  p.test.preflight!.baseline = { metricId: 99, value: .03, days: 28 }
+  render(<GoalSection {...p} />)
+  await waitFor(() => expect(screen.getAllByText('Registered · yes/no').length).toBeGreaterThan(0))
+  expect((screen.getByRole('combobox', { name: 'Goal' }) as HTMLSelectElement).selectedOptions[0]!.textContent).toBe('Choose a goal')
+  expect(p.test.stage).not.toHaveBeenCalled()
+})
+
+test('whole-page versions show Page ready or Add a page address for their current target', () => {
+  const p = props({ kind: 'page', arms: defaultArms('page').map((arm, i) => ({ ...arm, pageTarget: i ? '' : '/welcome' })) })
+  render(<VersionsSection {...p} parts={pageParts} />)
+  expect(screen.getByText('Page ready')).toBeTruthy()
+  expect(screen.getByText('Add a page address')).toBeTruthy()
 })

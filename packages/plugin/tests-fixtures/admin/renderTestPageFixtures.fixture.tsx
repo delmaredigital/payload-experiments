@@ -57,26 +57,35 @@ test('writes real Shell/TestPage fixtures for ready, blocked, running, page, set
   for (const path of cssPaths) readFileSync(path)
   mkdirSync(output, { recursive: true })
   const paths: string[] = []
-  for (const state of ['block-ready', 'block-blocked', 'block-running', 'page', 'setting', 'stale'] as const) {
+  for (const state of ['block-ready', 'block-blocked', 'block-running', 'page', 'setting', 'stale', 'threshold-error', 'missing-goal'] as const) {
     const doc: TestDocument = { ...base, id: state,
       ...(state === 'block-running' ? { status: 'running', startedAt: '2026-10-25T12:00:00Z', allocation: 40 } : {}),
+      ...(state === 'missing-goal' ? { metrics: { ...base.metrics, primary: 99 } } : {}),
       ...(state === 'block-blocked' ? { metrics: { ...base.metrics, primary: null } } : {}),
       ...(state === 'page' ? { kind: 'page', name: 'Summer program landing page', exposurePolicy: 'pageview',
         arms: base.arms.map((arm, i) => ({ ...arm, slot: undefined, pageTarget: ['/summer', '/summer-a', '/summer-b'][i] })) } : {}),
       ...(state === 'setting' ? { kind: 'flag', name: 'Recurring upsell', exposurePolicy: 'manual', flagPoint: 'upsell',
         arms: base.arms.slice(0, 2).map((arm, i) => ({ ...arm, slot: undefined, weight: 50, params: { message: i ? 'hide' : 'show' } })) } : {}),
     }
-    const check = { ...preflight, checks: state === 'block-blocked' ? [{ code: 'no-primary-metric' as const, ok: false }] : [] }
+    const check = { ...preflight, checks: state === 'block-blocked' || state === 'missing-goal' ? [{ code: 'no-primary-metric' as const, ok: false }] : [] }
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => new Response(JSON.stringify(
-      init?.method === 'PATCH' ? { errors: [{ code: 'stale-edit', message: 'Someone else changed this test. Reload to see their changes.' }] }
+      init?.method === 'PATCH' && state === 'threshold-error' ? { errors: [{ data: { errors: [{ path: 'analysis.minExposuresPerArm', message: 'Enter a minimum of one person per version.' }] } }] } : init?.method === 'PATCH' ? { errors: [{ code: 'stale-edit', message: 'Someone else changed this test. Reload to see their changes.' }] }
         : url.endsWith('/preflight') ? check : url.includes('/xp-metrics') ? { docs: metrics, hasNextPage: false }
           : url.includes('/summary?') ? { [state]: { exposures: 1204, days: 9, verdict: null } } : doc,
-    ), { status: init?.method === 'PATCH' ? 409 : 200 })))
+    ), { status: init?.method === 'PATCH' ? state === 'threshold-error' ? 400 : 409 : 200 })))
     const view = render(<ConfigProvider config={config}><TestPage id={state} surface={surface} /></ConfigProvider>)
     await waitFor(() => expect(view.queryByText('Loading test…')).toBeNull())
     await waitFor(() => expect(view.queryByText('Loading metrics…')).toBeNull())
     await waitFor(() => expect(view.queryAllByText('Donation completed · yes/no').length).toBeGreaterThan(0))
     if (state === 'block-running') await waitFor(() => expect(view.getByText(/1,204 people so far/)).toBeTruthy())
+    if (state === 'threshold-error') {
+      fireEvent.click(view.getByRole('heading', { name: 'Advanced settings · for developers' }))
+      fireEvent.change(view.getByLabelText('Minimum people per version'), { target: { value: '5' } })
+      fireEvent.blur(view.getByLabelText('Minimum people per version'))
+      // Close while the server validation is pending: the error must reopen it.
+      view.container.querySelector<HTMLDetailsElement>('.xp-test-advanced')!.open = false
+      await waitFor(() => expect(view.getByText('Enter a minimum of one person per version.')).toBeTruthy())
+    }
     if (state === 'stale') {
       fireEvent.change(view.getByLabelText('Test name'), { target: { value: 'My unsaved name' } })
       fireEvent.blur(view.getByLabelText('Test name'))
@@ -85,7 +94,7 @@ test('writes real Shell/TestPage fixtures for ready, blocked, running, page, set
     await act(async () => {})
     expect(view.container.querySelectorAll('.xp-ui-section')).toHaveLength(5)
     expect(view.getAllByRole('main')).toHaveLength(1)
-    expect(view.container.querySelector('.xp-test-advanced')?.hasAttribute('open')).toBe(false)
+    expect(view.container.querySelector('.xp-test-advanced')?.hasAttribute('open')).toBe(state === 'threshold-error')
     for (const theme of ['light', 'dark']) {
       // jsdom has no layout. Real browser ResizeObserver measures the same fixed bar;
       // restore the conservative CSS fallback for the non-hydrated review fixture.
@@ -97,6 +106,6 @@ test('writes real Shell/TestPage fixtures for ready, blocked, running, page, set
     }
     cleanup()
   }
-  expect(paths).toHaveLength(12)
+  expect(paths).toHaveLength(16)
   console.log(paths.join('\n'))
 })

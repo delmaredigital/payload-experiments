@@ -1,4 +1,5 @@
 'use client'
+import { Button } from '../../../ui/Button.js'
 import { useEffect, useState } from 'react'
 import { formatAdminURL } from 'payload/shared'
 import type { SectionProps } from '../contracts.js'
@@ -19,6 +20,8 @@ export function GoalSection({ test, surface }: SectionProps) {
     const controller = new AbortController()
     void (async () => {
       try {
+        await Promise.resolve()
+        if (controller.signal.aborted) return
         const all: Metric[] = []
         let page = 1
         for (;;) {
@@ -83,9 +86,9 @@ export function GoalSection({ test, surface }: SectionProps) {
     ? reviewView(test.preflight, { primaryMetricKind: kind }).baseline : null
   return <Section test={test} sectionId="win">
     {!reason ? <TextEdit label={C.searchGoals} value={query} onDraft={setQuery} onCommit={setQuery} /> : null}
-    {failed ? <p role="alert">{C.goalsError} <button type="button" onClick={() => setAttempt(n => n + 1)}>{C.retry}</button></p> : null}
-    <SelectEdit label={C.goal} value={String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
-    <p>{C.goalHelp}</p><a href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${!reason ? `?${new URLSearchParams({ return: String(doc.id) })}` : ''}` })}>{C.manageGoals}</a>
+    {failed ? <p role="alert">{C.goalsError} <span className="xp-ui-button-group"><Button onClick={() => setAttempt(n => n + 1)}>{C.retry}</Button></span></p> : null}
+    <SelectEdit label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
+    <p>{C.goalHelp}</p><div className="xp-ui-button-group"><Button variant="quiet" size="sm" href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${!reason ? `?${new URLSearchParams({ return: String(doc.id) })}` : ''}` })}>{C.manageGoals}</Button></div>
     <FieldErrors test={test} path="metrics.primary" />
     <CheckboxList label={C.guardrails} value={(doc.metrics?.guardrails ?? []).map(String)} options={roleOptions('guardrails')} reason={reason} readOnlyValue={display(doc.metrics?.guardrails ?? [])} onToggle={(value, checked) => toggle('guardrails', value, checked)} />
     <p>{C.guardrailHelp}</p><FieldErrors test={test} path="metrics.guardrails" />

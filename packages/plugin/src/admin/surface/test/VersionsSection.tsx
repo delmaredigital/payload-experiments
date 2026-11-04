@@ -1,5 +1,7 @@
 'use client'
-import { theme } from '../../theme.js'
+import { useId } from 'react'
+import { Button } from '../../../ui/Button.js'
+import { Range } from '../../../ui/Inputs.js'
 import { useEffect, useRef, useState } from 'react'
 import type { Arm } from '../../../types/contracts.js'
 import type { KindParts, SectionProps } from '../contracts.js'
@@ -11,8 +13,9 @@ import { balanceWeight, orderedVersions, trafficShares } from './testPage.model.
 import { FieldErrors, ReadOnly, reasonFor, save, TextEdit } from './fields.js'
 import { Section } from './Section.js'
 
-const COLOURS = [theme.color.success, theme.color.accent, theme.color.warning, theme.color.error, theme.color.inputBorder]
+const COLOURS = { control: 'var(--xp-series-muted)', variantA: 'var(--xp-series-a)', variantB: 'var(--xp-series-b)', variantC: 'var(--xp-series-c)', holdout: 'var(--xp-series-muted)' }
 export function VersionsSection({ test, surface, parts }: SectionProps & { parts: KindParts }) {
+  const id = useId()
   const doc = test.doc!
   const [weightEdit, setWeightEdit] = useState<{ key: Arm['key']; weight: number } | null>(null)
   const releasedAllocation = useRef<number | null>(null)
@@ -31,31 +34,33 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
     save(test, 'allocation', () => ({ allocation }))
   }
   return <Section test={test} sectionId="versions">
-    <div className="xp-version-rows">{ordered.map(({ arm, index }, position) => <article className="xp-version-row" key={arm.key}>
-      <h3><span style={{ background: COLOURS[position] }} className="xp-version-colour" />{GROUP_LABELS[arm.key]}</h3>
-      <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.label}`} value={arm.label} reason={reason}
+    <div className="xp-version-grid-head" aria-hidden="true"><span>{C.label}</span><span>{C.weight}</span><span /><span /></div>
+    <div className="xp-version-rows">{ordered.map(({ arm, index }) => <article className="xp-version-row" key={arm.key}>
+      <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.label}`} value={arm.label} reason={reason} hideLabel disabled={Boolean(reason)}
         onCommit={label => update(arms => arms.map(current => current.key === arm.key ? { ...current, label } : current))} />
-      <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.weight}`} type="number" min={0} max={100} value={doc.arms[index]!.weight} reason={reason}
+      <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.weight}`} type="number" min={0} max={100} value={doc.arms[index]!.weight} reason={reason} hideLabel disabled={Boolean(reason)}
         validate={raw => raw.trim() !== '' && Number.isInteger(Number(raw)) && Number(raw) >= 0 && Number(raw) <= 100} invalidMessage={C.invalidShare}
         onDraft={value => setWeightEdit({ key: arm.key, weight: Number(value) })}
         onCommit={value => update(arms => balanceWeight(arms, arm.key, Number(value)))} />
       <parts.VersionContent test={test} surface={surface} armIndex={index} />
       {issues.rows[index]?.map((issue, i) => <p role="alert" key={i}>{issueMessage(issue, totalWeight(live))}</p>)}
       <FieldErrors test={test} path={`arms.${index}`} />
-      {!reason && arm.kind !== 'control' ? <button type="button" onClick={() => update(arms => splitEvenly(removeArm(arms, arm.key)))}>{C.remove}</button> : null}
+      {arm.kind !== 'control' ? <div className="xp-ui-button-group xp-version-remove"><Button variant="quiet" size="sm" disabled={Boolean(reason)} title={reason ?? undefined} onClick={() => update(arms => splitEvenly(removeArm(arms, arm.key)))}>{C.remove}</Button></div> : null}
     </article>)}</div>
     <div className="xp-traffic-bar" role="img" aria-label={`${C.traffic}: ${ordered.map(({ arm }) => `${arm.label} ${arm.weight}%`).join(', ')}`}>
-      {ordered.map(({ arm }, i) => <span key={arm.key} style={{ width: `${shares[i]}%`, background: COLOURS[i] }} />)}</div>
+      {ordered.map(({ arm }, i) => <span key={arm.key} style={{ width: `${shares[i]}%`, background: COLOURS[arm.key] }} />)}</div>
+    <div className="xp-split-legend">{ordered.map(({ arm }) => <span key={arm.key}><i style={{ background: COLOURS[arm.key] }} />{arm.label} {arm.weight}%</span>)}</div>
+    <p className="xp-ui-help">{C.balanceHelp}</p>
     {issues.form.map((issue, i) => <p role="alert" key={i}>{issueMessage(issue, totalWeight(live))}</p>)}
     {test.errors.arms ? <p role="alert">{test.errors.arms}</p> : null}
-    {!reason ? <><div className="xp-section-actions">
-      <button type="button" disabled={doc.arms.filter(arm => arm.kind === 'variant').length >= 3} onClick={() => update(arms => addVariant(arms, doc.kind))}>{C.addVersion}</button>
-      <button type="button" disabled={doc.arms.some(arm => arm.kind === 'holdout')} onClick={() => update(addHoldoutArm)}>{C.addHoldout}</button>
-      <button type="button" onClick={() => update(splitEvenly)}>{C.split}</button></div><p>{ARMS_COPY.holdout}</p><p>{C.balanceHelp}</p></> : null}
+    <div className="xp-section-actions xp-ui-button-group" title={reason ?? undefined}>
+      <Button disabled={Boolean(reason) || doc.arms.filter(arm => arm.kind === 'variant').length >= 3} onClick={() => update(arms => addVariant(arms, doc.kind))}>{C.addVersion}</Button>
+      <Button disabled={Boolean(reason) || doc.arms.some(arm => arm.kind === 'holdout')} onClick={() => update(addHoldoutArm)}>{C.addHoldout}</Button>
+      <Button disabled={Boolean(reason)} onClick={() => update(splitEvenly)}>{C.split}</Button></div><p className="xp-ui-help">{ARMS_COPY.holdout}</p>
     {reasonFor(test, 'allocation') ? <ReadOnly label={C.allocation} value={`${doc.allocation}%`} reason={reasonFor(test, 'allocation')} />
-      : <label className="xp-field">{C.allocation}<input type="range" min={1} max={100} value={allocation}
+      : <Range id={id} label={C.allocation} help={`${allocation}%`} min={1} max={100} value={allocation}
         onChange={e => { releasedAllocation.current = null; setAllocation(Number(e.target.value)) }} onPointerUp={commitAllocation} onKeyUp={e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) commitAllocation() }}
-        onBlur={commitAllocation} /></label>}
+        onBlur={commitAllocation} />}
     <p>{allocationSentence({ allocation: reasonFor(test, 'allocation') ? doc.allocation : allocation, unitType: doc.unitType, arms: live, status: doc.status })}</p>
     <FieldErrors test={test} path="allocation" />
   </Section>
