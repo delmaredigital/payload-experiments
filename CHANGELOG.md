@@ -11,6 +11,12 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.3.0-rc.4] - 2026-11-04
+
+### plugin
+
+- Changed: the accent contrast grid tests are restructured to finish within CI's time limit; no runtime change. Migration impact: none.
+
 ## [0.3.0-rc.3] - 2026-11-04
 
 ### plugin
