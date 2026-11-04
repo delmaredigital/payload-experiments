@@ -27,11 +27,13 @@ export function PreviewLinks({ experimentId, placements, arms, flagPoint }: {
     try {
       win = window.open('', '_blank')
       if (!win) { setError(C.previewBlocked); return }
-      // Clearing opener immediately gives the same protection as noopener: the
+      // Clearing opener immediately gives the same opener protection as noopener: the
       // previewed page cannot reach window.opener. The admin URL may be sent as
       // referrer to the host's own site (resolved against location.origin); accepted.
       try { win.opener = null } catch { /* Some browsers refuse this assignment. */ }
       const result = await api.previewToken(experimentId, arm)
+      // The person closed the blank tab while the token loaded: nothing to show or report.
+      if (win.closed) return
       if (!result.ok) {
         win.close()
         setError(result.status === 0 ? API_MESSAGES.network : refusalMessage(result.code, result.status))

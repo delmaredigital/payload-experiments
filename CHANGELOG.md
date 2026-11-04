@@ -11,7 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-- Fixed: Preview opens its new tab in Safari and other browsers that block pop-ups opened after a delay.
+- Fixed: Preview opens its new tab in Safari and other browsers that block pop-ups opened after a delay; a refused preview shows plain-language copy instead of the server's message.
 - Added: `admin.previewUrl` may be async and receives the placement's title, published state and slug; returning null hides preview for that placement, and the admin never shows "Preview isn't set up". The old `({ collection, id }) => string` form still works, and several slots on one page version share one lookup. Migration impact: none.
 - Fixed: an event recorded in a visitor's own browser is always credited to that visitor when they saw the test, even if their link to a signed-in account can't be used. Migration impact: none.
 - Changed: the Experiment block in the Puck editor uses the new layout: name and status, a tab per version, and clear actions.

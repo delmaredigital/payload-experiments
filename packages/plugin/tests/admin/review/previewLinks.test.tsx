@@ -12,10 +12,24 @@ afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.res
 const arms = [{ key: 'control', kind: 'control' }, { key: 'variantA', label: 'Short headline', kind: 'variant' }, { key: 'holdout', kind: 'holdout' }]
 const placements = [{ collection: 'pages', id: 1, title: 'Home', url: '/home?campaign=fall#top', ok: true }]
 function previewWindow() {
-  const win = { opener: window as Window | null, location: { replace: vi.fn() }, close: vi.fn() }
+  const win = { opener: window as Window | null, closed: false, location: { replace: vi.fn() }, close: vi.fn() }
   const open = vi.spyOn(window, 'open').mockReturnValue(win as unknown as Window)
   return { win, open }
 }
+test('a preview tab closed before the token arrives is left alone and shows no error', async () => {
+  let resolve!: (response: Response) => void
+  vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise<Response>(done => { resolve = done })))
+  const { win } = previewWindow()
+  render(<PreviewLinks experimentId="xp1" placements={placements} arms={arms} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Preview Short headline' }))
+  win.closed = true
+  resolve(new Response(JSON.stringify({ token: 'late' })))
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Preview Short headline' }) as HTMLButtonElement).disabled).toBe(false))
+  expect(win.location.replace).not.toHaveBeenCalled()
+  expect(win.close).not.toHaveBeenCalled()
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
 test('fetches a token on click, preserves query/hash, opens safely; no token in DOM or storage', async () => {
   const token = 'secret-preview-token'
   const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token })))
