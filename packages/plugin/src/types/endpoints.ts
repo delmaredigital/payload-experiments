@@ -14,6 +14,9 @@ export type DecideBody = { winnerArm: string; note?: string; confirmation?: stri
 export type ArchiveBody = { mode: 'stopped' | 'after-content' | 'discard' | 'hard-coded'; confirmation?: string }
 export type DismissContentEntryBody = { collection: string; id: DocId }
 export type DismissContentEntryResult = Pick<TransitionSuccess, 'doc'>
+export type RestoreContentEntryBody = DismissContentEntryBody
+export type RestoreContentEntryResult = Pick<TransitionSuccess, 'doc'>
+export type ContentReport = { docs: MakeContentResult['docs'] } | MakeContentResult['docs']
 export type MakeContentResult = TransitionSuccess & { docs: Array<{ collection: string; id: DocId; ok: boolean; detail?: ContentReportReason | string; error?: ContentReportReason | string; dismissedAt?: string; dismissedBy?: string | null }> }
 export type PreflightResult = {
   checks: Array<{ code: ReadinessCode; ok: boolean; detail?: unknown; warning?: boolean }>

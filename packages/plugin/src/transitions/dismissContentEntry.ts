@@ -18,7 +18,7 @@ export async function dismissContentEntry(req: PayloadRequest, { experimentId, c
     const entry = report?.docs?.[index]
     if (current.status !== 'decided' || !decision?.winnerArm || decision.discardedAt || !entry || entry.ok !== false || entry.dismissedAt) refuse('invalid-status')
     const docs = report!.docs!.map((entry, i) => i === index
-      ? { ...entry, dismissedAt: new Date().toISOString(), dismissedBy: req.user ? String(req.user.id) : null } : entry)
+      ? { ...entry, dismissedAt: new Date().toISOString(), dismissedBy: req.user?.id == null ? null : String(req.user.id) } : entry)
     return updateExperiment(req, experimentId, { decision: { ...decision, contentReport: { ...report, docs } } })
   })
   req.payload.logger.info({ experimentId, collection, id }, 'Experiment content entry dismissed')

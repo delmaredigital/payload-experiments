@@ -14,7 +14,7 @@ export const ACTIONS_COPY = {
   different: 'You chose a different group than the results recommend.',
   group: 'Group', note: 'Decision note', confirmation: 'Confirmation',
   typePhrase: 'Type the following to confirm:', cancel: 'Cancel', retry: 'Retry', done: 'Done',
-  loading: 'Loading results…', updated: 'Updated', failed: 'Failed',
+  loading: 'Loading results…', updated: 'Updated', failed: 'Failed', dismissed: 'Dismissed',
   contentReasons: {
     localized: "This page has more than one language; Make it the content can't publish it safely yet. Copy the winning version by hand.",
     locked: 'Someone is editing this page. Wait for them to finish, then retry.',

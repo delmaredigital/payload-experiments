@@ -93,6 +93,7 @@ const endpoints = [
   ['release-holdout', () => api.releaseHoldout('id /?'), undefined],
   ['release-pages', () => api.releasePages('id /?'), undefined],
   ['make-content', () => api.makeContent('id /?'), undefined],
+  ['content-report/restore', () => api.restoreContentEntry('id /?', { collection: 'pages', id: 'page /?' }), { collection: 'pages', id: 'page /?' }],
   ['content-report/dismiss', () => api.dismissContentEntry('id /?', { collection: 'pages', id: 'page /?' }), { collection: 'pages', id: 'page /?' }],
   ['archive', () => api.archive('id /?', { mode: 'discard', confirmation: 'discard winner' }), { mode: 'discard', confirmation: 'discard winner' }],
   ['recompute', () => api.recompute('id /?'), undefined],

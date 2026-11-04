@@ -1,6 +1,7 @@
 import type { PayloadRequest } from 'payload'
 import type { DocId } from '../types/contracts.js'
-import type { ArchiveBody } from '../types/endpoints.js'
+import { contentDone } from '../contentDone.js'
+import type { ArchiveBody, ContentReport } from '../types/endpoints.js'
 import { relationshipId } from './checkStart.js'
 import { expectedConfirm, matchesConfirm, storedWinnerLabel } from './confirmPhrases.js'
 import { withTransition } from './kernel.js'
@@ -15,9 +16,7 @@ export async function archive(req: PayloadRequest, { experimentId, mode, confirm
     if (mode === 'stopped' ? current.status !== 'stopped' : current.status !== 'decided') refuse('invalid-status')
     if (mode === 'hard-coded' && current.kind !== 'code') refuse('invalid-status')
     if (mode === 'after-content') {
-      const report = decision?.contentReport as { docs?: Array<{ ok?: boolean; dismissedAt?: string }> } | Array<{ ok?: boolean; dismissedAt?: string }> | undefined
-      const docs = Array.isArray(report) ? report : report?.docs
-      if (!Array.isArray(docs) || !docs.every(doc => doc?.ok === true || doc?.dismissedAt)) refuse('invalid-status')
+      if (!contentDone(decision?.contentReport as ContentReport | undefined)) refuse('invalid-status')
     }
     if (mode === 'discard' && !matchesConfirm(expectedConfirm('discard', ''), confirmation)) refuse('confirmation-required')
     if (mode === 'hard-coded') {

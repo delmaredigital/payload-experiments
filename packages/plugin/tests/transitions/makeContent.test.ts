@@ -2,6 +2,8 @@ import { Forbidden, Locked, NotFound, ValidationError, killTransaction, type Fie
 import { afterEach, expect, test, vi } from 'vitest'
 import { contentReportCopy } from '../../src/admin/copy/actions.js'
 import { preflightData } from '../../src/transitions/preflightData.js'
+import { dismissContentEntry } from '../../src/transitions/dismissContentEntry.js'
+import { restoreContentEntry } from '../../src/transitions/restoreContentEntry.js'
 import { makeContent } from '../../src/transitions/makeContent.js'
 import { fakeReq } from '../_fakes/req.js'
 import { fakePayload } from '../_fakes/payload.js'
@@ -155,19 +157,19 @@ test.each([false, true])('flag writes defaults and supplies winner params; host 
   expect(result.docs[0]).toMatchObject({ ok: !throws })
   expect(hostUpdates(f)).toEqual([])
 })
-test('flag without a host callback ships defaults and archives', async () => {
+test('flag without a host callback ships defaults but an empty report stays decided', async () => {
   const f = fixture('flag')
   f.options.flagPoints = [{ id: 'setting', label: 'Setting', defaultParams: {}, params: {} }]
-  expect((await makeContent(f.req, { experimentId: 1, options: f.options })).doc.status).toBe('archived')
+  expect((await makeContent(f.req, { experimentId: 1, options: f.options })).doc.status).toBe('decided')
 })
-test('page performs no host writes and archives winner routing', async () => {
+test('page performs no host writes and an empty report keeps decided winner routing', async () => {
   const f = fixture('page')
   const result = await makeContent(f.req, { experimentId: 1, options: f.options })
-  expect(result.doc.status).toBe('archived')
+  expect(result.doc.status).toBe('decided')
   expect(result.docs).toEqual([])
   expect(hostUpdates(f)).toEqual([])
   const manifest = f.executor.calls.find(call => call.text.includes('"manifest" ='))!
-  expect(JSON.parse(manifest.params[0] as string).archivedPages).toEqual({ '/original': { slug: 'hero', winnerPath: '/winner' } })
+  expect(JSON.parse(manifest.params[0] as string).experiments).toMatchObject([{ slug: 'hero', status: 'decided', winnerArm: 'variantA' }])
 })
 
 test('Payload latest-version merge preserves published and draft fields outside Puck', async () => {
@@ -933,24 +935,29 @@ test.each(['read', 'update'])('retry keeps dismissed failures unchanged and skip
   expect(result.doc.status).toBe('archived')
   expect(spy.mock.calls.some(([args]) => args.collection === 'pages' && String(args.id) === '3')).toBe(false)
 })
-test.each(['read', 'update'] as const)('active retry %s failure retains audit metadata; success drops it', async stage => {
+test.each(['read', 'update'] as const)('retry after restore attempts the entry again (%s failure or success)', async stage => {
   for (const succeeds of [false, true]) {
     const f = fixture()
-    // No dismissedAt means this entry is active and may be retried.
-    const entry = { collection: 'pages', id: 3, ok: false, detail: 'forbidden', dismissedBy: '42' }
+    const entry = { collection: 'pages', id: 3, ok: false, detail: 'forbidden' }
     f.experiment.decision = { winnerArm: 'variantA', contentReport: { docs: [entry] } }
-    if (!succeeds) {
-      const method = stage === 'read' ? 'findByID' : 'update'
-      const original = f.payload[method].bind(f.payload)
-      vi.spyOn(f.payload, method).mockImplementation(async args => {
-        if (args.collection === 'pages' && args.id === 3) throw new Forbidden()
-        return original(args)
-      })
-    }
+    await dismissContentEntry(f.req, { experimentId: 1, collection: 'pages', id: 3 })
+    expect((f.experiment.decision as any).contentReport.docs[0].dismissedAt).toEqual(expect.any(String))
+    await restoreContentEntry(f.req, { experimentId: 1, collection: 'pages', id: '3' })
+    const method = stage === 'read' ? 'findByID' : 'update'
+    const original = f.payload[method].bind(f.payload)
+    const spy = vi.spyOn(f.payload, method).mockImplementation(async args => {
+      if (!succeeds && args.collection === 'pages' && args.id === 3) throw new Forbidden()
+      return original(args)
+    })
     const result = await makeContent(f.req, { experimentId: 1, options: f.options })
-    expect(result.docs.find(doc => doc.id === 3)).toEqual(succeeds
+    expect(spy.mock.calls.some(([args]) => args.collection === 'pages' && args.id === 3)).toBe(true)
+    const retried = result.docs.find(doc => doc.id === 3)
+    expect(retried).toEqual(succeeds
       ? { collection: 'pages', id: 3, ok: true }
       : { ...entry, error: 'forbidden' })
+    expect(retried).not.toHaveProperty('dismissedAt')
+    expect(retried).not.toHaveProperty('dismissedBy')
+    expect(result.doc.status).toBe(succeeds ? 'archived' : 'decided')
   }
 })
 test.each([false, true])('dismissed flag failure is retained without calling the host again (callback removed=%s)', async removed => {
@@ -963,4 +970,12 @@ test.each([false, true])('dismissed flag failure is retained without calling the
   expect(result.docs).toEqual([dismissed])
   expect(result.doc.status).toBe('archived')
   expect(callback).not.toHaveBeenCalled()
+})
+
+test('an empty content report stays decided rather than auto-archiving', async () => {
+  const f = fixture()
+  f.payload.documents.pages = []
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs).toEqual([])
+  expect(result.doc.status).toBe('decided')
 })

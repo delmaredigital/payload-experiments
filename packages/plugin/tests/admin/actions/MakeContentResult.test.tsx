@@ -106,3 +106,14 @@ test('an absent page already counted as done explains that no change is needed',
   render(<MakeContentResult result={{ doc: {}, revision: 2, docs: [{ collection: 'pages', id: 1, ok: true, detail: 'not-found' }] }} onRetry={vi.fn()} />)
   expect(screen.getByText(`pages/1: Updated — ${ACTIONS_COPY.missingContent}`)).toBeTruthy()
 })
+
+test.each([false, true])('dismissed entries are handled; Retry depends on remaining active failures (%s)', active => {
+  render(<MakeContentResult result={{ doc: {}, revision: 2, docs: [
+    { collection: 'pages', id: 1, ok: true },
+    { collection: 'pages', id: 2, ok: false, detail: 'forbidden', dismissedAt: '2026-11-03T10:00:00.000Z', dismissedBy: '42' },
+    ...(active ? [{ collection: 'pages', id: 3, ok: false }] : []),
+  ] }} onRetry={vi.fn()} />)
+  expect(screen.getByText(`pages/2: Dismissed — ${ACTIONS_COPY.contentReasons.forbidden}`)).toBeTruthy()
+  expect(Boolean(screen.queryByRole('button', { name: 'Retry' }))).toBe(active)
+  expect(Boolean(screen.queryByText(ACTIONS_COPY.partial))).toBe(active)
+})

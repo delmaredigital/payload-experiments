@@ -1,5 +1,5 @@
 import { expect, test, vi, beforeEach } from 'vitest'
-import { handleStart, handleAllocate, handleAddMetric, handleStop, handleDecide, handleReleaseHoldout, handleReleasePages, handleArchive, handleMakeContent, handleDismissContentEntry } from '../../src/endpoints/transitions.js'
+import { handleStart, handleAllocate, handleAddMetric, handleStop, handleDecide, handleReleaseHoldout, handleReleasePages, handleArchive, handleMakeContent, handleDismissContentEntry, handleRestoreContentEntry } from '../../src/endpoints/transitions.js'
 import * as starts from '../../src/transitions/start.js'
 import * as allocations from '../../src/transitions/allocate.js'
 import * as metrics from '../../src/transitions/addMetric.js'
@@ -8,6 +8,7 @@ import * as decisions from '../../src/transitions/decide.js'
 import * as releases from '../../src/transitions/releaseHoldout.js'
 import * as pageReleases from '../../src/transitions/releasePages.js'
 import * as dismissals from '../../src/transitions/dismissContentEntry.js'
+import * as restores from '../../src/transitions/restoreContentEntry.js'
 import * as contents from '../../src/transitions/makeContent.js'
 import * as archives from '../../src/transitions/archive.js'
 import { XpRefusal } from '../../src/errors.js'
@@ -26,6 +27,7 @@ const cases = [
   { handler: handleReleasePages, module: pageReleases, name: 'releasePages', body: {} },
   { handler: handleMakeContent, module: contents, name: 'makeContent', body: {} },
   { handler: handleDismissContentEntry, module: dismissals, name: 'dismissContentEntry', body: { collection: 'pages', id: 3 } },
+  { handler: handleRestoreContentEntry, module: restores, name: 'restoreContentEntry', body: { collection: 'pages', id: 3 } },
   { handler: handleArchive, module: archives, name: 'archive', body: { mode: 'discard' } },
 ] as const
 for (const row of cases) {
@@ -110,20 +112,25 @@ for (const row of cases) {
 }
 
 
-test.each([{}, { collection: 'pages' }, { id: 3 }, { collection: '', id: 3 }, { collection: '  ', id: 3 },
-  { collection: 3, id: 3 }, { collection: 'pages', id: '' }, { collection: 'pages', id: '  ' },
-  { collection: 'pages', id: null }, { collection: 'pages', id: {} }, { collection: 'pages', id: 1.5 },
-  { collection: 'pages', id: 3, extra: true },
-])('dismissContentEntry validates %j before calling the transition', async body => {
-  const spy = vi.spyOn(dismissals, 'dismissContentEntry')
-  expect((await handleDismissContentEntry(fakeReq({ body: JSON.stringify(body) }), { options: sampleOptions() })).status).toBe(400)
-  expect(spy).not.toHaveBeenCalled()
-})
-test.each([3, 'opaque-id'])('dismissContentEntry passes document id %s unchanged and returns no revision', async id => {
-  const result = { doc: { id: 1 } }
-  const spy = vi.spyOn(dismissals, 'dismissContentEntry').mockResolvedValue(result as never)
-  const req = fakeReq({ body: JSON.stringify({ collection: 'pages', id }), routeParams: { id: '1' } })
-  const response = await handleDismissContentEntry(req, { options: sampleOptions() })
-  expect(await response.json()).toEqual(result)
-  expect(spy).toHaveBeenCalledWith(req, { experimentId: '1', collection: 'pages', id })
-})
+for (const row of [
+  { handler: handleDismissContentEntry, module: dismissals, name: 'dismissContentEntry' },
+  { handler: handleRestoreContentEntry, module: restores, name: 'restoreContentEntry' },
+] as const) {
+  test.each([{}, { collection: 'pages' }, { id: 3 }, { collection: '', id: 3 }, { collection: '  ', id: 3 },
+    { collection: 3, id: 3 }, { collection: 'pages', id: '' }, { collection: 'pages', id: '  ' },
+    { collection: 'pages', id: null }, { collection: 'pages', id: {} }, { collection: 'pages', id: 1.5 },
+    { collection: 'pages', id: 3, extra: true },
+  ])(`${row.name} validates %j before calling the transition`, async body => {
+    const spy = vi.spyOn(row.module as typeof dismissals, row.name as 'dismissContentEntry')
+    expect((await row.handler(fakeReq({ body: JSON.stringify(body) }), { options: sampleOptions() })).status).toBe(400)
+    expect(spy).not.toHaveBeenCalled()
+  })
+  test.each([3, 'opaque-id'])(`${row.name} passes document id %s unchanged and returns no revision`, async id => {
+    const result = { doc: { id: 1 } }
+    const spy = vi.spyOn(row.module as typeof dismissals, row.name as 'dismissContentEntry').mockResolvedValue(result as never)
+    const req = fakeReq({ body: JSON.stringify({ collection: 'pages', id }), routeParams: { id: '1' } })
+    const response = await row.handler(req, { options: sampleOptions() })
+    expect(await response.json()).toEqual(result)
+    expect(spy).toHaveBeenCalledWith(req, { experimentId: '1', collection: 'pages', id })
+  })
+}

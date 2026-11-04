@@ -9,6 +9,7 @@ import { decide } from '../transitions/decide.js'
 import { releaseHoldout } from '../transitions/releaseHoldout.js'
 import { releasePages } from '../transitions/releasePages.js'
 import { dismissContentEntry } from '../transitions/dismissContentEntry.js'
+import { restoreContentEntry } from '../transitions/restoreContentEntry.js'
 import { makeContent } from '../transitions/makeContent.js'
 import { archive } from '../transitions/archive.js'
 import type { ArchiveBody } from '../types/endpoints.js'
@@ -84,6 +85,13 @@ export async function handleDismissContentEntry<TUser extends { id: string | num
     || !(typeof value.id === 'string' && value.id.trim() || typeof value.id === 'number' && Number.isSafeInteger(value.id))) return invalidBody()
   const collection = value.collection, id = value.id as string | number
   return respond(req, experimentId => dismissContentEntry(req, { experimentId, collection, id }))
+}
+export async function handleRestoreContentEntry<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
+  const value = await body(req)
+  if (!value || !only(value, ['collection', 'id']) || typeof value.collection !== 'string' || !value.collection.trim()
+    || !(typeof value.id === 'string' && value.id.trim() || typeof value.id === 'number' && Number.isSafeInteger(value.id))) return invalidBody()
+  const collection = value.collection, id = value.id as string | number
+  return respond(req, experimentId => restoreContentEntry(req, { experimentId, collection, id }))
 }
 export async function handleArchive<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
   const value = await body(req)

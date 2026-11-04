@@ -1,5 +1,6 @@
 export { createExperimentsPlugin } from '../plugin.js'
 export { defineFlagPoint, defineMetricSource } from '../define.js'
+export { contentDone } from '../contentDone.js'
 export { createArmSelectField } from '../fields/armSelect.js'
 export type {
   SerializedFlagPoint,
@@ -39,6 +40,9 @@ export type {
   MakeContentResult,
   DismissContentEntryBody,
   DismissContentEntryResult,
+  RestoreContentEntryBody,
+  RestoreContentEntryResult,
+  ContentReport,
   PreflightResult,
   PreviewTokenResult,
   PhaseSummary,

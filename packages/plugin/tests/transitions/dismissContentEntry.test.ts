@@ -50,7 +50,7 @@ test.each([undefined, {}, { docs: [] }, { docs: {} },
   expect(f.payload.calls.some(call => call.method === 'update')).toBe(false)
   expect(f.payload.logger.info).not.toHaveBeenCalled()
 })
-test.each([42, 'opaque-user', null])('dismisses exactly one entry as user %s without a manifest bump', async userId => {
+test.each([42, 'opaque-user', null, undefined])('dismisses exactly one entry as user %s without a manifest bump', async userId => {
   const f = fixture()
   f.req.user = userId === null ? null : { id: userId } as typeof f.req.user
   const before = structuredClone(f.doc.decision) as any
@@ -59,7 +59,7 @@ test.each([42, 'opaque-user', null])('dismisses exactly one entry as user %s wit
   const entry = decision.contentReport.docs[0]
   expect(new Date(entry.dismissedAt).toISOString()).toBe(entry.dismissedAt)
   expect(decision).toEqual({ ...before, contentReport: { ...before.contentReport, docs: [
-    { ...before.contentReport.docs[0], dismissedAt: entry.dismissedAt, dismissedBy: userId === null ? null : String(userId) },
+    { ...before.contentReport.docs[0], dismissedAt: entry.dismissedAt, dismissedBy: userId == null ? null : String(userId) },
     ...before.contentReport.docs.slice(1),
   ] } })
   expect(result).toEqual({ doc: f.doc })

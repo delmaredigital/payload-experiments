@@ -36,11 +36,11 @@ const required = {
     CollectionEditRedirect: '../admin/views/CollectionEditRedirect.js',
   },
   puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js' },
-  index: { createArmSelectField: '../fields/armSelect.js' },
+  index: { createArmSelectField: '../fields/armSelect.js', contentDone: '../contentDone.js' },
 } as const
 const requiredTypes = {
   rsc: { MetricUnavailableReason: '../types/reasons.js', ContentReportReason: '../types/reasons.js', ManifestInputs: '../manifest/compile.js', ManifestInputExperiment: '../manifest/compile.js', ManifestPhase: '../manifest/compile.js', ManifestCompileOptions: '../manifest/compile.js', Manifest: '../types/manifest.js', ManifestExperiment: '../types/manifest.js' },
-  index: { MetricUnavailableReason: '../types/index.js', ContentReportReason: '../types/index.js' },
+  index: { ContentReport: '../types/index.js', RestoreContentEntryBody: '../types/index.js', RestoreContentEntryResult: '../types/index.js', MetricUnavailableReason: '../types/index.js', ContentReportReason: '../types/index.js' },
   client: { ClientAssignments: '../types/assignments.js' },
   puck: {
     ExperimentSlotProps: '../types/puck.js',
