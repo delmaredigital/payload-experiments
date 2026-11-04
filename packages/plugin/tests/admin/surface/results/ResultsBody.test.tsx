@@ -295,3 +295,15 @@ test('flag placement rows stay separate without page-slot counts', async () => {
   expect(container.querySelectorAll('.xp-preview-row')).toHaveLength(2)
   expect(container.textContent).not.toMatch(/placed \d+ times/)
 })
+test('Decide receives the localized warning from the existing preflight request', async () => {
+  const fetcher = setup()
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation((url, init) => url.endsWith('/preflight') ? Promise.resolve(json({ placements: [], checks: [
+    { code: 'make-content-unsupported', ok: true, warning: true, detail: 'Landing page' },
+  ] })) : original(url, init))
+  render(<ResultsBody id={1} surface={surface} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Decide' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByText("Landing page has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand.")).toBeTruthy()
+  expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/preflight'))).toHaveLength(1)
+})

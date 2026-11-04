@@ -44,6 +44,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
   const { api, doc, round, phases, state, data } = results
   const manage = surface.canManage && surface.canReadResults
   const [placements, setPlacements] = useState<PreflightResult['placements'] | null>(null)
+  const [checks, setChecks] = useState<PreflightResult['checks']>([])
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewRefresh, setPreviewRefresh] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -56,10 +57,11 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
   useEffect(() => {
     let active = true
     setPlacements(null)
+    setChecks([])
     setPreviewError(null)
     if (manage) void api.preflight(id).then(result => {
       if (!active) return
-      if (result.ok && result.data) setPlacements(result.data.placements)
+      if (result.ok && result.data) { setPlacements(result.data.placements); setChecks(result.data.checks) }
       else setPreviewError(result.ok ? API_MESSAGES.unreadable : result.message)
     })
     return () => { active = false }
@@ -147,7 +149,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
     </> : <>{meta}{state === 'empty' || state === 'ready' ? <p>{C.empty}</p> : null}</>}
     {manage && placements && placements.length > 0 ? <section className="xp-results-block"><div className="xp-results-block-head"><h2>{C.previews}</h2></div><PreviewLinks experimentId={id} flagPoint={doc?.flagPoint} placements={placements} arms={doc?.arms ?? []} /></section> : null}
     {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retryPreview}</Button></> : null}
-    {deciding && manage && phase ? <DecideDialog id={id} arms={phase.arms} onClose={() => setDeciding(false)} /> : null}
+    {deciding && manage && phase ? <DecideDialog id={id} arms={phase.arms} checks={checks} onClose={() => setDeciding(false)} /> : null}
     {releasing && manage ? <ReleasePagesDialog id={id} apiRoute={surface.apiRoute} onClose={() => setReleasing(false)}
       onRefusal={setActionError} onSuccess={() => { results.reload(); onPagesReleased?.() }} /> : null}
   </div>

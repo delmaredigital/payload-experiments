@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../ui/Button.js'
 import { Select, Textarea, TextInput } from '../../ui/Inputs.js'
 import type { DocId } from '../../types/contracts.js'
-import type { ResultsResponse } from '../../types/endpoints.js'
+import { unsupportedContentCopy } from '../copy/readiness.js'
+import type { ResultsResponse, PreflightResult } from '../../types/endpoints.js'
 import type { ApiResult } from '../api.js'
 import { useApi } from '../useApi.js'
 import { reloadPage } from '../reload.js'
@@ -14,7 +15,7 @@ import type { ActionGroup } from './actions.model.js'
 import { decideState } from './decide.model.js'
 import { DialogFrame } from './ConfirmDialog.js'
 
-export function DecideDialog({ id, arms, onClose }: { id: DocId; arms: readonly ActionGroup[]; onClose: () => void }) {
+export function DecideDialog({ id, arms, checks = [], onClose }: { id: DocId; arms: readonly ActionGroup[]; checks?: PreflightResult['checks']; onClose: () => void }) {
   const api = useApi()
   const [snapshot, setSnapshot] = useState<ResultsResponse['snapshot']>(null)
   const [chosenArm, setChosenArm] = useState<string | null>(null)
@@ -75,6 +76,7 @@ export function DecideDialog({ id, arms, onClose }: { id: DocId; arms: readonly 
         setTyped('')
       }}><option value="">{RESULTS_COPY.chooseGroup}</option>{state.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>
     {label ? <p>{decideCopy(label, arms.some(group => group.key === 'holdout'), chosenArm === 'control')}</p> : null}
+    {checks.filter(check => check.code === 'make-content-unsupported' && check.warning).map(check => <p key={check.code}>{unsupportedContentCopy(typeof check.detail === 'string' ? check.detail : 'This page')}</p>)}
     {state.reason ? <p>{state.reason}</p> : null}
     <Textarea id="xp-note" label={C.note} value={note} required={state.guarded} readOnly={busy}
       onChange={event => setNote(event.target.value)} />
