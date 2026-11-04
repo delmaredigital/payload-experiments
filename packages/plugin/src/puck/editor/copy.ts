@@ -35,6 +35,9 @@ export const editorCopy = {
   removeTitle: (label: string) => `Remove ${label}?`,
   removeHelp: 'This removes the version from the test and clears its content from this page.',
   removed: "Save the page to finish removing this version's content.",
+  removeUncleared: "The version was removed from the test, but its content couldn't be cleared here. Delete it from the outline, then save the page.",
+  lockedGeneric: "This test's versions can't change. View the test page for details.",
+  holdoutPeople: (label: string, count: string) => `${label}: ${count} people (not compared)`,
   weight: (label: string) => `${label} traffic (%)`,
   split: 'Split evenly',
   locked: {

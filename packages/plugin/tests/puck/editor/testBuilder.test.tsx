@@ -9,14 +9,14 @@ import type { Arm, Status } from '../../../src/types/contracts.js'
 
 const puck = vi.hoisted(() => ({ dispatch: vi.fn(), item: { type: 'ExperimentSlot', props: {
   id: 'builder', control: [{ type: 'Text', props: { id: 'original' } }], variantA: [{ type: 'Text', props: { id: 'variant' } }], variantB: [], variantC: [],
-} } }))
+} }, missingItem: false, missingSelector: false }))
 vi.mock('@puckeditor/core', async importOriginal => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   return { ...await importOriginal<typeof import('@puckeditor/core')>(),
     createUsePuck: () => (selector: (state: unknown) => unknown) => selector({ selectedItem: puck.item, getItemById: () => puck.item,
       appState: { data: { root: { props: {} } } } }),
-    useGetPuck: () => () => ({ selectedItem: puck.item, getItemById: () => puck.item, dispatch: puck.dispatch,
-      getSelectorForId: () => ({ index: 1, zone: 'root:default-zone' }) }),
+    useGetPuck: () => () => ({ selectedItem: puck.item, getItemById: () => puck.missingItem ? undefined : puck.item, dispatch: puck.dispatch,
+      getSelectorForId: () => puck.missingSelector ? undefined : ({ index: 1, zone: 'root:default-zone' }) }),
   }
 })
 let doc: { name: string; status: Status; updatedAt: string; arms: Arm[] }
@@ -42,7 +42,7 @@ async function mount() {
   await screen.findByRole('heading', { name: 'Example' })
   return view
 }
-function menu(label = 'Variant A') { fireEvent.click(screen.getByRole('button', { name: `Options for ${label}` })) }
+function menu(label = 'Variant A') { fireEvent.click(screen.getByRole('tab', { name: label })); fireEvent.click(screen.getByRole('button', { name: `Options for ${label}` })) }
 function patches() { return vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH') }
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
@@ -51,6 +51,7 @@ beforeEach(() => {
   refuse = undefined; resultsStatus = 200; order = []
   summary = { 'builder-test': { verdict: { headline: 'Variant A is ahead' } } }
   snapshot = { exposures: { perArm: { control: 1234, variantA: 1456 } } }
+  puck.missingItem = false; puck.missingSelector = false
   puck.dispatch.mockReset()
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (url.includes('/summary?')) { order.push('summary'); return response(summary, resultsStatus) }
@@ -155,16 +156,15 @@ test('Remove focuses Cancel; Escape closes; confirmation posts once, clears only
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Original' })))
 })
 
-test('invalid weight total blocks PATCH; a second inline edit saves the split and Split evenly refetches', async () => {
+test('editing one weight balances the others to 100 and Split evenly refetches', async () => {
   await mount()
   const original = screen.getByLabelText(C.weight('Original'))
-  fireEvent.change(original, { target: { value: '60' } }); fireEvent.blur(original)
-  expect(screen.getByRole('alert').textContent).toBe('Weights must add up to 100%. They add up to 110% now.')
-  expect(patches()).toHaveLength(0)
-  const variant = screen.getByLabelText(C.weight('Variant A'))
-  fireEvent.change(variant, { target: { value: '40' } }); fireEvent.keyDown(variant, { key: 'Enter' })
+  fireEvent.change(original, { target: { value: '60' } })
+  expect((screen.getByLabelText(C.weight('Variant A')) as HTMLInputElement).value).toBe('40')
+  fireEvent.blur(original)
   await waitFor(() => expect(patches()).toHaveLength(1))
   expect(doc.arms.map(arm => arm.weight)).toEqual([60, 40])
+  expect(screen.queryByRole('alert')).toBeNull()
   await waitFor(() => expect((screen.getByRole('button', { name: C.split }) as HTMLButtonElement).disabled).toBe(false))
   fireEvent.click(screen.getByRole('button', { name: C.split }))
   await waitFor(() => expect(patches()).toHaveLength(2))
@@ -188,11 +188,15 @@ test.each([[403, 'forbidden', "You don't have permission to do this."], [500, 'u
   expect(document.body.textContent).not.toContain('SECRET SERVER TEXT')
 })
 
-test.each(['running', 'decided', 'archived'] as const)('%s hides all version controls and explains why', async status => {
+test.each(['running', 'decided', 'archived'] as const)('%s keeps Copy as its only menu action and explains locked controls', async status => {
   doc.status = status; await mount()
   expect(screen.getByText(C.locked[status])).toBeTruthy()
   expect(screen.queryByRole('button', { name: C.add })).toBeNull()
-  expect(screen.queryByRole('button', { name: /Options for/ })).toBeNull()
+  menu()
+  const options = screen.getByLabelText(C.menu('Variant A'), { selector: '.xp-slot-version-menu' })
+  expect(within(options).getAllByRole('button').map(button => button.textContent)).toEqual([C.copy])
+  expect(screen.queryByRole('button', { name: C.rename })).toBeNull()
+  expect(screen.queryByRole('button', { name: C.remove })).toBeNull()
   expect(screen.queryByRole('spinbutton')).toBeNull()
   expect(screen.queryByRole('button', { name: C.split })).toBeNull()
 })
@@ -221,10 +225,10 @@ test('readout shows exposed people per version and summary headline; Refresh fet
   expect(order.filter(call => call === 'summary')).toHaveLength(2)
 })
 
-test('a null verdict and snapshot show Collecting with zero people', async () => {
+test('a null verdict and snapshot show only Collecting without people', async () => {
   doc.status = 'stopped'; summary = { 'builder-test': { verdict: null } }; snapshot = null
   await mount(); await screen.findByText(C.collecting)
-  expect(screen.getByText('Original: 0 people')).toBeTruthy()
+  expect(screen.queryByText(/people/)).toBeNull()
 })
 
 test.each([403, 500])('results unavailable on %s retains the link', async status => {
@@ -282,4 +286,81 @@ test('a delayed removal for a previous binding never overwrites the new document
   expect(screen.getByRole('heading', { name: 'Second test' })).toBeTruthy()
   expect(screen.queryByText(C.removed)).toBeNull()
   expect(puck.dispatch).not.toHaveBeenCalled()
+})
+
+
+test.each([false, true])('Remove 409 announces mapped stale copy inside the still-open dialog (already removed: %s)', async alreadyRemoved => {
+  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  refuse = { status: 409, code: 'stale-edit' }
+  if (alreadyRemoved) {
+    const fetcher = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const result = await fetcher(url, init)
+      if (init?.method === 'PATCH') doc.arms = doc.arms.filter(arm => arm.key !== 'variantA')
+      return result
+    })
+  }
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
+  const alert = await within(screen.getByRole('dialog')).findByRole('alert')
+  expect(alert.textContent).toBe(C.staleEdit)
+  expect(alert.classList.contains('xp-ui-error')).toBe(true)
+  expect(screen.getByRole('dialog').hasAttribute('open')).toBe(true)
+  expect(puck.dispatch).not.toHaveBeenCalled()
+})
+
+test('menus close on outside pointerdown, focus leaving the wrapper, and Escape restores trigger focus', async () => {
+  await mount(); menu()
+  expect(screen.getByRole('button', { name: C.rename })).toBeTruthy()
+  fireEvent.pointerDown(document.body)
+  expect(screen.queryByRole('button', { name: C.rename })).toBeNull()
+  menu()
+  const rename = screen.getByRole('button', { name: C.rename })
+  fireEvent.blur(rename, { relatedTarget: screen.getByRole('button', { name: C.add }) })
+  expect(screen.queryByRole('button', { name: C.rename })).toBeNull()
+  menu()
+  fireEvent.keyDown(screen.getByRole('button', { name: C.rename }), { key: 'Escape' })
+  expect(screen.queryByRole('button', { name: C.rename })).toBeNull()
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: C.menu('Variant A') }))
+})
+
+test('opening a second version menu replaces the first and tablist owns only tabs, including during rename', async () => {
+  await mount(); menu()
+  expect(screen.getByLabelText(C.menu('Variant A'), { selector: '.xp-slot-version-menu' })).toBeTruthy()
+  menu('Original')
+  expect(screen.queryByLabelText(C.menu('Variant A'), { selector: '.xp-slot-version-menu' })).toBeNull()
+  expect(document.querySelectorAll('.xp-slot-version-menu')).toHaveLength(1)
+  const tablist = screen.getByRole('tablist')
+  expect([...tablist.querySelectorAll('*')].every(node => node.getAttribute('role') === 'tab')).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: C.rename }))
+  expect(screen.getByLabelText(C.renameLabel).closest('[role=tablist]')).toBeNull()
+  expect([...tablist.querySelectorAll('*')].every(node => node.getAttribute('role') === 'tab')).toBe(true)
+})
+
+test.each(['non-JSON', 'invalid shape', 'invalid arm', 'unknown status'] as const)('refetch handles %s with authored copy', async mode => {
+  await mount()
+  vi.mocked(fetch).mockResolvedValueOnce(mode === 'non-JSON' ? new Response('not json') : response(mode === 'invalid shape' ? {} :
+    mode === 'invalid arm' ? { ...doc, arms: [null] } : { ...doc, status: 'unknown' }))
+  fireEvent.click(screen.getByRole('button', { name: C.add }))
+  expect((await screen.findByRole('alert')).textContent).toBe(mode === 'unknown status' ? C.lockedGeneric : C.writeUnreadable)
+  expect(patches()).toHaveLength(0)
+})
+
+test.each(['missingItem', 'missingSelector'] as const)('successful Remove explains when content cannot be cleared: %s', async missing => {
+  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  puck[missing] = true
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
+  expect((await screen.findByRole('alert')).textContent).toBe(C.removeUncleared)
+  expect(patches()).toHaveLength(1)
+  expect(puck.dispatch).not.toHaveBeenCalled()
+})
+
+test('holdout people follow compared versions with the not compared note', async () => {
+  doc.status = 'running'
+  doc.arms.splice(1, 0, { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 10 })
+  snapshot = { exposures: { perArm: { control: 1234, variantA: 1456, holdout: 100 } } }
+  await mount()
+  await screen.findByText('Holdout: 100 people (not compared)')
+  expect([...document.querySelectorAll('.xp-slot-people span')].map(node => node.textContent)).toEqual([
+    'Original: 1,234 people', 'Variant A: 1,456 people', 'Holdout: 100 people (not compared)',
+  ])
 })

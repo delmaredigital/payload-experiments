@@ -79,8 +79,8 @@ test('renders only the selected group slot, switches tabs, and has primitive sel
   expect(fetch).toHaveBeenCalledWith('/api/xp-experiments/1?depth=0', { credentials: 'include', signal: expect.any(AbortSignal) })
 })
 
-test('copy replaces the selected item at its actual zone with independently editable content', async () => {
-  vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ...doc, status: 'draft' })))
+test.each(['running', 'draft'] as const)('%s: copy replaces the selected item at its actual zone with independently editable content', async status => {
+  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props()} />)
   fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
@@ -100,11 +100,11 @@ test('copy replaces the selected item at its actual zone with independently edit
   expect(puck.item.props.control[0]!.props.id).toBe('source-id')
 })
 
-test('copy is disabled for an empty Original', async () => {
+test.each(['running', 'draft'] as const)('%s: copy is disabled for an empty Original', async status => {
+  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
   const original = puck.item.props.control
   puck.item.props.control = []
   try {
-    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ...doc, status: 'draft' })))
     const Editor = ExperimentSlotEditor.render
     render(<Editor {...props()} />)
     fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
@@ -173,11 +173,11 @@ test('decided banner uses the stored winner label', async () => {
   await waitFor(() => expect(screen.getByRole('status').textContent).toBe("Decided: New headline. Use 'Make it the content' on the test to finish."))
 })
 
-test('copy into a variant that already has content asks first and only replaces after confirmation', async () => {
+test.each(['running', 'draft'] as const)('%s: copy into a variant that already has content asks first and only replaces after confirmation', async status => {
+  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
   const original = puck.item.props.variantA
   puck.item.props.variantA = [{ type: 'Text', props: { id: 'kept-id', text: 'Existing variant' } }] as never
   try {
-    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ...doc, status: 'draft' })))
     const Editor = ExperimentSlotEditor.render
     render(<Editor {...props()} />)
     fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
@@ -253,8 +253,9 @@ test.each(['draft', 'stopped', 'running', 'decided', 'archived'] as const)('only
   expect(banner.classList.contains('xp-ui-banner')).toBe(true)
 })
 
-test('only the selected variant has a copy action', async () => {
-  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status: 'draft', arms: [
+test.each(['running', 'draft'] as const)('%s: only the selected variant has a copy action', async status => {
+  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status, arms: [
     ...doc.arms, { key: 'variantB', label: 'Variant B', kind: 'variant' },
   ] })))
   const Editor = ExperimentSlotEditor.render

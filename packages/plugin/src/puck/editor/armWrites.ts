@@ -12,7 +12,15 @@ type WritableExperiment = EditorExperiment & { arms: Arm[]; updatedAt: string }
 export async function readExperiment(url: string, signal?: AbortSignal): Promise<EditorExperiment> {
   const response = await fetch(url, { credentials: 'include', cache: 'no-store', ...(signal ? { signal } : {}) })
   if (!response.ok) throw new ArmWriteError(writeRefusal(undefined, response.status))
-  return await response.json() as EditorExperiment
+  const doc: unknown = await response.json().catch(() => undefined)
+  if (!doc || typeof doc !== 'object') throw new ArmWriteError(editorCopy.writeUnreadable)
+  const value = doc as WritableExperiment
+  if (typeof value.name !== 'string' || typeof value.status !== 'string' || typeof value.updatedAt !== 'string' || !value.updatedAt ||
+    !Array.isArray(value.arms) || !value.arms.length || value.arms.some(arm => !arm || typeof arm !== 'object' ||
+      !Object.hasOwn(editorCopy.labels, arm.key) && arm.key !== 'holdout' || !['control', 'variant', 'holdout'].includes(arm.kind) ||
+      typeof arm.label !== 'string' || typeof arm.weight !== 'number' || !Number.isFinite(arm.weight))) throw new ArmWriteError(editorCopy.writeUnreadable)
+  if (!['draft', 'stopped', 'running', 'decided', 'archived'].includes(value.status)) throw new ArmWriteError(editorCopy.lockedGeneric)
+  return value
 }
 
 /** Each intent is applied to a fresh document, guarded by the collection's compare-and-set header. */

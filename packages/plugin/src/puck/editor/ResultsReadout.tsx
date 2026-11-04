@@ -5,7 +5,7 @@ import { Button } from '../../ui/Button.js'
 import type { EditorExperiment } from './editor.model.js'
 import { editorCopy as C } from './copy.js'
 
-type Readout = { headline: string; people: Record<string, number> } | 'unavailable' | null
+type Readout = { headline: string; people: Record<string, number> | null } | 'unavailable' | null
 // Matches admin/results/format.ts formatCount; importing it would pull admin copy into this bundle.
 const formatCount = (value: number | undefined) => typeof value === 'number' && Number.isFinite(value)
   ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value) : '—'
@@ -30,7 +30,7 @@ export function ResultsReadout({ id, api, experiment }: { id: string | number; a
         const entry = summaries[id]
         if (!entry || !Object.hasOwn(entry, 'verdict') || !Object.hasOwn(result, 'snapshot')) throw new Error('unavailable')
         if (!controller.signal.aborted) setData({ headline: entry.verdict?.headline ?? C.collecting,
-          people: result.snapshot?.exposures.perArm ?? {} })
+          people: result.snapshot?.exposures.perArm ?? null })
       } catch { if (!controller.signal.aborted) setData('unavailable') }
       finally { if (!controller.signal.aborted) { pending.current = false; setBusy(false) } }
     }
@@ -40,7 +40,9 @@ export function ResultsReadout({ id, api, experiment }: { id: string | number; a
   return <div className="xp-slot-readout">
     {data === 'unavailable' ? <p className="xp-ui-help">{C.resultsUnavailable}</p> : data ? <>
       <strong>{data.headline}</strong>
-      <div className="xp-slot-people">{experiment.arms.map(arm => <span key={arm.key}>{C.people(arm.label, formatCount(data.people[arm.key] ?? 0))}</span>)}</div>
+      {data.people ? <div className="xp-slot-people">{[
+        ...experiment.arms.filter(arm => arm.kind !== 'holdout'), ...experiment.arms.filter(arm => arm.kind === 'holdout'),
+      ].map(arm => <span key={arm.key}>{(arm.kind === 'holdout' ? C.holdoutPeople : C.people)(arm.label, formatCount(data.people![arm.key] ?? 0))}</span>)}</div> : null}
     </> : <p className="xp-ui-help">{C.loading}</p>}
     <Button variant="quiet" size="sm" disabled={busy} onClick={() => {
       if (pending.current) return
