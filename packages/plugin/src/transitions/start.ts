@@ -1,17 +1,18 @@
 import type { PayloadRequest } from 'payload'
+import { lockPagePaths } from '../db/locks.js'
 import { lockMetricsForFreeze } from '../db/metricUsage.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
 import { claimSlices } from '../db/slices.js'
-import { unpublishedPageCopy } from '../admin/copy/readiness.js'
+import { pageInUseCopy, unpublishedPageCopy } from '../admin/copy/readiness.js'
 import { XpRefusal } from '../errors.js'
 import { isOpValid } from '../targeting/ops.js'
 import { newSeed } from '../runtime/seed.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 import type { RefusalCode } from '../types/endpoints.js'
-import { checkStart, relationshipId, type StartExperiment } from './checkStart.js'
+import { checkStart, pageTargetPaths, relationshipId, type StartExperiment } from './checkStart.js'
 import { withTransition } from './kernel.js'
 import { writePhaseRecord } from './phaseRecord.js'
-import { loadStartInputs } from './preflightData.js'
+import { loadPageTestsInUse, loadStartInputs } from './preflightData.js'
 import { resolveCaps, type MetricDefinition } from './resolveCaps.js'
 
 export type TransitionExperiment = StartExperiment & Record<string, unknown> & {
@@ -26,6 +27,7 @@ export async function readExperiment(req: PayloadRequest, id: DocId): Promise<Tr
 }
 export function refuse(code: RefusalCode, detail?: unknown): never {
   const messages: Partial<Record<RefusalCode, string>> = {
+    'page-in-use': pageInUseCopy((detail as { paths?: string[] } | undefined)?.paths?.[0] ?? 'this page'),
     'page-target-unpublished': unpublishedPageCopy(typeof detail === 'string' ? detail : 'This page'),
     'invalid-status': 'This action is not available in the current status.',
     'stale-draft': 'The experiment changed. Review it again before starting.',
@@ -39,7 +41,7 @@ export function refuse(code: RefusalCode, detail?: unknown): never {
     'entry-dismissed': 'That page was already dismissed.',
     'entry-not-dismissed': 'That page is not dismissed.',
   }
-  const conflict = ['invalid-status', 'stale-draft', 'flag-point-busy', 'layer-full', 'allocation-lower', 'not-decided', 'entry-ok', 'entry-dismissed', 'entry-not-dismissed'].includes(code)
+  const conflict = ['invalid-status', 'stale-draft', 'page-in-use', 'flag-point-busy', 'layer-full', 'allocation-lower', 'not-decided', 'entry-ok', 'entry-dismissed', 'entry-not-dismissed'].includes(code)
   throw new XpRefusal(code, messages[code] ?? 'The experiment is not ready to start.', detail, code === 'entry-not-found' ? 404 : conflict ? 409 : 422)
 }
 export async function updateExperiment(req: PayloadRequest, id: DocId, data: Record<string, unknown>) {
@@ -71,6 +73,15 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
     const current = await readExperiment(req, experimentId)
     if (current.updatedAt !== updatedAt) refuse('stale-draft')
     if (current.status !== 'draft' && current.status !== 'stopped') refuse('invalid-status')
+    if (current.kind === 'page') {
+      // Independent experiment/layer locks do not serialize overlapping pages.
+      // Re-read occupancy after acquiring sorted path locks; hold through commit.
+      // A waiting Start then sees the first Start's live test on this transaction.
+      await lockPagePaths(exec, pageTargetPaths(current.arms))
+      const recheck = checkStart({ ...input, experiment: current, pageTestsInUse: await loadPageTestsInUse(req) })
+        .find(check => check.code === 'page-in-use' && !check.ok)
+      if (recheck) refuse('page-in-use', recheck.detail)
+    }
     if (current.kind === 'flag' && current.flagPoint) {
       const busy = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 2,
         where: { and: [{ flagPoint: { equals: current.flagPoint } }, { status: { in: ['running', 'decided'] } }] } })

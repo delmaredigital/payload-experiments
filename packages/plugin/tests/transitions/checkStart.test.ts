@@ -32,6 +32,7 @@ const cases: Array<[string, (input: CheckStartInput) => void]> = [
   ['no-primary-metric', i => { i.experiment.metrics = {} }],
   ['no-reach-per-day', i => { i.experiment.exposurePolicy = 'manual' }],
   ['page-no-targets', i => { i.experiment.kind = 'page' }],
+  ['page-in-use', i => { i.experiment.kind = 'page'; i.experiment.arms[0]!.pageTarget = '/shared/'; i.pageTestsInUse = [{ id: 2, arms: [{ ...i.experiment.arms[0]!, pageTarget: '/shared' }] }] }],
   ['page-user-unit', i => { i.experiment.kind = 'page'; i.experiment.unitType = 'user' }],
   ['flag-no-point', i => { i.experiment.kind = 'flag' }],
   ['flag-params-invalid', i => { flag(i); i.experiment.arms[1]!.params = { title: 42 } }],
@@ -54,7 +55,7 @@ describe('checkStart', () => {
   })
   test('all checks pass and remain in fixed order even when many checks fail', () => {
     const input = ready()
-    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-target-unpublished', 'page-targets-unchecked', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'empty-slot', 'make-content-unsupported', 'layer-unit-mismatch', 'layer-full', 'unknown-metric-source', 'unit-source-mismatch', 'block-path-rule', 'undeclared-targeting-key', 'invalid-targeting-rule']
+    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-in-use', 'page-target-unpublished', 'page-targets-unchecked', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'empty-slot', 'make-content-unsupported', 'layer-unit-mismatch', 'layer-full', 'unknown-metric-source', 'unit-source-mismatch', 'block-path-rule', 'undeclared-targeting-key', 'invalid-targeting-rule']
     expect(checkStart(input)).toEqual(order.map(code => ({ code, ok: true })))
     for (const [, mutate] of cases) {
       const changed = ready(); mutate(changed)
@@ -139,3 +140,33 @@ test('localized placements warn without refusing Start', () => {
   expect(checkStart(input)).toContainEqual({ code: 'make-content-unsupported', ok: true, warning: true, detail: 'Home' })
   expect(checkStart(input).every(check => check.ok)).toBe(true)
 })
+
+test('page conflicts contain only distinct normalised shared paths, excluding self; a holdout target counts as the runtime matches it', () => {
+  const input = ready()
+  input.experiment.kind = 'page'
+  input.experiment.arms = [
+    { ...input.experiment.arms[0]!, pageTarget: '/Original/' },
+    { ...input.experiment.arms[1]!, pageTarget: '/variant///' },
+    { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 0, pageTarget: '/holdout' },
+  ]
+  input.pageTestsInUse = [
+    { id: '1', arms: [{ ...input.experiment.arms[0]!, pageTarget: '/self' }] },
+    { id: 2, arms: ['/Original', '/variant/', '/variant', '/unshared', '/holdout'].map(pageTarget => ({ ...input.experiment.arms[0]!, pageTarget })) },
+  ]
+  expect(checkStart(input)).toContainEqual({ code: 'page-in-use', ok: false, detail: { paths: ['/Original', '/holdout', '/variant'] } })
+  input.pageTestsInUse = [{ id: '1', arms: input.experiment.arms }]
+  expect(checkStart(input)).toContainEqual({ code: 'page-in-use', ok: true })
+  input.pageTestsInUse = [{ id: 2, arms: [{ ...input.experiment.arms[0]!, pageTarget: '/original' }] }]
+  expect(checkStart(input)).toContainEqual({ code: 'page-in-use', ok: true }) // Runtime paths are case-sensitive.
+})
+
+test('pageTargetPaths covers every path the runtime matches, holdout and empty targets included', async () => {
+  const { pageTargetPaths } = await import('../../src/transitions/checkStart.js')
+  expect(pageTargetPaths([
+    { key: 'control', kind: 'control', weight: 50, pageTarget: '/a/' },
+    { key: 'variantA', kind: 'variant', weight: 48, pageTarget: '' },
+    { key: 'holdout', kind: 'holdout', weight: 2, pageTarget: '/h' },
+    { key: 'variantB', kind: 'variant', weight: 0 },
+  ] as never)).toEqual(['/', '/a', '/h'])
+})
+

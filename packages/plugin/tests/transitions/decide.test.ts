@@ -28,9 +28,11 @@ function fixture(status = 'running', holdout = true, layer = false) {
   })
   let revision = 8
   const manifests: any[] = []
+  const occupancy: Array<{ id: number; arms: Arm[] }> = []
   executor.query = async <R>(text: string, params: unknown[] = []) => {
     executor.calls.push({ text, params })
     let rows: unknown[] = []
+    if (text.includes('JOIN LATERAL')) rows = occupancy
     if (text.includes(' AS slices ')) rows = payload.documents['xp-experiments']!.filter(doc => doc.layer === params[0] && ['running', 'decided'].includes(String(doc.status))).map(doc => ({ slices: doc.layerSlices }))
     if (text.includes('RETURNING "revision"')) rows = [{ revision: ++revision }]
     if (text.includes('"manifest" =')) manifests.push(JSON.parse(params[0] as string))
@@ -51,7 +53,7 @@ function fixture(status = 'running', holdout = true, layer = false) {
   // Model separate stored JSON values even though the fixture reused arms above.
   experiment.arms = structuredClone(experiment.arms)
   const phase = payload.documents['xp-phases']![0]!
-  return { req, payload, executor, experiment, phase, manifests, slices }
+  return { req, payload, executor, experiment, phase, manifests, slices, occupancy }
 }
 import { decide } from '../../src/transitions/decide.js'
 import { assign } from '../../src/runtime/assign.js'
@@ -160,6 +162,31 @@ test.each(['running', 'decided'])('stopped flag decision refuses a point occupie
   expect(f.payload.documents['xp-phases']).toHaveLength(1)
 })
 
+test.each(['running', 'decided'])('stopped page decision refuses pages now used by another %s page test', async status => {
+  const f = fixture('stopped')
+  f.experiment.kind = 'page'
+  f.occupancy.push({ id: 2, arms: [
+    { key: 'control', label: 'Original', kind: 'control', weight: 50, pageTarget: '/original/' }, { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 50, pageTarget: '/elsewhere' },
+  ] })
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantA' })).rejects.toMatchObject({ code: 'page-in-use', detail: { paths: ['/original'] } })
+  expect(f.executor.calls.some(call => call.text.includes("hashtext('xp:pagepath')"))).toBe(true)
+  expect(f.payload.documents['xp-phases']).toHaveLength(1)
+})
+test('stopped page decision checks the frozen round arms, not the edited document', async () => {
+  const f = fixture('stopped')
+  f.experiment.kind = 'page'
+  // The stopped document was edited away from /original; the frozen round still restores it.
+  f.experiment.arms = (f.experiment.arms as Arm[]).map(arm => arm.kind === 'control' ? { ...arm, pageTarget: '/edited' } : arm)
+  f.occupancy.push({ id: 2, arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 100, pageTarget: '/original' }] })
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantA' })).rejects.toMatchObject({ code: 'page-in-use', detail: { paths: ['/original'] } })
+})
+test('stopped page decision proceeds when no other live page test shares its pages', async () => {
+  const f = fixture('stopped')
+  f.experiment.kind = 'page'
+  f.payload.documents['xp-experiments']!.push({ id: 2, kind: 'page', status: 'draft', arms: [{ key: 'control', kind: 'control', weight: 100, pageTarget: '/original' }] })
+  // A draft page test on the same pages does not occupy them.
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantA' })).resolves.toBeDefined()
+})
 test('stopped decision uses the frozen winner and label after the document arm was removed', async () => {
   const f = fixture('stopped')
   f.experiment.arms = [(f.experiment.arms as Arm[])[0]]

@@ -1,5 +1,6 @@
 import { Forbidden, Locked, NotFound, ValidationError, killTransaction, type Field, type Block } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
+import { contentChangesBeforeHook, contentChangesHook } from '../../src/hooks/contentChanges.js'
 import { contentReportCopy } from '../../src/admin/copy/actions.js'
 import { preflightData } from '../../src/transitions/preflightData.js'
 import { dismissContentEntry } from '../../src/transitions/dismissContentEntry.js'
@@ -972,3 +973,43 @@ test.each([false, true])('dismissed flag failure is retained without calling the
   expect(callback).not.toHaveBeenCalled()
 })
 
+
+
+test.each([false, true])('make-content host publish with expanded links records a marker only for stored changes (changed=%s)', async changed => {
+  const f = fixture('flag')
+  const collection = { slug: 'asks', versions: { drafts: {} } }
+  f.payload.documents.asks = [{ id: 7, _status: 'published', vars: [{
+    experimentArm: { experiment: '8', arm: 'variantA' }, text: 'Original', image: 9,
+  }] }]
+  const query = f.executor.query.bind(f.executor)
+  f.executor.query = async <R>(sql: string, params?: unknown[]) => {
+    const result = await query<R>(sql, params)
+    if (sql.includes("current_setting('lock_timeout')")) return { rows: [{ timeout: '5s' }] as R[], rowCount: 1 }
+    if (sql.includes("= 'running'")) return { rows: [{ id: 8, phase: 1 }] as R[], rowCount: 1 }
+    return result
+  }
+  const update = f.payload.update.bind(f.payload)
+  vi.spyOn(f.payload, 'update').mockImplementation(async args => {
+    if (args.collection !== 'asks') return update(args)
+    expect(args.depth).toBeUndefined() // The host uses Payload's default depth.
+    const previousDoc = structuredClone(f.payload.documents.asks![0]!)
+    await contentChangesBeforeHook({ req: args.req!, collection, originalDoc: previousDoc, data: args.data, operation: 'update' } as never)
+    const stored = await update(args) as any
+    const doc = structuredClone(stored)
+    doc.vars[0].image = { id: 9, filename: 'Expanded image.png' }
+    await contentChangesHook({ req: args.req!, collection, previousDoc, doc } as never)
+    return doc
+  })
+  f.options.flagPoints = [{ id: 'setting', label: 'Setting', params: {}, defaultParams: {},
+  }]
+  // Copy the winning value through the same access-checked host write as a binding.
+  f.options.flagPoints[0]!.makeContent = async ({ req }) => {
+    const vars = structuredClone(f.payload.documents.asks![0]!.vars) as Array<Record<string, unknown>>
+    if (changed) vars[0]!.text = 'Winner'
+    await req.payload.update({ collection: 'asks', id: 7, req, overrideAccess: false, data: { _status: 'published', vars } })
+  }
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs).toEqual([{ collection: 'xp-experiments', id: 1, ok: true }])
+  const markers = f.executor.calls.filter(call => call.text.startsWith('UPDATE') && call.text.includes('"content_changes"'))
+  expect(markers).toHaveLength(changed ? 1 : 0)
+})

@@ -9,15 +9,23 @@ export interface AllocationChange { at: string; from: number; to: number }
 export interface ContentChange { at: string; doc: { collection: string; id: DocId }; by: DocId | null }
 type AppendArgs<T> = { experimentId: DocId; phase: number; entry: T }
 
-/** Read the main collection row BEFORE the host write. Draft version retention
- * and unpublishing cannot remove this baseline. Adapter reads avoid Local API
- * error handling killing the host transaction before savepoint recovery.
+/** Raw main-row read on the host transaction, without afterRead expansion.
+ * Adapter reads avoid Local API error handling killing the host transaction
+ * before the audit savepoint can recover.
  */
-export async function previousPublishedContent(req: PayloadRequest, collection: string, id: DocId): Promise<Record<string, unknown> | undefined> {
+export async function storedContent(req: PayloadRequest, collection: string, id: DocId): Promise<Record<string, unknown> | undefined> {
   const doc = await req.payload.db.findOne<Record<string, unknown> & { id: DocId }>({ collection, req, where: { id: { equals: id } },
     // Adapter reads have no access layer; document the audit's access posture.
     overrideAccess: false,
   } as Parameters<PayloadRequest['payload']['db']['findOne']>[0])
+  return doc ?? undefined
+}
+
+/** Read the main collection row BEFORE the host write. Draft version retention
+ * and unpublishing cannot remove this baseline.
+ */
+export async function previousPublishedContent(req: PayloadRequest, collection: string, id: DocId): Promise<Record<string, unknown> | undefined> {
+  const doc = await storedContent(req, collection, id)
   if (!doc) return undefined
   // A draft created with content is already in the main table. Only the
   // existence of a published version matters here; never use its content as

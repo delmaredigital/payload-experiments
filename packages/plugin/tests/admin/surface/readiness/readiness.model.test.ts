@@ -23,6 +23,7 @@ const fixtures = {
   'no-reach-per-day': ['length', undefined, 'Enter how many people reach this per day.'],
   'layer-full': ['versions', undefined, "This test's group is full. Lower how many people take part, or create the test again without the group."],
   'layer-unit-mismatch': ['header', undefined, "This test's group counts different people. Create the test again without the group."],
+  'page-in-use': ['versions', { paths: ['/original', '/variant'] }, 'Another running or decided test already uses /original. Choose a different page, or finish that test first.'],
   'page-no-targets': ['versions', undefined, 'Add a page address for each version.'],
   'page-target-unpublished': ['versions', '/variant', "/variant isn't a published page. Publish it, or pick another page."],
   'page-targets-unchecked': ['versions', undefined, "Version pages aren't checked; make sure each one is published."],
@@ -45,16 +46,16 @@ const fixtures = {
 } satisfies Record<ReadinessCode, Fixture>
 const ctx = { ...doc, flagPoint: 'ask', flagPoints: [{ id: 'ask', params: { headline: { type: 'text' as const, label: 'Headline text' } } }] }
 
-test('covers every literal start check and every member of both source unions (34 including health)', () => {
+test('covers every literal start check and every member of both source unions (35 including health)', () => {
   const source = readFileSync(new URL('../../../../src/transitions/checkStart.ts', import.meta.url), 'utf8')
   const endpoints = readFileSync(new URL('../../../../src/types/endpoints.ts', import.meta.url), 'utf8')
   const literals = [...source.matchAll(/add\('([^']+)'/g)].map(match => match[1])
   const readinessUnion = source.split('export type ReadinessCode = ArmIssueCode')[1]!.split('export interface')[0]!
   const armUnion = endpoints.split('export type ArmIssueCode =')[1]!.split('\n')[0]!
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(22)
+  expect(literals).toHaveLength(23)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(34)
+  expect(members).toHaveLength(35)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
   expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'version-page-unavailable', 'version-page-unchecked'].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())
@@ -101,4 +102,13 @@ test('status helpers omit unknown dates and duration, clamp a finished duration'
   expect(displayDate('bad')).toBeNull()
   expect(daysRemaining(doc, Date.now())).toBeNull()
   expect(daysRemaining({ ...doc, startedAt: '2026-10-01T00:00:00Z' }, Date.parse('2026-11-02'))).toBe(0)
+})
+
+
+test('page conflict readiness names the next action and tolerates missing path detail', () => {
+  expect(nextStep(preflight([{ code: 'page-in-use', ok: false, detail: { paths: ['/original'] } }]), ctx))
+    .toEqual({ section: 'versions', code: 'page-in-use', sentence: fixtures['page-in-use'][2], nextStep: 'Choose a different page' })
+  for (const detail of [undefined, {}, { paths: [] }, { paths: [null] }]) {
+    expect(READINESS['page-in-use'].next(detail, ctx)).toBe('Another running or decided test already uses this page. Choose a different page, or finish that test first.')
+  }
 })
