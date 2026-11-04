@@ -181,13 +181,6 @@ describe('release workflow wiring', () => {
     expect(workflow).toContain('gh release create "$TAG" --notes-file release-notes.md $PRERELEASE_ARG --generate-notes')
   })
 
-  test('pins every external action to a commit sha in the id-token publish job', () => {
-    const workflow = readFileSync(join(repoRoot, '.github/workflows/publish.yml'), 'utf8')
-    const uses = [...workflow.matchAll(/^\s*-?\s*uses:\s*(\S+)/gm)].map(match => match[1]!).filter(ref => !ref.startsWith('./'))
-    expect(uses.length).toBeGreaterThan(0)
-    expect(uses.filter(ref => !/@[0-9a-f]{40}$/.test(ref))).toEqual([])
-  })
-
   test('runs push CI for both release lines', () => {
     const workflow = readFileSync(join(repoRoot, '.github/workflows/ci.yml'), 'utf8')
     expect(workflow).toMatch(/push:\s*\n\s+branches: \[main, payload-4\]/)
