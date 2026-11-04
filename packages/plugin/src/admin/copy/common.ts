@@ -12,8 +12,8 @@ export const API_MESSAGES = {
 export const LOCKED_MESSAGES = {
   creation: 'Set when the experiment was created.',
   running: 'Locked while the test is running so everyone in this round sees the same thing. Stop the test to change it.',
-  runningAllocation: 'Raise it from the actions panel; lowering takes effect in the next round.',
-  runningMetrics: 'Add supporting metrics or guardrails from the actions panel; the main metric is fixed for this round.',
+  runningAllocation: 'To include more people, use "Let more people in" at the bottom of the page. To include fewer, stop the test; the change applies when you start it again.',
+  runningMetrics: 'Add a guardrail or something to watch with "Add a goal" at the bottom of the page; the main goal is fixed for this round.',
   decided: 'Locked after the decision.',
   archived: "Archived experiments can't be changed.",
   other: "Can't be changed in this state.",

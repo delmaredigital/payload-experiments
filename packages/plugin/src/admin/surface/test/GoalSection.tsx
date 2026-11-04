@@ -87,12 +87,12 @@ export function GoalSection({ test, surface }: SectionProps) {
     {failed ? <p role="alert">{C.goalsError} <span className="xp-ui-button-group"><Button onClick={() => setAttempt(n => n + 1)}>{C.retry}</Button></span></p> : null}
     <SelectEdit labelAction={<span className="xp-ui-button-group"><Button variant="link" size="sm" href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${!reason ? `?${new URLSearchParams({ return: String(doc.id) })}` : ''}` })}>{C.manageGoals}</Button></span>} label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
     <p>{C.goalHelp}</p>
+    {baseline ? <p>{primary?.name ? `${primary.name}: ` : ''}{baseline}</p> : null}
     <FieldErrors test={test} path="metrics.primary" />
     <CheckboxList searchable={metrics.length > 8} label={C.guardrails} value={(doc.metrics?.guardrails ?? []).map(String)} options={roleOptions('guardrails')} reason={reason} readOnlyValue={display(doc.metrics?.guardrails ?? [])} onToggle={(value, checked) => toggle('guardrails', value, checked)} />
     <p>{C.guardrailHelp}</p><FieldErrors test={test} path="metrics.guardrails" />
     <CheckboxList searchable={metrics.length > 8} label={C.secondary} value={(doc.metrics?.secondary ?? []).map(String)} options={roleOptions('secondary')} reason={reason} readOnlyValue={display(doc.metrics?.secondary ?? [])} onToggle={(value, checked) => toggle('secondary', value, checked)} />
     <FieldErrors test={test} path="metrics.secondary" />
-    {baseline ? <p>{primary?.name ? `${primary.name}: ` : ''}{baseline}</p> : null}
     {test.errors.metrics ? <p role="alert">{test.errors.metrics}</p> : null}
   </Section>
 }

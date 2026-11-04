@@ -23,11 +23,11 @@ test('a holdout is measured and uses its share of enrolled people', () => {
 })
 test('layer usage and running guidance are appended', () => {
   const output = allocationSentence({ allocation: 50, unitType: 'visitor', arms: groups([50, 50]), status: 'running', layer: { name: 'Homepage', used: 50, free: 30 } })
-  expect(output).toBe(sentence([50, 50]) + '. Uses 50 of the 100 slices in layer Homepage; 30 are free. Raise it from the actions panel; lowering takes effect in the next round.')
+  expect(output).toBe(sentence([50, 50]) + '. Uses 50 of the 100 slices in layer Homepage; 30 are free.')
 })
 test('running without a holdout starts a new sentence', () => {
   expect(allocationSentence({ allocation: 50, unitType: 'visitor', arms: groups([50, 50]), status: 'running' }))
-    .toBe(sentence([50, 50]) + '. Raise it from the actions panel; lowering takes effect in the next round.')
+    .toBe(sentence([50, 50]) + '.')
 })
 test('layer without a holdout starts a new sentence', () => {
   expect(allocationSentence({ allocation: 50, unitType: 'visitor', arms: groups([50, 50]), status: 'draft', layer: { name: 'Home', used: 50, free: 30 } }))
@@ -37,7 +37,7 @@ test('holdout suffixes keep a single period and space', () => {
   const arms: AllocationGroup[] = [...groups([45, 45]), { key: 'holdout', kind: 'holdout', weight: 10 }]
   const base = allocationSentence({ allocation: 50, unitType: 'visitor', arms, status: 'draft' })
   expect(allocationSentence({ allocation: 50, unitType: 'visitor', arms, status: 'running', layer: { name: 'Home', used: 50, free: 30 } }))
-    .toBe(base + ' Uses 50 of the 100 slices in layer Home; 30 are free. Raise it from the actions panel; lowering takes effect in the next round.')
+    .toBe(base + ' Uses 50 of the 100 slices in layer Home; 30 are free.')
 })
 test('reads flattened form rows in order and omits incomplete layer data', () => {
   expect(allocationGroups({ arms: { value: 2 }, 'arms.1.key': { value: 'variantA' }, 'arms.1.kind': { value: 'variant' }, 'arms.1.weight': { value: 60 },

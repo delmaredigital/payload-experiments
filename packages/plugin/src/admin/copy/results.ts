@@ -22,7 +22,7 @@ export const RESULTS_COPY = {
   tooFew: 'Too few people have seen the compared groups.',
   tooFewNext: 'Keep collecting results until each compared group reaches the planned minimum.',
   layerFull: 'The layer has fewer slices reserved than the requested allocation.',
-  layerNext: 'Free slices in the layer, then raise participation from the actions panel.',
+  layerNext: 'Free slices in the layer, then use "Let more people in".',
   unavailable: {
     'source-failed': "couldn't be read this time; the next results run will try again.",
     'source-unavailable': "can't be read because its data source is no longer available. Ask a developer to check this goal.",

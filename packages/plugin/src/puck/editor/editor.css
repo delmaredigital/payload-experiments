@@ -183,7 +183,7 @@
 .xp-ui-button--danger { color: var(--xp-error); border-color: var(--xp-error-border); background: var(--xp-surface); }
 .xp-ui-button--danger:hover { background: var(--xp-error-bg); }
 .xp-ui-button--sm { height: 30px; padding: 0 10px; font-size: 13px; }
-.xp-ui-button--link { padding-inline: 0; color: var(--xp-accent-text); text-decoration: var(--xp-accent-text-decoration); }
+.xp-ui-button--link { height: auto; min-height: 0; padding-inline: 0; color: var(--xp-accent-text); text-decoration: var(--xp-accent-text-decoration); }
 .xp-ui-button--link:hover { text-decoration: underline; }
 .xp-ui-button:disabled, .xp-ui-button[aria-disabled='true'], .xp-ui-input:disabled, .xp-ui-toggle:disabled { opacity: .5; cursor: not-allowed; }
 .xp-ui-button:focus-visible, .xp-ui-input:focus-visible, .xp-ui-toggle:focus-visible, .xp-ui-tab:focus-visible, .xp-ui-tabpanel:focus-visible, .xp-ui-breadcrumb a:focus-visible, .xp-ui-dialog:focus-visible { outline: 2px solid var(--xp-focus); outline-offset: 2px; }
@@ -238,7 +238,7 @@
 .xp-ui-chips-control:focus-within { outline: 2px solid var(--xp-focus); outline-offset: 2px; }
 .xp-ui-chips-item { display: inline-flex; align-items: center; gap: var(--xp-space-1); padding-inline-start: var(--xp-space-2); border-radius: var(--xp-radius); background: var(--xp-surface-raised); overflow-wrap: anywhere; max-width: 100%; }
 .xp-ui-chips .xp-ui-chips-item button { padding: var(--xp-space-1) var(--xp-space-2); border: 0; background: transparent; color: var(--xp-text); font: inherit; cursor: pointer; }
-.xp-ui-chips .xp-ui-chips-control input { flex: 1; min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; border: 0; padding: var(--xp-space-1); background: transparent; color: var(--xp-text); font: inherit; }
+.xp-ui-chips .xp-ui-chips-control input { flex: 1 1 28ch; min-width: min(100%, 28ch); width: 100%; max-width: 100%; box-sizing: border-box; border: 0; padding: var(--xp-space-1); background: transparent; color: var(--xp-text); font: inherit; }
 .xp-ui-chips input:focus { outline: none; }
 .xp-ui-chips button:focus-visible { outline: 2px solid var(--xp-focus); outline-offset: 2px; }
 .xp-ui-chips[aria-disabled='true'] { opacity: .5; }

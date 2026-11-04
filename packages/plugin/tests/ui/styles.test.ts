@@ -20,9 +20,11 @@ test('narrow-width CSS audit: controls fit their containing block and action row
   // the 390px screenshots. These rules remove intrinsic grid/input overflow.
   for (const selector of ['.xp-ui-input', '.xp-ui-chips', '.xp-ui-chips-control', '.xp-ui-chips .xp-ui-chips-control input']) {
     const declarations = rule(selector)
-    for (const expected of ['width: 100%', 'max-width: 100%', 'min-width: 0', 'box-sizing: border-box']) {
+    for (const expected of ['width: 100%', 'max-width: 100%', 'box-sizing: border-box']) {
       expect(declarations, `${selector}: ${expected}`).toContain(expected)
     }
+    // A minimum never wider than the container still fits; the chips input keeps a readable 28ch when there is room.
+    expect(declarations, `${selector}: min-width`).toMatch(/min-width: (0|min\(100%, [^)]+\));/)
   }
   for (const selector of ['.xp-ui-button-group', '.xp-ui-tablist', '.xp-ui-banner', '.xp-ui-section-head']) {
     expect(rule(selector), selector).toContain('flex-wrap: wrap')

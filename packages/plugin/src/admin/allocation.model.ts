@@ -1,6 +1,5 @@
 import type { Arm, Status, UnitType } from '../types/contracts.js'
 import { armLabel } from './labels.js'
-import { LOCKED_MESSAGES } from './copy/common.js'
 import { eachVersion, groupShare, holdoutClause, holdoutRemainder, layerSentence, participation, peopleLabel, uncounted } from './copy/audience.js'
 
 export type AllocationGroup = Pick<Arm, 'key' | 'weight' | 'kind'> & { label?: string }
@@ -20,7 +19,6 @@ export function allocationSentence({ allocation, unitType, arms, layer, status }
     + (allocation < 100 ? holdout ? holdoutRemainder : uncounted : '')
   if ((holdout || layer || status === 'running') && !sentence.endsWith('.')) sentence += '.'
   if (layer) sentence += layerSentence(layer.name, layer.used, layer.free)
-  if (status === 'running') sentence += ` ${LOCKED_MESSAGES.runningAllocation}`
   return sentence
 }
 

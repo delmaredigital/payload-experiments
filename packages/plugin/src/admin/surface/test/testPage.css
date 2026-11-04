@@ -87,3 +87,4 @@
 }
 
 .xp-ui-checkbox-list > .xp-ui-field:has(input[type="search"]) { flex-basis: 100%; }
+.xp-targeting-row .xp-ui-chips { margin-block: 0; }
