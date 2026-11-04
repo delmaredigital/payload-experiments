@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test } from 'vitest'
-import { ArmTable } from '../../../src/admin/results/ArmTable.js'
+import { DataTable as ArmTable } from '../../../src/admin/results/DataTable.js'
 import { CappedCell } from '../../../src/admin/results/CappedCell.js'
 import { DataQualityPanel } from '../../../src/admin/results/DataQualityPanel.js'
-import { VerdictCard } from '../../../src/admin/results/VerdictCard.js'
+import { VerdictHero as VerdictCard } from '../../../src/admin/results/VerdictHero.js'
 import { armRows, cappedCell, collectingLine, dataQuality, guardrailChips, powerLine, rolloutLine, verdictCard } from '../../../src/admin/results/results.model.js'
 import { RESULTS_COPY } from '../../../src/admin/copy/results.js'
 import { fixture, fixtures, phaseFor, revenueSnapshot } from './fixtures.js'
@@ -60,59 +60,35 @@ test.each(['T7', 'T7-adjusted', 'T7-bayesian', 'R3'])('%s table is captioned wit
   const phase = phaseFor(snapshot)
   phase.arms.reverse()
   const rows = armRows({ snapshot, phase, metricId: 'registrations' })
-  render(<ArmTable rows={rows} caption="Registrations" method={snapshot.method} metricKind="binomial" />)
+  render(<ArmTable rows={rows} caption="Registrations" method={snapshot.method} metricKind="binomial" primary />)
   const table = screen.getByRole('table', { name: 'Registrations' })
   for (const header of within(table).getAllByRole('columnheader')) expect(header.getAttribute('scope')).toBe('col')
   for (const header of within(table).getAllByRole('rowheader')) expect(header.getAttribute('scope')).toBe('row')
-  expect(within(table).getAllByRole('rowheader').map(header => header.textContent)).toEqual(phase.arms.map(arm => arm.label))
-  const showAdjustedCI = rows.some(row => row.comparison?.method === 'sequential' && row.comparison.adjustedCI !== undefined)
-  const showAdjustedP = rows.some(row => row.comparison?.method === 'sequential' && row.comparison.pValueAdjusted !== undefined)
+  expect(within(table).getAllByRole('rowheader').map(header => header.textContent)).toEqual(rows.map(row => row.label + (row.key === 'holdout' ? row.baseline : '')))
   for (const row of rows) {
-    const tr = screen.getByRole('rowheader', { name: row.label }).parentElement!
+    const tr = screen.getByRole('rowheader', { name: row.key === 'holdout' ? `${row.label} ${row.baseline}` : row.label }).parentElement!
     const comparison = row.comparison
-    const cells = row.baseline ? [row.n, row.value, row.baseline] : [
-      row.n, row.value,
-      comparison?.method === 'sequential' ? comparison.lift : comparison?.chanceToWin ?? '—',
-      comparison?.ci ?? '—',
-      ...(showAdjustedCI ? [comparison?.method === 'sequential' ? comparison.adjustedCI ?? '—' : '—'] : []),
-      comparison?.method === 'sequential' ? comparison.pValue : comparison?.risk ?? '—',
-      ...(showAdjustedP ? [comparison?.method === 'sequential' ? comparison.pValueAdjusted ?? '—' : '—'] : []),
-      comparison?.significance ?? '—',
-    ]
+    const cells = [row.n, row.value, row.rate, row.baseline ? '—' : row.lift ?? '—',
+      row.baseline ? '—' : comparison?.method === 'sequential' ? comparison.adjustedCI ?? comparison.ci : comparison?.ci ?? '—',
+      row.baseline ? '—' : row.chanceToWin ?? '—']
     expect(within(tr).getAllByRole('cell').map(cell => cell.textContent)).toEqual(cells)
   }
-  const holdout = screen.getByRole('rowheader', { name: 'Unchanged form' }).parentElement!
-  expect(holdout.children).toHaveLength(4) // name, people, outcome, spanning baseline cell
-  expect(within(holdout).getAllByRole('cell')[2]!.textContent).toBe(snapshot.phaseKind === 'rollout' ? 'Holdout · baseline' : 'Measured, not compared')
-  expect(holdout.children[3]!.getAttribute('colspan')).toBe(String(4 + Number(showAdjustedCI) + Number(showAdjustedP)))
-  expect(holdout.querySelector('.xp-chip')).toBeNull()
-  if (snapshot.method === 'bayesian') {
-    expect(screen.getByRole('columnheader', { name: 'Chance to win' })).toBeTruthy()
-    expect(screen.getByRole('columnheader', { name: 'Risk' })).toBeTruthy()
-    expect(screen.queryByRole('columnheader', { name: 'Lift' })).toBeNull()
-    expect(screen.queryByRole('columnheader', { name: 'p-value' })).toBeNull()
-  }
-  expect(screen.queryByRole('columnheader', { name: 'Adjusted confidence interval' }) !== null).toBe(showAdjustedCI)
-  expect(screen.queryByRole('columnheader', { name: 'Adjusted p-value' }) !== null).toBe(showAdjustedP)
+  expect(screen.getByRole('columnheader', { name: 'Rate' })).toBeTruthy()
+  expect(screen.getByRole('columnheader', { name: 'Lift' })).toBeTruthy()
+  expect(screen.getByRole('columnheader', { name: 'Chance to win' })).toBeTruthy()
+  expect(screen.queryByRole('columnheader', { name: 'Mean' })).toBeNull()
 })
-test('adjusted columns come from row fields and raw and adjusted p have distinct headers and cells', () => {
+test('sequential confidence intervals use stored adjusted bounds when present', () => {
   const snapshot = fixture('T7-adjusted')
-  snapshot.metrics[0]!.comparisons[0]!.pValue = 0.01
-  snapshot.metrics[0]!.comparisons[0]!.pValueAdjusted = 0.03
   const rows = armRows({ snapshot, phase: phaseFor(snapshot), metricId: 'registrations' })
-  const { rerender } = render(<ArmTable rows={rows} caption="Registrations" method="sequential" metricKind="binomial" />)
-  const headers = () => screen.getAllByRole('columnheader').map(cell => cell.textContent)
-  const variantCells = () => within(screen.getByRole('rowheader', { name: 'Shorter form' }).parentElement!).getAllByRole('cell').map(cell => cell.textContent)
-  expect(headers()).toEqual(['Group', 'People', 'Conversions', 'Lift', 'Confidence interval', 'Adjusted confidence interval', 'p-value', 'Adjusted p-value', 'Comparison'])
-  expect(variantCells()[5]).toBe('0.01')
-  expect(variantCells()[6]).toBe('0.03')
-  for (const row of rows) if (row.comparison?.method === 'sequential') delete row.comparison.adjustedCI
-  rerender(<ArmTable rows={rows} caption="Registrations" method="sequential" metricKind="binomial" />)
-  expect(headers()).toEqual(['Group', 'People', 'Conversions', 'Lift', 'Confidence interval', 'p-value', 'Adjusted p-value', 'Comparison'])
-  for (const row of rows) if (row.comparison?.method === 'sequential') delete row.comparison.pValueAdjusted
-  rerender(<ArmTable rows={rows} caption="Registrations" method="sequential" metricKind="binomial" />)
-  expect(headers()).toEqual(['Group', 'People', 'Conversions', 'Lift', 'Confidence interval', 'p-value', 'Comparison'])
-  expect(variantCells()[4]).toBe('0.01')
+  const { rerender } = render(<ArmTable rows={rows} caption="Registrations" method="sequential" metricKind="binomial" primary />)
+  const ciCell = () => within(screen.getByRole('rowheader', { name: 'Shorter form' }).parentElement!).getAllByRole('cell')[4]!.textContent
+  const comparison = rows.find(row => row.key === 'variantA')!.comparison!
+  if (comparison.method !== 'sequential') throw new Error('Expected sequential fixture')
+  expect(ciCell()).toBe(comparison.adjustedCI)
+  delete comparison.adjustedCI
+  rerender(<ArmTable rows={rows} caption="Registrations" method="sequential" metricKind="binomial" primary />)
+  expect(ciCell()).toBe(comparison.ci)
 })
 test('capped cell renders every model line including zero; table uses it for revenue', () => {
   const snapshot = revenueSnapshot()
@@ -143,7 +119,23 @@ test('quality panel renders each model item, its details, shares, and next step'
     for (const share of item.shares ?? []) expect(screen.getByText(share)).toBeTruthy()
   }
 })
-test('empty quality panel renders nothing', () => {
+test('empty quality panel is collapsed with OK summary', () => {
   const { container } = render(<DataQualityPanel items={[]} />)
-  expect(container.textContent).toBe('')
+  expect(container.querySelector('details')?.open).toBe(false)
+  expect(screen.getByText('OK')).toBeTruthy()
+})
+
+test.each([
+  ['T7', 'Measured, not compared'],
+  ['R3', 'Holdout · baseline'],
+])('%s table explains the holdout under its label', (name, explanation) => {
+  const snapshot = fixture(name)
+  render(<ArmTable rows={armRows({ snapshot, phase: phaseFor(snapshot), metricId: 'registrations' })} caption="Registrations" method={snapshot.method} metricKind="binomial" primary />)
+  const holdout = screen.getByRole('rowheader', { name: `Unchanged form ${explanation}` })
+  expect(within(holdout).getByText(explanation).classList.contains('muted')).toBe(true)
+})
+test.each([true, false])('table enforces primary-only lead emphasis (primary: %s)', primary => {
+  const snapshot = fixture('T7')
+  const { container } = render(<ArmTable rows={armRows({ snapshot, phase: phaseFor(snapshot), metricId: 'registrations' })} caption="Registrations" method={snapshot.method} metricKind="binomial" primary={primary} leader="variantA" />)
+  expect(container.querySelectorAll('.is-lead')).toHaveLength(primary ? 1 : 0)
 })

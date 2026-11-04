@@ -13,6 +13,10 @@ const failure = (value: unknown) => value === 'placements-failed' || value === '
  */
 export function sanitizeReadinessDetail(code: ReadinessCode, detail: unknown): unknown {
   switch (code) {
+    case 'block-path-rule':
+      return object(detail) && Array.isArray(detail.rules) && detail.rules.length
+        && detail.rules.every(index => Number.isSafeInteger(index) && index >= 0)
+        ? { rules: detail.rules } : undefined
     case 'no-placements':
       return failure(detail) ? detail : undefined
     case 'page-target-unpublished':

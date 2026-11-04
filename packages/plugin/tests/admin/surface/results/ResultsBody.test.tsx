@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { beforeEach, afterEach, expect, test, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { URL as NodeURL } from 'node:url'
 import { ResultsBody } from '../../../../src/admin/surface/results/ResultsBody.js'
@@ -28,6 +28,10 @@ function setup(data: ResultsResponse = response, saved = doc) {
   vi.stubGlobal('fetch', fetcher)
   return fetcher
 }
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+})
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks() })
 test('a missing selected round shows round-picker copy and keeps the picker available', async () => {
   const newer = { ...snapshot, phase: 2 }
@@ -53,15 +57,16 @@ test.each(['running', 'stopped'])('collecting results show the stored detail wit
   expect(container.querySelector('.xp-collecting')).toBeNull()
   expect(container.textContent).not.toContain('360 of 1,000 people, 37 of 150 conversions')
 })
-test('composes recommendation above the headline, tables, chart, data quality, round and previews', async () => {
+test('composes verdict headline, recommendation, tables, chart, data quality, round and previews', async () => {
   setup({ ...response, snapshot: { ...snapshot, exposures: { ...snapshot.exposures, armMismatch: 1 } } })
   const { container } = render(<ResultsBody id="xp/one" surface={surface} />)
   const sentence = await screen.findByText('Shorter form is most likely to be best.')
   const heading = screen.getByRole('heading', { name: snapshot.verdict.headline })
-  expect(sentence.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(heading.compareDocumentPosition(sentence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(screen.getByRole('table', { name: 'Registrations' })).toBeTruthy()
   expect(screen.getByRole('table', { name: 'Completed lessons' })).toBeTruthy()
-  expect(screen.getByRole('heading', { name: 'Data quality' })).toBeTruthy()
+  expect(screen.getByText('Data quality')).toBeTruthy()
+  fireEvent.click(screen.getByText('Confidence interval over time'))
   expect(screen.getByRole('img').getAttribute('aria-label')).toContain('Registrations')
   expect(screen.getByRole('combobox', { name: 'Round' })).toBeTruthy()
   expect(await screen.findByRole('button', { name: 'Preview Current variantA' })).toBeTruthy()
@@ -243,6 +248,69 @@ test('a decided test whose decision round was still collecting reads as stopped,
   expect(screen.queryByText(/Keep it running|more people needed/)).toBeNull()
 })
 
+test('confidence chart starts collapsed and opens from its summary', async () => {
+  setup()
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  const details = container.querySelector<HTMLDetailsElement>('.xp-chart-details')!
+  expect(details.open).toBe(false)
+  expect(details.hasAttribute('open')).toBe(false)
+  fireEvent.click(within(details).getByText('Confidence interval over time'))
+  expect(details.open).toBe(true)
+  expect(screen.getByRole('img')).toBeTruthy()
+})
+test.each(['T4', 'T7-bayesian'])('%s tiles use stored exposures, elapsed days and the named leader probability', async name => {
+  const snapshot = fixture(name)
+  setup({ phases: [phaseFor(snapshot)], snapshot })
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  const tiles = container.querySelectorAll('.xp-stat-tile')
+  expect(tiles).toHaveLength(3)
+  expect(tiles[0]?.querySelector('.xp-stat-tile-value')?.textContent).toBe(snapshot.exposures.total.toLocaleString('en-US'))
+  expect(tiles[1]?.textContent).toMatch(/^Days\d+ of 28$/)
+  expect(tiles[2]?.querySelector('.xp-stat-tile-value')?.textContent).toBe(name === 'T4' ? '—' : '97.8%')
+  if (name !== 'T4') expect(tiles[2]?.querySelector('.xp-results-swatch')).toBeTruthy()
+  expect(container.textContent).not.toContain('Mean')
+})
+test('data quality opens automatically for Watch and stays collapsed for OK', async () => {
+  setup({ ...response, snapshot: { ...snapshot, exposures: { ...snapshot.exposures, armMismatch: 1 } } })
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  expect(container.querySelector<HTMLDetailsElement>('.xp-data-quality')?.open).toBe(true)
+  expect(container.querySelector('.xp-data-quality summary')?.textContent).toBe('Data qualityWatch')
+})
+test('archived test initially requests the decision round rather than a newer rollout', async () => {
+  const rollout = { ...fixture('R3'), phase: 2 }
+  const phases = [phase, phaseFor(rollout)]
+  const fetcher = setup()
+  fetcher.mockImplementation(async url => url.includes('/xp-experiments/') ? json({ ...doc, status: 'archived', decision: { phase: 1, winnerArm: 'variantA' } })
+    : url.endsWith('/preflight') ? json({ placements: [] })
+      : json({ phases, snapshot: url.includes('phase=1') ? snapshot : rollout }))
+  render(<ResultsBody id={1} surface={surface} />)
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Round' }) as HTMLSelectElement).value).toBe('1'))
+  await screen.findByRole('heading', { name: snapshot.verdict.headline })
+  expect(fetcher.mock.calls.some(([url]) => url.includes('phase=1'))).toBe(true)
+})
+test('reader sees the round but never the analysis method', async () => {
+  setup()
+  render(<ResultsBody id={1} surface={{ ...surface, canManage: false }} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  expect(screen.getByRole('combobox', { name: 'Round' })).toBeTruthy()
+  expect(screen.queryByText(/Sequential|Bayesian/)).toBeNull()
+})
+test('flag placement rows stay separate without page-slot counts', async () => {
+  const fetcher = setup()
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation((url, init) => url.includes('/xp-experiments/') ? Promise.resolve(json({ ...doc, flagPoint: 'signup-choice' }))
+    : url.endsWith('/preflight') ? Promise.resolve(json({ placements: [
+      { collection: 'signup-choice', id: 'variantA', title: 'Signup page', ok: true },
+      { collection: 'signup-choice', id: 'variantA', title: 'Another signup page', ok: true },
+    ] })) : original(url, init))
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByText('Another signup page')
+  expect(container.querySelectorAll('.xp-preview-row')).toHaveLength(2)
+  expect(container.textContent).not.toMatch(/placed \d+ times/)
+})
 test('Decide receives the localized warning from the existing preflight request', async () => {
   const fetcher = setup()
   const original = fetcher.getMockImplementation()!
@@ -254,4 +322,26 @@ test('Decide receives the localized warning from the existing preflight request'
   const dialog = await screen.findByRole('dialog')
   expect(within(dialog).getByText("Landing page has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand.")).toBeTruthy()
   expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/preflight'))).toHaveLength(1)
+})
+
+
+test('only the primary block emphasises the leader alongside guardrail and supporting tables', async () => {
+  const snapshot = fixture('T7')
+  snapshot.metrics.push({ ...snapshot.metrics[0]!, metricId: 'supporting', name: 'Supporting outcome', role: 'secondary' })
+  setup({ phases: [phaseFor(snapshot)], snapshot })
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  const primary = await screen.findByRole('table', { name: 'Registrations' })
+  const guardrail = screen.getByRole('table', { name: 'Completed lessons' })
+  const supporting = screen.getByRole('table', { name: 'Supporting outcome' })
+  expect(container.querySelectorAll('.is-lead')).toHaveLength(1)
+  expect(primary.closest('.xp-results-block')?.querySelector('.is-lead')).toBeTruthy()
+  expect(guardrail.querySelector('.is-lead')).toBeNull()
+  expect(supporting.querySelector('.is-lead')).toBeNull()
+})
+test.each([['T7', 'Sequential'], ['T7-bayesian', 'Bayesian']])('manager sees %s analysis method in the meta row', async (name, method) => {
+  const snapshot = fixture(name)
+  setup({ phases: [phaseFor(snapshot)], snapshot })
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  expect(container.querySelector('.xp-round-meta')?.textContent).toContain(method)
 })

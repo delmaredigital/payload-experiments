@@ -17,7 +17,7 @@ type DisplaySnapshot = Snapshot
 export function defaultRound({ phases, decision, status }: Pick<ResultsResponse, 'phases'> & {
   decision?: Decision | null; status: Status
 }): number | null {
-  if (status === 'decided' && decision) return decision.phase
+  if ((status === 'decided' || status === 'archived') && decision) return decision.phase
   return phases.reduce<number | null>((latest, phase) => latest === null || phase.phase > latest ? phase.phase : latest, null)
 }
 
@@ -71,7 +71,7 @@ export type ComparisonModel = {
 } | { method: 'bayesian'; chanceToWin: string; ci: string; risk: string; significance: string }
 export interface ArmRow {
   key: string; label: string; n: string; value: string; capped: CappedCellModel
-  baseline?: string; comparison?: ComparisonModel
+  rate?: string; lift?: string; chanceToWin?: string; baseline?: string; comparison?: ComparisonModel
 }
 export function armRows({ snapshot, phase, metricId }: { snapshot: Snapshot; phase: PhaseSummary; metricId: DocId }): ArmRow[] {
   const metric = snapshot.metrics.find(metric => metric.metricId === metricId)
@@ -80,12 +80,15 @@ export function armRows({ snapshot, phase, metricId }: { snapshot: Snapshot; pha
     const cell = cappedCell({ metric: metric ?? phase.metrics.find(metric => metric.metricId === metricId) ?? { metricId, kind: 'count' }, arm, caps: snapshot.params.caps })
     const row: ArmRow = {
       key: group.key, label: group.label, n: formatCount(arm?.n ?? snapshot.exposures.perArm[group.key]),
+      rate: cell.statistic,
       value: metric?.kind === 'binomial' ? formatCount(arm?.converters) : cell.statistic, capped: cell,
     }
     if (group.kind === 'holdout') return { ...row, baseline: snapshot.phaseKind === 'rollout' ? RESULTS_COPY.holdoutBaseline : RESULTS_COPY.holdout }
     if (group.kind === 'control' && snapshot.phaseKind === 'test') return { ...row, baseline: RESULTS_COPY.original }
     const comparison = metric?.comparisons.find(comparison => comparison.arm === group.key)
     if (!comparison) return row
+    row.lift = formatPercent(comparison.lift, true)
+    row.chanceToWin = snapshot.method === 'bayesian' ? formatPercent(comparison.chanceToWin) : '—'
     const common = { ci: formatCI(comparison.ci), significance: RESULTS_COPY.significance[comparison.significant] }
     row.comparison = snapshot.method === 'bayesian'
       ? { ...common, method: 'bayesian', chanceToWin: formatPercent(comparison.chanceToWin), risk: formatPercent(comparison.risk) }

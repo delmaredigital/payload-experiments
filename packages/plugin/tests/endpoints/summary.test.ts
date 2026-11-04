@@ -281,6 +281,19 @@ test('a stopped test receives its first failing step', async () => {
   expect(body.one).toMatchObject({ ready: false, next: { code: 'no-primary-metric' } })
 })
 
+test('block path rules are the next targeting failure with indexes and no rule values', async () => {
+  const { options, req, payload } = readinessSetup()
+  payload.documents['xp-experiments']![0]!.targeting = [
+    { attribute: 'country', op: 'eq', value: 'US' },
+    { attribute: 'path', op: 'eq', value: '/secret-value' },
+  ]
+  // Even an undeclared path must first report the block-specific instruction.
+  const body = await (await handleSummary(req, { options })).json()
+  expect(body.one).toMatchObject({ ready: false })
+  expect(body.one.next).toEqual({ code: 'block-path-rule', detail: { rules: [1] } })
+  expect(JSON.stringify(body)).not.toContain('secret-value')
+})
+
 test('a warning-only page check does not produce next', async () => {
   const { options, req, payload } = readinessSetup()
   const draft = payload.documents['xp-experiments']![0]!
@@ -307,6 +320,7 @@ test('summary JSON never includes placement titles or flag placement free text',
 })
 
 const safeDetails: Array<[ReadinessCode, unknown, unknown]> = [
+  ['block-path-rule', { rules: [0, 2], value: 'secret-value text' }, { rules: [0, 2] }],
   ['no-placements', 'forbidden', 'forbidden'],
   ['page-target-unpublished', '/registration/thank-you', '/registration/thank-you'],
   ['flag-params-invalid', [{ arm: 'variantA', field: 'title', message: 'secret-value text' }], [{ arm: 'variantA', field: 'title' }]],
@@ -320,6 +334,7 @@ test.each(safeDetails)('sanitizer allow-list for %s projects identifiers only', 
 })
 
 const unsafeDetails: Array<[ReadinessCode, unknown]> = [
+  ...[[], [-1], [0.5], ['0'], [Infinity], [Number.MAX_SAFE_INTEGER + 1]].map(rules => ['block-path-rule', { rules }] as [ReadinessCode, unknown]),
   ['no-placements', 'secret-value text'],
   ['page-target-unpublished', '/secret-value text'],
   ['page-target-unpublished', '/page\n'],

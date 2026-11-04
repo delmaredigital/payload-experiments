@@ -9,7 +9,7 @@ import { layersCollection } from '../../src/collections/layers.js'
 import { sampleOptions } from '../collections/fixtures.js'
 
 const src = fileURLToPath(new URL('../../src/', import.meta.url))
-const forbidden = /\b(?:arms?|phases?|flag ?points?|unit ?types?|unitType|CUPED|exposure ?polic(?:y|ies)|percentiles?)\b|\bin (?:Metrics|Who|Groups|Review)\b|\b(?:Metrics|Who|Review) tab\b/i
+const forbidden = /\b(?:arms?|phases?|flag ?points?|unit ?types?|unitType|CUPED|exposure ?polic(?:y|ies)|percentiles?)\b|\bin (?:Metrics|Who(?! takes part\b)|Groups|Review)\b|\b(?:Metrics|Who|Review) tab\b/i
 const hits = (strings: string[]) => strings.filter(value => forbidden.test(value))
 const samples: Record<string, unknown[][]> = {
   pageGuardCopy: [['Example', 'running'], ['Example', 'decided'], ['Example', 'archived']],
@@ -178,4 +178,9 @@ test('Advanced is the sole exception, by object identity', () => {
   expect(hits(strings({ ADVANCED_COPY }, '', true))).toEqual([])
   expect(hits(strings({ ADVANCED_COPY: { ...ADVANCED_COPY } }, '', true))).not.toEqual([])
   expect(hits(strings(ADVANCED_COPY))).toContain('CUPED')
+})
+
+test('readiness may name the Who takes part section', () => {
+  expect(hits(strings({ message: 'Remove the page-path rule in Who takes part; page block tests run on their page.' }))).toEqual([])
+  expect(hits(strings({ message: 'Fix this in Who' }))).toEqual(['Fix this in Who'])
 })

@@ -26,6 +26,7 @@ export type ReadinessCode = ArmIssueCode
   | 'layer-full'
   | 'unknown-metric-source'
   | 'unit-source-mismatch'
+  | 'block-path-rule'
   | 'undeclared-targeting-key'
   | 'invalid-targeting-rule'
 
@@ -114,6 +115,8 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('unknown-metric-source', unknown.length === 0, unknown)
   const mismatches = input.metrics.filter(metric => !metric.source.startsWith('events:') && e.unitType === 'user' && input.metricSources?.some(source => source.id === metric.source && source.keyedBy === 'visitor'))
   add('unit-source-mismatch', mismatches.length === 0, mismatches)
+  const pathRules = (e.targeting ?? []).flatMap((rule, index) => rule.attribute === 'path' ? [index] : [])
+  add('block-path-rule', e.kind !== 'block' || pathRules.length === 0, { rules: pathRules })
   const undeclared = (e.targeting ?? []).filter(rule => !Object.hasOwn(input.attributeKeys ?? {}, rule.attribute))
   add('undeclared-targeting-key', undeclared.length === 0, { message: 'Targeting uses an undeclared attribute.', attributes: undeclared.map(rule => rule.attribute) })
   const invalidRules = (e.targeting ?? []).filter(rule => {

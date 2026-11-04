@@ -30,13 +30,13 @@ test('content-change dates reach the accessible summary without exposing editor 
   expect(container.innerHTML).not.toContain('opaque-editor-id')
   expect(container.innerHTML).not.toContain('opaque-doc')
 })
-test('series use neutral theme colours and legends use text colour with matching swatches', () => {
+test('series use categorical theme colours and legends use text colour with matching swatches', () => {
   const { container } = render(<CiChart series={series} metricId="registrations" metricName="Registrations" phase={phase} />)
   const groups = container.querySelectorAll('[data-series]')
   const legend = screen.getAllByRole('listitem')
   groups.forEach((group, index) => {
     const color = group.getAttribute('stroke')!
-    expect([theme.color.textStrong, theme.color.textMuted, theme.color.borderAccent]).toContain(color)
+    expect(['var(--xp-series-a)', 'var(--xp-series-b)', 'var(--xp-series-c)']).toContain(color)
     expect(legend[index]!.style.color).toBe(theme.color.text)
     const swatch = legend[index]!.querySelector('span')!
     expect(swatch.style.backgroundColor).toBe(color)

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { beforeEach, afterEach, expect, test, vi } from 'vitest'
 import { ACTIONS_COPY } from '../../../src/admin/copy/actions.js'
 import { MakeContentResult } from '../../../src/admin/actions/MakeContentResult.js'
 import { ConfirmDialog } from '../../../src/admin/actions/ConfirmDialog.js'
@@ -10,6 +10,10 @@ import { resetPayloadUiMock } from '../_helpers/payloadUiMock.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
 vi.mock('../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+})
 afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const partial = { doc: {}, revision: 2, docs: [
   { collection: 'pages', id: 1, ok: true, title: 'Home' },

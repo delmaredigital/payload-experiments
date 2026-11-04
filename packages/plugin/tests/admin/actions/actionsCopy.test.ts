@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
-import { ACTIONS_COPY, decideCopy, hardCodedLabel, makeContentCopy, releaseCopy } from '../../../src/admin/copy/actions.js'
+import { ACTIONS_COPY, contentReportCopy, decideCopy, hardCodedLabel, makeContentCopy, releaseCopy } from '../../../src/admin/copy/actions.js'
 import { expectedConfirm } from '../../../src/transitions/confirmPhrases.js'
+
+test('forbidden content reports explain how to archive a deleted or trashed page', () => {
+  expect(contentReportCopy('forbidden')).toBe("You can't read or update this page. Ask someone with access to update it by hand. If it was deleted or moved to trash, discard the winner to archive this test.")
+})
 
 test('copy uses editor vocabulary and never stores a typed phrase', () => {
   const phrases = (['decide', 'discard', 'hard-coded'] as const).map(action => expectedConfirm(action, 'Variant A'))

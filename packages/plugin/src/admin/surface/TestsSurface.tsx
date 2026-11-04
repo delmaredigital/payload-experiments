@@ -48,6 +48,7 @@ function SurfacePage(props: TestsSurfaceProps) {
   if (props.route === 'test' && props.id !== undefined) return <TestPage key={props.id} id={props.id} surface={surface} />
   if (props.route === 'goals') return <GoalsList surface={surface} returnToTest={props.returnToTest} />
   if (props.route === 'goalNew' || props.route === 'goal') return <GoalForm surface={surface} onTitleChange={setLoadedTitle} id={props.route === 'goal' ? props.id : undefined} returnToTest={props.returnToTest} />
+  if (props.route === 'results' && props.id !== undefined) return <ResultsRoute key={props.id} id={props.id} surface={surface} onTitleChange={setLoadedTitle} />
   return <SurfaceShell adminRoute={props.adminRoute} crumbs={crumbs} title={title}>
     {props.route === 'new' ? <NewTest surface={surface} pages={props.pages} />
         : props.id === undefined ? null : <ResultsRoute key={props.id} id={props.id} surface={surface} onTitleChange={setLoadedTitle} />}

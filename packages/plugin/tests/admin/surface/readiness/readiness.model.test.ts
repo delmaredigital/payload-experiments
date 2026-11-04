@@ -29,6 +29,7 @@ const fixtures = {
   'version-page-unavailable': ['versions', '/variant', "/variant isn't published, so visitors assigned to it see an error. Republish it, or stop the test."],
   'version-page-unchecked': ['versions', '/variant', "Couldn't check whether /variant is published. Check that it is still published, or stop the test."],
   'page-user-unit': ['header', undefined, 'Whole-page tests count visitors. Create the test again counting visitors.'],
+  'block-path-rule': ['who', { rules: [1] }, 'Remove the page-path rule in Who takes part; page block tests run on their page.'],
   'invalid-targeting-rule': ['who', { attributes: ['country'] }, 'Fix the rule: country.'],
   'undeclared-targeting-key': ['who', { attributes: ['country'] }, "Remove the rule on country: it isn't available."],
   'weights-total': ['versions', [{ message: 'Group shares must total 100.' }], 'Fix the versions: Group shares must total 100.'],
@@ -44,19 +45,24 @@ const fixtures = {
 } satisfies Record<ReadinessCode, Fixture>
 const ctx = { ...doc, flagPoint: 'ask', flagPoints: [{ id: 'ask', params: { headline: { type: 'text' as const, label: 'Headline text' } } }] }
 
-test('covers every literal start check and every member of both source unions (33 including health)', () => {
+test('covers every literal start check and every member of both source unions (34 including health)', () => {
   const source = readFileSync(new URL('../../../../src/transitions/checkStart.ts', import.meta.url), 'utf8')
   const endpoints = readFileSync(new URL('../../../../src/types/endpoints.ts', import.meta.url), 'utf8')
   const literals = [...source.matchAll(/add\('([^']+)'/g)].map(match => match[1])
   const readinessUnion = source.split('export type ReadinessCode = ArmIssueCode')[1]!.split('export interface')[0]!
   const armUnion = endpoints.split('export type ArmIssueCode =')[1]!.split('\n')[0]!
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(21)
+  expect(literals).toHaveLength(22)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(33)
+  expect(members).toHaveLength(34)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
   expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'version-page-unavailable', 'version-page-unchecked'].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())
+})
+test('block path readiness names the removal step', () => {
+  expect(READINESS['block-path-rule'].nextStep).toBe('Remove rule')
+  expect(nextStep(preflight([{ code: 'block-path-rule', ok: false, detail: { rules: [1] } }]), ctx))
+    .toEqual({ section: 'who', code: 'block-path-rule', sentence: fixtures['block-path-rule'][2], nextStep: 'Remove rule' })
 })
 for (const code of Object.keys(fixtures) as ReadinessCode[]) {
   test(`${code} maps to its exact section and sentence`, () => {
