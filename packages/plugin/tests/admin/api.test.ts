@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from 'vitest'
 import { createApi } from '../../src/admin/api.js'
-import type { ErrorEnvelope } from '../../src/types/endpoints.js'
+import type { ErrorEnvelope, ResultsResponse } from '../../src/types/endpoints.js'
+import type { ExperimentKind, Status } from '../../src/types/contracts.js'
 
 const fetchMock = vi.fn<typeof fetch>()
 const api = createApi('/custom/api/')
@@ -12,6 +13,15 @@ test('success is typed data', async () => {
   const data = { doc: { id: 1 }, revision: 3 }
   respond(data)
   expect(await api.start(1)).toEqual({ ok: true, data })
+})
+test('results returns the typed experiment identity', async () => {
+  const data = { experiment: { name: 'Signup form', kind: 'flag', status: 'running' }, phases: [], snapshot: null } satisfies ResultsResponse
+  respond(data)
+  const result = await api.results(1)
+  if (!result.ok) throw new Error(result.message)
+  expectTypeOf(result.data).toEqualTypeOf<ResultsResponse | undefined>()
+  expectTypeOf<ResultsResponse['experiment']>().toEqualTypeOf<{ name: string; kind: ExperimentKind; status: Status } | undefined>()
+  expect(result.data).toEqual(data)
 })
 test('the first core refusal supplies the code and message', async () => {
   respond({ errors: [{ code: 'invalid-status', message: 'Stop the test first.' }, { code: 'forbidden', message: 'Ignored' }] } satisfies ErrorEnvelope, 409)

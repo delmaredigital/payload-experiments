@@ -18,7 +18,7 @@ export const ACTIONS_COPY = {
   contentReasons: {
     localized: "This page has more than one language; Make it the content can't publish it safely yet. Copy the winning version by hand.",
     locked: 'Someone is editing this page. Wait for them to finish, then retry.',
-    forbidden: "You can't read or update this page. Ask someone with access to update it by hand. If it was deleted, discard the winner to archive this test.",
+    forbidden: "You can't read or update this page. Ask someone with access to update it by hand. If it was deleted or moved to trash, discard the winner to archive this test.",
     'not-found': 'This page could not be found. Check whether it was deleted.',
     validation: "This page couldn't be saved automatically. Update it by hand, then retry.",
     'update-failed': "This page couldn't be updated this time. Retry; if it keeps happening, ask a developer.",

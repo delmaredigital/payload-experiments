@@ -201,7 +201,13 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
         docs.push({ collection, id, ok: true })
       }
       catch (error) {
-        const detail = isNotFound(error) ? missingOk ? 'forbidden' : 'not-found' : contentFailureReason(error)
+        let detail: ContentReportReason
+        if (isNotFound(error)) {
+          if (missingOk) detail = 'forbidden'
+          else detail = 'not-found'
+        } else {
+          detail = contentFailureReason(error)
+        }
         req.payload.logger.error({ err: safeError(error), experimentId, collection, id }, 'Experiment content update failed')
         docs.push({ collection, id, ok: Boolean(missing), detail: missing ? 'not-found' : detail, ...(!missing ? { error: detail } : {}) })
       }
