@@ -133,15 +133,31 @@ test('page collection validation accepts an unchanged unregistered value but ref
   expect(validate(choice.validate, 'retired', { previousValue: 'other' })).toBe('Choose a registered page collection.')
 })
 
-test('content audit records no Puck binding for a blocks document with stale slots', async () => {
+test.each([true, false])('content audit respects appliesTo=%s for a document with stale Puck slots', async appliesTo => {
   const executor = createFakeExecutor()
+  const query = executor.query.bind(executor)
+  vi.spyOn(executor, 'query').mockImplementation(async <R>(text: string, params?: unknown[]) => {
+    const result = await query<R>(text, params)
+    if (text.includes('current_setting')) return { rows: [{ timeout: '0' }] as R[], rowCount: 1 }
+    if (text.startsWith('SELECT') && text.includes('xp_experiments')) return { rows: [{ id: 10, phase: 1 }] as R[], rowCount: 1 }
+    if (text.startsWith('UPDATE')) return { rows: [] as R[], rowCount: 1 }
+    return result
+  })
   const options = { ...sampleOptions(), puck: { enabled: true, collections: ['pages'] },
-    blocks: { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => true }] } }
+    blocks: { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => appliesTo }] } }
   const payload = fakePayload({ executor, config: { custom: { xp: options } } })
   const req = executor.withSession({ payload })
   const slot = (text: string) => ({ content: [{ type: 'ExperimentSlot', props: { experiment: 'hero', control: [{ text }], variantA: [] } }] })
   const previous = { id: 1, puckData: slot('Before') }, current = { id: 1, puckData: slot('After') }
   await contentChangesHook({ req, collection: { slug: 'pages', fields: [] }, previousDoc: previous, doc: current } as never)
-  expect(executor.calls.some(call => call.text.includes('xp_experiments'))).toBe(false)
-  expect(executor.calls.some(call => call.text.startsWith('UPDATE'))).toBe(false)
+  expect(executor.calls.some(call => call.text.includes('current_setting'))).toBe(true)
+  expect(executor.calls.some(call => call.text.startsWith('ROLLBACK'))).toBe(false)
+  expect(executor.calls.filter(call => call.text.includes('xp_experiments'))).toHaveLength(appliesTo ? 0 : 2)
+  const appends = executor.calls.filter(call => call.text.startsWith('UPDATE'))
+  expect(appends).toHaveLength(appliesTo ? 0 : 1)
+  if (!appliesTo) {
+    expect(appends[0]!.text).toContain('content_changes')
+    expect(appends[0]!.params.slice(1)).toEqual([10, 1])
+    expect(JSON.parse(appends[0]!.params[0] as string)).toEqual([expect.objectContaining({ doc: { collection: 'pages', id: 1 } })])
+  }
 })

@@ -80,6 +80,7 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
         ? Object.fromEntries(flattenTopLevelFields(config?.fields ?? []).map(field => [field.name, true])) : {}
       const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0,
         limit: 50, sort: '-updatedAt', draft: true, select: { [useAsTitle]: true, ...predicateFields } })
+      // The new-test list uses the latest draft's editing intent, as the "Test a block" field condition does (§4.1).
       return result.docs.map(doc => {
         if (documentEditor(options, collection, doc) !== 'puck') return null
         const id = doc.id

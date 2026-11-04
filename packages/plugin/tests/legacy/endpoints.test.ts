@@ -72,6 +72,23 @@ test('archived-from-stopped has no page status or winner lookup', async () => {
   expect(payload.calls[0]!.args.where).toEqual({ kind: { equals: 'page' } })
 })
 
+test('running status uses the current test round labels for documents and slugs', async () => {
+  const options = { ...sampleOptions(), pages: { collections: [page] } }
+  const frozen = arms.map(arm => ({ ...arm, label: `Round ${arm.label}` }))
+  const payload = fakePayload({ overrides: { findGlobal: vi.fn(async () => ({ retiredSlugs: [] })) }, collections: {
+    pages: [{ id: 2, path: '/version' }],
+    'xp-experiments': [{ id: 10, name: 'Running', slug: 'running', pageCollection: 'pages', kind: 'page', status: 'running', arms }],
+    'xp-phases': [{ id: 1, experiment: 10, phase: 1, phaseKind: 'test', arms: frozen }],
+  } })
+  Object.assign(payload.db, { findOne: vi.fn(async () => ({ id: 2, path: '/version' })) })
+  const req = fakeReq({ payload, body: JSON.stringify({ docs: [{ collection: 'pages', id: 2 }], slugs: ['running'] }) })
+  const response = await handlePlacementStatus(req, { options })
+  expect(response.status).toBe(200)
+  const result = await response.json()
+  expect(result.slugs.running).toMatchObject({ status: 'running', arms: frozen.map(({ key, label }) => ({ key, label })), rollout: false })
+  expect(result.docs['pages:2'].tests).toEqual([expect.objectContaining({ armLabel: 'Round Variant A', status: 'running', rollout: false })])
+})
+
 test.each(['control', 'variantA'])('status freezes labels and rollout while %s wins, caching the winner per request', async winnerArm => {
   const lookup = vi.fn(async (path: string) => ({ id: path === '/' ? 1 : 2, published: true }))
   const options = { ...sampleOptions(), pages: { collections: [{ ...page, findByPath: lookup }] } }

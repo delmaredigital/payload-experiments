@@ -140,18 +140,26 @@ test.each(['draft', 'discard', 'stopped', 'after-content', 'hard-coded'] as cons
   expect(f.manifests.at(-1).flagDefaults).toEqual(defaults)
 })
 
-test.each([false, true])('Payload real delete hooks retire every deleted slug after all experiment locks (single=%s)', async single => {
+test.each([
+  { single: true, overrideAccess: false, manage: true },
+  { single: false, overrideAccess: false, manage: true },
+  { single: false, overrideAccess: true, manage: false },
+])('Payload real delete hooks retire every deleted slug after all experiment locks (%j)', async ({ single, overrideAccess, manage }) => {
   const { BasePayload } = await import('payload')
   const { experimentsCollection } = await import('../../src/collections/experiments/config.js')
   const f = fixture('draft')
+  const options = sampleOptions()
+  options.access.manage = vi.fn(async () => manage)
+  f.payload.config.custom!.xp = options
   const ids = single ? [2] : [2, 1]
   f.payload.documents['xp-experiments'] = ids.map(id => ({ ...structuredClone(f.experiment), id, slug: `delete-${id}` }))
   f.payload.documents['xp-phases'] = []
-  const hooks = experimentsCollection(sampleOptions()).hooks!
+  const collection = experimentsCollection(options)
+  const hooks = collection.hooks!
   const completedBefore = new Set<number>()
   hooks.beforeDelete!.push(async ({ id }) => { completedBefore.add(Number(id)) })
   // Adapter boundary fake only; Local API dispatch, beforeOperation, per-doc hooks and afterRead are Payload's.
-  const config = { slug: 'xp-experiments', fields: [], flattenedFields: [], hooks, access: { delete: () => true }, versions: false, upload: false, trash: false, auth: false }
+  const config = { slug: 'xp-experiments', fields: [], flattenedFields: [], hooks, access: collection.access, versions: false, upload: false, trash: false, auth: false }
   Object.assign(f.payload, { collections: { 'xp-experiments': { config } } })
   Object.assign(f.payload.config, { admin: { user: 'users' }, collections: [config], defaultDepth: 0, maxDepth: 0 })
   Object.assign(f.req, { i18n: { t: vi.fn(), language: 'en' } })
@@ -175,10 +183,11 @@ test.each([false, true])('Payload real delete hooks retire every deleted slug af
     }),
     deleteMany: vi.fn(async () => undefined),
   })
-  const result = await BasePayload.prototype.delete.call(f.payload, { collection: 'xp-experiments', req: f.req, overrideAccess: false,
+  const result = await BasePayload.prototype.delete.call(f.payload, { collection: 'xp-experiments', req: f.req, overrideAccess,
     ...(single ? { id: 2 } : { where: { id: { in: ids } } }) } as never)
   if (!single) expect(result).toMatchObject({ errors: [], docs: expect.any(Array) })
   expect([...new Set(retired)].sort()).toEqual(ids.map(id => `delete-${id}`).sort())
   const locks = f.executor.calls.filter(call => call.text.includes('xp:experiment')).map(call => call.params[0])
   expect(locks.slice(0, ids.length)).toEqual(ids.map(String).sort())
+  if (!manage) expect(options.access.manage).not.toHaveBeenCalled()
 })
