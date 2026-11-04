@@ -12,7 +12,7 @@ import type { RefusalCode } from '../types/endpoints.js'
 import { checkStart, pageTargetPaths, relationshipId, type StartExperiment } from './checkStart.js'
 import { withTransition } from './kernel.js'
 import { writePhaseRecord } from './phaseRecord.js'
-import { loadPageTestsInUse, loadStartInputs } from './preflightData.js'
+import { loadPageTestsInUse, loadStartInputs, unpublishedPageTargets } from './preflightData.js'
 import { resolveCaps, type MetricDefinition } from './resolveCaps.js'
 
 export type TransitionExperiment = StartExperiment & Record<string, unknown> & {
@@ -81,6 +81,17 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
       const recheck = checkStart({ ...input, experiment: current, pageTestsInUse: await loadPageTestsInUse(req) })
         .find(check => check.code === 'page-in-use' && !check.ok)
       if (recheck) refuse('page-in-use', recheck.detail)
+      if (options.pages) {
+        // The page guard takes the same path locks, so a delete, unpublish or rename that committed
+        // while Start waited is visible now. Read it on a detached request (committed state, outside
+        // this transaction): a refused host read must not kill the transition (CORE-21).
+        // (the make-content pattern: drop the transaction id for the reads, restore it after).
+        const transactionID = req.transactionID
+        delete req.transactionID
+        let unpublished: string[]
+        try { unpublished = await unpublishedPageTargets(req, options, current) } finally { req.transactionID = transactionID }
+        if (unpublished.length) refuse('page-target-unpublished', unpublished[0])
+      }
     }
     if (current.kind === 'flag' && current.flagPoint) {
       const busy = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 2,

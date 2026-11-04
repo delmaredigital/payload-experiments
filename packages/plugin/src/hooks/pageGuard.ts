@@ -1,6 +1,9 @@
 import type { CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook, PayloadRequest } from 'payload'
 import { previousPublishedContent } from '../db/appends.js'
-import { XpRefusal } from '../errors.js'
+import { lockPagePaths } from '../db/locks.js'
+import { txExecutor } from '../db/executor.js'
+import { normalisePath } from '../runtime/normalisePath.js'
+import { XpNoTransactionError, XpRefusal } from '../errors.js'
 import { pageGuardCopy, READINESS_COPY } from '../admin/copy/readiness.js'
 import type { Arm, DocId, ResolvedOptions } from '../types/contracts.js'
 
@@ -32,6 +35,15 @@ export const pageGuardAfterOperation: CollectionAfterOperationHook = ({ req, col
 }
 
 async function protect(req: PayloadRequest, path: string): Promise<void> {
+  // Serialise with Start (CORE-52 path locks, taken there after the experiment lock): a concurrent Start
+  // either commits first, so this check sees it, or waits and then sees this change. Raw SQL on the
+  // host's transaction; without one there is nothing to hold the lock for.
+  if (await req.transactionID != null) {
+    try { await lockPagePaths(txExecutor(req), [normalisePath(path)]) } catch (error) {
+      // A request id without a database session (e.g. a transaction already killed) has no lock to take.
+      if (!(error instanceof XpNoTransactionError)) throw error
+    }
+  }
   // page guard: the hook must see test placements regardless of the editor's access
   const tests = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: true,
     depth: 0, limit: 0, where: { and: [{ kind: { equals: 'page' } }, { status: { in: ['running', 'decided', 'archived'] } }] },

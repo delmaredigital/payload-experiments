@@ -4,6 +4,7 @@ import { pageGuardAfterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, 
 import { pageGuardCopy } from '../../src/admin/copy/readiness.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
+import { createFakeExecutor } from '../_fakes/executor.js'
 import { sampleOptions } from './fixtures.js'
 
 function setup(status = 'running', path = '/original', discarded = false, drafts = true) {
@@ -156,3 +157,13 @@ test('a missing test round is a public typed refusal', async () => {
   f.payload.documents['xp-phases'] = []
   await expect(f.save({ _status: 'draft' })).rejects.toMatchObject({ name: 'XpRefusal', code: 'invalid-phase', status: 409, isPublic: true })
 })
+
+test('with a transaction the guard takes the page-path lock before reading tests (CORE-54)', async () => {
+  const f = setup('running', '/original')
+  const executor = createFakeExecutor()
+  const req = executor.withSession({ payload: f.payload })
+  await expect(pageGuardBeforeDelete({ req, collection: f.collection, id: 1 } as Parameters<CollectionBeforeDeleteHook>[0])).rejects.toMatchObject({ status: 409 })
+  const lock = executor.calls.find(call => call.text.includes("hashtext('xp:pagepath')"))
+  expect(lock?.params).toEqual(['/original'])
+})
+

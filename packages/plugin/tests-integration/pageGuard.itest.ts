@@ -1,4 +1,5 @@
-import { createLocalReq, restoreVersionOperation, type PayloadRequest } from 'payload'
+import { commitTransaction, createLocalReq, initTransaction, killTransaction, restoreVersionOperation, type PayloadRequest } from 'payload'
+import { txExecutor } from '../src/db/executor.js'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { createIntegrationHarness } from './harness.js'
 import { start } from '../src/transitions/start.js'
@@ -212,3 +213,86 @@ test('runResults uses a real anonymous createLocalReq to detect an unavailable v
   const rows = await f.payload.find({ collection: 'xp-results-snapshots', req, overrideAccess: true, where: { experiment: { equals: f.testDoc.id } }, sort: '-computedAt' })
   expect((rows.docs[0]!.snapshot as Snapshot).health).toContainEqual({ code: 'version-page-unavailable', path: `/${f.winner.slug}` })
 })
+
+// CORE-54: the guard and Start take the same page-path lock, so a concurrent Start and delete serialise.
+async function draftPageTest() {
+  const { payload } = harness
+  const req = await createLocalReq({}, payload)
+  const suffix = ++sequence
+  const original = await payload.create({ collection: 'pages', req, overrideAccess: false, data: { slug: `race-original-${suffix}`, _status: 'published' } })
+  const version = await payload.create({ collection: 'pages', req, overrideAccess: false, data: { slug: `race-version-${suffix}`, _status: 'published' } })
+  const metric = await payload.create({ collection: 'xp-metrics', req, overrideAccess: true, data: { name: 'Goal', slug: `race-goal-${suffix}`, source: 'binomial', direction: 'increase' } })
+  const testDoc = await payload.create({ collection: 'xp-experiments', req, overrideAccess: true, data: {
+    name: `Race ${suffix}`, slug: `race-${suffix}`, kind: 'page', unitType: 'visitor', allocation: 100, exposurePolicy: 'pageview',
+    arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 50, pageTarget: `/race-original-${suffix}` },
+      { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 50, pageTarget: `/race-version-${suffix}` }],
+    metrics: { primary: metric.id }, analysis: { plannedDurationDays: 14, reachPerDay: 100 },
+  } })
+  return { original, version, testDoc }
+}
+async function begin() {
+  const req = await createLocalReq({}, harness.payload)
+  await initTransaction(req)
+  const pid = (await txExecutor(req).query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid
+  return { req, pid }
+}
+async function waitForPathLock(pid: number, pending: Promise<unknown>) {
+  let finished = false
+  void pending.then(() => { finished = true }, () => { finished = true })
+  const deadline = Date.now() + 5_000
+  while (Date.now() < deadline) {
+    const { rows } = await harness.pool.query<{ waiting: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = $1 AND locktype = 'advisory' AND NOT granted
+        AND classid::bigint = (hashtext('xp:pagepath')::bigint & 4294967295)) AS waiting`, [pid])
+    if (rows[0]!.waiting) return
+    if (finished) throw new Error('Finished without waiting on the page path lock')
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  throw new Error('Did not wait on a page path lock')
+}
+const xpOptions = () => harness.payload.config.custom!.xp as ResolvedOptions
+async function settle<T>(req: PayloadRequest, work: () => Promise<T>) {
+  try { const result = await work(); await commitTransaction(req); return result } catch (error) { await killTransaction(req); throw error }
+}
+
+test('Start first: a concurrent delete of a version page waits, then is refused', async () => {
+  const { version, testDoc } = await draftPageTest()
+  const first = await begin(), second = await begin()
+  let pending: Promise<unknown> | undefined
+  try {
+    await start(first.req, { experimentId: testDoc.id, options: xpOptions() })
+    pending = settle(second.req, () => harness.payload.delete({ collection: 'pages', id: version.id, req: second.req, overrideAccess: false }))
+    const outcome = Promise.allSettled([pending])
+    await waitForPathLock(second.pid, pending)
+    await commitTransaction(first.req)
+    const [result] = await outcome
+    expect(result).toMatchObject({ status: 'rejected', reason: refusal })
+    expect((await harness.payload.findByID({ collection: 'pages', id: version.id, overrideAccess: true })).id).toBe(version.id)
+    expect((await harness.payload.findByID({ collection: 'xp-experiments', id: testDoc.id, overrideAccess: true })).status).toBe('running')
+  } finally {
+    await killTransaction(first.req)
+    await Promise.allSettled([pending])
+    await killTransaction(second.req)
+  }
+})
+
+test('delete first: a concurrent Start waits on the page path, then refuses the deleted page', async () => {
+  const { version, testDoc } = await draftPageTest()
+  const first = await begin(), second = await begin()
+  let pending: Promise<unknown> | undefined
+  try {
+    await harness.payload.delete({ collection: 'pages', id: version.id, req: first.req, overrideAccess: false })
+    pending = settle(second.req, () => start(second.req, { experimentId: testDoc.id, options: xpOptions() }))
+    const outcome = Promise.allSettled([pending])
+    await waitForPathLock(second.pid, pending)
+    await commitTransaction(first.req)
+    const [result] = await outcome
+    expect(result).toMatchObject({ status: 'rejected', reason: { code: 'page-target-unpublished' } })
+    expect((await harness.payload.findByID({ collection: 'xp-experiments', id: testDoc.id, overrideAccess: true })).status).toBe('draft')
+  } finally {
+    await killTransaction(first.req)
+    await Promise.allSettled([pending])
+    await killTransaction(second.req)
+  }
+})
+

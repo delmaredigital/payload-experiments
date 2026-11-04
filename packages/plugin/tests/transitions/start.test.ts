@@ -254,13 +254,29 @@ test('published targets start; holdouts are not looked up, multiple collections 
   const arms = experiment.arms as import('../../src/types/contracts.js').Arm[]
   arms.forEach(arm => { arm.weight = 45 })
   arms.push({ key: 'holdout', label: 'Holdout', kind: 'holdout', weight: 10, pageTarget: '/unused' })
-  const findByPath = vi.fn(async (path: string) => ({ id: path, published: true }))
+  const seenTransaction: boolean[] = []
+  const findByPath = vi.fn(async (path: string, seen?: import('payload').PayloadRequest) => {
+    seenTransaction.push(seen?.transactionID != null)
+    return { id: path, published: true }
+  })
   options.pages = { collections: [
     { slug: 'articles', pathOf: () => null, findByPath: async () => null },
     { slug: 'pages', pathOf: doc => `/${doc.slug}`, findByPath },
   ] }
   expect((await start(req, { experimentId: 1, options })).doc.status).toBe('running')
-  expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant'])
+  // Preflight, then again under the page-path locks on a detached request (CORE-54).
+  expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant', '/original', '/variant'])
+  // The recheck ran with the transaction id detached, and it is restored afterwards.
+  expect(seenTransaction).toEqual([true, true, false, false])
+})
+test('Start refuses a page unpublished while it waited on the page-path lock', async () => {
+  const { options, req, experiment } = pageFixture()
+  let calls = 0
+  // Published at preflight, gone once the locks are held (a delete committed meanwhile).
+  const findByPath = vi.fn(async (path: string) => (++calls > 2 && path === '/variant') ? null : { id: path, published: true })
+  options.pages = { collections: [{ slug: 'pages', pathOf: doc => `/${doc.slug}`, findByPath }] }
+  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-target-unpublished' })
+  expect(experiment.status).toBe('draft')
 })
 test('without pages, preflight warns without refusing and start preserves existing behaviour', async () => {
   const { options, req } = pageFixture()

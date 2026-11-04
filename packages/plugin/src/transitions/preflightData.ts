@@ -36,6 +36,26 @@ export async function loadPageTestsInUse(req: PayloadRequest): Promise<NonNullab
   return routedPageTests(await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload))
 }
 
+/** Page targets no registered collection reports as published. A lookup that throws counts as
+ * unpublished (logged). Start calls it again under its page-path locks on a detached request. */
+export async function unpublishedPageTargets<TUser extends { id: DocId }>(req: PayloadRequest, options: ResolvedOptions<TUser>,
+  experiment: Pick<StartExperiment, 'id' | 'arms'>): Promise<string[]> {
+  const unpublished: string[] = []
+  for (const arm of experiment.arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget?.trim())) {
+    let published = false
+    for (const collection of options.pages?.collections ?? []) {
+      try {
+        const page = await collection.findByPath(arm.pageTarget!, req)
+        if (page?.published === true) published = true
+      } catch (cause) {
+        req.payload.logger.error({ err: safeError(cause), experimentId: experiment.id, collection: collection.slug, id: arm.pageTarget }, 'Experiment page lookup failed')
+      }
+    }
+    if (!published) unpublished.push(arm.pageTarget!)
+  }
+  return unpublished
+}
+
 const metricIds = (experiment: StartExperiment) => [experiment.metrics?.primary, ...experiment.metrics?.secondary ?? [], ...experiment.metrics?.guardrails ?? []]
   .map(relationshipId).filter((id): id is DocId => id !== undefined)
 
@@ -70,21 +90,7 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
         pageTestsInUse ??= loadPageTestsInUse(req)
         input.pageTestsInUse = await pageTestsInUse
         input.pageTargetsUnchecked = options.pages === undefined
-        if (options.pages) {
-          input.unpublishedPageTargets = []
-          for (const arm of experiment.arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget?.trim())) {
-            let published = false
-            for (const collection of options.pages.collections) {
-              try {
-                const page = await collection.findByPath(arm.pageTarget!, req)
-                if (page?.published === true) published = true
-              } catch (cause) {
-                req.payload.logger.error({ err: safeError(cause), experimentId: experiment.id, collection: collection.slug, id: arm.pageTarget }, 'Experiment page lookup failed')
-              }
-            }
-            if (!published) input.unpublishedPageTargets.push(arm.pageTarget!)
-          }
-        }
+        if (options.pages) input.unpublishedPageTargets = await unpublishedPageTargets(req, options, experiment)
       }
       if (experiment.kind === 'block') {
         try {
