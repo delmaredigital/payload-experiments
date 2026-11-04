@@ -488,11 +488,13 @@ No migration is needed.
 ### `admin` options
 
 Host links and kind descriptions are optional. For a host using payload-puck's
-editor route, public pages and a `puck-templates` collection, pass:
+editor route, public pages and a `puck-templates` collection:
 
 | Option | Signature and behavior |
 | --- | --- |
 | `admin.previewUrl` | `(placement: PreviewPlacement) => string \| null \| undefined \| Promise<string \| null \| undefined>`. Receives `collection`, `id`, `title`, `published`, and optional `slug`. May be async; return `null` to hide preview for that placement. Each call has a 2 s limit, with at most 8 lookups awaited concurrently. |
+
+For example, pass:
 
 ```ts
 admin: {

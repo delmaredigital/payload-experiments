@@ -386,6 +386,7 @@ test('flag placements without preview or editor links do not render dead-end row
   expect(screen.queryByText(/Preview isn't set up/)).toBeNull()
   expect(container.querySelectorAll('.xp-preview-row')).toHaveLength(0)
   expect(container.textContent).not.toMatch(/placed \d+ times/)
+  expect(screen.queryByRole('heading', { name: 'Preview links' })).toBeNull()
 })
 test('Decide receives the localized warning from the existing preflight request', async () => {
   const fetcher = setup()

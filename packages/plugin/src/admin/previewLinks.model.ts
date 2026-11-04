@@ -25,3 +25,8 @@ export function previewPages(placements: readonly Placement[], flagPoint?: strin
   }
   return [...pages.values()].map(({ page }) => page)
 }
+
+/** Pages that offer something to do: a preview or an editor link. The section is hidden when none do. */
+export function actionablePreviewPages(placements: readonly Placement[], flagPoint?: string): PreviewPage[] {
+  return previewPages(placements, flagPoint).filter(page => page.url || page.editorUrl)
+}

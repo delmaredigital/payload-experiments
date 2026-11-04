@@ -9,7 +9,7 @@ import { useApi } from './useApi.js'
 import { REVIEW_COPY as C } from './copy/review.js'
 import { TEST_PAGE } from './copy/testPage.js'
 import { API_MESSAGES } from './copy/common.js'
-import { previewPages } from './previewLinks.model.js'
+import { actionablePreviewPages } from './previewLinks.model.js'
 
 export function PreviewLinks({ experimentId, placements, arms, flagPoint }: {
   flagPoint?: string; experimentId: DocId; placements: PreflightResult['placements']; arms: readonly { key: string; kind?: string; label?: string }[]
@@ -34,7 +34,7 @@ export function PreviewLinks({ experimentId, placements, arms, flagPoint }: {
     finally { inFlight.current = false; setBusy(false) }
   }
   return <div className="xp-preview-links">
-    {previewPages(placements, flagPoint).filter(placement => placement.url || placement.editorUrl).map(placement => <div className="xp-preview-row" key={placement.key}>
+    {actionablePreviewPages(placements, flagPoint).map(placement => <div className="xp-preview-row" key={placement.key}>
       <p>{placement.title}{placement.slotCount > 1 ? ` ${C.placedTimes(placement.slotCount)}` : null}</p>
       <div className="xp-ui-button-group">{placement.url ? arms.filter(arm => arm.kind !== 'holdout' && arm.key !== 'holdout').map(arm =>
         <Button variant="secondary" size="sm" key={arm.key} disabled={busy} onClick={() => { void preview(placement.url!, arm.key) }}>
