@@ -3,6 +3,11 @@ import { expect, test } from 'vitest'
 import { availableActions } from '../../../../src/admin/actions/actions.model.js'
 import * as copy from '../../../../src/admin/copy/readiness.js'
 
+test('block path readiness uses the coordinator removal copy', () => {
+  expect(copy.READINESS_COPY.blockPathRule).toBe('Remove the page-path rule in Who takes part; page block tests run on their page.')
+  expect(copy.READINESS_COPY.removeRule).toBe('Remove the rule')
+})
+
 test('readiness copy uses editor language, including generated sentences', () => {
   const forbidden = /\b(arms?|phases?|flag point|unit type|CUPED|exposure policy)\b/i
   const source = readFileSync(new URL('../../../../src/admin/copy/readiness.ts', import.meta.url), 'utf8')

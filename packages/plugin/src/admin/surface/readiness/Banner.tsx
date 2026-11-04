@@ -56,7 +56,7 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
       {sentence ? <p role="status">{setup && next && !ready && next.section !== 'header' ? <a href={`#section-${next.section}`} onClick={event => {
         event.preventDefault()
         if (next.section !== 'header') jumpToSection(next.section)
-      }}>{sentence}</a> : sentence}</p> : null}
+      }}>{sentence}{next.nextStep ? <><br /><span>{next.nextStep}</span></> : null}</a> : sentence}</p> : null}
     </div>
     {setup && test.preflight?.checks.some(check => check.code === 'page-targets-unchecked' && check.warning) ? <p>{C.uncheckedPages}</p> : null}
     {doc.status === 'stopped' ? <p>{stoppedCopy(displayDate(doc.stoppedAt))}</p> : null}

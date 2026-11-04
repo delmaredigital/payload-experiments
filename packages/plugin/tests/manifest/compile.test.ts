@@ -18,6 +18,15 @@ function experiment(overrides: Partial<ManifestInputExperiment> = {}): ManifestI
 function inputs(experiments: ManifestInputExperiment[], rest: Partial<ManifestInputs> = {}): ManifestInputs { return { experiments, flagDefaults: {}, ...rest } }
 
 describe('pure manifest compiler', () => {
+  test('running block tests retain existing path targeting until stopped', () => {
+    const targeting = [{ attribute: 'path', op: 'eq' as const, value: '/home', type: 'string' as const }]
+    const active = experiment({ currentPhase: phase({ targeting }) })
+    const compiled = compileManifest(inputs([active]), 1).experiments[0]!
+    expect(compiled.targeting).toEqual(targeting)
+    expect(evaluateTargeting(compiled.targeting, { path: '/home' })).toBe(true)
+    expect(evaluateTargeting(compiled.targeting, { path: '/other' })).toBe(false)
+    expect(compileManifest(inputs([{ ...active, status: 'stopped' }]), 2).experiments).toEqual([])
+  })
   test('includes only running/decided and uses immutable phase config over edited live fields', () => {
     const e = { ...experiment(), allocation: 99, seed: 'edited', phase: 99, targeting: [{ attribute: 'staff', op: 'eq', value: true }], arms: [] }
     const manifest = compileManifest(inputs([e, experiment({ id: 2, status: 'draft' }), experiment({ id: 3, status: 'stopped' }), experiment({ id: 4, status: 'decided', decision: { winnerArm: 'variantA' } })]), 7)

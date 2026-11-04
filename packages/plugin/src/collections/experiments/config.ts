@@ -1,4 +1,4 @@
-import type { CollectionConfig, Field, FieldAccess } from 'payload'
+import type { CollectionConfig, Field, FieldAccess, PayloadRequest } from 'payload'
 import type { Arm, ExperimentKind, ResolvedOptions } from '../../types/contracts.js'
 import * as paths from '../../admin/paths.js'
 import { managedAccess } from '../access.js'
@@ -11,7 +11,9 @@ import { deleteGuard, deleteGuardAfter } from './deleteGuard.js'
 import { checkArms } from './armInvariants.js'
 import { XpNotImplemented, XpRefusal } from '../../errors.js'
 
-type ValidationContext = { data?: { kind?: unknown; exposurePolicy?: unknown }; siblingData?: { attribute?: string; op?: string } }
+type TargetingRow = { id?: string | number; attribute?: string; op?: string; value?: unknown }
+type TargetingDocument = { kind?: unknown; status?: unknown; targeting?: TargetingRow[] | null }
+type ValidationContext = { data?: TargetingDocument & { exposurePolicy?: unknown }; siblingData?: TargetingRow; req?: PayloadRequest }
 const positiveInteger = (value: number | null | undefined) => (value != null && Number.isInteger(value) && value > 0) || 'Enter a positive whole number.'
 
 export function experimentsCollection(options: ResolvedOptions): CollectionConfig {
@@ -66,8 +68,24 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
             validate: (value: unknown, { data }: ValidationContext) => (value === 'visitor' || value === 'user') && (data?.kind !== 'page' || value === 'visitor') || 'Page experiments require visitors.' },
           { name: 'allocation', type: 'number', required: true, defaultValue: 100, min: 1, max: 100, validate: (value: number | null | undefined) => positiveInteger(value) === true && value! <= 100 || 'Enter a whole percentage from 1 to 100.' },
           { name: 'layer', type: 'relationship', relationTo: 'xp-layers' },
-          { name: 'targeting', type: 'array', fields: [
-            { name: 'attribute', type: 'text', required: true, validate: (value: unknown) => (typeof value === 'string' && Object.hasOwn(attributeKeys, value)) || 'Choose a registered attribute.' },
+          { name: 'targeting', type: 'array', hooks: { beforeChange: [({ originalDoc, req }) => {
+            // Payload 3.90.2 validators receive merged data, not originalDoc.
+            // Capture it before array traversal; match stored rows by siblingData.id.
+            req.context.xpTargetingOriginalDoc = originalDoc
+          }] }, fields: [
+            { name: 'attribute', type: 'text', required: true, validate: (value: unknown, { data, siblingData, req }: ValidationContext) => {
+              const stored = req?.context.xpTargetingOriginalDoc as TargetingDocument | undefined
+              const status = data?.status ?? stored?.status ?? 'draft'
+              if (value === 'path' && data?.kind === 'block' && (status === 'draft' || status === 'stopped')) {
+                const previous = siblingData?.id == null ? undefined
+                  : stored?.targeting?.find(rule => rule.id != null && String(rule.id) === String(siblingData.id))
+                if (!previous || previous.attribute !== value || previous.op !== siblingData?.op
+                  || JSON.stringify(previous.value) !== JSON.stringify(siblingData?.value)) {
+                  return 'Page block tests run on their page; remove the page-path rule.'
+                }
+              }
+              return (typeof value === 'string' && Object.hasOwn(attributeKeys, value)) || 'Choose a registered attribute.'
+            } },
             { name: 'op', type: 'select', required: true, options: [...new Set(Object.values(TARGETING_OPS).flat())],
               validate: (value: unknown, { siblingData }: ValidationContext) => isOpValid(attributeKeys[siblingData?.attribute ?? '']?.type ?? '', value as string) || 'Choose an operator supported by this attribute.' },
             { name: 'value', type: 'json', required: true,
