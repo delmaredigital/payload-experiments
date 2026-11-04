@@ -8,7 +8,7 @@ import type { ActionDecision, ActionId } from '../../actions/actions.model.js'
 import { actionGroupLabel, availableActions } from '../../actions/actions.model.js'
 import { createApi } from '../../api.js'
 import { READINESS_COPY as C, decidedCopy, nextCopy, runningCopy, stoppedCopy } from '../../copy/readiness.js'
-import { daysRemaining, displayDate, nextStep } from './readiness.model.js'
+import { READINESS, daysRemaining, displayDate, nextStep } from './readiness.model.js'
 import { AddMetricAction, AllocateAction, ConfirmAction } from './ActionDialogs.js'
 import { useTransition } from './useTransition.js'
 
@@ -59,6 +59,7 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
       }}>{sentence}{next.nextStep ? <><br /><span>{next.nextStep}</span></> : null}</a> : sentence}</p> : null}
     </div>
     {setup && test.preflight?.checks.some(check => check.code === 'page-targets-unchecked' && check.warning) ? <p>{C.uncheckedPages}</p> : null}
+    {test.preflight?.checks.filter(check => check.code === 'make-content-unsupported' && check.warning).map(check => <p key={check.code}>{READINESS[check.code].next(check.detail, doc)}</p>)}
     {doc.status === 'stopped' ? <p>{stoppedCopy(displayDate(doc.stoppedAt))}</p> : null}
     <div className="xp-readiness__actions">
       {actions.map(item => {

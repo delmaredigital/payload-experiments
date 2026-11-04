@@ -51,8 +51,10 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
   if (full.updatedAt !== (input.experiment as TransitionExperiment).updatedAt) refuse('stale-draft')
   // Review reads respect field access; internal writes must preserve hidden config.
   input.experiment = { ...input.experiment, kind: full.kind, analysis: full.analysis }
+  // Warning-only codes always have ok: true. These exclusions narrow
+  // ReadinessCode to RefusalCode, which intentionally excludes warnings.
   const failed = checkStart(input).find(check => !check.ok)
-  if (failed && failed.code !== 'page-targets-unchecked') refuse(failed.code, failed.detail)
+  if (failed && failed.code !== 'page-targets-unchecked' && failed.code !== 'make-content-unsupported') refuse(failed.code, failed.detail)
   const before = input.experiment as TransitionExperiment
   const updatedAt = before.updatedAt
   const at = new Date()
@@ -72,7 +74,7 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
       const defaults = state.flagDefaults as Record<string, { params: Record<string, unknown> }> | undefined
       current.arms = current.arms.map(arm => arm.kind === 'control' ? { ...arm, params: defaults?.[point.id]?.params ?? point.defaultParams } : arm)
       const recheck = checkStart({ ...input, experiment: current }).find(check => !check.ok)
-      if (recheck && recheck.code !== 'page-targets-unchecked') refuse(recheck.code, recheck.detail)
+      if (recheck && recheck.code !== 'page-targets-unchecked' && recheck.code !== 'make-content-unsupported') refuse(recheck.code, recheck.detail)
     }
     const targeting = (current.targeting ?? []).map(rule => {
       const type = Object.hasOwn(options.attributeKeys ?? {}, rule.attribute) ? options.attributeKeys![rule.attribute]!.type : undefined

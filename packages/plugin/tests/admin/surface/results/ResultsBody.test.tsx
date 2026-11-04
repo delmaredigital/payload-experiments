@@ -226,3 +226,16 @@ test('a decided test whose decision round was still collecting reads as stopped,
   expect(await screen.findByText('Stopped before enough people took part to tell.')).toBeTruthy()
   expect(screen.queryByText(/Keep it running|more people needed/)).toBeNull()
 })
+
+test('Decide receives the localized warning from the existing preflight request', async () => {
+  const fetcher = setup()
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation((url, init) => url.endsWith('/preflight') ? Promise.resolve(json({ placements: [], checks: [
+    { code: 'make-content-unsupported', ok: true, warning: true, detail: 'Landing page' },
+  ] })) : original(url, init))
+  render(<ResultsBody id={1} surface={surface} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Decide' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByText("Landing page has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand.")).toBeTruthy()
+  expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/preflight'))).toHaveLength(1)
+})

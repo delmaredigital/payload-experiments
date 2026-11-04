@@ -1,3 +1,4 @@
+import { hasLocalizedFields } from './contentFields.js'
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, FlagPoint, ResolvedOptions } from '../types/contracts.js'
 import type { ArmSlot } from '../types/puck.js'
@@ -5,7 +6,7 @@ import { puckCollections as normalisePuckCollections } from '../options.js'
 
 export interface BlockPlacement {
   collection: string; id: DocId; title: string; published: boolean
-  slots: Record<ArmSlot, number>; locked?: boolean
+  slots: Record<ArmSlot, number>; locked?: boolean; localized?: boolean
 }
 export type FlagPlacement = Awaited<ReturnType<NonNullable<FlagPoint['placements']>>>[number]
 const slots = ['control', 'variantA', 'variantB', 'variantC'] as const
@@ -50,6 +51,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: {
               placements.get(experiment)!.push({ collection, id: doc.id, title: String(doc.title ?? doc.name ?? doc.id),
                 published: !draft || doc._status === 'published',
                 slots: Object.fromEntries(slots.map(slot => [slot, Array.isArray(props[slot]) ? props[slot].length : 0])) as Record<ArmSlot, number>,
+                ...(hasLocalizedFields(req.payload.config.collections?.find(config => config.slug === collection)?.fields ?? [], req.payload.config) ? { localized: true } : {}),
                 locked: doc._isLocked === true || doc.locked === true,
               })
             }
