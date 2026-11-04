@@ -1,4 +1,4 @@
-import { createLocalReq } from 'payload'
+import { createLocalReq, type CollectionConfig } from 'payload'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { createIntegrationHarness } from './harness.js'
 import { contentChangesBeforeHook, contentChangesHook } from '../src/hooks/contentChanges.js'
@@ -7,6 +7,11 @@ import type { ResolvedOptions } from '../src/types/contracts.js'
 
 // Written for the merged-main train. Never run against a network DB in a lane.
 let harness: Awaited<ReturnType<typeof createIntegrationHarness>>
+const linkedFields: CollectionConfig['fields'] = [{ name: 'layout', type: 'blocks', blocks: [{ slug: 'linked', fields: [
+  { name: 'experimentArm', type: 'group', fields: [{ name: 'experiment', type: 'text' }, { name: 'arm', type: 'text' }] },
+  { name: 'text', type: 'text' }, { name: 'image', type: 'upload', relationTo: 'audit-media' },
+  { name: 'link', type: 'relationship', relationTo: 'audit-links' },
+] }] }]
 beforeAll(async () => {
   harness = await createIntegrationHarness({
     collections: [{ slug: 'audit-media', upload: { disableLocalStorage: true, filesRequiredOnCreate: false }, access: { read: () => true }, fields: [] },
@@ -15,11 +20,11 @@ beforeAll(async () => {
       { slug: 'linked-audit-pages', versions: { drafts: true },
         access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true },
         hooks: { beforeChange: [contentChangesBeforeHook], afterChange: [contentChangesHook] },
-        fields: [{ name: 'layout', type: 'blocks', blocks: [{ slug: 'linked', fields: [
-          { name: 'experimentArm', type: 'group', fields: [{ name: 'experiment', type: 'text' }, { name: 'arm', type: 'text' }] },
-          { name: 'text', type: 'text' }, { name: 'image', type: 'upload', relationTo: 'audit-media' },
-          { name: 'link', type: 'relationship', relationTo: 'audit-links' },
-        ] }] }],
+        fields: structuredClone(linkedFields),
+      }, { slug: 'linked-audit-asks',
+        access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true },
+        hooks: { beforeChange: [contentChangesBeforeHook], afterChange: [contentChangesHook] },
+        fields: structuredClone(linkedFields),
       }, { slug: 'audit-pages', versions: { drafts: { autosave: true }, maxPerDoc: 2 },
       access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true },
       fields: [{ name: 'title', type: 'text' }, { name: 'content', type: 'json' }],
@@ -108,5 +113,25 @@ test.each(['image', 'link'] as const)('default-depth unchanged %s publish record
   expect(await f.markers()).toHaveLength(1)
   await f.payload.update({ collection: 'linked-audit-pages', id: page.id, req: f.req, overrideAccess: false,
     depth: 0, data: { _status: 'published' } })
+  expect(await f.markers()).toHaveLength(1)
+})
+
+test('collection without drafts: depth-2 unchanged upload and relationship write records nothing; a content edit records one', async () => {
+  const f = await setup('audit-expanded-no-drafts', false, false)
+  const image = await f.payload.create({ collection: 'audit-media', req: f.req, overrideAccess: true,
+    data: { filename: 'no-drafts.png', mimeType: 'image/png' } })
+  const link = await f.payload.create({ collection: 'audit-links', req: f.req, overrideAccess: true,
+    data: { title: 'Linked document' } })
+  const page = await f.payload.create({ collection: 'linked-audit-asks', req: f.req, overrideAccess: false,
+    data: { layout: [{ blockType: 'linked', text: 'Original', image: image.id, link: link.id,
+      experimentArm: { experiment: String(f.experiment.id), arm: 'variantA' } }] } })
+  await f.begin()
+  const unchanged = await f.payload.update({ collection: 'linked-audit-asks', id: page.id, req: f.req,
+    overrideAccess: false, depth: 2, data: {} })
+  expect(unchanged.layout[0].image).toMatchObject({ id: image.id })
+  expect(unchanged.layout[0].link).toMatchObject({ id: link.id })
+  expect(await f.markers()).toHaveLength(0)
+  await f.payload.update({ collection: 'linked-audit-asks', id: page.id, req: f.req, overrideAccess: false, depth: 2,
+    data: { layout: [{ ...unchanged.layout[0], text: 'Changed', image: image.id, link: link.id }] } })
   expect(await f.markers()).toHaveLength(1)
 })

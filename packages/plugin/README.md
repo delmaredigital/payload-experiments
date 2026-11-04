@@ -271,7 +271,10 @@ Other server integrations:
 - `recordContentChange({ doc, previousDoc, req, collection })` can be called
   from a host collection's `afterChange` for content tagged with the arm-select
   field; for a collection with drafts, also add `captureContentBaseline` to its
-  `beforeChange` hooks so the previously published content can be compared. Supply that hook's transaction request. Puck collections get the hook
+  `beforeChange` hooks so the previously published content can be compared.
+  Collections without drafts can also add `captureContentBaseline` for an exact
+  raw comparison; without it, the helper normalises relationships to ids. No host
+  change is required for collections without drafts. Supply that hook's transaction request. Puck collections get the hook
   automatically when enabled. Markers compare published content; drafts and
   autosaves do not add markers (collections without drafts record on save).
   Neither the helper nor the installed hooks ever throw into your save: a

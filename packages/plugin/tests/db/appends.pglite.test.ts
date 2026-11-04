@@ -112,7 +112,8 @@ test.each(['discovery read', 'locked read', 'append'])('a real SQL failure in th
       const req = fakeReq({ payload, transactionID: 'host' })
       const data = (text: string) => ({ content: [{ type: 'ExperimentSlot', props: { experiment: experiment!.slug, control: [{ text }] } }] })
       const saved = { ...doc!, puckData: data('New') }
-      const args = { req, doc: saved, previousDoc: { ...doc!, puckData: data('Old') }, collection: { slug: 'users' } } as Parameters<CollectionAfterChangeHook>[0]
+      Object.assign(payload.db, { findOne: vi.fn(async () => structuredClone(saved)) })
+      const args = { req, doc: saved, previousDoc: { ...doc!, puckData: data('Old') }, collection: { slug: 'users', fields: [] } } as unknown as Parameters<CollectionAfterChangeHook>[0]
       expect(await contentChangesHook(args)).toBe(saved)
       expect(req.transactionID).toBe('host')
       expect(payload.dbCalls).toEqual([])

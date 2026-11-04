@@ -1,5 +1,5 @@
 import { safeError } from '../../src/log.js'
-import type { CollectionAfterChangeHook } from 'payload'
+import type { CollectionAfterChangeHook, Field } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { contentChangesBeforeHook, contentChangesHook } from '../../src/hooks/contentChanges.js'
 import { captureContentBaseline } from '../../src/exports/rsc.js'
@@ -32,7 +32,8 @@ function setup({ status = 'running', field = 'puckData', bound = true } = {}) {
   req.user = { id: 5 } as typeof req.user
   const previousDoc = { id: 1, [field]: { content: [slot('Old', bound ? 'hero' : null)] } }
   const doc = { id: 1, [field]: { content: [slot('New', bound ? 'hero' : null)] } }
-  const args = { req, doc, previousDoc, collection: { slug: 'pages' } } as Parameters<CollectionAfterChangeHook>[0]
+  const args = { req, doc, previousDoc, collection: { slug: 'pages', fields: [] } } as unknown as Parameters<CollectionAfterChangeHook>[0]
+  Object.assign(payload.db, { findOne: vi.fn(async () => structuredClone(args.doc)) })
   return { executor, payload, args, state }
 }
 test.each(['puckData', 'content'])('changed running slot in %s appends once under lock E on the host transaction without a bump', async field => {
@@ -63,13 +64,13 @@ test('unchanged content, property reordering, and edits outside slots do nothing
   args.doc = { ...structuredClone(args.previousDoc), title: 'New title', updatedAt: 'now' }
   args.doc.puckData.content[0].props = { variantA: [], control: [{ props: { text: 'Old' }, type: 'Text' }], experiment: 'hero', id: 'slot' }
   await recordContentChange(args)
-  expect(executor.calls).toEqual([])
+  expect(executor.calls.some(call => call.text.includes('FROM') || call.text.startsWith('UPDATE'))).toBe(false)
   expect(payload.calls).toEqual([])
 })
 test('unbound slots produce no lookups or appends', async () => {
   const { args, executor, payload } = setup({ bound: false })
   await recordContentChange(args)
-  expect(executor.calls).toEqual([])
+  expect(executor.calls.some(call => call.text.includes('FROM') || call.text.startsWith('UPDATE'))).toBe(false)
   expect(payload.calls).toEqual([])
 })
 test.each(['draft', 'autosave'])('host %s saves produce no audit reads or markers', async status => {
@@ -146,7 +147,7 @@ test('the non-Puck helper compares content in rows carrying arm-select tags', as
   args.previousDoc = structuredClone(args.doc)
   args.doc.title = 'Unrelated'
   await recordContentChange(args)
-  expect(executor.calls).toEqual([])
+  expect(executor.calls.some(call => call.text.includes('FROM') || call.text.startsWith('UPDATE'))).toBe(false)
 })
 test('explicit calls and installed hooks log discovery errors without throwing into the host save', async () => {
   const { args, executor } = setup()
@@ -389,4 +390,74 @@ test.each(['missing', 'error'])('a %s saved-row read recovers the audit savepoin
   expect(executor.calls.some(call => call.text === 'ROLLBACK TO SAVEPOINT xp_content_change')).toBe(true)
   expect(args.req.transactionID).toBe(transaction)
   expect(report).toHaveBeenCalledOnce()
+})
+
+const linkedFields: Field[] = [{ name: 'vars', type: 'array', fields: [
+  { name: 'experimentArm', type: 'group', fields: [{ name: 'experiment', type: 'text' }, { name: 'arm', type: 'text' }] },
+  { name: 'blocks', type: 'blocks', blocks: [{ slug: 'linked', fields: [
+    { name: 'text', type: 'text' }, { name: 'image', type: 'upload', relationTo: 'media' },
+    { name: 'link', type: 'relationship', relationTo: 'pages' },
+    { name: 'links', type: 'relationship', relationTo: 'pages', hasMany: true },
+    { name: 'polymorphic', type: 'relationship', relationTo: ['pages', 'media'], hasMany: true },
+    { name: 'body', type: 'richText' },
+  ] }] },
+] }]
+function linkedRow(text: string, expanded = false) {
+  const link = (id: number) => expanded ? { id, title: 'Expanded linked document' } : id
+  return { id: 1, vars: [{ experimentArm: { experiment: 'exp', arm: 'variantA' }, blocks: [{
+    blockType: 'linked', text, image: link(7), link: link(8), links: [link(8), link(9)],
+    polymorphic: [{ relationTo: 'media', value: link(7) }, { relationTo: 'pages', value: link(8) }],
+    body: { root: { children: [{ type: 'paragraph', children: [
+      { type: 'upload', relationTo: 'media', value: link(7) },
+      { type: 'relationship', relationTo: 'pages', value: link(8) },
+    ] }] } },
+  }] }] }
+}
+
+test.each([false, true])('collections without drafts compare captured raw rows despite default-depth expanded links (changed=%s)', async changed => {
+  const { args, executor, payload } = setup()
+  args.collection.slug = 'asks'
+  args.collection.fields = linkedFields as typeof args.collection.fields
+  const before = linkedRow('Original')
+  const after = linkedRow(changed ? 'Changed' : 'Original')
+  args.previousDoc = structuredClone(before)
+  args.doc = linkedRow(changed ? 'Changed' : 'Original', true)
+  // Raw capture also avoids false markers from hidden/afterRead-transformed fields.
+  args.previousDoc.vars[0].blocks[0].text = 'afterRead display value'
+  const read = vi.fn(async () => structuredClone(after)).mockResolvedValueOnce(before)
+  Object.assign(payload.db, { findOne: read })
+  await contentChangesBeforeHook({ ...args, originalDoc: args.previousDoc, data: args.doc, operation: 'update' })
+  expect(await contentChangesHook(args)).toBe(args.doc)
+  expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(changed ? 1 : 0)
+  expect(read).toHaveBeenCalledTimes(2)
+})
+
+test.each([false, true])('host helper without capture normalises expanded upload, hasMany, polymorphic and Lexical links (changed=%s)', async changed => {
+  const { args, executor, payload } = setup()
+  args.collection.slug = 'asks'
+  args.collection.fields = linkedFields as typeof args.collection.fields
+  // Explicit callers can supply populated previous content as well as a depth-0 previousDoc.
+  for (const previousExpanded of [false, true]) {
+    executor.calls.length = 0
+    args.previousDoc = linkedRow('Original', previousExpanded)
+    args.doc = linkedRow(changed ? 'Changed' : 'Original', true)
+    const read = vi.fn(async () => linkedRow(changed ? 'Changed' : 'Original'))
+    Object.assign(payload.db, { findOne: read })
+    await recordContentChange(args)
+    expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(changed ? 1 : 0)
+    // Without a captured baseline both sides are afterRead documents; the raw row is not read.
+    expect(read).not.toHaveBeenCalled()
+  }
+})
+test('host helper without capture ignores the raw row\'s locale map on an unchanged localized write', async () => {
+  const { args, executor, payload } = setup()
+  args.collection.slug = 'asks'
+  args.collection.fields = linkedFields as typeof args.collection.fields
+  args.previousDoc = linkedRow('Original', false)
+  args.doc = linkedRow('Original', true)
+  // The raw row would carry { en, fr }; the afterRead documents carry the selected locale only.
+  const read = vi.fn(async () => ({ ...linkedRow('Original'), text: { en: 'Original', fr: 'Original FR' } }))
+  Object.assign(payload.db, { findOne: read })
+  await recordContentChange(args)
+  expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(0)
 })

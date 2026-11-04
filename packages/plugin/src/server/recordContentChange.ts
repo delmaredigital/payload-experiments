@@ -6,6 +6,7 @@ import { txExecutor } from '../db/executor.js'
 import { puckCollections } from '../options.js'
 import { withTransition } from '../transitions/kernel.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
+import { normaliseContentRelationships } from './normaliseContentRelationships.js'
 
 type Binding = { field: 'slug' | 'id'; value: DocId; contents: unknown[] }
 const slots = ['control', 'variantA', 'variantB', 'variantC'] as const
@@ -46,9 +47,8 @@ function bindings(data: unknown, puck: boolean): Map<string, Binding> {
 type Baseline = { collection: string; id: DocId; doc?: Record<string, unknown> }
 const baselineKey = (collection: string, id: DocId) => `${collection}:${id}`
 
-/** Paired beforeChange capture: previousDoc may be an autosaved draft. */
+/** Paired raw beforeChange capture: previousDoc may be an autosaved draft. */
 export async function capturePublishedContent({ req, collection, originalDoc, operation }: Parameters<CollectionBeforeChangeHook>[0]): Promise<void> {
-  if (!collection.versions || !collection.versions.drafts) return
   if (await req.transactionID == null) {
     req.payload.logger?.debug('[payload-experiments] contentChanges baseline skipped without a transaction')
     return
@@ -57,7 +57,9 @@ export async function capturePublishedContent({ req, collection, originalDoc, op
   const baselines = (req.context.xpPublishedContent ??= {}) as Record<string, Baseline>
   const key = baselineKey(collection.slug, id)
   delete baselines[key]
-  const audit = await contentChangeSavepoint(txExecutor(req), async () => operation === 'create' ? undefined : previousPublishedContent(req, collection.slug, id))
+  const audit = await contentChangeSavepoint(txExecutor(req), async () => operation === 'create' ? undefined
+    : collection.versions && collection.versions.drafts ? previousPublishedContent(req, collection.slug, id)
+      : storedContent(req, collection.slug, id))
   if (!audit.ok) throw audit.error
   baselines[key] = { collection: collection.slug, id, doc: audit.result }
 }
@@ -97,16 +99,20 @@ async function auditContentChange({ doc, previousDoc, req, collection }: Content
       .filter(key => !isDeepStrictEqual(before.get(key)?.contents, after.get(key)?.contents))
       .map(key => after.get(key) ?? before.get(key)!)
   }
-  if (!drafts && !changes(previousDoc, doc).length) return
   // Include discovery reads in the savepoint: a SQL read error also aborts Postgres.
   // An explicit host call must supply its afterChange request's transaction.
   const executor = txExecutor(req)
   const audit = await contentChangeSavepoint(executor, async () => {
-    // The captured baseline is adapter-raw. afterChange's doc has already run
-    // through afterRead at the write's depth (including relationship expansion).
-    const current = drafts ? await storedContent(req, collection.slug, doc.id) : doc
-    if (!current) throw new Error('The saved content row was not found.')
-    const changed = changes(drafts ? baseline?.doc : previousDoc, current)
+    // Compare like with like. A captured baseline is adapter-raw, so it meets the stored row after the
+    // write. Without one, previousDoc and doc are both afterRead documents (same locale projection,
+    // hidden fields and field hooks) that differ only in depth, so only relationships are normalised.
+    const normalise = (value: unknown) => normaliseContentRelationships(value, collection.fields, req.payload.config.blocks)
+    let changed
+    if (baseline) {
+      const current = await storedContent(req, collection.slug, doc.id)
+      if (!current) throw new Error('The saved content row was not found.')
+      changed = changes(baseline.doc, current)
+    } else changed = changes(normalise(previousDoc), normalise(doc))
     const experiments = new Map<string, DocId>()
     for (const binding of changed) {
       const experiment = await runningContentExperiment(executor, binding)
