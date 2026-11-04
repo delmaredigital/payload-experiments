@@ -149,10 +149,27 @@ const PREVIEW_URL_TIMEOUT_MS = 2000
 // Resolve host preview lookups in a bounded pool instead of launching one per slot.
 const PREVIEW_URL_CONCURRENCY = 8
 
-async function placementUrls<TUser extends { id: DocId }>(options: ResolvedOptions<TUser>, placement: BlockPlacement, pendingPreviews: { count: number }, onFailure: (cause: unknown, placement: BlockPlacement) => void): Promise<Pick<PreflightResult['placements'][number], 'url' | 'editorUrl'>> {
+async function placementUrls<TUser extends { id: DocId }>(options: ResolvedOptions<TUser>, placement: BlockPlacement, pendingPreviews: { count: number }, onFailure: (cause: unknown, placement: BlockPlacement) => void,
+  previews: Map<string, Promise<string | undefined>>): Promise<Pick<PreflightResult['placements'][number], 'url' | 'editorUrl'>> {
   const result: Pick<PreflightResult['placements'][number], 'url' | 'editorUrl'> = {}
+  const { collection, id, published } = placement
+  // One host lookup per page version: several slots on a page share it.
+  const key = JSON.stringify([collection, String(id), published])
+  let preview = previews.get(key)
+  if (!preview) previews.set(key, preview = previewLookup(options, placement, pendingPreviews, onFailure))
+  const url = await preview
+  if (url !== undefined) result.url = url
+  try {
+    const url = options.admin?.editorUrl?.({ collection, id, draft: !published })
+    if (typeof url === 'string') result.editorUrl = url
+  } catch { /* Keep the client's default editor link available. */ }
+  return result
+}
+
+async function previewLookup<TUser extends { id: DocId }>(options: ResolvedOptions<TUser>, placement: BlockPlacement, pendingPreviews: { count: number }, onFailure: (cause: unknown, placement: BlockPlacement) => void): Promise<string | undefined> {
   const { collection, id, title, published, slug } = placement
   const previewUrl = options.admin?.previewUrl
+  let found: string | undefined
   if (previewUrl) {
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
@@ -166,16 +183,12 @@ async function placementUrls<TUser extends { id: DocId }>(options: ResolvedOptio
         lookup,
         new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Preview URL lookup timed out')), PREVIEW_URL_TIMEOUT_MS) }),
       ])
-      if (typeof url === 'string') result.url = url
+      if (typeof url === 'string') found = url
       else if (url !== null && url !== undefined) throw new TypeError('Invalid preview URL result')
     } catch (cause) { onFailure(cause, placement) }
     finally { clearTimeout(timer) }
   }
-  try {
-    const url = options.admin?.editorUrl?.({ collection, id, draft: !published })
-    if (typeof url === 'string') result.editorUrl = url
-  } catch { /* Keep the client's default editor link available. */ }
-  return result
+  return found
 }
 
 async function primaryHistory(source: MetricSource | undefined, now: Date) {
@@ -256,6 +269,7 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
   const placements: PreflightResult['placements'] = new Array(blocks.length)
   let nextPlacement = 0
   const pendingPreviews = { count: 0 }
+  const previews = new Map<string, Promise<string | undefined>>()
   let loggedPreviewFailure = false
   const onPreviewFailure = (cause: unknown, placement: BlockPlacement) => {
     if (loggedPreviewFailure) return
@@ -268,7 +282,7 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
       const placement = blocks[index]!
       placements[index] = {
         collection: placement.collection, id: placement.id, title: placement.title, slots: placement.slots,
-        ...await placementUrls(options, placement, pendingPreviews, onPreviewFailure),
+        ...await placementUrls(options, placement, pendingPreviews, onPreviewFailure, previews),
         ok: requiredSlots.every(slot => slot && placement.slots[slot] > 0),
         detail: placement.published ? 'Published' : 'Draft',
       }
