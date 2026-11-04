@@ -62,7 +62,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean }>()
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
   const [openMenu, setOpenMenu] = useState<ArmSlot | null>(null)
-  const [clearError, setClearError] = useState<string | null>(null)
+  const [clearError, setClearError] = useState<{ key: string; message: string } | null>(null)
   const [creating, setCreating] = useState(false)
   // A non-empty variant is only overwritten after an explicit second confirmation.
   const [confirming, setConfirming] = useState<ArmSlot | null>(null)
@@ -127,7 +127,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const writes = useArmWrites(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, doc => {
     setArms(experimentId!, doc.arms.map(arm => arm.key))
     if (isCurrentBinding()) setLoaded({ id: experimentId, doc })
-  }, isCurrentBinding)
+  }, isCurrentBinding, () => setClearError(null))
   const tabs = tabsFor(experiment)
   const activeSlot = active && active.id === experimentId ? active.slot : undefined
   const slot = tabs.find(tab => tab.slot === activeSlot)?.slot ?? tabs[0]?.slot ?? 'control'
@@ -161,7 +161,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     if (!isCurrentBinding()) return
     const { getItemById, dispatch, getSelectorForId } = getPuck()
     const item = getItemById(props.id), selector = getSelectorForId(props.id)
-    if (!item || !selector) { setClearError(editorCopy.removeUncleared); return }
+    if (!item || !selector) { setClearError({ key: bindingKey, message: editorCopy.removeUncleared }); return }
     setClearError(null)
     dispatch({ type: 'replace', destinationIndex: selector.index, destinationZone: selector.zone,
       data: { ...item, props: { ...item.props, [slot]: [] } },
@@ -197,7 +197,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {experiment && !editable ? <p className="xp-ui-help">{editorCopy.locked[experiment.status as keyof typeof editorCopy.locked]}</p> : null}
       {experiment && editable ? <VersionWeights key={`weights-${experimentId}`} experiment={experiment} writes={writes} /> : null}
       {writes.error ? <p role="alert" className="xp-ui-error">{writes.error}</p> : null}
-      {clearError ? <p role="alert" className="xp-ui-error">{clearError}</p> : null}
+      {clearError?.key === bindingKey ? <p role="alert" className="xp-ui-error">{clearError.message}</p> : null}
       {removed?.key === bindingKey ? <p className="xp-ui-help">{editorCopy.removed}</p> : null}
       {experiment && experiment.status !== 'draft' ? <ResultsReadout key={`results-${experimentId}`} id={experimentId!} api={api} experiment={experiment} /> : null}
       {removing?.key === bindingKey ? <RemoveVersion arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null}

@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useId, useRef, useState } from 'react'
-import { addVariant, removeArm, balanceWeight, setWeight, splitEvenly, totalWeight, withSlotsFor } from '../../arms/model.js'
+import { addVariant, removeArm, balanceWeight, splitEvenly, totalWeight, withSlotsFor } from '../../arms/model.js'
 import { checkArms } from '../../collections/experiments/armInvariants.js'
 import { issueMessage } from '../../arms/copy.js'
 import type { Arm, ArmKey } from '../../types/contracts.js'
@@ -12,13 +12,14 @@ import type { EditorExperiment } from './editor.model.js'
 import { ArmWriteError, writeArms } from './armWrites.js'
 import { editorCopy as C } from './copy.js'
 
-export function useArmWrites(url: string, publish: (doc: EditorExperiment) => void, isCurrent: () => boolean) {
+export function useArmWrites(url: string, publish: (doc: EditorExperiment) => void, isCurrent: () => boolean, onWrite: () => void) {
   const guard = useRef(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function write(transform: (arms: Arm[]) => Arm[]): Promise<Arm[] | undefined> {
     if (guard.current) return
     guard.current = true
+    onWrite()
     setBusy(true); setError(null)
     try { return await writeArms(url, transform, publish) }
     catch (error) { if (isCurrent()) setError(error instanceof ArmWriteError ? error.message : C.writeNetwork) }
@@ -71,22 +72,26 @@ export function VersionActions({ arm, writes, editable, open, onOpenChange, canC
     if (saved) { restoreFocus.current = true; setName(null) }
   }
   return <div ref={trigger} className="xp-slot-version-actions" onBlur={event => {
-    if (!event.currentTarget.contains(event.relatedTarget)) onOpenChange(false)
+    // Safari/Firefox may blur a keyboard-focused trigger without focusing the clicked item.
+    // Outside pointerdown handles real outside clicks, including non-focusable targets.
+    if (event.relatedTarget !== null && !event.currentTarget.contains(event.relatedTarget)) onOpenChange(false)
   }} onKeyDown={event => {
     if (event.key === 'Escape' && !writes.busy) { event.preventDefault(); closeMenu(); setName(null) }
   }}>
+    <div className="xp-slot-version-anchor">
     {editable || arm.kind !== 'control' ? <Button size="sm" variant="quiet" aria-label={C.menu(arm.label)} aria-expanded={open} aria-controls={`${id}-menu`}
       disabled={writes.busy} onClick={() => onOpenChange(!open)}>⋯</Button> : null}
-    {open ? <div id={`${id}-menu`} className="xp-slot-version-menu" aria-label={C.menu(arm.label)}>
+    {open ? <div id={`${id}-menu`} className="xp-slot-version-menu" role="group" tabIndex={-1} aria-label={C.menu(arm.label)}>
       {editable ? <Button variant="quiet" size="sm" onClick={() => { setName(arm.label); setInvalid(false); closeMenu() }}>{C.rename}</Button> : null}
       {arm.kind !== 'control' ? <>
         <Button variant="quiet" size="sm" disabled={!canCopy} onClick={() => { closeMenu(); onCopy(slot) }}>{C.copy}</Button>
         {editable ? <Button variant="quiet" size="sm" onClick={() => { closeMenu(); onRequestRemove() }}>{C.remove}</Button> : null}
       </> : null}
     </div> : null}
-    {name !== null ? <TextInput id={`${id}-name`} label={C.renameLabel} autoFocus value={name} disabled={writes.busy}
+    </div>
+    {name !== null ? <div className="xp-slot-version-rename"><TextInput id={`${id}-name`} label={C.renameLabel} autoFocus value={name} disabled={writes.busy}
       error={invalid ? C.emptyLabel : undefined} onChange={event => { setName(event.target.value); setInvalid(false) }}
-      onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void rename() } }} /> : null}
+      onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void rename() } }} /></div> : null}
 
   </div>
 }
@@ -95,12 +100,14 @@ export function RemoveVersion({ arm, writes, onRemove, onClose }: {
   arm: EditorExperiment['arms'][number]; writes: ArmWrites; onRemove: (slot: ArmSlot) => void; onClose: () => void
 }) {
   const slot = arm.key as ArmSlot
+  const [tried, setTried] = useState(false)
   return <Dialog open title={C.removeTitle(arm.label)} initialFocus="cancel" dismissible={!writes.busy} onClose={() => onClose()}>
       <div className="xp-slot-drawer"><p>{C.removeHelp}</p>
-      {writes.error ? <p role="alert" className="xp-ui-error">{writes.error}</p> : null}
+      {tried && writes.error ? <p role="alert" className="xp-ui-error">{writes.error}</p> : null}
       <div className="xp-ui-button-group">
         <Button data-dialog-cancel disabled={writes.busy} onClick={() => onClose()}>{C.cancel}</Button>
         <Button variant="danger" busy={writes.busy} onClick={async () => {
+          setTried(true)
           const saved = await writes.write(arms => splitEvenly(removeArm(arms, arm.key)))
           if (saved) { onRemove(slot); onClose() }
         }}>{C.remove}</Button>
@@ -112,23 +119,25 @@ export function VersionWeights({ experiment, writes }: { experiment: EditorExper
   const id = useId()
   const split = useRef<HTMLDivElement>(null)
   const [edits, setEdits] = useState<Partial<Record<ArmKey, string>>>({})
+  const invalidKeys = new Set(Object.entries(edits).filter(([, raw]) => raw.trim() === '' || !Number.isInteger(Number(raw)) || Number(raw) < 0 || Number(raw) > 100).map(([key]) => key))
   const apply = (arms: Arm[]) => arms.reduce((next, arm) => edits[arm.key] === undefined ? next : (() => {
     const value = edits[arm.key]!.trim() === '' ? NaN : Number(edits[arm.key])
-    return Number.isInteger(value) && value >= 0 && value <= 100 ? balanceWeight(next, arm.key, value) : setWeight(next, arm.key, value)
+    return invalidKeys.has(arm.key) ? next : balanceWeight(next, arm.key, value)
   })(), arms)
   const live = withSlotsFor(apply(experiment.arms as Arm[]), 'block')
   const issues = checkArms(live, 'block')
   async function commit() {
-    if (!Object.keys(edits).length || issues.length) return
+    if (!Object.keys(edits).length || invalidKeys.size || issues.length) return
     const saved = await writes.write(apply)
     if (saved) setEdits({})
   }
   return <div className="xp-slot-weights">
     <div className="xp-slot-weight-inputs">{experiment.arms.map(arm => <NumberInput key={arm.key} id={`${id}-${arm.key}`} label={C.weight(arm.label)}
       min={0} max={100} step={1} value={edits[arm.key] ?? live.find(current => current.key === arm.key)?.weight ?? ''} disabled={writes.busy}
+      error={invalidKeys.has(arm.key) ? C.invalidShare : undefined}
       onChange={event => setEdits({ [arm.key]: event.target.value })}
       onBlur={event => { if (!split.current?.contains(event.relatedTarget)) void commit() }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void commit() } }} />)}</div>
-    {Object.keys(edits).length ? issues.map((issue, i) => <p role="alert" className="xp-ui-error" key={i}>{issueMessage(issue, totalWeight(live))}</p>) : null}
+    {Object.keys(edits).length && !invalidKeys.size ? issues.map((issue, i) => <p role="alert" className="xp-ui-error" key={i}>{issueMessage(issue, totalWeight(live))}</p>) : null}
     <div ref={split}><Button variant="quiet" size="sm" disabled={writes.busy} onClick={async () => { if (await writes.write(splitEvenly)) setEdits({}) }}>{C.split}</Button></div>
   </div>
 }

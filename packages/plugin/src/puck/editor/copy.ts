@@ -39,6 +39,7 @@ export const editorCopy = {
   lockedGeneric: "This test's versions can't change. View the test page for details.",
   holdoutPeople: (label: string, count: string) => `${label}: ${count} people (not compared)`,
   weight: (label: string) => `${label} traffic (%)`,
+  invalidShare: 'Use a whole number from 0 to 100.',
   split: 'Split evenly',
   locked: {
     running: "This test is running, so its versions can't change. Stop it on the test page to edit them.",

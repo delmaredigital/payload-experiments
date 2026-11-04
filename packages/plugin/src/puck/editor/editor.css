@@ -367,8 +367,10 @@
   margin: auto;
 }
 
-.xp-slot-editor .xp-ui-tabs-header { display: flex; align-items: center; gap: var(--xp-space-2); }
-.xp-slot-version-actions { position: relative; display: flex; align-items: center; gap: var(--xp-space-2); }
+.xp-slot-editor .xp-ui-tabs-header { display: flex; flex-wrap: wrap; align-items: stretch; }
+.xp-slot-version-actions { display: contents; }
+.xp-slot-version-anchor { position: relative; display: flex; align-items: center; border-bottom: 1px solid var(--xp-border); }
+.xp-slot-version-rename { flex: 1 0 100%; min-width: 0; padding-top: var(--xp-space-2); }
 .xp-slot-version-menu {
   position: absolute; top: 100%; inset-inline-end: 0; z-index: 5;
   display: grid; min-width: 180px; padding: var(--xp-space-2);
@@ -380,4 +382,4 @@
 .xp-slot-weight-inputs .xp-ui-field { flex: 1 1 120px; max-width: 200px; }
 .xp-slot-readout { display: grid; gap: var(--xp-space-2); }
 .xp-slot-readout > .xp-ui-button { justify-self: start; }
-.xp-slot-editor .xp-ui-tablist { min-width: 0; flex-wrap: wrap; }
+.xp-slot-editor .xp-ui-tablist { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }

@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { createExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
@@ -188,6 +191,33 @@ test.each([[403, 'forbidden', "You don't have permission to do this."], [500, 'u
   expect(document.body.textContent).not.toContain('SECRET SERVER TEXT')
 })
 
+test('a fresh Remove dialog hides a failed Add error until its own attempt', async () => {
+  await mount(); refuse = { status: 403, code: 'forbidden' }
+  fireEvent.click(screen.getByRole('button', { name: C.add }))
+  await screen.findByText("You don't have permission to do this.")
+  menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  const dialog = screen.getByRole('dialog')
+  expect(within(dialog).queryByRole('alert')).toBeNull()
+  expect(patches()).toHaveLength(1)
+  fireEvent.click(within(dialog).getByRole('button', { name: C.remove }))
+  expect((await within(dialog).findByRole('alert')).textContent).toBe("You don't have permission to do this.")
+  expect(patches()).toHaveLength(2)
+})
+
+test.each(['101', '-1', '50.5', ''])('invalid weight %j shows a field error without a misleading total or PATCH', async value => {
+  await mount()
+  const input = screen.getByLabelText(C.weight('Original'))
+  fireEvent.change(input, { target: { value } })
+  expect(input.getAttribute('aria-invalid')).toBe('true')
+  const error = screen.getByRole('alert')
+  expect(error.textContent).toBe(C.invalidShare)
+  expect(input.getAttribute('aria-describedby')).toBe(error.id)
+  expect(screen.queryByText(/They add up to/)).toBeNull()
+  fireEvent.keyDown(input, { key: 'Enter' }); fireEvent.blur(input)
+  expect(patches()).toHaveLength(0)
+  expect(order).toEqual(['GET'])
+})
+
 test.each(['running', 'decided', 'archived'] as const)('%s keeps Copy as its only menu action and explains locked controls', async status => {
   doc.status = status; await mount()
   expect(screen.getByText(C.locked[status])).toBeTruthy()
@@ -323,6 +353,38 @@ test('menus close on outside pointerdown, focus leaving the wrapper, and Escape 
   expect(document.activeElement).toBe(screen.getByRole('button', { name: C.menu('Variant A') }))
 })
 
+test('display contents preserves inside pointer paths and focus; null blur allows a menu click', async () => {
+  const style = document.createElement('style')
+  style.textContent = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../src/puck/editor/editor.chrome.css'), 'utf8')
+  document.head.append(style)
+  try {
+    await mount()
+    fireEvent.click(screen.getByRole('tab', { name: 'Variant A' }))
+    const trigger = screen.getByRole('button', { name: C.menu('Variant A') })
+    trigger.focus(); fireEvent.click(trigger)
+    const wrapper = trigger.closest('.xp-slot-version-actions')!
+    expect(getComputedStyle(wrapper).display).toBe('contents')
+    const group = screen.getByRole('group', { name: C.menu('Variant A') })
+    expect(group.tabIndex).toBe(-1)
+    act(() => group.focus())
+    expect(document.activeElement).toBe(group)
+    expect(screen.getByRole('button', { name: C.rename })).toBeTruthy()
+    act(() => trigger.focus())
+    const rename = screen.getByRole('button', { name: C.rename })
+    fireEvent.pointerDown(rename)
+    expect(screen.getByRole('group', { name: C.menu('Variant A') })).toBe(group)
+    fireEvent.blur(trigger, { relatedTarget: null })
+    expect(screen.getByRole('button', { name: C.rename })).toBe(rename)
+    fireEvent.click(rename)
+    expect(document.activeElement).toBe(screen.getByLabelText(C.renameLabel))
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(document.activeElement).toBe(trigger)
+    fireEvent.click(trigger)
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('group', { name: C.menu('Variant A') })).toBeNull()
+  } finally { style.remove() }
+})
+
 test('opening a second version menu replaces the first and tablist owns only tabs, including during rename', async () => {
   await mount(); menu()
   expect(screen.getByLabelText(C.menu('Variant A'), { selector: '.xp-slot-version-menu' })).toBeTruthy()
@@ -332,7 +394,11 @@ test('opening a second version menu replaces the first and tablist owns only tab
   const tablist = screen.getByRole('tablist')
   expect([...tablist.querySelectorAll('*')].every(node => node.getAttribute('role') === 'tab')).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: C.rename }))
-  expect(screen.getByLabelText(C.renameLabel).closest('[role=tablist]')).toBeNull()
+  const input = screen.getByLabelText(C.renameLabel)
+  expect(input.closest('[role=tablist]')).toBeNull()
+  expect(tablist.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(input.closest('.xp-slot-version-rename')?.parentElement).toBe(document.querySelector('.xp-slot-version-actions'))
+  expect(input.closest('.xp-slot-version-anchor')).toBeNull()
   expect([...tablist.querySelectorAll('*')].every(node => node.getAttribute('role') === 'tab')).toBe(true)
 })
 
@@ -352,6 +418,30 @@ test.each(['missingItem', 'missingSelector'] as const)('successful Remove explai
   expect((await screen.findByRole('alert')).textContent).toBe(C.removeUncleared)
   expect(patches()).toHaveLength(1)
   expect(puck.dispatch).not.toHaveBeenCalled()
+})
+
+test('rebinding hides an uncleared-content error from the previous binding', async () => {
+  const view = await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  puck.missingSelector = true
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
+  await screen.findByText(C.removeUncleared)
+  doc = { ...doc, name: 'Second test' }
+  view.rerender(editor('second-test'))
+  await screen.findByRole('heading', { name: 'Second test' })
+  expect(screen.queryByText(C.removeUncleared)).toBeNull()
+})
+
+test('the next successful write clears an uncleared-content error on the same binding', async () => {
+  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  puck.missingSelector = true
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
+  await screen.findByText(C.removeUncleared)
+  puck.missingSelector = false
+  fireEvent.click(screen.getByRole('button', { name: C.add }))
+  await screen.findByRole('tab', { name: 'Variant A' })
+  await waitFor(() => expect((screen.getByRole('button', { name: C.add }) as HTMLButtonElement).disabled).toBe(false))
+  expect(patches()).toHaveLength(2)
+  expect(screen.queryByText(C.removeUncleared)).toBeNull()
 })
 
 test('holdout people follow compared versions with the not compared note', async () => {

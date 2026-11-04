@@ -100,7 +100,7 @@ describe('editor visual fixtures (coordinator only)', () => {
     expect(paths).toHaveLength(24)
     expect(readFileSync(join(output, 'draft-light.html'), 'utf8')).toContain('Copy Original here')
     expect(readFileSync(join(output, 'remove-dark.html'), 'utf8')).toContain('Remove Variant A?')
-    expect(readFileSync(join(output, 'weights-invalid-light.html'), 'utf8')).toContain('They add up to 151% now.')
+    expect(readFileSync(join(output, 'weights-invalid-light.html'), 'utf8')).toContain('Use a whole number from 0 to 100.')
     expect(readFileSync(join(output, 'rename-light.html'), 'utf8')).toContain('September headline')
     const locked = readFileSync(join(output, 'locked-menu-dark.html'), 'utf8')
     expect(locked).toContain('Copy Original here')
