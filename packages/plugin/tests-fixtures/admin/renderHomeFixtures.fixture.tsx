@@ -48,13 +48,19 @@ test('writes the real home and shell, empty and search-empty fixtures', async ()
   for (const path of cssPaths) readFileSync(path)
   mkdirSync(output, { recursive: true })
   const paths: string[] = []
-  for (const state of ['home', 'home-empty', 'home-search-empty'] as const) {
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('/summary?')
-      ? summaries : { docs: state === 'home-empty' ? [] : docs, totalDocs: state === 'home-empty' ? 0 : docs.length }))))
+  for (const state of ['home', 'home-250', 'home-empty', 'home-search-empty'] as const) {
+    const rows: HomeTest[] = state === 'home-empty' ? [] : state === 'home-250'
+      ? Array.from({ length: 250 }, (_, index) => ({ id: `test-${index + 1}`, name: `Test ${String(index + 1).padStart(3, '0')}`, kind: 'block', unitType: 'visitor', status: 'draft' })) : docs
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const page = Number(new URL(url, 'https://example.test').searchParams.get('page'))
+      return new Response(JSON.stringify(url.includes('/summary?') ? summaries
+        : { docs: rows.slice((page - 1) * 100, page * 100), hasNextPage: page * 100 < rows.length }))
+    }))
     const view = render(<ConfigProvider config={config}><TestsHome adminRoute="/admin" apiRoute="/api" canManage /></ConfigProvider>)
     await waitFor(() => expect(view.queryByText('Loading tests…')).toBeNull())
     if (state === 'home-empty') expect(view.getByText('Create a test to learn what works.')).toBeTruthy()
-    else expect(view.container.querySelectorAll('article')).toHaveLength(8)
+    else expect(view.container.querySelectorAll('article')).toHaveLength(state === 'home-250' ? 250 : 8)
+    if (state === 'home-250') { expect(view.getByText('Test 001')).toBeTruthy(); expect(view.getByText('Test 250')).toBeTruthy() }
     if (state === 'home') {
       expect(view.getByText('Next: Choose a goal.')).toBeTruthy()
       expect(view.getByText('Next: Not on a page yet. Open a page, add an Experiment block and choose this test.')).toBeTruthy()
@@ -72,6 +78,6 @@ test('writes the real home and shell, empty and search-empty fixtures', async ()
     }
     cleanup()
   }
-  expect(paths).toHaveLength(5)
+  expect(paths).toHaveLength(7)
   console.log(paths.join('\n'))
 })

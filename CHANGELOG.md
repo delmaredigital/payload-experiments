@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: the Tests home, goal and layer lists, the block's test picker and new-test names read every page, so sites with many tests no longer lose items past the first 100–200 or fail to create a test with a common name.
+
 ## [0.3.0-rc.2] - 2026-11-04
 
 ### plugin

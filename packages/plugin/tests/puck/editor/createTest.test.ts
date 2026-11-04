@@ -7,14 +7,15 @@ const response = (body: unknown, status = 200) => new Response(JSON.stringify(bo
 const collision = { errors: [{ data: { errors: [{ path: 'slug', message: 'Value must be unique' }] }, message: 'Already used' }] }
 const input = { kind: 'flag', name: 'Welcome', unitType: 'visitor', flagPoint: 'welcome' } as const
 
-test('a racing slug collision re-queries and retries exactly once', async () => {
+test('a racing slug collision resumes at the next candidate and retries exactly once', async () => {
   const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response(collision, 400))
     .mockResolvedValueOnce(response({ docs: [{ slug: 'welcome' }] })).mockResolvedValueOnce(response({ doc: { id: 12, slug: 'welcome-2' } }))
   vi.stubGlobal('fetch', fetch)
   expect(await createTest(resolvePuckRoutes({ api: '/data/' }).api, input)).toEqual({ id: 12, slug: 'welcome-2' })
   expect(fetch).toHaveBeenCalledTimes(4)
-  expect(fetch.mock.calls[0]![0]).toBe('/data/xp-experiments?where[slug][like]=welcome&depth=0&limit=200&select[slug]=true')
-  expect(fetch.mock.calls[2]![0]).toBe(fetch.mock.calls[0]![0])
+  const params = (index: number) => new URL(fetch.mock.calls[index]![0], 'https://example.test').searchParams
+  expect(params(0).get('where[slug][in]')?.split(',')[0]).toBe('welcome')
+  expect(params(2).get('where[slug][in]')?.split(',')[0]).toBe('welcome-2')
   expect(JSON.parse(fetch.mock.calls[3]![1].body).slug).toBe('welcome-2')
 })
 test('a second collision and ordinary refusals never trigger another retry', async () => {
@@ -62,4 +63,32 @@ test.each(['lookup', 'create'])('transport and JSON failures in %s are never ser
     expect(error).not.toBeInstanceOf(CreateRefused)
     expect(fetch).toHaveBeenCalledTimes(stage === 'create' ? 2 : 1)
   }
+})
+
+test('250 occupied names need exactly six bounded in probes and one successful POST', async () => {
+  const existing = new Set(Array.from({ length: 250 }, (_, index) => index === 0 ? 'base' : `base-${index + 1}`))
+  const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') {
+      const slug = JSON.parse(init.body as string).slug
+      expect(slug).toBe('base-251')
+      return response({ doc: { id: 251, slug } })
+    }
+    const params = new URL(url, 'https://example.test').searchParams
+    const candidates = params.get('where[slug][in]')!.split(',')
+    return response({ docs: candidates.filter(slug => existing.has(slug)).map(slug => ({ slug })) })
+  })
+  vi.stubGlobal('fetch', fetch)
+  expect(await createTest('/api', { ...input, name: 'Base' })).toEqual({ id: 251, slug: 'base-251' })
+  expect(fetch).toHaveBeenCalledTimes(7)
+  for (let batch = 0; batch < 6; batch++) {
+    const url = new URL(fetch.mock.calls[batch]![0], 'https://example.test')
+    expect(url.pathname).toBe('/api/xp-experiments')
+    const candidates = Array.from({ length: 50 }, (_, offset) => {
+      const index = batch * 50 + offset + 1
+      return index === 1 ? 'base' : `base-${index}`
+    })
+    expect(Object.fromEntries(url.searchParams)).toEqual({ 'where[slug][in]': candidates.join(','), limit: '50', depth: '0', 'select[slug]': 'true' })
+    expect(fetch.mock.calls[batch]![1]).toEqual({ credentials: 'include' })
+  }
+  expect(fetch.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
 })

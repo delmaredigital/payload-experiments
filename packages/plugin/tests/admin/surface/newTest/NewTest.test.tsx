@@ -91,7 +91,7 @@ test.each([8, 'group-uuid'])('Advanced preserves the API layer id %s and signed-
   const details = screen.getByText('Advanced').closest('details')!
   details.open = true; fireEvent(details, new Event('toggle'))
   await screen.findByRole('option', { name: 'Homepage tests' })
-  expect(fetch.mock.calls[0]![0]).toBe('/data/xp-layers?depth=0&limit=100')
+  expect(fetch.mock.calls[0]![0]).toBe('/data/xp-layers?depth=0&limit=100&page=1')
   fireEvent.change(screen.getByLabelText('Put this test in a group (optional)'), { target: { value: '0' } })
   fireEvent.click(screen.getByRole('button', { name: 'Next' }))
   fireEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -158,4 +158,20 @@ test.each([
   expect((await screen.findByRole('alert')).textContent).toBe(message)
   expect(push).not.toHaveBeenCalled()
   expect(fetch).toHaveBeenCalledTimes(collision ? 4 : 2)
+})
+
+test('Advanced lists all 150 layers across two pages', async () => {
+  const layers = Array.from({ length: 150 }, (_, id) => ({ id, name: `Group ${id}` }))
+  const fetch = vi.fn(async (url: string) => {
+    const page = Number(new URL(url, 'https://example.test').searchParams.get('page'))
+    return response({ docs: layers.slice((page - 1) * 100, page * 100), hasNextPage: page < 2 })
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(<NewTest surface={surface} />)
+  settingStep()
+  const details = screen.getByText('Advanced').closest('details')!
+  details.open = true; fireEvent(details, new Event('toggle'))
+  await screen.findByRole('option', { name: 'Group 149' })
+  expect(screen.getAllByRole('option')).toHaveLength(151)
+  expect(fetch).toHaveBeenCalledTimes(2)
 })

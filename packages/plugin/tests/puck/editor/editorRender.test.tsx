@@ -325,7 +325,7 @@ test('custom API route reaches both drawer requests', async () => {
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Test this block' }))
   await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
   expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual([
-    '/content-api/xp-experiments?where[slug][like]=welcome-page&depth=0&limit=200&select[slug]=true', '/content-api/xp-experiments',
+    expect.stringMatching(/^\/content-api\/xp-experiments\?where\[slug\]\[in\]=welcome-page%2C/), '/content-api/xp-experiments',
   ])
 })
 

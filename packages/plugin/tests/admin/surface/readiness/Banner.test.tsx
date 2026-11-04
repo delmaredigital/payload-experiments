@@ -432,3 +432,17 @@ test.each([false, true])('surface uses the returned archived status to hide Fini
   expect(screen.queryByRole('button', { name: 'Finish archiving' })).toBeNull()
   expect(dialogButton('Done')).toBeTruthy()
 })
+
+test('Add a goal lists all 150 unattached metrics across two pages', async () => {
+  const goals = Array.from({ length: 150 }, (_, index) => ({ id: index + 10, name: `Goal ${index}` }))
+  const fetch = vi.fn(async (url: string) => {
+    const page = Number(new URL(url, 'https://example.test').searchParams.get('page'))
+    return response({ docs: goals.slice((page - 1) * 100, page * 100), hasNextPage: page < 2 })
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(<Banner {...props({ status: 'running' })} />)
+  fireEvent.click(button('Add a goal'))
+  await screen.findByRole('option', { name: 'Goal 149' })
+  expect(within(screen.getByLabelText('Metric')).getAllByRole('option')).toHaveLength(151)
+  expect(fetch).toHaveBeenCalledTimes(2)
+})

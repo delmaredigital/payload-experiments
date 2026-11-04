@@ -377,3 +377,16 @@ test('goals use plugin primitives and have no Payload controls or raw controls',
     }
   }
 })
+
+test('all 150 goals render across two pages', async () => {
+  const goals = Array.from({ length: 150 }, (_, id) => ({ ...goal, id, name: `Goal ${id}` }))
+  const fetch = vi.fn(async (url: string) => {
+    const page = Number(new URL(url, 'https://example.test').searchParams.get('page'))
+    return response(url.includes('xp-metrics') ? { docs: goals.slice((page - 1) * 100, page * 100), hasNextPage: page < 2 } : { docs: [], hasNextPage: false })
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(<GoalsList surface={surface} />)
+  await screen.findByRole('link', { name: 'Goal 149' })
+  expect(screen.getAllByRole('article')).toHaveLength(150)
+  expect(fetch).toHaveBeenCalledTimes(3)
+})
