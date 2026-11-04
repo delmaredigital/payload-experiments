@@ -51,7 +51,7 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
       const conflicts = await placementInteractions(req, exec, options, { ...current, arms: test.arms }, mine)
       if (conflicts.length) refuse('interacting-tests', conflicts)
       if (options?.pages) {
-        const unpublished = await detached(req, () => unpublishedPageTargets(req, options, { ...current, arms: test.arms }))
+        const unpublished = await detached(req, () => unpublishedPageTargets(req, options, { ...current, arms: test.arms.filter(arm => arm.kind === 'control' || arm.key === winnerArm) }, true))
         if (unpublished.length) refuse('page-target-unpublished', unpublished[0])
       }
     }

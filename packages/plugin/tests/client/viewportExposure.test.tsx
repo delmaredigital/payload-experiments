@@ -3,6 +3,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { StrictMode } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
+import { ExperimentGroup } from '../../src/client/ExperimentGroup.js'
 import { ViewportExposure } from '../../src/client/ViewportExposure.js'
 import { ExperimentsProvider } from '../../src/client/ExperimentsProvider.js'
 import { __resetBeaconsForTests } from '../../src/client/beacon.js'
@@ -90,3 +91,14 @@ test('missing IntersectionObserver is harmless and sends nothing', () => {
   expect(() => render(<ExperimentsProvider value={assignments()}><ViewportExposure expose={expose}>Content</ViewportExposure></ExperimentsProvider>)).not.toThrow()
   expect(sendBeacon).not.toHaveBeenCalled()
 })
+
+// Measured below 100 ms locally; cap leaves CI headroom.
+test('ExperimentGroup renders bare without expose and exposes its fixed group sentinel when provided', async () => {
+  expect(renderToStaticMarkup(<ExperimentGroup><p>Content</p></ExperimentGroup>)).toBe('<p>Content</p>')
+  const { sendBeacon } = transport(), { intersect } = observerMock()
+  const view = render(<ExperimentsProvider value={assignments()}><ExperimentGroup expose={expose}><p>Content</p></ExperimentGroup></ExperimentsProvider>)
+  expect(view.container.querySelector('[data-xp-viewport]')?.textContent).toBe('Content')
+  expect(view.container.querySelector('[data-xp-sentinel]')).not.toBeNull()
+  intersect(0, 0.5)
+  expect(await bodyOf(sendBeacon.mock.calls[0]![1])).toEqual({ events: [{ type: 'exposure', experiment: 'viewport-test', phase: 1, arm: 'variantA', policy: 'viewport' }] })
+}, 5000)

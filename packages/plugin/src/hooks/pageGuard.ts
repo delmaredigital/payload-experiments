@@ -91,7 +91,7 @@ function refuseInteraction(tests: readonly PlacementTest[], beforeSlugs: string[
   }
 }
 function mapBusy(error: unknown): never {
-  if (isPageBusy(error)) throw new XpRefusal('page-busy', 'This page is being updated by a test right now. Try again in a moment.', undefined, 409)
+  if (isPageBusy(error)) throw new XpRefusal('page-busy', 'This page is being updated by a test right now. Try again in a moment.', undefined, 409, { cause: error })
   throw error
 }
 export const pageGuardBeforeDelete: CollectionBeforeDeleteHook = async ({ req, id, collection }) => {
@@ -137,7 +137,8 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
         tests = await placementTests(exec)
       } catch (error) {
         if (!(error instanceof XpNoTransactionError)) throw error
-        // A dead request id is also no transaction; discovery still fails closed.
+        // Only a session lost after discovery reaches this fallback. The first discovery
+        // read and delete have no fallback: a dead session fails those operations closed.
         tests = await placementTests(pooledExecutor(req.payload))
         noTransaction()
       }

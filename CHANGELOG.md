@@ -11,15 +11,24 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-- Added: Experiment blocks for registered Payload blocks fields, with Original/version rendering, viewport groups, draft wrapping and winner replacement in published content and drafts. Migration impact: hosts adopting `createExperimentBlock` add the Experiment block and slots tables and their version tables with `payload migrate:create`.
+- Added: Experiment blocks for registered Payload blocks fields, with Original/version rendering, viewport groups, draft wrapping and winner replacement in published content and drafts. Migration impact: hosts adopting `createExperimentBlock` add the Experiment block and slots tables, their version tables, and the live/version `slot` enum types (`enum_<coll>_blocks_<slug>_slots_slot` and its `_v` counterpart) with `payload migrate:create`.
+- Added: `/blocks` exports `createExperimentBlock`, `controlOnlyBlocks`, `segmentExperimentBlocks` and `EXPERIMENT_BLOCK_SLUG` for host blocks fields. Migration impact: adopt the subpath in host imports; no additional database change.
+- Added: `resolveExperimentBlocks` from `/rsc` resolves versions and rendered exposures for host block rendering. Migration impact: wire the resolver into the host renderer; no database change.
+- Added: `ExperimentGroup` from `/client` provides viewport exposure groups. Migration impact: wrap resolved viewport groups in the host renderer; no database change.
+- Added: manager-only `POST /xp/blocks/wrap` wraps a block in the latest draft, respects document locks and caps requests at 16 KiB. Migration impact: none.
+- Added: form-state helpers `wrapExperimentBlock`, `syncExperimentSlots`, `copyOriginalIntoVersion`, `unwrapExperimentBlock` and `findRegisteredBlocksField` from `/admin/client`. Copy helpers take field config to refresh only array and blocks row ids. Migration impact: pass the registered field and global block config when adopting the helpers; no database change.
+- Changed: `onInit` refuses registered blocks fields without the Experiment block or nested in a named group, array or tab. Migration impact: register a top-level blocks field through rows, collapsibles or unnamed tabs, and add the Experiment block before booting.
+- Changed: Start refuses `placement-unpublished` for Experiment blocks and Puck slots found only on drafts; `empty-slot` checks published rows only. Migration impact: publish placement pages before starting existing Puck tests; no database change.
+- Changed: saves on every registered `pages`, `blocks` and `puck` collection take a guard read and locks, and can refuse `page-busy` or `interacting-tests`. Migration impact: retry busy saves and finish interacting tests before publishing; no database change.
+- Changed: deciding a stopped page test refuses `page-target-unpublished` for an unpublished Original or winner page; losing variants do not block the decision, and lookup errors propagate. Migration impact: publish routed pages before deciding; no database change.
 - Added: frozen placement documents and guards against whole-page tests interacting with block or Puck tests, including bounded, retryable saves. The placement guard is installed on every `pages`, `blocks` and `puck` collection. Migration impact: nullable `xp_phases.placement_docs`; run `payload migrate:create` and `payload generate:importmap` (still required by the status field above).
-- Changed: results health preserves page and goal checks together. Migration impact: none.
+- Changed: results health preserves page and goal checks together. `Snapshot.health` and `SummaryResponse.health` are unions; TypeScript readers of `.path` must narrow the health row first. Migration impact: no database change; update affected TypeScript readers.
 - Added: whole-page content checks and copying guidance per page collection, `admin.descriptions.page`, and page collection selection on tests. Identical versions warn; versions at the same address are refused. Migration impact: nullable `xp_experiments.page_collection` and `_xp_experiments_v.version_page_collection`; run `payload migrate:create`.
 - Added: manager-only page browsing and page/test status endpoints, preserving published addresses while drafts are edited. Page registrations get a sidebar status field; page and blocks registrations get composed content-change auditing. Migration impact: hosts with `pages` run `payload generate:importmap`; auditing adds no columns.
 - Added: `pageKindSeoContract` from `/rsc` to test host metadata and sitemap wiring. Migration impact: none.
 - Added: permanent retirement of deleted test short names; new tests choose an unused suffix. Migration impact: nullable `xp_state.retired_slugs`; run `payload migrate:create`.
 - Changed: legacy page tests resolve one collection from the Original (or the sole registration), then use it for every version. Migration impact: none; register `pageCollection` explicitly when several collections share an address.
-- Changed: Puck consumers share the document-editor `appliesTo` rule, and `admin.editorUrl` receives `editor` and `doc`. Migration impact: none; legacy blocks registration is reserved for the next lane.
+- Changed: Puck consumers share the document-editor `appliesTo` rule, and `admin.editorUrl` receives `editor` and `doc`. Migration impact: none.
 
 ## [0.3.0-rc.4] - 2026-11-04
 

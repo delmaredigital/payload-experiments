@@ -1,7 +1,7 @@
 import { Forbidden, NotFound, ValidationError, Locked, commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field, type Block } from 'payload'
 import { latestDraftContent, publishedContent as readPublishedContent } from '../db/publishedContent.js'
 import { EXPERIMENT_BLOCK_SLUG, hostBlocks, slotBlocks } from '../blocks/model.js'
-import { freshBlockIds } from '../blocks/formState.js'
+import { findRegisteredBlocksField, freshBlockIds } from '../blocks/formState.js'
 import { contentBlocks, hasLocalizedFields } from './contentFields.js'
 import { safeError } from '../log.js'
 import { XpRefusal } from '../errors.js'
@@ -302,7 +302,9 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
             if (block.blockType !== (blockRegistration?.blockSlug ?? EXPERIMENT_BLOCK_SLUG) || block.experiment !== current.slug) return [block]
             const rows = Array.isArray(block.slots) ? block.slots : []
             if (!rows.some(row => row?.slot === winner.slot)) throw new Error('The winning content slot is missing.')
-            return freshBlockIds(slotBlocks(block, winner.slot!))
+            const registered = findRegisteredBlocksField(config?.fields ?? [], field!)
+            if (!registered) throw new Error('This content field is no longer configured.')
+            return slotBlocks(freshBlockIds([block], registered.field, req.payload.config)[0]!, winner.slot!)
           }) : unwrap(value, current.slug, winner.slot!)
           const draft = drafts ? await latestDraftContent(req, collection, id) ?? published : published
           const draftValue = draft[field] ?? null

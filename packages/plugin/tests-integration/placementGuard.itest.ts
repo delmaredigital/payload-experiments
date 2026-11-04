@@ -1,5 +1,5 @@
-import { createLocalReq, type PayloadRequest } from 'payload'
-import { afterAll, beforeAll, expect, test } from 'vitest'
+import { createLocalReq, type Field, type PayloadRequest } from 'payload'
+import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { createIntegrationHarness } from './harness.js'
 import { createExperimentBlock } from '../src/blocks/createExperimentBlock.js'
 import { wrapExperimentBlock } from '../src/blocks/formState.js'
@@ -9,7 +9,6 @@ import { decide } from '../src/transitions/decide.js'
 import { makeContent } from '../src/transitions/makeContent.js'
 import { lockTransitionScope } from '../src/db/locks.js'
 import { txExecutor } from '../src/db/executor.js'
-import { isPageBusy } from '../src/db/pageBusy.js'
 import type { ResolvedOptions, DocId } from '../src/types/contracts.js'
 
 // Train-only: exp-core measures these on serial and uuid. No network database in this lane.
@@ -56,14 +55,30 @@ async function experiment(kind: 'block' | 'page', targets?: string[]) {
 const puck = (slug: string) => ({ type: 'ExperimentSlot', props: { id: `slot-${slug}`, experiment: { slug }, control: [{ type: 'Text', props: { text: 'Original' } }], variantA: [{ type: 'Text', props: { text: 'Winner' } }] } })
 async function blockFixture(editor: 'blocks' | 'puck', extra?: string, existing?: Awaited<ReturnType<typeof experiment>>) {
   const testDoc = existing ?? await experiment('block'), req = await request()
-  const layout = wrapExperimentBlock({ blockType: 'text', text: 'Original' }, String(testDoc.slug))
+  const field = harness.payload.config.collections.find(c => c.slug === 'guard-pages')!.fields.find(f => 'name' in f && f.name === 'layout') as Extract<Field, { type: 'blocks' }>
+  const layout = wrapExperimentBlock({ blockType: 'text', text: 'Original' }, String(testDoc.slug), field)
   layout.slots[1]!.blocks[0]!.text = 'Winner'
   const page = await harness.payload.create({ collection: 'guard-pages', req, overrideAccess: false, data: { slug: `placement-page-${sequence}`, _status: 'published',
-    ...(editor === 'blocks' ? { layout: [layout, ...(extra ? [wrapExperimentBlock({ blockType: 'text', text: 'Other' }, extra)] : [])] } : { puckData: { content: [puck(String(testDoc.slug))] } }) } })
+    ...(editor === 'blocks' ? { layout: [layout, ...(extra ? [wrapExperimentBlock({ blockType: 'text', text: 'Other' }, extra, field)] : [])] } : { puckData: { content: [puck(String(testDoc.slug))] } }) } })
   await start(req, { experimentId: testDoc.id, options: options() })
   await stop(req, { experimentId: testDoc.id })
   await decide(req, { experimentId: testDoc.id, winnerArm: 'variantA', note: 'Ship', confirmation: 'Variant A' })
   return { req, testDoc, page }
+}
+function causeCodes(error: unknown): string[] {
+  const codes: string[] = [], seen = new Set<unknown>()
+  while (error && typeof error === 'object' && !seen.has(error)) {
+    seen.add(error)
+    const failure = error as { code?: string; cause?: unknown }
+    if (failure.code) codes.push(failure.code)
+    error = failure.cause
+  }
+  return codes
+}
+function assertNoDeadlock(error: unknown) {
+  const codes = causeCodes(error)
+  expect(codes).not.toContain('40P01')
+  if (codes.includes('page-busy')) expect(codes).toContain('55P03')
 }
 test.each(['blocks', 'puck'] as const)('make-content of decided %s placements completes with guard installed', async editor => {
   const { req, testDoc, page } = await blockFixture(editor)
@@ -77,17 +92,26 @@ test('editor holding earlier X racing make-content T finishes retryably rather t
   await start(await request(), { experimentId: x.id, options: options() })
   const xReady = deferred(), makeReady = deferred()
   race = { held: x.id, editorHasX: xReady.resolve, editorReady: xReady.promise, makeEntered: makeReady.resolve, makeReady: makeReady.promise }
+  const writeFailures: Array<{ error: unknown; req: unknown }> = []
+  const shippingReq = await request()
+  const update = harness.payload.update.bind(harness.payload)
+  const writes = vi.spyOn(harness.payload, 'update').mockImplementation((async (...args: Parameters<typeof update>) => {
+    try { return await update(...args) } catch (error) { writeFailures.push({ error, req: args[0].req }); throw error }
+  }) as typeof harness.payload.update)
   try {
     const editorReq = await request(); editorReq.context.placementEditor = true
     const editing = harness.payload.update({ collection: 'guard-pages', id: page.id, req: editorReq, overrideAccess: false, data: { _status: 'published' } })
     await xReady.promise
-    const shipping = makeContent(await request(), { experimentId: testDoc.id, options: options() })
+    const shipping = makeContent(shippingReq, { experimentId: testDoc.id, options: options() })
     const [editor, result] = await Promise.allSettled([editing, shipping])
-    const retryable = editor.status === 'rejected' && (editor.reason.code === 'page-busy' || isPageBusy(editor.reason))
+    for (const { error } of writeFailures) assertNoDeadlock(error)
+    for (const outcome of [editor, result]) if (outcome.status === 'rejected') assertNoDeadlock(outcome.reason)
+    const retryable = editor.status === 'rejected' && causeCodes(editor.reason).includes('page-busy') && causeCodes(editor.reason).includes('55P03')
     const updateFailed = result.status === 'fulfilled' && result.value.docs.some(doc => doc.detail === 'update-failed')
+    if (updateFailed) expect(writeFailures.some(({ error, req }) => req === shippingReq && causeCodes(error).includes('page-busy') && causeCodes(error).includes('55P03'))).toBe(true)
     expect(retryable || updateFailed).toBe(true)
     expect(result.status).toBe('fulfilled')
-  } finally { race = undefined }
+  } finally { writes.mockRestore(); race = undefined }
 }, 30_000) // Train must measure <10 s; deliberately exercises the 5 s timeout.
 async function pageFixture() {
   const suffix = ++sequence, req = await request()
@@ -102,6 +126,7 @@ test('publishing Original and deciding from stopped serialize E before paths', a
     harness.payload.update({ collection: 'guard-pages', id: page.id, req: await request(), overrideAccess: false, data: { _status: 'published' } }),
     decide(await request(), { experimentId: testDoc.id, winnerArm: 'variantA', note: 'Ship', confirmation: 'Variant A' }),
   ])
+  for (const outcome of result) if (outcome.status === 'rejected') assertNoDeadlock(outcome.reason)
   expect(result.map(row => row.status)).toEqual(['fulfilled', 'fulfilled'])
 }, 30_000) // Train must measure <10 s.
 test('KI-6 adjacent-path publish racing Start never acquires path before E', async () => {
@@ -111,5 +136,9 @@ test('KI-6 adjacent-path publish racing Start never acquires path before E', asy
     harness.payload.update({ collection: 'guard-pages', id: adjacent.id, req: await request(), overrideAccess: false, data: { slug: page.slug, _status: 'published' } }),
     start(await request(), { experimentId: testDoc.id, options: options() }),
   ])
-  for (const outcome of outcomes) if (outcome.status === 'rejected') expect(isPageBusy(outcome.reason) || outcome.reason.code === 'page-busy' || outcome.reason.code === 'page-target-unpublished').toBe(true)
+  for (const outcome of outcomes) if (outcome.status === 'rejected') {
+    assertNoDeadlock(outcome.reason)
+    const codes = causeCodes(outcome.reason)
+    expect(codes.includes('page-busy') && codes.includes('55P03') || outcome.reason.code === 'page-target-unpublished').toBe(true)
+  }
 }, 30_000) // Train must measure <10 s.

@@ -4,7 +4,7 @@ import type { ExperimentsPageCollection, ResolvedOptions } from '../types/contra
 
 /** A stored collection is authoritative. Legacy tests fall back by the Original's path. */
 export async function resolvePageCollection(req: PayloadRequest, options: Pick<ResolvedOptions, 'pages'>,
-  experiment: { pageCollection?: string | null; arms: readonly { kind?: string; pageTarget?: string }[] }): Promise<ExperimentsPageCollection | undefined> {
+  experiment: { pageCollection?: string | null; arms: readonly { kind?: string; pageTarget?: string }[] }, propagateErrors = false): Promise<ExperimentsPageCollection | undefined> {
   const collections = options.pages?.collections ?? []
   if (experiment.pageCollection) return collections.find(entry => entry.slug === experiment.pageCollection)
   if (collections.length === 1) return collections[0]
@@ -12,7 +12,7 @@ export async function resolvePageCollection(req: PayloadRequest, options: Pick<R
   if (!path) return undefined
   for (const entry of collections) {
     try { if (await entry.findByPath(path, req)) return entry }
-    catch (cause) { req.payload.logger.error({ err: safeError(cause), collection: entry.slug }, 'Experiment page lookup failed') }
+    catch (cause) { if (propagateErrors) throw cause; req.payload.logger.error({ err: safeError(cause), collection: entry.slug }, 'Experiment page lookup failed') }
   }
   return undefined
 }

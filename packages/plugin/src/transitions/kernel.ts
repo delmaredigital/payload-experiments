@@ -68,7 +68,7 @@ export async function withTransition<T>(
     return revision === undefined ? { result } : { result, revision }
   } catch (error) {
     if (!borrowedAudit) await killTransaction(req)
-    if (!scope.audit && isPageBusy(error)) throw new XpRefusal('page-busy', "One of this test's pages is being saved right now. Try again in a moment.", undefined, 409)
+    if (!scope.audit && isPageBusy(error)) throw new XpRefusal('page-busy', "One of this test's pages is being saved right now. Try again in a moment.", undefined, 409, { cause: error })
     throw error
   } finally {
     if (hadTransition) req.context.xpTransition = previousTransition

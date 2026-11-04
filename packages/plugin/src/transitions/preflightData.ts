@@ -41,10 +41,10 @@ export async function loadPageTestsInUse(req: PayloadRequest): Promise<NonNullab
 }
 
 /** Page targets no registered collection reports as published. A lookup that throws counts as
- * unpublished (logged). Start calls it again under its page-path locks on a detached request. */
+ * unpublished (logged) unless propagateErrors is requested by decide. Start calls it again under its page-path locks on a detached request. */
 export async function unpublishedPageTargets<TUser extends { id: DocId }>(req: PayloadRequest, options: ResolvedOptions<TUser>,
-  experiment: Pick<StartExperiment, 'id' | 'arms' | 'pageCollection'>): Promise<string[]> {
-  const resolved = await resolvePageCollection(req, options, experiment)
+  experiment: Pick<StartExperiment, 'id' | 'arms' | 'pageCollection'>, propagateErrors = false): Promise<string[]> {
+  const resolved = await resolvePageCollection(req, options, experiment, propagateErrors)
   const collections = resolved ? [resolved] : []
   const targets = await Promise.all(experiment.arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget?.trim()).map(async arm => {
     for (const collection of collections) {
@@ -52,6 +52,7 @@ export async function unpublishedPageTargets<TUser extends { id: DocId }>(req: P
         const page = await collection.findByPath(arm.pageTarget!, req)
         if (page?.published === true) return null
       } catch (cause) {
+        if (propagateErrors) throw cause
         req.payload.logger.error({ err: safeError(cause), experimentId: experiment.id, collection: collection.slug, id: arm.pageTarget }, 'Experiment page lookup failed')
       }
     }

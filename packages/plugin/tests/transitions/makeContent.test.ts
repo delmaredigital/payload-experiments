@@ -1,5 +1,6 @@
 import { Forbidden, Locked, NotFound, ValidationError, killTransaction, type Field, type Block } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
+import { createExperimentBlock } from '../../src/blocks/createExperimentBlock.js'
 import { contentChangesBeforeHook, contentChangesHook } from '../../src/hooks/contentChanges.js'
 import { contentReportCopy } from '../../src/admin/copy/actions.js'
 import { preflightData } from '../../src/transitions/preflightData.js'
@@ -1029,21 +1030,34 @@ test('Experiment-block make-content preserves published and draft data and write
   const f = fixture()
   f.options.puck = { enabled: false, collections: [] }
   f.options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
-  f.payload.config.collections[0]!.fields = [{ name: 'layout', type: 'blocks', blocks: [] }]
+  const opaque = { meta: { id: 'video-1', objects: [{ id: 'json-id' }, { text: 'json object' }] },
+    body: { root: { children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Hello' }] }] } },
+    related: [{ relationTo: 'pages', value: 3 }], upload: { id: 7, filename: 'image.png' } }
+  const blocks: Block[] = [{ slug: 'text', fields: [
+    { name: 'meta', type: 'json' }, { name: 'body', type: 'richText' },
+    { name: 'related', type: 'relationship', relationTo: ['pages', 'media'], hasMany: true },
+    { name: 'upload', type: 'upload', relationTo: 'media' },
+    { name: 'rows', type: 'array', fields: [{ name: 'text', type: 'text' },
+      { name: 'children', type: 'blocks', blocks: [], blockReferences: ['leaf'] }] },
+  ] }]
+  Object.assign(f.payload.config, { blocks: [{ slug: 'leaf', fields: [{ name: 'text', type: 'text' }] }] })
+  f.payload.config.collections[0]!.fields = [{ name: 'layout', type: 'blocks', blocks: [createExperimentBlock({ blocks })] }]
   const wrapper = { id: 'wrapper', blockType: 'xpExperiment', experiment: 'hero', slots: [
     { id: 'control-row', slot: 'control', blocks: [{ id: 'original', blockType: 'text', text: 'Original' }] },
-    { id: 'winner-row', slot: 'variantA', blocks: [{ id: 'winner', blockType: 'text', rows: [{ id: 'nested', text: 'Winner' }] }] },
+    { id: 'winner-row', slot: 'variantA', blocks: [{ id: 'winner', blockType: 'text', ...opaque, rows: [{ id: 'nested', text: 'Winner', children: [{ id: 'child', blockType: 'leaf', text: 'Nested' }] }] }] },
   ] }
   for (const page of f.payload.documents.pages!) { page.layout = [structuredClone(wrapper)]; delete page.puckData }
   await makeContent(f.req, { experimentId: 1, options: f.options })
   const writes = hostUpdates(f)
   expect(writes.length).toBe(4)
   for (const write of writes) {
-    const rows = (write.args.data as { layout: Array<{ id: string; blockType: string; rows: Array<{ id: string; text: string }> }> }).layout
+    const rows = (write.args.data as { layout: Array<{ id: string; blockType: string; rows: Array<{ id: string; text: string; children: Array<{ id: string }> }>; meta: unknown; body: unknown; related: unknown; upload: unknown }> }).layout
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ blockType: 'text', rows: [{ text: 'Winner' }] })
     expect(rows[0]!.id).not.toBe('winner')
     expect(rows[0]!.rows[0]!.id).not.toBe('nested')
+    expect(rows[0]!.rows[0]!.children[0]!.id).not.toBe('child')
+    for (const key of ['meta', 'body', 'related', 'upload'] as const) expect(rows[0]![key]).toEqual(opaque[key])
     expect(write.args).toMatchObject({ overrideAccess: false, overrideLock: false })
   }
-})
+}, 5000) // Measured below 100 ms locally; cap leaves CI headroom.

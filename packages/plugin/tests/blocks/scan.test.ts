@@ -1,3 +1,5 @@
+import { Locked } from 'payload'
+import { createExperimentBlock } from '../../src/blocks/createExperimentBlock.js'
 import { expect, test, vi } from 'vitest'
 import { scanBlockPlacements } from '../../src/transitions/placements.js'
 import { checkStart } from '../../src/transitions/checkStart.js'
@@ -15,7 +17,7 @@ function fixture() {
   const options = sampleOptions()
   options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: doc => !doc.puckData }] }
   options.puck = { enabled: true, collections: ['pages'] }
-  const payload = fakePayload({ config: { collections: [{ slug: 'pages', versions: { drafts: true }, fields: [] }] }, collections: { pages: [
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', versions: { drafts: true }, fields: [{ name: 'layout', type: 'blocks', blocks: [{ slug: 'text', fields: [] }, createExperimentBlock({ blocks: [{ slug: 'text', fields: [] }] })] }] }] }, collections: { pages: [
     { id: 1, title: 'Live', _status: 'published', layout: [block] },
     { id: 2, title: 'Puck', _status: 'published', puckData: {}, layout: [block] },
     { id: 3, title: 'Draft', _status: 'draft', layout: [block] },
@@ -55,6 +57,7 @@ test('wrap endpoint writes latest draft, uses row id and respects access and doc
 })
 test('onInit refuses registered fields missing their Experiment block before transaction probing', async () => {
   const f = fixture()
+  f.payload.config.collections[0]!.fields = []
   await expect(createOnInit(f.options)(f.payload)).rejects.toThrow('must contain xpExperiment')
 })
 
@@ -78,3 +81,34 @@ test('wrap endpoint validates body, block kind and draft status before writing',
   await expect(handleWrapBlock(f.req, { options: f.options })).rejects.toMatchObject({ code: 'invalid-status' })
   expect(f.payload.calls.some(call => call.method === 'update')).toBe(false)
 })
+
+// Measured below 100 ms locally; each cap leaves CI headroom.
+test.each(['data', 'stream'])('wrap caps its %s body at 16 KiB', async source => {
+  const f = fixture()
+  const data = { collection: 'pages', id: 1, field: 'layout', blockId: 'source', experiment: 'x'.repeat(16384) }
+  if (source === 'data') f.req.data = data
+  else Object.defineProperty(f.req, 'body', { value: new Request('https://host/wrap', { method: 'POST', body: JSON.stringify(data) }).body })
+  await expect(handleWrapBlock(f.req, { options: f.options })).rejects.toMatchObject({ code: 'body-too-large', status: 413 })
+  expect(f.payload.calls).toEqual([])
+}, 5000)
+
+test('wrap refuses locked-placement when another editor owns the lock', async () => {
+  const f = fixture()
+  f.payload.documents.pages![0]!.layout = [{ id: 'source', blockType: 'text' }]
+  f.req.data = { collection: 'pages', id: 1, field: 'layout', blockId: 'source', experiment: 'hero' }
+  vi.spyOn(f.payload, 'update').mockRejectedValue(new Locked('Page is locked'))
+  await expect(handleWrapBlock(f.req, { options: f.options })).rejects.toMatchObject({ code: 'locked-placement', status: 409 })
+}, 5000)
+
+test.each([
+  ['group', { name: 'group', type: 'group', fields: [] }],
+  ['sections', { name: 'sections', type: 'array', fields: [] }],
+  ['content', { type: 'tabs', tabs: [{ name: 'content', label: 'Content', fields: [] }] }],
+] as const)('onInit refuses a registered blocks field nested in %s and names its path', async (name, container) => {
+  const f = fixture(), field = f.payload.config.collections[0]!.fields[0]!
+  const nested = structuredClone(container) as unknown as import('payload').Field
+  if (nested.type === 'tabs') nested.tabs[0]!.fields = [field]
+  else if ('fields' in nested) nested.fields = [field]
+  f.payload.config.collections[0]!.fields = [nested]
+  await expect(createOnInit(f.options)(f.payload)).rejects.toThrow(`pages.${name}.layout must be a top-level blocks field`)
+}, 5000)

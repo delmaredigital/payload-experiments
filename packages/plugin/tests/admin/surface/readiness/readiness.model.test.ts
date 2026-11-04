@@ -124,3 +124,14 @@ test('identical-version action names the page to edit', () => {
   expect(typeof action).toBe('function')
   expect(typeof action === 'function' && action({ arm: 'variantA', path: '/version' }, ctx)).toBe('Edit /version')
 })
+
+// Measured below 100 ms locally; cap leaves CI headroom.
+test('placement copy lists every draft page and names edit actions exactly', () => {
+  expect(READINESS['placement-unpublished'].next([{ title: 'Landing' }, { title: 'About' }], ctx)).toBe(
+    "The block you're testing is only on a draft of Landing. Publish the page before you start.\nThe block you're testing is only on a draft of About. Publish the page before you start.")
+  expect(nextStep(preflight([{ code: 'duplicate-version-row', ok: false, detail: [{ title: 'Landing' }] }]), ctx)?.nextStep).toBe('Edit Landing')
+  expect(nextStep(preflight([{ code: 'interacting-tests', ok: false, detail: [{ path: '/version', name: 'Other', status: 'running', version: true }] }]), ctx)).toMatchObject({
+    sentence: 'This test uses /version, which the running test Other also changes. Finish one of them first, or remove its block from /version.',
+    nextStep: 'Open Other\nEdit /version',
+  })
+}, 5000)

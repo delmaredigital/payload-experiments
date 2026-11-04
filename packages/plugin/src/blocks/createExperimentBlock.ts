@@ -9,10 +9,10 @@ export function validateExperimentSlots(value: unknown): true | string {
 export function createExperimentBlock({ blocks, slug = EXPERIMENT_BLOCK_SLUG }: { blocks: Block[]; slug?: string }): Block {
   if (blocks.some(block => block.slug === slug)) throw new Error('Experiment blocks cannot be nested.')
   return { slug, labels: { singular: 'Experiment', plural: 'Experiments' }, fields: [
-    { name: 'experiment', type: 'text', required: true },
-    { name: 'slots', type: 'array', validate: validateExperimentSlots, fields: [
-      { name: 'slot', type: 'select', required: true, options: [...BLOCK_SLOTS] },
-      { name: 'blocks', type: 'blocks', blocks },
+    { name: 'experiment', label: 'Test', type: 'text', required: true },
+    { name: 'slots', label: 'Versions', type: 'array', validate: validateExperimentSlots, fields: [
+      { name: 'slot', label: 'Version', type: 'select', required: true, options: BLOCK_SLOTS.map((value, index) => ({ value, label: ['Original', 'Variant A', 'Variant B', 'Variant C'][index]! })) },
+      { name: 'blocks', label: 'Content', type: 'blocks', blocks },
     ] },
   ] }
 }

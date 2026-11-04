@@ -522,3 +522,63 @@ test('preflight page placements treat a failed title read as unavailable', async
     { arm: 'variantA', path: '/version', collection: 'pages', id: null, published: false },
   ])
 })
+
+function blockFixture() {
+  const f = fixture()
+  Object.assign(f.experiment, { kind: 'block', exposurePolicy: 'render', arms: defaultArms('block') })
+  f.options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  f.options.pages = { collections: [{ slug: 'pages', pathOf: doc => `/${doc.slug}`, findByPath: async () => null }] }
+  const layout = [{ blockType: 'xpExperiment', experiment: 'hero', slots: [
+    { slot: 'control', blocks: [{ blockType: 'text' }] }, { slot: 'variantA', blocks: [{ blockType: 'text' }] },
+  ] }]
+  f.payload.documents.pages = [{ id: 10, title: 'Landing', slug: 'landing', _status: 'published', layout, secret: { doc: 'private host value' } }]
+  return f
+}
+
+// Measured below 100 ms locally; each cap leaves CI headroom.
+test.each(['placement-unpublished', 'duplicate-version-row', 'empty-slot'])('preflight and Start %s bodies contain only placement identifiers', async code => {
+  const f = blockFixture(), page = f.payload.documents.pages![0]!
+  const layout = page.layout as Array<{ slots: Array<{ slot: string; blocks: unknown[] }> }>
+  if (code === 'placement-unpublished') page._status = 'draft'
+  if (code === 'duplicate-version-row') layout[0]!.slots.push(structuredClone(layout[0]!.slots[0]!))
+  if (code === 'empty-slot') layout[0]!.slots[1]!.blocks = []
+  Object.assign(f.payload.db, { defaultIDType: 'number' })
+  f.req.routeParams = { id: '1' }; f.req.data = {}
+  const { handlePreflight } = await import('../../src/endpoints/preflight.js')
+  const { handleStart } = await import('../../src/endpoints/transitions.js')
+  const review = await handlePreflight(f.req, { options: f.options })
+  const refusal = await handleStart(f.req, { options: f.options })
+  const bodies = [await review.json(), await refusal.json()]
+  expect(refusal.status).toBe(422)
+  expect(bodies[1]).toMatchObject({ errors: [{ code, detail: [{ collection: 'pages', id: 10, title: 'Landing' }] }] })
+  if (code === 'empty-slot') {
+    const { READINESS } = await import('../../src/admin/surface/readiness/readiness.model.js')
+    expect(READINESS['empty-slot'].next(bodies[1].errors[0].detail, { arms: defaultArms('block'), unitType: 'visitor' })).toBe('Add content for Variant A on the page.')
+  }
+  function assertNoDoc(value: unknown) {
+    if (!value || typeof value !== 'object') return
+    expect(Object.keys(value)).not.toContain('doc')
+    for (const item of Object.values(value)) assertNoDoc(item)
+  }
+  for (const body of bodies) { assertNoDoc(JSON.parse(JSON.stringify(body))); expect(JSON.stringify(body)).not.toContain('private host value') }
+}, 5000)
+
+test('Start itself refuses interacting-tests found after its experiment lock', async () => {
+  const f = blockFixture(), query = f.executor.query
+  f.executor.query = async (text, params) => {
+    if (text.includes("hashtext('xp:experiment')")) f.occupancy.push({ id: 2, slug: 'page-test', name: 'Page test', status: 'running', kind: 'page', arms: pageArms('/landing') } as never)
+    return query(text, params)
+  }
+  await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'interacting-tests', status: 409 })
+  expect(f.payload.documents['xp-phases']).toEqual([])
+}, 5000)
+
+test('Start itself refuses placements-changed after a new placement appears during lock acquisition', async () => {
+  const f = blockFixture(), query = f.executor.query
+  f.executor.query = async (text, params) => {
+    if (text.includes("hashtext('xp:pagepath')")) f.payload.documents.pages!.push({ ...structuredClone(f.payload.documents.pages![0]!), id: 11, slug: 'new-placement' })
+    return query(text, params)
+  }
+  await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'placements-changed', status: 409 })
+  expect(f.payload.documents['xp-phases']).toEqual([])
+}, 5000)

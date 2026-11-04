@@ -17,7 +17,7 @@ export class XpNoTransactionError extends Error {
 export class XpRefusal extends Error {
   override name = 'XpRefusal'
   readonly isPublic = true
-  constructor(public readonly code: RefusalCode, message: string, public readonly detail: unknown | undefined, public readonly status: 409 | 422 | 500 | 404) { super(message) }
+  constructor(public readonly code: RefusalCode, message: string, public readonly detail: unknown | undefined, public readonly status: 409 | 413 | 422 | 500 | 404, options?: ErrorOptions) { super(message, options) }
 }
 
 /** Fixed analysis diagnostics: callers can choose a code, never supply log text. */

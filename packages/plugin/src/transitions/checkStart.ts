@@ -69,6 +69,7 @@ export const relationshipId = (value: DocId | { id: DocId } | null | undefined):
 export const pageTargetPaths = (arms: readonly Arm[]): string[] => [...new Set(arms
   .filter(arm => typeof arm.pageTarget === 'string')
   .map(arm => normalisePath(arm.pageTarget!)))].sort()
+const placementDetail = ({ collection, id, title }: BlockPlacement) => ({ collection, id, title })
 const positive = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value) && value > 0
 
 function invalidParams(arms: Arm[], point: FlagPoint): unknown[] {
@@ -132,18 +133,18 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   const missing = input.flagPlacements === undefined ? [] : e.arms.filter(arm => arm.kind !== 'holdout' && !input.flagPlacements!.some(placement => placement.arm === arm.key && placement.ok))
   const failed = input.flagPlacements?.filter(placement => !placement.ok) ?? []
   add('flag-placement-missing', e.kind !== 'flag' || !input.flagPlacementError && missing.length === 0 && failed.length === 0,
-    input.flagPlacementError ?? { missing: missing.map(arm => arm.key), placements: failed })
+    input.flagPlacementError ?? { missing: missing.map(arm => arm.key), placements: failed.map(({ arm, ok, detail }) => ({ arm, ok, detail })) })
   const placements = input.placements ?? []
   add('no-placements', e.kind !== 'block' || !input.placementError && placements.length > 0, input.placementError)
   const unpublished = placements.filter(p => !p.published && !placements.some(other => other.published && other.collection === p.collection && String(other.id) === String(p.id)))
-  add('placement-unpublished', unpublished.length === 0, unpublished)
+  add('placement-unpublished', unpublished.length === 0, unpublished.map(placementDetail))
   const duplicates = placements.filter(p => p.published && p.duplicateRows)
-  add('duplicate-version-row', duplicates.length === 0, duplicates)
+  add('duplicate-version-row', duplicates.length === 0, duplicates.map(placementDetail))
   for (const p of placements.filter(p => p.published)) for (const slot of p.identicalSlots ?? []) {
     if (e.arms.some(a => a.slot === slot && a.kind !== 'holdout')) checks.push({ code: 'version-identical', ok: true, warning: true, detail: { arm: slot, collection: p.collection, id: p.id, title: p.title } })
   }
   const empty = placements.filter(placement => placement.published && e.arms.some(arm => arm.kind !== 'holdout' && (!arm.slot || !(placement.slots[arm.slot] > 0))))
-  add('empty-slot', e.kind !== 'block' || empty.length === 0, empty)
+  add('empty-slot', e.kind !== 'block' || empty.length === 0, empty.map(placement => ({ ...placementDetail(placement), slots: placement.slots })))
   add('make-content-unsupported', true)
   const localized = placements.find(placement => placement.localized)
   if (localized) Object.assign(checks[checks.length - 1]!, { warning: true, detail: localized.title })
@@ -151,9 +152,9 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   const free = 100 - new Set(input.layer?.usedSlices).size
   add('layer-full', e.layer == null || !!input.layer && free >= e.allocation, { available: free, requested: e.allocation })
   const unknown = input.metrics.filter(metric => !metric.source.startsWith('events:') && !input.metricSources?.some(source => source.id === metric.source))
-  add('unknown-metric-source', unknown.length === 0, unknown)
+  add('unknown-metric-source', unknown.length === 0, unknown.map(({ id, source }) => ({ id, source })))
   const mismatches = input.metrics.filter(metric => !metric.source.startsWith('events:') && e.unitType === 'user' && input.metricSources?.some(source => source.id === metric.source && source.keyedBy === 'visitor'))
-  add('unit-source-mismatch', mismatches.length === 0, mismatches)
+  add('unit-source-mismatch', mismatches.length === 0, mismatches.map(({ id, source }) => ({ id, source })))
   const pathRules = (e.targeting ?? []).flatMap((rule, index) => rule.attribute === 'path' ? [index] : [])
   add('block-path-rule', e.kind !== 'block' || pathRules.length === 0, { rules: pathRules })
   const undeclared = (e.targeting ?? []).filter(rule => !Object.hasOwn(input.attributeKeys ?? {}, rule.attribute))
