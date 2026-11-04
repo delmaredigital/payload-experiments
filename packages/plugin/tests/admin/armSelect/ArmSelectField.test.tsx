@@ -35,7 +35,7 @@ test('uses the configured route, editor credentials and both flag-point queries;
   const fetcher = stub()
   render(<ArmSelectField path="rows.0.tag" field={field} />)
   const select = await screen.findByLabelText('Group')
-  expect(screen.queryByLabelText('Experiment')).toBeNull()
+  expect(screen.queryByLabelText('Test')).toBeNull()
   expect(screen.queryByRole('option', { name: 'Holdout' })).toBeNull()
   expect(screen.getByText('Changing this content mid-test mixes two versions in one result')).toBeTruthy()
   expect(fetcher.mock.calls).toHaveLength(2)
@@ -56,7 +56,7 @@ test('candidate picker sets the experiment and clears the previous group', async
   const { setExperiment, setArm } = fields()
   stub([], [{ ...live, status: 'stopped' }])
   render(<ArmSelectField path="rows.0.tag" field={field} />)
-  fireEvent.change(await screen.findByLabelText('Experiment'), { target: { value: '2' } })
+  fireEvent.change(await screen.findByLabelText('Test'), { target: { value: '2' } })
   expect(setExperiment).toHaveBeenCalledWith('2')
   expect(setArm).toHaveBeenCalledWith(null)
   fireEvent.change(screen.getByLabelText('Group'), { target: { value: 'control' } })
@@ -66,7 +66,7 @@ test('stale selection does not show a matching key from another experiment; Clea
   const { setExperiment, setArm } = fields(1, 'variantA')
   stub([live], [{ ...live, id: 1, name: 'Earlier test', status: 'draft' }])
   render(<ArmSelectField path="rows.0.tag" field={field} />)
-  await screen.findByText("This was set for an earlier experiment (Earlier test) and won't be used now.")
+  await screen.findByText("This was set for an earlier test (Earlier test) and won't be used now.")
   expect((screen.getByLabelText('Group') as HTMLSelectElement).value).toBe('')
   expect(setExperiment).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
@@ -78,7 +78,7 @@ test('403 displays the agreed access state', async () => {
   fields()
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 403 })))
   render(<ArmSelectField path="rows.0.tag" field={field} />)
-  expect(await screen.findByText("You can't see experiments. Ask an admin.")).toBeTruthy()
+  expect(await screen.findByText("You can't see tests. Ask an admin.")).toBeTruthy()
   expect(screen.queryByLabelText('Group')).toBeNull()
 })
 test('read-only fields cannot change either stored value', async () => {
@@ -106,9 +106,9 @@ test('a deleted earlier experiment uses the nameless stale message', async () =>
     ? { ok: false, status: 404 }
     : { ok: true, json: async () => ({ docs: input.includes('running%2Cdecided') ? [live] : [] }) }))
   render(<ArmSelectField path="rows.0.tag" field={field} />)
-  expect(await screen.findByText("This was set for an earlier experiment and won't be used now.")).toBeTruthy()
+  expect(await screen.findByText("This was set for an earlier test and won't be used now.")).toBeTruthy()
   await act(async () => {})
-  expect(screen.getByText("This was set for an earlier experiment and won't be used now.")).toBeTruthy()
+  expect(screen.getByText("This was set for an earlier test and won't be used now.")).toBeTruthy()
 })
 test('missing flag-point configuration renders guidance and skips every fetch', async () => {
   fields('earlier', 'variantA')
@@ -136,7 +136,7 @@ test('a late earlier-experiment name cannot replace the name for a newer stored 
   act(() => { fields('3', 'variantA') })
   await waitFor(() => expect(resolveNew).toBeTypeOf('function'))
   await act(async () => resolveNew({ ok: true, json: async () => ({ name: 'Newer stored test' }) }))
-  const message = "This was set for an earlier experiment (Newer stored test) and won't be used now."
+  const message = "This was set for an earlier test (Newer stored test) and won't be used now."
   expect(screen.getByText(message)).toBeTruthy()
   await act(async () => resolveOld({ ok: true, json: async () => ({ name: 'Older stored test' }) }))
   expect(screen.getByText(message)).toBeTruthy()

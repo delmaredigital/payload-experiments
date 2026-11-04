@@ -10,7 +10,7 @@ export const pickerCopy = {
   none: 'No experiment',
   loading: 'Loading experiments…',
   error: "Couldn't load experiments.",
-  forbidden: "You can't see experiments. Ask an admin.",
+  forbidden: "You can't see tests. Ask an admin.",
   statuses: {
     draft: 'Draft',
     running: 'Running',

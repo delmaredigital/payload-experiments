@@ -9,6 +9,7 @@ import { defaultRound } from '../../results/results.model.js'
 import type { PageReleaseDecision } from '../../results/releasePages.model.js'
 
 export interface ResultsDocument {
+  flagPoint?: string
   kind?: string
   status: Status
   arms: Array<{ key: string; kind?: string; label?: string }>
@@ -56,7 +57,7 @@ export function useResults(id: DocId, { apiRoute, canReadResults, canManage = tr
     void Promise.all([
       canManage ? read<ResultsDocument>(`${base}/xp-experiments/${encoded}?depth=0`, signal)
         : Promise.resolve<ApiResult<ResultsDocument>>({ ok: true, data: undefined }),
-      api.results(id, { phase: round ?? undefined, series: true }),
+      api.results(id, { phase: round ?? undefined, series: true, notFound: round === null ? undefined : API_MESSAGES.roundNotFound }),
     ]).then(([document, result]) => {
       if (signal.aborted) return
       const failure = !document.ok ? document : !result.ok ? result : undefined

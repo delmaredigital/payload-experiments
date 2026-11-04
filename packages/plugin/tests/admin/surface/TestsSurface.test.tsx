@@ -10,7 +10,7 @@ const hook = vi.hoisted(() => vi.fn())
 vi.mock('@payloadcms/ui', () => ({ Link: (props: ComponentProps<'a'>) => <a {...props} /> }))
 vi.mock('next/navigation.js', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: hook }))
-vi.mock('../../../src/admin/surface/results/ResultsBody.js', () => ({ ResultsBody: () => <p>Results body</p> }))
+vi.mock('../../../src/admin/surface/results/ResultsBody.js', () => ({ ResultsBody: ({ renderPage }: import('../../../src/admin/surface/results/ResultsBody.js').ResultsPageParts & { renderPage?: (parts: import('../../../src/admin/surface/results/ResultsBody.js').ResultsPageParts) => import('react').ReactNode }) => renderPage ? renderPage({ children: <p>Results body</p>, actions: null, released: null }) : <p>Results body</p> }))
 vi.mock('../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
   Banner: () => null, SaveStatus: () => null,
   sectionDone: () => ({ what: false, versions: false, win: false, who: true, length: false, advanced: true }),
@@ -28,7 +28,7 @@ const props: TestsSurfaceProps = {
 test.each(['/control', '/'])('dispatches real home / new / test / results pages inside one shared main at %s', async adminRoute => {
   const root = adminRoute === '/' ? '' : adminRoute
   for (const [route, labels] of [
-    ['home', ['Tests']], ['new', ['Tests', 'New test']], ['test', ['Tests', 'Headline']], ['results', ['Tests', 'Results']],
+    ['home', ['Tests']], ['new', ['Tests', 'New test']], ['test', ['Tests', 'Headline']], ['results', ['Tests', 'Headline', 'Results']],
   ] as const) {
     const view = render(<TestsSurface {...props} adminRoute={adminRoute} route={route} />)
     await act(async () => {})
@@ -53,7 +53,8 @@ test.each(['/control', '/'])('dispatches real home / new / test / results pages 
         expect(within(main).getByText('Welcome')).toBeTruthy()
         expect(within(main).getByRole('link', { name: 'Open' }).getAttribute('href')).toBe('/editor/2')
       } else {
-        expect(within(main).getByLabelText('Test name')).toBeTruthy()
+        if (route === 'test') expect(within(main).getByLabelText('Test name')).toBeTruthy()
+        else expect(within(main).queryByLabelText('Test name')).toBeNull()
         expect(hook).toHaveBeenCalledWith('123', { apiRoute: '/data' })
         if (route === 'results') expect(within(main).getByText('Results body')).toBeTruthy()
         else expect(within(main).getByRole('region', { name: /What you're testing/ })).toBeTruthy()

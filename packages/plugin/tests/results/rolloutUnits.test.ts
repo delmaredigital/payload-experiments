@@ -102,5 +102,5 @@ test('accepts mixed timestamp formats when comparing exposures across phases', (
 
 test.each([new Date(NaN), 'invalid', NaN, Infinity, 8.64e15 + 1])('rejects invalid exposure timestamp %s', ts => {
   expect(() => rolloutAnalysisUnits({ ...args, exposuresAllPhases: [{ unitId: 'a', phase: 1, ts }] }))
-    .toThrow(RangeError)
+    .toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
 })

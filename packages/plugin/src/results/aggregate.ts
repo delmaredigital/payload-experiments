@@ -1,3 +1,5 @@
+import { XpAnalysisError } from '../errors.js'
+
 export type Timestamp = Date | string | number
 export interface ExposedUnit { arm: string; firstTs: Timestamp }
 export interface MetricEvent { unitId: string; value: number; ts: Timestamp }
@@ -5,17 +7,17 @@ export interface MetricEvent { unitId: string; value: number; ts: Timestamp }
 /** Accept Date, timestamp text, or epoch milliseconds; reject invalid dates. */
 export function timestampMs(ts: Timestamp): number {
   if (!(ts instanceof Date) && typeof ts !== 'string' && typeof ts !== 'number') {
-    throw new RangeError('Invalid timestamp')
+    throw new XpAnalysisError('invalid-timestamp')
   }
   const ms = ts instanceof Date ? ts.getTime() : new Date(ts).getTime()
-  if (!Number.isFinite(ms)) throw new RangeError('Invalid timestamp')
+  if (!Number.isFinite(ms)) throw new XpAnalysisError('invalid-timestamp')
   return ms
 }
 
 /** Attribution windows must have a finite, positive length in hours. */
 export function windowMs(windowHours: number): number {
   if (!Number.isFinite(windowHours) || windowHours <= 0) {
-    throw new RangeError('windowHours must be a finite number greater than 0')
+    throw new XpAnalysisError('window-hours')
   }
   return windowHours * 3_600_000
 }

@@ -22,7 +22,7 @@ test('Payload lock errors may omit a code', async () => {
   expect(await api.start(1)).toEqual({ ok: false, status: 400, message: 'This field is locked.', retryable: false })
 })
 test.each([
-  ['not-found', 404, 'This experiment no longer exists.', false],
+  ['not-found', 404, 'This test no longer exists.', false],
   ['commit-unverified', 500, 'The change may not have been saved. Reload and try again.', true],
   ['not-implemented', 422, "This isn't available yet.", false],
   ['unauthenticated', 422, 'Your session has expired. Sign in again.', false],
@@ -37,10 +37,25 @@ test('501 overrides the code', async () => {
   expect(await api.results(1)).toEqual({ ok: false, status: 501, code: 'not-implemented', message: "This isn't available yet.", retryable: false })
 })
 test('HTTP statuses map even without a coded envelope', async () => {
-  for (const [status, message] of [[401, 'Your session has expired. Sign in again.'], [404, 'This experiment no longer exists.'], [403, "You don't have permission to do this."]] as const) {
+  for (const [status, message] of [[401, 'Your session has expired. Sign in again.'], [404, 'This test no longer exists.'], [403, "You don't have permission to do this."]] as const) {
     respond({}, status)
     expect(await api.start(1)).toMatchObject({ ok: false, status, message })
   }
+})
+test.each([true, false])('per-request not-found copy covers JSON and non-JSON errors: %s', async json => {
+  const calls = [
+    () => api.addMetric(1, { metric: 2, role: 'secondary' }, { notFound: 'Goal missing' }),
+    () => api.allocate(1, { allocation: 75 }, { notFound: 'Round changed' }),
+    () => api.results(1, { phase: 2, notFound: 'Round missing' }),
+  ]
+  for (const [index, message] of ['Goal missing', 'Round changed', 'Round missing'].entries()) {
+    fetchMock.mockResolvedValueOnce(json ? Response.json({ errors: [{ code: 'not-found', message: 'Developer text' }] }, { status: 404 }) : new Response('Not found', { status: 404 }))
+    expect(await calls[index]!()).toMatchObject({ ok: false, status: 404, message })
+  }
+  respond({ errors: [{ code: 'not-found', message: 'Experiment not found' }] }, 404)
+  expect(await api.stop(1)).toMatchObject({ ok: false, message: 'This test no longer exists.' })
+  respond({}, 404)
+  expect(await api.results(1)).toMatchObject({ ok: false, message: 'This test no longer exists.' })
 })
 test('network failure resolves, never rejects', async () => {
   fetchMock.mockRejectedValueOnce(new Error('offline'))

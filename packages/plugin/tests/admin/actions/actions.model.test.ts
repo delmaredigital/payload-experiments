@@ -55,8 +55,8 @@ test('transition copy and archive modes', () => {
 })
 test.each(['block', 'page', 'flag'] as const)('make-content copy for %s', kind => {
   const expected = kind === 'flag'
-    ? "Saves Short headline's settings as the new defaults so the experiment can be archived."
-    : 'Copies Short headline into the page content so the experiment can be archived.'
+    ? "Saves Short headline's settings as the new defaults so the test can be archived."
+    : 'Copies Short headline into the page content so the test can be archived.'
   expect(makeContentCopy('Short headline', kind)).toBe(expected)
   expect(availableActions({ status: 'decided', kind, arms, canManage: true, decision: { winnerArm: 'variantA' } })
     .find(action => action.id === 'make-content')?.confirm.body).toBe(expected)

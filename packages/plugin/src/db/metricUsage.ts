@@ -3,6 +3,27 @@ import type { DocId } from '../types/contracts.js'
 import { COLUMNS, TABLES } from './names.js'
 import { qualifiedTable, quoteIdentifier as q } from './sql.js'
 
+/** Request transaction only: serialize the guard with FK checks and freezes. */
+export async function lockMetricRow(exec: Executor, id: DocId, mode: 'delete' | 'change'): Promise<void> {
+  const lock = mode === 'delete' ? 'FOR UPDATE' : 'FOR NO KEY UPDATE'
+  await exec.query(`SELECT 1 FROM ${qualifiedTable(exec, TABLES.metrics)} WHERE ${q(COLUMNS.metrics.id)} = $1 ${lock}`, [id])
+}
+
+/** Transition transaction only, after advisory locks. SQL orders by the native
+ * id type so overlapping freezes always acquire row locks in the same order.
+ * Return the locked identities so callers can reject a change that committed
+ * after preflight. Missing rows mean a goal was deleted; never freeze that copy.
+ * txExecutor throws if the request no longer has a transaction session.
+ */
+export async function lockMetricsForFreeze(exec: Executor, ids: DocId[]): Promise<Array<{ id: DocId; slug: string; source: string }> | null> {
+  // Deduplicate for the row-count check; SQL ORDER BY sets the lock order.
+  const sorted = [...new Map(ids.map(id => [String(id), id])).values()]
+    .sort((a, b) => typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b)))
+  const m = COLUMNS.metrics, id = q(m.id)
+  const result = await exec.query<{ id: DocId; slug: string; source: string }>(`SELECT ${id}, ${q(m.slug)}, ${q(m.source)} FROM ${qualifiedTable(exec, TABLES.metrics)} WHERE ${id} = ANY($1) ORDER BY ${id} FOR SHARE`, [sorted])
+  return result.rows.length === sorted.length ? result.rows : null
+}
+
 /** Live selections cover drafts; frozen definitions keep historical goals in use. */
 export async function findMetricUsage(exec: Executor, id: DocId): Promise<{ name: string } | null> {
   const e = COLUMNS.experiments, p = COLUMNS.phases, r = COLUMNS.experimentsRels

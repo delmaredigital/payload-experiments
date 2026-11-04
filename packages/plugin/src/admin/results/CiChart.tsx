@@ -9,7 +9,7 @@ import { chartModel } from './chart.model.js'
 import { formatDate } from '../format/date.js'
 import { formatPercent } from './format.js'
 
-const colors = [theme.color.textStrong, theme.color.textMuted, theme.color.borderAccent]
+import { seriesColor } from './DataTable.js'
 
 export function CiChart({ series, metricId, metricName, phase, contentChanges }: {
   series?: ResultsResponse['series']; metricId: DocId; metricName: string; phase: PhaseSummary
@@ -21,7 +21,6 @@ export function CiChart({ series, metricId, metricName, phase, contentChanges }:
   const x = (t: number) => 80 + (t - from) / (to - from) * 600
   const y = (value: number) => 230 - (value - low) / (high - low) * 210
   return <section className="xp-ci-chart" style={{ color: theme.color.text }}>
-    <h2>{C.chart}</h2>
     <svg viewBox="0 0 760 280" style={{ width: '100%', height: 'auto' }} role="img"
       aria-label={chartSummary(metricName, model.variants.map(variant => variant.label).join(', '), formatDate(from), formatDate(to),
         [...new Set(model.markers.map(marker => formatDate(marker.t)))])}>
@@ -29,7 +28,7 @@ export function CiChart({ series, metricId, metricName, phase, contentChanges }:
       {[high, low].map((value, index) => <text key={index} x={72} y={y(value) + 4} textAnchor="end" fill="currentColor" fontSize={12}>{formatPercent(value, true)}</text>)}
       <text x={80} y={260} fill="currentColor" fontSize={12}>{formatDate(from)}</text>
       <text x={680} y={260} textAnchor="end" fill="currentColor" fontSize={12}>{formatDate(to)}</text>
-      {model.variants.map((variant, index) => {
+      {model.variants.map(variant => {
         const path = (points: Array<{ t: number; value: number | null }>) => {
           let connected = false
           return points.map(point => {
@@ -39,7 +38,7 @@ export function CiChart({ series, metricId, metricName, phase, contentChanges }:
             return `${command}${x(point.t)},${y(point.value)}`
           }).join(' ')
         }
-        const color = colors[index % colors.length]
+        const color = seriesColor(variant.arm)
         const upper = variant.points.map(point => `${x(point.t)},${y(point.hi ?? high)}`)
         const lower = [...variant.points].reverse().map(point => `${x(point.t)},${y(point.lo ?? low)}`)
         return <g key={variant.arm} data-series={variant.arm} stroke={color} fill={color}>
@@ -55,8 +54,8 @@ export function CiChart({ series, metricId, metricName, phase, contentChanges }:
         <line x1={x(marker.t)} x2={x(marker.t)} y1={20} y2={230} stroke={theme.color.text} strokeDasharray="2 4" />
       </g>)}
     </svg>
-    <ul>{model.variants.map((variant, index) => <li key={variant.arm} style={{ color: theme.color.text }}>
-      <span aria-hidden="true" style={{ display: 'inline-block', width: '1em', height: '0.5em', marginRight: '0.5em', backgroundColor: colors[index % colors.length] }} />
+    <ul>{model.variants.map(variant => <li key={variant.arm} style={{ color: theme.color.text }}>
+      <span aria-hidden="true" style={{ display: 'inline-block', width: '1em', height: '0.5em', marginRight: '0.5em', backgroundColor: seriesColor(variant.arm) }} />
       {variant.label}
     </li>)}</ul>
   </section>

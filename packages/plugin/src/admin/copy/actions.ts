@@ -4,12 +4,12 @@ export const ACTIONS_COPY = {
   start: 'Start', restart: 'Start a new round', stop: 'Stop', decide: 'Decide',
   release: 'Release holdout', makeContent: 'Make it the content', finish: 'Finish archiving',
   archive: 'Archive', discard: 'Discard winner',
-  startBody: 'Start this experiment?',
+  startBody: 'Start this test?',
   restartBody: 'Starting again begins a new round; results restart.',
   stopBody: 'Everyone will see the Original. Starting again begins a new round; results restart.',
   original: 'Everyone will see the Original.',
   discardBody: 'Everyone goes back to the Original. The decision note is kept.',
-  archiveBody: 'Archive this experiment?', finishBody: 'The content has been updated. Finish archiving this experiment.',
+  archiveBody: 'Archive this test?', finishBody: 'The content has been updated. Finish archiving this test.',
   noResults: 'There are no results yet.', noRecommendation: "The results don't recommend a group yet.",
   different: 'You chose a different group than the results recommend.',
   group: 'Group', note: 'Decision note', confirmation: 'Confirmation',
@@ -32,8 +32,8 @@ export const decideCopy = (winner: string, holdout: boolean, original: boolean) 
     : `Everyone will see ${winner}.`
 export const releaseCopy = (winner: string) => `The holdout will see ${winner} too. Measuring since shipping ends.`
 export const makeContentCopy = (winner: string, kind: 'block' | 'page' | 'flag') => kind === 'flag'
-  ? `Saves ${winner}'s settings as the new defaults so the experiment can be archived.`
-  : `Copies ${winner} into the page content so the experiment can be archived.`
+  ? `Saves ${winner}'s settings as the new defaults so the test can be archived.`
+  : `Copies ${winner} into the page content so the test can be archived.`
 export const hardCodedLabel = (winner: string) => `The developer has hard-coded ${winner}`
 
 /** Old reports can contain host error text: never interpolate an unknown string. */

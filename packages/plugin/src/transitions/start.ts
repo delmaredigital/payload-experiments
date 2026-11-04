@@ -1,4 +1,5 @@
 import type { PayloadRequest } from 'payload'
+import { lockMetricsForFreeze } from '../db/metricUsage.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
 import { claimSlices } from '../db/slices.js'
 import { unpublishedPageCopy } from '../admin/copy/readiness.js'
@@ -76,6 +77,15 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
       const recheck = checkStart({ ...input, experiment: current }).find(check => !check.ok)
       if (recheck && recheck.code !== 'page-targets-unchecked' && recheck.code !== 'make-content-unsupported') refuse(recheck.code, recheck.detail)
     }
+    const lockedMetrics = await lockMetricsForFreeze(exec, caps.definitions.map(metric => metric.id))
+    if (!lockedMetrics) {
+      throw new XpRefusal('stale-draft', 'A goal in this test was deleted. Review the goals before starting.', undefined, 409)
+    }
+    // Reachable: a slug/source change takes FOR NO KEY UPDATE, which a draft's FK check does not wait on.
+    if (caps.definitions.some(metric => {
+      const locked = lockedMetrics.find(row => String(row.id) === String(metric.id))!
+      return locked.slug !== metric.slug || locked.source !== metric.source
+    })) throw new XpRefusal('stale-draft', 'A goal changed. Review it again before starting.', undefined, 409)
     const targeting = (current.targeting ?? []).map(rule => {
       const type = Object.hasOwn(options.attributeKeys ?? {}, rule.attribute) ? options.attributeKeys![rule.attribute]!.type : undefined
       const validValue = type === 'string' && ['in', 'nin'].includes(rule.op)
