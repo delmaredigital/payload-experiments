@@ -25,6 +25,8 @@ export type AnalysisErrorCode =
   | 'no-baseline'
   | 'primary-metric-count'
   | 'duplicate-metric'
+  | 'invalid-timestamp'
+  | 'window-hours'
   | 'window-before-start'
   | 'unknown-arm'
   | 'metric-not-supplied'
@@ -43,6 +45,8 @@ export const ANALYSIS_ERROR_MESSAGES: Readonly<Record<AnalysisErrorCode, string>
   'no-baseline': 'Phase comparison baseline or shipped arm is missing',
   'primary-metric-count': 'Phase must have exactly one primary metric',
   'duplicate-metric': 'Duplicate metric id',
+  'invalid-timestamp': 'Event or exposure timestamp is invalid',
+  'window-hours': 'Attribution window must be a finite number of hours greater than 0',
   'window-before-start': 'Analysis window ends before the phase starts',
   'unknown-arm': 'Exposed unit has an unknown arm',
   'metric-not-supplied': 'Metric data was not supplied',

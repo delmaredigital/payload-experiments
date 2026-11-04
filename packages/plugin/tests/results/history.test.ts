@@ -1,3 +1,4 @@
+import { XpAnalysisError } from '../../src/errors.js'
 import { expect, test } from 'vitest'
 import { perUnitHistory } from '../../src/results/history.js'
 
@@ -57,12 +58,12 @@ test('accepts mixed Date, timestamp text and epoch millisecond inputs', () => {
 
 test.each([0, -1, NaN, Infinity, -Infinity, undefined, null, '2'])(
   'rejects invalid windowHours %s even with no events', windowHours => {
-    expect(() => perUnitHistory([], { windowHours: windowHours as number })).toThrow(RangeError)
+    expect(() => perUnitHistory([], { windowHours: windowHours as number })).toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'window-hours' }))
   },
 )
 
 test.each([new Date(NaN), 'invalid', NaN, Infinity, 8.64e15 + 1])('rejects invalid event timestamp %s', ts => {
-  expect(() => perUnitHistory([{ unitId: 'a', value: 1, ts }], { windowHours: 2 })).toThrow(RangeError)
+  expect(() => perUnitHistory([{ unitId: 'a', value: 1, ts }], { windowHours: 2 })).toThrow(expect.objectContaining({ constructor: XpAnalysisError, code: 'invalid-timestamp' }))
 })
 
 test('empty input', () => {
