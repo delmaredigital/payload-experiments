@@ -1,11 +1,12 @@
 import { expect, test, vi, beforeEach } from 'vitest'
-import { handleStart, handleAllocate, handleAddMetric, handleStop, handleDecide, handleReleaseHoldout, handleArchive, handleMakeContent } from '../../src/endpoints/transitions.js'
+import { handleStart, handleAllocate, handleAddMetric, handleStop, handleDecide, handleReleaseHoldout, handleReleasePages, handleArchive, handleMakeContent } from '../../src/endpoints/transitions.js'
 import * as starts from '../../src/transitions/start.js'
 import * as allocations from '../../src/transitions/allocate.js'
 import * as metrics from '../../src/transitions/addMetric.js'
 import * as stops from '../../src/transitions/stop.js'
 import * as decisions from '../../src/transitions/decide.js'
 import * as releases from '../../src/transitions/releaseHoldout.js'
+import * as pageReleases from '../../src/transitions/releasePages.js'
 import * as contents from '../../src/transitions/makeContent.js'
 import * as archives from '../../src/transitions/archive.js'
 import { XpRefusal } from '../../src/errors.js'
@@ -21,6 +22,7 @@ const cases = [
   { handler: handleStop, module: stops, name: 'stop', body: {} },
   { handler: handleDecide, module: decisions, name: 'decide', body: { winnerArm: 'variantA' } },
   { handler: handleReleaseHoldout, module: releases, name: 'releaseHoldout', body: {} },
+  { handler: handleReleasePages, module: pageReleases, name: 'releasePages', body: {} },
   { handler: handleMakeContent, module: contents, name: 'makeContent', body: {} },
   { handler: handleArchive, module: archives, name: 'archive', body: { mode: 'discard' } },
 ] as const
@@ -57,7 +59,7 @@ test.each([{}, { allocation: 0 }, { allocation: 101 }, { allocation: 1.5 }, { al
 test.each([{}, { metric: 2, role: 'primary' }, { metric: {}, role: 'secondary' }, { metric: '', role: 'guardrail' }])('addMetric validates %j', async body => {
   expect((await handleAddMetric(fakeReq({ body: JSON.stringify(body) }), { options: sampleOptions() })).status).toBe(400)
 })
-test.each([handleStart, handleStop, handleMakeContent])('bodyless request is accepted and missing id returns 404', async handler => {
+test.each([handleStart, handleStop, handleMakeContent, handleReleasePages])('bodyless request is accepted and missing id returns 404', async handler => {
   expect((await handler(fakeReq(), { options: sampleOptions() })).status).toBe(404)
 })
 

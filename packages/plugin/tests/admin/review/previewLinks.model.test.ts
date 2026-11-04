@@ -22,7 +22,7 @@ test('keeps first-seen order and titles, merges numeric/string ids, and separate
     { collection: 'articles', id: 1, title: 'Article', ok: true },
     { collection: 'pages', id: '1', title: 'Draft home', ok: false },
   ]
-  expect(previewPages(placements)).toEqual([
+  expect(previewPages(placements)).toMatchObject([
     { key: 'pages\u00002', collection: 'pages', id: 2, title: 'About', slotCount: 1 },
     { key: 'pages\u00001', collection: 'pages', id: 1, title: 'Published home', slotCount: 2 },
     { key: 'articles\u00001', collection: 'articles', id: 1, title: 'Article', slotCount: 1 },

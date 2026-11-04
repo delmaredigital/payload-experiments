@@ -21,7 +21,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); stateU
 
 const preflight: PreflightResult = { checks: [], placements: [], baseline: null, trafficPerDay: null, estimate: null }
 const document = (partial: Partial<TestDocument> = {}): TestDocument => ({
-  id: 'one/two', name: 'Original test', slug: 'test', status: 'draft', kind: 'flag', unitType: 'visitor',
+  updatedAt: '2026-11-03T09:00:00.000Z', id: 'one/two', name: 'Original test', slug: 'test', status: 'draft', kind: 'flag', unitType: 'visitor',
   arms: [{ key: 'control', label: 'Original', weight: 50, kind: 'control' },
     { key: 'variantA', label: 'Variant A', weight: 50, kind: 'variant' }],
   allocation: 100, exposurePolicy: 'manual', hypothesis: 'Original hypothesis',
@@ -95,7 +95,7 @@ test('staging is optimistic and sends nothing until commit; sends changed top-le
   expect(patches()).toHaveLength(1)
   const [input, init] = patches()[0]!
   expect(input).toBe(url)
-  expect(init?.headers).toEqual({ 'Content-Type': 'application/json' })
+  expect(init?.headers).toEqual({ 'Content-Type': 'application/json', [XP_IF_UPDATED_AT_HEADER]: '2026-11-03T09:00:00.000Z' })
   expect(JSON.parse(init?.body as string)).toEqual({ name: 'New name', analysis: { plannedDurationDays: 35, minExposuresPerArm: 200 } })
   expect(result.current.saving).toBe('saved')
   expect(fetcher.mock.calls.map(([input]) => input)).toEqual([url, preflightUrl, url, preflightUrl])
@@ -635,11 +635,13 @@ test('each queued PATCH sends its current saved baseline, including the precedin
   expect(new Headers(patches()[1]![1]?.headers).get(XP_IF_UPDATED_AT_HEADER)).toBe(savedAt)
 })
 
-test('a document without updatedAt sends no baseline header', async () => {
-  const { result, patches } = setup()
+test('a missing timestamp must be restored by a GET before PATCH; an unreadable GET blocks the save', async () => {
+  const { result, patches, fetcher } = setup(document({ updatedAt: undefined }))
   await waitFor(() => expect(result.current.loadState).toBe('ready'))
   await act(async () => { result.current.stage({ name: 'New' }); await result.current.commit() })
-  expect(new Headers(patches()[0]![1]?.headers).has(XP_IF_UPDATED_AT_HEADER)).toBe(false)
+  expect(patches()).toHaveLength(0)
+  expect(fetcher.mock.calls.filter(([input]) => input === url)).toHaveLength(2)
+  expect(result.current.saving).toBe('error')
 })
 
 test.each([undefined, 'A newer edit was saved. Reload this test.'])('stale-edit freezes typed values and drops queued saves until Reload (message %s)', async message => {
@@ -678,7 +680,7 @@ test.each([undefined, 'A newer edit was saved. Reload this test.'])('stale-edit 
   expect(new Headers(patches()[1]![1]?.headers).get(XP_IF_UPDATED_AT_HEADER)).toBe('2026-11-03T10:02:00.000Z')
 })
 
-test.each(['aborted', 'failed'] as const)('unreadable success drops the old baseline when its recovery read is %s', async recovery => {
+test.each(['aborted', 'failed'] as const)('unreadable success re-reads before the queued PATCH when recovery is %s', async recovery => {
   const first = deferred<Response>()
   const loadedAt = '2026-11-03T10:00:00.000Z'
   let serverDoc = document({ updatedAt: loadedAt })
@@ -698,7 +700,7 @@ test.each(['aborted', 'failed'] as const)('unreadable success drops the old base
       serverDoc = { ...serverDoc, ...JSON.parse(init.body as string), updatedAt: '2026-11-03T10:02:00.000Z' }
       return response({ doc: serverDoc })
     }
-    if (++reads > 1) throw new Error('Read failed')
+    if (++reads === 2 && recovery === 'failed') throw new Error('Read failed')
     return response(serverDoc)
   })
   const { result, unmount } = renderHook(() => useTestDocument(serverDoc.id, { apiRoute: '/cms-api' }))
@@ -716,9 +718,9 @@ test.each(['aborted', 'failed'] as const)('unreadable success drops the old base
   })
   const patches = fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH')
   expect(patches).toHaveLength(2)
-  expect(new Headers(patches[1]![1]?.headers).has(XP_IF_UPDATED_AT_HEADER)).toBe(false)
+  expect(new Headers(patches[1]![1]?.headers).get(XP_IF_UPDATED_AT_HEADER)).toBe('2026-11-03T10:01:00.000Z')
   expect(serverDoc.hypothesis).toBe('Second')
-  expect(reads).toBe(recovery === 'aborted' ? 1 : 2)
+  expect(reads).toBe(recovery === 'aborted' ? 2 : 3)
   if (recovery === 'failed') {
     expect(result.current.stale).toBe(false)
     expect(result.current.saving).toBe('saved')

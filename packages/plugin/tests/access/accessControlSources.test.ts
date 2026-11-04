@@ -344,6 +344,12 @@ describe('access and SQL source boundaries', () => {
     expect(violations, violations.map(v => `${v.file}:${v.line} ${v.rule}`).join('\n')).toEqual([])
   }, 30_000)
 
+  test('page guard has the named hook exception and requires an explicit posture', () => {
+    const reason = "page guard: the hook must see test placements regardless of the editor's access"
+    expect(OVERRIDE_ACCESS_ALLOW_LIST).toContainEqual({ file: 'src/hooks/pageGuard.ts', reason: `§7.8 ${reason}` })
+    expect(scan(`// ${reason}\npayload.find({ overrideAccess: true })`, 'src/hooks/pageGuard.ts')).toEqual([])
+  })
+
   const fixtures = [
     ['missingOverride.ts', 'local-api-override-required'],
     ['otherClient.ts', 'local-api-override-required'],

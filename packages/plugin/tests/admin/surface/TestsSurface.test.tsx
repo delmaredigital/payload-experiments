@@ -28,7 +28,7 @@ const props: TestsSurfaceProps = {
 test.each(['/control', '/'])('dispatches real home / new / test / results pages inside one shared main at %s', async adminRoute => {
   const root = adminRoute === '/' ? '' : adminRoute
   for (const [route, labels] of [
-    ['home', ['Tests']], ['new', ['Tests', 'New test']], ['test', ['Tests', 'Test']], ['results', ['Tests', 'Results']],
+    ['home', ['Tests']], ['new', ['Tests', 'New test']], ['test', ['Tests', 'Headline']], ['results', ['Tests', 'Results']],
   ] as const) {
     const view = render(<TestsSurface {...props} adminRoute={adminRoute} route={route} />)
     await act(async () => {})

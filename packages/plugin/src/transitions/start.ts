@@ -1,4 +1,5 @@
 import type { PayloadRequest } from 'payload'
+import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
 import { claimSlices } from '../db/slices.js'
 import { unpublishedPageCopy } from '../admin/copy/readiness.js'
 import { XpRefusal } from '../errors.js'
@@ -96,6 +97,7 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
     await writePhaseRecord(req, { experiment: experimentId, phase, phaseKind: 'test', seed, startedAt, arms: current.arms,
       allocation: current.allocation, allocationChanges: [], targeting, metricDefinitions: definitions,
       analysis: { ...current.analysis, method: current.analysis?.method ?? 'sequential', alpha: 0.05,
+        sequentialTuningParameter: current.analysis?.sequentialTuningParameter ?? DEFAULT_SEQUENTIAL_TUNING_PARAMETER,
         cupedLookbackDays: 14, layerSlices,
         minSampleSizes: Object.fromEntries(definitions.map(metric => [metric.id, metric.minSampleSize ?? 150])),
         guardrailThresholds: Object.fromEntries(definitions.filter(metric => metric.role === 'guardrail').map(metric => [metric.id, metric.guardrailThreshold ?? 0.05])),

@@ -7,6 +7,7 @@ import { addMetric } from '../transitions/addMetric.js'
 import { stop } from '../transitions/stop.js'
 import { decide } from '../transitions/decide.js'
 import { releaseHoldout } from '../transitions/releaseHoldout.js'
+import { releasePages } from '../transitions/releasePages.js'
 import { makeContent } from '../transitions/makeContent.js'
 import { archive } from '../transitions/archive.js'
 import type { ArchiveBody } from '../types/endpoints.js'
@@ -70,6 +71,11 @@ export async function handleMakeContent<TUser extends { id: string | number } = 
   const value = await body(req)
   if (!value || !only(value, [])) return invalidBody()
   return respond(req, id => makeContent(req, { experimentId: id, options: ctx.options }))
+}
+export async function handleReleasePages<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
+  const value = await body(req)
+  if (!value || !only(value, [])) return invalidBody()
+  return respond(req, id => releasePages(req, { experimentId: id }))
 }
 export async function handleArchive<TUser extends { id: string | number } = { id: string | number }>(req: PayloadRequest, _ctx: EndpointContext<TUser>): Promise<Response> {
   const value = await body(req)

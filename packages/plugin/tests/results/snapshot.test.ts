@@ -44,3 +44,12 @@ test('analysis helpers depend only on the pure stats engine and contain no clock
     expect(readFileSync(path, 'utf8')).not.toMatch(/Date\.now\(|\bfetch\(/)
   }
 })
+
+
+test('page health is optional on old snapshots and validated on new snapshots', () => {
+  const snapshot = fixture('T7.json')
+  snapshot.health = [{ code: 'version-page-unavailable', path: '/version' }, { code: 'version-page-unchecked', path: '/other' }]
+  expect(() => validateSnapshot(snapshot)).not.toThrow()
+  expect(() => validateSnapshot({ ...snapshot, health: [{ code: 'unknown', path: '/version' }] })).toThrow(/shape/)
+  expect(() => validateSnapshot({ ...snapshot, health: [{ code: 'version-page-unavailable' }] })).toThrow(/shape/)
+})

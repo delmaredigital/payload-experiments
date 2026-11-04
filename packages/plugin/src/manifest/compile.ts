@@ -21,7 +21,7 @@ export interface ManifestInputExperiment {
   id: DocId; slug: string; kind: ExperimentKind; status: Status; unitType: UnitType
   exposurePolicy: ExposurePolicy; flagPoint?: string | null; arms: Arm[]
   layer?: { slug: string } | DocId | null; layerSlices?: number[] | null
-  decision?: { winnerArm?: string | null; discardedAt?: string | null; holdoutReleasedAt?: string | null } | null
+  decision?: { winnerArm?: string | null; discardedAt?: string | null; holdoutReleasedAt?: string | null; pagesReleasedAt?: string | null } | null
   currentPhase: ManifestPhase | null
   lastTestPhase?: ManifestPhase | null
 }
@@ -96,6 +96,7 @@ export function compileManifest(inputs: ManifestInputs, revision: number, { attr
     const { decision, currentPhase: phase } = experiment
     if (experiment.status === 'archived') {
       if (!decision?.winnerArm || decision.discardedAt) continue
+      if (experiment.kind === 'page' && decision.pagesReleasedAt) continue
       const testPhase = experiment.lastTestPhase ?? (phase?.phaseKind === 'test' ? phase : null)
       if (!testPhase) throw new XpRefusal('invalid-status', `Missing last test phase for experiment ${experiment.slug}`, undefined, 409)
       const winner = testPhase.arms.find(arm => arm.key === decision.winnerArm)

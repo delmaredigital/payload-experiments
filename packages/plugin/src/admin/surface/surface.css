@@ -58,5 +58,5 @@
 .xp-tests-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xp-space-4); margin-bottom: var(--xp-space-6); }
 .xp-tests-toolbar h1 { margin: 0; margin-right: auto; }
 .xp-tests-toolbar label { display: grid; gap: var(--xp-space-1); }
-.xp-tests-toolbar input, .xp-tests-surface button:not(.xp-ui-button) { color: var(--xp-text); background: var(--xp-input-bg); border: 1px solid var(--xp-input-border); border-radius: var(--xp-radius); padding: var(--xp-space-2); }
+.xp-tests-toolbar input, .xp-tests-toolbar button:not(.xp-ui-button) { color: var(--xp-text); background: var(--xp-input-bg); border: 1px solid var(--xp-input-border); border-radius: var(--xp-radius); padding: var(--xp-space-2); }
 .xp-tests-primary { color: var(--xp-text); padding: var(--xp-space-2) var(--xp-space-4); border: 1px solid var(--xp-accent); border-radius: var(--xp-radius); }

@@ -48,6 +48,7 @@ export function createApi(apiBase: string) {
     stop: (id: DocId) => post<TransitionSuccess>(id, 'stop'),
     decide: (id: DocId, body: DecideBody) => post<TransitionSuccess>(id, 'decide', body),
     releaseHoldout: (id: DocId) => post<TransitionSuccess>(id, 'release-holdout'),
+    releasePages: (id: DocId) => post<TransitionSuccess>(id, 'release-pages'),
     makeContent: (id: DocId) => post<MakeContentResult>(id, 'make-content'),
     archive: (id: DocId, body: ArchiveBody) => post<TransitionSuccess>(id, 'archive', body),
     preflight: (id: DocId) => request<PreflightResult>(() => route(id, 'preflight'), 'GET'),

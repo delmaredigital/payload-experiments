@@ -28,7 +28,8 @@ export async function handleSummary<TUser extends { id: string | number } = { id
     const snapshot = snapshots.find(row => String(typeof row.experiment === 'object' ? row.experiment.id : row.experiment) === String(id))?.snapshot
     response[key] = snapshot ? { exposures: snapshot.exposures.total,
       days: Math.max(0, (Date.parse(snapshot.window.to) - Date.parse(snapshot.window.from)) / 86_400_000),
-      verdict: { code: snapshot.verdict.code, headline: snapshot.verdict.headline } } : { exposures: 0, days: 0, verdict: null }
+      verdict: { code: snapshot.verdict.code, headline: snapshot.verdict.headline },
+      ...(snapshot.health ? { health: snapshot.health.slice(0, 100).map(({ code, path }) => ({ code, path: path.slice(0, 128) })) } : {}) } : { exposures: 0, days: 0, verdict: null }
   }
   try {
     if (uniqueIds.length && await options.access.manage({ req }) === true) {

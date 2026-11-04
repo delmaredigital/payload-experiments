@@ -245,3 +245,19 @@ test.each([...Object.keys(RESULTS_COPY.unavailable), 'secret-value row data', ''
   expect(message).toBe(`Registrations ${RESULTS_COPY.unavailable[code]}`)
   expect(message).not.toContain('secret-value')
 })
+
+test('page health reuses data quality rendering with needs-attention and recovery copy', () => {
+  const snapshot = makeSnapshot()
+  snapshot.health = [{ code: 'version-page-unavailable', path: '/version' }, { code: 'version-page-unchecked', path: '/other' }]
+  expect(dataQuality(snapshot)).toEqual(expect.arrayContaining([
+    { id: 'version-page-unavailable:/version', message: 'Needs attention', nextStep: "/version isn't published, so visitors assigned to it see an error. Republish it, or stop the test." },
+    { id: 'version-page-unchecked:/other', message: 'Needs attention', nextStep: "Couldn't check whether /other is published. Check that it is still published, or stop the test." },
+  ]))
+})
+
+test('decided page health names the available discard action', () => {
+  const snapshot = makeSnapshot({ health: [{ code: 'version-page-unavailable', path: '/page' }, { code: 'version-page-unchecked', path: '/other' }] })
+  expect(dataQuality(snapshot, { status: 'decided' })[0]?.nextStep).toContain('discard the winner.')
+  expect(dataQuality(snapshot, { status: 'decided' }).find(item => item.id === 'version-page-unchecked:/other')?.nextStep)
+    .toBe("Couldn't check whether /other is published. Check that it is still published, or discard the winner.")
+})

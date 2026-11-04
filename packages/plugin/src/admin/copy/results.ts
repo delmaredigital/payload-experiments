@@ -1,6 +1,9 @@
 import type { MetricUnavailableReason } from '../../types/reasons.js'
 
 export const RESULTS_COPY = {
+  releasePages: 'Release pages',
+  releasePagesBody: 'Every address shows its own page again. The result stays recorded.',
+  you: 'you',
   group: 'Group', people: 'People', conversions: 'Conversions', mean: 'Mean',
   lift: 'Lift', ci: 'Confidence interval', adjustedCI: 'Adjusted confidence interval',
   pValue: 'p-value', adjustedPValue: 'Adjusted p-value', chanceToWin: 'Chance to win', risk: 'Risk',
@@ -22,7 +25,7 @@ export const RESULTS_COPY = {
   tooFew: 'Too few people have seen the compared groups.',
   tooFewNext: 'Keep collecting results until each compared group reaches the planned minimum.',
   layerFull: 'The layer has fewer slices reserved than the requested allocation.',
-  layerNext: 'Free slices in the layer, then raise participation from the actions panel.',
+  layerNext: 'Free slices in the layer, then use "Let more people in".',
   unavailable: {
     'source-failed': "couldn't be read this time; the next results run will try again.",
     'source-unavailable': "can't be read because its data source is no longer available. Ask a developer to check this goal.",
@@ -42,6 +45,8 @@ export const RESULTS_COPY = {
   primary: 'Primary outcome', secondary: 'Supporting (not used for the decision)', guardrail: 'Guardrails',
   chart: 'Confidence interval over time', noHistory: 'Not enough history yet.',
 } as const
+
+export const pagesReleasedCopy = (date: string, name?: string) => `Pages released ${date}${name ? ` by ${name}` : ''}`
 
 export const roundLabel = (round: number, kind: string) => `Round ${round} · ${kind}`
 export const decidedTitle = (winner: string) => `Decided: ${winner}`

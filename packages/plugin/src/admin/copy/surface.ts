@@ -12,7 +12,7 @@ export const SURFACE_COPY = {
   clear: 'Clear',
   groups: ['Needs attention', 'Running', 'Ready to start', 'Draft', 'Decided', 'Archived'],
   kinds: { block: 'Page block', flag: 'Setting', code: 'Setting', page: 'Whole page' },
-  ready: 'Ready to start', next: 'Next: finish setting up',
+  ready: 'Ready to start', next: 'Review setup',
   continue: 'Continue setup', results: 'View results', open: 'Open',
   health: { red: 'Needs attention', amber: 'Check data', green: 'On track' },
   backToSetup: 'Back to setup',

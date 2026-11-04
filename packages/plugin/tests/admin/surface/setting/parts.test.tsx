@@ -203,14 +203,15 @@ test('only parameter-specific refused-save messages render inline', () => {
   expect(screen.getAllByRole('alert').map(node => node.textContent)).toEqual(['Use a shorter heading.'])
 })
 
-test.each(['Heading', 'Message'] as const)('%s uses the Payload input id and supported error channel', label => {
+test.each(['Heading', 'Message'] as const)('%s uses the shared input label and accessible error channel', label => {
   const { props, api } = setup()
   const key = label === 'Heading' ? 'title' : 'copy'
   api.errors = { [`arms.1.params.${key}`]: 'Use a shorter message.' }
   render(<VersionContent {...props} armIndex={1} />)
   const input = screen.getByRole('textbox', { name: label })
-  expect(input.id).toMatch(/^field-/)
-  // The mock renders Error in the input wrapper, matching Payload's Error channel.
+  expect(input.id).toBeTruthy()
+  expect(input.getAttribute('aria-describedby')).toContain(`${input.id}-error`)
+  // The shared input renders one error connected to the control.
   expect(input.parentElement?.querySelector('[role="alert"]')?.textContent).toBe('Use a shorter message.')
   expect(screen.getAllByText('Use a shorter message.')).toHaveLength(1)
 })
@@ -296,4 +297,28 @@ test('a status lock discards local typing and shows the saved document value', (
   expect((screen.getByRole('textbox', { name: 'Heading' }) as HTMLInputElement).value).toBe('Variant title')
   expect(api.stage).not.toHaveBeenCalled()
   expect(api.commit).not.toHaveBeenCalled()
+})
+
+
+test('setting version state reflects valid and missing required values', () => {
+  const { props, api, doc } = setup()
+  const view = render(<VersionContent {...props} armIndex={1} />)
+  expect(screen.getByText('Values ready')).toBeTruthy()
+  api.doc = { ...doc, arms: doc.arms.map((arm, index) => index === 1 ? { ...arm, params: {} } : arm) }
+  view.rerender(<VersionContent {...props} armIndex={1} />)
+  expect(screen.getByText('Set values')).toBeTruthy()
+})
+
+
+test('invalid number and select parameters expose one connected error and invalid state', () => {
+  const { props, api } = setup()
+  api.errors = { 'arms.1.params.amount': 'Choose a smaller amount.', 'arms.1.params.color': 'Choose a colour.' }
+  const view = render(<VersionContent {...props} armIndex={1} />)
+  for (const [role, name] of [['spinbutton', 'Amount'], ['combobox', 'Colour']] as const) {
+    const control = screen.getByRole(role, { name })
+    expect(control.getAttribute('aria-invalid')).toBe('true')
+    const errorId = control.getAttribute('aria-describedby')!
+    expect(view.container.querySelectorAll(`[id="${errorId}"]`)).toHaveLength(1)
+    expect(document.getElementById(errorId)?.getAttribute('role')).toBe('alert')
+  }
 })

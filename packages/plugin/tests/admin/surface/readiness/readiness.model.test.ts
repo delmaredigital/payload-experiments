@@ -26,6 +26,8 @@ const fixtures = {
   'page-no-targets': ['versions', undefined, 'Add a page address for each version.'],
   'page-target-unpublished': ['versions', '/variant', "/variant isn't a published page. Publish it, or pick another page."],
   'page-targets-unchecked': ['versions', undefined, "Version pages aren't checked; make sure each one is published."],
+  'version-page-unavailable': ['versions', '/variant', "/variant isn't published, so visitors assigned to it see an error. Republish it, or stop the test."],
+  'version-page-unchecked': ['versions', '/variant', "Couldn't check whether /variant is published. Check that it is still published, or stop the test."],
   'page-user-unit': ['header', undefined, 'Whole-page tests count visitors. Create the test again counting visitors.'],
   'invalid-targeting-rule': ['who', { attributes: ['country'] }, 'Fix the rule: country.'],
   'undeclared-targeting-key': ['who', { attributes: ['country'] }, "Remove the rule on country: it isn't available."],
@@ -42,7 +44,7 @@ const fixtures = {
 } satisfies Record<ReadinessCode, Fixture>
 const ctx = { ...doc, flagPoint: 'ask', flagPoints: [{ id: 'ask', params: { headline: { type: 'text' as const, label: 'Headline text' } } }] }
 
-test('covers every literal start check and every member of both source unions (31)', () => {
+test('covers every literal start check and every member of both source unions (33 including health)', () => {
   const source = readFileSync(new URL('../../../../src/transitions/checkStart.ts', import.meta.url), 'utf8')
   const endpoints = readFileSync(new URL('../../../../src/types/endpoints.ts', import.meta.url), 'utf8')
   const literals = [...source.matchAll(/add\('([^']+)'/g)].map(match => match[1])
@@ -51,9 +53,9 @@ test('covers every literal start check and every member of both source unions (3
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
   expect(literals).toHaveLength(21)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(31)
+  expect(members).toHaveLength(33)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
-  expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER].sort())
+  expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'version-page-unavailable', 'version-page-unchecked'].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())
 })
 for (const code of Object.keys(fixtures) as ReadinessCode[]) {
@@ -89,7 +91,7 @@ test('fills both people types, direct detail messages, and missing placement gro
   expect(READINESS['invalid-targeting-rule'].next({ message: 'Choose a number.' }, ctx)).toBe('Fix the rule: Choose a number.')
 })
 test('status helpers omit unknown dates and duration, clamp a finished duration', () => {
-  expect(displayDate('2026-11-01T10:00:00Z')).toBe('Nov 1, 2026')
+  expect(displayDate('2026-11-01T10:00:00Z')).toBe('1 Nov 2026')
   expect(displayDate('bad')).toBeNull()
   expect(daysRemaining(doc, Date.now())).toBeNull()
   expect(daysRemaining({ ...doc, startedAt: '2026-10-01T00:00:00Z' }, Date.parse('2026-11-02'))).toBe(0)

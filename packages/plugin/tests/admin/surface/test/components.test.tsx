@@ -5,8 +5,7 @@ import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/adm
 import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
 import { defaultArms } from '../../../../src/admin/arms/arms.model.js'
 import { TestPage } from '../../../../src/admin/surface/test/TestPage.js'
-import { TestHeader } from '../../../../src/admin/surface/test/TestHeader.js'
-import { Hypothesis } from '../../../../src/admin/surface/test/fields.js'
+import { Hypothesis, TestName } from '../../../../src/admin/surface/test/fields.js'
 import { VersionsSection } from '../../../../src/admin/surface/test/VersionsSection.js'
 import { LengthSection } from '../../../../src/admin/surface/test/LengthSection.js'
 import { AdvancedSection } from '../../../../src/admin/surface/test/AdvancedSection.js'
@@ -17,6 +16,7 @@ import { pageBlockParts } from '../../../../src/admin/surface/pageBlock/parts.js
 import { EDITABLE_BY_STATUS } from '../../../../src/collections/experiments/editability.js'
 import { lockedReason } from '../../../../src/admin/lockedNotice.model.js'
 
+vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
 const hook = vi.hoisted(() => vi.fn())
 vi.mock('../../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: hook }))
 vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
@@ -25,7 +25,7 @@ vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessPa
 } }))
 vi.mock('../../../../src/admin/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
-const doc = (partial: Partial<TestDocument> = {}): TestDocument => ({ id: 'test/1', name: 'Welcome test', slug: 'welcome', status: 'draft', kind: 'block', unitType: 'visitor', arms: defaultArms('block'), allocation: 100, exposurePolicy: 'render', analysis: { plannedDurationDays: 28, minExposuresPerArm: 200 }, ...partial })
+const doc = (partial: Partial<TestDocument> = {}): TestDocument => ({ id: 1, name: 'Welcome test', slug: 'welcome', status: 'draft', kind: 'block', unitType: 'visitor', arms: defaultArms('block'), allocation: 100, exposurePolicy: 'render', analysis: { plannedDurationDays: 28, minExposuresPerArm: 200 }, ...partial })
 const surface: SurfaceProps = { adminRoute: '/cms', apiRoute: '/cms-api', canManage: true, canReadResults: true, isAdmin: true, flagPoints: [], attributeKeys: { country: { type: 'string', values: ['US', 'CA'] }, path: { type: 'string' }, age: { type: 'number' }, member: { type: 'boolean' } }, metricSources: [{ id: 'signup', label: 'Signups', kind: 'binomial', keyedBy: 'visitor', clientWritable: true }] }
 function props(partial: Partial<TestDocument> = {}): SectionProps {
   return { surface, test: { doc: doc(partial), preflight: { checks: [], placements: [], baseline: null, trafficPerDay: null, estimate: null }, preflightError: null, preflightPending: false,
@@ -58,7 +58,7 @@ test.each(['running', 'draft'] as const)('returned goals do not replace an exist
   await waitFor(() => expect(window.location.search).toBe(''))
   expect(p.test.stage).not.toHaveBeenCalled()
   expect(p.test.commit).not.toHaveBeenCalled()
-  expect(screen.getByText('Manage goals').getAttribute('href')).toBe(status === 'draft' ? '/cms/experiments/goals?return=test%2F1' : '/cms/experiments/goals')
+  expect(screen.getByText('Manage goals').getAttribute('href')).toBe(status === 'draft' ? '/cms/experiments/goals?return=1' : '/cms/experiments/goals')
   window.history.replaceState(null, '', '/')
 })
 
@@ -68,6 +68,9 @@ test('page load states are clear and the ready view has stacked anchored section
   hook.mockReturnValue({ ...p.test, doc: null, loadState: 'loading' })
   const view = render(<TestPage id={1} surface={surface} />)
   expect(screen.getByText('Loading test…')).toBeTruthy()
+  const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' })
+  expect(within(breadcrumb).getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/cms/experiments')
+  expect(within(breadcrumb).getByText('Test').getAttribute('aria-current')).toBe('page')
   for (const [loadState, message] of [['forbidden', "You don't have access to this test."], ['missing', 'This test no longer exists.'], ['error', "Couldn't load this test."]] as const) {
     hook.mockReturnValue({ ...p.test, doc: null, loadState })
     view.rerender(<TestPage id={1} surface={surface} />)
@@ -78,11 +81,14 @@ test('page load states are clear and the ready view has stacked anchored section
   expect(hook).toHaveBeenLastCalledWith(1, { apiRoute: '/cms-api' })
   for (const id of ['what', 'versions', 'win', 'who', 'length', 'advanced']) expect(view.container.querySelector(`#section-${id}`)).toBeTruthy()
   expect(screen.queryByRole('tab')).toBeNull()
+  const what = view.container.querySelector('#section-what')!
+  expect(within(what as HTMLElement).getByLabelText('Test name')).toBe(view.container.querySelector('.xp-test-content input'))
+  expect(view.container.querySelector('.xp-test-header')).toBeNull()
   await waitFor(() => expect(screen.getAllByText('Registered · yes/no').length).toBeGreaterThan(0))
 })
 test('header and hypothesis save on blur or Enter, never on typing', () => {
   const p = props()
-  render(<><TestHeader {...p} /><Hypothesis {...p} /></>)
+  render(<><TestName {...p} /><Hypothesis {...p} /></>)
   const name = screen.getByLabelText('Test name')
   name.focus(); fireEvent.change(name, { target: { value: 'New title' } })
   expect(p.test.stage).not.toHaveBeenCalled()
@@ -131,20 +137,23 @@ test('allocation saves on release and keyboard release, not change', () => {
 test('running sections show read-only values and the exact lock reason', async () => {
   metricsFetch()
   const p = props({ status: 'running' })
-  render(<><VersionsSection {...p} parts={pageBlockParts} /><LengthSection {...p} /><AdvancedSection {...p} /><TargetingSection {...p} /><GoalSection {...p} /><TestHeader {...p} /></>)
+  render(<><VersionsSection {...p} parts={pageBlockParts} /><LengthSection {...p} /><AdvancedSection {...p} /><TargetingSection {...p} /><GoalSection {...p} /><TestName {...p} /></>)
   expect(screen.queryByRole('slider')).toBeNull()
-  expect(screen.queryByLabelText('Original: Share (%)')).toBeNull()
+  expect((screen.getByLabelText('Original: Share (%)') as HTMLInputElement).disabled).toBe(true)
   expect(screen.queryByLabelText('Planned length (days)')).toBeNull()
   expect(screen.queryByLabelText('Goal')).toBeNull()
-  expect(screen.queryByText('Add a version')).toBeNull()
-  expect(screen.getAllByText(lockedReason('running', 'arms', EDITABLE_BY_STATUS)! as string).length).toBeGreaterThan(0)
-  expect(screen.getByText('Results').getAttribute('href')).toBe('/cms/experiments/test%2F1/results')
+  expect((screen.getByRole('button', { name: 'Add a version' }) as HTMLButtonElement).disabled).toBe(true)
+  expect((screen.getByRole('button', { name: 'Remove version' }) as HTMLButtonElement).disabled).toBe(true)
+  const versionsSection = document.querySelector<HTMLElement>('#section-versions')!
+  const notice = within(versionsSection).getByText(lockedReason('running', 'arms', EDITABLE_BY_STATUS)!)
+  expect(notice.tagName).toBe('P')
+  expect(notice.className).toBe('xp-ui-help')
   expect(p.test.stage).not.toHaveBeenCalled()
   await waitFor(() => expect(screen.getByText('Goal')).toBeTruthy())
 })
 test('archived name is read-only and the analysis method is hidden for non-admins', () => {
   const p = props({ status: 'archived' }); p.surface = { ...surface, isAdmin: false }
-  render(<><TestHeader {...p} /><AdvancedSection {...p} /></>)
+  render(<><TestName {...p} /><AdvancedSection {...p} /></>)
   expect(screen.queryByLabelText('Test name')).toBeNull()
   expect(screen.getByText('Welcome test')).toBeTruthy()
   expect(screen.queryByText('Analysis method')).toBeNull()
@@ -170,7 +179,7 @@ test('block placement links and slot readiness distinguish each page and group',
   render(<><pageBlockParts.Binding {...p} /><pageBlockParts.VersionContent {...p} armIndex={0} /><pageBlockParts.VersionContent {...p} armIndex={1} /></>)
   expect(screen.getByText('On: Landing (Published)')).toBeTruthy()
   expect(screen.getByText('Open the page').getAttribute('href')).toBe('/edit/page')
-  expect(screen.getByText('Content ready')).toBeTruthy(); expect(screen.getByText('Nothing in this slot yet')).toBeTruthy()
+  expect(screen.getByText('Content ready')).toBeTruthy(); expect(screen.getByText('Empty')).toBeTruthy()
 })
 test('suggestion Apply and reach blur preserve current analysis and write both suggestion fields', () => {
   const p = props({ exposurePolicy: 'viewport' })
@@ -234,7 +243,7 @@ test('goals load via the host API and preserve the current metrics group on sele
   view.rerender(<GoalSection {...p} />)
   fireEvent.change(screen.getByLabelText('Goal'), { target: { value: '' } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: null, guardrails: [], secondary: [2] } })
-  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/experiments/goals?return=test%2F1')
+  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/experiments/goals?return=1')
 })
 test('save refusals render inline', () => {
   const p = props()
@@ -300,7 +309,7 @@ test.each(['in', 'nin'] as const)('fixed-list %s targeting checkboxes keep curre
   expect(screen.getByText('US, CA')).toBeTruthy()
 })
 test('free-text in targeting renders chips, keeps current rules and saves arrays', () => {
-  const p = props({ targeting: [{ attribute: 'path', op: 'in', value: [] }] })
+  const p = props({ kind: 'flag', targeting: [{ attribute: 'path', op: 'in', value: [] }] })
   const view = render(<TargetingSection {...p} />)
   fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'US' } })
   fireEvent.keyDown(screen.getByRole('textbox', { name: 'Value' }), { key: 'Enter' })
@@ -371,7 +380,7 @@ test('admins see the method control on editable tests and non-admins do not', ()
 })
 test('drafts have no Results link and unplaced blocks explain how to add them', () => {
   const p = props()
-  render(<><TestHeader {...p} /><pageBlockParts.Binding {...p} /></>)
+  render(<><TestName {...p} /><pageBlockParts.Binding {...p} /></>)
   expect(screen.queryByRole('link', { name: 'Results' })).toBeNull()
   expect(screen.getByText('Not on a page yet. Open a page, add an Experiment block and choose this test.')).toBeTruthy()
 })
@@ -381,6 +390,7 @@ test.each([
 ] as const)('Advanced renders exactly the allowed exposure options for %s', (kind, labels) => {
   const p = props({ kind, exposurePolicy: kind === 'block' ? 'render' : kind === 'page' ? 'pageview' : 'manual' })
   render(<AdvancedSection {...p} />)
+  fireEvent.click(screen.getByText('Advanced settings · for developers'))
   expect(within(screen.getByLabelText('Exposure policy')).getAllByRole('option').map(option => option.textContent)).toEqual(labels)
 })
 test('a goal missing from a successful load reads as no longer existing', async () => {
@@ -391,7 +401,7 @@ test('a goal missing from a successful load reads as no longer existing', async 
 })
 
 test.each(['in', 'nin'] as const)('legacy %s lists load as chips and save arrays; running lists stay disabled', op => {
-  const p = props({ targeting: [{ attribute: 'path', op, value: 'US, CA' }] })
+  const p = props({ kind: 'flag', targeting: [{ attribute: 'path', op, value: 'US, CA' }] })
   const view = render(<TargetingSection {...p} />)
   expect(screen.getByRole('button', { name: 'Remove US' })).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Remove CA' }))
@@ -412,7 +422,7 @@ test('switching a legacy list operator and editing another row normalize whole-g
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 21 }] })
 })
 test('deleting a list rule cannot transfer its unfinished chip draft to the next rule', () => {
-  const p = props({ targeting: [{ attribute: 'path', op: 'in', value: ['US'] }, { attribute: 'path', op: 'in', value: ['CA'] }] })
+  const p = props({ kind: 'flag', targeting: [{ attribute: 'path', op: 'in', value: ['US'] }, { attribute: 'path', op: 'in', value: ['CA'] }] })
   vi.mocked(p.test.stage).mockImplementation(patch => { p.test.doc = { ...p.test.doc!, ...patch } })
   const view = render(<TargetingSection {...p} />)
   fireEvent.change(screen.getAllByRole('textbox', { name: 'Value' })[0]!, { target: { value: 'draft' } })
@@ -423,4 +433,160 @@ test('deleting a list rule cannot transfer its unfinished chip draft to the next
   fireEvent.keyDown(remaining, { key: 'Enter' })
   expect(p.test.stage).toHaveBeenCalledTimes(1)
   expect(p.test.doc!.targeting).toEqual([{ attribute: 'path', op: 'in', value: ['CA'] }])
+})
+
+test('real Shell owns the setup title, name breadcrumb, chips and Results link with Start only at the bottom', async () => {
+  metricsFetch()
+  const p = props({ id: 'test/1', status: 'running' })
+  hook.mockReturnValue(p.test)
+  const view = render(<TestPage id={p.test.doc!.id} surface={surface} />)
+  const shell = view.container.querySelector<HTMLElement>('.xp-tests-shell-header')!
+  expect(within(shell).getByRole('heading', { name: 'Welcome test', level: 1 })).toBeTruthy()
+  expect(within(within(shell).getByRole('navigation', { name: 'Breadcrumb' })).getByText('Welcome test').getAttribute('aria-current')).toBe('page')
+  expect(within(shell).getByText('Page block')).toBeTruthy()
+  expect(within(shell).getByText('Running')).toBeTruthy()
+  expect(within(shell).getByRole('link', { name: 'Results' }).getAttribute('href')).toBe('/cms/experiments/test%2F1/results')
+  expect(within(shell).queryByRole('button', { name: /^Start/ })).toBeNull()
+  expect(screen.getByRole('region', { name: 'Readiness' }).contains(screen.getByRole('button', { name: 'Stop' }))).toBe(true)
+  expect(view.container.querySelectorAll('.xp-ui-section')).toHaveLength(5)
+  expect(view.container.querySelectorAll('.xp-ui-section-number')).toHaveLength(5)
+  expect(view.container.querySelector('.xp-test-page--setup')?.getAttribute('style')).toContain('padding-bottom: 0px')
+  await waitFor(() => expect(screen.getByText('Goal')).toBeTruthy())
+})
+
+test('name validation errors appear with the first field inside What you are testing', async () => {
+  metricsFetch()
+  const p = props()
+  p.test.errors = { name: 'Give this test a name.' }
+  hook.mockReturnValue(p.test)
+  const view = render(<TestPage id={1} surface={surface} />)
+  const what = view.container.querySelector<HTMLElement>('#section-what')!
+  expect(within(what).getByRole('alert').textContent).toBe('Give this test a name.')
+  expect(within(what).getByLabelText('Test name')).toBe(what.querySelector('input'))
+  expect(screen.getAllByLabelText('Test name')).toHaveLength(1)
+  await waitFor(() => expect(screen.getAllByText('Registered · yes/no').length).toBeGreaterThan(0))
+})
+
+
+test('versions use one visible header, accessible inputs, exact split widths and a muted holdout', () => {
+  const p = props({ arms: [
+    { key: 'control', kind: 'control', label: 'Original', weight: 40, slot: 'control' },
+    { key: 'variantA', kind: 'variant', label: 'Short ask', weight: 20, slot: 'variantA' },
+    { key: 'variantB', kind: 'variant', label: 'Long ask', weight: 15, slot: 'variantB' },
+    { key: 'variantC', kind: 'variant', label: 'New ask', weight: 15, slot: 'variantC' },
+    { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 10 },
+  ] })
+  const view = render(<VersionsSection {...p} parts={pageBlockParts} />)
+  expect(view.container.querySelectorAll('.xp-version-grid-head')).toHaveLength(1)
+  expect(view.container.querySelectorAll('.xp-version-row')).toHaveLength(5)
+  const original = view.container.querySelector('.xp-version-row')!
+  expect(original.children).toHaveLength(4)
+  expect(original.children[3]!.classList.contains('xp-version-remove')).toBe(true)
+  expect(original.children[3]!.childElementCount).toBe(0)
+  expect(screen.getByRole('textbox', { name: 'Original: Version label' })).toBeTruthy()
+  const segments = Array.from(screen.getByRole('img').children) as HTMLElement[]
+  expect(segments.map(node => node.style.width)).toEqual(['40%', '20%', '15%', '15%', '10%'])
+  expect(segments.map(node => node.style.background)).toEqual(['var(--xp-series-muted)', 'var(--xp-series-a)', 'var(--xp-series-b)', 'var(--xp-series-c)', 'var(--xp-series-muted)'])
+  expect(screen.getByText('Short ask 20%')).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Original: Share (%)'), { target: { value: '20' } })
+  expect(segments[0]!.style.width).toBe('20%')
+  expect(screen.getAllByRole('button', { name: 'Remove version' })).toHaveLength(4)
+  expect(screen.getAllByRole('button').every(button => button.closest('.xp-ui-button-group'))).toBe(true)
+})
+
+test('block binding groups repeated placements per page using the maximum count in one document version', () => {
+  const p = props()
+  const placement = { collection: 'pages', id: 1, title: 'Landing', editorUrl: '/edit/1', detail: 'Published', ok: true }
+  p.test.preflight!.placements = [placement, placement, { ...placement, detail: 'Draft' },
+    { ...placement, id: 2, title: 'Thank you', editorUrl: '/edit/2', detail: 'Draft' }]
+  const view = render(<pageBlockParts.Binding {...p} />)
+  expect(screen.getByText('On: Landing (Published) (placed 2 times)')).toBeTruthy()
+  expect(screen.getByText('On: Thank you (Draft)')).toBeTruthy()
+  expect(screen.getAllByRole('link', { name: 'Open the page' })).toHaveLength(2)
+  expect(view.container.querySelectorAll('.xp-page-binding > p')).toHaveLength(3)
+})
+
+test('Advanced opens when a threshold error arrives and leaves the field error visible', () => {
+  const p = props()
+  const view = render(<AdvancedSection {...p} />)
+  const details = view.container.querySelector('details')!
+  expect(details.open).toBe(false)
+  p.test.errors = { 'analysis.minExposuresPerArm': 'Enter a minimum of one person per version.' }
+  view.rerender(<AdvancedSection {...p} />)
+  expect(details.open).toBe(true)
+  expect(within(details).getByRole('alert').textContent).toBe('Enter a minimum of one person per version.')
+})
+
+test('a deleted primary goal displays Choose a goal with a matching old baseline present', async () => {
+  metricsFetch()
+  const p = props({ metrics: { primary: 99 } })
+  p.test.preflight!.baseline = { metricId: 99, value: .03, days: 28 }
+  render(<GoalSection {...p} />)
+  await waitFor(() => expect(screen.getAllByText('Registered · yes/no').length).toBeGreaterThan(0))
+  expect((screen.getByRole('combobox', { name: 'Goal' }) as HTMLSelectElement).selectedOptions[0]!.textContent).toBe('Choose a goal')
+  expect(p.test.stage).not.toHaveBeenCalled()
+})
+
+test('whole-page versions show Page ready or Add a page address for their current target', () => {
+  const p = props({ kind: 'page', arms: defaultArms('page').map((arm, i) => ({ ...arm, pageTarget: i ? '' : '/welcome' })) })
+  render(<VersionsSection {...p} parts={pageParts} />)
+  expect(screen.getByText('Page ready')).toBeTruthy()
+  expect(screen.getByText('Add a page address')).toBeTruthy()
+})
+
+
+test('holdout explanation appears only when there is a holdout arm', () => {
+  const p = props()
+  const view = render(<VersionsSection {...p} parts={pageBlockParts} />)
+  expect(screen.queryByText(/The holdout sees the Original and is measured/)).toBeNull()
+  p.test.doc!.arms = [...p.test.doc!.arms, { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 0 }]
+  view.rerender(<VersionsSection {...p} parts={pageBlockParts} />)
+  expect(screen.getByText(/The holdout sees the Original and is measured/)).toBeTruthy()
+})
+
+test.each([2, 8])('there is no goal search with %s goals', async count => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: Array.from({ length: count }, (_, i) => ({ id: i + 1, name: `Goal ${i + 1}`, source: 'signup' })) }) })))
+  render(<GoalSection {...props()} />)
+  await waitFor(() => expect(screen.getAllByText('Goal 1 · yes/no')).toHaveLength(3))
+  expect(screen.queryByRole('searchbox')).toBeNull()
+  expect(screen.queryByRole('textbox', { name: 'Search goals' })).toBeNull()
+})
+
+test('large goal lists search independently inside each list and retain checked options', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `Goal ${i + 1}`, source: 'signup' })) }) })))
+  const p = props({ metrics: { primary: 1, guardrails: [2], secondary: [3] } })
+  render(<GoalSection {...p} />)
+  await waitFor(() => expect(screen.getAllByRole('searchbox')).toHaveLength(2))
+  const guardrails = within(screen.getByRole('group', { name: 'Must not get worse (optional)' }))
+  const secondary = within(screen.getByRole('group', { name: 'Also keep an eye on (optional)' }))
+  fireEvent.change(guardrails.getByRole('searchbox'), { target: { value: 'GOAL 9' } })
+  expect(guardrails.getByRole('checkbox', { name: 'Goal 2 · yes/no' })).toBeTruthy()
+  expect(guardrails.getByRole('checkbox', { name: 'Goal 9 · yes/no' })).toBeTruthy()
+  expect(guardrails.queryByRole('checkbox', { name: 'Goal 4 · yes/no' })).toBeNull()
+  expect(secondary.getByRole('checkbox', { name: 'Goal 4 · yes/no' })).toBeTruthy()
+  fireEvent.change(secondary.getByRole('searchbox'), { target: { value: 'Goal 8' } })
+  expect(secondary.getByRole('checkbox', { name: 'Goal 3 · yes/no' })).toBeTruthy()
+  expect(secondary.getByRole('checkbox', { name: 'Goal 8 · yes/no' })).toBeTruthy()
+  expect(secondary.queryByRole('checkbox', { name: 'Goal 4 · yes/no' })).toBeNull()
+  fireEvent.click(guardrails.getByRole('checkbox', { name: 'Goal 9 · yes/no' }))
+  expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [2, 9], secondary: [3] } })
+  expect(within(screen.getByRole('combobox', { name: 'Goal' })).getByRole('option', { name: 'Goal 4 · yes/no' })).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Manage goals' }).closest('.xp-ui-field-label')?.querySelector('label')?.textContent).toBe('Goal')
+})
+test('page block tests never offer the Path attribute; setting tests still do', () => {
+  const block = props({ targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
+  const view = render(<TargetingSection {...block} />)
+  expect(within(screen.getByLabelText('Attribute')).queryByRole('option', { name: 'Path' })).toBeNull()
+  view.unmount()
+  const flag = props({ kind: 'flag', targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
+  render(<TargetingSection {...flag} />)
+  expect(within(screen.getByLabelText('Attribute')).getByRole('option', { name: 'Path' })).toBeTruthy()
+})
+test('an existing path rule on a page block test is read-only with a removal note', () => {
+  const p = props({ targeting: [{ attribute: 'path', op: 'in', value: ['/a'] }, { attribute: 'age', op: 'gte', value: 18 }] })
+  render(<TargetingSection {...p} />)
+  expect(screen.getByText('This rule no longer applies to page block tests; remove it.')).toBeTruthy()
+  expect(screen.getAllByLabelText('Attribute')).toHaveLength(1)
+  fireEvent.click(screen.getAllByRole('button', { name: 'Remove rule' })[0]!)
+  expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
 })

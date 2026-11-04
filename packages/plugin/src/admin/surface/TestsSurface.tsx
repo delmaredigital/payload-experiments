@@ -44,12 +44,12 @@ function SurfacePage(props: TestsSurfaceProps) {
       }
     } else crumbs.push({ label: props.route === 'new' ? SURFACE_COPY.newTest : props.route === 'results' ? SURFACE_COPY.resultsTitle : SURFACE_COPY.test })
   }
-  if (props.route === 'home') return <TestsHome adminRoute={props.adminRoute} apiRoute={props.apiRoute} canManage={props.canManage} crumbs={crumbs} />
+  if (props.route === 'home') return <TestsHome adminRoute={props.adminRoute} apiRoute={props.apiRoute} canManage={props.canManage} flagPoints={props.flagPoints} crumbs={crumbs} />
+  if (props.route === 'test' && props.id !== undefined) return <TestPage key={props.id} id={props.id} surface={surface} />
   return <SurfaceShell adminRoute={props.adminRoute} crumbs={crumbs} title={title}>
     {props.route === 'goals' ? <GoalsList surface={surface} returnToTest={props.returnToTest} />
         : props.route === 'goalNew' || props.route === 'goal' ? <GoalForm key={props.route === 'goalNew' ? 'new' : props.id} surface={surface} onTitleChange={setLoadedTitle} id={props.route === 'goal' ? props.id : undefined} returnToTest={props.returnToTest} />
       : props.route === 'new' ? <NewTest surface={surface} pages={props.pages} />
-        : props.id === undefined ? null : props.route === 'test' ? <TestPage key={props.id} id={props.id} surface={surface} onTitleChange={setLoadedTitle} />
-          : <ResultsRoute key={props.id} id={props.id} surface={surface} onTitleChange={setLoadedTitle} />}
+        : props.id === undefined ? null : <ResultsRoute key={props.id} id={props.id} surface={surface} onTitleChange={setLoadedTitle} />}
   </SurfaceShell>
 }

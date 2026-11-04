@@ -66,6 +66,7 @@ const endpoints = [
   ['stop', () => api.stop('id /?'), undefined],
   ['decide', () => api.decide('id /?', { winnerArm: 'variantA', note: 'Ship', confirmation: 'Variant A' }), { winnerArm: 'variantA', note: 'Ship', confirmation: 'Variant A' }],
   ['release-holdout', () => api.releaseHoldout('id /?'), undefined],
+  ['release-pages', () => api.releasePages('id /?'), undefined],
   ['make-content', () => api.makeContent('id /?'), undefined],
   ['archive', () => api.archive('id /?', { mode: 'discard', confirmation: 'discard winner' }), { mode: 'discard', confirmation: 'discard winner' }],
   ['recompute', () => api.recompute('id /?'), undefined],

@@ -18,6 +18,10 @@ export async function sweepEvents(exec: Executor, { now, retentionDays = 180, ba
   const events = qualifiedTable(exec, TABLES.events), phases = qualifiedTable(exec, TABLES.phases)
   const revision = `(SELECT ${q(s.revision)} FROM ${qualifiedTable(exec, TABLES.state)} LIMIT 1)`
   let swept = 0
+  const warnNoProgress = () => logger?.warn('Experiment retention sweep made no progress before its budget expired; eligible rows may remain.')
+  // Every budget-limited exit with nothing swept is reported, whether the budget ran out mid-statement (the catch
+  // below) or before the next batch could start (here).
+  const finish = () => { if (swept === 0 && !shouldContinue()) warnNoProgress(); return swept }
   // Each statement still uses the caller's budget/race-aware executor.
   async function batches(predicate: string, order: string, params: unknown[] = []): Promise<void> {
     while (shouldContinue()) {
@@ -37,7 +41,7 @@ export async function sweepEvents(exec: Executor, { now, retentionDays = 180, ba
     for (const type of ['exposure', 'arm-mismatch']) {
       await batches(`v.${q(c.experimentId)} IS NULL AND v.${q(c.type)} IN ($1)`, byEventType, [type])
     }
-    if (!shouldContinue()) return swept
+    if (!shouldContinue()) return finish()
     // Final-endedAt retention protects every phase while any phase is open.
     const ended = await exec.query<{ experimentId: DocId }>(`SELECT ${q(p.experimentId)} AS "experimentId" FROM ${phases}
       WHERE ${q(p.experimentId)} IS NOT NULL GROUP BY ${q(p.experimentId)}
@@ -48,7 +52,7 @@ export async function sweepEvents(exec: Executor, { now, retentionDays = 180, ba
         SELECT 1 FROM ${phases} p WHERE p.${q(p.experimentId)} = v.${q(c.experimentId)}
           AND (p.${q(p.endedAt)} IS NULL OR p.${q(p.endedAt)} >= $2))`, byEventType, [ended.rows.map(row => row.experimentId), cutoff])
     }
-    if (!shouldContinue()) return swept
+    if (!shouldContinue()) return finish()
     // Every protected window ends at/after cutoff (or is open). For old
     // conversions their union therefore starts at the earliest lookback start;
     // everything before that single bound is safe. Compute it once, in the same
@@ -66,11 +70,9 @@ export async function sweepEvents(exec: Executor, { now, retentionDays = 180, ba
     // phase starts mid-sweep, stale windows can delete no further conversions.
     await batches(`v.${q(c.experimentId)} IS NULL AND v.${q(c.type)} = 'conversion' AND v.${q(c.ts)} < $1
       AND ${revision} IS NOT DISTINCT FROM $2`, byEventType, [before, frozen.revision])
-    return swept
+    return finish()
   } catch (error) {
-    if (swept === 0 && error instanceof ResultsBudgetError) {
-      logger?.warn('Experiment retention sweep made no progress before its budget expired; eligible rows may remain.')
-    }
+    if (swept === 0 && error instanceof ResultsBudgetError) warnNoProgress()
     throw error
   }
 }

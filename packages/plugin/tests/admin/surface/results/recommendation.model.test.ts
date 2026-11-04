@@ -18,7 +18,7 @@ const cases: Record<VerdictCode, [string, string]> = {
   'worse-none-better': ['T6', 'No version beats the Original, and Shorter form does worse. Keep the Original.'],
   winner: ['T7', 'Shorter form is most likely to be best.'],
   mixed: ['T8', 'Mixed: Shorter form does better, One page form does worse. Review before deciding.'],
-  'keep-running': ['T9', 'No difference so far. Keep running until Nov 13, 2026.'],
+  'keep-running': ['T9', 'No difference so far. Keep running until 13 Nov 2026.'],
   'no-difference': ['T10', 'No difference found. Keep the Original, or test a bigger change.'],
   'rollout-collecting': ['R2', 'Since shipping Shorter form: still collecting data.'],
   'rollout-readout': ['R3', 'Since shipping Shorter form: +12.0% compared with the holdout.'],

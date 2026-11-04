@@ -13,12 +13,19 @@ import { SurfaceShell } from './SurfaceShell.js'
 import type { SurfaceShellProps } from './SurfaceShell.js'
 import { groupTests, homeCard } from './home.model.js'
 import type { HomeTest } from './home.model.js'
+import type { ReadinessContext } from './readiness/readiness.model.js'
+
+const HOME_FIELDS = ['name', 'kind', 'status', 'analysis', 'arms', 'decidedAt', 'decision', 'unitType', 'flagPoint'] as const
+// Typecheck fails if HomeTest gains a field the list request does not select (Payload always returns id).
+const homeFieldsComplete: Exclude<keyof HomeTest, 'id'> extends (typeof HOME_FIELDS)[number] ? true : never = true
+void homeFieldsComplete
+const HOME_SELECT = HOME_FIELDS.map(field => `select[${field}]=true`).join('&')
 
 type State = { loading: true } | { loading: false; error: true } | {
   loading: false; error: false; tests: HomeTest[]; summaries: SummaryResponse; summaryError: boolean; limited: boolean
 }
-export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs }: {
-  adminRoute: string; apiRoute: string; canManage?: boolean; crumbs?: SurfaceShellProps['crumbs']
+export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, flagPoints }: {
+  adminRoute: string; apiRoute: string; canManage?: boolean; crumbs?: SurfaceShellProps['crumbs']; flagPoints?: ReadinessContext['flagPoints']
 }) {
   const api = useMemo(() => createApi(apiRoute), [apiRoute])
   const [state, setState] = useState<State>({ loading: true })
@@ -30,7 +37,7 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs }: {
     setState({ loading: true })
     async function load() {
       try {
-        const response = await fetch(`${apiRoute.replace(/\/$/, '')}/xp-experiments?depth=0&sort=-updatedAt&limit=200`, {
+        const response = await fetch(`${apiRoute.replace(/\/$/, '')}/xp-experiments?depth=0&sort=-updatedAt&limit=200&${HOME_SELECT}`, {
           credentials: 'include', signal: controller.signal,
         })
         if (!response.ok) throw new Error('list')
@@ -62,13 +69,13 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs }: {
         : <>
           {state.summaryError ? <Banner tone="error" action={retry}>{SURFACE_COPY.summaryError}</Banner> : null}
           {state.tests.length === 0 ? <EmptyState action={newTest}>{SURFACE_COPY.empty}</EmptyState>
-            : <TestGroups tests={state.tests} summaries={state.summaries} adminRoute={adminRoute} search={search} clear={() => setSearch('')} />}
+            : <TestGroups tests={state.tests} summaries={state.summaries} adminRoute={adminRoute} flagPoints={flagPoints} search={search} clear={() => setSearch('')} />}
           {state.limited ? <p className="xp-tests-limited">{SURFACE_COPY.limitedList}</p> : null}
         </>}
   </SurfaceShell>
 }
-function TestGroups({ tests, summaries, adminRoute, search, clear }: {
-  tests: HomeTest[]; summaries: SummaryResponse; adminRoute: string; search: string; clear: () => void
+function TestGroups({ tests, summaries, adminRoute, flagPoints, search, clear }: {
+  tests: HomeTest[]; summaries: SummaryResponse; adminRoute: string; flagPoints?: ReadinessContext['flagPoints']; search: string; clear: () => void
 }) {
   const groups = groupTests(tests, summaries, search)
   if (!groups.some(group => group.tests.length)) return <div className="xp-tests-no-matches"><p>{noMatchesLine(search)}</p>
@@ -76,7 +83,7 @@ function TestGroups({ tests, summaries, adminRoute, search, clear }: {
   return <>{groups.map((group, index) => {
     if (!group.tests.length) return null
     const rows = <div className="xp-tests-list">{group.tests.map(test => {
-      const card = homeCard(test, summaries[test.id], adminRoute)
+      const card = homeCard(test, summaries[test.id], adminRoute, flagPoints)
       return <article className="xp-tests-row" key={test.id}>
         <div className="xp-tests-row-main">
           <div className="xp-tests-row-name"><Link href={card.href}>{test.name}</Link><span className="xp-tests-kind">{card.kind}</span>

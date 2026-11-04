@@ -12,6 +12,8 @@ export type ReadinessCode = ArmIssueCode
   | 'page-no-targets'
   | 'page-target-unpublished'
   | 'page-targets-unchecked'
+  | 'version-page-unavailable'
+  | 'version-page-unchecked'
   | 'page-user-unit'
   | 'flag-no-point'
   | 'flag-params-invalid'

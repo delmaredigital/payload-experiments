@@ -17,14 +17,15 @@ import { API_MESSAGES } from '../copy/common.js'
 import type { ExperimentAction } from './actions.model.js'
 import { MakeContentResult } from './MakeContentResult.js'
 
-export function DialogFrame({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function DialogFrame({ title, onClose, children, initialFocus }: { initialFocus?: 'cancel'; title: string; onClose: () => void; children: ReactNode }) {
   const heading = useId()
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const previous = document.activeElement
-    ref.current?.focus()
+    const cancel = initialFocus === 'cancel' ? ref.current?.querySelector<HTMLElement>('[data-dialog-cancel]:not(:disabled)') : null
+    ;(cancel ?? ref.current)?.focus()
     return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus() }
-  }, [])
+  }, [initialFocus])
   return createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: theme.color.overlay, display: 'grid', placeItems: 'center' }}>
     <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={heading} tabIndex={-1}
       style={{ background: theme.color.bg, color: theme.color.text, border: `1px solid ${theme.color.borderStrong}`,
@@ -81,7 +82,7 @@ export function ConfirmDialog({ id, action, winnerLabel, onClose }: {
     if (content) reloadPage()
     onClose()
   }
-  return <DialogFrame title={action.confirm.title} onClose={close}>
+  return <DialogFrame initialFocus={action.id === 'start' ? undefined : 'cancel'} title={action.confirm.title} onClose={close}>
     {content ? <MakeContentResult result={content} onRetry={submit} busy={busy} /> : <>
       <p>{action.confirm.body}</p>
       {phrase ? <><p>{C.typePhrase} <strong>{phrase}</strong></p>
@@ -91,6 +92,6 @@ export function ConfirmDialog({ id, action, winnerLabel, onClose }: {
     {error ? <p role="alert">{error.message}</p> : null}
     {content ? null : <Button disabled={!enabled} onClick={() => { void submit() }}>{action.label}</Button>}
     {error?.retryable ? <Button disabled={!enabled} onClick={() => { void submit() }}>{C.retry}</Button> : null}
-    <Button disabled={busy} onClick={close}>{content ? C.done : C.cancel}</Button>
+    <Button extraButtonProps={{ 'data-dialog-cancel': true }} disabled={busy} onClick={close}>{content ? C.done : C.cancel}</Button>
   </DialogFrame>
 }

@@ -1,6 +1,7 @@
 import type { PhaseSummary } from '../../../types/endpoints.js'
 import type { Status } from '../../../types/contracts.js'
 import type { Snapshot, VerdictCode } from '../../../types/snapshot.js'
+import { formatDate } from '../../format/date.js'
 import { armLabel } from '../../labels.js'
 import { formatCount, formatPercent } from '../../results/format.js'
 import {
@@ -52,9 +53,7 @@ export const RECOMMENDATION: Record<VerdictCode, (ctx: RecommendationContext) =>
     const days = ctx.plannedDurationDays
     const start = Date.parse(ctx.phase?.startedAt ?? '')
     const end = days != null && Number.isFinite(days) && days > 0 ? start + days * 86_400_000 : NaN
-    return Number.isFinite(end) ? runningRecommendation(new Intl.DateTimeFormat('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
-    }).format(end)) : C.keepRunning
+    return Number.isFinite(end) ? runningRecommendation(formatDate(end)) : C.keepRunning
   },
   'no-difference': () => C.noDifference,
   'rollout-collecting': ctx => rolloutCollectingRecommendation(winner(ctx)),

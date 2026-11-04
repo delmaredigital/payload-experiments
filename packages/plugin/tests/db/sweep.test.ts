@@ -46,6 +46,15 @@ test.each([0, 2])('budget cancellation warns once only when no rows were deleted
   else expect(logger.warn).toHaveBeenCalledExactlyOnceWith('Experiment retention sweep made no progress before its budget expired; eligible rows may remain.')
 })
 
+test.each([0, 2])('a budget that runs out between statements warns only when no rows were deleted (%s)', async swept => {
+  const logger = { warn: vi.fn() }
+  const exec = createFakeExecutor({ results: [{ rows: [], rowCount: swept }] })
+  let checks = 0
+  expect(await sweepEvents(exec, { now: new Date(), batchSize: 2, logger, shouldContinue: () => checks++ === 0 })).toBe(swept)
+  if (swept) expect(logger.warn).not.toHaveBeenCalled()
+  else expect(logger.warn).toHaveBeenCalledExactlyOnceWith('Experiment retention sweep made no progress before its budget expired; eligible rows may remain.')
+})
+
 test('an empty sweep or unrelated SQL error does not warn about budget cancellation', async () => {
   const logger = { warn: vi.fn() }, exec = createFakeExecutor()
   expect(await sweepEvents(exec, { now: new Date(), logger })).toBe(0)
