@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { formatAdminURL } from 'payload/shared'
+import type { ResultsResponse } from '../../../types/endpoints.js'
 import type { SectionProps } from '../contracts.js'
 import { SurfaceShell } from '../SurfaceShell.js'
 import { Button } from '../../../ui/Button.js'
@@ -10,7 +11,7 @@ import { createApi } from '../../api.js'
 import { availableActions, actionGroupLabel } from '../../actions/actions.model.js'
 import type { ActionDecision, ActionId } from '../../actions/actions.model.js'
 import { AllocateAction, ConfirmAction } from '../readiness/ActionDialogs.js'
-import { daysRemaining, displayDate, nextStep } from '../readiness/readiness.model.js'
+import { READINESS, daysRemaining, displayDate, nextStep } from '../readiness/readiness.model.js'
 import { READINESS_COPY as R, runningCopy, stoppedCopy, decidedCopy } from '../../copy/readiness.js'
 import { RESULTS_COPY as C } from '../../copy/results.js'
 import { TEST_PAGE } from '../../copy/testPage.js'
@@ -46,7 +47,9 @@ export function ResultsHeader({ test, surface, resultsVersion, children, actions
   return <SurfaceShell adminRoute={surface.adminRoute} title={doc.name}
     crumbs={[{ label: C.tests, href: formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }) }, { label: doc.name, href: testURL }, { label: C.results }]}
     status={<><span className="xp-tests-kind">{TEST_PAGE.kinds[doc.kind]}</span><StatusChip status={doc.status} /></>}
-    subtitle={<>{sentence ? <p role="status">{sentence}</p> : null}{released}</>}
+    subtitle={<>{sentence ? <p role="status">{sentence}</p> : null}{released}
+      {surface.canManage ? test.preflight?.checks.filter(check => check.code === 'make-content-unsupported' && check.warning).map((check, index) =>
+        <Banner key={`${check.code}/${index}`} tone="warning">{READINESS[check.code].next(check.detail, doc)}</Banner>) : null}</>}
     actions={<div className="xp-ui-button-group"><Button variant="quiet" href={testURL}>{C.backToSetup}</Button>
       {available.map(item => <Button key={item.id} variant={item.tone === 'danger' ? 'danger' : 'secondary'}
         disabled={(item.id === 'start' && !!startReason) || !!selected || test.hasUnsaved || test.saving === 'saving' || (item.id === 'allocate' && doc.allocation >= 100)}
@@ -60,7 +63,8 @@ export function ResultsHeader({ test, surface, resultsVersion, children, actions
   </SurfaceShell>
 }
 
-export function ReaderResultsShell({ surface, children }: { surface: SectionProps['surface']; children: ReactNode }) {
-  return <SurfaceShell adminRoute={surface.adminRoute} title={C.test}
-    crumbs={[{ label: C.tests, href: formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }) }, { label: C.test }, { label: C.results }]}>{children}</SurfaceShell>
+export function ReaderResultsShell({ surface, children, data }: { surface: SectionProps['surface']; children: ReactNode; data?: ResultsResponse }) {
+  const title = data?.name ?? C.test
+  return <SurfaceShell adminRoute={surface.adminRoute} title={title}
+    crumbs={[{ label: C.tests, href: formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }) }, { label: title }, { label: C.results }]}>{children}</SurfaceShell>
 }

@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { ResultsRoute } from '../../../src/admin/surface/ResultsRoute.js'
-import { props } from './readiness/fixtures.js'
+import type { ResultsResponse } from '../../../src/types/endpoints.js'
+import { preflight, props } from './readiness/fixtures.js'
 
-const mocks = vi.hoisted(() => ({ hook: vi.fn(), body: vi.fn() }))
+const mocks = vi.hoisted(() => ({ hook: vi.fn(), body: vi.fn(), data: undefined as ResultsResponse | undefined }))
 vi.mock('../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: mocks.hook }))
-vi.mock('../../../src/admin/surface/results/ResultsBody.js', () => ({ ResultsBody: (input: { renderPage?: (parts: import('../../../src/admin/surface/results/ResultsBody.js').ResultsPageParts) => import('react').ReactNode }) => { mocks.body(input); return input.renderPage ? input.renderPage({ children: <p>Results body</p>, actions: null, released: null }) : <p>Results body</p> } }))
+vi.mock('../../../src/admin/surface/results/ResultsBody.js', () => ({ ResultsBody: (input: { renderPage?: (parts: import('../../../src/admin/surface/results/ResultsBody.js').ResultsPageParts) => import('react').ReactNode }) => { mocks.body(input); return input.renderPage ? input.renderPage({ children: <p>Results body</p>, actions: null, released: null, data: mocks.data }) : <p>Results body</p> } }))
 vi.mock('../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
   Banner: () => <p>Readiness banner</p>, SaveStatus: () => <span>Save status</span>,
 } }))
-afterEach(() => { cleanup(); vi.clearAllMocks() })
+afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.data = undefined })
 test('managers see Shell title, kind, status, subtitle, header actions and results body', () => {
   const p = props({ id: 12, status: 'running' })
   mocks.hook.mockReturnValue(p.test)
@@ -85,4 +86,33 @@ test('stopped restart retains the readiness gate and reason in the header', () =
   const restart = screen.getByRole('button', { name: 'Start a new round' }) as HTMLButtonElement
   expect(restart.disabled).toBe(true)
   expect(restart.title).toBeTruthy()
+})
+
+test.each([true, false])('localized make-content warning appears in the decided header only for managers (%s)', canManage => {
+  const p = props({ status: 'decided', decision: { phase: 1, winnerArm: 'variantA' } }, {
+    preflight: preflight([{ code: 'make-content-unsupported', ok: true, warning: true, detail: 'Landing page' }]),
+  })
+  mocks.hook.mockReturnValue(p.test)
+  const { container } = render(<ResultsRoute id={12} surface={{ ...p.surface, canManage, canReadResults: true }} />)
+  const warning = within(container.querySelector('header')!).queryByText("Landing page has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand.")
+  expect(Boolean(warning)).toBe(canManage)
+  if (canManage) expect(warning?.closest('.xp-ui-banner--warning')).toBeTruthy()
+})
+test.each(['Donation form', undefined])('reader title and crumb use response name %s with Test as fallback', name => {
+  mocks.data = { name, phases: [], snapshot: null }
+  const p = props()
+  render(<ResultsRoute id={12} surface={{ ...p.surface, canManage: false, canReadResults: true }} />)
+  const title = name ?? 'Test'
+  expect(screen.getByRole('heading', { name: title, level: 1 })).toBeTruthy()
+  expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByText(title)).toBeTruthy()
+  expect(mocks.hook).not.toHaveBeenCalled()
+})
+test('manager title and crumb keep the document name when the response has a name', () => {
+  mocks.data = { name: 'Response name', phases: [], snapshot: null }
+  const p = props({ status: 'decided' })
+  mocks.hook.mockReturnValue(p.test)
+  render(<ResultsRoute id={12} surface={p.surface} />)
+  expect(screen.getByRole('heading', { name: 'Headline', level: 1 })).toBeTruthy()
+  expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByText('Headline')).toBeTruthy()
+  expect(screen.queryByText('Response name')).toBeNull()
 })

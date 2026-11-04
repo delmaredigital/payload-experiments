@@ -307,3 +307,25 @@ test('Decide receives the localized warning from the existing preflight request'
   expect(within(dialog).getByText("Landing page has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand.")).toBeTruthy()
   expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/preflight'))).toHaveLength(1)
 })
+
+
+test('only the primary block emphasises the leader alongside guardrail and supporting tables', async () => {
+  const snapshot = fixture('T7')
+  snapshot.metrics.push({ ...snapshot.metrics[0]!, metricId: 'supporting', name: 'Supporting outcome', role: 'secondary' })
+  setup({ phases: [phaseFor(snapshot)], snapshot })
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  const primary = await screen.findByRole('table', { name: 'Registrations' })
+  const guardrail = screen.getByRole('table', { name: 'Completed lessons' })
+  const supporting = screen.getByRole('table', { name: 'Supporting outcome' })
+  expect(container.querySelectorAll('.is-lead')).toHaveLength(1)
+  expect(primary.closest('.xp-results-block')?.querySelector('.is-lead')).toBeTruthy()
+  expect(guardrail.querySelector('.is-lead')).toBeNull()
+  expect(supporting.querySelector('.is-lead')).toBeNull()
+})
+test.each([['T7', 'Sequential'], ['T7-bayesian', 'Bayesian']])('manager sees %s analysis method in the meta row', async (name, method) => {
+  const snapshot = fixture(name)
+  setup({ phases: [phaseFor(snapshot)], snapshot })
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  expect(container.querySelector('.xp-round-meta')?.textContent).toContain(method)
+})

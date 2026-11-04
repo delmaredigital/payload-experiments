@@ -11,7 +11,7 @@ import { Button } from '../../ui/Button.js'
 
 export function ResultsRoute(props: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {
   // Results-only readers cannot load the manager-only experiment or preflight.
-  return props.surface.canManage ? <ManagedResults {...props} /> : <ResultsBody {...props} renderPage={({ children }) => <ReaderResultsShell surface={props.surface}>{children}</ReaderResultsShell>} />
+  return props.surface.canManage ? <ManagedResults {...props} /> : <ResultsBody {...props} renderPage={({ children, data }) => <ReaderResultsShell surface={props.surface} data={data}>{children}</ReaderResultsShell>} />
 }
 
 function ManagedResults({ id, surface, onTitleChange }: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {

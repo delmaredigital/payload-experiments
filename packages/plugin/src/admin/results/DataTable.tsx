@@ -17,8 +17,8 @@ export function DataTable({ rows, caption, metricKind, leader, primary = false }
       <th scope="col" className="num">{metricKind === 'binomial' ? C.rate : C.average}</th>
       <th scope="col" className="num">{C.lift}</th><th scope="col" className="num">{C.ci}</th>
       {primary ? <th scope="col" className="num">{C.chanceToWin}</th> : null}
-    </tr></thead><tbody>{rows.map(row => <tr key={row.key} className={row.key === leader ? 'is-lead' : undefined}>
-      <th scope="row"><span className="xp-results-group"><Swatch arm={row.key} />{row.label}</span></th>
+    </tr></thead><tbody>{rows.map(row => <tr key={row.key} className={primary && leader && row.key === leader ? 'is-lead' : undefined}>
+      <th scope="row"><span className="xp-results-group"><Swatch arm={row.key} />{row.label}</span>{row.key === 'holdout' && row.baseline ? <div className="muted">{row.baseline}</div> : null}</th>
       <td className="num">{row.n}</td>
       {primary && metricKind === 'binomial' ? <td className="num">{row.value}</td> : null}
       <td className="num">{metricKind === 'revenue' ? <CappedCell model={{ ...row.capped, notice: undefined }} /> : row.rate ?? row.capped.statistic}</td>

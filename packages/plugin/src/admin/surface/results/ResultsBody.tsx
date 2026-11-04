@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 import { Button } from '../../../ui/Button.js'
 import { Select } from '../../../ui/Inputs.js'
 import type { DocId } from '../../../types/contracts.js'
-import type { PreflightResult } from '../../../types/endpoints.js'
+import type { PreflightResult, ResultsResponse } from '../../../types/endpoints.js'
 import type { SurfaceProps } from '../contracts.js'
 import { RESULTS_COPY as C } from '../../copy/results.js'
 import { RESULTS_SURFACE_COPY } from '../../copy/recommendation.js'
@@ -31,7 +31,7 @@ import { Banner } from '../../../ui/Banner.js'
 import { canReleasePages } from '../../results/releasePages.model.js'
 import { PagesReleased, ReleasePagesDialog } from './ReleasePages.js'
 
-export type ResultsPageParts = { children: ReactNode; actions: ReactNode; released: ReactNode }
+export type ResultsPageParts = { children: ReactNode; actions: ReactNode; released: ReactNode; data?: ResultsResponse }
 type ResultsBodyProps = { renderPage?: (parts: ResultsPageParts) => ReactNode; id: DocId; surface: SurfaceProps; onRecomputed?: () => void; onPagesReleased?: () => void }
 
 export function ResultsBody({ id, surface, onRecomputed, onPagesReleased, renderPage }: ResultsBodyProps) {
@@ -145,7 +145,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
       </details> : null}
       <DataQualityPanel problem={snapshot.verdict.code === 'data-problem'} items={dataQuality(snapshot, context)} />
       {(['guardrail', 'secondary'] as const).map(role => phase.metrics.filter(metric => metric.role === role).map(metric =>
-        <MetricTable key={metric.metricId} metric={metric} snapshot={snapshot} phase={phase} leader={leader} />))}
+        <MetricTable key={metric.metricId} metric={metric} snapshot={snapshot} phase={phase} />))}
     </> : <>{meta}{state === 'empty' || state === 'ready' ? <p>{C.empty}</p> : null}</>}
     {manage && placements && placements.length > 0 ? <section className="xp-results-block"><div className="xp-results-block-head"><h2>{C.previews}</h2></div><PreviewLinks experimentId={id} flagPoint={doc?.flagPoint} placements={placements} arms={doc?.arms ?? []} /></section> : null}
     {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retryPreview}</Button></> : null}
@@ -153,7 +153,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
     {releasing && manage ? <ReleasePagesDialog id={id} apiRoute={surface.apiRoute} onClose={() => setReleasing(false)}
       onRefusal={setActionError} onSuccess={() => { results.reload(); onPagesReleased?.() }} /> : null}
   </div>
-  return renderPage ? renderPage({ children: content, actions, released }) : content
+  return renderPage ? renderPage({ children: content, actions, released, data }) : content
 }
 
 function MetricTable({ metric, snapshot, phase, leader }: {

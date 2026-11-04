@@ -64,9 +64,9 @@ test.each(['T7', 'T7-adjusted', 'T7-bayesian', 'R3'])('%s table is captioned wit
   const table = screen.getByRole('table', { name: 'Registrations' })
   for (const header of within(table).getAllByRole('columnheader')) expect(header.getAttribute('scope')).toBe('col')
   for (const header of within(table).getAllByRole('rowheader')) expect(header.getAttribute('scope')).toBe('row')
-  expect(within(table).getAllByRole('rowheader').map(header => header.textContent)).toEqual(phase.arms.map(arm => arm.label))
+  expect(within(table).getAllByRole('rowheader').map(header => header.textContent)).toEqual(rows.map(row => row.label + (row.key === 'holdout' ? row.baseline : '')))
   for (const row of rows) {
-    const tr = screen.getByRole('rowheader', { name: row.label }).parentElement!
+    const tr = screen.getByRole('rowheader', { name: row.key === 'holdout' ? `${row.label} ${row.baseline}` : row.label }).parentElement!
     const comparison = row.comparison
     const cells = [row.n, row.value, row.rate, row.baseline ? '—' : row.lift ?? '—',
       row.baseline ? '—' : comparison?.method === 'sequential' ? comparison.adjustedCI ?? comparison.ci : comparison?.ci ?? '—',
@@ -123,4 +123,19 @@ test('empty quality panel is collapsed with OK summary', () => {
   const { container } = render(<DataQualityPanel items={[]} />)
   expect(container.querySelector('details')?.open).toBe(false)
   expect(screen.getByText('OK')).toBeTruthy()
+})
+
+test.each([
+  ['T7', 'Measured, not compared'],
+  ['R3', 'Holdout · baseline'],
+])('%s table explains the holdout under its label', (name, explanation) => {
+  const snapshot = fixture(name)
+  render(<ArmTable rows={armRows({ snapshot, phase: phaseFor(snapshot), metricId: 'registrations' })} caption="Registrations" method={snapshot.method} metricKind="binomial" primary />)
+  const holdout = screen.getByRole('rowheader', { name: `Unchanged form ${explanation}` })
+  expect(within(holdout).getByText(explanation).classList.contains('muted')).toBe(true)
+})
+test.each([true, false])('table enforces primary-only lead emphasis (primary: %s)', primary => {
+  const snapshot = fixture('T7')
+  const { container } = render(<ArmTable rows={armRows({ snapshot, phase: phaseFor(snapshot), metricId: 'registrations' })} caption="Registrations" method={snapshot.method} metricKind="binomial" primary={primary} leader="variantA" />)
+  expect(container.querySelectorAll('.is-lead')).toHaveLength(primary ? 1 : 0)
 })

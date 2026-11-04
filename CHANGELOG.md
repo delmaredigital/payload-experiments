@@ -12,7 +12,6 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### plugin
 
 - Changed: the results page leads with the verdict and three key numbers, shows each outcome as a clear table ("Rate" or "Average"), and keeps the confidence chart under Details.
-
 - Fixed: Make it the content now works on collections with hidden or restricted fields: it publishes from the live page, so draft edits never leak into the published version. Localized collections are refused with a clear message and flagged before Decide (not supported yet). Migration impact: none.
 - Added: `ContentReportReason` now includes `'localized'` (exported from `/` and `/rsc`), and `ReadinessCode` includes `'make-content-unsupported'`. Migration impact: none; hosts switching exhaustively on these unions add the new member.
 - Changed: test page sections use the new controls: a versions grid with a traffic split bar, rule cards for who takes part, and plain-language advanced settings.

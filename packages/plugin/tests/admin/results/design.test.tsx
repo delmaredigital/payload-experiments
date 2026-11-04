@@ -24,7 +24,7 @@ test.each([null, 'variantA'])('table shows Rate and Conversions with explicit le
   expect(container.textContent).not.toContain('Mean')
   expect(container.querySelectorAll('.is-lead')).toHaveLength(leader ? 1 : 0)
   for (const row of rows) {
-    const cells = within(screen.getByRole('rowheader', { name: row.label }).parentElement!).getAllByRole('cell')
+    const cells = within(screen.getByRole('rowheader', { name: row.key === 'holdout' ? `${row.label} ${row.baseline}` : row.label }).parentElement!).getAllByRole('cell')
     expect(cells.map(el => el.textContent)).toEqual([row.n, row.value, row.rate, row.baseline ? '—' : row.lift ?? '—', row.baseline ? '—' : row.comparison?.ci ?? '—', row.baseline ? '—' : row.chanceToWin ?? '—'])
     expect(cells.every(el => el.classList.contains('num'))).toBe(true)
   }
