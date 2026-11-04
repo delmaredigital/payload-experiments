@@ -27,7 +27,7 @@ test('/puck reaches only server-safe code and the approved client leaves', () =>
 
 test('/puck source graph reaches no CSS imports', () => {
   const graph = collectImports(path('exports/puck.ts'))
-  expect(graph.files.filter(file => /\.css$/i.test(file))).toEqual([])
+  expect([...graph.files, ...graph.bare, ...graph.dynamic].filter(file => /\.css$/i.test(file))).toEqual([])
 })
 
 test('bundle directive detection includes comments and earlier directives, but stops after code', () => {
