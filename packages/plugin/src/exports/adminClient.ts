@@ -9,3 +9,6 @@ export { TestsSurface } from '../admin/surface/TestsSurface.js'
 export { TestsDashboardCards } from '../admin/TestsDashboardCards.js'
 export { PlacementStatus } from '../admin/PlacementStatus.js'
 export { wrapExperimentBlock, syncExperimentSlots, copyOriginalIntoVersion, unwrapExperimentBlock, findRegisteredBlocksField } from '../blocks/formState.js'
+
+export { TestBlockField } from '../admin/blocks/TestBlockField.js'
+export { BlockStatusField, BlockSlotRowLabel, CopyOriginalField } from '../admin/blocks/BlockPanel.js'

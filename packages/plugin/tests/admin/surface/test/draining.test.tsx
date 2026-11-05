@@ -122,8 +122,8 @@ test('custom share blur saves a valid whole group through the real document queu
   fireEvent.change(input, { target: { value: '40' } })
   expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(0)
   fireEvent.blur(input)
-  await waitFor(() => expect((screen.getByLabelText('Variant A: Share (%)') as HTMLInputElement).value).toBe('60'), { timeout: 5000 })
-  await waitFor(() => expect(server.arms.map(arm => arm.weight)).toEqual([40, 60]), { timeout: 5000 })
+  await waitFor(() => expect((screen.getByLabelText('Variant A: Share (%)') as HTMLInputElement).value).toBe('60'), { timeout: 1500 })
+  await waitFor(() => expect(server.arms.map(arm => arm.weight)).toEqual([40, 60]), { timeout: 1500 })
   expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(1)
 })
 
