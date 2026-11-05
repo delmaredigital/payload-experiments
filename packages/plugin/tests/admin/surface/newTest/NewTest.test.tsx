@@ -11,7 +11,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const surface: SurfaceProps = {
   adminRoute: '/control', apiRoute: '/data', canManage: true, canReadResults: true, isAdmin: false,
   flagPoints: [{ id: 'welcome', label: 'Welcome message', description: 'The greeting people see.', params: {}, defaultParams: {}, effectiveDefaults: {} }],
-  metricSources: [], attributeKeys: {}, descriptions: { block: 'Our page content.', setting: 'Our site choices.' },
+  metricSources: [], attributeKeys: {}, admin: { descriptions: { block: 'Our page content.', setting: 'Our site choices.' } },
 }
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 function settingStep() {

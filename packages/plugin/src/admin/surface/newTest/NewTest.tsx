@@ -72,13 +72,13 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
       <h2>{C.question}</h2>
       <div className="xp-new-test-cards">
         {pages !== undefined ? <button type="button" className="xp-new-test-card" onClick={() => setStep('block')}>
-          <strong>{C.block}</strong><span>{C.blockMeaning}</span>{(surface.admin?.descriptions ?? surface.descriptions)?.block ? <span>{(surface.admin?.descriptions ?? surface.descriptions)?.block}</span> : null}
+          <strong>{C.block}</strong><span>{C.blockMeaning}</span>{surface.admin?.descriptions?.block ? <span>{surface.admin?.descriptions?.block}</span> : null}
         </button> : null}
         {surface.pageCollections?.length ? <button type="button" className="xp-new-test-card" onClick={() => { setKind('page'); setStep('name') }}>
-          <strong>{C.page}</strong><span>{C.pageMeaning}</span>{(surface.admin?.descriptions ?? surface.descriptions)?.page ? <span>{(surface.admin?.descriptions ?? surface.descriptions)?.page}</span> : null}
+          <strong>{C.page}</strong><span>{C.pageMeaning}</span>{surface.admin?.descriptions?.page ? <span>{surface.admin?.descriptions?.page}</span> : null}
         </button> : null}
         {surface.flagPoints.length > 0 ? <button type="button" className="xp-new-test-card" onClick={() => { setKind('flag'); setStep('setting') }}>
-          <strong>{C.setting}</strong><span>{C.settingMeaning}</span>{surface.descriptions?.setting ? <span>{surface.descriptions.setting}</span> : null}
+          <strong>{C.setting}</strong><span>{C.settingMeaning}</span>{surface.admin?.descriptions?.setting ? <span>{surface.admin?.descriptions.setting}</span> : null}
         </button> : null}
       </div>
       {pages === undefined && !surface.flagPoints.length && !surface.pageCollections?.length ? <p>{C.unavailable}</p> : null}

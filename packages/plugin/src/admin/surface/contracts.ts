@@ -22,7 +22,6 @@ export interface SurfaceProps {
   metricSources: SerializedMetricSource[]
   pageCollections?: TestsSurfaceProps['pageCollections']
   admin?: TestsSurfaceProps['admin']
-  descriptions?: { page?: string; block?: string; document?: string; setting?: string }
 }
 
 export interface SectionProps { test: TestDocApi; surface: SurfaceProps; resultsVersion?: number }

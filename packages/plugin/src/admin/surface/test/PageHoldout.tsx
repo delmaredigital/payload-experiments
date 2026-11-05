@@ -15,8 +15,8 @@ export function PageHoldout({ test }: SectionProps) {
   const reason = reasonFor(test, 'arms')
   return <div>
     {arm ? <>
-      <TextEdit label={`Holdout: ${C.label}`} value={arm.label} reason={reason} onCommit={label => save(test, 'arms', () => ({ arms: doc.arms.map(item => item.key === arm.key ? { ...item, label } : item) }))} />
-      <TextEdit label={`Holdout: ${C.weight}`} type="number" min={0} max={100} value={arm.weight} reason={reason}
+      <TextEdit label={`${C.holdoutPrefix}${C.label}`} value={arm.label} reason={reason} onCommit={label => save(test, 'arms', () => ({ arms: doc.arms.map(item => item.key === arm.key ? { ...item, label } : item) }))} />
+      <TextEdit label={`${C.holdoutPrefix}${C.weight}`} type="number" min={0} max={100} value={arm.weight} reason={reason}
         isValid={value => value.trim() !== '' && Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= 100} invalidMessage={C.invalidShare}
         onCommit={value => save(test, 'arms', () => ({ arms: balanceWeight(doc.arms, arm.key, Number(value)) }))} />
       <FieldErrors test={test} path={`arms.${index}`} />

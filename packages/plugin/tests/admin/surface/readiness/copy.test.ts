@@ -2,6 +2,11 @@ import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import { availableActions } from '../../../../src/admin/actions/actions.model.js'
 import * as copy from '../../../../src/admin/copy/readiness.js'
+import { PAGE_COPY } from '../../../../src/admin/copy/pages.js'
+
+test('unchosen page copy stays aligned with the page-row empty state', () => {
+  expect(PAGE_COPY.noPage).toBe('No page chosen yet.')
+})
 
 test('block path readiness uses the coordinator removal copy', () => {
   expect(copy.READINESS_COPY.blockPathRule).toBe('Remove the page-path rule in Who takes part; page block tests run on their page.')

@@ -11,6 +11,7 @@ import { testPageCollection, controlFirst } from '../pagePicker/pagePicker.model
 import { NEW_TEST_COPY as C } from '../../copy/newTest.js'
 import { READINESS_COPY } from '../../copy/readiness.js'
 import { TEST_PAGE } from '../../copy/testPage.js'
+import { SURFACE_COPY } from '../../copy/surface.js'
 import { pageStepCopy } from '../../copy/pages.js'
 import { READINESS, nextStep, pageReadinessContext, readinessArm } from '../readiness/readiness.model.js'
 import { SaveStatus } from '../readiness/SaveStatus.js'
@@ -27,7 +28,8 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
   const transition = useTransition(test, () => router.push(testUrl))
   useEffect(() => { if (step === 'review') void test.refreshPreflight() }, [step, test.refreshPreflight])
   const leave = () => router.push(testUrl)
-  if (!test.doc || test.loadState !== 'ready') return <div role="status"><p>{test.loadState === 'error' ? TEST_PAGE.error : TEST_PAGE.loading}</p><button type="button" onClick={() => void test.reload()}>{TEST_PAGE.retry}</button><button type="button" onClick={leave}>{C.backToTest}</button></div>
+  if (test.loadState === 'loading') return <p role="status">{TEST_PAGE.loading}</p>
+  if (!test.doc || test.loadState !== 'ready') return <div><p role="alert">{test.loadState === 'forbidden' ? TEST_PAGE.forbidden : test.loadState === 'missing' ? TEST_PAGE.missing : TEST_PAGE.error}</p><button type="button" onClick={() => void test.reload()}>{TEST_PAGE.retry}</button><button type="button" onClick={leave}>{C.backToTest}</button></div>
   const doc = test.doc
   const collection = testPageCollection(collections, doc, test.preflight?.pagePlacements)
   const arms = controlFirst(doc.arms).filter(arm => arm.kind !== 'holdout')
@@ -53,6 +55,7 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
     </label>)}</fieldset> : step === 'review' ? <>
       {test.preflightError ? <p role="alert">{test.preflightError}</p> : null}
       <ul>{test.preflight?.checks.map((check, index) => {
+        if (!Object.hasOwn(READINESS, check.code)) return check.ok ? null : <li key={`${check.code}/${index}`}>{SURFACE_COPY.next}</li>
         const row = READINESS[check.code]
         const sentence = row.next(check.detail, ctx)
         const label = typeof row.nextStep === 'function' ? row.nextStep(check.detail, ctx) : row.nextStep

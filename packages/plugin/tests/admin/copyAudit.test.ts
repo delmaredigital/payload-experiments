@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import { expect, test } from 'vitest'
 import { ADVANCED_COPY } from '../../src/admin/copy/advanced.js'
+import { PAGE_COPY } from '../../src/admin/copy/pages.js'
 import { metricsCollection } from '../../src/collections/metrics.js'
 import { layersCollection } from '../../src/collections/layers.js'
 import { sampleOptions } from '../collections/fixtures.js'
@@ -102,6 +103,10 @@ test('exported editor copy and all copy functions use surface vocabulary', async
     const module = await import(/* @vite-ignore */ path)
     expect(hits(strings(module, '', true)), path).toEqual([])
   }
+})
+test('the unchosen-page sentence participates in the copy audit', () => {
+  expect(strings(PAGE_COPY)).toContain('No page chosen yet.')
+  expect(hits(strings(PAGE_COPY))).toEqual([])
 })
 test('admin and Puck JSX text uses surface vocabulary', () => {
   expect(editorFiles.filter(file => file.endsWith('.tsx')).flatMap(path =>

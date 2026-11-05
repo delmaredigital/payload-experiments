@@ -265,3 +265,18 @@ test('contentChecks is a server-computed boolean and never serializes contentOf'
   const { clientProps } = mocks.render.mock.calls[0]![0] as { clientProps: TestsSurfaceProps }
   expect(clientProps.pageCollections).toEqual([{ slug: 'pages', label: 'Pages', contentChecks: true, copyUrl: '/control/collections/pages', copyLabel: 'Open Pages' }])
 })
+test('disabled Puck with blocks registered lists only blocks documents and uses their editor once', async () => {
+  const editorUrl = vi.fn(() => '/blocks-editor')
+  const appliesTo = vi.fn((doc: Record<string, unknown>) => doc.id === 1)
+  const { props, payload } = setup({ puck: { enabled: false, collections: ['pages'] }, editorUrl,
+    pageDocs: { pages: [{ id: 1, title: 'Blocks' }, { id: 2, title: 'Puck off' }] } })
+  const xp = payload.config.custom.xp as ExperimentsPluginOptions
+  xp.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo }] }
+  await ExperimentsRootView({ ...props, params: { segments: ['new'] } })
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ clientProps: expect.objectContaining({ pages: [
+    { collection: 'pages', collectionLabel: 'Pages', id: 1, title: 'Blocks', editor: 'blocks', editorUrl: '/blocks-editor' },
+  ] }) }))
+  expect(editorUrl).toHaveBeenCalledOnce()
+  expect(editorUrl).toHaveBeenCalledWith(expect.objectContaining({ editor: 'blocks' }))
+  expect(appliesTo).toHaveBeenCalledTimes(2)
+})

@@ -22,12 +22,19 @@ export function PagePicker({ collection, test, armKey, apiRoute, onChoose }: {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const revision = useRef(0)
+  const reload = () => { setPage(1); setRefresh(value => value + 1) }
   useEffect(() => {
+    if (search === q) return
     const timer = setTimeout(() => { setQuery(search); setPage(1) }, 250)
     return () => clearTimeout(timer)
-  }, [search])
+  }, [search, q])
   useEffect(() => {
-    const focus = () => setRefresh(value => value + 1)
+    let lastReturn = -Infinity
+    const focus = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastReturn < 100) return
+      lastReturn = Date.now()
+      setPage(1); setRefresh(value => value + 1)
+    }
     const visible = () => { if (document.visibilityState === 'visible') focus() }
     window.addEventListener('focus', focus); document.addEventListener('visibilitychange', visible)
     return () => { window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visible) }
@@ -38,8 +45,14 @@ export function PagePicker({ collection, test, armKey, apiRoute, onChoose }: {
     setLoading(true); setError('')
     void api.pages({ collection: collection.slug, q, page }, controller.signal).then(result => {
       if (controller.signal.aborted || !isLatestPageRequest(request, revision.current)) return
-      if (result.ok && result.data) { setRows(result.data.docs); setMore(result.data.hasNextPage) }
-      else { setRows([]); setMore(false); setError(C.error) }
+      if (result.ok && result.data) {
+        const docs = result.data.docs
+        setRows(current => {
+          const combined = page === 1 ? docs : [...current, ...docs]
+          return combined.filter((row, index) => combined.findIndex(item => item.id === row.id) === index)
+        })
+        setMore(result.data.hasNextPage)
+      } else { setMore(false); setError(C.error) }
       setLoading(false)
     })
     return () => controller.abort()
@@ -47,8 +60,9 @@ export function PagePicker({ collection, test, armKey, apiRoute, onChoose }: {
   const reason = reasonFor(test, 'arms')
   return <div className="xp-page-picker">
     <label htmlFor={id}>{C.search}</label><input id={id} type="search" value={search} onChange={event => setSearch(event.currentTarget.value)} />
-    {loading ? <p role="status">{C.loading}</p> : error ? <p role="alert">{error} <button type="button" onClick={() => setRefresh(value => value + 1)}>{C.retry}</button></p> : <>
-      {!rows.length ? <p>{C.empty}</p> : <ul>{rows.map(row => {
+    {loading && !rows.length ? <p role="status">{C.loading}</p> : null}
+    {error ? <p role="alert">{error} <button type="button" onClick={reload}>{C.retry}</button></p> : null}
+    {!rows.length ? !loading && !error ? <p>{C.empty}</p> : null : <ul>{rows.map(row => {
         const disabled = reason ?? disabledPageReason(row, armKey, test.doc?.arms ?? [], test.preflight?.pagePlacements, test.chosenPages, collection.label, collection.slug)
         return <li key={row.id}><button type="button" disabled={!!disabled || test.saving === 'saving'} onClick={() => {
           const arm = test.doc?.arms.find(item => item.key === armKey)
@@ -56,8 +70,7 @@ export function PagePicker({ collection, test, armKey, apiRoute, onChoose }: {
           void test.choosePage(arm.key, { id: row.id, path: row.path })
           onChoose?.()
         }}><strong>{row.title}</strong>{' '}{row.path}{!row.published ? <> · {C.draft}</> : null}</button>{disabled ? <p>{disabled}</p> : null}</li>
-      })}</ul>}
-      {more ? <button type="button" onClick={() => setPage(value => value + 1)}>{C.more}</button> : null}
-    </>}
+    })}</ul>}
+    {more ? <button type="button" disabled={loading} onClick={() => setPage(value => value + 1)}>{C.more}</button> : null}
   </div>
 }

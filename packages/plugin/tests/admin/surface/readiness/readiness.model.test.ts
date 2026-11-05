@@ -154,3 +154,15 @@ test('page conflicts normalize raw targets and distinguish versions from the Ori
   expect(READINESS['page-in-use'].next({ paths: ['/original'] }, context)).toBe('Another running or decided test already uses /original. Choose a different page, or finish that test first.')
   expect(READINESS['version-same-address'].next({ arm: 'variantA', otherArm: 'control', path: '/original' }, context)).toBe('Short headline has the same address (/original) as Original. Choose a different page. Give the copy its own address in Pages, publish it, then choose it.')
 })
+test('unpublished readiness without a known collection uses the server sentence', () => {
+  expect(READINESS['page-target-unpublished'].next('/copy', { ...ctx, pagePlacements: [{ arm: 'variantA', path: '/copy', id: 1, published: false }] })).toBe("/copy isn't a published page yet. Publish it, or choose another page.")
+})
+test.each([false, true])('unpublished readiness matches the arm before the path and only calls published=false a draft (%s)', published => {
+  const context = { ...ctx, collectionLabel: 'Articles', arms: ctx.arms.map(arm => ({ ...arm, pageTarget: arm.key === 'variantA' ? '/copy/' : '/other' })), pagePlacements: [
+    { arm: 'variantB', path: '/copy', id: 99, published: !published },
+    { arm: 'variantA', path: '/old-path', id: 1, published },
+  ] }
+  const expected = published ? "/copy isn't published yet, or no page has that address. Publish it in Articles, or choose another page." : '/copy is still a draft. Publish it in Articles, then start the test.'
+  expect(READINESS['page-target-unpublished'].next('/copy', context)).toBe(expected)
+  expect(READINESS['page-target-unpublished'].next({ arm: 'variantA', path: '/copy' }, context)).toBe(expected)
+})

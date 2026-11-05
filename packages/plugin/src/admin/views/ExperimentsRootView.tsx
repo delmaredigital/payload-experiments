@@ -85,7 +85,7 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
         const editor = documentEditor(options, collection, doc)
         if (editor !== 'puck' && editor !== 'blocks') return null
         const id = doc.id
-        const customUrl = options.admin?.editorUrl?.({ collection, id, draft: true, editor: documentEditor(options, collection, doc), doc })
+        const customUrl = options.admin?.editorUrl?.({ collection, id, draft: true, editor, doc })
         const title = doc[useAsTitle]
         return { collection, collectionLabel, id, editor, title: typeof title === 'string' || typeof title === 'number' ? String(title) : String(id),
           editorUrl: typeof customUrl === 'string' ? customUrl : formatAdminURL({ adminRoute, path: `/collections/${collection}/${encodeURIComponent(String(id))}` }) }

@@ -73,10 +73,11 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'version-identical': { ...row('versions', (detail, ctx) => identicalVersionCopy(text(object(detail).path, object(detail).title ? `${group(object(detail).arm, ctx)} on ${text(object(detail).title, 'this page')}` : group(object(detail).arm, ctx)))), nextStep: (detail, ctx) => `Edit ${text(object(detail).path, group(object(detail).arm, ctx))}` },
   'version-same-address': { ...row('versions', (detail, ctx) => sameAddressCopy(group(object(detail).arm, ctx), group(object(detail).otherArm, ctx), text(object(detail).path, 'this address'), ctx.collectionLabel)), nextStep: 'Choose pages' },
   'page-target-unpublished': { ...row('versions', (detail, ctx) => {
-    const path = text(detail, 'This page')
-    const arm = pageArm(path, ctx)
-    const placement = ctx.pagePlacements?.find(entry => normalisePath(entry.path) === normalisePath(path))
-    return unpublishedPageCopy(path, ctx.pagePlacements ? { original: arm?.kind === 'control', found: placement?.id != null, collection: ctx.collectionLabel ?? 'Pages' } : undefined)
+    const path = text(typeof detail === 'string' ? detail : object(detail).path, 'This page')
+    const arm = ctx.arms.find(item => item.key === object(detail).arm) ?? pageArm(path, ctx)
+    const placement = (arm ? ctx.pagePlacements?.find(entry => entry.arm === arm.key) : undefined)
+      ?? ctx.pagePlacements?.find(entry => normalisePath(entry.path) === normalisePath(path))
+    return unpublishedPageCopy(path, ctx.pagePlacements && ctx.collectionLabel ? { original: arm?.kind === 'control', found: placement?.id != null && placement.published === false, collection: ctx.collectionLabel } : undefined)
   }), nextStep: C.choosePages },
   'page-targets-unchecked': row('versions', () => C.uncheckedPages),
   'version-page-unavailable': row('versions', detail => versionPageUnavailableCopy(text(detail, 'This page'))),
@@ -99,6 +100,7 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
 export function nextStep(preflight: PreflightResult | null, ctx: ReadinessContext) {
   for (const section of ['header', ...SECTION_ORDER] as const) {
     for (const check of preflight?.checks ?? []) {
+      if (!Object.hasOwn(READINESS, check.code)) continue
       const mapping = READINESS[check.code]
       if (check.ok || mapping.section !== section) continue
       const sentence = mapping.next(check.detail, ctx)

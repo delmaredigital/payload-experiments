@@ -18,12 +18,12 @@ export function VersionContent({ test, surface, armIndex }: SectionProps & { arm
   const placement = test.preflight?.pagePlacements?.find(entry => entry.arm === arm.key)
   if (collection) {
     const picker = <PagePicker collection={collection} test={test} armKey={arm.key} apiRoute={surface.apiRoute} onChoose={() => setOpen(false)} />
-    return <div className="xp-version-content">
+    return <div className="xp-version-content xp-version-content--page">
       <strong>{P.where}</strong>
-      <p>{placement?.id != null ? <>{placement.title} · {placement.path}{!placement.published ? <> · {P.draft}</> : null}</> : <>{arm.pageTarget} · {P.draft}</>}</p>
+      <p>{placement?.id != null ? <>{placement.title} · {placement.path}{!placement.published ? <> · {P.draft}</> : null}</> : arm.pageTarget ? <>{arm.pageTarget} · {P.draft}</> : P.noPage}</p>
       {placement?.id != null ? <div>{placement.editorUrl ? <a href={placement.editorUrl} target="_blank" rel="noopener">{P.open}</a> : null}{' '}{placement.url ? <a href={placement.url} target="_blank" rel="noopener">{P.preview}</a> : null}</div> : null}
       <button type="button" disabled={!!reasonFor(test, 'arms')} onClick={() => setOpen(value => !value)}>{open ? P.close : arm.pageTarget ? P.change : P.choose}</button>
-      <CopyRoute collection={collection}>{open ? picker : null}</CopyRoute>
+      {open ? arm.kind === 'variant' ? <CopyRoute collection={collection}>{picker}</CopyRoute> : picker : null}
       <FieldErrors test={test} path={`arms.${armIndex}.pageTarget`} />
     </div>
   }

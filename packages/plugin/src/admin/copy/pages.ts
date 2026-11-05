@@ -6,6 +6,7 @@ export const PAGE_COPY = {
   duplicateStep: "Choose Duplicate from the document's actions. Keep the Original's title on the copy, unless the title is what you're testing.",
   ownAddress: "Give the copy its own address and save it as a draft. Publish it when it's ready; the test can't start until it is.",
   thenChoose: 'Then choose the page you made.',
+  noPage: 'No page chosen yet.',
 } as const
 export const usedPageCopy = (label: string) => `This is ${label}.`
 export const usedAddressCopy = (label: string, path: string, collection: string) => `Same address as ${label} (${path}). Change this page's address in ${collection}, publish it, then choose it.`
