@@ -176,3 +176,9 @@ test.each([false, true])('unpublished readiness matches the arm before the path 
   expect(READINESS['page-target-unpublished'].next('/copy', context)).toBe(expected)
   expect(READINESS['page-target-unpublished'].next({ arm: 'variantA', path: '/copy' }, context)).toBe(expected)
 })
+
+test('unknown failing codes target What and keep that section incomplete', () => {
+  const value = preflight([{ code: 'future-code', ok: false }] as unknown as ReturnType<typeof preflight>['checks'])
+  expect(nextStep(value, ctx)).toEqual({ section: 'what', sentence: 'Review setup', code: 'future-code' })
+  expect(sectionDone({ preflight: value }).what).toBe(false)
+})

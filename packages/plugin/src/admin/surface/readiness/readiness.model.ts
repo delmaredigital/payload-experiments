@@ -1,3 +1,4 @@
+import { SURFACE_COPY } from '../../copy/surface.js'
 import type { ReadinessCode, PreflightResult } from '../../../types/endpoints.js'
 import type { SerializedFlagPoint } from '../../../types/admin.js'
 import type { TestDocument } from '../testDocument.model.js'
@@ -29,7 +30,7 @@ const versions = row('versions', detail => versionsNext(detailText(detail, C.ver
 export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; next(detail: unknown, ctx: ReadinessContext): string | null; nextStep?: string | ((detail: unknown, ctx: ReadinessContext) => string) }> = {
   'make-content-unsupported': row('header', detail => unsupportedContentCopy(text(detail, 'This page'))),
   'goal-in-some-versions': { ...row('win', detail => asymmetricGoalsCopy(detail)), nextStep: 'Edit the versions' },
-  'placement-unchecked': { ...row('versions', detail => placementUncheckedCopy(text(object(detail).title ?? object(detail).path, 'This page'))), nextStep: detail => `Open ${text(object(detail).path ?? object(detail).title, 'the page')}` },
+  'placement-unchecked': { ...row('versions', detail => placementUncheckedCopy(text(object(detail).title ?? object(detail).path, 'This page'))), nextStep: detail => `Open ${text(object(detail).title ?? object(detail).path, 'the page')}` },
   'invalid-status': row('header', () => null),
   'no-placements': row('what', detail => detail === undefined ? C.noPlacements : placementFailureCopy(detail)),
   'placement-unpublished': { ...row('versions', detail => (Array.isArray(detail) && detail.length ? detail : [detail]).map(placement => `The block you're testing is only on a draft of ${text(object(placement).title, 'this page')}. Publish the page before you start.`).join('\n')), nextStep: 'Publish the page' },
@@ -102,7 +103,10 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
 export function nextStep(preflight: PreflightResult | null, ctx: ReadinessContext) {
   for (const section of ['header', ...SECTION_ORDER] as const) {
     for (const check of preflight?.checks ?? []) {
-      if (!Object.hasOwn(READINESS, check.code)) continue
+      if (!Object.hasOwn(READINESS, check.code)) {
+        if (!check.ok && section === SECTION_ORDER[0]) return { section, sentence: SURFACE_COPY.next, code: check.code }
+        continue
+      }
       const mapping = READINESS[check.code]
       if (check.ok || mapping.section !== section) continue
       const sentence = mapping.next(check.detail, ctx)
@@ -116,7 +120,7 @@ export function nextStep(preflight: PreflightResult | null, ctx: ReadinessContex
 
 export function sectionDone(test: { preflight: PreflightResult | null }): Record<SectionId, boolean> {
   return Object.fromEntries(SECTION_ORDER.map(section => [section,
-    test.preflight ? !test.preflight.checks.some(check => !check.ok && READINESS[check.code].section === section)
+    test.preflight ? !test.preflight.checks.some(check => !check.ok && (Object.hasOwn(READINESS, check.code) ? READINESS[check.code].section : SECTION_ORDER[0]) === section)
       : section === 'who' || section === 'advanced',
   ])) as Record<SectionId, boolean>
 }

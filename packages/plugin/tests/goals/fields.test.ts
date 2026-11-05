@@ -7,10 +7,12 @@ import { fakeReq } from '../_fakes/req.js'
 import { sampleOptions, validate } from '../collections/fixtures.js'
 vi.mock('../../src/goals/cache.js', () => ({ clickKeys: vi.fn(async () => new Set(['join'])) }))
 
-test('field and Puck prop configs use the fixed name and text type without a missing picker component', async () => {
+test('field config keeps L3 semantics and adds only the picker component', async () => {
   const field = xpGoalField()
   expect(field).toMatchObject({ name: 'xpGoal', type: 'text' })
-  expect(field.admin?.components).toBeUndefined()
+  expect(field.admin?.components).toEqual({ Field: '@delmaredigital/payload-experiments/admin/client#XpGoalField' })
+  const { components, ...admin } = field.admin!
+  expect({ ...field, admin, validate: undefined }).toEqual({ name: 'xpGoal', label: 'Click goal', type: 'text', admin: { description: 'Choose the short name of the click goal to count here.' }, validate: undefined })
   expect(xpGoalPuckField()).toEqual({ type: 'text', label: 'Click goal' })
   const options = sampleOptions(), req = fakeReq({ payload: fakePayload({ config: { custom: { xp: options } } }) })
   expect(await validate(field.validate, 'join', { req })).toBe(true)

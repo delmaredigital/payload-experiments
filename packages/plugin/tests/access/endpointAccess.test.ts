@@ -108,3 +108,11 @@ test('manage and readResults routes enforce their distinct declared access level
   }
   expect(config.options.access.manage).toHaveBeenCalledTimes(routes.filter(([, , access]) => access === 'manage').length)
 })
+
+test('page path lookup stays manager-only when readResults is granted', async () => {
+  const handler = reachHandler('/xp/pages')
+  const config = await endpoints(false, () => true)
+  const endpoint = config.endpoints.find(endpoint => endpoint.path === '/xp/pages')!
+  expect((await endpoint.handler(fakeReq({ user: { id: 'reader' }, url: 'https://host/api/xp/pages?collection=pages&path=%2Flanding' }))).status).toBe(403)
+  expect(handler).not.toHaveBeenCalled()
+})

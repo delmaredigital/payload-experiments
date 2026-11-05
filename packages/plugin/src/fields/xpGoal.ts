@@ -1,4 +1,5 @@
 import type { TextField } from 'payload'
+import { XP_GOAL_FIELD } from '../admin/paths.js'
 import { definedClickKeys } from '../db/clickGoals.js'
 import { pooledExecutor } from '../db/executor.js'
 import { clickKeys } from '../goals/cache.js'
@@ -8,7 +9,7 @@ import type { ResolvedOptions } from '../types/contracts.js'
 /** The host renders this value as data-xp-goal on its interactive element. */
 export function xpGoalField(): TextField {
   return { name: 'xpGoal', label: 'Click goal', type: 'text',
-    admin: { description: 'Choose the short name of the click goal to count here.' },
+    admin: { description: 'Choose the short name of the click goal to count here.', components: { Field: XP_GOAL_FIELD } },
     validate: async (value, { req }) => {
       if (!value) return true
       if (!CLICK_KEY.test(value)) return 'Use a click goal short name.'

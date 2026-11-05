@@ -31,6 +31,7 @@ import { DecideDialog } from '../../actions/DecideDialog.js'
 import { Banner } from '../../../ui/Banner.js'
 import { canReleasePages } from '../../results/releasePages.model.js'
 import { PagesReleased, ReleasePagesDialog } from './ReleasePages.js'
+import { usePlacementLabels } from '../../placements/usePlacementLabels.js'
 
 export type ResultsPageParts = { children: ReactNode; actions: ReactNode; released: ReactNode; data?: ResultsResponse }
 type ResultsBodyProps = { renderPage?: (parts: ResultsPageParts) => ReactNode; id: DocId; surface: SurfaceProps; onRecomputed?: () => void; onPagesReleased?: () => void }
@@ -99,7 +100,11 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
   const shown = showingDecision ? data!.decisionSnapshot! : snapshot
   const winner = phase?.arms.find(arm => arm.key === decision?.winnerArm)?.label ?? armLabel(decision?.winnerArm ?? 'control')
   const card = shown ? verdictCard({ snapshot: shown, decisionSnapshot: data?.decisionSnapshot, isDecidedTestRound, winnerLabel: winner }) : null
-  const context = { status, phase, inLayer: doc?.layer != null, layerSlices: doc?.layerSlices, allocation: doc?.allocation }
+  const placementLabels = usePlacementLabels({
+    details: shown?.health?.filter(item => item.code === 'placement-unchecked').map(item => item.detail) ?? [],
+    apiRoute: surface.apiRoute, adminRoute: surface.adminRoute, canManage: manage,
+  })
+  const context = { status, phase, inLayer: doc?.layer != null, layerSlices: doc?.layerSlices, allocation: doc?.allocation, placementLabels }
   const primary = phase?.metrics.find(metric => metric.role === 'primary')
   // The endpoint decides the current round; historical rounds are read-only.
   const canDecide = manage && (status === 'running' || status === 'stopped') && phase?.phaseKind === 'test'
@@ -137,6 +142,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
         guardrails={guardrailChips(shown)} power={powerLine({ snapshot: shown, phaseKind: phase.phaseKind, status: lineStatus })}
         collecting={collectingLine({ snapshot: shown, phaseKind: phase.phaseKind, status: lineStatus }, context)}
         sinceShipping={rolloutLine(shown, phase, phases, decision ?? undefined)} />
+      {primary?.clickGoal ? <p>{C.clickPrimary}</p> : null}
       <div className="xp-stat-tiles">
         <StatTile label={C.people} value={formatCount(shown.exposures.total)} />
         <StatTile label={C.days} value={planned ? daysOfPlan(formatCount(days), formatCount(planned)) : formatCount(days)} />

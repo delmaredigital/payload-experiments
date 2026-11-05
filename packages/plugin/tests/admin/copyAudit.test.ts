@@ -10,6 +10,9 @@ import { copyPaths, editorFiles, helperPaths, helperStrings } from './copySource
 
 const forbidden = /\b(?:arms?|phases?|flag ?points?|unit ?types?|unitType|CUPED|exposure ?polic(?:y|ies)|percentiles?)\b|\bin (?:Metrics|Who(?! takes part\b)|Groups|Review)\b|\b(?:Metrics|Who|Review) tab\b/i
 const hits = (strings: string[]) => strings.filter(value => forbidden.test(value))
+test('the neutral click-goal picker copy participates in the shared copy audit', () => {
+  expect(copyPaths).toContain(new URL('../../src/goals/picker/copy.ts', import.meta.url).pathname)
+})
 const samples: Record<string, unknown[][]> = {
   pageInUseCopy: [['/example'], ['/example', true]],
   unpublishedPageCopy: [['/example'], ['/example', { original: true, found: true, collection: 'Pages' }], ['/example', { original: false, found: true, collection: 'Pages' }], ['/example', { original: false, found: false, collection: 'Pages' }]],

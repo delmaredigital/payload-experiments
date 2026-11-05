@@ -1,17 +1,23 @@
 'use client'
 import { fetchAllDocs } from '../../../lib/fetchAllDocs.js'
 import { Button } from '../../../ui/Button.js'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatAdminURL } from 'payload/shared'
 import type { SectionProps } from '../contracts.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
-import { metricSourceOptions } from '../../metricSource.model.js'
+import { METRIC_KIND_LABELS } from '../../copy/metrics.js'
+import { isClickSource } from '../../../goals/key.js'
+import type { ClickKeysResult } from '../../../types/endpoints.js'
+import { createApi } from '../../api.js'
+import { sourceFor } from '../../metricSource.model.js'
 import { reviewView } from '../../review/review.model.js'
 import { CheckboxList, FieldErrors, reasonFor, save, SelectEdit } from './fields.js'
 import { Section } from './Section.js'
 
 type Metric = { id: string | number; name: string; source: string }
 export function GoalSection({ test, surface }: SectionProps) {
+  const api = useMemo(() => createApi(surface.apiRoute), [surface.apiRoute])
+  const [clickKeys, setClickKeys] = useState<ClickKeysResult['keys']>([])
   const [metrics, setMetrics] = useState<Metric[]>([])
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -32,6 +38,24 @@ export function GoalSection({ test, surface }: SectionProps) {
     return () => controller.abort()
   }, [surface.apiRoute, attempt])
   const doc = test.doc!
+  useEffect(() => {
+    if (!surface.canManage) { setClickKeys([]); return }
+    let active = true
+    let lastReturn = -Infinity
+    async function loadKeys() {
+      const result = await api.clickKeys(doc.id)
+      if (active) setClickKeys(result.ok && Array.isArray(result.data?.keys) ? result.data.keys : [])
+    }
+    const focus = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastReturn < 100) return
+      lastReturn = Date.now()
+      void loadKeys()
+    }
+    const visible = () => { if (document.visibilityState === 'visible') focus() }
+    void loadKeys()
+    window.addEventListener('focus', focus); document.addEventListener('visibilitychange', visible)
+    return () => { active = false; window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visible) }
+  }, [api, doc.id, surface.canManage])
   const reason = reasonFor(test, 'metrics')
   useEffect(() => {
     if (!loaded) return
@@ -46,9 +70,15 @@ export function GoalSection({ test, surface }: SectionProps) {
         guardrails: doc.metrics?.guardrails?.filter(id => String(id) !== goalId), secondary: doc.metrics?.secondary?.filter(id => String(id) !== goalId) } }))
     }
   }, [loaded, metrics, reason, doc.metrics, test])
-  const sources = metricSourceOptions(surface.metricSources)
   const unknownGoal = loaded ? C.missingGoal : C.goalUnavailable
-  const options = metrics.map(metric => ({ value: String(metric.id), label: `${metric.name} · ${sources.find(source => source.value === metric.source)?.badge ?? metric.source}` }))
+  const options = metrics.map(metric => {
+    const kind = sourceFor(metric.source, surface.metricSources)?.kind
+    return { value: String(metric.id), label: `${metric.name} · ${kind ? METRIC_KIND_LABELS[kind] : metric.source}` }
+  })
+  const onPage = new Map(metrics.flatMap(metric => {
+    const found = isClickSource(metric.source) ? clickKeys.find(row => row.key === metric.source.slice(6)) : undefined
+    return found ? [[String(metric.id), `${metric.name} · ${found.label}`] as const] : []
+  }))
   const chosen = [doc.metrics?.primary, ...(doc.metrics?.guardrails ?? []), ...(doc.metrics?.secondary ?? [])].filter(id => id != null).map(String)
   const visible = [...options]
   for (const id of chosen) if (!visible.some(option => option.value === id)) visible.push({ value: id, label: unknownGoal })
@@ -57,6 +87,10 @@ export function GoalSection({ test, surface }: SectionProps) {
       ...(role !== 'guardrails' ? doc.metrics?.guardrails ?? [] : []), ...(role !== 'secondary' ? doc.metrics?.secondary ?? [] : [])].map(String))
     return visible.filter(option => !blocked.has(option.value))
   }
+  const roleGroups = (role: 'primary' | 'guardrails' | 'secondary') => onPage.size ? [
+    { label: C.clickPageGroup, options: roleOptions(role).filter(option => onPage.has(option.value)).map(option => ({ ...option, label: onPage.get(option.value)! })) },
+    { options: roleOptions(role).filter(option => !onPage.has(option.value)) },
+  ] : undefined
   const originalId = (value: string) => metrics.find(metric => String(metric.id) === value)?.id
     ?? [test.doc!.metrics?.primary, ...(test.doc!.metrics?.guardrails ?? []), ...(test.doc!.metrics?.secondary ?? [])].find(id => id != null && String(id) === value)
   const changePrimary = (value: string) => {
@@ -74,19 +108,21 @@ export function GoalSection({ test, surface }: SectionProps) {
   })
   const display = (ids: Array<string | number>) => ids.length ? ids.map(id => options.find(option => option.value === String(id))?.label ?? unknownGoal).join(', ') : C.noGoal
   const primary = metrics.find(metric => String(metric.id) === String(doc.metrics?.primary))
-  const kind = surface.metricSources.find(source => source.id === primary?.source)?.kind
+  const kind = sourceFor(primary?.source, surface.metricSources)?.kind
   const baseline = test.preflight?.baseline && String(test.preflight.baseline.metricId) === String(doc.metrics?.primary)
     ? reviewView(test.preflight, { primaryMetricKind: kind }).baseline : null
   return <Section test={test} sectionId="win">
     {failed ? <p role="alert">{C.goalsError} <span className="xp-ui-button-group"><Button onClick={() => setAttempt(n => n + 1)}>{C.retry}</Button></span></p> : null}
-    <SelectEdit labelAction={<span className="xp-ui-button-group"><Button variant="link" size="sm" href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${!reason ? `?${new URLSearchParams({ return: String(doc.id) })}` : ''}` })}>{C.manageGoals}</Button></span>} label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
+    <SelectEdit labelAction={<span className="xp-ui-button-group"><Button variant="link" size="sm" href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${!reason ? `?${new URLSearchParams({ return: String(doc.id) })}` : ''}` })}>{C.manageGoals}</Button></span>} label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} groups={onPage.size ? [{ options: [{ value: '', label: C.chooseGoal }] }, ...roleGroups('primary')!] : undefined} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
     <p>{C.goalHelp}</p>
+    {primary && isClickSource(primary.source) ? <p>{C.clickGoalHelp}</p> : null}
     {baseline ? <p>{primary?.name ? `${primary.name}: ` : ''}{baseline}</p> : null}
     <FieldErrors test={test} path="metrics.primary" />
-    <CheckboxList searchable={metrics.length > 8} label={C.guardrails} value={(doc.metrics?.guardrails ?? []).map(String)} options={roleOptions('guardrails')} reason={reason} readOnlyValue={display(doc.metrics?.guardrails ?? [])} onToggle={(value, checked) => toggle('guardrails', value, checked)} />
+    <CheckboxList searchable={metrics.length > 8} label={C.guardrails} value={(doc.metrics?.guardrails ?? []).map(String)} options={roleOptions('guardrails')} groups={roleGroups('guardrails')} reason={reason} readOnlyValue={display(doc.metrics?.guardrails ?? [])} onToggle={(value, checked) => toggle('guardrails', value, checked)} />
     <p>{C.guardrailHelp}</p><FieldErrors test={test} path="metrics.guardrails" />
-    <CheckboxList searchable={metrics.length > 8} label={C.secondary} value={(doc.metrics?.secondary ?? []).map(String)} options={roleOptions('secondary')} reason={reason} readOnlyValue={display(doc.metrics?.secondary ?? [])} onToggle={(value, checked) => toggle('secondary', value, checked)} />
+    <CheckboxList searchable={metrics.length > 8} label={C.secondary} value={(doc.metrics?.secondary ?? []).map(String)} options={roleOptions('secondary')} groups={roleGroups('secondary')} reason={reason} readOnlyValue={display(doc.metrics?.secondary ?? [])} onToggle={(value, checked) => toggle('secondary', value, checked)} />
     <FieldErrors test={test} path="metrics.secondary" />
+    {metrics.some(metric => isClickSource(metric.source)) ? <p>{C.clickGoalsNote}</p> : null}
     {test.errors.metrics ? <p role="alert">{test.errors.metrics}</p> : null}
   </Section>
 }

@@ -33,6 +33,4 @@ export function goalUsage(tests: readonly GoalUsageTest[]): Map<DocId, number> {
   return new Map([...byGoal].map(([id, tests]) => [id, tests.size]))
 }
 
-export function goalSlug(name: string): string {
-  return name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}
+export { goalSlug } from '../../../goals/picker/clickGoalPicker.model.js'

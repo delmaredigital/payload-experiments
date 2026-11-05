@@ -1,4 +1,7 @@
 export const TEST_PAGE = {
+  clickPageGroup: "On this test's page",
+  clickGoalsNote: "Goals inside linked documents aren't shown. Goals added in code (data-xp-goal) work but aren't listed here.",
+  clickGoalHelp: 'A click shows interest, not the result you want.',
   staleEdit: 'Someone else changed this test. Reload to see their changes.', reload: 'Reload',
   loading: 'Loading test…', forbidden: "You don't have access to this test.", missing: 'This test no longer exists.',
   error: "Couldn't load this test.", retry: 'Try again', name: 'Test name', results: 'Results',

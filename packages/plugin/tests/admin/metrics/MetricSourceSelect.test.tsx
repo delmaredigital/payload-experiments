@@ -37,3 +37,12 @@ test('shows the configured label and description', () => {
   expect(screen.getByLabelText('Goal outcome')).toBeTruthy()
   expect(screen.getByText('Choose the outcome this goal measures.')).toBeTruthy()
 })
+
+test('a click-key value selects the serialized click option and has no revenue hint', () => {
+  setField({ value: 'click:hero-cta', setValue: vi.fn() })
+  render(<MetricSourceSelect path="source" field={{ ...field, admin: { custom: { sources: [...field.admin.custom.sources,
+    { id: 'click:', label: 'A click on the page', kind: 'binomial', keyedBy: 'visitor' }] } } }} />)
+  expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('click:')
+  expect((screen.getByRole('combobox') as HTMLSelectElement).selectedOptions[0]!.textContent).toBe('A click on the page · yes/no')
+  expect(screen.queryByText(METRICS_COPY.revenueHint)).toBeNull()
+})

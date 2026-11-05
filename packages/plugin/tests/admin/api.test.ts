@@ -213,3 +213,10 @@ test('clickKeys returns the named response type from the manager route', async (
   expect(result.data).toEqual(data)
   expect(fetchMock.mock.calls[0]![0]).toBe('/custom/api/xp/experiments/xp%2Fone/click-keys')
 }, 5_000) // Measured 1 ms locally; cap exceeds 3×.
+
+test('page lookup encodes the raw stored path without normalising it', async () => {
+  const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ docs: [], hasNextPage: false })))
+  vi.stubGlobal('fetch', fetcher)
+  await createApi('/custom-api').pages({ collection: 'pages', path: 'Raw path/?a=1' })
+  expect(fetcher).toHaveBeenLastCalledWith('/custom-api/xp/pages?collection=pages&path=Raw+path%2F%3Fa%3D1', expect.objectContaining({ method: 'GET', credentials: 'include' }))
+})

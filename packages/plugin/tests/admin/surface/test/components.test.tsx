@@ -5,7 +5,7 @@ import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/adm
 import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
 import { defaultArms } from '../../../../src/admin/arms/arms.model.js'
 import { TestPage } from '../../../../src/admin/surface/test/TestPage.js'
-import { Hypothesis, TestName } from '../../../../src/admin/surface/test/fields.js'
+import { Hypothesis, TestName, SelectEdit, CheckboxList } from '../../../../src/admin/surface/test/fields.js'
 import { VersionsSection } from '../../../../src/admin/surface/test/VersionsSection.js'
 import { LengthSection } from '../../../../src/admin/surface/test/LengthSection.js'
 import { AdvancedSection } from '../../../../src/admin/surface/test/AdvancedSection.js'
@@ -600,4 +600,78 @@ test('whole-page holdouts stay under Advanced and have no picker row', () => {
   render(<AdvancedSection {...p} />)
   expect(screen.getByLabelText('Holdout: Version label')).toBeTruthy()
   expect(screen.getByLabelText('Holdout: Share (%)')).toBeTruthy()
+})
+
+const clickMetric = { id: 3, name: 'Hero interest', source: 'click:hero-cta' }
+function clickGoalsFetch(status = 200) {
+  const fetcher = vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/click-keys')
+    ? { keys: [{ key: 'hero-cta', arms: ['control', 'variantA'], label: 'Hero' }] }
+    : { docs: [{ id: 1, name: 'Registration', source: 'signup' }, clickMetric, { id: 4, name: 'Other clicks', source: 'click:footer' }] }),
+  { status: url.endsWith('/click-keys') ? status : 200 }))
+  vi.stubGlobal('fetch', fetcher)
+  return fetcher
+}
+function clickProps(primary?: number) {
+  const p = props({ metrics: { primary } })
+  p.surface = { ...surface, metricSources: [...surface.metricSources,
+    { id: 'click:', label: 'A click on the page', kind: 'binomial', keyedBy: 'visitor', clientWritable: true }] }
+  return p
+}
+test('click goals found on the page lead every role picker, with block labels and the linked-document note', async () => {
+  clickGoalsFetch()
+  render(<GoalSection {...clickProps()} />)
+  await screen.findAllByText('Hero interest · Hero')
+  const select = screen.getByRole('combobox', { name: 'Goal' })
+  expect(within(select).getByRole('group', { name: "On this test's page" }).textContent).toBe('Hero interest · Hero')
+  expect(within(select).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose a goal', 'Hero interest · Hero', 'Registration · yes/no', 'Other clicks · yes/no'])
+  expect(screen.getAllByRole('heading', { name: "On this test's page" })).toHaveLength(2)
+  expect(screen.getByText("Goals inside linked documents aren't shown. Goals added in code (data-xp-goal) work but aren't listed here.")).toBeTruthy()
+  expect(screen.queryByText('A click shows interest, not the result you want.')).toBeNull()
+  expect(screen.queryByText('+ New click goal')).toBeNull()
+})
+test.each([403, 500])('a failed click-key read (%s) silently keeps the flat goal list', async status => {
+  clickGoalsFetch(status)
+  render(<GoalSection {...clickProps(3)} />)
+  await screen.findAllByText('Hero interest · yes/no')
+  expect(screen.queryByRole('group', { name: "On this test's page" })).toBeNull()
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByText('A click shows interest, not the result you want.')).toBeTruthy()
+})
+test('click-key reads refetch once on a visible tab return and are manager only', async () => {
+  const fetcher = clickGoalsFetch()
+  const p = clickProps(3)
+  const view = render(<GoalSection {...p} />)
+  await screen.findByText('A click shows interest, not the result you want.')
+  expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/click-keys'))).toHaveLength(1)
+  fireEvent(document, new Event('visibilitychange')); fireEvent.focus(window)
+  await waitFor(() => expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/click-keys'))).toHaveLength(2))
+  view.unmount()
+  fetcher.mockClear()
+  render(<GoalSection {...p} surface={{ ...p.surface, canManage: false }} />)
+  await screen.findByText('A click shows interest, not the result you want.')
+  expect(fetcher.mock.calls.some(([url]) => url.endsWith('/click-keys'))).toBe(false)
+})
+test('no click goals means no linked-document note and no click-primary help', async () => {
+  metricsFetch()
+  render(<GoalSection {...props({ metrics: { primary: 1 } })} />)
+  await screen.findAllByText('Registered · yes/no')
+  expect(screen.queryByText(/Goals inside linked documents/)).toBeNull()
+  expect(screen.queryByText('A click shows interest, not the result you want.')).toBeNull()
+})
+test('grouped and plain SelectEdit and CheckboxList retain their values and commit behaviour', () => {
+  const commit = vi.fn(), toggle = vi.fn()
+  const options = [{ value: 'a', label: 'Alpha' }, { value: 'b', label: 'Beta' }]
+  const groups = [{ label: 'First group', options: options.slice(0, 1) }, { options: options.slice(1) }]
+  const view = render(<><SelectEdit label="Select" value="a" options={options} groups={groups} onCommit={commit} />
+    <CheckboxList label="Checks" value={['a']} options={options} groups={groups} onToggle={toggle} /></>)
+  expect(screen.getByRole('group', { name: 'First group' })).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'First group' })).toBeTruthy()
+  expect(screen.getAllByRole('list')).toHaveLength(2)
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'b' } })
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Beta' }))
+  expect(commit).toHaveBeenCalledWith('b'); expect(toggle).toHaveBeenCalledWith('b', true)
+  view.rerender(<><SelectEdit label="Select" value="a" options={options} onCommit={commit} />
+    <CheckboxList label="Checks" value={['a']} options={options} onToggle={toggle} /></>)
+  expect(screen.queryByRole('heading')).toBeNull(); expect(screen.queryByRole('list')).toBeNull()
+  expect((screen.getByRole('checkbox', { name: 'Alpha' }) as HTMLInputElement).checked).toBe(true)
 })

@@ -18,6 +18,7 @@ const required = {
     DEFAULT_MAX_BODY_BYTES: '../constants.js',
   },
   adminClient: {
+    XpGoalField: '../admin/goals/XpGoalField.js',
     XP_IF_UPDATED_AT_HEADER: '../constants.js',
     TestsSurface: '../admin/surface/TestsSurface.js',
     TestsDashboardCards: '../admin/TestsDashboardCards.js',
@@ -40,7 +41,7 @@ const required = {
     CollectionListRedirect: '../admin/views/CollectionListRedirect.js',
     CollectionEditRedirect: '../admin/views/CollectionEditRedirect.js',
   },
-  puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', createExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', experimentOutlinePlugin: '../puck/editor/experimentOutlinePlugin.js' },
+  puckEditor: { xpGoalPuckEditorField: '../puck/editor/xpGoalPuckEditorField.js', ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', createExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', experimentOutlinePlugin: '../puck/editor/experimentOutlinePlugin.js' },
   index: { xpGoalField: '../fields/xpGoal.js', createExperimentBlock: '../blocks/createExperimentBlock.js', createArmSelectField: '../fields/armSelect.js', contentDone: '../contentDone.js' },
 } as const
 const requiredTypes = {

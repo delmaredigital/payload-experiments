@@ -13,7 +13,7 @@ export function DataQualityPanel({ items, problem = false }: { items: DataQualit
         <span className={`xp-quality-chip xp-quality-chip--${quality(item)}`}>{C.qualityStates[quality(item)]}</span>
         <p>{item.message}</p>{item.detail ? <p className="xp-quality-detail">{item.detail}</p> : null}
         {item.shares ? <ul>{item.shares.map((share, index) => <li key={index}>{share}</li>)}</ul> : null}
-        <p className="xp-quality-next">{item.nextStep}</p>
+        <p className="xp-quality-next">{item.href ? <a href={item.href}>{item.nextStep}</a> : item.nextStep}</p>
       </div>) : <p className="xp-quality-row">{C.qualityOK}</p>}
     </section>
   </details>

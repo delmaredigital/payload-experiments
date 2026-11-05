@@ -10,6 +10,8 @@ import { createApi } from '../../api.js'
 import { READINESS_COPY as C, decidedCopy, nextCopy, runningCopy, stoppedCopy } from '../../copy/readiness.js'
 import { READINESS, daysRemaining, displayDate, nextStep, pageReadinessContext } from './readiness.model.js'
 import { AddMetricAction, AllocateAction, ConfirmAction } from './ActionDialogs.js'
+import { preflightPlacementLabel } from '../../placements/placementLabels.js'
+import { placementUncheckedCopy } from '../../copy/readiness.js'
 import { useTransition } from './useTransition.js'
 
 const RUNNING_ACTIONS: readonly ActionId[] = ['stop', 'add-metric', 'allocate']
@@ -37,7 +39,8 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
   }, [doc.id, doc.status, surface.apiRoute, surface.canReadResults, resultsVersion])
   const decision = doc.decision as ActionDecision | undefined
   const winner = actionGroupLabel(decision?.winnerArm ?? 'control', doc.arms.find(item => item.key === decision?.winnerArm)?.label)
-  const next = nextStep(test.preflight, pageReadinessContext(doc, test.preflight, surface))
+  const labelledPreflight = test.preflight ? { ...test.preflight, checks: test.preflight.checks.map(check => check.code === 'placement-unchecked' ? { ...check, detail: { ...check.detail as object, title: preflightPlacementLabel(check.detail, test.preflight!, surface.adminRoute).title } } : check) } : null
+  const next = nextStep(labelledPreflight, pageReadinessContext(doc, test.preflight, surface))
   const setup = doc.status === 'draft' || doc.status === 'stopped'
   const ready = Boolean(test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
   const unsaved = test.hasUnsaved || test.saving === 'saving'
@@ -60,7 +63,10 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
     </div>
     {setup && test.preflight?.checks.some(check => check.code === 'page-targets-unchecked' && check.warning) ? <p>{C.uncheckedPages}</p> : null}
     {test.preflight?.checks.filter(check => check.code === 'make-content-unsupported' && check.warning).map(check => <p key={check.code}>{READINESS[check.code].next(check.detail, doc)}</p>)}
-    {test.preflight?.checks.filter(check => check.warning && ['goal-in-some-versions', 'placement-unchecked'].includes(check.code)).map((check, index) => <p key={`${check.code}:${index}`}>{READINESS[check.code].next(check.detail, doc)}</p>)}
+    {test.preflight?.checks.filter(check => check.warning && ['goal-in-some-versions', 'placement-unchecked'].includes(check.code)).map((check, index) => {
+      const placement = check.code === 'placement-unchecked' ? preflightPlacementLabel(check.detail, test.preflight!, surface.adminRoute) : undefined
+      return <p key={`${check.code}:${index}`}>{placement ? placement.href ? <a href={placement.href}>{placementUncheckedCopy(placement.title)}</a> : placementUncheckedCopy(placement.title) : READINESS[check.code].next(check.detail, doc)}</p>
+    })}
     {test.preflight?.goalNotes?.map(note => <p key={note.metricId}>{note.message}</p>)}
     {doc.status === 'stopped' ? <p>{stoppedCopy(displayDate(doc.stoppedAt))}</p> : null}
     <div className="xp-readiness__actions">

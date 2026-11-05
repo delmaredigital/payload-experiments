@@ -1,4 +1,5 @@
 'use client'
+import { sourceFor } from '../../metricSource.model.js'
 import { useEffect, useState } from 'react'
 import { Link } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
@@ -45,7 +46,7 @@ export function GoalsList({ surface, returnToTest }: { surface: SurfaceProps; re
           : !goals.length ? <EmptyState action={<Button variant="quiet" onClick={() => setSearch('')}>{C.clearSearch}</Button>}>{goalsNoMatches(search)}</EmptyState>
             : <div className="xp-tests-list">{goals.map(goal => {
               const count = usage.get(goal.id) ?? 0
-              const kind = surface.metricSources.find(source => source.id === goal.source)?.kind
+              const kind = sourceFor(goal.source, surface.metricSources)?.kind
               const label = kind && Object.hasOwn(METRIC_KIND_LABELS, kind) ? METRIC_KIND_LABELS[kind] : undefined
               const href = url(`/experiments/goals/${encodeURIComponent(String(goal.id))}${returnQuery}`)
               return <article className="xp-tests-row" key={`${typeof goal.id}:${goal.id}`}>

@@ -9,6 +9,7 @@ import { reloadPage } from '../../../../src/admin/reload.js'
 import type { SurfaceProps } from '../../../../src/admin/surface/contracts.js'
 import { fixture, phaseFor, revenueSnapshot } from '../../results/fixtures.js'
 import type { ResultsResponse } from '../../../../src/types/endpoints.js'
+import { RESULTS_COPY } from '../../../../src/admin/copy/results.js'
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
 vi.mock('../../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
 const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: false, flagPoints: [], attributeKeys: {}, metricSources: [] }
@@ -437,3 +438,56 @@ test('results renders the legacy goal fairness notice', async () => {
   render(<ResultsBody id={1} surface={surface} />)
   expect(await screen.findByText(notice)).toBeTruthy()
 }, 5_000) // Measured 11 ms locally; cap exceeds 3×.
+
+test.each(['running', 'decided', 'archived'])('a %s round explains a click primary directly below its verdict', async status => {
+  const clickPhase = { ...phase, metrics: phase.metrics.map(metric => metric.role === 'primary' ? { ...metric, clickGoal: true as const } : metric) }
+  setup({ ...response, phases: [clickPhase] }, { ...doc, status })
+  const { container } = render(<ResultsBody id={1} surface={surface} />)
+  const notice = await screen.findByText(RESULTS_COPY.clickPrimary)
+  const hero = container.querySelector('.xp-verdict-hero')
+  expect(hero).toBeTruthy()
+  expect(hero?.nextElementSibling).toBe(notice)
+})
+
+test('a click supporting goal does not explain the primary verdict', async () => {
+  setup({ ...response, phases: [{ ...phase, metrics: phase.metrics.map(metric => metric.role !== 'primary' ? { ...metric, clickGoal: true as const } : metric) }] })
+  render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  expect(screen.queryByText(RESULTS_COPY.clickPrimary)).toBeNull()
+})
+
+test('rounds with different primary sources show the click explanation only for the click round', async () => {
+  const secondSnapshot = { ...snapshot, phase: 2 }
+  const clickPhase = { ...phase, metrics: phase.metrics.map(metric => metric.role === 'primary' ? { ...metric, clickGoal: true as const } : metric) }
+  const phases = [clickPhase, phaseFor(secondSnapshot)]
+  const fetcher = setup()
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation((url, init) => url.includes('/results')
+    ? Promise.resolve(json({ ...response, phases, snapshot: url.includes('phase=1') ? snapshot : secondSnapshot }))
+    : original(url, init))
+  render(<ResultsBody id={1} surface={surface} />)
+  await screen.findByRole('table', { name: 'Registrations' })
+  expect(screen.queryByText(RESULTS_COPY.clickPrimary)).toBeNull()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '1' } })
+  expect(await screen.findByText(RESULTS_COPY.clickPrimary)).toBeTruthy()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '2' } })
+  await waitFor(() => expect(screen.queryByText(RESULTS_COPY.clickPrimary)).toBeNull())
+})
+
+test('results resolves placement warnings by page path and batched block ids and links their titles', async () => {
+  const data = { ...response, snapshot: { ...snapshot, health: [
+    { code: 'placement-unchecked' as const, detail: { collection: 'pages', path: '/landing' } },
+    { code: 'placement-unchecked' as const, detail: { collection: 'posts', id: 9, path: '/article' } },
+    { code: 'placement-unchecked' as const, detail: {} },
+  ] } }
+  const fetcher = setup(data)
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation((url, init) => url.includes('/xp/pages?') ? Promise.resolve(json({ docs: [{ id: 7, title: 'Landing title' }] }))
+    : url.includes('/posts?') ? Promise.resolve(json({ docs: [{ id: 9, title: 'Article title' }] })) : original(url, init))
+  render(<ResultsBody id={1} surface={surface} />)
+  expect((await screen.findByRole('link', { name: 'Open Landing title' })).getAttribute('href')).toBe('/admin/collections/pages/7')
+  expect((await screen.findByRole('link', { name: 'Open Article title' })).getAttribute('href')).toBe('/admin/collections/posts/9')
+  expect(screen.getByText(/This page couldn't be checked/)).toBeTruthy()
+  expect(fetcher.mock.calls.filter(call => call[0].includes('/xp/pages?'))).toHaveLength(1)
+  expect(fetcher.mock.calls.filter(call => call[0].includes('/posts?'))).toHaveLength(1)
+})

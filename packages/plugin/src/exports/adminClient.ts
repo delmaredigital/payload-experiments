@@ -12,3 +12,4 @@ export { wrapExperimentBlock, syncExperimentSlots, copyOriginalIntoVersion, unwr
 
 export { TestBlockField } from '../admin/blocks/TestBlockField.js'
 export { BlockStatusField, BlockSlotRowLabel, CopyOriginalField } from '../admin/blocks/BlockPanel.js'
+export { XpGoalField } from '../admin/goals/XpGoalField.js'

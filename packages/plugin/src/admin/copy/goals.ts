@@ -1,4 +1,6 @@
+import { CLICK_GOAL_COPY } from '../../goals/picker/copy.js'
 export const GOALS_COPY = {
+  slugRule: CLICK_GOAL_COPY.slugRule, duplicateSlug: CLICK_GOAL_COPY.duplicateSlug,
   title: 'Goals', goal: 'Goal', newGoal: 'New goal', name: 'Name', source: 'Measured by', directionColumn: 'Better when',
   direction: 'Better when it goes', increase: 'More is better', decrease: 'Less is better', usedBy: 'Used by', status: 'Status',
   inUse: 'In use', unused: 'Not used yet', empty: 'No goals yet. A goal is what a test tries to improve.',
@@ -11,7 +13,7 @@ export const GOALS_COPY = {
   capHelp: 'For past amounts, enter a number such as 0.99 to limit only the largest 1%; or enter a fixed amount.',
   threshold: 'Warn when it gets worse by (%)', save: 'Save', saving: 'Saving…', cancel: 'Cancel', remove: 'Delete goal',
   thresholdError: 'Enter a percentage of zero or more, or leave blank for 5%.',
-  deleting: 'Deleting…', saveError: "Couldn't save the goal. Try again.", deleteError: "Couldn't delete the goal. Try again.",
+  deleting: 'Deleting…', saveError: CLICK_GOAL_COPY.saveError, deleteError: "Couldn't delete the goal. Try again.",
   breadcrumb: 'Breadcrumb', missing: 'This goal no longer exists.', notFound: 'This goal no longer exists.',
   backToTest: 'Back to the test', useGoal: 'Use this goal', open: 'Open', search: 'Search goals', clearSearch: 'Clear search',
   fields: 'Goal details', deleteTitle: 'Delete this goal?', deleteBody: 'This cannot be undone.', confirmDelete: 'Delete',

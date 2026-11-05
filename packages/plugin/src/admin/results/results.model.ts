@@ -11,6 +11,9 @@ import { formatCI, formatCount, formatMetric, formatPercent, formatProbability }
 import { legacyMinimum, legacyRolloutLine, legacyTooFew } from './legacy.js'
 import { isLegacySnapshot, type DisplaySnapshot } from './snapshot.js'
 
+import { placementDetailKey } from '../placements/placementLabels.model.js'
+import type { PlacementLabel } from '../placements/placementLabels.model.js'
+
 type Metric = Snapshot['metrics'][number]
 type Arm = Metric['perArm'][number]
 type Decision = { phase: number; winnerArm?: string }
@@ -122,6 +125,7 @@ export function powerLine({ snapshot, phaseKind, status }: RoundLineInput): stri
 }
 
 export interface ResultsContext {
+  placementLabels?: Map<string, PlacementLabel>
   status?: string; phase?: PhaseSummary; minExposuresPerArm?: number
   inLayer?: boolean; layerSlices?: number | readonly number[]; allocation?: number
 }
@@ -147,11 +151,12 @@ export function collectingLine({ snapshot, phaseKind }: RoundLineInput, ctx: Res
   )
 }
 
-export interface DataQualityItem { id: string; message: string; detail?: string; nextStep: string; shares?: string[] }
+export interface DataQualityItem { id: string; message: string; detail?: string; nextStep: string; href?: string; shares?: string[] }
 export function dataQuality(snapshot: DisplaySnapshot, ctx: ResultsContext = {}): DataQualityItem[] {
   const items: DataQualityItem[] = (snapshot.health ?? []).map(item => ({
-    id: item.code === 'placement-unchecked' ? `${item.code}:${JSON.stringify(item.detail)}` : `${item.code}:${'path' in item ? item.path : item.metricId}`, message: item.code === 'placement-unchecked' ? placementUncheckedCopy(item.detail.path ?? 'This page') : item.code === 'goal-in-some-versions' ? `${item.name} now appears in some versions but not all, so this result is no longer a fair comparison. Add it to every version, or remove it.` : READINESS_COPY.needsAttention,
-    nextStep: item.code === 'placement-unchecked' ? `Open ${item.detail.path ?? 'the page'}` : item.code === 'goal-in-some-versions' ? 'Edit the versions' : item.code === 'version-page-unavailable' ? versionPageUnavailableCopy(item.path, ctx.status) : versionPageUncheckedCopy(item.path, ctx.status),
+    id: item.code === 'placement-unchecked' ? `${item.code}:${JSON.stringify(item.detail)}` : `${item.code}:${'path' in item ? item.path : item.metricId}`, message: item.code === 'placement-unchecked' ? placementUncheckedCopy(ctx.placementLabels?.get(placementDetailKey(item.detail))?.title ?? item.detail.path ?? 'This page') : item.code === 'goal-in-some-versions' ? `${item.name} now appears in some versions but not all, so this result is no longer a fair comparison. Add it to every version, or remove it.` : READINESS_COPY.needsAttention,
+    ...(item.code === 'placement-unchecked' ? { href: ctx.placementLabels?.get(placementDetailKey(item.detail))?.href } : {}),
+    nextStep: item.code === 'placement-unchecked' ? `Open ${ctx.placementLabels?.get(placementDetailKey(item.detail))?.title ?? item.detail.path ?? 'the page'}` : item.code === 'goal-in-some-versions' ? 'Edit the versions' : item.code === 'version-page-unavailable' ? versionPageUnavailableCopy(item.path, ctx.status) : versionPageUncheckedCopy(item.path, ctx.status),
   }))
   // Test snapshots store null by design; only rollout snapshots record the shipped winner.
   if (!isLegacySnapshot(snapshot) && snapshot.phaseKind === 'rollout' && snapshot.winnerArm === null) items.push({

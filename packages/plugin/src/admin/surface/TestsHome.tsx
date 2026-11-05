@@ -12,6 +12,7 @@ import { Button } from '../../ui/Button.js'
 import { SearchInput } from '../../ui/Inputs.js'
 import { SurfaceShell } from './SurfaceShell.js'
 import type { SurfaceShellProps } from './SurfaceShell.js'
+import { sanitizeReadinessDetail } from '../../sanitizeReadinessDetail.js'
 import { groupTests, homeCard } from './home.model.js'
 import type { HomeTest } from './home.model.js'
 import type { ReadinessContext } from './readiness/readiness.model.js'
@@ -23,7 +24,7 @@ void homeFieldsComplete
 const HOME_SELECT = HOME_FIELDS.map(field => `select[${field}]=true`).join('&')
 
 type State = { loading: true } | { loading: false; error: true } | {
-  loading: false; error: false; tests: HomeTest[]; summaries: SummaryResponse; summaryError: boolean
+  loading: false; error: false; tests: HomeTest[]; summaries: SummaryResponse; summaryError: boolean; goalNames: Record<string, string>
 }
 export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, flagPoints }: {
   adminRoute: string; apiRoute: string; canManage?: boolean; crumbs?: SurfaceShellProps['crumbs']; flagPoints?: ReadinessContext['flagPoints']
@@ -45,15 +46,31 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, fla
         const docs = response.docs.sort((a, b) => (Date.parse(b.updatedAt ?? '') || 0) - (Date.parse(a.updatedAt ?? '') || 0))
         if (!active) return
         const summary = await api.summary(docs.map(doc => doc.id))
-        if (active) setState({ loading: false, error: false, tests: docs,
-          summaries: summary.ok ? summary.data ?? {} : {}, summaryError: !summary.ok })
+        const summaries = summary.ok ? summary.data ?? {} : {}
+        const ids = [...new Set(docs.flatMap(doc => {
+          const item = summaries[doc.id]
+          if (!canManage || !['draft', 'stopped'].includes(doc.status) || item?.ready === true || item?.next?.code !== 'goal-in-some-versions') return []
+          const detail = sanitizeReadinessDetail(item.next.code, item.next.detail) as Array<{ metricId: string | number }> | undefined
+          return detail?.map(row => String(row.metricId)) ?? []
+        }))]
+        const goalNames: Record<string, string> = {}
+        if (ids.length) {
+          try {
+            const query = new URLSearchParams({ 'where[id][in]': ids.join(','), depth: '0', limit: String(ids.length) })
+            const response = await fetch(`${apiRoute.replace(/\/$/, '')}/xp-metrics?${query}`, { credentials: 'include', signal: controller.signal })
+            const body = response.ok ? await response.json() as { docs?: Array<{ id: string | number; name?: string }> } : undefined
+            for (const goal of body?.docs ?? []) if (typeof goal.name === 'string' && goal.name.trim() && ids.includes(String(goal.id))) goalNames[String(goal.id)] = goal.name
+          } catch { /* An unreadable goal keeps the neutral readiness sentence. */ }
+        }
+        if (active) setState({ loading: false, error: false, tests: docs, goalNames,
+          summaries, summaryError: !summary.ok })
       } catch {
         if (active) setState({ loading: false, error: true })
       }
     }
     void load()
     return () => { active = false; controller.abort() }
-  }, [api, apiRoute, attempt])
+  }, [api, apiRoute, attempt, canManage])
   const retry = <Button size="sm" onClick={() => setAttempt(value => value + 1)}>{SURFACE_COPY.retry}</Button>
   const newTest = <Button variant="primary" href={formatAdminURL({ adminRoute, path: '/experiments/new' })}>{SURFACE_COPY.newTest}</Button>
   return <SurfaceShell adminRoute={adminRoute} crumbs={crumbs} actions={<>
@@ -70,12 +87,12 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, fla
         : <>
           {state.summaryError ? <Banner tone="error" action={retry}>{SURFACE_COPY.summaryError}</Banner> : null}
           {state.tests.length === 0 ? <EmptyState action={newTest}>{SURFACE_COPY.empty}</EmptyState>
-            : <TestGroups tests={state.tests} summaries={state.summaries} adminRoute={adminRoute} flagPoints={flagPoints} search={search} clear={() => setSearch('')} />}
+            : <TestGroups tests={state.tests} summaries={state.summaries} goalNames={state.goalNames} adminRoute={adminRoute} flagPoints={flagPoints} search={search} clear={() => setSearch('')} />}
         </>}
   </SurfaceShell>
 }
-function TestGroups({ tests, summaries, adminRoute, flagPoints, search, clear }: {
-  tests: HomeTest[]; summaries: SummaryResponse; adminRoute: string; flagPoints?: ReadinessContext['flagPoints']; search: string; clear: () => void
+function TestGroups({ tests, summaries, goalNames, adminRoute, flagPoints, search, clear }: {
+  tests: HomeTest[]; summaries: SummaryResponse; goalNames: Record<string, string>; adminRoute: string; flagPoints?: ReadinessContext['flagPoints']; search: string; clear: () => void
 }) {
   const groups = groupTests(tests, summaries, search)
   if (!groups.some(group => group.tests.length)) return <div className="xp-tests-no-matches"><p>{noMatchesLine(search)}</p>
@@ -83,7 +100,7 @@ function TestGroups({ tests, summaries, adminRoute, flagPoints, search, clear }:
   return <>{groups.map((group, index) => {
     if (!group.tests.length) return null
     const rows = <div className="xp-tests-list">{group.tests.map(test => {
-      const card = homeCard(test, summaries[test.id], adminRoute, flagPoints)
+      const card = homeCard(test, summaries[test.id], adminRoute, flagPoints, goalNames)
       return <article className="xp-tests-row" key={test.id}>
         <div className="xp-tests-row-main">
           <div className="xp-tests-row-name"><Link href={card.href}>{test.name}</Link><span className="xp-tests-kind">{card.kind}</span>

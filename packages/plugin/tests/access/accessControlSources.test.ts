@@ -700,3 +700,9 @@ test('the latest draft-version adapter read is an explicit, named exception', ()
   expect(OVERRIDE_ACCESS_ALLOW_LIST).toContainEqual({ file: 'src/db/publishedContent.ts', reason: `§7.8 ${reason}` })
   expect(readFileSync(join(pluginRoot, 'src/db/publishedContent.ts'), 'utf8')).toContain(reason)
 })
+
+test('page path lookups need no privileged access exception', () => {
+  const file = 'src/endpoints/pages.ts'
+  expect(OVERRIDE_ACCESS_ALLOW_LIST.some(entry => matchesGlob(file, entry.file))).toBe(false)
+  expect(scan(readFileSync(join(pluginRoot, file), 'utf8'), file)).toEqual([])
+})

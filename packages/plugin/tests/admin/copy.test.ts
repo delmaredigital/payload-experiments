@@ -6,6 +6,7 @@ import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../../src/constants.js'
 import { ADVANCED_COPY } from '../../src/admin/copy/advanced.js'
 import * as puckCopy from '../../src/puck/copy.js'
 import * as puckEditorCopy from '../../src/puck/editor/copy.js'
+import * as clickGoalCopy from '../../src/goals/picker/copy.js'
 import * as labels from '../../src/admin/labels.js'
 import { STATUS_TOOLTIPS } from '../../src/admin/copy/status.js'
 import { API_MESSAGES, refusalMessage } from '../../src/admin/copy/common.js'
@@ -57,6 +58,7 @@ test('all copy exports and label maps use user language', async () => {
   checkStrings(labels)
   checkStrings(puckCopy)
   checkStrings(puckEditorCopy)
+  checkStrings(clickGoalCopy)
   for (const code of ['not-found', 'commit-unverified', 'not-implemented', 'forbidden', 'other']) checkStrings(refusalMessage(code, 422))
 })
 const armKeys = { control: 'Original', variantA: 'Variant A', variantB: 'Variant B', variantC: 'Variant C', holdout: 'Holdout' } satisfies Record<ArmKey, string>

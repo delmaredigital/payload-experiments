@@ -8,6 +8,7 @@ export const RESULTS_COPY = {
   kinds: { binomial: 'yes/no', count: 'amount', revenue: 'amount' },
   qualityStates: { ok: 'OK', watch: 'Watch', problem: 'Problem' },
   qualityOK: 'No data quality problems found.', previews: 'Preview links',
+  clickPrimary: 'A click shows interest, not the result you want. Add that result, like a sign-up or a gift, as another goal to check that more clicks lead to more of it.',
   releasePages: 'Release pages',
   releasePagesBody: 'Every address shows its own page again. The result stays recorded.',
   you: 'you',

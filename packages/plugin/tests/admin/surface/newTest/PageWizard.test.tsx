@@ -122,6 +122,10 @@ test('Review refetches on focus and visibility, and late responses cannot restor
   fireEvent.focus(window)
   await waitFor(() => expect(reads).toBe(3))
   fireEvent(document, new Event('visibilitychange'))
+  expect(reads).toBe(3) // the same return fires focus and visibility
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 150)
+  fireEvent(document, new Event('visibilitychange'))
+  clock.mockRestore()
   await waitFor(() => expect(reads).toBe(4))
   expect((await screen.findByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false)
   await act(async () => resolve(response(preflight([{ code: 'page-target-unpublished', ok: false, detail: '/copy/' }]))))
@@ -202,7 +206,8 @@ test.each(['future-code', 'toString'])('Review tolerates unknown readiness code 
   fireEvent.click(screen.getByRole('button', { name: 'Next' }))
   fireEvent.click(screen.getByRole('button', { name: 'Next' }))
   expect(await screen.findByText('Review setup')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Finish setup' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Finish setup' }))
+  expect(push).toHaveBeenCalledWith('/admin/experiments/xp1#section-what')
 })
 test.each([
   [500, "Couldn't load this test."], [403, "You don't have access to this test."], [404, 'This test no longer exists.'],

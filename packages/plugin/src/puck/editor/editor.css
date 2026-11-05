@@ -384,3 +384,4 @@
 .xp-slot-readout { display: grid; gap: var(--xp-space-2); }
 .xp-slot-readout > .xp-ui-button { justify-self: start; }
 .xp-slot-editor .xp-ui-tablist { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
+.xp-slot-root.xp-puck-field { display: grid; gap: var(--xp-space-3); min-width: 0; }

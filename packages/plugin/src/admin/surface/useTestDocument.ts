@@ -295,7 +295,12 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
   }, [key])
   useEffect(() => {
     if (!refetchPreflightOnFocus) return
-    const focus = () => { void refreshPreflight() }
+    let lastReturn = -Infinity
+    const focus = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastReturn < 100) return
+      lastReturn = Date.now()
+      void refreshPreflight()
+    }
     const visible = () => { if (document.visibilityState === 'visible') focus() }
     window.addEventListener('focus', focus)
     document.addEventListener('visibilitychange', visible)

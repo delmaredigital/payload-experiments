@@ -11,6 +11,14 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: the Goals page creates click goals with "A click on the page", with their short name under Advanced. Migration impact: none.
+- Added: goal pickers group defined goals found on the test's page under "On this test's page", with a note explaining that linked-document and code goals are not listed. Migration impact: none.
+- Added: `xpGoalField()` has a manager picker with inline "+ New click goal" creation and a warning for undefined keys. Migration impact: new importMap component key (`XpGoalField`). Run `payload generate:importmap`.
+- Added: `xpGoalPuckEditorField()` from `/puck/editor` provides the click-goal picker and inline creation for the Puck sidebar. Migration impact: use it in editor configs, with `xpGoalPuckField()` from `/puck` in render configs; no database change.
+- Added: each results round with a click primary goal explains that clicks show interest and suggests adding the desired outcome as another goal. Migration impact: none.
+- Added: manager-only `GET /xp/pages` accepts an optional `path` query to resolve a page's title and document link. Migration impact: none.
+- Added: readiness, add-goal warnings and results name and link page and block placements when they can be resolved. Migration impact: none.
+- Changed: `PhaseSummary.metrics[]` gains optional `clickGoal: true`, derived from the round's frozen goal definition. Migration impact: readers may adopt the optional marker; no database change.
 - Added: click goals (`click:<short-name>`), delegated client click beacons, defined-key validation and published-content fairness checks at Start, add-goal and results runs. Click goals may be primary or guardrail goals. Migration impact: no plugin database change; render `data-xp-goal` on the host's interactive elements when adopting click goals.
 - Added: `xpGoalField()` from the package root and `xpGoalPuckField()` from `/puck` mark interactive content with click-goal keys. Migration impact: hosts adopting the Payload field add one nullable text column per table using `xpGoal`, including version tables, with `payload migrate:create`; the Puck prop adds no column.
 - Added: `AddMetricWarning`, `AddMetricResult` and `ClickKeysResult` types from the package root, and manager-only `GET /xp/experiments/:id/click-keys`. Migration impact: no database change; hosts may adopt the typed response and key discovery endpoint.

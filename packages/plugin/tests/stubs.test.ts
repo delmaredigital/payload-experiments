@@ -47,10 +47,10 @@ const exportsByEntry = [
   [proxy, ['resolveExperiments', 'applyExperiments', 'createExperimentProxy']],
   [rsc, ['resolveExperimentBlocks', 'getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments', 'compileManifest', 'pageKindSeoContract']],
   [client, ['ExperimentGroup', 'ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
-  [adminClient, ['TestBlockField', 'BlockStatusField', 'BlockSlotRowLabel', 'CopyOriginalField', 'wrapExperimentBlock', 'syncExperimentSlots', 'copyOriginalIntoVersion', 'unwrapExperimentBlock', 'findRegisteredBlocksField', 'XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField', 'PlacementStatus']],
+  [adminClient, ['XpGoalField', 'TestBlockField', 'BlockStatusField', 'BlockSlotRowLabel', 'CopyOriginalField', 'wrapExperimentBlock', 'syncExperimentSlots', 'copyOriginalIntoVersion', 'unwrapExperimentBlock', 'findRegisteredBlocksField', 'XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField', 'PlacementStatus']],
   [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect', 'TestsNavLinkServer']],
   [puck, ['xpGoalPuckField', 'ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
-  [puckEditor, ['ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent', 'experimentOutlinePlugin']],
+  [puckEditor, ['xpGoalPuckEditorField', 'ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent', 'experimentOutlinePlugin']],
 ] as const
 
 test('root barrel keeps public types and excludes internal contracts and the Puck Slot peer type', () => {

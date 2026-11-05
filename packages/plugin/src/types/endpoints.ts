@@ -35,7 +35,7 @@ export type PreviewTokenResult = { token: string }
 export interface PhaseSummary {
   phase: number; phaseKind: 'test' | 'rollout'; startedAt: string; endedAt: string | null
   arms: Array<{ key: string; label: string; kind: ArmKind }>
-  metrics: Array<{ metricId: DocId; name: string; kind: MetricSource['kind']; role: 'primary' | 'secondary' | 'guardrail'; resolvedCap?: number | null; historyUnits?: number; capNotice?: 'no-history' }>
+  metrics: Array<{ metricId: DocId; name: string; kind: MetricSource['kind']; role: 'primary' | 'secondary' | 'guardrail'; clickGoal?: true; resolvedCap?: number | null; historyUnits?: number; capNotice?: 'no-history' }>
 }
 export type ResultsResponse = {
   /** Filled by the results endpoint from CORE-48: what a results reader may see about the test. */

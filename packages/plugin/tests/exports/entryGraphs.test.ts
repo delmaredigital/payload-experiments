@@ -128,3 +128,7 @@ test('blocks is pure and independent of the plugin runtime', () => {
   expect([...graph.bare, ...graph.dynamic]).toEqual([])
   expect(graph.files.every(file => /\/src\/(exports\/blocks|blocks\/model)\.ts$/.test(file))).toBe(true)
 })
+
+test('/puck stays independent of the click-goal picker', () => {
+  expect(collectImports(entry('puck')).files.filter(file => file.includes('/goals/picker/'))).toEqual([])
+})

@@ -7,3 +7,9 @@ export function metricSourceOptions(sources: readonly SerializedMetricSource[]) 
 export function metricSourceHint(source?: SerializedMetricSource): string | null {
   return source?.kind === 'revenue' ? METRICS_COPY.revenueHint : null
 }
+
+/** Click goal definitions share the serialized click-source option. */
+export function sourceFor(sourceId: string | undefined, metricSources: readonly SerializedMetricSource[]) {
+  const id = sourceId?.startsWith('click:') ? 'click:' : sourceId
+  return metricSources.find(source => source.id === id)
+}

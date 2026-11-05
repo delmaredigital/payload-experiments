@@ -490,3 +490,37 @@ test('add-goal dialog shows all three response warnings until Done with real doc
   expect(screen.queryByRole('dialog')).toBeNull()
   await waitFor(() => expect(readDocument).toHaveBeenCalledTimes(2))
 }, 5_000) // Measured 105 ms locally with real reloads; cap exceeds 3×.
+
+test('placement warnings name and link page and block placements from preflight without lookups', () => {
+  const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher)
+  const p = props({}, { preflight: { ...preflight([
+    { code: 'placement-unchecked', ok: true, warning: true, detail: { collection: 'pages', path: '/landing' } },
+    { code: 'placement-unchecked', ok: true, warning: true, detail: { collection: 'posts', id: 9 } },
+    { code: 'placement-unchecked', ok: true, warning: true, detail: {} },
+  ]), pagePlacements: [{ collection: 'pages', arm: 'control', path: '/landing', title: 'Landing title', id: 1, published: true, editorUrl: '/edit/landing' }], placements: [{ collection: 'posts', id: 9, title: 'Article title', ok: true }] } })
+  render(<Banner {...p} />)
+  expect(screen.getByRole('link', { name: /Landing title couldn't be checked/ }).getAttribute('href')).toBe('/edit/landing')
+  expect(screen.getByRole('link', { name: /Article title couldn't be checked/ }).getAttribute('href')).toBe('/admin/collections/posts/9')
+  expect(screen.getByText(/This page couldn't be checked/)).toBeTruthy()
+  expect(fetcher).not.toHaveBeenCalled()
+})
+
+test('add-goal warnings use preflight titles and document links without a placement lookup', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(response({ docs: [{ id: 4, name: 'New outcome' }] })).mockResolvedValueOnce(response({ doc: {}, revision: 2, warnings: [{ code: 'placement-unchecked', detail: { collection: 'pages', path: '/landing' } }] }))
+  vi.stubGlobal('fetch', fetcher)
+  const p = props({ status: 'running' }, { preflight: { ...preflight([]), pagePlacements: [{ collection: 'pages', arm: 'control', path: '/landing', title: 'Landing title', id: 1, published: true, editorUrl: '/edit/landing' }] } })
+  render(<Banner {...p} />)
+  fireEvent.click(button('Add a goal'))
+  await screen.findByRole('option', { name: 'New outcome' })
+  fireEvent.change(screen.getByLabelText('Metric'), { target: { value: '4' } })
+  fireEvent.click(dialogButton('Add a goal'))
+  expect((await screen.findByRole('link', { name: /Landing title couldn't be checked/ })).getAttribute('href')).toBe('/edit/landing')
+  expect(fetcher).toHaveBeenCalledTimes(2)
+})
+
+test('an unknown failing readiness code links Review setup to the first section', () => {
+  const p = props({}, { preflight: preflight([{ code: 'future-code', ok: false }] as unknown as ReturnType<typeof preflight>['checks']) })
+  render(<Banner {...p} />)
+  expect(screen.getByRole('link', { name: 'Next: Review setup' }).getAttribute('href')).toBe('#section-what')
+  expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true)
+})

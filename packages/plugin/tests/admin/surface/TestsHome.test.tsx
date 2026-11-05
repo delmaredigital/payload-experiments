@@ -230,3 +230,32 @@ test('stable paging renders a repeated test once and keeps newest activity first
   expect(screen.queryByText('Repeated draft')).toBeNull()
   expect(fetch.mock.calls[2]?.[0]).toBe('/api/xp/experiments/summary?ids=b,c,a')
 })
+
+test.each(['known', 'unknown', 'failed'])('home resolves asymmetric goal names in one id-filtered request (%s)', async kind => {
+  const docs = [{ id: 1, name: 'First', status: 'draft', kind: 'block' }, { id: 2, name: 'Second', status: 'stopped', kind: 'block' }]
+  const summaries = { 1: { next: { code: 'goal-in-some-versions', detail: [{ metricId: 7 }, { metricId: 8 }] } },
+    2: { next: { code: 'goal-in-some-versions', detail: [{ metricId: 8 }] } } }
+  const fetch = vi.fn(async (url: string, _init?: RequestInit) => {
+    if (url.includes('/summary?')) return new Response(JSON.stringify(summaries))
+    if (url.includes('/xp-metrics?')) return new Response(JSON.stringify({ docs: kind === 'known' ? [{ id: 7, name: 'Hero clicks' }, { id: 8, name: 'Join clicks' }] : [] }), { status: kind === 'failed' ? 403 : 200 })
+    return new Response(JSON.stringify({ docs }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(<TestsHome adminRoute="/admin" apiRoute="/data" canManage />)
+  await screen.findByText('First')
+  const goalReads = fetch.mock.calls.filter(([url]) => url.includes('/xp-metrics?'))
+  expect(goalReads).toHaveLength(1)
+  const query = new URL(goalReads[0]![0], 'https://test.local').searchParams
+  expect(Object.fromEntries(query)).toEqual({ 'where[id][in]': '7,8', depth: '0', limit: '2' })
+  expect(goalReads[0]![1]).toMatchObject({ credentials: 'include' })
+  const first = screen.getByText('First').closest('article')!
+  expect(first.textContent).toContain(kind === 'known' ? 'Hero clicks appears in some versions' : 'This goal appears in some versions')
+  expect(first.textContent).not.toContain('Join clicks')
+  expect(first.textContent).not.toContain('metricId')
+})
+test('home makes no goal-name request when no card needs asymmetric-goal copy', async () => {
+  const fetch = fetchData([{ id: 1, name: 'Ready', kind: 'block', status: 'draft' }], { 1: { ready: true } })
+  render(<TestsHome adminRoute="/admin" apiRoute="/data" canManage />)
+  await screen.findByText('Ready')
+  expect(fetch.mock.calls.some(([url]) => url.includes('xp-metrics'))).toBe(false)
+})

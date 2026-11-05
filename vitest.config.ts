@@ -24,7 +24,7 @@ export default defineConfig({
         ssr: { resolve: { conditions: ['@delmaredigital/source', 'module', 'node', 'development|production'] } },
         test: {
           name: 'plugin',
-          exclude: [...configDefaults.exclude, 'tests/admin/blocks/formApi.v3.test.tsx'],
+          exclude: [...configDefaults.exclude, 'tests/admin/blocks/formApi.v3.test.tsx', 'tests/admin/goals/pickerForm.v3.test.tsx'],
           root: 'packages/plugin',
           globals: true,
           environment: 'node',
@@ -41,7 +41,7 @@ export default defineConfig({
           // Keep dependency handling in the other plugin tests unchanged.
           server: { deps: { inline: ['@payloadcms/ui', 'react-image-crop'] } },
           environment: 'jsdom',
-          include: ['tests/admin/blocks/formApi.v3.test.tsx'],
+          include: ['tests/admin/blocks/formApi.v3.test.tsx', 'tests/admin/goals/pickerForm.v3.test.tsx'],
         },
       },
     ],

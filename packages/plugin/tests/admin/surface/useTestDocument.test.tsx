@@ -765,6 +765,10 @@ test.each([false, true])('focus preflight refetch is opt-in (%s), visibility als
   if (!enabled) { expect(reads).toBe(1); return }
   await waitFor(() => expect(reads).toBe(2))
   act(() => { window.document.dispatchEvent(new Event('visibilitychange')) })
+  expect(reads).toBe(2) // focus and visibility from one tab return coalesce
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 150)
+  act(() => { window.document.dispatchEvent(new Event('visibilitychange')) })
+  clock.mockRestore()
   await waitFor(() => expect(hook.result.current.preflight).toEqual(fresh))
   expect(hook.result.current.preflightPending).toBe(false)
   await act(async () => old.resolve(response(preflight)))

@@ -30,6 +30,28 @@ test('returns phase summaries and null snapshot before first run, passes req and
   expect(payload.calls.every(call => call.args.overrideAccess === false && call.args.req === req)).toBe(true)
 })
 
+test('clickGoal comes only from each frozen source, even when live goals have changed source', async () => {
+  vi.mocked(resultsMetadata).mockResolvedValue({ name: 'Signup form', kind: 'flag', status: 'running', snapshotId: null, winnerArm: null })
+  vi.mocked(newestSnapshotIds).mockResolvedValue([])
+  const frozen = phase(1)
+  const payload = fakePayload({ collections: {
+    'xp-phases': [{ ...frozen, metricDefinitions: [
+      { ...frozen.metricDefinitions[0], metricId: 'was-click', source: 'click:hero-cta' },
+      { ...frozen.metricDefinitions[0], metricId: 'now-click', role: 'secondary', source: 'events:signup' },
+    ] }],
+    'xp-metrics': [
+      { id: 'was-click', source: 'events:signup' },
+      { id: 'now-click', source: 'click:hero-cta' },
+    ],
+  } })
+  const response = await handleResults(fakeReq({ payload, routeParams: { id: 'exp' } }), { options })
+  const body = await response.json()
+  expect(body.phases[0].metrics[0]).toMatchObject({ metricId: 'was-click', clickGoal: true })
+  expect(body.phases[0].metrics[1]).not.toHaveProperty('clickGoal')
+  expect(body.phases[0].metrics.every((metric: Record<string, unknown>) => !Object.hasOwn(metric, 'source'))).toBe(true)
+  expect(payload.calls.some(call => call.args.collection === 'xp-metrics')).toBe(false)
+})
+
 test('decided defaults to decision round, retains decision snapshot and offers selected round series', async () => {
   vi.mocked(resultsMetadata).mockResolvedValue({ name: 'Signup form', kind: 'flag', status: 'decided', snapshotId: 1, winnerArm: 'variantA' })
   vi.mocked(newestSnapshotIds).mockResolvedValue([2, 3])

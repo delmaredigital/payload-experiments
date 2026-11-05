@@ -1,6 +1,8 @@
 'use client'
 
 import { DocsResponseError, fetchAllDocs } from '../../../lib/fetchAllDocs.js'
+import { usePlacementLabels, placementDetailKey } from '../../placements/usePlacementLabels.js'
+import { placementUncheckedCopy } from '../../copy/readiness.js'
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { Button } from '../../../ui/Button.js'
@@ -96,6 +98,7 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [metric, setMetric] = useState('')
   const [warnings, setWarnings] = useState<AddMetricWarning[] | null>(null)
+  const placementLabels = usePlacementLabels({ details: (warnings ?? []).filter(warning => warning.code === 'placement-unchecked').map(warning => warning.detail), preflight: test.preflight, ...surface })
   const [role, setRole] = useState<AddMetricBody['role']>('secondary')
   const transition = useTransition(test, onClose)
   useEffect(() => {
@@ -121,7 +124,10 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
     onClose()
   }
   return <Dialog open dismissible={!transition.busy} title={C.addGoal} onClose={close}>
-    {warnings ? warnings.map((warning, index) => <p key={index}>{addMetricWarningCopy(warning)}</p>) : <>
+    {warnings ? warnings.map((warning, index) => {
+      const placement = warning.code === 'placement-unchecked' ? placementLabels.get(placementDetailKey(warning.detail)) : undefined
+      return <p key={index}>{placement ? placement.href ? <a href={placement.href}>{placementUncheckedCopy(placement.title)}</a> : placementUncheckedCopy(placement.title) : addMetricWarningCopy(warning)}</p>
+    }) : <>
       <p>{C.addMetric}</p>
       {loading ? <p role="status">{R.loadingMetrics}</p> : null}
       <label>{R.role}<select value={role} disabled={disabled} onChange={event => setRole(event.target.value as AddMetricBody['role'])}>

@@ -86,6 +86,10 @@ function checkModels(entries: readonly string[]): string[] {
   entries.forEach(visit)
   return violations
 }
+
+test('the shared click-goal picker model stays independent of either host UI', () => {
+  expect(checkModels([fileURLToPath(new URL('../../src/goals/picker/clickGoalPicker.model.ts', import.meta.url))])).toEqual([])
+})
 test('all models are pure, following type-only helpers up to the src/types boundary', () => {
   expect(checkModels(models(new URL('../../src/', import.meta.url)))).toEqual([])
 })

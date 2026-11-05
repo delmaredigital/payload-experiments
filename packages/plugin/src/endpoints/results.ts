@@ -6,6 +6,7 @@ import type { ResultsPhase } from '../db/snapshots.js'
 import { resultsMetadata, newestSnapshotIds } from '../db/snapshots.js'
 import { pooledExecutor } from '../db/executor.js'
 import { routeId } from './routeId.js'
+import { isClickSource } from '../goals/key.js'
 
 const headers = { 'Cache-Control': 'no-store' }
 export function resultsError(status: number, code: RefusalCode, message: string): Response {
@@ -40,7 +41,8 @@ export async function handleResults<TUser extends { id: string | number } = { id
   const phases: PhaseSummary[] = records.map(record => ({ phase: record.phase, phaseKind: record.phaseKind,
     startedAt: String(record.startedAt), endedAt: record.endedAt == null ? null : String(record.endedAt),
     arms: record.arms.map(({ key, label, kind }) => ({ key, label, kind })),
-    metrics: record.metricDefinitions.map(({ metricId, name, kind, role, resolvedCap, historyUnits, capNotice }) => ({ metricId, name, kind, role,
+    metrics: record.metricDefinitions.map(({ metricId, name, kind, role, source, resolvedCap, historyUnits, capNotice }) => ({ metricId, name, kind, role,
+      ...(isClickSource(source) ? { clickGoal: true as const } : {}),
       ...(resolvedCap === undefined ? {} : { resolvedCap }), ...(historyUnits === undefined ? {} : { historyUnits }), ...(capNotice ? { capNotice } : {}),
     })),
   }))

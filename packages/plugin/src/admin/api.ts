@@ -45,7 +45,7 @@ export function createApi(apiBase: string) {
   const post = <T>(id: DocId, action: string, body?: unknown, options?: RequestOptions) => request<T>(() => route(id, action), 'POST', body, options)
   return {
     wrapBlock: (body: WrapBlockBody) => request<Record<string, unknown>>(() => `${apiBase.replace(/\/$/, '')}/xp/blocks/wrap`, 'POST', body),
-    pages: (query: { collection: string; q?: string; page?: number }, signal?: AbortSignal) => request<PagesResult>(() => `${apiBase.replace(/\/$/, '')}/xp/pages?${new URLSearchParams({ collection: query.collection, ...(query.q ? { q: query.q } : {}), ...(query.page ? { page: String(query.page) } : {}) })}`, 'GET', undefined, undefined, signal),
+    pages: (query: { collection: string; q?: string; path?: string; page?: number }, signal?: AbortSignal) => request<PagesResult>(() => `${apiBase.replace(/\/$/, '')}/xp/pages?${new URLSearchParams({ collection: query.collection, ...(query.q ? { q: query.q } : {}), ...(query.path !== undefined ? { path: query.path } : {}), ...(query.page ? { page: String(query.page) } : {}) })}`, 'GET', undefined, undefined, signal),
     placementStatus: (body: PlacementStatusBody) => request<PlacementStatusResult>(() => `${apiBase.replace(/\/$/, '')}/xp/placements/status`, 'POST', body),
     start: (id: DocId) => post<TransitionSuccess>(id, 'start'),
     allocate: (id: DocId, body: AllocateBody, options?: RequestOptions) => post<TransitionSuccess>(id, 'allocate', body, options),

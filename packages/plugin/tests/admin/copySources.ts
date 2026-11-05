@@ -12,7 +12,7 @@ export function files(directory: string): string[] {
 }
 export const editorFiles = [...files(join(src, 'admin')), ...files(join(src, 'puck'))]
 export const copyPaths = [...files(join(src, 'admin/copy')).filter(file => file.endsWith('.ts')),
-  join(src, 'admin/labels.ts'), join(src, 'puck/copy.ts'), join(src, 'puck/editor/copy.ts')]
+  join(src, 'admin/labels.ts'), join(src, 'puck/copy.ts'), join(src, 'puck/editor/copy.ts'), join(src, 'goals/picker/copy.ts')]
 export const helperPaths = editorFiles.filter(file => file.endsWith('.ts') && !copyPaths.includes(file))
 
 const copyProperties = new Set(['message', 'label', 'title', 'headline', 'detail', 'hint'])

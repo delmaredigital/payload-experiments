@@ -38,19 +38,19 @@ function references(node: CssNode): string[] {
 }
 
 test('every picker class is defined by the shared admin UI stylesheet', () => {
-  const picker = ts.createSourceFile('ExperimentPicker.tsx', read('puck/ExperimentPicker.tsx'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const pickers = ['puck/ExperimentPicker.tsx', 'puck/editor/xpGoalPuckEditorField.tsx'].map(path => ts.createSourceFile(path, read(path), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX))
   const classes = new Set<string>()
   function visit(node: ts.Node) {
-    if (ts.isJsxAttribute(node) && node.name.getText(picker) === 'className') {
+    if (ts.isJsxAttribute(node) && node.name.getText() === 'className') {
       // Make future dynamic classes explicit here rather than silently omitting them.
       if (!node.initializer || !ts.isStringLiteral(node.initializer)) throw new Error('Picker className must be a literal')
       node.initializer.text.split(/\s+/).filter(Boolean).forEach(name => classes.add(name))
     }
     ts.forEachChild(node, visit)
   }
-  visit(picker)
+  pickers.forEach(visit)
   expect(classes.size).toBeGreaterThan(0)
-  const uiRules = rules(read('ui/ui.css'))
+  const uiRules = rules(read('ui/ui.css') + '\n' + read('puck/editor/editor.css'))
   const pickerRules = uiRules.filter(rule => {
     let matches = false
     css.walk(rule.prelude!, node => {
@@ -63,7 +63,7 @@ test('every picker class is defined by the shared admin UI stylesheet', () => {
     if (node.type === 'ClassSelector') defined.add(node.name!)
   })
   for (const name of classes) {
-    expect(name.startsWith('xp-ui-'), name).toBe(true)
+    expect(name.startsWith('xp-ui-') || ['xp-slot-root', 'xp-puck-field'].includes(name), name).toBe(true)
     expect(defined.has(name), `Missing ui.css class .${name}`).toBe(true)
   }
 

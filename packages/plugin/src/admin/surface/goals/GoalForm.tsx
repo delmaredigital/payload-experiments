@@ -4,8 +4,10 @@ import { useRouter } from 'next/navigation.js'
 import { formatAdminURL } from 'payload/shared'
 import type { SurfaceProps } from '../contracts.js'
 import { GOALS_COPY as C, goalDeleteLocked, goalInUse } from '../../copy/goals.js'
-import { metricSourceHint, metricSourceOptions } from '../../metricSource.model.js'
+import { metricSourceHint, metricSourceOptions, sourceFor } from '../../metricSource.model.js'
 import { validateCappingType, validateCappingValue } from '../../../collections/metricValidation.js'
+import { CLICK_KEY } from '../../../goals/key.js'
+import { clickGoalSlug } from '../../../goals/picker/clickGoalPicker.model.js'
 import { goalSlug, goalUsage } from './goals.model.js'
 import type { Goal, GoalUsageTest } from './goals.model.js'
 import { GoalResponseError, goalPages, goalResponse } from './data.js'
@@ -45,7 +47,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
   const advanced = useRef<HTMLDetailsElement>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   useEffect(() => {
-    if (advanced.current && (fieldErrors.capType || fieldErrors.capValue || fieldErrors.warningPercent)) advanced.current.open = true
+    if (advanced.current && (fieldErrors.slug || fieldErrors.capType || fieldErrors.capValue || fieldErrors.warningPercent)) advanced.current.open = true
   }, [fieldErrors])
   const returnQuery = returnToTest ? `?${new URLSearchParams({ return: returnToTest })}` : ''
   const listUrl = formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${returnQuery}` })
@@ -62,7 +64,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
           ])
           if (loaded.id == null) throw new Error(C.missing)
           if (controller.signal.aborted) return
-          const defaultCap = surface.metricSources.some(source => source.id === loaded.source && source.kind === 'revenue')
+          const defaultCap = sourceFor(loaded.source, surface.metricSources)?.kind === 'revenue'
             && loaded.capping?.type == null && loaded.capping?.value == null
           setGoal(loaded); setUsedBy(goalUsage(tests).get(loaded.id) ?? 0)
           setDraft({ ...empty(), ...loaded, capType: loaded.capping?.type ?? (defaultCap ? 'percentile' : ''), capValue: loaded.capping?.value == null ? defaultCap ? '0.99' : '' : String(loaded.capping.value),
@@ -74,26 +76,27 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
     })()
     return () => controller.abort()
   }, [base, id, attempt])
-  const source = surface.metricSources.find(source => source.id === draft.source)
+  const source = sourceFor(draft.source, surface.metricSources)
+  const click = draft.source.startsWith('click:')
   const hint = metricSourceHint(source)
   const options = metricSourceOptions(surface.metricSources)
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft(current => ({ ...current, [key]: value }))
   async function submit() {
     if (inFlight.current || !ready || !surface.canManage) return
-    const capValue = draft.capValue.trim() === '' ? null : Number(draft.capValue)
-    const typeError = validateCappingType(draft.capType || null, capValue, source?.kind)
-    const valueError = validateCappingValue(capValue, draft.capType || null)
+    const capValue = click || draft.capValue.trim() === '' ? null : Number(draft.capValue)
+    const typeError = validateCappingType(click ? null : draft.capType || null, capValue, source?.kind)
+    const valueError = validateCappingValue(capValue, click ? null : draft.capType || null)
     const warningPercent = draft.warningPercent.trim() === '' ? 5 : Number(draft.warningPercent)
-    const errors = { ...(typeError !== true ? { capType: typeError } : {}), ...(valueError !== true ? { capValue: valueError } : {}),
+    const errors = { ...(click && !CLICK_KEY.test(draft.slug) ? { slug: C.slugRule } : {}), ...(typeError !== true ? { capType: typeError } : {}), ...(valueError !== true ? { capValue: valueError } : {}),
       ...(!Number.isFinite(warningPercent) || warningPercent < 0 ? { warningPercent: C.thresholdError } : {}) }
     setFieldErrors(errors)
     if (Object.keys(errors).length) return
     inFlight.current = true; setPending('save'); setError('')
     try {
       // Use an explicit body: loaded metadata and presentation fields never go back to Payload.
-      const body = { name: draft.name, slug: usedBy && goal ? goal.slug : draft.slug, source: usedBy && goal ? goal.source : draft.source, direction: draft.direction,
+      const body = { name: draft.name, slug: usedBy && goal ? goal.slug : draft.slug, source: usedBy && goal ? goal.source : click ? `click:${draft.slug}` : draft.source, direction: click ? 'increase' : draft.direction,
         attributionWindowHours: draft.attributionWindowHours, minSampleSize: draft.minSampleSize,
-        capping: { type: draft.capType || null, value: capValue }, guardrailThreshold: warningPercent / 100 }
+        capping: { type: click ? null : draft.capType || null, value: capValue }, guardrailThreshold: warningPercent / 100 }
       const response = await fetch(`${base}/xp-metrics${id === undefined ? '' : `/${encodeURIComponent(id)}`}`, {
         method: id === undefined ? 'POST' : 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
@@ -102,8 +105,8 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
       router.push(id === undefined && returnToTest ? formatAdminURL({ adminRoute: surface.adminRoute,
         path: `/experiments/${encodeURIComponent(returnToTest)}?${new URLSearchParams({ goal: String(saved.doc.id) })}` }) : listUrl)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : C.saveError)
-      if (cause instanceof GoalResponseError) setFieldErrors(Object.fromEntries(Object.entries(cause.fields).flatMap(([path, message]) => fieldNames[path] ? [[fieldNames[path], message]] : [])))
+      setError(cause instanceof GoalResponseError ? cause.message : C.saveError)
+      if (cause instanceof GoalResponseError) setFieldErrors(Object.fromEntries(Object.entries(cause.fields).flatMap(([path, message]) => fieldNames[path] ? [[fieldNames[path], path === 'slug' ? C.duplicateSlug : message]] : [])))
       inFlight.current = false; setPending(null)
     }
   }
@@ -130,35 +133,39 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
             <fieldset disabled={pending !== null || !surface.canManage}>
               <TextInput id="xp-goal-name" label={C.name} required value={draft.name} error={fieldErrors.name} onChange={event => {
                 const name = event.currentTarget.value
-                setDraft(current => ({ ...current, name, ...(!slugEdited && !usedBy ? { slug: goalSlug(name) } : {}) }))
+                setDraft(current => ({ ...current, name, ...(!slugEdited && !usedBy ? { slug: click ? clickGoalSlug(name) : goalSlug(name) } : {}) }))
+                if (click && !slugEdited && !usedBy) setFieldErrors(current => ({ ...current, slug: clickGoalSlug(name) ? undefined : C.slugRule }))
               }} />
-              <TextInput id="xp-goal-slug" label={C.slug} required value={draft.slug} readOnly={usedBy > 0}
+              {!click ? <><TextInput id="xp-goal-slug" label={C.slug} required value={draft.slug} readOnly={usedBy > 0}
                 help={usedBy ? C.slugLocked : C.slugHelp} error={fieldErrors.slug}
-                onChange={event => { setSlugEdited(true); set('slug', event.currentTarget.value) }} />
-              <Select id="xp-goal-source" label={C.source} required value={draft.source} disabled={usedBy > 0} help={usedBy ? C.sourceLocked : hint || undefined} error={fieldErrors.source} onChange={event => {
+                onChange={event => { setSlugEdited(true); set('slug', event.currentTarget.value) }} /></> : null}
+              <Select id="xp-goal-source" label={C.source} required value={click ? 'click:' : draft.source} disabled={usedBy > 0} help={usedBy ? C.sourceLocked : hint || undefined} error={fieldErrors.source} onChange={event => {
                 const sourceId = event.currentTarget.value
-                const revenue = surface.metricSources.find(source => source.id === sourceId)?.kind === 'revenue'
-                setDraft(current => ({ ...current, source: sourceId, capType: revenue ? 'percentile' : '', capValue: revenue ? '0.99' : '' }))
-              }}><option value="">{C.chooseSource}</option>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                {draft.source && !options.some(option => option.value === draft.source) ? <option value={draft.source}>{draft.source}</option> : null}
+                const revenue = sourceFor(sourceId, surface.metricSources)?.kind === 'revenue'
+                setDraft(current => ({ ...current, source: sourceId, ...(!slugEdited && !usedBy ? { slug: sourceId === 'click:' ? clickGoalSlug(current.name) : goalSlug(current.name) } : {}), capType: revenue ? 'percentile' : '', capValue: revenue ? '0.99' : '' }))
+                if (sourceId === 'click:' && !slugEdited && !usedBy) setFieldErrors(current => ({ ...current, slug: clickGoalSlug(draft.name) ? undefined : C.slugRule }))
+              }}><option value="">{C.chooseSource}</option>{options.map(option => <option key={option.value} value={option.value}>{option.value === 'click:' ? sourceFor(option.value, surface.metricSources)?.label : option.label}</option>)}
+                {!click && draft.source && !options.some(option => option.value === draft.source) ? <option value={draft.source}>{draft.source}</option> : null}
               </Select>
-              <Select id="xp-goal-direction" label={C.direction} value={draft.direction} error={fieldErrors.direction} onChange={event => set('direction', event.currentTarget.value as Draft['direction'])}>
+              {!click ? <Select id="xp-goal-direction" label={C.direction} value={draft.direction} error={fieldErrors.direction} onChange={event => set('direction', event.currentTarget.value as Draft['direction'])}>
                 <option value="increase">{C.increase}</option><option value="decrease">{C.decrease}</option>
-              </Select>
+              </Select> : null}
               <NumberInput id="xp-goal-window" label={C.window} required min="1" step="any" value={draft.attributionWindowHours ?? ''} error={fieldErrors.attributionWindowHours}
                 onChange={event => set('attributionWindowHours', event.currentTarget.value === '' ? null : Number(event.currentTarget.value))} />
               <NumberInput id="xp-goal-minimum" label={C.minimum} required min="1" step="any" value={draft.minSampleSize ?? ''} error={fieldErrors.minSampleSize}
                 onChange={event => set('minSampleSize', event.currentTarget.value === '' ? null : Number(event.currentTarget.value))} />
               <details className="xp-goal-advanced" ref={advanced}><summary>{C.advanced}</summary>
                 <div className="xp-goal-advanced-fields">
-                  <fieldset><legend>{C.capping}</legend>
+                  {click ? <><TextInput id="xp-goal-slug" label={C.slug} required value={draft.slug} readOnly={usedBy > 0}
+                help={usedBy ? C.slugLocked : C.slugHelp} error={fieldErrors.slug}
+                onChange={event => { setSlugEdited(true); set('slug', event.currentTarget.value) }} /></> : <fieldset><legend>{C.capping}</legend>
                     <Select id="xp-goal-cap-type" label={C.capType} required={source?.kind === 'revenue'} value={draft.capType} error={fieldErrors.capType} onChange={event => {
                       const capType = event.currentTarget.value as Draft['capType']
                       setDraft(current => ({ ...current, capType, capValue: capType ? current.capValue : '' }))
                     }}>{source?.kind !== 'revenue' ? <option value="">{C.noCap}</option> : null}<option value="percentile">{C.percentile}</option><option value="absolute">{C.absolute}</option></Select>
                     <NumberInput id="xp-goal-cap-value" label={C.capValue} step="any" min="0" disabled={!draft.capType} value={draft.capValue}
                       error={fieldErrors.capValue} help={C.capHelp} onChange={event => set('capValue', event.currentTarget.value)} />
-                  </fieldset>
+                  </fieldset>}
                   <NumberInput id="xp-goal-threshold" label={C.threshold} min="0" step="any" value={draft.warningPercent} error={fieldErrors.warningPercent}
                     onInvalid={() => setFieldErrors(current => ({ ...current, warningPercent: C.thresholdError }))} onChange={event => set('warningPercent', event.currentTarget.value)} />
                 </div>

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import * as paths from '../../src/admin/paths.js'
 const admin = [
+  ['XP_GOAL_FIELD', 'XpGoalField', 'goals/XpGoalField'],
   ['XP_TEST_BLOCK', 'TestBlockField', 'blocks/TestBlockField'],
   ['XP_BLOCK_STATUS', 'BlockStatusField', 'blocks/BlockPanel'],
   ['XP_BLOCK_ROW_LABEL', 'BlockSlotRowLabel', 'blocks/BlockPanel'],

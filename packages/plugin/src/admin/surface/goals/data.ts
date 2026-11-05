@@ -18,7 +18,7 @@ export async function goalResponse(response: Response, fallback: string, options
 function goalRefusal(body: unknown, status: number, fallback: string, options?: { notFound?: string }): never {
   const fields = payloadFieldErrors(body, '_section', fallback)
   const first = (body as { errors?: { code?: string }[] } | null | undefined)?.errors?.[0]
-  throw new GoalResponseError(refusalMessage(first?.code, status, Object.values(fields).join(' ') || fallback, options), fields)
+  throw new GoalResponseError(refusalMessage(first?.code, status, undefined, { ...options, fallback }), fields)
 }
 
 export async function goalPages<T>(base: string, collection: 'xp-metrics' | 'xp-experiments', signal: AbortSignal): Promise<T[]> {

@@ -17,3 +17,9 @@ test('the editor render imports its shipped stylesheet', () => {
   const css = readFileSync(new URL('../../../src/puck/editor/editor.css', import.meta.url), 'utf8')
   expect(css).not.toMatch(/@import/)
 })
+
+test('the editor click-goal field shares the neutral picker and loads scoped CSS', () => {
+  const graph = collectImports(fileURLToPath(new URL('../../../src/puck/editor/xpGoalPuckEditorField.tsx', import.meta.url)))
+  expect(graph.files.some(file => file.endsWith('/goals/picker/useClickGoalPicker.ts'))).toBe(true)
+  expect(graph.files.some(file => file.endsWith('/puck/editor/editor.css'))).toBe(true)
+})

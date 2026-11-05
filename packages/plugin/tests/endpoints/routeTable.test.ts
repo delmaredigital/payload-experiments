@@ -176,3 +176,14 @@ describe('verified visitor context', () => {
     expect(handler).toHaveBeenCalledWith(req, { options: opts })
   })
 })
+
+test('page path lookup query uses the existing manager route', async () => {
+  const opts = options()
+  const req = request()
+  Object.assign(req, { url: 'https://host/api/xp/pages?collection=pages&path=%2Flanding' })
+  const route = ROUTES.find(route => route.path === '/xp/pages')!
+  expect(route.access).toBe('manage')
+  const handler = vi.spyOn(route, 'handler').mockImplementation(async () => Response.json({ docs: [], hasNextPage: false }))
+  expect((await invoke('/xp/pages', opts, req)).status).toBe(200)
+  expect(handler).toHaveBeenCalledWith(req, { options: opts })
+})
