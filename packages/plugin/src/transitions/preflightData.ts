@@ -1,4 +1,7 @@
+import { goalContent, OUTSIDE_GOAL } from '../goals/fairness.js'
+import { placementInteractions, placementPaths, uniquePlacementDocs } from './placementInteractions.js'
 import { Forbidden, NotFound, type PayloadRequest } from 'payload'
+import { normalisePath } from '../runtime/normalisePath.js'
 import { resolvePageCollection } from './pageCollection.js'
 import { identicalPageVersions } from './pageVersions.js'
 import { safeError } from '../log.js'
@@ -39,10 +42,10 @@ export async function loadPageTestsInUse(req: PayloadRequest): Promise<NonNullab
 }
 
 /** Page targets no registered collection reports as published. A lookup that throws counts as
- * unpublished (logged). Start calls it again under its page-path locks on a detached request. */
+ * unpublished (logged) unless propagateErrors is requested by decide. Start calls it again under its page-path locks on a detached request. */
 export async function unpublishedPageTargets<TUser extends { id: DocId }>(req: PayloadRequest, options: ResolvedOptions<TUser>,
-  experiment: Pick<StartExperiment, 'id' | 'arms' | 'pageCollection'>): Promise<string[]> {
-  const resolved = await resolvePageCollection(req, options, experiment)
+  experiment: Pick<StartExperiment, 'id' | 'arms' | 'pageCollection'>, propagateErrors = false): Promise<string[]> {
+  const resolved = await resolvePageCollection(req, options, experiment, propagateErrors)
   const collections = resolved ? [resolved] : []
   const targets = await Promise.all(experiment.arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget?.trim()).map(async arm => {
     for (const collection of collections) {
@@ -50,6 +53,7 @@ export async function unpublishedPageTargets<TUser extends { id: DocId }>(req: P
         const page = await collection.findByPath(arm.pageTarget!, req)
         if (page?.published === true) return null
       } catch (cause) {
+        if (propagateErrors) throw cause
         req.payload.logger.error({ err: safeError(cause), experimentId: experiment.id, collection: collection.slug, id: arm.pageTarget }, 'Experiment page lookup failed')
       }
     }
@@ -100,7 +104,7 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
       }
       if (experiment.kind === 'block') {
         try {
-          blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, puckCollections: options.puck?.collections ?? [], blocksCollections: options.blocks?.collections ?? [] })
+          blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, compareVersions: true, puckCollections: options.puck?.collections ?? [], blocksCollections: options.blocks?.collections ?? [] })
           input.placements = (await blocks).get(experiment.slug) ?? []
         } catch (cause) { input.placementError = placementFailure(cause) }
       }
@@ -158,6 +162,11 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
         })())
         input.layer = await layers.get(key)!
       }
+      if ((experiment.kind === 'page' || experiment.kind === 'block') && options.pages?.collections.length) {
+        const paths = experiment.kind === 'page' ? experiment.arms.flatMap(a => typeof a.pageTarget === 'string' ? [a.pageTarget] : []) : await placementPaths(req, options, uniquePlacementDocs(input.placements ?? []))
+        input.interactions = await placementInteractions(req, await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload), options, experiment, paths.map(normalisePath))
+      }
+      if (input.metrics.some(metric => metric.source.startsWith('click:'))) input.goalContent = await goalContent(req, options, experiment, input.placements ? uniquePlacementDocs(input.placements.filter(placement => placement.published)) : undefined)
       inputs.set(String(experiment.id), input)
     } catch (cause) {
       if (!tolerateErrors) throw cause
@@ -335,5 +344,5 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
         ...(placement.slug ? { slug: placement.slug } : {}), ...await placementUrls(options, placement, pendingPreviews, onPreviewFailure, previews) })
     }
   }
-  return { checks: checkStart(input), placements, ...(e.kind === 'page' ? { pagePlacements } : {}), baseline, trafficPerDay, estimate: power }
+  return { checks: checkStart(input), ...(input.goalContent ? { goalNotes: input.metrics.filter(m => m.source.startsWith('click:') && input.goalContent && !input.goalContent.skipped && !input.goalContent.unchecked.length && !input.goalContent.keys.some(k => `click:${k.key}` === m.source)).map(m => ({ metricId: m.id, message: OUTSIDE_GOAL })) } : {}), placements, ...(e.kind === 'page' ? { pagePlacements } : {}), baseline, trafficPerDay, estimate: power }
 }

@@ -69,8 +69,8 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     const defaults = state.flagDefaults as Record<string, FlagDefault> | undefined
     for (const point of flagPoints) point.effectiveDefaults = defaults?.[point.id]?.params ?? point.defaultParams
   }
-  const registrations = puckCollections(options)
-  const pages = route === 'new' && canManage && options.puck?.enabled && registrations.length ? (await Promise.all(registrations.map(async ({ slug: collection }) => {
+  const registrations = [...new Set([...(options.puck?.enabled ? puckCollections(options) : []), ...options.blocks?.collections ?? []].map(entry => entry.slug))]
+  const pages = route === 'new' && canManage && registrations.length ? (await Promise.all(registrations.map(async collection => {
     try {
       const config = req.payload.config.collections.find(item => item.slug === collection)
       const useAsTitle = config?.admin.useAsTitle ?? 'id'
@@ -82,11 +82,12 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
         limit: 50, sort: '-updatedAt', draft: true, select: { [useAsTitle]: true, ...predicateFields } })
       // The new-test list uses the latest draft's editing intent, as the "Test a block" field condition does (§4.1).
       return result.docs.map(doc => {
-        if (documentEditor(options, collection, doc) !== 'puck') return null
+        const editor = documentEditor(options, collection, doc)
+        if (editor !== 'puck' && editor !== 'blocks') return null
         const id = doc.id
-        const customUrl = options.admin?.editorUrl?.({ collection, id, draft: true, editor: documentEditor(options, collection, doc), doc })
+        const customUrl = options.admin?.editorUrl?.({ collection, id, draft: true, editor, doc })
         const title = doc[useAsTitle]
-        return { collection, collectionLabel, id, title: typeof title === 'string' || typeof title === 'number' ? String(title) : String(id),
+        return { collection, collectionLabel, id, editor, title: typeof title === 'string' || typeof title === 'number' ? String(title) : String(id),
           editorUrl: typeof customUrl === 'string' ? customUrl : formatAdminURL({ adminRoute, path: `/collections/${collection}/${encodeURIComponent(String(id))}` }) }
       }).filter((page): page is NonNullable<typeof page> => page !== null)
     } catch { return [] }

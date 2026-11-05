@@ -129,3 +129,73 @@ test.each(['slug', 'source'])('addMetric refuses a goal whose %s changed during 
   expect(payload.documents['xp-phases']![0]!.metricDefinitions).toHaveLength(1)
   expect(experiment.metrics).toEqual({ primary: 2 })
 })
+
+test.each(['secondary', 'guardrail'] as const)('click %s fairness is computed before the transition; guardrail refuses, secondary warns', async role => {
+  const f = fixture('running')
+  f.experiment.kind = 'page'; f.experiment.pageCollection = 'pages'
+  f.experiment.arms = defaultArms('page').map((arm, i) => ({ ...arm, pageTarget: i ? '/b' : '/a' }))
+  Object.assign(f.payload.documents['xp-metrics']![1]!, { source: 'click:join', slug: 'join' })
+  f.options.pages = { collections: [{ slug: 'pages', pathOf: d => String(d.path), findByPath: async path => ({ id: path === '/a' ? 7 : 8, published: true }), contentOf: d => d.layout }] }
+  Object.assign(f.payload.config, { collections: [{ slug: 'pages', versions: { drafts: true } }] })
+  Object.assign(f.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+    expect(f.req.context.xpTransition).not.toBe(true)
+    expect(f.executor.calls.some(c => c.text.includes('pg_advisory'))).toBe(false)
+    return { id: where.id.equals, _status: 'published', layout: where.id.equals === 7 ? [{ xpGoal: 'join' }] : [] }
+  }) })
+  if (role === 'guardrail') {
+    await expect(addMetric(f.req, { experimentId: 1, metric: 4, role, options: f.options })).rejects.toMatchObject({ code: 'goal-in-some-versions' })
+    expect(f.payload.documents['xp-phases']![0]!.metricDefinitions).toHaveLength(1)
+  } else {
+    const result = await addMetric(f.req, { experimentId: 1, metric: 4, role, options: f.options })
+    expect(result.warnings.map(w => w.code)).toEqual(['goal-in-some-versions', 'goal-added-mid-test'])
+  }
+})
+
+
+test.each(['secondary', 'guardrail'] as const)('add-metric reports unchecked placements and judges readable arms for a %s goal', async role => {
+  for (const disagree of [false, true]) {
+    const f = fixture('running')
+    Object.assign(f.experiment, { kind: 'page', pageCollection: 'pages', arms: [
+      ...defaultArms('page').map((arm, i) => ({ ...arm, weight: i ? 33 : 34, pageTarget: i ? '/b' : '/a' })),
+      { key: 'variantB', kind: 'variant', label: 'B', weight: 33, pageTarget: '/unreadable' },
+    ] })
+    Object.assign(f.payload.documents['xp-metrics']![1]!, { source: 'click:join', slug: 'join' })
+    f.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async path => ({ id: path === '/a' ? 7 : path === '/b' ? 8 : 9, published: true }), contentOf: doc => doc.layout }] }
+    f.payload.documents.pages = [{ id: 7, layout: [{ xpGoal: 'join' }] }, { id: 8, layout: disagree ? [] : [{ xpGoal: 'join' }] }]
+    const find = f.payload.db.findOne.bind(f.payload.db)
+    vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => {
+      if ((args.where?.id as { equals?: number })?.equals === 9) throw new Error('unreadable')
+      return find(args)
+    })
+    const result = addMetric(f.req, { experimentId: 1, metric: 4, role, options: f.options })
+    if (disagree && role === 'guardrail') {
+      await expect(result).rejects.toMatchObject({ code: 'goal-in-some-versions' })
+      expect(f.payload.documents['xp-phases']![0]!.metricDefinitions).toHaveLength(1)
+    } else {
+      expect((await result).warnings).toEqual([
+        ...(disagree ? [{ code: 'goal-in-some-versions', detail: { metricId: 4, name: 'Gifts' } }] : []),
+        { code: 'placement-unchecked', detail: { collection: 'pages', path: '/unreadable' } },
+        { code: 'goal-added-mid-test', detail: { metricId: 4 } },
+      ])
+    }
+  }
+}, 5_000) // Measured 8 ms locally; cap exceeds 3×.
+
+test('add-metric excludes missing or unpublished version pages without an unchecked warning when readable arms agree', async () => {
+  for (const missing of [true, false]) {
+    const f = fixture('running')
+    Object.assign(f.experiment, { kind: 'page', pageCollection: 'pages', arms: [
+      ...defaultArms('page').map((arm, i) => ({ ...arm, weight: i ? 33 : 34, pageTarget: i ? '/b' : '/a' })),
+      { key: 'variantB', kind: 'variant', label: 'B', weight: 33, pageTarget: '/unavailable' },
+    ] })
+    Object.assign(f.payload.documents['xp-metrics']![1]!, { source: 'click:join', slug: 'join' })
+    f.payload.documents.pages = [{ id: 7, layout: [{ xpGoal: 'join' }] }, { id: 8, layout: [{ xpGoal: 'join' }] }]
+    f.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', contentOf: doc => doc.layout,
+      findByPath: async path => path === '/unavailable' ? (missing ? null : { id: 9, published: false })
+        : { id: path === '/a' ? 7 : 8, published: true },
+    }] }
+    const result = await addMetric(f.req, { experimentId: 1, metric: 4, role: 'secondary', options: f.options })
+    expect(result.warnings).toEqual([{ code: 'goal-added-mid-test', detail: { metricId: 4 } }])
+    expect(f.payload.logs.filter(log => log.level === 'error')).toEqual([])
+  }
+}, 5_000) // Measured 3 ms locally; cap exceeds 3×.

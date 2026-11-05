@@ -1,9 +1,13 @@
+import { goalContent } from '../goals/fairness.js'
+import { detached } from './placementInteractions.js'
 import type { PayloadRequest } from 'payload'
+import { lockAndRescanPlacements, placementInteractions } from './placementInteractions.js'
 import { lockPagePaths } from '../db/locks.js'
 import { lockMetricsForFreeze } from '../db/metricUsage.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
 import { claimSlices } from '../db/slices.js'
-import { pageInUseCopy, unpublishedPageCopy } from '../admin/copy/readiness.js'
+import { asymmetricGoalsCopy, sameAddressCopy, interactingTestsCopy, pageInUseCopy, unpublishedPageCopy } from '../admin/copy/readiness.js'
+import { GROUP_LABELS } from '../admin/copy/arms.js'
 import { XpRefusal } from '../errors.js'
 import { isOpValid } from '../targeting/ops.js'
 import { newSeed } from '../runtime/seed.js'
@@ -27,8 +31,13 @@ export async function readExperiment(req: PayloadRequest, id: DocId): Promise<Tr
 }
 export function refuse(code: RefusalCode, detail?: unknown): never {
   const messages: Partial<Record<RefusalCode, string>> = {
+    'goal-in-some-versions': asymmetricGoalsCopy(detail),
+    'placements-changed': "This test's pages changed while it was starting. Try again.",
+    'page-busy': "One of this test's pages is being saved right now. Try again in a moment.",
+    'interacting-tests': (() => { const d = (detail as Array<{ path: string; status: string; name: string; version: boolean }> | undefined)?.[0]; return d ? interactingTestsCopy(d.path, d.status, d.name, d.version) : 'Finish one of the tests first.' })(),
     'unknown-collection': "That page type isn't set up for tests.",
     'page-in-use': pageInUseCopy((detail as { paths?: string[] } | undefined)?.paths?.[0] ?? 'this page'),
+    'version-same-address': (() => { const d = detail as { arm: keyof typeof GROUP_LABELS; otherArm: keyof typeof GROUP_LABELS; path: string } | undefined; return sameAddressCopy(GROUP_LABELS[d?.arm ?? 'variantA'], GROUP_LABELS[d?.otherArm ?? 'control'], d?.path ?? 'this address') })(),
     'page-target-unpublished': unpublishedPageCopy(typeof detail === 'string' ? detail : 'This page'),
     'invalid-status': 'This action is not available in the current status.',
     'stale-draft': 'The experiment changed. Review it again before starting.',
@@ -42,7 +51,7 @@ export function refuse(code: RefusalCode, detail?: unknown): never {
     'entry-dismissed': 'That page was already dismissed.',
     'entry-not-dismissed': 'That page is not dismissed.',
   }
-  const conflict = ['invalid-status', 'stale-draft', 'page-in-use', 'flag-point-busy', 'layer-full', 'allocation-lower', 'not-decided', 'entry-ok', 'entry-dismissed', 'entry-not-dismissed'].includes(code)
+  const conflict = ['page-busy', 'placements-changed', 'interacting-tests', 'invalid-status', 'stale-draft', 'page-in-use', 'flag-point-busy', 'layer-full', 'allocation-lower', 'not-decided', 'entry-ok', 'entry-dismissed', 'entry-not-dismissed'].includes(code)
   throw new XpRefusal(code, messages[code] ?? 'The experiment is not ready to start.', detail, code === 'entry-not-found' ? 404 : conflict ? 409 : 422)
 }
 export async function updateExperiment(req: PayloadRequest, id: DocId, data: Record<string, unknown>) {
@@ -74,6 +83,13 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
     const current = await readExperiment(req, experimentId)
     if (current.updatedAt !== updatedAt) refuse('stale-draft')
     if (current.status !== 'draft' && current.status !== 'stopped') refuse('invalid-status')
+    let placementDocs: import('../db/placements.js').PlacementDoc[] | undefined
+    if (current.kind === 'block') {
+      const rescan = await lockAndRescanPlacements(req, exec, options, current, input.placements ?? [])
+      placementDocs = rescan.docs
+      const failure = checkStart({ ...input, experiment: current, placements: rescan.placements }).find(check => !check.ok)
+      if (failure && failure.code !== 'page-targets-unchecked' && failure.code !== 'make-content-unsupported') refuse(failure.code, failure.detail)
+    }
     if (current.kind === 'page') {
       // Independent experiment/layer locks do not serialize overlapping pages.
       // Re-read occupancy after acquiring sorted path locks; hold through commit.
@@ -82,6 +98,8 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
       const recheck = checkStart({ ...input, experiment: current, pageTestsInUse: await loadPageTestsInUse(req) })
         .find(check => check.code === 'page-in-use' && !check.ok)
       if (recheck) refuse('page-in-use', recheck.detail)
+      const conflicts = await placementInteractions(req, exec, options, current, pageTargetPaths(current.arms))
+      if (conflicts.length) refuse('interacting-tests', conflicts)
       if (options.pages) {
         // The page guard takes the same path locks, so a delete, unpublish or rename that committed
         // while Start waited is visible now. Read it on a detached request (committed state, outside
@@ -106,6 +124,11 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
       current.arms = current.arms.map(arm => arm.kind === 'control' ? { ...arm, params: defaults?.[point.id]?.params ?? point.defaultParams } : arm)
       const recheck = checkStart({ ...input, experiment: current }).find(check => !check.ok)
       if (recheck && recheck.code !== 'page-targets-unchecked' && recheck.code !== 'make-content-unsupported') refuse(recheck.code, recheck.detail)
+    }
+    if (input.metrics.some(metric => metric.source.startsWith('click:'))) {
+      const content = await detached(req, () => goalContent(req, options, current, placementDocs))
+      const failure = checkStart({ ...input, experiment: current, goalContent: content }).find(check => check.code === 'goal-in-some-versions' && !check.ok)
+      if (failure) refuse('goal-in-some-versions', failure.detail)
     }
     const lockedMetrics = await lockMetricsForFreeze(exec, caps.definitions.map(metric => metric.id))
     if (!lockedMetrics) {
@@ -135,7 +158,7 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
         : current.metrics?.guardrails?.some(id => String(relationshipId(id)) === String(metric.id)) ? 'guardrail' : 'secondary',
     }))
     await writePhaseRecord(req, { experiment: experimentId, phase, phaseKind: 'test', seed, startedAt, arms: current.arms,
-      allocation: current.allocation, allocationChanges: [], targeting, metricDefinitions: definitions,
+      allocation: current.allocation, allocationChanges: [], targeting, metricDefinitions: definitions, ...(placementDocs ? { placementDocs } : {}),
       analysis: { ...current.analysis, method: current.analysis?.method ?? 'sequential', alpha: 0.05,
         sequentialTuningParameter: current.analysis?.sequentialTuningParameter ?? DEFAULT_SEQUENTIAL_TUNING_PARAMETER,
         cupedLookbackDays: 14, layerSlices,

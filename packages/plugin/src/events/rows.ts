@@ -1,3 +1,4 @@
+import { validClickSource, isClickSource } from '../goals/key.js'
 import { exposureDimensions } from './dimensions.js'
 import type { EventRow } from '../db/events.js'
 import type { AssignmentResult } from '../runtime/assign.js'
@@ -19,7 +20,7 @@ function attributes(value: unknown, keys: ResolvedOptions['attributeKeys']): Rec
 }
 
 export function eventRows<TUser extends { id: string | number }>(events: unknown[], manifest: Manifest, assignments: AssignmentResult,
-  options: ResolvedOptions<TUser>, visitorId: string, userId: string | undefined, ts: string, requestAttributes: Readonly<Record<string, unknown>> = {}): EventRow[] {
+  options: ResolvedOptions<TUser>, visitorId: string, userId: string | undefined, ts: string, requestAttributes: Readonly<Record<string, unknown>> = {}, clickKeys?: ReadonlySet<string>): EventRow[] {
   const rows = new Map<string, EventRow>()
   for (const event of events) {
     if (!record(event)) continue
@@ -43,9 +44,10 @@ export function eventRows<TUser extends { id: string | number }>(events: unknown
       if (typeof event.eventName !== 'string' || typeof event.idempotencyKey !== 'string' || !event.idempotencyKey.trim()
         || (event.value !== undefined && (typeof event.value !== 'number' || !Number.isFinite(event.value)))) continue
       const source = options.metricSources?.find(source => source.id === event.eventName)
-      if (source ? source.clientWritable !== true || source.kind === 'revenue' : !options.eventSources?.some(source => source.name === event.eventName && source.clientWritable)) continue
+      const click = isClickSource(event.eventName)
+      if (click ? !validClickSource(event.eventName) || !clickKeys?.has(event.eventName.slice(6)) : source ? source.clientWritable !== true || source.kind === 'revenue' : !options.eventSources?.some(source => source.name === event.eventName && source.clientWritable)) continue
       row = { type: 'conversion', eventName: event.eventName, value: 1, unitId: visitorId, unitType: 'visitor', userId, ts,
-        dimensions: null, attributes: attributes(event.attributes, options.attributeKeys),
+        dimensions: null, attributes: click ? undefined : attributes(event.attributes, options.attributeKeys),
         // §5.5: scoped by unit and event so one client can never pre-claim another's key.
         dedupeKey: `conversion:c:${visitorId}:${event.eventName}:${event.idempotencyKey}` }
     } else continue

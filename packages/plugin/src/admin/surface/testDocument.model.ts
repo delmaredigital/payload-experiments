@@ -8,6 +8,7 @@ export interface TestDocument {
   id: DocId; name: string; slug: string; status: Status; kind: ExperimentKind; unitType: UnitType
   hypothesis?: string | null
   arms: Arm[]; targeting?: TargetingRule[] | null; allocation: number
+  pageCollection?: string | null
   flagPoint?: string | null; exposurePolicy: ExposurePolicy
   metrics?: { primary?: DocId | null; secondary?: DocId[] | null; guardrails?: DocId[] | null } | null
   analysis?: {
@@ -20,7 +21,7 @@ export interface TestDocument {
 export type TestDocumentPatch = Partial<Pick<TestDocument, EditableField>>
 
 const EDITABLE_FIELDS: readonly EditableField[] = [
-  'name', 'hypothesis', 'arms', 'targeting', 'allocation', 'flagPoint', 'metrics', 'analysis', 'exposurePolicy',
+  'name', 'hypothesis', 'arms', 'targeting', 'allocation', 'flagPoint', 'metrics', 'analysis', 'exposurePolicy', 'pageCollection',
 ]
 
 /** Drop unknown and locked keys even when the caller is untyped. Groups replace whole groups. */

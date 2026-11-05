@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { pageGuardCopy, versionPageUnavailableCopy, versionPageUncheckedCopy } from '../../../src/admin/copy/readiness.js'
+import { placementGuardCopy, pageGuardCopy, versionPageUnavailableCopy, versionPageUncheckedCopy } from '../../../src/admin/copy/readiness.js'
 import { ROUTES } from '../../../src/endpoints/index.js'
 import type { Status } from '../../../src/types/contracts.js'
 import { createFakeExecutor } from '../../_fakes/executor.js'
@@ -10,7 +10,7 @@ const statuses: Status[] = ['draft', 'running', 'stopped', 'decided', 'archived'
 // Copy-to-route contract only. The route table supplies the actual handler,
 // and the tests below exercise its real status refusals (no transition mocks).
 const actions: Array<{ labels: string[]; endpointPath?: string; host?: true; statuses: string[]; body?: Record<string, unknown> }> = [
-  { labels: ['stop the test'], endpointPath: '/xp/experiments/:id/stop', statuses: ['running'], body: {} },
+  { labels: ['stop the test', 'stop __test_name__'], endpointPath: '/xp/experiments/:id/stop', statuses: ['running'], body: {} },
   { labels: ['Make it the content'], endpointPath: '/xp/experiments/:id/make-content', statuses: ['decided'], body: {} },
   { labels: ['Discard winner', 'discard the winner'], endpointPath: '/xp/experiments/:id/archive', statuses: ['decided'], body: { mode: 'discard', confirmation: 'discard winner' } },
   { labels: ['Release pages'], endpointPath: '/xp/experiments/:id/release-pages', statuses: ['archived'], body: {} },
@@ -21,6 +21,8 @@ const actionFor = (label: string) => actions.find(action => action.labels.some(v
 
 // Explicit copy-state contract: changing an action's wording must update this table.
 const copyStates = {
+  'placement.running': { status: 'running', copy: placementGuardCopy({ name: '__test_name__', status: 'running' }, { name: '__test_name__', status: 'running' }, true), labels: ['stop __test_name__'] },
+  'placement.decided': { status: 'decided', copy: placementGuardCopy({ name: '__test_name__', status: 'decided' }, { name: '__test_name__', status: 'decided' }, true), labels: ['Make it the content', 'Discard winner'] },
   'guard.running': { status: 'running', copy: pageGuardCopy('__test_name__', 'running'), labels: ['Stop the test'] },
   'guard.decided': { status: 'decided', copy: pageGuardCopy('__test_name__', 'decided'), labels: ['Make it the content', 'Discard winner'] },
   'guard.archived.winner': { status: 'archived', copy: pageGuardCopy('__test_name__', 'archived', 'winner'), labels: ['Release pages'] },
@@ -33,7 +35,7 @@ const copyStates = {
 
 test.each(Object.entries(copyStates))('%s names each mapped action verbatim and allows its status', (state, { copy, labels, status }) => {
   // The copy names no action beyond the table: guard copy quotes its actions; health copy ends with them.
-  if (state.startsWith('guard.')) expect([...copy.matchAll(/"([^"]+)"/g)].map(match => match[1])
+  if (state.startsWith('guard.') || state.startsWith('placement.')) expect([...copy.matchAll(/"([^"]+)"/g)].map(match => match[1])
     .filter(label => label !== '__test_name__' && !(labels as readonly string[]).includes(label!)), `${state}: unmapped quoted action`).toEqual([])
   else expect(copy.endsWith(` ${labels.join(', or ')}.`), `${state}: actions sentence is not exactly the table's labels`).toBe(true)
   for (const label of labels) {
@@ -72,3 +74,17 @@ for (const action of actions.filter(action => !action.host)) {
     }
   })
 }
+
+test('page setup refusals share copy and Choose pages stays a versions action', async () => {
+  const { unpublishedPageCopy, pageInUseCopy, sameAddressCopy } = await import('../../../src/admin/copy/readiness.js')
+  const { refuse } = await import('../../../src/transitions/start.js')
+  const { READINESS } = await import('../../../src/admin/surface/readiness/readiness.model.js')
+  for (const [code, detail, sentence] of [
+    ['page-target-unpublished', '/copy', unpublishedPageCopy('/copy')],
+    ['page-in-use', { paths: ['/copy'] }, pageInUseCopy('/copy')],
+    ['version-same-address', { arm: 'variantA', otherArm: 'control', path: '/copy' }, sameAddressCopy('Variant A', 'Original', '/copy')],
+  ] as const) {
+    expect(() => refuse(code, detail)).toThrow(sentence)
+    expect(READINESS[code]).toMatchObject({ section: 'versions', nextStep: 'Choose pages' })
+  }
+})

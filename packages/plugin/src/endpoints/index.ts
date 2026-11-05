@@ -1,3 +1,4 @@
+import { handleClickKeys } from './clickKeys.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Endpoint, PayloadRequest } from 'payload'
 import { XP_MANIFEST_KEY_HEADER } from '../constants.js'
@@ -12,6 +13,7 @@ import { handlePreflight } from './preflight.js'
 import { handlePreviewToken } from './previewToken.js'
 import { handleResults } from './results.js'
 import { handleRecompute } from './recompute.js'
+import { handleWrapBlock } from './wrapBlock.js'
 import { handlePages } from './pages.js'
 import { handlePlacementStatus } from './placementStatus.js'
 import { handleSummary } from './summary.js'
@@ -35,6 +37,8 @@ export const ROUTES: Array<{ method: Endpoint['method']; path: string; access: A
   { method: 'get', path: '/xp/experiments/:id/results', access: 'readResults', handler: handleResults },
   { method: 'post', path: '/xp/experiments/:id/recompute', access: 'manage', handler: handleRecompute },
   { method: 'get', path: '/xp/experiments/summary', access: 'readResults', handler: handleSummary },
+  { method: 'post', path: '/xp/blocks/wrap', access: 'manage', handler: handleWrapBlock },
+  { method: 'get', path: '/xp/experiments/:id/click-keys', access: 'manage', handler: handleClickKeys },
   { method: 'get', path: '/xp/pages', access: 'manage', handler: handlePages },
   { method: 'post', path: '/xp/placements/status', access: 'manage', handler: handlePlacementStatus },
 ]

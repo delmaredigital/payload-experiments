@@ -15,6 +15,13 @@
 .xp-grid-field .xp-ui-field > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .xp-version-content { display: flex; flex-wrap: nowrap; gap: var(--xp-space-2); align-items: center; min-width: 0; }
 .xp-version-content .xp-ui-button { white-space: nowrap; }
+.xp-version-content--page { flex-direction: column; align-items: stretch; gap: var(--xp-space-3); }
+.xp-version-content--page > button { align-self: flex-start; }
+.xp-page-picker input[type="search"] { width: 100%; }
+.xp-page-picker ul { list-style: none; padding: 0; margin-block: var(--xp-space-3); }
+.xp-page-picker li > button { display: block; width: 100%; text-align: left; }
+.xp-page-picker li > p { color: var(--xp-text-2); font: var(--xp-text-small); }
+.xp-copy-route ol { list-style: decimal; padding-inline-start: var(--xp-space-6); }
 .xp-content-chip { flex-shrink: 0; display: inline-flex; width: fit-content; border-radius: var(--xp-radius-chip); padding: var(--xp-space-half) var(--xp-space-2); font: var(--xp-text-small); background: var(--xp-surface-2); color: var(--xp-text-2); }
 .xp-content-chip.xp-content-ready { background: var(--xp-success-bg); color: var(--xp-success); }
 .xp-content-chip.xp-content-empty { background: var(--xp-warning-bg); color: var(--xp-warning); }
@@ -66,7 +73,7 @@
 .xp-readiness--bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--xp-space-2) var(--xp-space-4); padding-block: var(--xp-space-3); min-height: 64px; border: 0; border-radius: 0; }
 .xp-readiness__state { display: flex; align-items: center; flex-wrap: wrap; gap: var(--xp-space-2); min-width: 0; }
 .xp-readiness__state p, .xp-readiness--bar > p { margin: 0; }
-.xp-readiness__state > p { font-weight: 500; }
+.xp-readiness__state > p { font-weight: 500; white-space: pre-line; }
 .xp-readiness--bar .xp-save-status, .xp-readiness__separator { color: var(--xp-text-3); font: var(--xp-text-small); }
 .xp-readiness__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xp-space-2); }
 .xp-readiness--bar > .xp-readiness__actions { grid-column: 2; grid-row: 1 / span 3; justify-content: flex-end; }

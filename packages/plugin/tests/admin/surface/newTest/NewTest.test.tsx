@@ -11,7 +11,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const surface: SurfaceProps = {
   adminRoute: '/control', apiRoute: '/data', canManage: true, canReadResults: true, isAdmin: false,
   flagPoints: [{ id: 'welcome', label: 'Welcome message', description: 'The greeting people see.', params: {}, defaultParams: {}, effectiveDefaults: {} }],
-  metricSources: [], attributeKeys: {}, descriptions: { block: 'Our page content.', setting: 'Our site choices.' },
+  metricSources: [], attributeKeys: {}, admin: { descriptions: { block: 'Our page content.', setting: 'Our site choices.' } },
 }
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 function settingStep() {
@@ -37,8 +37,8 @@ test('offers only configured cards with host descriptions, and a useful empty st
 test('block hand-off groups page links, marks a full list, and never creates anything', () => {
   const fetch = vi.fn()
   vi.stubGlobal('fetch', fetch)
-  const pages: NonNullable<TestsSurfaceProps['pages']> = Array.from({ length: 50 }, (_, id) => ({ id, collection: 'pages', collectionLabel: 'Pages', title: `Page ${id}`, editorUrl: `/editor/${id}` }))
-  pages.push({ id: 'story', collection: 'stories', collectionLabel: 'Stories', title: 'Story', editorUrl: '/stories/story' })
+  const pages: NonNullable<TestsSurfaceProps['pages']> = Array.from({ length: 50 }, (_, id) => ({ id, collection: 'pages', editor: 'puck' as const, collectionLabel: 'Pages', title: `Page ${id}`, editorUrl: `/editor/${id}` }))
+  pages.push({ id: 'story', collection: 'stories', editor: 'blocks' as const, collectionLabel: 'Stories', title: 'Story', editorUrl: '/stories/story' })
   render(<NewTest surface={surface} pages={pages} />)
   fireEvent.click(screen.getByRole('button', { name: /A block on a page/ }))
   expect(screen.getByText('Open the page, add an Experiment block where you want the test, and choose Test this block.')).toBeTruthy()
@@ -174,4 +174,37 @@ test('Advanced lists all 150 layers across two pages', async () => {
   await screen.findByRole('option', { name: 'Group 149' })
   expect(screen.getAllByRole('option')).toHaveLength(151)
   expect(fetch).toHaveBeenCalledTimes(2)
+})
+
+test('whole-page card is conditional and shows the host example', () => {
+  const view = render(<NewTest surface={surface} />)
+  expect(screen.queryByRole('button', { name: /A whole page/ })).toBeNull()
+  view.rerender(<NewTest surface={{ ...surface, pageCollections: [{ slug: 'pages', label: 'Pages', contentChecks: true }], admin: { descriptions: { page: 'Try a new welcome page.' } } }} />)
+  expect(screen.getByRole('button', { name: /A whole page/ }).textContent).toContain('Show different versions of a whole page at the same address, and see which one works better.')
+  expect(screen.getByText('Try a new welcome page.')).toBeTruthy()
+})
+test('blocks handoff includes the legacy editor instruction', () => {
+  render(<NewTest surface={surface} pages={[{ collection: 'pages', collectionLabel: 'Pages', editor: 'blocks', id: 1, title: 'Legacy', editorUrl: '/control/collections/pages/1' }]} />)
+  fireEvent.click(screen.getByRole('button', { name: /A block on a page/ }))
+  expect(screen.getByText("Pick the block to test with 'Test a block on this page'.")).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Open' }).getAttribute('href')).toBe('/control/collections/pages/1')
+})
+
+test('returning from Setting never carries a hidden layer into page creation', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(response({ docs: [{ id: 8, name: 'Signed-in group' }] }))
+    .mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response({ doc: { id: 1, slug: 'welcome-message' } })).mockResolvedValue(response({}))
+  vi.stubGlobal('fetch', fetcher)
+  render(<NewTest surface={{ ...surface, pageCollections: [{ slug: 'pages', label: 'Pages', contentChecks: true }] }} />)
+  settingStep()
+  const details = screen.getByText('Advanced').closest('details')!
+  details.open = true; fireEvent(details, new Event('toggle'))
+  await screen.findByRole('option', { name: 'Signed-in group' })
+  fireEvent.change(screen.getByLabelText('Put this test in a group (optional)'), { target: { value: '0' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+  fireEvent.click(screen.getByRole('button', { name: /A whole page/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+  await waitFor(() => expect(fetcher.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))
+  const body = JSON.parse(fetcher.mock.calls.find(([, init]) => init?.method === 'POST')![1].body)
+  expect(body).not.toHaveProperty('layer')
+  expect(body).toMatchObject({ kind: 'page', unitType: 'visitor', exposurePolicy: 'pageview' })
 })

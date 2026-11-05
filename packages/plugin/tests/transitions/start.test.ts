@@ -284,11 +284,11 @@ test.each(['missing', 'draft', 'throws'] as const)('unpublished page target (%s)
   options.pages = { collections: [{ slug: 'pages', pathOf: doc => `/${doc.slug}`, findByPath }] }
   const result = await preflightData(req, { experimentId: 1, options })
   expect(result!.checks).toContainEqual({ code: 'page-target-unpublished', ok: false, detail: '/variant' })
-  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-target-unpublished', message: "/variant isn't a published page. Publish it, or pick another page." })
+  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-target-unpublished', message: "/variant isn't a published page yet. Publish it, or choose another page." })
   expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant', '/original', '/variant', '/original', '/variant'])
   for (const call of findByPath.mock.calls) expect(call[1]).toBe(req)
   expect(experiment.status).toBe('draft')
-  expect(executor.calls).toHaveLength(2)
+  expect(executor.calls).toHaveLength(4)
   expect(executor.calls.every(call => call.text.includes('JOIN LATERAL'))).toBe(true)
   expect(JSON.stringify(payload.logs)).not.toContain('secret-value')
 })
@@ -521,4 +521,122 @@ test('preflight page placements treat a failed title read as unavailable', async
     { arm: 'control', path: '/original', collection: 'pages', id: null, published: false },
     { arm: 'variantA', path: '/version', collection: 'pages', id: null, published: false },
   ])
+})
+
+function blockFixture() {
+  const f = fixture()
+  Object.assign(f.experiment, { kind: 'block', exposurePolicy: 'render', arms: defaultArms('block') })
+  f.options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  f.options.pages = { collections: [{ slug: 'pages', pathOf: doc => `/${doc.slug}`, findByPath: async () => null }] }
+  const layout = [{ blockType: 'xpExperiment', experiment: 'hero', slots: [
+    { slot: 'control', blocks: [{ blockType: 'text' }] }, { slot: 'variantA', blocks: [{ blockType: 'text' }] },
+  ] }]
+  f.payload.documents.pages = [{ id: 10, title: 'Landing', slug: 'landing', _status: 'published', layout, secret: { doc: 'private host value' } }]
+  return f
+}
+
+// Measured below 100 ms locally; each cap leaves CI headroom.
+test.each(['placement-unpublished', 'duplicate-version-row', 'empty-slot'])('preflight and Start %s bodies contain only placement identifiers', async code => {
+  const f = blockFixture(), page = f.payload.documents.pages![0]!
+  const layout = page.layout as Array<{ slots: Array<{ slot: string; blocks: unknown[] }> }>
+  if (code === 'placement-unpublished') page._status = 'draft'
+  if (code === 'duplicate-version-row') layout[0]!.slots.push(structuredClone(layout[0]!.slots[0]!))
+  if (code === 'empty-slot') layout[0]!.slots[1]!.blocks = []
+  Object.assign(f.payload.db, { defaultIDType: 'number' })
+  f.req.routeParams = { id: '1' }; f.req.data = {}
+  const { handlePreflight } = await import('../../src/endpoints/preflight.js')
+  const { handleStart } = await import('../../src/endpoints/transitions.js')
+  const review = await handlePreflight(f.req, { options: f.options })
+  const refusal = await handleStart(f.req, { options: f.options })
+  const bodies = [await review.json(), await refusal.json()]
+  expect(refusal.status).toBe(422)
+  expect(bodies[1]).toMatchObject({ errors: [{ code, detail: [{ collection: 'pages', id: 10, title: 'Landing' }] }] })
+  if (code === 'empty-slot') {
+    const { READINESS } = await import('../../src/admin/surface/readiness/readiness.model.js')
+    expect(READINESS['empty-slot'].next(bodies[1].errors[0].detail, { arms: defaultArms('block'), unitType: 'visitor' })).toBe('Add content for Variant A on the page.')
+  }
+  function assertNoDoc(value: unknown) {
+    if (!value || typeof value !== 'object') return
+    expect(Object.keys(value)).not.toContain('doc')
+    for (const item of Object.values(value)) assertNoDoc(item)
+  }
+  for (const body of bodies) { assertNoDoc(JSON.parse(JSON.stringify(body))); expect(JSON.stringify(body)).not.toContain('private host value') }
+}, 5000)
+
+test('Start itself refuses interacting-tests found after its experiment lock', async () => {
+  const f = blockFixture(), query = f.executor.query
+  f.executor.query = async (text, params) => {
+    if (text.includes("hashtext('xp:experiment')")) f.occupancy.push({ id: 2, slug: 'page-test', name: 'Page test', status: 'running', kind: 'page', arms: pageArms('/landing') } as never)
+    return query(text, params)
+  }
+  await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'interacting-tests', status: 409 })
+  expect(f.payload.documents['xp-phases']).toEqual([])
+}, 5000)
+
+test('Start itself refuses placements-changed after a new placement appears during lock acquisition', async () => {
+  const f = blockFixture(), query = f.executor.query
+  f.executor.query = async (text, params) => {
+    if (text.includes("hashtext('xp:pagepath')")) f.payload.documents.pages!.push({ ...structuredClone(f.payload.documents.pages![0]!), id: 11, slug: 'new-placement' })
+    return query(text, params)
+  }
+  await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'placements-changed', status: 409 })
+  expect(f.payload.documents['xp-phases']).toEqual([])
+}, 5000)
+
+test('click primary starts for signed-in users and freezes a binomial increase metric without a cap', async () => {
+  const f = fixture()
+  f.experiment.unitType = 'user'
+  Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', slug: 'join', direction: 'increase', capping: { type: 'absolute', value: 5 } })
+  await start(f.req, { experimentId: 1, options: f.options })
+  expect(f.payload.documents['xp-phases']![0]!.metricDefinitions).toEqual([expect.objectContaining({ source: 'click:join', role: 'primary', kind: 'binomial', direction: 'increase', resolvedCap: null, capping: null })])
+})
+test('Start rechecks click primary fairness after locks using detached published reads', async () => {
+  const f = fixture()
+  f.experiment.kind = 'page'; f.experiment.exposurePolicy = 'pageview'; f.experiment.targeting = []
+  f.experiment.pageCollection = 'pages'
+  f.experiment.arms = defaultArms('page').map((arm, i) => ({ ...arm, pageTarget: i ? '/b' : '/a' }))
+  Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', slug: 'join' })
+  f.options.pages = { collections: [{ slug: 'pages', pathOf: d => String(d.path), findByPath: async path => ({ id: path === '/a' ? 7 : 8, published: true }), contentOf: d => d.layout }] }
+  Object.assign(f.payload.config, { collections: [{ slug: 'pages', versions: { drafts: true } }] })
+  Object.assign(f.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+    const locked = f.executor.calls.some(call => call.text.includes("hashtext('xp:pagepath')"))
+    expect(f.req.transactionID).toBeUndefined()
+    return { id: where.id.equals, _status: 'published', path: where.id.equals === 7 ? '/a' : '/b', layout: locked && where.id.equals === 8 ? [] : [{ xpGoal: 'join' }] }
+  }) })
+  await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'goal-in-some-versions' })
+  expect(f.payload.documents['xp-phases']).toEqual([])
+})
+
+
+test.each(['primary', 'guardrail'] as const)('Start judges readable arms after locks with an unchecked page for a %s goal', async role => {
+  for (const disagree of [true, false]) {
+    const f = fixture()
+    Object.assign(f.experiment, { kind: 'page', exposurePolicy: 'pageview', pageCollection: 'pages', targeting: [],
+      metrics: role === 'primary' ? { primary: 2 } : { primary: 4, guardrails: [2] },
+      arms: [...defaultArms('page').map((arm, i) => ({ ...arm, weight: i ? 33 : 34, pageTarget: i ? '/b' : '/a' })),
+        { key: 'variantB', kind: 'variant', label: 'B', weight: 33, pageTarget: '/unreadable' }] })
+    Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', slug: 'join' })
+    f.options.pages = { collections: [{ slug: 'pages', pathOf: d => String(d.path), findByPath: async path => ({ id: path === '/a' ? 7 : path === '/b' ? 8 : 9, published: true }), contentOf: d => d.layout }] }
+    Object.assign(f.payload.config, { collections: [{ slug: 'pages', versions: { drafts: true } }] })
+    Object.assign(f.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+      const id = where.id.equals
+      const locked = f.executor.calls.some(call => call.text.includes("hashtext('xp:pagepath')"))
+      expect(f.req.transactionID).toBeUndefined()
+      return id === 9 ? null : { id, _status: 'published', path: id === 7 ? '/a' : '/b', layout: locked && disagree && id === 8 ? [] : [{ xpGoal: 'join' }] }
+    }) })
+    if (disagree) {
+      await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'goal-in-some-versions' })
+      expect(f.payload.documents['xp-phases']).toEqual([])
+    } else {
+      await expect(start(f.req, { experimentId: 1, options: f.options })).resolves.toMatchObject({ doc: { status: 'running' } })
+    }
+  }
+}, 5_000) // Measured 2 ms locally; cap exceeds 3×.
+test('same-address refusal uses shared copy with display labels and keeps arm keys in detail', async () => {
+  const { refuse } = await import('../../src/transitions/start.js')
+  const detail = { arm: 'variantA', otherArm: 'control', path: '/about' }
+  expect(() => refuse('version-same-address', detail)).toThrow('Variant A has the same address (/about) as Original. Choose a different page.')
+  try { refuse('version-same-address', detail) } catch (error) {
+    expect(error).toMatchObject({ code: 'version-same-address', detail })
+  }
 })

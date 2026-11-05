@@ -23,7 +23,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const props: TestsSurfaceProps = {
   route: 'home', id: '123', adminRoute: '/control', apiRoute: '/data', canManage: true, canReadResults: true,
   isAdmin: true, flagPoints: [], attributeKeys: {}, metricSources: [], admin: { descriptions: { setting: 'Site choices.' } },
-  pages: [{ collection: 'pages', collectionLabel: 'Pages', id: 2, title: 'Welcome', editorUrl: '/editor/2' }],
+  pages: [{ collection: 'pages', editor: 'puck' as const, collectionLabel: 'Pages', id: 2, title: 'Welcome', editorUrl: '/editor/2' }],
 }
 test.each(['/control', '/'])('dispatches real home / new / test / results pages inside one shared main at %s', async adminRoute => {
   const root = adminRoute === '/' ? '' : adminRoute
@@ -55,7 +55,7 @@ test.each(['/control', '/'])('dispatches real home / new / test / results pages 
       } else {
         if (route === 'test') expect(within(main).getByLabelText('Test name')).toBeTruthy()
         else expect(within(main).queryByLabelText('Test name')).toBeNull()
-        expect(hook).toHaveBeenCalledWith('123', { apiRoute: '/data' })
+        expect(hook).toHaveBeenCalledWith('123', { apiRoute: '/data', ...(route === 'test' ? { refetchPreflightOnFocus: true } : {}) })
         if (route === 'results') expect(within(main).getByText('Results body')).toBeTruthy()
         else expect(within(main).getByRole('region', { name: /What you're testing/ })).toBeTruthy()
       }

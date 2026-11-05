@@ -29,7 +29,7 @@ const doc = (partial: Partial<TestDocument> = {}): TestDocument => ({ id: 1, nam
 const surface: SurfaceProps = { adminRoute: '/cms', apiRoute: '/cms-api', canManage: true, canReadResults: true, isAdmin: true, flagPoints: [], attributeKeys: { country: { type: 'string', values: ['US', 'CA'] }, path: { type: 'string' }, age: { type: 'number' }, member: { type: 'boolean' } }, metricSources: [{ id: 'signup', label: 'Signups', kind: 'binomial', keyedBy: 'visitor', clientWritable: true }] }
 function props(partial: Partial<TestDocument> = {}): SectionProps {
   return { surface, test: { doc: doc(partial), preflight: { checks: [], placements: [], baseline: null, trafficPerDay: null, estimate: null }, preflightError: null, preflightPending: false,
-    hasUnsaved: false, stale: false, loadState: 'ready', saving: 'saved', errors: {}, stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}), refreshPreflight: vi.fn(async () => {}) } }
+    hasUnsaved: false, stale: false, loadState: 'ready', saving: 'saved', errors: {}, chosenPages: {}, choosePage: vi.fn(async () => {}), stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}), refreshPreflight: vi.fn(async () => {}) } }
 }
 function blurChange(label: string, value: string) {
   const input = screen.getByLabelText(label)
@@ -78,7 +78,7 @@ test('page load states are clear and the ready view has stacked anchored section
   }
   fireEvent.click(screen.getByText('Try again')); expect(p.test.reload).toHaveBeenCalledOnce()
   hook.mockReturnValue(p.test); view.rerender(<TestPage id={1} surface={surface} />)
-  expect(hook).toHaveBeenLastCalledWith(1, { apiRoute: '/cms-api' })
+  expect(hook).toHaveBeenLastCalledWith(1, { apiRoute: '/cms-api', refetchPreflightOnFocus: true })
   for (const id of ['what', 'versions', 'win', 'who', 'length', 'advanced']) expect(view.container.querySelector(`#section-${id}`)).toBeTruthy()
   expect(screen.queryByRole('tab')).toBeNull()
   const what = view.container.querySelector('#section-what')!
@@ -589,4 +589,15 @@ test('an existing path rule on a page block test is read-only with a removal not
   expect(screen.getAllByLabelText('Attribute')).toHaveLength(1)
   fireEvent.click(screen.getAllByRole('button', { name: 'Remove rule' })[0]!)
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
+})
+
+test('whole-page holdouts stay under Advanced and have no picker row', () => {
+  const p = props({ kind: 'page', arms: [...defaultArms('page'), { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 10 }] })
+  const view = render(<VersionsSection {...p} parts={pageParts} />)
+  expect(screen.queryByRole('button', { name: 'Add a holdout' })).toBeNull()
+  expect(screen.queryByLabelText('Holdout: Version label')).toBeNull()
+  view.unmount()
+  render(<AdvancedSection {...p} />)
+  expect(screen.getByLabelText('Holdout: Version label')).toBeTruthy()
+  expect(screen.getByLabelText('Holdout: Share (%)')).toBeTruthy()
 })

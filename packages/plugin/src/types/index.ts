@@ -7,3 +7,7 @@ export * from './admin.js'
 export * from './endpoints.js'
 export * from './snapshot.js'
 export * from './reasons.js'
+
+export type { HostBlock, ExperimentBlock, ExperimentBlockGroup, ResolvedHostBlock, ResolvedExperimentBlocks } from '../blocks/model.js'
+export type { WrapBlockBody } from './endpoints.js'
+export type { SnapshotHealth } from './snapshot.js'

@@ -10,6 +10,7 @@ import type { TestsSurfaceProps } from '../../../types/surface.js'
 import type { SurfaceProps } from '../contracts.js'
 import { NEW_TEST_COPY as C } from '../../copy/newTest.js'
 import { CreateRefused, createTest } from '../../../puck/editor/createTest.js'
+import { PageWizard } from './PageWizard.js'
 import './newTest.css'
 
 type Layer = { id: DocId; name: string }
@@ -17,6 +18,8 @@ type Layer = { id: DocId; name: string }
 export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: TestsSurfaceProps['pages'] }) {
   const router = useRouter()
   const [step, setStep] = useState<'kind' | 'block' | 'setting' | 'name'>('kind')
+  const [kind, setKind] = useState<'flag' | 'page'>('flag')
+  const [created, setCreated] = useState<DocId>()
   const [pointId, setPointId] = useState('')
   const point = surface.flagPoints.find(item => item.id === pointId)
   const [unitType, setUnitType] = useState<UnitType>('visitor')
@@ -46,13 +49,14 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
   }, [step, advanced, surface.apiRoute, layerRetry])
 
   async function submit() {
-    if (inFlight.current || !point || !name.trim()) return
+    if (inFlight.current || (kind === 'flag' && !point) || !name.trim()) return
     inFlight.current = true
     setPending(true)
     setError('')
     try {
-      const { id } = await createTest(surface.apiRoute, { kind: 'flag', unitType, name, flagPoint: point.id,
-        ...(layer === undefined ? {} : { layer }), ...(hypothesis.trim() ? { hypothesis } : {}) })
+      const { id } = await createTest(surface.apiRoute, { kind, unitType: kind === 'page' ? 'visitor' : unitType, name, ...(kind === 'flag' ? { flagPoint: point!.id } : surface.pageCollections?.length === 1 ? { pageCollection: surface.pageCollections[0]!.slug } : {}),
+        ...(kind !== 'flag' || layer === undefined ? {} : { layer }), ...(hypothesis.trim() ? { hypothesis } : {}) })
+      if (kind === 'page') { setCreated(id); setPending(false); return }
       router.push(formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(id))}` }))
     } catch (cause) {
       setError(cause instanceof CreateRefused ? cause.message : C.createError)
@@ -61,25 +65,29 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
     }
   }
 
+  if (created !== undefined) return <PageWizard id={created} surface={surface} />
   const collections = [...new Set(pages?.map(page => page.collection))]
   return <div className="xp-new-test">
     {step === 'kind' ? <>
       <h2>{C.question}</h2>
       <div className="xp-new-test-cards">
         {pages !== undefined ? <button type="button" className="xp-new-test-card" onClick={() => setStep('block')}>
-          <strong>{C.block}</strong><span>{C.blockMeaning}</span>{surface.descriptions?.block ? <span>{surface.descriptions.block}</span> : null}
+          <strong>{C.block}</strong><span>{C.blockMeaning}</span>{surface.admin?.descriptions?.block ? <span>{surface.admin?.descriptions?.block}</span> : null}
         </button> : null}
-        {surface.flagPoints.length > 0 ? <button type="button" className="xp-new-test-card" onClick={() => setStep('setting')}>
-          <strong>{C.setting}</strong><span>{C.settingMeaning}</span>{surface.descriptions?.setting ? <span>{surface.descriptions.setting}</span> : null}
+        {surface.pageCollections?.length ? <button type="button" className="xp-new-test-card" onClick={() => { setKind('page'); setStep('name') }}>
+          <strong>{C.page}</strong><span>{C.pageMeaning}</span>{surface.admin?.descriptions?.page ? <span>{surface.admin?.descriptions?.page}</span> : null}
+        </button> : null}
+        {surface.flagPoints.length > 0 ? <button type="button" className="xp-new-test-card" onClick={() => { setKind('flag'); setStep('setting') }}>
+          <strong>{C.setting}</strong><span>{C.settingMeaning}</span>{surface.admin?.descriptions?.setting ? <span>{surface.admin?.descriptions.setting}</span> : null}
         </button> : null}
       </div>
-      {pages === undefined && !surface.flagPoints.length ? <p>{C.unavailable}</p> : null}
+      {pages === undefined && !surface.flagPoints.length && !surface.pageCollections?.length ? <p>{C.unavailable}</p> : null}
     </> : step === 'block' ? <>
       <h2>{C.block}</h2><p>{C.handoff}</p>
       {!pages?.length ? <p>{C.noPages}</p> : collections.map(collection => {
         const group = pages!.filter(page => page.collection === collection)
         return <section key={collection}><h2>{group[0]!.collectionLabel}</h2><ul>
-          {group.map(page => <li key={`${typeof page.id}:${page.id}`}><span>{page.title}</span>{' '}<a href={page.editorUrl}>{C.open}</a></li>)}
+          {group.map(page => <li key={`${typeof page.id}:${page.id}`}><span>{page.title}</span>{' '}<a href={page.editorUrl}>{C.open}</a>{page.editor === 'blocks' ? <p>{C.blocksHandoff}</p> : null}</li>)}
         </ul>{group.length === 50 ? <p>{C.recentPages}</p> : null}</section>
       })}
     </> : step === 'setting' ? <>
@@ -110,7 +118,7 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
     <div className="xp-new-test-actions">
       <button type="button" disabled={pending} onClick={() => {
         if (step === 'kind') router.push(formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }))
-        else { setError(''); setStep(step === 'name' ? 'setting' : 'kind') }
+        else { setError(''); setStep(step === 'name' && kind === 'flag' ? 'setting' : 'kind') }
       }}>{C.back}</button>
       {step === 'setting' ? <button type="button" disabled={!point} onClick={() => setStep('name')}>{C.next}</button> : null}
     </div>

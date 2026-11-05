@@ -1,3 +1,8 @@
+import { BLOCK_SLOTS, EXPERIMENT_BLOCK_SLUG, hostBlocks, slotBlocks } from '../blocks/model.js'
+import { safeError } from '../log.js'
+import { pageVersionContent } from '../db/pageContent.js'
+import { comparableContent } from './pageVersions.js'
+import { isDeepStrictEqual } from 'node:util'
 import { hasLocalizedFields } from './contentFields.js'
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, FlagPoint, PreviewPlacement, ResolvedOptions } from '../types/contracts.js'
@@ -6,7 +11,7 @@ import { documentEditor, puckCollections as normalisePuckCollections } from '../
 
 export interface BlockPlacement extends PreviewPlacement {
   editor?: 'puck' | 'blocks' | 'page'; doc?: Record<string, unknown>
-  slots: Record<ArmSlot, number>; locked?: boolean; localized?: boolean
+  slots: Record<ArmSlot, number>; duplicateRows?: boolean; identicalSlots?: string[]; locked?: boolean; localized?: boolean
 }
 export type FlagPlacement = Awaited<ReturnType<NonNullable<FlagPoint['placements']>>>[number]
 const slots = ['control', 'variantA', 'variantB', 'variantC'] as const
@@ -15,13 +20,13 @@ const slots = ['control', 'variantA', 'variantB', 'variantC'] as const
  * in one document: content elsewhere in the document cannot hide an empty slot.
  */
 export function scanBlockPlacements(req: PayloadRequest, args: {
-  slug: string; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']
+  slug: string; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']; compareVersions?: boolean
 }): Promise<BlockPlacement[]>
 export function scanBlockPlacements(req: PayloadRequest, args: {
-  slugs: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']
+  slugs: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']; compareVersions?: boolean
 }): Promise<Map<string, BlockPlacement[]>>
 export async function scanBlockPlacements(req: PayloadRequest, args: {
-  slug?: string; slugs?: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']
+  slug?: string; slugs?: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']; compareVersions?: boolean
 }): Promise<BlockPlacement[] | Map<string, BlockPlacement[]>> {
   const { puckCollections } = args
   const slugs = args.slugs ?? new Set([args.slug!])
@@ -66,7 +71,64 @@ export async function scanBlockPlacements(req: PayloadRequest, args: {
             }
             Object.values(node).forEach(walk)
           }
+          const offsets = new Map([...placements].map(([slug, list]) => [slug, list.length]))
           walk(doc[field])
+          if (args.compareVersions && !draft && [...placements].some(([slug, list]) => list.length > offsets.get(slug)!)) {
+            const raw = await comparisonContent(req, collection, doc.id)
+            const rawSlots = new Map<string, Array<Record<string, unknown>>>()
+            const collect = (value: unknown): void => {
+              if (Array.isArray(value)) { value.forEach(collect); return }
+              if (!value || typeof value !== 'object') return
+              const node = value as Record<string, unknown>, props = node.props as Record<string, unknown> | undefined
+              const ref = props?.experiment
+              const slug = typeof ref === 'string' ? ref : ref && typeof ref === 'object' && 'slug' in ref ? ref.slug : undefined
+              if (node.type === 'ExperimentSlot' && props && typeof slug === 'string') {
+                const list = rawSlots.get(slug) ?? []; list.push(props); rawSlots.set(slug, list)
+              }
+              Object.values(node).forEach(collect)
+            }
+            if (raw && raw._status !== 'draft') collect(raw[field])
+            for (const [slug, list] of placements) list.slice(offsets.get(slug)).forEach((placement, index) => {
+              const props = rawSlots.get(slug)?.[index]
+              if (props) placement.identicalSlots = slots.filter(slot => slot !== 'control' && Array.isArray(props[slot]) && props[slot].length > 0 && isDeepStrictEqual(comparableContent(props.control ?? []), comparableContent(props[slot])))
+            })
+          }
+        }
+        if (!result.hasNextPage) break
+        page++
+      }
+    }
+  }
+  for (const registration of args.blocksCollections) {
+    const { slug: collection, field } = registration
+    const published = new Map<string, Record<string, unknown>>()
+    const draftsEnabled = req.payload.config.collections?.some(c => c.slug === collection && c.versions && c.versions.drafts)
+    for (const draft of [false, true]) {
+      let page = 1
+      while (true) {
+        const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0, limit: 100, page, draft, includeLockStatus: true,
+          ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}) })
+        for (const doc of result.docs) {
+          if (!draft && doc._status === 'draft') continue
+          if (!draft) published.set(String(doc.id), doc)
+          else if (doc._status !== 'draft' && published.has(String(doc.id))) continue
+          const baseline = published.get(String(doc.id)) ?? doc
+          if (documentEditor({ blocks: { collections: args.blocksCollections }, puck: { enabled: true, collections: puckCollections } }, collection, baseline) !== 'blocks') continue
+          const raw = args.compareVersions && !draft && hostBlocks(doc[field]).some(block => block.blockType === (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) && typeof block.experiment === 'string' && slugs.has(block.experiment)) ? await comparisonContent(req, collection, doc.id) : undefined
+          for (const [index, block] of hostBlocks(doc[field]).entries()) {
+            if (block.blockType !== (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) || typeof block.experiment !== 'string' || !slugs.has(block.experiment)) continue
+            const stored = raw ? hostBlocks(raw[field]).find(row => row.id === block.id) ?? hostBlocks(raw[field])[index] ?? block : block
+            const rows = Array.isArray(stored.slots) ? stored.slots : []
+            const keys = rows.map(row => row?.slot)
+            placements.get(block.experiment)!.push({ collection, id: doc.id, editor: 'blocks', doc, title: String(doc.title ?? doc.name ?? doc.id),
+              published: !draft || doc._status === 'published', ...(typeof baseline.slug === 'string' ? { slug: baseline.slug } : {}),
+              slots: Object.fromEntries(BLOCK_SLOTS.map(slot => [slot, slotBlocks(block, slot).length])) as Record<ArmSlot, number>,
+              duplicateRows: new Set(keys).size !== keys.length,
+              identicalSlots: raw ? BLOCK_SLOTS.filter(slot => slot !== 'control' && slotBlocks(block, slot).length > 0 && isDeepStrictEqual(comparableContent(slotBlocks(stored, 'control')), comparableContent(slotBlocks(stored, slot)))) : [],
+              locked: doc._isLocked === true || doc.locked === true,
+              ...(hasLocalizedFields(req.payload.config.collections?.find(c => c.slug === collection)?.fields ?? [], req.payload.config) ? { localized: true } : {}),
+            })
+          }
         }
         if (!result.hasNextPage) break
         page++
@@ -82,4 +144,13 @@ export async function flagPlacements<TUser extends { id: DocId }>(options: Resol
   const point = options.flagPoints?.find(point => point.id === experiment.flagPoint)
   if (!point?.placements) return []
   return point.placements({ experimentId: experiment.id, arms: experiment.arms.filter(arm => arm.kind !== 'holdout').map(arm => arm.key), req })
+}
+
+/** A warning-only comparison must never turn an adapter failure into a Start refusal. */
+async function comparisonContent(req: PayloadRequest, collection: string, id: DocId) {
+  try { return await pageVersionContent(req, collection, id) }
+  catch (cause) {
+    req.payload.logger.error({ err: safeError(cause), collection, id }, 'Experiment version comparison failed')
+    return undefined
+  }
 }

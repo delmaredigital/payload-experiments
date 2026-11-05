@@ -120,7 +120,7 @@ function validCopyUrl(value: unknown): boolean {
 /** One published-row rule shared by scans, bindings, writes and editor links. */
 export function documentEditor(options: Pick<ExperimentsPluginOptions, 'puck' | 'blocks'>, collection: string, doc: Record<string, unknown>): 'puck' | 'blocks' | 'page' {
   const block = options.blocks?.collections.find(entry => entry.slug === collection)
-  const puck = puckCollections(options).some(entry => entry.slug === collection)
+  const puck = options.puck?.enabled !== false && puckCollections(options).some(entry => entry.slug === collection)
   if (block && (block.appliesTo ? block.appliesTo(doc) : true)) return 'blocks'
   return puck ? 'puck' : 'page'
 }

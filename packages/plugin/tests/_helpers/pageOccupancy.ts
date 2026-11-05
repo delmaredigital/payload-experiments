@@ -17,12 +17,12 @@ export async function pageOccupancyDb(idType: 'serial' | 'uuid' = 'serial') {
   } }
   try {
     await client.exec(`
-      CREATE TABLE xp_experiments (id ${idType} PRIMARY KEY, kind text, status text,
+      CREATE TABLE xp_experiments (id ${idType} PRIMARY KEY, kind text, status text, slug text, name text, page_collection text,
         decision_winner_arm text, decision_discarded_at timestamptz, decision_pages_released_at timestamptz);
       CREATE TABLE xp_experiments_arms (_parent_id ${idType === 'serial' ? 'integer' : 'uuid'} REFERENCES xp_experiments(id),
         _order integer, key text, label text, kind text, weight numeric, page_target text);
       CREATE TABLE xp_phases (experiment_id ${idType === 'serial' ? 'integer' : 'uuid'} REFERENCES xp_experiments(id),
-        phase numeric, phase_kind text, arms jsonb);
+        phase numeric, phase_kind text, arms jsonb, placement_docs jsonb);
     `)
     const id = (value: number): DocId => idType === 'serial' ? value : `00000000-0000-0000-0000-${String(value).padStart(12, '0')}`
     async function addTest(value: number, status: string, documentPath: string,

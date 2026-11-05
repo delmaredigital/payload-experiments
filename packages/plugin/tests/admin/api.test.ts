@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from 'vitest'
 import { createApi } from '../../src/admin/api.js'
-import type { ErrorEnvelope, ResultsResponse } from '../../src/types/endpoints.js'
+import type { ClickKeysResult, ErrorEnvelope, ResultsResponse } from '../../src/types/endpoints.js'
 import type { ExperimentKind, Status } from '../../src/types/contracts.js'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -195,3 +195,21 @@ test('page picker and placement status use the configured API base', async () =>
   await api.placementStatus({ docs: [{ collection: 'pages', id: 1 }] })
   expect(fetcher).toHaveBeenLastCalledWith('/custom-api/xp/placements/status', expect.objectContaining({ method: 'POST', body: JSON.stringify({ docs: [{ collection: 'pages', id: 1 }] }) }))
 })
+
+
+test('wrapBlock calls the always-built manage endpoint with row ids', async () => {
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ id: 1 }))
+  const body = { collection: 'pages', id: 1, field: 'layout', blockId: 'row', experiment: 'hero' }
+  await createApi('/api').wrapBlock(body)
+  expect(fetcher).toHaveBeenCalledWith('/api/xp/blocks/wrap', expect.objectContaining({ method: 'POST', body: JSON.stringify(body), credentials: 'include' }))
+})
+
+test('clickKeys returns the named response type from the manager route', async () => {
+  const data = { keys: [{ key: 'join', arms: ['control'], label: 'CTA' }] }
+  respond(data)
+  const result = await api.clickKeys('xp/one')
+  if (!result.ok) throw new Error(result.message)
+  expectTypeOf(result.data).toEqualTypeOf<ClickKeysResult | undefined>()
+  expect(result.data).toEqual(data)
+  expect(fetchMock.mock.calls[0]![0]).toBe('/custom/api/xp/experiments/xp%2Fone/click-keys')
+}, 5_000) // Measured 1 ms locally; cap exceeds 3×.

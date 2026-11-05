@@ -1,3 +1,4 @@
+import { readBody } from './readBody.js'
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, ExperimentKind, Status } from '../types/contracts.js'
 import type { EndpointContext, PlacementStatusBody, PlacementStatusResult } from '../types/endpoints.js'
@@ -11,25 +12,6 @@ const error = (status: number, code: string, message: string) => Response.json({
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const id = (v: unknown): v is DocId => typeof v === 'string' && !!v.trim() || typeof v === 'number' && Number.isSafeInteger(v)
 
-async function readBody(req: PayloadRequest): Promise<unknown> {
-  if (req.data !== undefined) {
-    if (Buffer.byteLength(JSON.stringify(req.data)) > 16 * 1024) throw new RangeError()
-    return req.data
-  }
-  if (!req.body) return {}
-  const reader = req.body.getReader(), chunks: Uint8Array[] = []
-  let size = 0
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      size += value.byteLength
-      if (size > 16 * 1024) { void reader.cancel().catch(() => {}); throw new RangeError() }
-      chunks.push(value)
-    }
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
-  } finally { reader.releaseLock() }
-}
 
 type Test = { id: DocId; slug: string; name: string; kind: ExperimentKind; status: Status; pageCollection?: string; arms: Arm[];
   decision?: { winnerArm?: string; discardedAt?: string; pagesReleasedAt?: string; holdoutReleasedAt?: string } }

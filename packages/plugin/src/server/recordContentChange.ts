@@ -1,3 +1,4 @@
+import { EXPERIMENT_BLOCK_SLUG, hostBlocks } from '../blocks/model.js'
 import { safeError } from '../log.js'
 import { isDeepStrictEqual } from 'node:util'
 import type { CollectionAfterChangeHook, CollectionBeforeChangeHook } from 'payload'
@@ -99,6 +100,17 @@ async function auditContentChange({ doc, previousDoc, req, collection }: Content
   const changes = (previous: unknown, current: unknown) => {
     const after = bindings(registration && object(current) ? current[registration.field] : current, Boolean(registration) && documentEditor(options ?? {}, collection.slug, object(current) ? current : {}) === 'puck')
     const before = bindings(registration && object(previous) ? previous[registration.field] : previous, Boolean(registration) && documentEditor(options ?? {}, collection.slug, object(previous) ? previous : {}) === 'puck')
+    const blockRegistration = options?.blocks?.collections.find(entry => entry.slug === collection.slug)
+    for (const [row, found] of [[previous, before], [current, after]] as const) {
+      if (!blockRegistration || !object(row) || documentEditor(options ?? {}, collection.slug, row) !== 'blocks') continue
+      for (const block of hostBlocks(row[blockRegistration.field])) {
+        if (block.blockType !== (blockRegistration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) || typeof block.experiment !== 'string') continue
+        const key = 'slug:' + block.experiment
+        const binding = found.get(key) ?? { field: 'slug' as const, value: block.experiment, contents: [] }
+        binding.contents.push(block.slots)
+        found.set(key, binding)
+      }
+    }
     return [...new Set([...before.keys(), ...after.keys()])]
       .filter(key => !isDeepStrictEqual(before.get(key)?.contents, after.get(key)?.contents))
       .map(key => after.get(key) ?? before.get(key)!)

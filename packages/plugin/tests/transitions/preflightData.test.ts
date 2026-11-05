@@ -183,3 +183,67 @@ test('occupancy with a missing transaction session throws without falling back t
   expect(executor.calls).toEqual([])
   expect(payload.calls).toEqual([])
 })
+
+test.each(['flag', 'code', 'page'] as const)('no goalNotes for an uninspectable %s test', async kind => {
+  const { options, payload, req } = setup()
+  Object.assign(payload.documents['xp-experiments']![0]!, { kind, pageCollection: 'pages' })
+  payload.documents['xp-metrics']![0]!.source = 'click:join'
+  options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => ({ id: 7, published: true }) }] }
+  expect((await preflightData(req, { experimentId: 1, options }, { now }))!.goalNotes ?? []).toEqual([])
+}, 5_000) // Measured 1 ms locally; cap exceeds 3×.
+
+test.each([false, true])('outside goalNotes require a completely readable placement (unchecked: %s)', async unchecked => {
+  const { options, payload, req } = setup()
+  Object.assign(payload.documents['xp-experiments']![0]!, { kind: 'page', pageCollection: 'pages', arms: defaultArms('page').map((arm, i) => ({ ...arm, pageTarget: i ? '/b' : '/a' })) })
+  payload.documents['xp-metrics']![0]!.source = 'click:join'
+  payload.documents.pages = [{ id: 7, layout: [] }]
+  options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => ({ id: 7, published: true }), contentOf: doc => doc.layout }] }
+  if (unchecked) vi.spyOn(payload.db, 'findOne').mockRejectedValue(new Error('unreadable'))
+  expect((await preflightData(req, { experimentId: 1, options }, { now }))!.goalNotes).toEqual(unchecked ? [] : [
+    { metricId: 2, message: "This goal isn't inside the part being tested, so every version shows it the same way." },
+  ])
+}, 5_000) // Measured 3 ms locally; cap exceeds 3×.
+
+
+test.each(['primary', 'guardrail'] as const)('preflight judges readable arms with one unchecked page for a %s goal', async role => {
+  for (const disagree of [true, false]) {
+    const f = setup()
+    Object.assign(f.payload.documents['xp-experiments']![0]!, { kind: 'page', exposurePolicy: 'pageview', pageCollection: 'pages',
+      metrics: role === 'primary' ? { primary: 2 } : { primary: 3, guardrails: [2] },
+      arms: [...defaultArms('page').map((arm, i) => ({ ...arm, weight: i ? 33 : 34, pageTarget: i ? '/b' : '/a' })),
+        { key: 'variantB', kind: 'variant', label: 'B', weight: 33, pageTarget: '/unreadable' }] })
+    Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', name: 'Join' })
+    f.payload.documents['xp-metrics']!.push({ id: 3, source: 'events:signup' })
+    f.payload.documents.pages = [{ id: 7, layout: [{ xpGoal: 'join' }] }, { id: 8, layout: disagree ? [] : [{ xpGoal: 'join' }] }]
+    const find = f.payload.db.findOne.bind(f.payload.db)
+    vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => {
+      if ((args.where?.id as { equals?: number })?.equals === 9) throw new Error('unreadable')
+      return find(args)
+    })
+    f.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async path => ({ id: path === '/a' ? 7 : path === '/b' ? 8 : 9, published: true }), contentOf: doc => doc.layout }] }
+    const result = (await preflightData(f.req, { experimentId: 1, options: f.options }, { now }))!
+    expect(result.checks.filter(c => !c.ok).map(c => c.code)).toEqual(disagree ? ['goal-in-some-versions'] : [])
+    expect(result.checks).toContainEqual({ code: 'placement-unchecked', ok: true, warning: true, detail: { collection: 'pages', path: '/unreadable' } })
+    expect(result.goalNotes).toEqual([])
+  }
+}, 5_000) // Measured 2 ms locally; cap exceeds 3×.
+
+test('preflight excludes missing or unpublished version pages without an unchecked warning when readable arms agree', async () => {
+  for (const missing of [true, false]) {
+    const f = setup()
+    Object.assign(f.payload.documents['xp-experiments']![0]!, { kind: 'page', exposurePolicy: 'pageview', pageCollection: 'pages',
+      arms: [...defaultArms('page').map((arm, i) => ({ ...arm, weight: i ? 33 : 34, pageTarget: i ? '/b' : '/a' })),
+        { key: 'variantB', kind: 'variant', label: 'B', weight: 33, pageTarget: '/unavailable' }],
+    })
+    Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', name: 'Join' })
+    f.payload.documents.pages = [{ id: 7, layout: [{ xpGoal: 'join' }] }, { id: 8, layout: [{ xpGoal: 'join' }] }]
+    f.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', contentOf: doc => doc.layout,
+      findByPath: async path => path === '/unavailable' ? (missing ? null : { id: 9, published: false })
+        : { id: path === '/a' ? 7 : 8, published: true },
+    }] }
+    const result = (await preflightData(f.req, { experimentId: 1, options: f.options }, { now }))!
+    expect(result.checks.filter(c => c.code === 'placement-unchecked')).toEqual([])
+    expect(result.checks.filter(c => c.code === 'goal-in-some-versions')).toEqual([{ code: 'goal-in-some-versions', ok: true }])
+    expect(f.payload.logs.filter(log => log.level === 'error')).toEqual([])
+  }
+}, 5_000) // Measured 1 ms locally; cap exceeds 3×.

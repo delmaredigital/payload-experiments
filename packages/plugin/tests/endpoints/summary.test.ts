@@ -407,3 +407,14 @@ test('page-in-use detail keeps valid paths when other paths are rejected', () =>
   })).toEqual({ paths: ['/original', '/variant'] })
   expect(sanitizeReadinessDetail('page-in-use', { paths: ['/about.html', '/encoded%20path', '/~user'] })).toBeUndefined()
 })
+
+
+test('summary carries unchecked placement identifiers without arbitrary content', async () => {
+  vi.mocked(newestSnapshotIds).mockResolvedValue([1])
+  const payload = fakePayload({ collections: { 'xp-results-snapshots': [{ id: 1, experiment: 'page', snapshot: { ...fixture,
+    health: [{ code: 'placement-unchecked', detail: { collection: 'pages', id: 7, path: '/page', title: 'private-title', message: 'private-error' } }],
+  } }] } })
+  const body = await (await handleSummary(fakeReq({ payload, url: 'http://localhost/summary?ids=page' }), { options })).json()
+  expect(body.page.health).toEqual([{ code: 'placement-unchecked', detail: { collection: 'pages', id: 7, path: '/page' } }])
+  expect(JSON.stringify(body)).not.toContain('private-')
+}, 5_000) // Measured <1 ms locally; cap exceeds 3×.

@@ -1,3 +1,4 @@
+export type SnapshotHealth = { code: 'version-page-unavailable' | 'version-page-unchecked'; path: string } | { code: 'goal-in-some-versions'; metricId: string | number; name: string } | { code: 'placement-unchecked'; detail: { collection?: string; id?: string | number; path?: string } }
 import type { GaussianPrior } from '@delmaredigital/experiments-stats'
 import type { DocId, MetricSource } from './contracts.js'
 import type { MetricUnavailableReason } from './reasons.js'
@@ -22,6 +23,7 @@ export interface Snapshot {
   guardrails: Array<{ metricId: DocId; status: 'failing' | 'ok' | 'warning' | 'insufficient' }>
   power: { daysRemaining: number | null; exposuresNeededPerArm: number | null; lowerBound: boolean; feasible: boolean }
   verdict: { row: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 'R1' | 'R2' | 'R3'; code: VerdictCode; finding: string; action: string | null; headline: string; detail: string; recommendedArm: string | null; guardrailLine?: string; worstArm?: string }
-  health?: Array<{ code: 'version-page-unavailable' | 'version-page-unchecked'; path: string }>
+  goalFairnessNotice?: string
+  health?: SnapshotHealth[]
   contentChanges: Array<{ at: string; doc: { collection: string; id: DocId }; by: DocId | null }>
 }

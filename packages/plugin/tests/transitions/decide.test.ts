@@ -206,3 +206,57 @@ test('an arm added only to the stopped document is not a test-phase winner', asy
   ;(f.experiment.arms as Arm[]).push({ key: 'variantB', label: 'New group', kind: 'variant', weight: 0 })
   await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantB', note: 'Ship', confirmation: 'New group' })).rejects.toMatchObject({ code: 'invalid-winner' })
 })
+
+function stoppedPageFixture() {
+  const f = fixture('stopped', false)
+  f.experiment.kind = 'page'; f.experiment.pageCollection = 'pages'
+  const options = f.payload.config.custom!.xp as ReturnType<typeof sampleOptions>
+  const findByPath = vi.fn(async (path: string) => ({ id: path, published: path === '/original' }))
+  options.pages = { collections: [{ slug: 'pages', pathOf: () => null, findByPath }] }
+  return { ...f, options, findByPath }
+}
+
+// Measured below 100 ms locally; each cap leaves CI headroom.
+test('Original wins from stopped when the losing variant page is unpublished', async () => {
+  const f = stoppedPageFixture()
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'control', confirmation: 'Original', note: 'Keep Original' })).resolves.toMatchObject({ doc: { status: 'decided' } })
+  expect(f.findByPath.mock.calls.map(([path]) => path)).toEqual(['/original'])
+}, 5000)
+
+test('stopped decision refuses an unpublished winner page', async () => {
+  const f = stoppedPageFixture()
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantA' })).rejects.toMatchObject({ code: 'page-target-unpublished', detail: '/winner' })
+}, 5000)
+
+test.each([true, false])('throwing page lookup propagates to Payload as a server error (stored collection=%s)', async stored => {
+  const f = stoppedPageFixture(), failure = new Error('host lookup failed')
+  if (!stored) {
+    delete f.experiment.pageCollection
+    f.options.pages!.collections.push({ slug: 'other', pathOf: () => null, findByPath: async () => null })
+  }
+  f.findByPath.mockRejectedValue(failure)
+  Object.assign(f.payload.db, { defaultIDType: 'number' })
+  f.req.routeParams = { id: '1' }; f.req.data = { winnerArm: 'variantA' }
+  const { handleDecide } = await import('../../src/endpoints/transitions.js')
+  // Payload owns the generic 500 response; the endpoint must propagate the original error.
+  await expect(handleDecide(f.req, { options: f.options })).rejects.toBe(failure)
+  expect(failure).not.toHaveProperty('code', 'page-target-unpublished')
+}, 5000)
+
+test('decide from stopped refreshes block placement docs from its detached rescan', async () => {
+  const f = fixture('stopped', false), options = f.payload.config.custom!.xp as ReturnType<typeof sampleOptions>
+  f.experiment.kind = 'block'
+  options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  f.payload.documents.pages = [{ id: 10, _status: 'published', layout: [{ blockType: 'xpExperiment', experiment: 'hero', slots: [
+    { slot: 'control', blocks: [{ blockType: 'text' }] }, { slot: 'variantA', blocks: [{ blockType: 'text' }] },
+  ] }] }]
+  const find = vi.mocked(f.payload.find).getMockImplementation()!
+  vi.mocked(f.payload.find).mockImplementation(async args => {
+    if (args.collection === 'pages') expect(await f.req.transactionID).toBeUndefined()
+    return find(args)
+  })
+  await decide(f.req, { experimentId: 1, winnerArm: 'variantA' })
+  expect(f.executor.calls.filter(call => call.text.includes('"placement_docs" = $1::jsonb'))).toEqual([
+    expect.objectContaining({ params: [JSON.stringify([{ collection: 'pages', id: 10 }]), 1, 1] }),
+  ])
+}, 5000)

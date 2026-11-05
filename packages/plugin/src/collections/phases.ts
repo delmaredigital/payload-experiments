@@ -12,7 +12,7 @@ export function phasesCollection(options: ResolvedOptions): CollectionConfig {
       { name: 'phaseKind', type: 'select', required: true, options: ['test', 'rollout'] },
       { name: 'startedAt', type: 'date', required: true }, { name: 'endedAt', type: 'date' },
       { name: 'seed', type: 'text', required: true },
-      ...['arms', 'allocation', 'allocationChanges', 'targeting', 'metricDefinitions', 'analysis', 'contentChanges'].map((name): Field => ({ name, type: 'json' })),
+      ...['arms', 'allocation', 'allocationChanges', 'targeting', 'metricDefinitions', 'analysis', 'placementDocs', 'contentChanges'].map((name): Field => ({ name, type: 'json' })),
     ],
   }
 }

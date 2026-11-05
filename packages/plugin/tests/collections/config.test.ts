@@ -147,6 +147,7 @@ test('Goals and Test groups validation messages use plain words', () => {
   const groups = bySlug('xp-layers').fields
   const capping = field(goals, 'capping', 'group').fields
   const cases = [
+    [field(goals, 'slug', 'text'), 'BAD', { data: { source: 'click:bad' } }],
     [field(goals, 'source', 'text'), 'missing', {}],
     [field(capping, 'type', 'select'), 'absolute', { data: { source: 'count' }, siblingData: { value: 10 } }],
     [field(capping, 'type', 'select'), 'missing', { data: { source: 'revenue' }, siblingData: { value: 10 } }],
@@ -166,6 +167,7 @@ test('serialized options omit host functions and include event sources', () => {
   expect(serializeFlagPoints(options)).toEqual(flagPoints)
   expect(serializeAttributeKeys(options)).toEqual(attributeKeys)
   expect(serializeMetricSources(options)).toEqual([
+    { id: 'click:', label: 'A click on the page', kind: 'binomial', keyedBy: 'visitor', clientWritable: true },
     ...['binomial', 'count', 'revenue'].map(kind => ({ id: kind, label: kind, kind, keyedBy: 'user', clientWritable: false })),
     { id: 'events:signup', label: 'signup', kind: 'binomial', keyedBy: 'visitor', clientWritable: true },
   ])

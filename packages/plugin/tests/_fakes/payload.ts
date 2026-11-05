@@ -46,6 +46,7 @@ export function fakePayload<TOverrides extends Record<string, unknown> = Record<
   }
   const db = {
     sessions, drizzle: { execute: executor.execute },
+    findOne: (async (args: { collection: string; where?: Record<string, unknown> }) => structuredClone(documents[args.collection]?.find(doc => matches(doc, args.where)))) as Payload['db']['findOne'],
     async beginTransaction(options?: Record<string, unknown>) {
       dbCalls.push({ method: 'beginTransaction', args: options === undefined ? [] : [options] })
       if (transactions.begin instanceof Error) throw transactions.begin

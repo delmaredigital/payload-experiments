@@ -585,7 +585,7 @@ test('preflightPending spans a successful save through its deferred preflight re
   expect(result.current.preflightPending).toBe(false)
   expect(result.current.preflight?.trafficPerDay).toBe(123)
 })
-test('overlapping preflight refreshes remain pending until all settle and ignore stale responses', async () => {
+test('overlapping preflight refreshes use the latest pending state and ignore stale responses', async () => {
   const { result, fetcher } = setup()
   await waitFor(() => expect(result.current.loadState).toBe('ready'))
   const first = deferred<Response>(); const second = deferred<Response>()
@@ -594,7 +594,7 @@ test('overlapping preflight refreshes remain pending until all settle and ignore
   act(() => { one = result.current.refreshPreflight(); two = result.current.refreshPreflight() })
   expect(result.current.preflightPending).toBe(true)
   await act(async () => { second.resolve(response({ ...preflight, trafficPerDay: 200 })); await two })
-  expect(result.current.preflightPending).toBe(true)
+  expect(result.current.preflightPending).toBe(false)
   expect(result.current.preflight?.trafficPerDay).toBe(200)
   await act(async () => { first.resolve(response({}, 403)); await one })
   expect(result.current.preflightPending).toBe(false)
@@ -729,4 +729,56 @@ test.each(['aborted', 'failed'] as const)('unreadable success re-reads before th
     const last = fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH').at(-1)!
     expect(new Headers(last[1]?.headers).get(XP_IF_UPDATED_AT_HEADER)).toBe('2026-11-03T10:02:00.000Z')
   }
+})
+
+test('page collection and raw page choices persist through the same session and survive remount', async () => {
+  let stored = document({ kind: 'page', exposurePolicy: 'pageview' })
+  const fetcher = stubFetch(async (url, init) => {
+    if (url.endsWith('/preflight')) return response(preflight)
+    if (init?.method === 'PATCH') {
+      stored = { ...stored, ...JSON.parse(init.body as string) }
+      return response({ doc: stored })
+    }
+    return response(stored)
+  })
+  const first = renderHook(() => useTestDocument(stored.id, { apiRoute: '/data' }))
+  await waitFor(() => expect(first.result.current.loadState).toBe('ready'))
+  await act(async () => { first.result.current.stage({ pageCollection: 'pages' }); await first.result.current.commit() })
+  await act(async () => { await first.result.current.choosePage('variantA', { id: 'copy', path: '/copy/' }) })
+  expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(2)
+  first.unmount()
+  const reopened = renderHook(() => useTestDocument(stored.id, { apiRoute: '/data' }))
+  await waitFor(() => expect(reopened.result.current.loadState).toBe('ready'))
+  expect(reopened.result.current.doc?.pageCollection).toBe('pages')
+  expect(reopened.result.current.doc?.arms[1]?.pageTarget).toBe('/copy/')
+})
+test.each([false, true])('focus preflight refetch is opt-in (%s), visibility also refetches and latest request wins', async enabled => {
+  const old = deferred<Response>()
+  let reads = 0
+  const fresh = { ...preflight, checks: [{ code: 'page-target-unpublished' as const, ok: true }] }
+  const fetcher = stubFetch(async url => url.endsWith('/preflight')
+    ? ++reads === 1 ? response(preflight) : reads === 2 ? old.promise : response(fresh)
+    : response(document()))
+  const hook = renderHook(({ focus }) => useTestDocument('one', { apiRoute: '/data', refetchPreflightOnFocus: focus }), { initialProps: { focus: enabled } })
+  await waitFor(() => expect(hook.result.current.loadState).toBe('ready'))
+  act(() => { window.dispatchEvent(new Event('focus')) })
+  if (!enabled) { expect(reads).toBe(1); return }
+  await waitFor(() => expect(reads).toBe(2))
+  act(() => { window.document.dispatchEvent(new Event('visibilitychange')) })
+  await waitFor(() => expect(hook.result.current.preflight).toEqual(fresh))
+  expect(hook.result.current.preflightPending).toBe(false)
+  await act(async () => old.resolve(response(preflight)))
+  expect(hook.result.current.preflight).toEqual(fresh)
+  hook.rerender({ focus: false })
+  act(() => window.dispatchEvent(new Event('focus')))
+  expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/preflight'))).toHaveLength(3)
+})
+
+test('changing page collection invalidates remembered document identities', async () => {
+  const { result } = setup(document({ kind: 'page', pageCollection: 'pages' }))
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  await act(async () => result.current.choosePage('control', { id: 1, path: '/original' }))
+  expect(result.current.chosenPages.control?.id).toBe(1)
+  await act(async () => { result.current.stage({ pageCollection: 'articles' }); await result.current.commit() })
+  expect(result.current.chosenPages).toEqual({})
 })

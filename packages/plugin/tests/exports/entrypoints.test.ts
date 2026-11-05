@@ -6,7 +6,9 @@ import { expect, test, vi } from 'vitest'
 vi.setConfig({ testTimeout: 30_000 })
 
 const required = {
+  blocks: { controlOnlyBlocks: '../blocks/model.js', segmentExperimentBlocks: '../blocks/model.js', EXPERIMENT_BLOCK_SLUG: '../blocks/model.js' },
   client: {
+    ExperimentGroup: '../client/ExperimentGroup.js',
     ExperimentsProvider: '../client/ExperimentsProvider.js',
     useFlagPoint: '../client/useFlagPoint.js',
     useExperiment: '../client/useExperiment.js',
@@ -25,13 +27,14 @@ const required = {
     ArmSelectField: '../admin/armSelect/ArmSelectField.js',
   },
   puck: {
+    xpGoalPuckField: '../puck/xpGoalField.js',
     ExperimentSlot: '../puck/ExperimentSlot.js',
     createExperimentSlot: '../puck/ExperimentSlot.js',
     createExperimentSlotField: '../puck/experimentSlotField.js',
     experimentsPuck: '../puck/integration.js',
     EXPERIMENT_SLOT_TYPE: '../types/puck.js',
   },
-  rsc: { pageKindSeoContract: '../server/pageKindSeoContract.js', captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
+  rsc: { resolveExperimentBlocks: '../server/resolveExperimentBlocks.js', pageKindSeoContract: '../server/pageKindSeoContract.js', captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
   adminRsc: {
     TestsNavLinkServer: '../admin/views/TestsNavLinkServer.js',
     ExperimentsRootView: '../admin/views/ExperimentsRootView.js',
@@ -39,11 +42,11 @@ const required = {
     CollectionEditRedirect: '../admin/views/CollectionEditRedirect.js',
   },
   puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', createExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', experimentOutlinePlugin: '../puck/editor/experimentOutlinePlugin.js', experimentsPuckEditor: '../puck/editor/integration.js' },
-  index: { createArmSelectField: '../fields/armSelect.js', contentDone: '../contentDone.js' },
+  index: { xpGoalField: '../fields/xpGoal.js', createExperimentBlock: '../blocks/createExperimentBlock.js', createArmSelectField: '../fields/armSelect.js', contentDone: '../contentDone.js' },
 } as const
 const requiredTypes = {
   rsc: { MetricUnavailableReason: '../types/reasons.js', ContentReportReason: '../types/reasons.js', ManifestInputs: '../manifest/compile.js', ManifestInputExperiment: '../manifest/compile.js', ManifestPhase: '../manifest/compile.js', ManifestCompileOptions: '../manifest/compile.js', Manifest: '../types/manifest.js', ManifestExperiment: '../types/manifest.js' },
-  index: { ExperimentsPageCollection: '../types/index.js', ContentReport: '../types/index.js', RestoreContentEntryBody: '../types/index.js', RestoreContentEntryResult: '../types/index.js', MetricUnavailableReason: '../types/index.js', ContentReportReason: '../types/index.js' },
+  index: { ClickKeysResult: '../types/index.js', ExperimentsPageCollection: '../types/index.js', ContentReport: '../types/index.js', RestoreContentEntryBody: '../types/index.js', RestoreContentEntryResult: '../types/index.js', MetricUnavailableReason: '../types/index.js', ContentReportReason: '../types/index.js' },
   client: { ClientAssignments: '../types/assignments.js' },
   puck: {
     ExperimentSlotProps: '../types/puck.js',
@@ -118,4 +121,9 @@ test('surface-injected accent derivation stays module-only', () => {
   for (const file of readdirSync(directory).filter(file => file.endsWith('.ts'))) {
     expect(namedExports(parse(file), false).has('deriveAccentFor'), file).toBe(false)
   }
+})
+
+test('createExperimentBlock is on the root entry only, never on /blocks', () => {
+  expect(namedExports(parse('index.ts'), true).get('createExperimentBlock')).toBe('../blocks/createExperimentBlock.js')
+  expect(namedExports(parse('blocks.ts'), false).has('createExperimentBlock')).toBe(false)
 })

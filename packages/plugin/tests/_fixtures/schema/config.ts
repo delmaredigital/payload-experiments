@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { buildConfig } from 'payload'
 import type { ResolvedOptions } from '../../../src/types/contracts.js'
+import { createExperimentBlock } from '../../../src/blocks/createExperimentBlock.js'
 import { buildCollections } from '../../../src/collections/index.js'
 
 // Build the collections and global from source so regeneration cannot use stale copies.
@@ -27,7 +28,7 @@ export default buildConfig({
     pool: { connectionString: 'postgres://unused@127.0.0.1:1/none' },
     generateSchemaOutputFile: fileURLToPath(new URL('../generated-schema.ts', import.meta.url)),
   }),
-  collections: [{ slug: 'users', auth: true, fields: [] }, ...collections],
+  collections: [{ slug: 'users', auth: true, fields: [] }, { slug: 'fixture-pages', versions: { drafts: true }, fields: [{ name: 'layout', type: 'blocks', blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] }, createExperimentBlock({ blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] }] })] }] }, ...collections],
   globals,
   typescript: { autoGenerate: false },
 })

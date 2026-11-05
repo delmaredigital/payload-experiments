@@ -98,7 +98,7 @@ test('source check reports missing license and readme, and emitted files when re
 })
 
 function packed(specifier = '0.1.0') {
-  return { version: pkg.version, dependencies: { [stats]: specifier } }
+  return { version: pkg.version, exports: pkg.exports, dependencies: { [stats]: specifier } }
 }
 function tarball(manifest: unknown) {
   const dir = tempDir()
@@ -149,4 +149,10 @@ test('tarball CLI reports unreadable archives', () => {
   const result = runTarball(join(tempDir(), 'missing.tgz'))
   expect(result.status).toBe(1)
   expect(result.stderr).toContain('Cannot read packed package.json')
+})
+
+test('tarball export diff catches a missing blocks entry', () => {
+  const manifest = structuredClone(packed())
+  delete manifest.exports['./blocks']
+  expect(checkPackedPackage(manifest)).toContain('Packed exports must match the source package exports')
 })

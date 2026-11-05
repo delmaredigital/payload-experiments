@@ -37,6 +37,12 @@
       "import": "./dist/exports/rsc.js",
       "default": "./dist/exports/rsc.js"
     },
+    "./blocks": {
+      "@delmaredigital/source": "./src/exports/blocks.ts",
+      "types": "./dist/exports/blocks.d.ts",
+      "import": "./dist/exports/blocks.js",
+      "default": "./dist/exports/blocks.js"
+    },
     "./client": {
       "@delmaredigital/source": "./src/exports/client.ts",
       "types": "./dist/exports/client.d.ts",

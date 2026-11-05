@@ -59,7 +59,7 @@ async function setup(name: string, initialDraft = false, startNow = true) {
       where: { and: [{ experiment: { equals: experiment.id } }, { phase: { equals: 1 } }] } })
     return phases.docs[0]!.contentChanges as unknown[]
   }
-  return { payload, req, page, save, markers, experiment, begin }
+  return { payload, req, page, save, markers, experiment, begin, content }
 }
 
 test('autosave then publish records exactly one marker against the main published row', async () => {
@@ -88,9 +88,14 @@ test('unpublish then republish unchanged records no marker', async () => {
 })
 
 test('first publish of unchanged slots created in a draft records one marker', async () => {
-  const f = await setup('audit-first-publish', true)
+  // Start refuses a slot that is only on a draft (placement-unpublished), so the
+  // draft-born page (KI-2) is created after Start, beside the published placement.
+  const f = await setup('audit-first-publish')
+  const born = await f.payload.create({ collection: 'audit-pages', req: f.req, overrideAccess: false, draft: true,
+    data: { title: 'audit-first-publish-born', content: f.content('Published'), _status: 'draft' } })
   expect(await f.markers()).toHaveLength(0)
-  await f.save('Published', false)
+  await f.payload.update({ collection: 'audit-pages', id: born.id, req: f.req, overrideAccess: false, draft: false,
+    data: { content: f.content('Published'), _status: 'published' } })
   expect(await f.markers()).toHaveLength(1)
 })
 

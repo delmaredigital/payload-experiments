@@ -15,6 +15,7 @@ export const TEST_PAGE = {
   balanceHelp: 'Changing a share balances the other versions so the total stays at 100%.',
   addVersion: 'Add a version', addHoldout: 'Add a holdout', split: 'Split evenly', remove: 'Remove version',
   invalidShare: 'Use a whole number from 0 to 100.',
+  holdoutPrefix: 'Holdout: ',
   allocation: 'How many people take part', traffic: 'How people are split',
   goal: 'Goal', goalHelp: 'The goal decides whether a version wins. Pick the one thing you want more of.',
   guardrails: 'Must not get worse (optional)', guardrailHelp: "If a version makes one of these worse, you'll be warned.",

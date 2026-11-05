@@ -2,6 +2,11 @@ import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import { availableActions } from '../../../../src/admin/actions/actions.model.js'
 import * as copy from '../../../../src/admin/copy/readiness.js'
+import { PAGE_COPY } from '../../../../src/admin/copy/pages.js'
+
+test('unchosen page copy stays aligned with the page-row empty state', () => {
+  expect(PAGE_COPY.noPage).toBe('No page chosen yet.')
+})
 
 test('block path readiness uses the coordinator removal copy', () => {
   expect(copy.READINESS_COPY.blockPathRule).toBe('Remove the page-path rule in Who takes part; page block tests run on their page.')
@@ -42,4 +47,14 @@ test.each(['running', 'decided'] as const)('page refusal actions exist for %s te
 test('page conflict readiness uses the coordinator copy', () => {
   expect(copy.pageInUseCopy('/original')).toBe('Another running or decided test already uses /original. Choose a different page, or finish that test first.')
   expect(copy.READINESS_COPY.chooseDifferentPage).toBe('Choose a different page')
+})
+
+test('manual page setup copy shares its server form and every contextual sentence', () => {
+  expect(copy.unpublishedPageCopy('/copy')).toBe("/copy isn't a published page yet. Publish it, or choose another page.")
+  expect(copy.unpublishedPageCopy('/copy', { original: false, found: true, collection: 'Pages' })).toBe('/copy is still a draft. Publish it in Pages, then start the test.')
+  expect(copy.unpublishedPageCopy('/copy', { original: false, found: false, collection: 'Pages' })).toBe("/copy isn't published yet, or no page has that address. Publish it in Pages, or choose another page.")
+  expect(copy.unpublishedPageCopy('/copy', { original: true, found: false, collection: 'Pages' })).toBe("/copy isn't published, so it can't be the Original. Publish it, or choose another page.")
+  expect(copy.pageInUseCopy('/copy', true)).toBe('/copy is already in another running or decided test. Make a new copy of the Original for this version, or finish that test first.')
+  expect(copy.sameAddressCopy('Variant A', 'Original', '/copy')).toBe('Variant A has the same address (/copy) as Original. Choose a different page.')
+  expect(copy.sameAddressCopy('Variant A', 'Original', '/copy', 'Pages')).toBe('Variant A has the same address (/copy) as Original. Choose a different page. Give the copy its own address in Pages, publish it, then choose it.')
 })

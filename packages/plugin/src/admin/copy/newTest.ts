@@ -1,5 +1,9 @@
 export const NEW_TEST_COPY = {
   question: 'What do you want to test?', block: 'A block on a page', setting: 'A setting',
+  page: 'A whole page', pageMeaning: 'Show different versions of a whole page at the same address, and see which one works better.',
+  collection: 'Collection', original: 'Original', originalHelp: 'Choose the page visitors see today.', review: 'Review',
+  backToTest: 'Back to the test', finishSetup: 'Finish setup', start: 'Start',
+  blocksHandoff: "Pick the block to test with 'Test a block on this page'.",
   blockMeaning: 'Compare different versions of content on a page.',
   settingMeaning: 'Compare different choices for a setting on your site.',
   unavailable: 'A developer needs to set up pages or settings before you can create a test.',

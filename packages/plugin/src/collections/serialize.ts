@@ -9,6 +9,7 @@ export function serializeFlagPoints(options: ResolvedOptions): SerializedFlagPoi
 
 export function serializeMetricSources(options: ResolvedOptions): SerializedMetricSource[] {
   return [
+    { id: 'click:', label: 'A click on the page', kind: 'binomial', keyedBy: 'visitor', clientWritable: true },
     ...(options.metricSources ?? []).map(({ id, label, kind, keyedBy, clientWritable }) => ({
       id, label, kind, keyedBy, clientWritable: clientWritable === true,
     })),

@@ -1,7 +1,7 @@
 import type { DocId } from '../types/contracts.js'
 import type {
-  PagesResult, PlacementStatusBody, PlacementStatusResult, RestoreContentEntryBody, RestoreContentEntryResult, DismissContentEntryBody, DismissContentEntryResult, AddMetricBody, AllocateBody, ArchiveBody, DecideBody, ErrorEnvelope, MakeContentResult,
-  PreflightResult, PreviewTokenResult, RefusalCode, ResultsResponse, SummaryResponse, TransitionSuccess,
+  WrapBlockBody, PagesResult, PlacementStatusBody, PlacementStatusResult, RestoreContentEntryBody, RestoreContentEntryResult, DismissContentEntryBody, DismissContentEntryResult, AddMetricBody, AllocateBody, ArchiveBody, DecideBody, ErrorEnvelope, MakeContentResult,
+  AddMetricResult, ClickKeysResult, PreflightResult, PreviewTokenResult, RefusalCode, ResultsResponse, SummaryResponse, TransitionSuccess,
 } from '../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from './copy/common.js'
 import { CONTENT_ENTRY_REFUSALS } from './copy/actions.js'
@@ -16,10 +16,10 @@ export function createApi(apiBase: string) {
   const base = `${apiBase.replace(/\/$/, '')}/xp/experiments`
   const route = (id: DocId, action: string) => `${base}/${encodeURIComponent(id)}/${action}`
 
-  async function request<T>(path: () => string, method: 'GET' | 'POST', body?: unknown, options?: RequestOptions): Promise<ApiResult<T>> {
+  async function request<T>(path: () => string, method: 'GET' | 'POST', body?: unknown, options?: RequestOptions, signal?: AbortSignal): Promise<ApiResult<T>> {
     try {
       const response = await fetch(path(), {
-        method, credentials: 'include',
+        method, credentials: 'include', ...(signal ? { signal } : {}),
         ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
       })
       let data: unknown
@@ -37,18 +37,19 @@ export function createApi(apiBase: string) {
       const code = response.status === 501 ? 'not-implemented' : typeof error?.code === 'string' ? error.code : undefined
       return { ok: false, status: response.status, ...(code ? { code } : {}),
         message: refusalMessage(code, response.status, typeof error?.message === 'string' ? error.message : undefined, options),
-        retryable: code === 'commit-unverified' || (response.status >= 500 && response.status !== 501) }
+        retryable: code === 'page-busy' || code === 'commit-unverified' || (response.status >= 500 && response.status !== 501) }
     } catch {
       return { ok: false, status: 0, message: API_MESSAGES.network, retryable: true }
     }
   }
   const post = <T>(id: DocId, action: string, body?: unknown, options?: RequestOptions) => request<T>(() => route(id, action), 'POST', body, options)
   return {
-    pages: (query: { collection: string; q?: string; page?: number }) => request<PagesResult>(() => `${apiBase.replace(/\/$/, '')}/xp/pages?${new URLSearchParams({ collection: query.collection, ...(query.q ? { q: query.q } : {}), ...(query.page ? { page: String(query.page) } : {}) })}`, 'GET'),
+    wrapBlock: (body: WrapBlockBody) => request<Record<string, unknown>>(() => `${apiBase.replace(/\/$/, '')}/xp/blocks/wrap`, 'POST', body),
+    pages: (query: { collection: string; q?: string; page?: number }, signal?: AbortSignal) => request<PagesResult>(() => `${apiBase.replace(/\/$/, '')}/xp/pages?${new URLSearchParams({ collection: query.collection, ...(query.q ? { q: query.q } : {}), ...(query.page ? { page: String(query.page) } : {}) })}`, 'GET', undefined, undefined, signal),
     placementStatus: (body: PlacementStatusBody) => request<PlacementStatusResult>(() => `${apiBase.replace(/\/$/, '')}/xp/placements/status`, 'POST', body),
     start: (id: DocId) => post<TransitionSuccess>(id, 'start'),
     allocate: (id: DocId, body: AllocateBody, options?: RequestOptions) => post<TransitionSuccess>(id, 'allocate', body, options),
-    addMetric: (id: DocId, body: AddMetricBody, options?: RequestOptions) => post<TransitionSuccess>(id, 'add-metric', body, options),
+    addMetric: (id: DocId, body: AddMetricBody, options?: RequestOptions) => post<AddMetricResult>(id, 'add-metric', body, options),
     stop: (id: DocId) => post<TransitionSuccess>(id, 'stop'),
     decide: (id: DocId, body: DecideBody) => post<TransitionSuccess>(id, 'decide', body),
     releaseHoldout: (id: DocId) => post<TransitionSuccess>(id, 'release-holdout'),
@@ -57,6 +58,7 @@ export function createApi(apiBase: string) {
     dismissContentEntry: (id: DocId, body: DismissContentEntryBody) => post<DismissContentEntryResult>(id, 'content-report/dismiss', body, CONTENT_ENTRY_REFUSALS),
     restoreContentEntry: (id: DocId, body: RestoreContentEntryBody) => post<RestoreContentEntryResult>(id, 'content-report/restore', body, CONTENT_ENTRY_REFUSALS),
     archive: (id: DocId, body: ArchiveBody) => post<TransitionSuccess>(id, 'archive', body),
+    clickKeys: (id: DocId) => request<ClickKeysResult>(() => route(id, 'click-keys'), 'GET'),
     preflight: (id: DocId) => request<PreflightResult>(() => route(id, 'preflight'), 'GET'),
     previewToken: (id: DocId, arm: string) => request<PreviewTokenResult>(() => `${route(id, 'preview-token')}?arm=${encodeURIComponent(arm)}`, 'GET'),
     results: (id: DocId, options: { phase?: number; series?: boolean } & RequestOptions = {}) => request<ResultsResponse>(() => {

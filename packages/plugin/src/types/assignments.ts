@@ -13,6 +13,7 @@ export interface FlagPointResult {
   experiment?: string; experimentId?: DocId; phase?: number; policy?: ExposurePolicy; exposable: boolean
 }
 export interface ClientAssignments {
+  clickGoalsArmed?: boolean
   v: 1; revision: number; apiRoute: string
   experiments: Record<string, { arm: string; experimentId: DocId; phase: number; params: Record<string, unknown>; policy: ExposurePolicy; exposable: boolean }>
   flagPoints: Record<string, FlagPointResult>

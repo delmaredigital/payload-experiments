@@ -1,6 +1,6 @@
 /**
  * Payload 3.90.2 — regenerated 2026-11-04, without a database connection.
- * Built directly from src/collections (including its global factory).
+ * Built directly from src/collections (including its global factory) and the Experiment block host.
  * Regenerate from packages/plugin:
  * NODE_OPTIONS=--conditions=@delmaredigital/source PAYLOAD_CONFIG_PATH=tests/_fixtures/schema/config.ts pnpm exec payload generate:db-schema
  * The CLI uses disableDBConnect + disableOnInit. Restore this provenance header afterwards.
@@ -24,10 +24,28 @@ import {
   timestamp,
   serial,
   numeric,
+  text,
+  boolean,
   jsonb,
   pgEnum,
 } from "@payloadcms/db-postgres/drizzle/pg-core";
 import { sql, relations } from "@payloadcms/db-postgres/drizzle";
+export const enum_fixture_pages_blocks_xp_experiment_slots_slot = pgEnum(
+  "enum_fixture_pages_blocks_xp_experiment_slots_slot",
+  ["control", "variantA", "variantB", "variantC"],
+);
+export const enum_fixture_pages_status = pgEnum("enum_fixture_pages_status", [
+  "draft",
+  "published",
+]);
+export const enum__fixture_pages_v_blocks_xp_experiment_slots_slot = pgEnum(
+  "enum__fixture_pages_v_blocks_xp_experiment_slots_slot",
+  ["control", "variantA", "variantB", "variantC"],
+);
+export const enum__fixture_pages_v_version_status = pgEnum(
+  "enum__fixture_pages_v_version_status",
+  ["draft", "published"],
+);
 export const enum_xp_experiments_targeting_op = pgEnum(
   "enum_xp_experiments_targeting_op",
   ["eq", "neq", "in", "nin", "contains", "gt", "gte", "lt", "lte"],
@@ -210,6 +228,226 @@ export const users = pgTable(
     index("users_updated_at_idx").on(columns.updatedAt),
     index("users_created_at_idx").on(columns.createdAt),
     uniqueIndex("users_email_idx").on(columns.email),
+  ],
+);
+
+export const fixture_pages_blocks_text = pgTable(
+  "fixture_pages_blocks_text",
+  {
+    _order: integer("_order").notNull(),
+    _parentID: integer("_parent_id").notNull(),
+    _path: text("_path").notNull(),
+    id: varchar("id").primaryKey(),
+    text: varchar("text"),
+    blockName: varchar("block_name"),
+  },
+  (columns) => [
+    index("fixture_pages_blocks_text_order_idx").on(columns._order),
+    index("fixture_pages_blocks_text_parent_id_idx").on(columns._parentID),
+    index("fixture_pages_blocks_text_path_idx").on(columns._path),
+    foreignKey({
+      columns: [columns["_parentID"]],
+      foreignColumns: [fixture_pages.id],
+      name: "fixture_pages_blocks_text_parent_id_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const fixture_pages_blocks_xp_experiment_slots = pgTable(
+  "fixture_pages_blocks_xp_experiment_slots",
+  {
+    _order: integer("_order").notNull(),
+    _parentID: varchar("_parent_id").notNull(),
+    id: varchar("id").primaryKey(),
+    slot: enum_fixture_pages_blocks_xp_experiment_slots_slot("slot"),
+  },
+  (columns) => [
+    index("fixture_pages_blocks_xp_experiment_slots_order_idx").on(
+      columns._order,
+    ),
+    index("fixture_pages_blocks_xp_experiment_slots_parent_id_idx").on(
+      columns._parentID,
+    ),
+    foreignKey({
+      columns: [columns["_parentID"]],
+      foreignColumns: [fixture_pages_blocks_xp_experiment.id],
+      name: "fixture_pages_blocks_xp_experiment_slots_parent_id_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const fixture_pages_blocks_xp_experiment = pgTable(
+  "fixture_pages_blocks_xp_experiment",
+  {
+    _order: integer("_order").notNull(),
+    _parentID: integer("_parent_id").notNull(),
+    _path: text("_path").notNull(),
+    id: varchar("id").primaryKey(),
+    experiment: varchar("experiment"),
+    blockName: varchar("block_name"),
+  },
+  (columns) => [
+    index("fixture_pages_blocks_xp_experiment_order_idx").on(columns._order),
+    index("fixture_pages_blocks_xp_experiment_parent_id_idx").on(
+      columns._parentID,
+    ),
+    index("fixture_pages_blocks_xp_experiment_path_idx").on(columns._path),
+    foreignKey({
+      columns: [columns["_parentID"]],
+      foreignColumns: [fixture_pages.id],
+      name: "fixture_pages_blocks_xp_experiment_parent_id_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const fixture_pages = pgTable(
+  "fixture_pages",
+  {
+    id: serial("id").primaryKey(),
+    updatedAt: timestamp("updated_at", {
+      mode: "string",
+      withTimezone: true,
+      precision: 3,
+    })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp("created_at", {
+      mode: "string",
+      withTimezone: true,
+      precision: 3,
+    })
+      .defaultNow()
+      .notNull(),
+    _status: enum_fixture_pages_status("_status").default("draft"),
+  },
+  (columns) => [
+    index("fixture_pages_updated_at_idx").on(columns.updatedAt),
+    index("fixture_pages_created_at_idx").on(columns.createdAt),
+    index("fixture_pages__status_idx").on(columns._status),
+  ],
+);
+
+export const _fixture_pages_v_blocks_text = pgTable(
+  "_fixture_pages_v_blocks_text",
+  {
+    _order: integer("_order").notNull(),
+    _parentID: integer("_parent_id").notNull(),
+    _path: text("_path").notNull(),
+    id: serial("id").primaryKey(),
+    text: varchar("text"),
+    _uuid: varchar("_uuid"),
+    blockName: varchar("block_name"),
+  },
+  (columns) => [
+    index("_fixture_pages_v_blocks_text_order_idx").on(columns._order),
+    index("_fixture_pages_v_blocks_text_parent_id_idx").on(columns._parentID),
+    index("_fixture_pages_v_blocks_text_path_idx").on(columns._path),
+    foreignKey({
+      columns: [columns["_parentID"]],
+      foreignColumns: [_fixture_pages_v.id],
+      name: "_fixture_pages_v_blocks_text_parent_id_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const _fixture_pages_v_blocks_xp_experiment_slots = pgTable(
+  "_fixture_pages_v_blocks_xp_experiment_slots",
+  {
+    _order: integer("_order").notNull(),
+    _parentID: integer("_parent_id").notNull(),
+    id: serial("id").primaryKey(),
+    slot: enum__fixture_pages_v_blocks_xp_experiment_slots_slot("slot"),
+    _uuid: varchar("_uuid"),
+  },
+  (columns) => [
+    index("_fixture_pages_v_blocks_xp_experiment_slots_order_idx").on(
+      columns._order,
+    ),
+    index("_fixture_pages_v_blocks_xp_experiment_slots_parent_id_idx").on(
+      columns._parentID,
+    ),
+    foreignKey({
+      columns: [columns["_parentID"]],
+      foreignColumns: [_fixture_pages_v_blocks_xp_experiment.id],
+      name: "_fixture_pages_v_blocks_xp_experiment_slots_parent_id_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const _fixture_pages_v_blocks_xp_experiment = pgTable(
+  "_fixture_pages_v_blocks_xp_experiment",
+  {
+    _order: integer("_order").notNull(),
+    _parentID: integer("_parent_id").notNull(),
+    _path: text("_path").notNull(),
+    id: serial("id").primaryKey(),
+    experiment: varchar("experiment"),
+    _uuid: varchar("_uuid"),
+    blockName: varchar("block_name"),
+  },
+  (columns) => [
+    index("_fixture_pages_v_blocks_xp_experiment_order_idx").on(columns._order),
+    index("_fixture_pages_v_blocks_xp_experiment_parent_id_idx").on(
+      columns._parentID,
+    ),
+    index("_fixture_pages_v_blocks_xp_experiment_path_idx").on(columns._path),
+    foreignKey({
+      columns: [columns["_parentID"]],
+      foreignColumns: [_fixture_pages_v.id],
+      name: "_fixture_pages_v_blocks_xp_experiment_parent_id_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const _fixture_pages_v = pgTable(
+  "_fixture_pages_v",
+  {
+    id: serial("id").primaryKey(),
+    parent: integer("parent_id").references(() => fixture_pages.id, {
+      onDelete: "set null",
+    }),
+    version_updatedAt: timestamp("version_updated_at", {
+      mode: "string",
+      withTimezone: true,
+      precision: 3,
+    }),
+    version_createdAt: timestamp("version_created_at", {
+      mode: "string",
+      withTimezone: true,
+      precision: 3,
+    }),
+    version__status:
+      enum__fixture_pages_v_version_status("version__status").default("draft"),
+    createdAt: timestamp("created_at", {
+      mode: "string",
+      withTimezone: true,
+      precision: 3,
+    })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", {
+      mode: "string",
+      withTimezone: true,
+      precision: 3,
+    })
+      .defaultNow()
+      .notNull(),
+    latest: boolean("latest"),
+  },
+  (columns) => [
+    index("_fixture_pages_v_parent_idx").on(columns.parent),
+    index("_fixture_pages_v_version_version_updated_at_idx").on(
+      columns.version_updatedAt,
+    ),
+    index("_fixture_pages_v_version_version_created_at_idx").on(
+      columns.version_createdAt,
+    ),
+    index("_fixture_pages_v_version_version__status_idx").on(
+      columns.version__status,
+    ),
+    index("_fixture_pages_v_created_at_idx").on(columns.createdAt),
+    index("_fixture_pages_v_updated_at_idx").on(columns.updatedAt),
+    index("_fixture_pages_v_latest_idx").on(columns.latest),
   ],
 );
 
@@ -664,6 +902,7 @@ export const xp_phases = pgTable(
     targeting: jsonb("targeting"),
     metricDefinitions: jsonb("metric_definitions"),
     analysis: jsonb("analysis"),
+    placementDocs: jsonb("placement_docs"),
     contentChanges: jsonb("content_changes"),
     updatedAt: timestamp("updated_at", {
       mode: "string",
@@ -946,6 +1185,7 @@ export const payload_locked_documents_rels = pgTable(
     parent: integer("parent_id").notNull(),
     path: varchar("path").notNull(),
     usersID: integer("users_id"),
+    "fixture-pagesID": integer("fixture_pages_id"),
     "xp-experimentsID": integer("xp_experiments_id"),
     "xp-phasesID": integer("xp_phases_id"),
     "xp-layersID": integer("xp_layers_id"),
@@ -959,6 +1199,9 @@ export const payload_locked_documents_rels = pgTable(
     index("payload_locked_documents_rels_parent_idx").on(columns.parent),
     index("payload_locked_documents_rels_path_idx").on(columns.path),
     index("payload_locked_documents_rels_users_id_idx").on(columns.usersID),
+    index("payload_locked_documents_rels_fixture_pages_id_idx").on(
+      columns["fixture-pagesID"],
+    ),
     index("payload_locked_documents_rels_xp_experiments_id_idx").on(
       columns["xp-experimentsID"],
     ),
@@ -989,6 +1232,11 @@ export const payload_locked_documents_rels = pgTable(
       columns: [columns["usersID"]],
       foreignColumns: [users.id],
       name: "payload_locked_documents_rels_users_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [columns["fixture-pagesID"]],
+      foreignColumns: [fixture_pages.id],
+      name: "payload_locked_documents_rels_fixture_pages_fk",
     }).onDelete("cascade"),
     foreignKey({
       columns: [columns["xp-experimentsID"]],
@@ -1143,6 +1391,96 @@ export const relations_users = relations(users, ({ many }) => ({
     relationName: "sessions",
   }),
 }));
+export const relations_fixture_pages_blocks_text = relations(
+  fixture_pages_blocks_text,
+  ({ one }) => ({
+    _parentID: one(fixture_pages, {
+      fields: [fixture_pages_blocks_text._parentID],
+      references: [fixture_pages.id],
+      relationName: "_blocks_text",
+    }),
+  }),
+);
+export const relations_fixture_pages_blocks_xp_experiment_slots = relations(
+  fixture_pages_blocks_xp_experiment_slots,
+  ({ one }) => ({
+    _parentID: one(fixture_pages_blocks_xp_experiment, {
+      fields: [fixture_pages_blocks_xp_experiment_slots._parentID],
+      references: [fixture_pages_blocks_xp_experiment.id],
+      relationName: "slots",
+    }),
+  }),
+);
+export const relations_fixture_pages_blocks_xp_experiment = relations(
+  fixture_pages_blocks_xp_experiment,
+  ({ one, many }) => ({
+    _parentID: one(fixture_pages, {
+      fields: [fixture_pages_blocks_xp_experiment._parentID],
+      references: [fixture_pages.id],
+      relationName: "_blocks_xpExperiment",
+    }),
+    slots: many(fixture_pages_blocks_xp_experiment_slots, {
+      relationName: "slots",
+    }),
+  }),
+);
+export const relations_fixture_pages = relations(fixture_pages, ({ many }) => ({
+  _blocks_text: many(fixture_pages_blocks_text, {
+    relationName: "_blocks_text",
+  }),
+  _blocks_xpExperiment: many(fixture_pages_blocks_xp_experiment, {
+    relationName: "_blocks_xpExperiment",
+  }),
+}));
+export const relations__fixture_pages_v_blocks_text = relations(
+  _fixture_pages_v_blocks_text,
+  ({ one }) => ({
+    _parentID: one(_fixture_pages_v, {
+      fields: [_fixture_pages_v_blocks_text._parentID],
+      references: [_fixture_pages_v.id],
+      relationName: "_blocks_text",
+    }),
+  }),
+);
+export const relations__fixture_pages_v_blocks_xp_experiment_slots = relations(
+  _fixture_pages_v_blocks_xp_experiment_slots,
+  ({ one }) => ({
+    _parentID: one(_fixture_pages_v_blocks_xp_experiment, {
+      fields: [_fixture_pages_v_blocks_xp_experiment_slots._parentID],
+      references: [_fixture_pages_v_blocks_xp_experiment.id],
+      relationName: "slots",
+    }),
+  }),
+);
+export const relations__fixture_pages_v_blocks_xp_experiment = relations(
+  _fixture_pages_v_blocks_xp_experiment,
+  ({ one, many }) => ({
+    _parentID: one(_fixture_pages_v, {
+      fields: [_fixture_pages_v_blocks_xp_experiment._parentID],
+      references: [_fixture_pages_v.id],
+      relationName: "_blocks_xpExperiment",
+    }),
+    slots: many(_fixture_pages_v_blocks_xp_experiment_slots, {
+      relationName: "slots",
+    }),
+  }),
+);
+export const relations__fixture_pages_v = relations(
+  _fixture_pages_v,
+  ({ one, many }) => ({
+    parent: one(fixture_pages, {
+      fields: [_fixture_pages_v.parent],
+      references: [fixture_pages.id],
+      relationName: "parent",
+    }),
+    _blocks_text: many(_fixture_pages_v_blocks_text, {
+      relationName: "_blocks_text",
+    }),
+    _blocks_xpExperiment: many(_fixture_pages_v_blocks_xp_experiment, {
+      relationName: "_blocks_xpExperiment",
+    }),
+  }),
+);
 export const relations_xp_experiments_targeting = relations(
   xp_experiments_targeting,
   ({ one }) => ({
@@ -1307,6 +1645,11 @@ export const relations_payload_locked_documents_rels = relations(
       references: [users.id],
       relationName: "users",
     }),
+    "fixture-pagesID": one(fixture_pages, {
+      fields: [payload_locked_documents_rels["fixture-pagesID"]],
+      references: [fixture_pages.id],
+      relationName: "fixture-pages",
+    }),
     "xp-experimentsID": one(xp_experiments, {
       fields: [payload_locked_documents_rels["xp-experimentsID"]],
       references: [xp_experiments.id],
@@ -1382,6 +1725,10 @@ export const relations_payload_migrations = relations(
 export const relations_xp_state = relations(xp_state, () => ({}));
 
 type DatabaseSchema = {
+  enum_fixture_pages_blocks_xp_experiment_slots_slot: typeof enum_fixture_pages_blocks_xp_experiment_slots_slot;
+  enum_fixture_pages_status: typeof enum_fixture_pages_status;
+  enum__fixture_pages_v_blocks_xp_experiment_slots_slot: typeof enum__fixture_pages_v_blocks_xp_experiment_slots_slot;
+  enum__fixture_pages_v_version_status: typeof enum__fixture_pages_v_version_status;
   enum_xp_experiments_targeting_op: typeof enum_xp_experiments_targeting_op;
   enum_xp_experiments_arms_key: typeof enum_xp_experiments_arms_key;
   enum_xp_experiments_arms_kind: typeof enum_xp_experiments_arms_kind;
@@ -1410,6 +1757,14 @@ type DatabaseSchema = {
   enum_xp_events_unit_type: typeof enum_xp_events_unit_type;
   users_sessions: typeof users_sessions;
   users: typeof users;
+  fixture_pages_blocks_text: typeof fixture_pages_blocks_text;
+  fixture_pages_blocks_xp_experiment_slots: typeof fixture_pages_blocks_xp_experiment_slots;
+  fixture_pages_blocks_xp_experiment: typeof fixture_pages_blocks_xp_experiment;
+  fixture_pages: typeof fixture_pages;
+  _fixture_pages_v_blocks_text: typeof _fixture_pages_v_blocks_text;
+  _fixture_pages_v_blocks_xp_experiment_slots: typeof _fixture_pages_v_blocks_xp_experiment_slots;
+  _fixture_pages_v_blocks_xp_experiment: typeof _fixture_pages_v_blocks_xp_experiment;
+  _fixture_pages_v: typeof _fixture_pages_v;
   xp_experiments_targeting: typeof xp_experiments_targeting;
   xp_experiments_arms: typeof xp_experiments_arms;
   xp_experiments: typeof xp_experiments;
@@ -1433,6 +1788,14 @@ type DatabaseSchema = {
   xp_state: typeof xp_state;
   relations_users_sessions: typeof relations_users_sessions;
   relations_users: typeof relations_users;
+  relations_fixture_pages_blocks_text: typeof relations_fixture_pages_blocks_text;
+  relations_fixture_pages_blocks_xp_experiment_slots: typeof relations_fixture_pages_blocks_xp_experiment_slots;
+  relations_fixture_pages_blocks_xp_experiment: typeof relations_fixture_pages_blocks_xp_experiment;
+  relations_fixture_pages: typeof relations_fixture_pages;
+  relations__fixture_pages_v_blocks_text: typeof relations__fixture_pages_v_blocks_text;
+  relations__fixture_pages_v_blocks_xp_experiment_slots: typeof relations__fixture_pages_v_blocks_xp_experiment_slots;
+  relations__fixture_pages_v_blocks_xp_experiment: typeof relations__fixture_pages_v_blocks_xp_experiment;
+  relations__fixture_pages_v: typeof relations__fixture_pages_v;
   relations_xp_experiments_targeting: typeof relations_xp_experiments_targeting;
   relations_xp_experiments_arms: typeof relations_xp_experiments_arms;
   relations_xp_experiments_rels: typeof relations_xp_experiments_rels;

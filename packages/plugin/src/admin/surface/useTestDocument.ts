@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { DocId } from '../../types/contracts.js'
+import type { Arm, DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from '../copy/common.js'
 import { XP_IF_UPDATED_AT_HEADER } from '../../constants.js'
@@ -10,6 +10,7 @@ import { changedPatch, editablePatch, payloadFieldErrors } from './testDocument.
 import type { TestDocument, TestDocumentPatch } from './testDocument.model.js'
 
 type View = {
+  chosenPages: Partial<Record<Arm['key'], { id: DocId; path: string }>>
   doc: TestDocument | null
   preflight: PreflightResult | null
   preflightError: string | null
@@ -25,12 +26,13 @@ type View = {
 // Saves outlive their mounted reader. Reopening the same document must wait for its queue.
 const drainingSaves = new Map<string, Promise<void>>()
 
-const initialView = (): View => ({ doc: null, preflight: null, preflightError: null, preflightPending: false, hasUnsaved: false, loadState: 'loading', saving: 'idle', stale: false, errors: {} })
+const initialView = (): View => ({ chosenPages: {}, doc: null, preflight: null, preflightError: null, preflightPending: false, hasUnsaved: false, loadState: 'loading', saving: 'idle', stale: false, errors: {} })
 type Session = {
   key: string; saved: TestDocument | null; pending: TestDocumentPatch; queue: TestDocumentPatch[]
   tail: Promise<void>; view: View; controller: AbortController; reloading: boolean
   publish: () => void
   preflightReads: number
+  preflightLoading: boolean
 }
 
 async function waitForDrain(draining: Promise<void> | undefined, signal: AbortSignal) {
@@ -57,6 +59,7 @@ function stage(session: Session, partial: TestDocumentPatch) {
   if (!session.saved || session.view.stale || session.reloading || session.view.loadState !== 'ready' || session.controller.signal.aborted) return
   const patch = editablePatch(session.saved.status, partial)
   if (!Object.keys(patch).length) return
+  if (patch.pageCollection !== undefined && patch.pageCollection !== optimistic(session)?.pageCollection) session.view.chosenPages = {}
   session.pending = { ...session.pending, ...patch }
   session.view.errors = clearErrors(session.view.errors, patch)
   if (!session.queue.length) session.view.saving = 'idle'
@@ -64,7 +67,7 @@ function stage(session: Session, partial: TestDocumentPatch) {
 }
 
 /** Section data only: staging never saves. Call commit on blur or a section action. */
-export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
+export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus = false }: { apiRoute: string; refetchPreflightOnFocus?: boolean }) {
   const base = apiRoute.replace(/\/$/, '')
   const documentId = String(id)
   const key = JSON.stringify([base, documentId])
@@ -78,12 +81,12 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
     const controller = new AbortController()
     const session: Session = {
       key, saved: null, pending: {}, queue: [], tail: Promise.resolve(), view: initialView(),
-      controller, reloading: false, preflightReads: 0,
+      controller, reloading: false, preflightReads: 0, preflightLoading: false,
       publish() {
         if (controller.signal.aborted) return
         session.view.doc = session.view.loadState === 'ready' ? optimistic(session) : null
         session.view.hasUnsaved = session.queue.length > 0 || Object.keys(session.pending).length > 0
-        session.view.preflightPending = session.preflightReads > 0
+        session.view.preflightPending = session.preflightReads > 0 || session.preflightLoading
         setState({ key, view: { ...session.view } })
       },
     }
@@ -94,7 +97,7 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
     async function refreshPreflight(initial = false) {
       if (controller.signal.aborted) return
       const revision = ++preflightRevision
-      session.preflightReads++
+      session.preflightLoading = true
       session.publish()
       // createApi has no signal option; this read must abort without cancelling submitted PATCHes.
       let data: PreflightResult | undefined
@@ -118,9 +121,9 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
       } catch {
         message = API_MESSAGES.network
       }
-      session.preflightReads--
       if (controller.signal.aborted) return
-      if (revision !== preflightRevision) { session.publish(); return }
+      if (revision !== preflightRevision) return
+      session.preflightLoading = false
       if (data) {
         session.view.preflight = data
         session.view.preflightError = null
@@ -211,8 +214,9 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
           session.publish()
         }
         if (saved) {
-          try { await refreshPreflight() }
-          finally { session.preflightReads--; session.publish() }
+          // Recovery is complete; readiness now belongs to the latest preflight read.
+          session.preflightReads--
+          await refreshPreflight()
         }
       }
       // Recover both the preceding tail and this step: unexpected throws must not strand later saves.
@@ -289,5 +293,21 @@ export function useTestDocument(id: DocId, { apiRoute }: { apiRoute: string }) {
     return entry?.session.key === key && entry.session.view.loadState === 'ready' && !entry.session.reloading
       ? entry.refreshPreflight() : Promise.resolve()
   }, [key])
-  return { ...(state.key === key ? state.view : initialView()), stage: stagePartial, commit, reload, refreshPreflight }
+  useEffect(() => {
+    if (!refetchPreflightOnFocus) return
+    const focus = () => { void refreshPreflight() }
+    const visible = () => { if (document.visibilityState === 'visible') focus() }
+    window.addEventListener('focus', focus)
+    document.addEventListener('visibilitychange', visible)
+    return () => { window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visible) }
+  }, [refetchPreflightOnFocus, refreshPreflight])
+  const choosePage = useCallback((arm: Arm['key'], page: { id: DocId; path: string }) => {
+    const session = current.current
+    const doc = session?.key === key ? optimistic(session) : null
+    if (!session || !doc) return Promise.resolve()
+    session.view.chosenPages = { ...session.view.chosenPages, [arm]: page }
+    stage(session, { arms: doc.arms.map(item => item.key === arm ? { ...item, pageTarget: page.path } : item) })
+    return commit()
+  }, [key, commit])
+  return { ...(state.key === key ? state.view : initialView()), stage: stagePartial, commit, reload, refreshPreflight, choosePage }
 }

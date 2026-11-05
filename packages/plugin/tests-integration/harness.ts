@@ -37,7 +37,7 @@ export async function publicTables(pool: Pool): Promise<string[]> {
 }
 
 /** One harness per test file. Forced push also supports a second boot. Train-only. */
-export async function createIntegrationHarness({ collections = [], puckCollections = [], manage, pages, attributeKeys }: { collections?: CollectionConfig[]; puckCollections?: Array<string | { slug: string; field?: string }>; manage?: ExperimentsAccess; pages?: ExperimentsPluginOptions['pages']; attributeKeys?: ExperimentsPluginOptions['attributeKeys'] } = {}) {
+export async function createIntegrationHarness({ collections = [], puckCollections = [], manage, pages, blocks, attributeKeys }: { collections?: CollectionConfig[]; puckCollections?: Array<string | { slug: string; field?: string }>; manage?: ExperimentsAccess; pages?: ExperimentsPluginOptions['pages']; blocks?: ExperimentsPluginOptions['blocks']; attributeKeys?: ExperimentsPluginOptions['attributeKeys'] } = {}) {
   const connectionString = integrationConnectionString()
   const pool = new Pool({ connectionString, max: 6 })
   const schemaName = `xp_it_${randomBytes(12).toString('hex')}`
@@ -77,6 +77,7 @@ export async function createIntegrationHarness({ collections = [], puckCollectio
     const options = sampleOptions()
     if (manage) options.access.manage = manage
     if (pages) options.pages = pages
+    if (blocks) options.blocks = blocks
     if (attributeKeys) options.attributeKeys = { ...options.attributeKeys, ...attributeKeys }
     if (puckCollections.length) options.puck = { enabled: true, collections: puckCollections }
     const config = buildConfig({

@@ -18,6 +18,7 @@ import type { Assignments, ExperimentsProxyRuntimeOptions, ExperimentsServerRunt
 import type { ManifestLoader } from '../src/runtime/loaders.js'
 import type { ExperimentsProxyResult } from '../src/proxy/resolve.js'
 import type { ArmIssue } from '../src/collections/experiments/armInvariants.js'
+import * as blocks from '../src/exports/blocks.js'
 import * as index from '../src/exports/index.js'
 import * as runtimeProxy from '../src/exports/runtimeProxy.js'
 import * as runtimeServer from '../src/exports/runtimeServer.js'
@@ -39,15 +40,16 @@ import { decideGuard } from '../src/results/decideGuard.js'
 import { contentChangesHook } from '../src/hooks/contentChanges.js'
 
 const exportsByEntry = [
-  [index, ['createExperimentsPlugin', 'defineFlagPoint', 'defineMetricSource', 'createArmSelectField', 'contentDone']],
+  [blocks, ['controlOnlyBlocks', 'segmentExperimentBlocks', 'EXPERIMENT_BLOCK_SLUG']],
+  [index, ['xpGoalField', 'createExperimentBlock', 'EXPERIMENT_BLOCK_SLUG', 'createExperimentsPlugin', 'defineFlagPoint', 'defineMetricSource', 'createArmSelectField', 'contentDone']],
   [runtimeProxy, ['defineExperimentsProxyRuntime', 'createPostgresManifestLoader', 'createHttpManifestLoader']],
   [runtimeServer, ['defineExperimentsServerRuntime']],
   [proxy, ['resolveExperiments', 'applyExperiments', 'createExperimentProxy']],
-  [rsc, ['getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments', 'compileManifest', 'pageKindSeoContract']],
-  [client, ['ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
-  [adminClient, ['XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField', 'PlacementStatus']],
+  [rsc, ['resolveExperimentBlocks', 'getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments', 'compileManifest', 'pageKindSeoContract']],
+  [client, ['ExperimentGroup', 'ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
+  [adminClient, ['TestBlockField', 'BlockStatusField', 'BlockSlotRowLabel', 'CopyOriginalField', 'wrapExperimentBlock', 'syncExperimentSlots', 'copyOriginalIntoVersion', 'unwrapExperimentBlock', 'findRegisteredBlocksField', 'XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField', 'PlacementStatus']],
   [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect', 'TestsNavLinkServer']],
-  [puck, ['ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE', 'experimentsPuck']],
+  [puck, ['xpGoalPuckField', 'ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE', 'experimentsPuck']],
   [puckEditor, ['ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent', 'experimentOutlinePlugin', 'experimentsPuckEditor']],
 ] as const
 
@@ -75,14 +77,14 @@ test.each(exportsByEntry)('entry exports every contracted value (%j)', (barrel, 
   expect(Object.keys(barrel).sort()).toEqual([...names].sort())
   for (const [name, value] of Object.entries(barrel)) {
     const expectedType = name.endsWith('_BYTES') || name === 'MAX_EVENTS_PER_BODY' ? 'number'
-      : name === 'EXPERIMENT_SLOT_TYPE' || name === 'XP_IF_UPDATED_AT_HEADER' ? 'string'
+      : name === 'EXPERIMENT_BLOCK_SLUG' || name === 'EXPERIMENT_SLOT_TYPE' || name === 'XP_IF_UPDATED_AT_HEADER' ? 'string'
       : name === 'ExperimentSlot' || name === 'ExperimentSlotEditor' ? 'object' : 'function'
     expect(typeof value, name).toBe(expectedType)
   }
 })
 
 test('every route resolves a handler', () => {
-  expect(ROUTES).toHaveLength(20)
+  expect(ROUTES).toHaveLength(22)
   for (const route of ROUTES) expect(typeof route.handler, route.path).toBe('function')
 })
 

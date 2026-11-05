@@ -11,13 +11,22 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
   const options = sampleOptions()
   const findByPath = vi.fn()
   options.pages = { collections: [{ slug: 'pages', pathOf: doc => typeof doc.slug === 'string' ? `/${doc.slug}` : null, findByPath }] }
-  const payload = fakePayload({ config: { custom: { xp: options } }, collections: { 'xp-experiments': [{
+  const executor = createFakeExecutor()
+  const payload = fakePayload({ executor, config: { custom: { xp: options } }, collections: { 'xp-experiments': [{
     id: 2, name: 'Better page', kind: 'page', status,
     arms: [{ key: 'control', kind: 'control', pageTarget: '/original' }, { key: 'variantA', kind: 'variant', pageTarget: '/winner' }, { key: 'variantB', kind: 'variant', pageTarget: '/loser' }],
     decision: status === 'archived' ? { winnerArm: 'variantA', discardedAt: discarded ? '2026-11-03' : null } : undefined,
   }], 'xp-phases': [{ id: 3, experiment: 2, phaseKind: 'test', phase: 1,
     arms: [{ key: 'control', kind: 'control', pageTarget: '/original' }, { key: 'variantA', kind: 'variant', pageTarget: '/winner' }, { key: 'variantB', kind: 'variant', pageTarget: '/loser' }],
   }] } })
+  executor.query = async <R>(text: string, params: unknown[] = []) => {
+    executor.calls.push({ text, params })
+    const rows = text.includes('LEFT JOIN LATERAL') ? payload.documents['xp-experiments']!.map(test => {
+      const phase = payload.documents['xp-phases']!.find(p => p.experiment === test.id)
+      return { ...test, ...(test.decision as object ?? {}), pageCollection: null, arms: phase?.arms ?? [], phase: 1, placementDocs: null }
+    }) : text.includes('current_setting') ? [{ timeout: '0' }] : []
+    return { rows: rows as R[], rowCount: 1 }
+  }
   const published = { id: 1, slug: path.slice(1), ...(drafts ? { _status: 'published' } : {}) }
   const read = vi.fn(async () => published)
   Object.assign(payload.db, { findOne: read })
@@ -31,7 +40,7 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
     await begin(draft)
     try { return await change(data) } finally { await end() }
   }
-  return { payload, req, published, read, remove, save, findByPath, collection, begin, end, change }
+  return { executor, payload, req, published, read, remove, save, findByPath, collection, begin, end, change }
 
 }
 
@@ -42,7 +51,7 @@ for (const status of ['running', 'decided', 'archived']) {
         const f = setup(status, path)
         await expect(f.remove()).rejects.toMatchObject({ status: 409, isPublic: true, message: pageGuardCopy('Better page', status as 'running' | 'decided' | 'archived', status === 'archived' && path === '/original' ? 'original' : 'winner') })
         expect(f.read).toHaveBeenCalledWith(expect.objectContaining({ collection: 'pages', req: f.req, where: { id: { equals: 1 } } }))
-        expect(f.payload.calls[0]!.args).toMatchObject({ req: f.req, overrideAccess: true })
+        expect(f.payload.calls).toEqual([]) // guard uses raw reads, no Local API in hooks
         expect(f.findByPath).not.toHaveBeenCalled()
       })
       test('refuses rename on publish', async () => {
@@ -85,11 +94,11 @@ test('collections without drafts protect path changes', async () => {
 test('a draft=true publish still changes the main row and is refused', async () => {
   await expect(setup().save({ slug: 'renamed', _status: 'published' }, true)).rejects.toMatchObject({ status: 409 })
 })
-test('never swallows a nested state-read error or restores its killed transaction', async () => {
+test('SQL discovery errors propagate without swallowing them', async () => {
   const f = setup()
-  f.req.transactionID = 'host-transaction'
+  f.req.transactionID = f.executor.withSession({ payload: f.payload }).transactionID
   const error = new Error('nested read failed')
-  vi.spyOn(f.payload, 'find').mockImplementation(async () => { delete f.req.transactionID; throw error })
+  f.executor.query = async () => { delete f.req.transactionID; throw error }
   await expect(f.save({ _status: 'draft' })).rejects.toBe(error)
   expect(f.req.transactionID).toBeUndefined()
 })
@@ -158,9 +167,9 @@ test('a missing test round is a public typed refusal', async () => {
   await expect(f.save({ _status: 'draft' })).rejects.toMatchObject({ name: 'XpRefusal', code: 'invalid-phase', status: 409, isPublic: true })
 })
 
-test('with a transaction the guard takes the page-path lock before reading tests (CORE-54)', async () => {
+test('with a transaction the guard takes E then page-path locks and rereads tests (CORE-54, KI-6)', async () => {
   const f = setup('running', '/original')
-  const executor = createFakeExecutor()
+  const executor = f.executor
   const req = executor.withSession({ payload: f.payload })
   await expect(pageGuardBeforeDelete({ req, collection: f.collection, id: 1 } as Parameters<CollectionBeforeDeleteHook>[0])).rejects.toMatchObject({ status: 409 })
   const lock = executor.calls.find(call => call.text.includes("hashtext('xp:pagepath')"))

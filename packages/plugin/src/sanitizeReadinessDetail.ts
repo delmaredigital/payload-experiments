@@ -15,12 +15,22 @@ const failure = (value: unknown) => value === 'placements-failed' || value === '
  */
 export function sanitizeReadinessDetail(code: ReadinessCode, detail: unknown): unknown {
   switch (code) {
+    case 'goal-in-some-versions': {
+      const rows = Array.isArray(detail) ? detail : [detail]
+      return rows.filter(object).filter(row => key(row.metricId) || typeof row.metricId === 'number' && Number.isSafeInteger(row.metricId)).map(row => ({ metricId: row.metricId }))
+    }
+    case 'placement-unchecked':
+      return object(detail) ? Object.fromEntries(Object.entries(detail).filter(([k, v]) => k === 'path' ? path(v) : ['collection', 'id'].includes(k) && (key(v) || typeof v === 'number' && Number.isSafeInteger(v)))) : undefined
+    case 'placement-unpublished':
+    case 'duplicate-version-row':
+    case 'interacting-tests':
+      return Array.isArray(detail) ? detail.filter(object).map(row => Object.fromEntries(Object.entries(row).filter(([k, v]) => ['collection', 'id', 'experimentId', 'slug'].includes(k) ? key(v) || typeof v === 'number' && Number.isSafeInteger(v) : k === 'path' ? path(v) : k === 'status' ? ['running', 'decided'].includes(String(v)) : k === 'version' && typeof v === 'boolean'))) : undefined
     case 'version-same-address':
       return object(detail) && arm(detail.arm) && arm(detail.otherArm) && path(detail.path)
         ? { arm: detail.arm, otherArm: detail.otherArm, path: detail.path } : undefined
     case 'version-identical':
-      return object(detail) && arm(detail.arm) && path(detail.path) && key(detail.collection) && (key(detail.id) || typeof detail.id === 'number' && Number.isSafeInteger(detail.id))
-        ? { arm: detail.arm, path: detail.path, collection: detail.collection, id: detail.id } : undefined
+      return object(detail) && arm(detail.arm) && key(detail.collection) && (key(detail.id) || typeof detail.id === 'number' && Number.isSafeInteger(detail.id))
+        ? { arm: detail.arm, collection: detail.collection, id: detail.id, ...(path(detail.path) ? { path: detail.path } : {}) } : undefined
     case 'block-path-rule':
       return object(detail) && Array.isArray(detail.rules) && detail.rules.length
         && detail.rules.every(index => Number.isSafeInteger(index) && index >= 0)

@@ -8,6 +8,7 @@ const entries = [
   ['./runtime/server', 'runtimeServer'],
   ['./proxy', 'proxy'],
   ['./rsc', 'rsc'],
+  ['./blocks', 'blocks'],
   ['./client', 'client'],
   ['./admin/client', 'adminClient'],
   ['./admin/rsc', 'adminRsc'],
@@ -16,7 +17,7 @@ const entries = [
 ] as const
 
 describe('plugin package plumbing', () => {
-  test('declares all ten JavaScript entries plus the three public stylesheets and package.json', () => {
+  test('declares all eleven JavaScript entries plus the three public stylesheets and package.json', () => {
     expect(Object.keys(manifest.exports)).toEqual([...entries.map(([entry]) => entry), './puck/editor.css', './admin/theme.css', './admin/ui.css', './package.json'])
     expect(manifest.exports['./puck/editor.css']).toBe('./dist/puck/editor/editor.css')
     expect(manifest.exports['./admin/theme.css']).toBe('./dist/admin/theme.css')

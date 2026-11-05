@@ -1,4 +1,7 @@
+import { asymmetricGoal, goalContent, goalPlacementDetail, LEGACY_FAIRNESS } from '../goals/fairness.js'
+import type { Arm } from '../types/contracts.js'
 import { XpAnalysisError } from '../errors.js'
+import { canonicalHealth, mergePageHealth } from '../results/health.js'
 import { safeError } from '../log.js'
 import { createLocalReq, type Payload } from 'payload'
 import type { MetricUnavailableReason } from '../types/reasons.js'
@@ -84,9 +87,9 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
       const from = new Date([...units.values()].reduce((earliest, unit) => Math.min(earliest, +unit.firstTs), timestampMs(phase.startedAt)))
       const preFrom = new Date(+from - 14 * 86_400_000)
       let events: MetricEvent[], covariates: Map<string, number> | undefined
-      if (definition.source.startsWith('events:')) {
-        const eventName = definition.source.slice(7)
-        if (!options.eventSources?.some(source => source.name === eventName)) throw new XpAnalysisError('source-unavailable')
+      if (definition.source.startsWith('events:') || definition.source.startsWith('click:')) {
+        const eventName = definition.source.startsWith('click:') ? definition.source : definition.source.slice(7)
+        if (!definition.source.startsWith('click:') && !options.eventSources?.some(source => source.name === eventName)) throw new XpAnalysisError('source-unavailable')
         const read = async (start: Date) => {
           if (candidate.unitType === 'user') return metricEventRows(exec, { eventName, userIds: ids, from: start, to })
           const direct = await metricEventRows(exec, { eventName, unitIds: ids, from: start, to })
@@ -132,7 +135,11 @@ async function analyseCandidate(exec: Executor, candidate: ResultsCandidate, opt
         }
       }
       if (events.some(event => !Number.isFinite(event.value))) throw new XpAnalysisError('non-finite-values')
-      metricData.push({ metricId: definition.metricId, values: perUnitValues(units, events, { kind, windowHours, endedAt: to }), ...(covariates ? { covariates } : {}) })
+      // The click-goal delta supersedes whole-phase attribution for mid-test adds.
+      // Retain pre-period events for CUPED above; exclude them from the outcome.
+      const outcomeEvents = definition.source.startsWith('click:') && definition.addedAt
+        ? events.filter(event => timestampMs(event.ts) >= timestampMs(definition.addedAt!)) : events
+      metricData.push({ metricId: definition.metricId, values: perUnitValues(units, outcomeEvents, { kind, windowHours, endedAt: to }), ...(covariates ? { covariates } : {}) })
     } catch (error) {
       let reason: MetricUnavailableReason = error instanceof ResultsBudgetError ? 'budget' : 'source-failed'
       if (error instanceof XpAnalysisError) {
@@ -199,7 +206,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
           : await analyseCandidate(exec, phase, options, now, analysisDeadline, summary.unavailableMetrics, payload.logger))
       }
       if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
-      const current = phases.find(candidate => candidate.kind === 'page' && candidate.phase.phase === candidate.currentPhase
+      const current = phases.find(candidate => candidate.phase.phase === candidate.currentPhase
         && (candidate.status === 'running' || candidate.status === 'decided'))
       if (current) {
         const req = await raceDeadline(analysisDeadline, () => createLocalReq({}, payload))
@@ -209,7 +216,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
           ? [...current.phase.arms.filter(arm => arm.kind !== 'holdout'), ...current.testArms.filter(arm => arm.kind === 'control')]
           : current.testArms.filter(arm => arm.kind !== 'holdout'
             && (current.status !== 'decided' || arm.kind === 'control' || arm.key === current.winnerArm))
-        const targets = new Set(arms.flatMap(arm => arm.pageTarget ? [arm.pageTarget] : []))
+        const targets = new Set((current.kind === 'page' ? arms : []).flatMap(arm => arm.pageTarget ? [arm.pageTarget] : []))
         for (const path of targets) {
           let published = false, found = false, unchecked = false
           for (const collection of current.pageCollection ? options.pages?.collections.filter(entry => entry.slug === current.pageCollection) ?? [] : options.pages?.collections ?? []) {
@@ -225,15 +232,33 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
           }
           if (!published) health.push({ code: !found && (unchecked || !options.pages?.collections.length) ? 'version-page-unchecked' : 'version-page-unavailable', path })
         }
-        for (const snapshot of snapshots) snapshot.health = health
+        const clicks = current.phase.metricDefinitions.filter(metric => metric.source.startsWith('click:'))
+        const content = clicks.length ? await raceDeadline(analysisDeadline, () => goalContent(req, options, {
+          id, slug: current.slug ?? String(id), kind: current.kind ?? 'code', arms: arms as Arm[], pageCollection: current.pageCollection,
+        }, current.testPlacementDocs ?? null)) : undefined
+        const goals = clicks.filter(metric => content && asymmetricGoal(content, metric.source, arms)).map(metric => ({ code: 'goal-in-some-versions' as const, metricId: metric.metricId, name: metric.name }))
+        const unchecked = (content?.unchecked ?? []).map(placement => ({ code: 'placement-unchecked' as const, detail: goalPlacementDetail(placement) }))
+        for (const [index, snapshot] of snapshots.entries()) {
+          const previous = phases[index]!.previousHealth ?? phases[index]!.frozenSnapshot?.health ?? []
+          const unjudged = previous.filter(row => row.code === 'goal-in-some-versions'
+            && content && content.unchecked.length > 0
+            && clicks.some(metric => metric.metricId === row.metricId && !asymmetricGoal(content, metric.source, arms)))
+          snapshot.health = mergePageHealth(unjudged, [...health, ...goals, ...unchecked])
+          if (content?.skipped && current.kind === 'block') snapshot.goalFairnessNotice = LEGACY_FAIRNESS
+          else delete snapshot.goalFairnessNotice
+        }
       }
       if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
-      // Order and optional empty health are semantically identical. Frozen
-      // inference gets a new row only when its page availability changes.
-      const canonicalHealth = (snapshot: Snapshot) => JSON.stringify((snapshot.health ?? [])
-        .map(({ code, path }) => [code, path]).map(entry => JSON.stringify(entry)).sort((a, b) => a < b ? -1 : a > b ? 1 : 0))
-      const changed = snapshots.filter((snapshot, index) => !phases[index]!.frozenSnapshot
-        || canonicalHealth(snapshot) !== canonicalHealth(phases[index]!.frozenSnapshot!))
+      // New read failures alone do not rewrite frozen inference. Recovery must
+      // clear an unchecked row stored alongside a real health change.
+      const changed = snapshots.filter((snapshot, index) => {
+        const frozen = phases[index]!.frozenSnapshot
+        if (!frozen || canonicalHealth(snapshot, true) !== canonicalHealth(frozen, true)) return true
+        const freshUnchecked = new Set((snapshot.health ?? []).filter(row => row.code === 'placement-unchecked')
+          .map(row => canonicalHealth({ health: [row] })))
+        return (frozen.health ?? []).some(row => row.code === 'placement-unchecked'
+          && !freshUnchecked.has(canonicalHealth({ health: [row] })))
+      })
       // Unchanged health is a successful refresh with nothing to write.
       if (!changed.length) { summary.ran++; continue }
       await writeSnapshots(exec, changed)

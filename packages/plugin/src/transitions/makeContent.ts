@@ -1,5 +1,7 @@
 import { Forbidden, NotFound, ValidationError, Locked, commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field, type Block } from 'payload'
 import { latestDraftContent, publishedContent as readPublishedContent } from '../db/publishedContent.js'
+import { EXPERIMENT_BLOCK_SLUG, hostBlocks, slotBlocks } from '../blocks/model.js'
+import { findRegisteredBlocksField, freshBlockIds } from '../blocks/formState.js'
 import { contentBlocks, hasLocalizedFields } from './contentFields.js'
 import { safeError } from '../log.js'
 import { XpRefusal } from '../errors.js'
@@ -150,9 +152,12 @@ async function fieldRefusal(fields: Field[], req: PayloadRequest, doc: Record<st
  * experiment locks. Keep the manager's exact req/user, temporarily lending it a
  * fresh transaction; a denied host write must not kill the outer transaction.
  */
-async function hostTransaction(req: PayloadRequest, fn: () => Promise<void>): Promise<void> {
+export async function hostTransaction(req: PayloadRequest, experimentId: DocId, fn: () => Promise<void>): Promise<void> {
   const transactionID = req.transactionID
   const transition = req.context.xpTransition
+  const hadHeld = Object.hasOwn(req.context, 'xpHeldExperiments')
+  const held = req.context.xpHeldExperiments
+  req.context.xpHeldExperiments = [experimentId]
   delete req.transactionID
   delete req.context.xpTransition
   try {
@@ -166,6 +171,8 @@ async function hostTransaction(req: PayloadRequest, fn: () => Promise<void>): Pr
     throw error
   } finally {
     req.transactionID = transactionID
+    if (hadHeld) req.context.xpHeldExperiments = held
+    else delete req.context.xpHeldExperiments
     if (transition === undefined) delete req.context.xpTransition
     else req.context.xpTransition = transition
   }
@@ -196,7 +203,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
       if (retainDismissed(collection, id)) return
       let missing = false
       try {
-        await hostTransaction(req, async () => {
+        await hostTransaction(req, experimentId, async () => {
           try { await fn() }
           catch (error) {
             if (missingOk && isNotFound(error)) {
@@ -226,13 +233,13 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
     }
     if (current.kind === 'block') {
       if (!winner.slot) refuse('invalid-winner')
-      const registrations = puckCollections(options)
+      const registrations = [...puckCollections(options), ...options.blocks?.collections ?? []]
       const scanned: BlockPlacement[] = []
       for (const registration of registrations) {
         const transactionID = req.transactionID
         delete req.transactionID
         try {
-          scanned.push(...await scanBlockPlacements(req, { slug: current.slug, puckCollections: [registration], blocksCollections: options.blocks?.collections ?? [] }))
+          scanned.push(...await scanBlockPlacements(req, { slug: current.slug, puckCollections: puckCollections(options).filter(r => r === registration), blocksCollections: (options.blocks?.collections ?? []).filter(r => r === registration) }))
         } catch (error) {
           // A collection made unreadable since the last attempt still has
           // retained placements to report below. Never sacrifice the outer tx.
@@ -263,7 +270,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           let detail: ContentReportReason = isNotFound(error) ? 'forbidden' : contentFailureReason(error)
           if (isNotFound(error)) {
             try {
-              await hostTransaction(req, async () => { missing = !await readPublishedContent(req, collection, id) })
+              await hostTransaction(req, experimentId, async () => { missing = !await readPublishedContent(req, collection, id) })
             } catch (checkError) {
               missing = false
               detail = 'update-failed'
@@ -278,7 +285,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
       for (const [key, { collection, id }] of placements) {
         if (skipped.has(key)) continue
         await attempt(collection, id, async () => {
-          const field = registrations.find(entry => entry.slug === collection)?.field
+          let field = registrations.find(entry => entry.slug === collection)?.field
           if (!field) throw new Error('This content collection is no longer configured.')
           const config = req.payload.config.collections.find(config => config.slug === collection)
           if (hasLocalizedFields(config?.fields ?? [], req.payload.config)) throw new LocalizedContent()
@@ -286,11 +293,23 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           const drafts = Boolean(config?.versions && config.versions.drafts)
           const published = await readPublishedContent(req, collection, id)
           if (!published) throw new NotFound()
-          if (documentEditor(options, collection, published) !== 'puck') return
+          const editor = documentEditor(options, collection, published)
+          const blockRegistration = options.blocks?.collections.find(r => r.slug === collection)
+          const contentField = editor === 'blocks' ? blockRegistration?.field : field
+          if (!contentField) throw new Error('This content field is no longer configured.')
+          field = contentField
+          const transform = (value: unknown) => editor === 'blocks' ? !hostBlocks(value).some(block => block.blockType === (blockRegistration?.blockSlug ?? EXPERIMENT_BLOCK_SLUG) && block.experiment === current.slug) ? value : hostBlocks(value).flatMap(block => {
+            if (block.blockType !== (blockRegistration?.blockSlug ?? EXPERIMENT_BLOCK_SLUG) || block.experiment !== current.slug) return [block]
+            const rows = Array.isArray(block.slots) ? block.slots : []
+            if (!rows.some(row => row?.slot === winner.slot)) throw new Error('The winning content slot is missing.')
+            const registered = findRegisteredBlocksField(config?.fields ?? [], field!)
+            if (!registered) throw new Error('This content field is no longer configured.')
+            return slotBlocks(freshBlockIds([block], registered.field, req.payload.config)[0]!, winner.slot!)
+          }) : unwrap(value, current.slug, winner.slot!)
           const draft = drafts ? await latestDraftContent(req, collection, id) ?? published : published
           const draftValue = draft[field] ?? null
-          const draftContent = unwrap(draftValue, current.slug, winner.slot!)
-          const publishedContent = unwrap(published[field], current.slug, winner.slot!)
+          const draftContent = transform(draftValue)
+          const publishedContent = transform(published[field])
           const changedDraft = JSON.stringify(draftContent) !== JSON.stringify(draftValue)
           const changedPublished = JSON.stringify(publishedContent) !== JSON.stringify(published[field])
           if (!changedDraft && !changedPublished) return

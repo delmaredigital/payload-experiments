@@ -146,6 +146,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
       {primary ? <details className="xp-results-panel xp-chart-details"><summary>{C.chart}</summary>
         <CiChart series={data?.series} metricId={primary.metricId} metricName={primary.name} phase={phase} contentChanges={shown.contentChanges} />
       </details> : null}
+      {shown.goalFairnessNotice ? <p>{shown.goalFairnessNotice}</p> : null}
       <DataQualityPanel problem={shown.verdict.code === 'data-problem'} items={dataQuality(shown, context)} />
       {(['guardrail', 'secondary'] as const).map(role => phase.metrics.filter(metric => metric.role === role).map(metric =>
         <MetricTable key={metric.metricId} metric={metric} snapshot={shown} phase={phase} />))}

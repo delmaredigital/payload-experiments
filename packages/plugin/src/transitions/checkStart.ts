@@ -1,3 +1,4 @@
+import { asymmetricGoal, type GoalContent } from '../goals/fairness.js'
 import { checkArms } from '../collections/experiments/armInvariants.js'
 import { normalisePath } from '../runtime/normalisePath.js'
 import { isOpValid } from '../targeting/ops.js'
@@ -6,10 +7,15 @@ import type { ArmIssueCode, PreflightResult } from '../types/endpoints.js'
 import type { BlockPlacement, FlagPlacement } from './placements.js'
 
 export type ReadinessCode = ArmIssueCode
+  | 'goal-in-some-versions'
+  | 'placement-unchecked'
   | 'invalid-status'
   | 'no-planned-duration'
   | 'no-primary-metric'
   | 'no-reach-per-day'
+  | 'placement-unpublished'
+  | 'duplicate-version-row'
+  | 'interacting-tests'
   | 'version-identical'
   | 'version-same-address'
   | 'unknown-collection'
@@ -43,12 +49,14 @@ export interface StartExperiment {
   metrics?: { primary?: DocId | { id: DocId } | null; secondary?: Array<DocId | { id: DocId }> | null; guardrails?: Array<DocId | { id: DocId }> | null } | null
   analysis?: { plannedDurationDays?: number | null; reachPerDay?: number | null; sequentialTuningParameter?: number | null; method?: string | null } | null
 }
-export interface StartMetric { id: DocId; source: string }
+export interface StartMetric { id: DocId; source: string; name?: string }
 export type PlacementFailure = 'placements-failed' | 'forbidden' | 'not-found'
 export interface CheckStartInput {
   experiment: StartExperiment; metrics: StartMetric[]; metricSources?: Pick<MetricSource, 'id' | 'keyedBy'>[]
   flagPoints?: FlagPoint[]; placements?: BlockPlacement[]; flagPlacements?: FlagPlacement[]
   placementError?: PlacementFailure; flagPlacementError?: PlacementFailure; flagPointBusy?: boolean
+  goalContent?: GoalContent
+  interactions?: import('./placementInteractions.js').InteractionDetail[]
   unknownPageCollection?: boolean; identicalVersions?: Array<{ arm: string; path: string; collection: string; id: DocId }>
   unpublishedPageTargets?: string[]; pageTargetsUnchecked?: boolean
   pageTestsInUse?: Pick<StartExperiment, 'id' | 'arms'>[]
@@ -65,6 +73,7 @@ export const relationshipId = (value: DocId | { id: DocId } | null | undefined):
 export const pageTargetPaths = (arms: readonly Arm[]): string[] => [...new Set(arms
   .filter(arm => typeof arm.pageTarget === 'string')
   .map(arm => normalisePath(arm.pageTarget!)))].sort()
+const placementDetail = ({ collection, id, title }: BlockPlacement) => ({ collection, id, title })
 const positive = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value) && value > 0
 
 function invalidParams(arms: Arm[], point: FlagPoint): unknown[] {
@@ -101,6 +110,7 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('no-primary-metric', primary !== undefined && input.metrics.some(metric => String(metric.id) === String(primary)))
   add('no-reach-per-day', !['manual', 'viewport'].includes(e.exposurePolicy) || positive(e.analysis?.reachPerDay))
   add('page-no-targets', e.kind !== 'page' || e.arms.filter(arm => arm.kind !== 'holdout').every(arm => typeof arm.pageTarget === 'string' && arm.pageTarget.trim().length > 0))
+  add('interacting-tests', !input.interactions?.length, input.interactions)
   add('unknown-collection', !input.unknownPageCollection)
   const addressed = new Map<string, string>()
   const duplicate = e.kind === 'page' ? e.arms.filter(arm => arm.kind !== 'holdout' && arm.pageTarget).flatMap(arm => {
@@ -127,21 +137,33 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   const missing = input.flagPlacements === undefined ? [] : e.arms.filter(arm => arm.kind !== 'holdout' && !input.flagPlacements!.some(placement => placement.arm === arm.key && placement.ok))
   const failed = input.flagPlacements?.filter(placement => !placement.ok) ?? []
   add('flag-placement-missing', e.kind !== 'flag' || !input.flagPlacementError && missing.length === 0 && failed.length === 0,
-    input.flagPlacementError ?? { missing: missing.map(arm => arm.key), placements: failed })
+    input.flagPlacementError ?? { missing: missing.map(arm => arm.key), placements: failed.map(({ arm, ok, detail }) => ({ arm, ok, detail })) })
   const placements = input.placements ?? []
   add('no-placements', e.kind !== 'block' || !input.placementError && placements.length > 0, input.placementError)
-  const empty = placements.filter(placement => e.arms.some(arm => arm.kind !== 'holdout' && (!arm.slot || !(placement.slots[arm.slot] > 0))))
-  add('empty-slot', e.kind !== 'block' || empty.length === 0, empty)
+  const unpublished = placements.filter(p => !p.published && !placements.some(other => other.published && other.collection === p.collection && String(other.id) === String(p.id)))
+  add('placement-unpublished', unpublished.length === 0, unpublished.map(placementDetail))
+  const duplicates = placements.filter(p => p.published && p.duplicateRows)
+  add('duplicate-version-row', duplicates.length === 0, duplicates.map(placementDetail))
+  for (const p of placements.filter(p => p.published)) for (const slot of p.identicalSlots ?? []) {
+    if (e.arms.some(a => a.slot === slot && a.kind !== 'holdout')) checks.push({ code: 'version-identical', ok: true, warning: true, detail: { arm: slot, collection: p.collection, id: p.id, title: p.title } })
+  }
+  const empty = placements.filter(placement => placement.published && e.arms.some(arm => arm.kind !== 'holdout' && (!arm.slot || !(placement.slots[arm.slot] > 0))))
+  add('empty-slot', e.kind !== 'block' || empty.length === 0, empty.map(placement => ({ ...placementDetail(placement), slots: placement.slots })))
   add('make-content-unsupported', true)
   const localized = placements.find(placement => placement.localized)
   if (localized) Object.assign(checks[checks.length - 1]!, { warning: true, detail: localized.title })
   add('layer-unit-mismatch', e.layer == null || input.layer?.unitType === e.unitType)
   const free = 100 - new Set(input.layer?.usedSlices).size
   add('layer-full', e.layer == null || !!input.layer && free >= e.allocation, { available: free, requested: e.allocation })
-  const unknown = input.metrics.filter(metric => !metric.source.startsWith('events:') && !input.metricSources?.some(source => source.id === metric.source))
-  add('unknown-metric-source', unknown.length === 0, unknown)
-  const mismatches = input.metrics.filter(metric => !metric.source.startsWith('events:') && e.unitType === 'user' && input.metricSources?.some(source => source.id === metric.source && source.keyedBy === 'visitor'))
-  add('unit-source-mismatch', mismatches.length === 0, mismatches)
+  for (const detail of input.goalContent?.unchecked ?? []) checks.push({ code: 'placement-unchecked', ok: true, warning: true, detail })
+  const protectedGoals = [relationshipId(e.metrics?.primary), ...e.metrics?.guardrails?.map(relationshipId) ?? []].map(String)
+  const asymmetric = input.metrics.filter(metric => metric.source.startsWith('click:') && input.goalContent && asymmetricGoal(input.goalContent, metric.source, e.arms))
+  add('goal-in-some-versions', !asymmetric.some(metric => protectedGoals.includes(String(metric.id))), asymmetric.filter(metric => protectedGoals.includes(String(metric.id))).map(metric => ({ metricId: metric.id, name: metric.name })))
+  for (const metric of asymmetric.filter(metric => !protectedGoals.includes(String(metric.id)))) checks.push({ code: 'goal-in-some-versions', ok: true, warning: true, detail: { metricId: metric.id, name: metric.name } })
+  const unknown = input.metrics.filter(metric => !metric.source.startsWith('events:') && !metric.source.startsWith('click:') && !input.metricSources?.some(source => source.id === metric.source))
+  add('unknown-metric-source', unknown.length === 0, unknown.map(({ id, source }) => ({ id, source })))
+  const mismatches = input.metrics.filter(metric => !metric.source.startsWith('events:') && !metric.source.startsWith('click:') && e.unitType === 'user' && input.metricSources?.some(source => source.id === metric.source && source.keyedBy === 'visitor'))
+  add('unit-source-mismatch', mismatches.length === 0, mismatches.map(({ id, source }) => ({ id, source })))
   const pathRules = (e.targeting ?? []).flatMap((rule, index) => rule.attribute === 'path' ? [index] : [])
   add('block-path-rule', e.kind !== 'block' || pathRules.length === 0, { rules: pathRules })
   const undeclared = (e.targeting ?? []).filter(rule => !Object.hasOwn(input.attributeKeys ?? {}, rule.attribute))

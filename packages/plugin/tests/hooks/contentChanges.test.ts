@@ -461,3 +461,21 @@ test('host helper without capture ignores the raw row\'s locale map on an unchan
   await recordContentChange(args)
   expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(0)
 })
+
+test.each([true, false])('Experiment-block audit compares stored slot rows, independently of afterRead projection (changed=%s)', async changed => {
+  const { args, executor, payload } = setup()
+  const options = payload.config.custom!.xp as ReturnType<typeof sampleOptions>
+  options.puck = { enabled: false, collections: [] }
+  options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  const make = (text: string) => ({ id: 1, _status: 'published', layout: [{ id: 'wrapper', blockType: 'xpExperiment', experiment: 'hero', slots: [
+    { id: 'control', slot: 'control', blocks: [{ id: 'text', blockType: 'text', text }] },
+  ] }] })
+  const storedBefore = make('Old'), storedAfter = make(changed ? 'New' : 'Old')
+  args.doc = make('afterRead hides what is stored')
+  args.previousDoc = make('another projection')
+  const read = await publishedBaseline(args, storedBefore)
+  read.mockResolvedValue(storedAfter)
+  await recordContentChange(args)
+  expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(changed ? 1 : 0)
+  expect(payload.calls).toEqual([])
+})
