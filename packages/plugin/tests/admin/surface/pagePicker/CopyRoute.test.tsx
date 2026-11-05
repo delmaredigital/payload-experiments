@@ -9,7 +9,7 @@ test('generic route has three steps, a new-tab link, and a zero-content action s
   const steps = container.querySelectorAll('li')
   expect(steps).toHaveLength(3)
   expect(steps[0]!.textContent).toContain('Open the Original in Pages.')
-  expect(steps[1]!.textContent).toBe("Choose Duplicate from the document's actions.")
+  expect(steps[1]!.textContent).toBe("Choose Duplicate from the document's actions. Keep the Original's title on the copy, unless the title is what you're testing.")
   expect(steps[2]!.textContent).toBe("Give the copy its own address and save it as a draft. Publish it when it's ready; the test can't start until it is.")
   const link = screen.getByRole('link', { name: 'Open Pages' })
   expect(link.getAttribute('href')).toBe('/control/collections/pages')
@@ -23,6 +23,7 @@ test('generic route has three steps, a new-tab link, and a zero-content action s
 test('host hint replaces generic instructions entirely and precedes publishing and the picker', () => {
   const { container } = render(<CopyRoute collection={{ ...collection, copyHint: 'Copy in the page tree.', copyUrl: '/tree', copyLabel: 'Open tree' }}><div>Picker</div></CopyRoute>)
   expect(container.textContent).not.toContain('Duplicate')
+  expect(container.textContent).not.toContain("Keep the Original's title")
   expect(container.querySelector('ol')).toBeNull()
   expect(screen.getByText(/Copy in the page tree/).nextElementSibling?.textContent).toContain('Give the copy its own address')
   const link = screen.getByRole('link', { name: 'Open tree' })

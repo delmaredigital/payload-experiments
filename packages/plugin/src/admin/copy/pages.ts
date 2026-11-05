@@ -3,7 +3,7 @@ export const PAGE_COPY = {
   error: "Couldn't load pages. Try again.", retry: 'Try again', draft: 'Draft', noPath: 'This page has no address yet.',
   choose: 'Choose a page', change: 'Change', close: 'Close', where: 'Where it shows', open: 'Open', preview: 'Preview',
   contentChecksOff: 'Content checks are off for this page type.',
-  duplicateStep: "Choose Duplicate from the document's actions.",
+  duplicateStep: "Choose Duplicate from the document's actions. Keep the Original's title on the copy, unless the title is what you're testing.",
   ownAddress: "Give the copy its own address and save it as a draft. Publish it when it's ready; the test can't start until it is.",
   thenChoose: 'Then choose the page you made.',
 } as const
