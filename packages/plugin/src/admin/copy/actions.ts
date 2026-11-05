@@ -1,3 +1,5 @@
+import type { AddMetricWarning } from '../../types/endpoints.js'
+import { asymmetricGoalsCopy } from './readiness.js'
 import type { ContentReportReason } from '../../types/reasons.js'
 
 export const ACTIONS_COPY = {
@@ -63,3 +65,7 @@ export const CONTENT_ENTRY_REFUSALS = {
   },
   fallback: ACTIONS_COPY.contentEntryFallback,
 } as const
+
+export const addMetricWarningCopy = (warning: AddMetricWarning) => warning.code === 'goal-added-mid-test'
+  ? "Clicks before this goal was added aren't counted (the same for every version)."
+  : asymmetricGoalsCopy(warning.detail)

@@ -430,3 +430,10 @@ test('readers see when a decided round was recorded, with no leading separator a
   expect(container.querySelector('.xp-results-as-of')?.textContent).toMatch(/^numbers from \d{1,2} [A-Z][a-z]{2} \d{4}, used for the decision$/)
   expect(screen.queryByRole('button', { name: 'Recompute' })).toBeNull()
 })
+
+test('results renders the legacy goal fairness notice', async () => {
+  const notice = "Goal fairness isn't checked for tests started before this update."
+  setup({ ...response, snapshot: { ...snapshot, goalFairnessNotice: notice } })
+  render(<ResultsBody id={1} surface={surface} />)
+  expect(await screen.findByText(notice)).toBeTruthy()
+}, 5_000) // Measured 11 ms locally; cap exceeds 3×.

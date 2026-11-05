@@ -39,6 +39,7 @@ export type {
   AddMetricBody,
   AddMetricWarning,
   AddMetricResult,
+  ClickKeysResult,
   DecideBody,
   ArchiveBody,
   MakeContentResult,

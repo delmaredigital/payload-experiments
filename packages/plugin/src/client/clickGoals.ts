@@ -3,6 +3,7 @@
 import type { ClientAssignments } from '../types/assignments.js'
 import { CLICK_KEY } from '../goals/key.js'
 import { sendEvent } from './beacon.js'
+import { idempotencyKey } from './idempotency.js'
 
 type Registration = { depth: number; value: ClientAssignments; pageviewId: string }
 const providers = new Map<symbol, Registration>()
@@ -24,7 +25,7 @@ function onClick(event: MouseEvent): void {
 /** One delegated listener; depth, rather than React's child-first commit order, decides ownership. */
 export function registerClickGoals(token: symbol, depth: number, value: ClientAssignments): void {
   const previous = providers.get(token)
-  const pageviewId = previous?.value === value ? previous.pageviewId : crypto.randomUUID()
+  const pageviewId = previous?.value === value ? previous.pageviewId : idempotencyKey()
   providers.delete(token)
   providers.set(token, { depth, value, pageviewId })
   if (!listening && typeof document !== 'undefined') {

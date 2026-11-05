@@ -81,3 +81,12 @@ export function placementGuardCopy(page: { name: string; status: string }, block
 export function interactingTestsCopy(page: string, state: string, name: string, version = false): string {
   return `This test uses ${page}, which the ${state} test ${name} also changes. Finish one of them first${version ? `, or remove its block from ${page}` : ''}.`
 }
+
+export const goalInSomeVersionsCopy = (name = 'This goal') => `${name} appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal.`
+export function asymmetricGoalsCopy(detail: unknown): string {
+  return (Array.isArray(detail) && detail.length ? detail : [detail]).map(item => {
+    const name = item && typeof item === 'object' && 'name' in item ? item.name : undefined
+    return goalInSomeVersionsCopy(typeof name === 'string' && name.trim() ? name.trim() : undefined)
+  }).join('\n')
+}
+export const placementUncheckedCopy = (page: string) => `${page} couldn't be checked, so the test can't confirm every version shows the same goals. Check that you can open it.`

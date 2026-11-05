@@ -2,6 +2,7 @@
 import { ACTIONS_COPY } from '../../../../src/admin/copy/actions.js'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { useTestDocument } from '../../../../src/admin/surface/useTestDocument.js'
 import { Banner } from '../../../../src/admin/surface/readiness/Banner.js'
 import * as adminApi from '../../../../src/admin/api.js'
 import { SaveStatus } from '../../../../src/admin/surface/readiness/SaveStatus.js'
@@ -446,3 +447,44 @@ test('Add a goal lists all 150 unattached metrics across two pages', async () =>
   expect(within(screen.getByLabelText('Metric')).getAllByRole('option')).toHaveLength(151)
   expect(fetch).toHaveBeenCalledTimes(2)
 })
+
+test('Banner renders click fairness warnings, unchecked placements and outside-goal notes', () => {
+  const checked = preflight([
+    { code: 'goal-in-some-versions', ok: true, warning: true, detail: [{ metricId: 4, name: 'Join' }] },
+    { code: 'placement-unchecked', ok: true, warning: true, detail: { path: '/landing' } },
+  ])
+  checked.goalNotes = [{ metricId: 5, message: "This goal isn't inside the part being tested, so every version shows it the same way." }]
+  render(<Banner {...props({}, { preflight: checked })} />)
+  expect(screen.getByText("Join appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal.")).toBeTruthy()
+  expect(screen.getByText("/landing couldn't be checked, so the test can't confirm every version shows the same goals. Check that you can open it.")).toBeTruthy()
+  expect(screen.getByText(checked.goalNotes[0]!.message)).toBeTruthy()
+}, 5_000) // Measured 6 ms locally; cap exceeds 3×.
+
+test('add-goal dialog shows both response warnings until Done with real document reloads', async () => {
+  const p = props({ status: 'running' })
+  const readDocument = vi.fn(() => response(p.test.doc))
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes('/xp-experiments/')) return readDocument()
+    if (url.endsWith('/preflight')) return response(preflight())
+    if (init?.method === 'POST') return response({ doc: {}, revision: 2, warnings: [
+      { code: 'goal-in-some-versions', detail: { metricId: 4, name: 'Join' } }, { code: 'goal-added-mid-test', detail: { metricId: 4 } },
+    ] })
+    return response({ docs: [{ id: 4, name: 'Join' }] })
+  }))
+  function Host() {
+    const test = useTestDocument('xp1', p.surface)
+    return <Banner test={test} surface={p.surface} />
+  }
+  render(<Host />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Add a goal' }))
+  await screen.findByRole('option', { name: 'Join' })
+  fireEvent.change(screen.getByLabelText('Metric'), { target: { value: '4' } })
+  fireEvent.click(dialogButton('Add a goal'))
+  expect(await screen.findByText("Clicks before this goal was added aren't counted (the same for every version).")).toBeTruthy()
+  expect(within(screen.getByRole('dialog')).getByText("Join appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal.")).toBeTruthy()
+  expect(readDocument).toHaveBeenCalledTimes(1)
+  expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'Add a goal' })).toBeNull()
+  fireEvent.click(dialogButton('Done'))
+  expect(screen.queryByRole('dialog')).toBeNull()
+  await waitFor(() => expect(readDocument).toHaveBeenCalledTimes(2))
+}, 5_000) // Measured 148 ms locally with real reloads; cap exceeds 3×.

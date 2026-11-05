@@ -426,6 +426,7 @@ schema. Optional callbacks integrate host-owned content:
 
 A `MetricSource`, registered in `metricSources`, has `id`, `label`,
 `kind: 'binomial' | 'count' | 'revenue'`, and `keyedBy: 'visitor' | 'user'`.
+Source ids starting with `click:` are reserved for click goals and refused at boot.
 `clientWritable` optionally permits client conversions (revenue is always
 server-only). `query({ from, to, unitIds? })` returns a promise of
 `[{ unitId, value, ts }]`, **one row per event**, with `ts` a `Date`; use the
@@ -596,7 +597,10 @@ separately. Only manual, viewport and pageview exposure policies are accepted.
 Conversions require a client-writable source, never revenue; client values are
 stored as `1`, attributes are allow-listed, and the host's `events.rateLimit`
 adapter runs when supplied. Accepted and dropped events both return `202 {}`;
-malformed requests can return errors.
+malformed requests can return errors. `click:<key>` conversions are also accepted
+for defined click-goal keys matching `[a-z0-9][a-z0-9_-]{0,63}`; undefined or
+invalid keys are dropped with `202`. Clicks carry no attributes, and defined
+keys may be cached for up to 30 seconds.
 
 **The real bound on slow or method-override bodies is the host firewall/platform
 timeout.** A stream under the byte limit can remain open, and Payload can read
@@ -842,6 +846,7 @@ in each theme (the accent is used as a fill, not as page text). A failing
 colour is refused with its ratio. Status chips retain Payload semantic colours.
 `deriveAccent` is also exported from `/puck/editor` for editor integrations.
 
+## Click goals
 
 Click goals use a goal's short name as their key (`click:<short-name>`). Add
 `xpGoalField()` from the root entry to a host block or array row, or add
@@ -850,9 +855,10 @@ host's `payload migrate:create`: each table using the Payload field (and its
 version table) gains a nullable text column. Render the value on the actual
 interactive element as `data-xp-goal={xpGoal}`; code can also set
 `data-xp-goal="join"` directly. Define a click goal with that short name first.
-The field/prop configs currently use plain text; the admin picker is supplied
-by the admin surface. Goals in related documents and keys placed only in code
-are invisible to the content fairness check.
+The Payload field validates a manager's key against defined click goals and
+refuses a save or publish with an undefined key, refreshing a cached miss
+immediately. The field/prop configs use plain text. Goals in related documents
+and keys placed only in code are invisible to the content fairness check.
 
 `ExperimentsProvider` records native clicks when its server assignments arm
 click goals. Nested providers share one document listener; the deepest armed

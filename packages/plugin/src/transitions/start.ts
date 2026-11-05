@@ -6,7 +6,7 @@ import { lockPagePaths } from '../db/locks.js'
 import { lockMetricsForFreeze } from '../db/metricUsage.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../constants.js'
 import { claimSlices } from '../db/slices.js'
-import { interactingTestsCopy, pageInUseCopy, unpublishedPageCopy } from '../admin/copy/readiness.js'
+import { asymmetricGoalsCopy, interactingTestsCopy, pageInUseCopy, unpublishedPageCopy } from '../admin/copy/readiness.js'
 import { XpRefusal } from '../errors.js'
 import { isOpValid } from '../targeting/ops.js'
 import { newSeed } from '../runtime/seed.js'
@@ -30,7 +30,7 @@ export async function readExperiment(req: PayloadRequest, id: DocId): Promise<Tr
 }
 export function refuse(code: RefusalCode, detail?: unknown): never {
   const messages: Partial<Record<RefusalCode, string>> = {
-    'goal-in-some-versions': "This goal appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal.",
+    'goal-in-some-versions': asymmetricGoalsCopy(detail),
     'placements-changed': "This test's pages changed while it was starting. Try again.",
     'page-busy': "One of this test's pages is being saved right now. Try again in a moment.",
     'interacting-tests': (() => { const d = (detail as Array<{ path: string; status: string; name: string; version: boolean }> | undefined)?.[0]; return d ? interactingTestsCopy(d.path, d.status, d.name, d.version) : 'Finish one of the tests first.' })(),

@@ -234,11 +234,12 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
         }
         const clicks = current.phase.metricDefinitions.filter(metric => metric.source.startsWith('click:'))
         const content = clicks.length ? await raceDeadline(analysisDeadline, () => goalContent(req, options, {
-          id, slug: current.slug ?? String(id), kind: current.kind ?? 'code', arms: current.testArms as Arm[], pageCollection: current.pageCollection,
+          id, slug: current.slug ?? String(id), kind: current.kind ?? 'code', arms: arms as Arm[], pageCollection: current.pageCollection,
         }, current.testPlacementDocs ?? null)) : undefined
-        const goals = clicks.filter(metric => content && asymmetricGoal(content, metric.source, current.testArms)).map(metric => ({ code: 'goal-in-some-versions' as const, metricId: metric.metricId, name: metric.name }))
-        for (const snapshot of snapshots) {
-          snapshot.health = mergePageHealth(goals, health)
+        const goals = clicks.filter(metric => content && asymmetricGoal(content, metric.source, arms)).map(metric => ({ code: 'goal-in-some-versions' as const, metricId: metric.metricId, name: metric.name }))
+        for (const [index, snapshot] of snapshots.entries()) {
+          const previous = phases[index]!.previousHealth ?? phases[index]!.frozenSnapshot?.health ?? []
+          snapshot.health = mergePageHealth(content && !content.unchecked.length ? goals : previous, health)
           if (content?.skipped && current.kind === 'block') snapshot.goalFairnessNotice = LEGACY_FAIRNESS
           else delete snapshot.goalFairnessNotice
         }

@@ -1,7 +1,7 @@
 import type { DocId } from '../types/contracts.js'
 import type {
   WrapBlockBody, PagesResult, PlacementStatusBody, PlacementStatusResult, RestoreContentEntryBody, RestoreContentEntryResult, DismissContentEntryBody, DismissContentEntryResult, AddMetricBody, AllocateBody, ArchiveBody, DecideBody, ErrorEnvelope, MakeContentResult,
-  AddMetricResult, PreflightResult, PreviewTokenResult, RefusalCode, ResultsResponse, SummaryResponse, TransitionSuccess,
+  AddMetricResult, ClickKeysResult, PreflightResult, PreviewTokenResult, RefusalCode, ResultsResponse, SummaryResponse, TransitionSuccess,
 } from '../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from './copy/common.js'
 import { CONTENT_ENTRY_REFUSALS } from './copy/actions.js'
@@ -58,6 +58,7 @@ export function createApi(apiBase: string) {
     dismissContentEntry: (id: DocId, body: DismissContentEntryBody) => post<DismissContentEntryResult>(id, 'content-report/dismiss', body, CONTENT_ENTRY_REFUSALS),
     restoreContentEntry: (id: DocId, body: RestoreContentEntryBody) => post<RestoreContentEntryResult>(id, 'content-report/restore', body, CONTENT_ENTRY_REFUSALS),
     archive: (id: DocId, body: ArchiveBody) => post<TransitionSuccess>(id, 'archive', body),
+    clickKeys: (id: DocId) => request<ClickKeysResult>(() => route(id, 'click-keys'), 'GET'),
     preflight: (id: DocId) => request<PreflightResult>(() => route(id, 'preflight'), 'GET'),
     previewToken: (id: DocId, arm: string) => request<PreviewTokenResult>(() => `${route(id, 'preview-token')}?arm=${encodeURIComponent(arm)}`, 'GET'),
     results: (id: DocId, options: { phase?: number; series?: boolean } & RequestOptions = {}) => request<ResultsResponse>(() => {

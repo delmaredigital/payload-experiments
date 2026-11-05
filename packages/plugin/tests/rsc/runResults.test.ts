@@ -818,3 +818,52 @@ test('mid-test click goal excludes pre-added clicks from outcomes for every arm'
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
   expect(((await snapshots())[0]!.snapshot as Snapshot).metrics[0]!.perArm.map(a => a.converters)).toEqual([0, 1])
 })
+
+const clickMetric = { metricId: 'click', attributionWindowHours: 168, minSampleSize: 150, name: 'Join clicks', kind: 'binomial' as const, role: 'primary' as const, source: 'click:join', direction: 'increase' as const }
+test.each([
+  { frozen: false, partial: false }, { frozen: false, partial: true },
+  { frozen: true, partial: false }, { frozen: true, partial: true },
+])('unreadable goal content retains amber health (frozen: $frozen, partial: $partial)', async ({ frozen, partial }) => {
+  let clock = now
+  vi.spyOn(Date, 'now').mockImplementation(() => clock)
+  const phase = await seed('visitor', { metricDefinitions: [clickMetric], ...(frozen ? { endedAt: new Date(start + 1000).toISOString() } : {}) })
+  await database.db.update(xp_experiments).set({ kind: 'block', phase: 1, status: frozen ? 'decided' : 'running', decision_winnerArm: frozen ? 'variantA' : null }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  await database.db.update(xp_phases).set({ placementDocs: [{ collection: 'pages', id: 7 }, { collection: 'pages', id: 8 }] }).where(eq(xp_phases.experiment, Number(phase.experiment)))
+  const context = payload()
+  context.options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  Object.assign(context.payload.config, { collections: [{ slug: 'pages', fields: [] }] })
+  const content = { id: 7, layout: [{ blockType: 'xpExperiment', experiment: `frozen-${serial}`, slots: [{ slot: 'control', blocks: [{ blockType: 'cta', xpGoal: 'join' }] }, { slot: 'variantA', blocks: [] }] }] }
+  const read = vi.fn(async (_args: { where?: { id?: { equals?: unknown } } }) => content)
+  Object.assign(context.payload.db, { findOne: read })
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const before = await snapshots()
+  const amber = [{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' }]
+  expect((before[0]!.snapshot as Snapshot).health).toEqual(amber)
+  read.mockImplementation(async args => {
+    if (!partial || args.where?.id?.equals === 8) throw new Error('content unreadable')
+    return content
+  })
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const after = await snapshots()
+  expect(after).toHaveLength(frozen ? 1 : 2)
+  for (const row of after) expect((row.snapshot as Snapshot).health).toEqual(amber)
+  if (frozen) expect(after).toEqual(before)
+}, 5_000) // Measured 11 ms locally; cap exceeds 3×.
+
+test.each(['running', 'decided'] as const)('page goal health reads published page content using served arms (%s)', async status => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { metricDefinitions: [clickMetric], arms: [
+    { key: 'control', label: 'Original', kind: 'control', weight: 34, pageTarget: '/a' }, { key: 'variantA', label: 'Winner', kind: 'variant', weight: 33, pageTarget: '/b' },
+    { key: 'variantB', label: 'Loser', kind: 'variant', weight: 33, pageTarget: '/loser' },
+  ] })
+  await database.db.update(xp_experiments).set({ kind: 'page', phase: 1, status, decision_winnerArm: status === 'decided' ? 'variantA' : null, pageCollection: 'pages' }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  const context = payload()
+  const findByPath = vi.fn(async (path: string) => ({ id: path === '/loser' ? 8 : 7, published: true }))
+  context.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath, contentOf: doc => doc.layout }] }
+  Object.assign(context.payload.config, { collections: [{ slug: 'pages', versions: { drafts: true } }] })
+  Object.assign(context.payload.db, { findOne: vi.fn(async (args: { where: { id: { equals: number } } }) => ({ id: args.where.id.equals, _status: 'published', layout: args.where.id.equals === 7 ? [{ xpGoal: 'join' }] : [] })) })
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(((await snapshots())[0]!.snapshot as Snapshot).health).toEqual(status === 'running' ? [{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' }] : [])
+  expect(findByPath.mock.calls.some(([path]) => path === '/loser')).toBe(status === 'running')
+}, 5_000) // Measured 5 ms locally; cap exceeds 3×.

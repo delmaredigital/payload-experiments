@@ -1,4 +1,6 @@
 import type { TextField } from 'payload'
+import { definedClickKeys } from '../db/clickGoals.js'
+import { pooledExecutor } from '../db/executor.js'
 import { clickKeys } from '../goals/cache.js'
 import { CLICK_KEY } from '../goals/key.js'
 import type { ResolvedOptions } from '../types/contracts.js'
@@ -13,7 +15,7 @@ export function xpGoalField(): TextField {
       const options = req.payload.config.custom?.xp as ResolvedOptions | undefined
       if (!options || await options.access.manage({ req }) !== true) return true
       const keys = await clickKeys(req.payload)
-      return !keys || keys.has(value) || 'No click goal has this name yet. Create it with "+ New click goal".'
+      return !keys || keys.has(value) || (await definedClickKeys(pooledExecutor(req.payload))).has(value) || 'No click goal has this name yet. Create it with "+ New click goal".'
     },
   }
 }

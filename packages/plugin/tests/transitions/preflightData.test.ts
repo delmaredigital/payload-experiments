@@ -183,3 +183,23 @@ test('occupancy with a missing transaction session throws without falling back t
   expect(executor.calls).toEqual([])
   expect(payload.calls).toEqual([])
 })
+
+test.each(['flag', 'code', 'page'] as const)('no goalNotes for an uninspectable %s test', async kind => {
+  const { options, payload, req } = setup()
+  Object.assign(payload.documents['xp-experiments']![0]!, { kind, pageCollection: 'pages' })
+  payload.documents['xp-metrics']![0]!.source = 'click:join'
+  options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => ({ id: 7, published: true }) }] }
+  expect((await preflightData(req, { experimentId: 1, options }, { now }))!.goalNotes ?? []).toEqual([])
+}, 5_000) // Measured 1 ms locally; cap exceeds 3×.
+
+test.each([false, true])('outside goalNotes require a completely readable placement (unchecked: %s)', async unchecked => {
+  const { options, payload, req } = setup()
+  Object.assign(payload.documents['xp-experiments']![0]!, { kind: 'page', pageCollection: 'pages', arms: defaultArms('page').map((arm, i) => ({ ...arm, pageTarget: i ? '/b' : '/a' })) })
+  payload.documents['xp-metrics']![0]!.source = 'click:join'
+  payload.documents.pages = [{ id: 7, layout: [] }]
+  options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => ({ id: 7, published: true }), contentOf: doc => doc.layout }] }
+  if (unchecked) vi.spyOn(payload.db, 'findOne').mockRejectedValue(new Error('unreadable'))
+  expect((await preflightData(req, { experimentId: 1, options }, { now }))!.goalNotes).toEqual(unchecked ? [] : [
+    { metricId: 2, message: "This goal isn't inside the part being tested, so every version shows it the same way." },
+  ])
+}, 5_000) // Measured 3 ms locally; cap exceeds 3×.

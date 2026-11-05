@@ -48,6 +48,7 @@ export type AccessKind = 'manage' | 'readResults' | 'manifestKey' | 'signedCooki
 
 export type EndpointContext<TUser extends { id: string | number } = { id: string | number }> = { options: ResolvedOptions<TUser>; unit?: { visitorId: string } }
 
+export type ClickKeysResult = { keys: Array<{ key: string; arms: string[]; label: string }> }
 export type PagesResult = { docs: Array<{ id: DocId; title: string; path: string | null; pathKey: string | null; published: boolean }>; hasNextPage: boolean }
 export type PlacementStatusBody = { docs?: Array<{ collection: string; id: DocId }>; slugs?: string[] }
 export type PageTestStatus = { slug: string; name: string; status: Status; role: 'original' | 'version'; winner: boolean; armLabel: string; winnerLabel?: string; winnerTitle?: string; winnerPath?: string; originalPath?: string; rollout: boolean; pagesReleased: boolean }

@@ -71,3 +71,12 @@ test("a decided rollout's holdout clicks are recorded", async () => {
   expect(sendBeacon).toHaveBeenCalledTimes(1)
   expect((await bodyOf(sendBeacon.mock.calls[0]![1])).events[0]).toMatchObject({ type: 'conversion', eventName: 'click:join' })
 })
+
+test('provider mounts without randomUUID and a click still sends one beacon', async () => {
+  vi.stubGlobal('crypto', { randomUUID: undefined, getRandomValues: (bytes: Uint8Array) => bytes.fill(7) })
+  const { sendBeacon } = transport()
+  const view = render(<ExperimentsProvider value={assignments({ clickGoalsArmed: true })}><button data-xp-goal="join">Join</button></ExperimentsProvider>)
+  fireEvent.click(view.getByText('Join'))
+  expect(sendBeacon).toHaveBeenCalledTimes(1)
+  expect((await bodyOf(sendBeacon.mock.calls[0]![1])).events[0]).toMatchObject({ eventName: 'click:join', idempotencyKey: expect.stringMatching(/:join$/) })
+}, 5_000) // Measured 2 ms locally; cap exceeds 3×.

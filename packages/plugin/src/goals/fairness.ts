@@ -47,6 +47,7 @@ function blockLabels(req: PayloadRequest): Map<string, string> {
  */
 export async function goalContent<TUser extends { id: DocId }>(req: PayloadRequest, options: ResolvedOptions<TUser>, experiment: Experiment,
   placements?: readonly PlacementDoc[] | null): Promise<GoalContent> {
+  if (experiment.kind !== 'page' && experiment.kind !== 'block') return { keys: [], unchecked: [], skipped: true }
   const byArm = new Map(experiment.arms.filter(a => a.kind !== 'holdout').map(a => [a.key, new Map<string, string>()]))
   const labels = blockLabels(req), unchecked: GoalPlacement[] = []
   const failed = (error: unknown, placement: GoalPlacement) => {

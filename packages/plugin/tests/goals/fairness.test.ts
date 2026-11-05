@@ -51,3 +51,11 @@ test('click-keys route uses the manager document and returns published keys and 
   expect(sanitizeReadinessDetail('goal-in-some-versions', { metricId: 1, name: 'private' })).toEqual([{ metricId: 1 }])
   expect(sanitizeReadinessDetail('placement-unchecked', { collection: 'pages', id: 7, title: 'private', path: '/ok' })).toEqual({ collection: 'pages', id: 7, path: '/ok' })
 })
+
+test('never-published main rows are unchecked and their click keys do not count', async () => {
+  const options = { ...sampleOptions(), blocks: { collections: [{ slug: 'pages', field: 'layout' }] } }
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', versions: { drafts: true } }] }, collections: { pages: [
+    { id: 7, _status: 'draft', layout: [{ blockType: 'xpExperiment', experiment: 'fair', slots: [{ slot: 'control', blocks: [{ blockType: 'cta', xpGoal: 'join' }] }] }] },
+  ] } })
+  expect(await goalContent(fakeReq({ payload }), options, experiment, [{ collection: 'pages', id: 7 }])).toEqual({ keys: [], unchecked: [{ collection: 'pages', id: 7 }] })
+}, 5_000) // Measured 1 ms locally; cap exceeds 3×.

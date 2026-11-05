@@ -137,3 +137,12 @@ test('placement copy lists every draft page and names edit actions exactly', () 
     nextStep: 'Open Other\nEdit /version',
   })
 }, 5000)
+
+test('asymmetry refusal names every goal on its own line in readiness and the server refusal', async () => {
+  const { refuse } = await import('../../../../src/transitions/start.js')
+  const detail = [{ metricId: 1, name: 'Join' }, { metricId: 2, name: 'Donate' }]
+  const expected = ["Join appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal.",
+    "Donate appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal."].join('\n')
+  expect(READINESS['goal-in-some-versions'].next(detail, ctx)).toBe(expected)
+  expect(() => refuse('goal-in-some-versions', detail)).toThrow(expected)
+}, 5_000) // Measured 588 ms locally; cap exceeds 3×.

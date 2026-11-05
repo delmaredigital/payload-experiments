@@ -6,13 +6,13 @@ import type { ChangeEvent } from 'react'
 import { Button } from '../../../ui/Button.js'
 import { TextInput } from '../../../ui/Inputs.js'
 import { Dialog } from '../../../ui/Dialog.js'
-import type { AddMetricBody, MakeContentResult as ContentResult } from '../../../types/endpoints.js'
+import type { AddMetricWarning, AddMetricBody, MakeContentResult as ContentResult } from '../../../types/endpoints.js'
 import type { DocId } from '../../../types/contracts.js'
 import type { SectionProps } from '../contracts.js'
 import type { ExperimentAction } from '../../actions/actions.model.js'
 import { MakeContentResult } from '../../actions/MakeContentResult.js'
 import { expectedConfirm, matchesConfirm } from '../../../transitions/confirmPhrases.js'
-import { ACTIONS_COPY as A } from '../../copy/actions.js'
+import { ACTIONS_COPY as A, addMetricWarningCopy } from '../../copy/actions.js'
 import { REVIEW_COPY as R } from '../../copy/review.js'
 import { READINESS_COPY as C } from '../../copy/readiness.js'
 import { API_MESSAGES, refusalMessage } from '../../copy/common.js'
@@ -95,6 +95,7 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [metric, setMetric] = useState('')
+  const [warnings, setWarnings] = useState<AddMetricWarning[] | null>(null)
   const [role, setRole] = useState<AddMetricBody['role']>('secondary')
   const transition = useTransition(test, onClose)
   useEffect(() => {
@@ -114,22 +115,36 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
   const available = metrics.filter(item => !attached.has(String(item.id)))
   const selected = available.find(item => String(item.id) === metric)
   const disabled = transition.busy || test.hasUnsaved || test.saving === 'saving'
-  return <Dialog open dismissible={!transition.busy} title={C.addGoal} onClose={() => { if (!transition.busy) onClose() }}>
-    <p>{C.addMetric}</p>
-    {loading ? <p role="status">{R.loadingMetrics}</p> : null}
-    <label>{R.role}<select value={role} disabled={disabled} onChange={event => setRole(event.target.value as AddMetricBody['role'])}>
-      <option value="secondary">{R.supporting}</option><option value="guardrail">{R.guardrail}</option>
-    </select></label>
-    <label>{R.metric}<select value={metric} disabled={disabled || loading} onChange={event => setMetric(event.target.value)}>
-      <option value="">{R.chooseMetric}</option>
-      {available.map(item => <option key={item.id} value={String(item.id)}>{item.name}</option>)}
-    </select></label>
-    {!loading && !loadError && !available.length ? <p>{R.noMetrics}</p> : null}
-    {loadError || transition.error ? <p role="alert">{loadError ?? transition.error}</p> : null}
-    <Button disabled={disabled || loading || !!loadError || !selected} onClick={() => {
-      // Goal and phase lookups share not-found; prefer the more likely missing goal without reading server text.
-      if (selected && test.doc) void transition.run(() => createApi(surface.apiRoute).addMetric(test.doc!.id, { metric: selected.id, role }, { notFound: API_MESSAGES.goalNotFound }))
-    }}>{C.addGoal}</Button>
-    <Button disabled={transition.busy} onClick={onClose}>{A.cancel}</Button>
+  function close() {
+    if (transition.busy) return
+    if (warnings) void test.reload()
+    onClose()
+  }
+  return <Dialog open dismissible={!transition.busy} title={C.addGoal} onClose={close}>
+    {warnings ? warnings.map((warning, index) => <p key={index}>{addMetricWarningCopy(warning)}</p>) : <>
+      <p>{C.addMetric}</p>
+      {loading ? <p role="status">{R.loadingMetrics}</p> : null}
+      <label>{R.role}<select value={role} disabled={disabled} onChange={event => setRole(event.target.value as AddMetricBody['role'])}>
+        <option value="secondary">{R.supporting}</option><option value="guardrail">{R.guardrail}</option>
+      </select></label>
+      <label>{R.metric}<select value={metric} disabled={disabled || loading} onChange={event => setMetric(event.target.value)}>
+        <option value="">{R.chooseMetric}</option>
+        {available.map(item => <option key={item.id} value={String(item.id)}>{item.name}</option>)}
+      </select></label>
+      {!loading && !loadError && !available.length ? <p>{R.noMetrics}</p> : null}
+      {loadError || transition.error ? <p role="alert">{loadError ?? transition.error}</p> : null}
+      <Button disabled={disabled || loading || !!loadError || !selected} onClick={() => {
+        // Goal and phase lookups share not-found; prefer the more likely missing goal without reading server text.
+        if (selected && test.doc) void transition.run(async () => {
+          const result = await createApi(surface.apiRoute).addMetric(test.doc!.id, { metric: selected.id, role }, { notFound: API_MESSAGES.goalNotFound })
+          if (result.ok) {
+            if (result.data?.warnings?.length) setWarnings(result.data.warnings)
+            else { await test.reload(); onClose() }
+          }
+          return result
+        }, { reloadOnSuccess: false })
+      }}>{C.addGoal}</Button>
+    </>}
+    <Button disabled={transition.busy} onClick={close}>{warnings ? A.done : A.cancel}</Button>
   </Dialog>
 }

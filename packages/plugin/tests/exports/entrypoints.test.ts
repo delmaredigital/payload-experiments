@@ -45,7 +45,7 @@ const required = {
 } as const
 const requiredTypes = {
   rsc: { MetricUnavailableReason: '../types/reasons.js', ContentReportReason: '../types/reasons.js', ManifestInputs: '../manifest/compile.js', ManifestInputExperiment: '../manifest/compile.js', ManifestPhase: '../manifest/compile.js', ManifestCompileOptions: '../manifest/compile.js', Manifest: '../types/manifest.js', ManifestExperiment: '../types/manifest.js' },
-  index: { ExperimentsPageCollection: '../types/index.js', ContentReport: '../types/index.js', RestoreContentEntryBody: '../types/index.js', RestoreContentEntryResult: '../types/index.js', MetricUnavailableReason: '../types/index.js', ContentReportReason: '../types/index.js' },
+  index: { ClickKeysResult: '../types/index.js', ExperimentsPageCollection: '../types/index.js', ContentReport: '../types/index.js', RestoreContentEntryBody: '../types/index.js', RestoreContentEntryResult: '../types/index.js', MetricUnavailableReason: '../types/index.js', ContentReportReason: '../types/index.js' },
   client: { ClientAssignments: '../types/assignments.js' },
   puck: {
     ExperimentSlotProps: '../types/puck.js',

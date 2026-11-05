@@ -2,6 +2,9 @@ import type { Payload } from 'payload'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { createPgliteDb } from '../_helpers/pglite.js'
 import { pooledExecutor, type Executor } from '../../src/db/executor.js'
+import { xpGoalField } from '../../src/fields/xpGoal.js'
+import { validate } from '../collections/fixtures.js'
+import * as clickDb from '../../src/db/clickGoals.js'
 import { definedClickKeys } from '../../src/db/clickGoals.js'
 import { clickKeys } from '../../src/goals/cache.js'
 import { asymmetricGoal, goalContent } from '../../src/goals/fairness.js'
@@ -78,3 +81,22 @@ test('fairness reads published main rows; draft-only keys never count, holdout u
   expect(asymmetricGoal(changed, 'click:join', arms)).toBe(true)
   expect(changed.keys[0]!.arms).toEqual(['control', 'holdout'])
 })
+
+test('field accepts a goal created after the beacon cache was filled', async () => {
+  const payload = pooledPayload(), options = sampleOptions()
+  payload.config.custom.xp = options
+  expect(await clickKeys(payload)).not.toContain('just-created')
+  await metric('just-created')
+  expect(await validate(xpGoalField().validate, 'just-created', { req: fakeReq({ payload }) })).toBe(true)
+  // The beacon cache keeps its independent 30-second lifetime.
+  expect(await clickKeys(payload)).not.toContain('just-created')
+}, 5_000) // Measured 1 ms locally; cap exceeds 3×.
+
+test('grammar-invalid click key alone triggers no defined-key lookup', async () => {
+  const lookup = vi.spyOn(clickDb, 'definedClickKeys')
+  const payload = pooledPayload(), { rt } = runtime(manifest())
+  const req = fakeReq({ payload, body: JSON.stringify({ events: [{ type: 'conversion', eventName: 'click:BAD', idempotencyKey: 'bad' }] }),
+    headers: { cookie: `xp_id=${encodeUnitCookie('invalid-key', ['current'])}` } })
+  expect((await handleEvents(req, { options: { ...sampleOptions(), runtime: rt } })).status).toBe(202)
+  expect(lookup).not.toHaveBeenCalled()
+}, 5_000) // Measured 1 ms locally; cap exceeds 3×.
