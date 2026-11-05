@@ -14,6 +14,9 @@ import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../../src/constants.js'
 import { runResults } from '../../src/server/runResults.js'
 import { handleRecompute } from '../../src/endpoints/recompute.js'
 import type { Snapshot } from '../../src/types/snapshot.js'
+import { analysePhase } from '../../src/results/analyse.js'
+import * as healthRefresh from '../../src/results/health.js'
+import { LEGACY_FAIRNESS } from '../../src/goals/fairness.js'
 import * as snapshotAnalysis from '../../src/results/snapshot.js'
 import * as aggregation from '../../src/results/aggregate.js'
 import type { ResultsPhase } from '../../src/db/snapshots.js'
@@ -820,6 +823,120 @@ test('mid-test click goal excludes pre-added clicks from outcomes for every arm'
 })
 
 const clickMetric = { metricId: 'click', attributionWindowHours: 168, minSampleSize: 150, name: 'Join clicks', kind: 'binomial' as const, role: 'primary' as const, source: 'click:join', direction: 'increase' as const }
+
+const freshGoal = { code: 'goal-in-some-versions' as const, metricId: 'click', name: 'Join clicks' }
+const storedGoal = { ...freshGoal, name: 'Stored join clicks' }
+const uncheckedPage = { code: 'placement-unchecked' as const, detail: { collection: 'pages', path: '/c' } }
+type GoalHealthCell = {
+  name: string
+  frozen: boolean
+  previous: NonNullable<Snapshot['health']>
+  outcome: 'complete symmetric' | 'asymmetric' | 'partial'
+  expected: NonNullable<Snapshot['health']>
+  writes: number
+  kind?: 'page' | 'block' | 'flag' | 'code'
+  nullRound?: boolean
+  noContentOf?: boolean
+  missingMain?: boolean
+  previousNotice?: string
+  expectedNotice?: string
+}
+
+// Seed the stored snapshot directly: every cell exercises exactly one runner pass.
+async function runGoalHealthCell(cell: GoalHealthCell) {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { metricDefinitions: [clickMetric], arms: [
+    { key: 'control', label: 'Original', kind: 'control', weight: 50, pageTarget: '/a' },
+    { key: 'variantA', label: 'A', kind: 'variant', weight: 50, pageTarget: '/c' },
+  ], ...(cell.frozen ? { endedAt: new Date(start + 1000).toISOString() } : {}) })
+  const kind = cell.kind ?? 'page'
+  await database.db.update(xp_experiments).set({ kind, phase: 1, pageCollection: kind === 'page' ? 'pages' : null,
+    status: cell.frozen ? 'decided' : 'running', decision_winnerArm: cell.frozen ? 'variantA' : null })
+    .where(eq(xp_experiments.id, Number(phase.experiment)))
+  await database.db.update(xp_phases).set({ placementDocs: cell.nullRound ? null : [{ collection: 'pages', id: 7 }] })
+    .where(eq(xp_phases.experiment, Number(phase.experiment)))
+  const stored: Snapshot = { ...analysePhase({ phase, now: new Date(now - 1000), status: cell.frozen ? 'stopped' : 'running',
+    units: new Map(), metricData: [{ metricId: 'click', values: new Map() }],
+  }), health: cell.previous, ...(cell.previousNotice ? { goalFairnessNotice: cell.previousNotice } : {}) }
+  await snapshotDb.writeSnapshots(pooledExecutor(payload().payload), [stored])
+  const before = await snapshots()
+  const context = payload()
+  const findByPath = vi.fn(async (path: string) => ({ id: path === '/a' ? 7 : 9, published: true }))
+  context.options.pages = { collections: [{ slug: 'pages', pathOf: doc => `/${doc.id}`, findByPath,
+    ...(cell.noContentOf ? {} : { contentOf: (doc: Record<string, unknown>) => doc.layout }),
+  }] }
+  context.options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  Object.assign(context.payload.config, { collections: [{ slug: 'pages', fields: [] }] })
+  const read = vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+    const id = where.id.equals
+    if (id === 9 && cell.outcome === 'partial') {
+      if (cell.missingMain) return null
+      throw new Error('content unreadable')
+    }
+    return { id, layout: cell.outcome === 'asymmetric' && id === 9 ? [] : [{ xpGoal: 'join' }] }
+  })
+  Object.assign(context.payload.db, { findOne: read })
+  // Observe the actual fresh result even when the frozen comparator suppresses
+  // its write; the persisted row must then remain byte-for-byte unchanged.
+  const refreshed = vi.spyOn(healthRefresh, 'mergePageHealth')
+  const writes = vi.spyOn(snapshotDb, 'writeSnapshots')
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0, skipped: 0 })
+  expect(refreshed).toHaveBeenCalledTimes(1)
+  expect(refreshed.mock.results[0]!.value).toEqual(cell.expected)
+  const after = await snapshots()
+  expect(after).toHaveLength(before.length + cell.writes)
+  expect(writes.mock.calls.flatMap(([, rows]) => rows)).toHaveLength(cell.writes)
+  if (cell.writes) {
+    const written = after.find(row => row.id !== before[0]!.id)!.snapshot as Snapshot
+    expect(written.health).toEqual(cell.expected)
+    expect(written.goalFairnessNotice).toBe(cell.expectedNotice)
+  } else expect(after).toEqual(before)
+  if (kind === 'flag' || kind === 'code' || cell.nullRound || cell.noContentOf) {
+    expect(read).not.toHaveBeenCalled()
+    expect(context.payload.logs.filter(log => log.level === 'warn' || log.level === 'error')).toEqual([])
+  }
+}
+
+const goalHealthCells: GoalHealthCell[] = [false, true].flatMap(frozen => [false, true].flatMap(previousGoal =>
+  (['complete symmetric', 'asymmetric', 'partial'] as const).map(outcome => ({
+    name: `goal table / ${frozen ? 'frozen' : 'live'} / previous ${previousGoal ? 'goal row' : 'none'} / ${outcome}`,
+    frozen, previous: previousGoal ? [storedGoal] : [], outcome,
+    expected: [
+      ...(outcome === 'asymmetric' ? [freshGoal] : outcome === 'partial' && previousGoal ? [storedGoal] : []),
+      ...(outcome === 'partial' ? [uncheckedPage] : []),
+    ],
+    writes: !frozen || (outcome === 'asymmetric' && !previousGoal) || (outcome === 'complete symmetric' && previousGoal) ? 1 : 0,
+  })),
+))
+test.each(goalHealthCells.map(cell => [cell.name, cell] as const))(
+  '%s', (_name, cell) => runGoalHealthCell(cell), 5_000,
+) // Measured 8 ms maximum per cell locally; cap exceeds 3×.
+
+const uncheckedHealthCells: GoalHealthCell[] = [
+  ...[false, true].flatMap(frozen => [false, true].flatMap(storedUnchecked => [true, false].map(throws => ({
+    name: `unchecked table / ${frozen ? 'frozen' : 'live'} / stored ${storedUnchecked ? 'present' : 'none'} / ${throws ? 'throws' : 'reads'}`,
+    frozen, previous: storedUnchecked ? [uncheckedPage] : [],
+    outcome: throws ? 'partial' as const : 'complete symmetric' as const,
+    expected: throws ? [uncheckedPage] : [], writes: !frozen || storedUnchecked && !throws ? 1 : 0,
+  })))),
+  { name: 'unchecked table / frozen / another health row changes', frozen: true,
+    previous: [{ code: 'version-page-unavailable', path: '/a' }], outcome: 'partial', expected: [uncheckedPage], writes: 1 },
+  { name: 'unchecked table / frozen / goalFairnessNotice changes', frozen: true,
+    previous: [], previousNotice: LEGACY_FAIRNESS, outcome: 'partial', expected: [uncheckedPage], writes: 1 },
+  ...(['flag', 'code'] as const).map(kind => ({ name: `unchecked table / frozen / ${kind} skipped`, kind, frozen: true,
+    previous: [], outcome: 'complete symmetric' as const, expected: [], writes: 0 })),
+  { name: 'unchecked table / frozen / null round skipped', kind: 'block', frozen: true, nullRound: true,
+    previous: [], previousNotice: LEGACY_FAIRNESS, expectedNotice: LEGACY_FAIRNESS,
+    outcome: 'complete symmetric', expected: [], writes: 0 },
+  { name: 'unchecked table / frozen / page without contentOf drops stored goal without warning', frozen: true, noContentOf: true,
+    previous: [storedGoal], outcome: 'partial', expected: [], writes: 1 },
+  { name: 'unchecked table / frozen / same page read threw then main row missing', frozen: true, missingMain: true,
+    previous: [uncheckedPage], outcome: 'partial', expected: [uncheckedPage], writes: 0 },
+]
+test.each(uncheckedHealthCells.map(cell => [cell.name, cell] as const))(
+  '%s', (_name, cell) => runGoalHealthCell(cell), 5_000,
+) // Measured 8 ms maximum per cell locally; cap exceeds 3×.
+
 test.each([
   { frozen: false, partial: false }, { frozen: false, partial: true },
   { frozen: true, partial: false }, { frozen: true, partial: true },

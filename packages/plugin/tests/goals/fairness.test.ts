@@ -106,7 +106,7 @@ test('only read arms participate; holdout follows control readability and keys',
   expect(content.unchecked).toEqual([{ collection: 'pages', path: '/unreadable' }])
 }, 5_000) // Measured <1 ms locally; cap exceeds 3×.
 
-test.each(['missing', 'unpublished'] as const)('a published page lookup with a %s main row is unchecked with its id', async state => {
+test.each(['missing', 'unpublished'] as const)('a published page lookup with a %s main row is unchecked with collection and path only', async state => {
   const options = sampleOptions()
   options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', contentOf: doc => doc.layout,
     findByPath: async () => ({ id: 7, published: true }),
@@ -117,5 +117,5 @@ test.each(['missing', 'unpublished'] as const)('a published page lookup with a %
   const content = await goalContent(fakeReq({ payload }), options, { ...experiment, kind: 'page', pageCollection: 'pages',
     arms: [{ ...arms[0]!, pageTarget: '/a' }],
   })
-  expect(content).toEqual({ keys: [], readArms: [], unchecked: [{ collection: 'pages', path: '/a', id: 7 }] })
+  expect(content).toEqual({ keys: [], readArms: [], unchecked: [{ collection: 'pages', path: '/a' }] })
 }, 5_000) // Measured <1 ms locally; cap exceeds 3×.
