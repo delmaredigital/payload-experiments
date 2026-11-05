@@ -673,7 +673,7 @@ configured to allow client writes; record revenue on the server.
 
 ### Puck render and editor configs
 
-Works with: payload-puck ≥0.11.0 (experiments ≥0.4.0).
+Works with: payload-puck ≥0.10.3 (experiments ≥0.4.0).
 
 For payload-puck hosts, add one integration object on each side. In the render
 config, pass `integrations` to `extendConfig`:
