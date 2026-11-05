@@ -49,8 +49,8 @@ const exportsByEntry = [
   [client, ['ExperimentGroup', 'ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
   [adminClient, ['XpGoalField', 'TestBlockField', 'BlockStatusField', 'BlockSlotRowLabel', 'CopyOriginalField', 'wrapExperimentBlock', 'syncExperimentSlots', 'copyOriginalIntoVersion', 'unwrapExperimentBlock', 'findRegisteredBlocksField', 'XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField', 'PlacementStatus']],
   [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect', 'TestsNavLinkServer']],
-  [puck, ['xpGoalPuckField', 'ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
-  [puckEditor, ['xpGoalPuckEditorField', 'ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent', 'experimentOutlinePlugin']],
+  [puck, ['xpGoalPuckField', 'ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE', 'experimentsPuck']],
+  [puckEditor, ['xpGoalPuckEditorField', 'ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent', 'experimentOutlinePlugin', 'experimentsPuckEditor']],
 ] as const
 
 test('root barrel keeps public types and excludes internal contracts and the Puck Slot peer type', () => {

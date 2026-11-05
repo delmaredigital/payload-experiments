@@ -1,5 +1,5 @@
 import type { DocId } from './contracts.js'
-import type { Slot } from '@puckeditor/core'
+import type { ComponentConfig, Config, Plugin, Slot } from '@puckeditor/core'
 export type { Slot } from '@puckeditor/core'
 export type ArmSlot = 'control' | 'variantA' | 'variantB' | 'variantC'
 export type ExperimentRef = { id: DocId; slug: string }
@@ -8,3 +8,10 @@ export type ExperimentSlotProps = {
   xpArm?: string; xpSlot?: ArmSlot; xpExpose?: { slug: string; arm: string; phase: number }
 }
 export const EXPERIMENT_SLOT_TYPE = 'ExperimentSlot' as const
+
+export interface ExperimentsPuckIntegration {
+  name: string
+  components: Record<string, ComponentConfig<ExperimentSlotProps>>
+  categories: Config['categories']
+  plugins?: readonly Plugin[]
+}

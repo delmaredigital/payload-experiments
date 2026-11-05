@@ -90,13 +90,23 @@ test('automatic sequential tuning copy matches the analysis default', () => {
   expect(ADVANCED_COPY.automaticTuning).toBe(`Automatic (${DEFAULT_SEQUENTIAL_TUNING_PARAMETER.toLocaleString('en-US')})`)
 })
 
-function helperCopyHits(source: string) {
-  return helperStrings(source).filter(value => /\b(arms?|phases?|experiments?)\b/i.test(value.replace(/Experiment block/g, '')))
+function helperCopyHits(source: string, path?: string) {
+  return helperStrings(source, path).filter(value => /\b(arms?|phases?|experiments?)\b/i.test(value.replace(/Experiment block/g, '')))
 }
 
 test('all admin and Puck helper copy says test, not experiment', () => {
-  expect(helperPaths.flatMap(path => helperCopyHits(readFileSync(path, 'utf8'))
+  expect(helperPaths.flatMap(path => helperCopyHits(readFileSync(path, 'utf8'), path)
     .map(value => ({ path, value })))).toEqual([])
+})
+
+test('only the approved Puck integration name is developer metadata', () => {
+  const source = "export function integration() { return { name: 'experiments', title: 'Choose an experiment' } }"
+  for (const file of ['puck/integration.ts', 'puck/editor/integration.ts']) {
+    const path = fileURLToPath(new URL(`../../src/${file}`, import.meta.url))
+    expect(helperCopyHits(source, path)).toEqual(['Choose an experiment'])
+    expect(helperCopyHits("export const label = () => ({ name: 'Choose an experiment' })", path)).toEqual(['Choose an experiment'])
+  }
+  expect(helperCopyHits(source)).toEqual(['experiments', 'Choose an experiment'])
 })
 
 test.each([

@@ -468,7 +468,7 @@ assert `expect.robots`, `expect.canonical` and `expect.inSitemap` against the
 host's metadata and sitemap functions. This includes the Original served as
 each version, including the homepage.
 
-A cc-lms-style host test mocks four boundaries: `next/headers`, the page loader,
+A host-level test mocks four boundaries: `next/headers`, the page loader,
 the runtime and the site URL. Set `metadataBase` so relative canonical paths
 resolve to your site URL.
 
@@ -677,31 +677,60 @@ configured to allow client writes; record revenue on the server.
 
 ### Puck render and editor configs
 
-Register the factories from `/puck` and `/puck/editor`, using the same
-`ExperimentSlot` component name in both configs. Pass the host's Payload routes:
+Works with: payload-puck ≥0.10.3 (experiments ≥0.4.0).
+
+For payload-puck hosts, add one integration object on each side. In the render
+config, pass `integrations` to `extendConfig`:
 
 ```ts
-import { createExperimentSlot } from '@delmaredigital/payload-experiments/puck'
-import { createExperimentSlotEditor, experimentOutlinePlugin } from '@delmaredigital/payload-experiments/puck/editor'
+import { extendConfig } from '@delmaredigital/payload-puck/config'
+import { experimentsPuck } from '@delmaredigital/payload-experiments/puck'
+import { baseConfig } from './baseConfig'
 
-const routes = { admin: '/manage', api: '/content-api' } // Same as Payload config.routes
-const accent = '#1f3a68' // Same as the plugin's theme.accent
-
-// Render config
-components: { ExperimentSlot: createExperimentSlot({ routes }) }
-
-// Editor config
-components: { ExperimentSlot: createExperimentSlotEditor({ routes, accent }) }
+export const renderConfig = extendConfig({
+  base: baseConfig,
+  integrations: [experimentsPuck()],
+})
 ```
 
-Add `experimentOutlinePlugin()` to Puck's `plugins` alongside this block config
-(with payload-puck, use its `plugins` option). It composes with the host's outline
-override and hides empty version slots that the block's test doesn't use. Content
-in an unused slot stays visible in the outline and gets a warning in the block.
+Call `experimentsPuckEditor()` once at module scope in a `'use client'` module,
+then pass that array to `PuckConfigProvider`. A new object per render rebuilds
+Puck's config and plugin list.
 
-```ts
-plugins: [experimentOutlinePlugin()]
+```tsx
+'use client'
+
+import { PuckConfigProvider } from '@delmaredigital/payload-puck/client'
+import { experimentsPuckEditor } from '@delmaredigital/payload-experiments/puck/editor'
+import { editorConfig } from './editorConfig'
+
+const integrations = [experimentsPuckEditor()]
+
+export function PuckProvider({ children }: { children: React.ReactNode }) {
+  return <PuckConfigProvider config={editorConfig} integrations={integrations}>
+    {children}
+  </PuckConfigProvider>
+}
 ```
+
+Each object includes the test block and its **A/B tests** sidebar category. The
+editor object also includes the outline plugin: it hides empty version slots
+that the block's test doesn't use, while content in unused slots stays visible
+with a warning. Both helpers accept `{ routes }`; the editor also accepts
+`accent`. Use the host's Payload routes and the plugin's `theme.accent`.
+
+#### Wiring Puck by hand
+
+The separate pieces stay exported:
+
+- `/puck`: `ExperimentSlot`, `createExperimentSlot({ routes })`,
+  `EXPERIMENT_SLOT_TYPE` and `createExperimentSlotField({ routes })`.
+- `/puck/editor`: `ExperimentSlotEditor`,
+  `createExperimentSlotEditor({ routes, accent })` and `experimentOutlinePlugin()`.
+
+Register the render and editor blocks under the same `EXPERIMENT_SLOT_TYPE` key (import it from `/puck`),
+add a sidebar category listing it, and add `experimentOutlinePlugin()` to Puck's
+`plugins`. It composes with the host's outline override.
 
 Routes default to Payload's `/admin` and `/api` when omitted. The existing
 `ExperimentSlot` and `ExperimentSlotEditor` exports remain available with these

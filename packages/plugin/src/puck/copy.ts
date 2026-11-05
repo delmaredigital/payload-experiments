@@ -1,5 +1,7 @@
 import { ARM_LABELS } from '../labels/arms.js'
 
+export const categoryTitle = 'A/B tests'
+
 export const slotLabels = {
   control: ARM_LABELS.control, variantA: ARM_LABELS.variantA,
   variantB: ARM_LABELS.variantB, variantC: ARM_LABELS.variantC,

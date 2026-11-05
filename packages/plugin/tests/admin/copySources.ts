@@ -19,7 +19,7 @@ const copyProperties = new Set(['message', 'label', 'title', 'headline', 'detail
 const classNameHelpers = new Set(['className', 'classNames', 'clsx', 'cn', 'cx'])
 
 /** Returned literals, defaults, variable values, Error messages and authored copy properties in every helper. */
-export function helperStrings(source: string): string[] {
+export function helperStrings(source: string, path = ''): string[] {
   const file = ts.createSourceFile('copy.ts', source, ts.ScriptTarget.Latest, true)
   const result: string[] = []
   const seen = new Set<ts.Node>()
@@ -56,7 +56,13 @@ export function helperStrings(source: string): string[] {
       // Equality operands are discriminants, including inside returned expressions.
       if (ts.isBinaryExpression(node) && [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(node.operatorToken.kind)) return
       // Inspect property values, never their identifier/string/computed keys.
-      if (ts.isPropertyAssignment(node)) { visit(node.initializer); return }
+      if (ts.isPropertyAssignment(node)) {
+        // exp-orch ADM-57 ruling: the integration name is developer metadata, never copy.
+        if ([join(src, 'puck/integration.ts'), join(src, 'puck/editor/integration.ts')].includes(path)
+          && ts.isIdentifier(node.name) && node.name.text === 'name'
+          && ts.isStringLiteral(node.initializer) && node.initializer.text === 'experiments') return
+        visit(node.initializer); return
+      }
       if (ts.isCallExpression(node)) {
         const name = ts.isIdentifier(node.expression) ? node.expression.text
           : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined
