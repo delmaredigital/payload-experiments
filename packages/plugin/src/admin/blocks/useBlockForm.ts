@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useAuth, useConfig, useDocumentInfo, useForm, useFormFields, useServerFunctions } from '@payloadcms/ui'
 import { adaptClientBlocksField, findClientBlocksField, replaceBlockRow, rowLocation } from './formApi.js'
 import type { ExperimentBlock, HostBlock } from '../../blocks/model.js'
@@ -10,7 +11,7 @@ export function useBlockForm(path: string) {
   const location = rowLocation(path)
   const collection = document.collectionSlug ? getEntityConfig({ collectionSlug: document.collectionSlug }) : undefined
   const clientField = location && collection ? findClientBlocksField(collection.fields, location.field) : undefined
-  const field = clientField ? adaptClientBlocksField(clientField, config) : undefined
+  const field = useMemo(() => clientField ? adaptClientBlocksField(clientField, config) : undefined, [clientField, config])
   const block = location ? form.getDataByPath<ExperimentBlock>(`${location.field}.${location.index}`) : undefined
   const testPermissions: { update?: boolean } | undefined = permissions?.collections?.['xp-experiments']
   const manager = testPermissions?.update === true

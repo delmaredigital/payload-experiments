@@ -16,6 +16,7 @@ const defaults = () => ({
   formModified: false,
   formInitializing: false,
   serverFunctions: { getFormState: vi.fn() } as Values,
+  openModals: [] as string[],
   rowLabel: { path: '', data: {} } as Values,
 })
 let state = defaults()
@@ -120,6 +121,18 @@ export function payloadUiMock() {
     useFormInitializing: () => useStateSnapshot().formInitializing,
     useServerFunctions: () => useStateSnapshot().serverFunctions,
     useRowLabel: () => useStateSnapshot().rowLabel,
+    useModal: () => ({ openModal: (slug: string) => setPayloadUiState({ openModals: [...state.openModals, slug] }) }),
+    ConfirmationModal: ({ modalSlug, heading, body, confirmLabel, cancelLabel, onConfirm, onCancel }: {
+      modalSlug: string; heading: ReactNode; body: ReactNode; confirmLabel: string; cancelLabel: string
+      onConfirm: () => Promise<void> | void; onCancel?: () => void
+    }) => {
+      const snapshot = useStateSnapshot()
+      const close = () => setPayloadUiState({ openModals: state.openModals.filter(slug => slug !== modalSlug) })
+      return snapshot.openModals.includes(modalSlug) ? <div role="dialog" aria-label={typeof heading === 'string' ? heading : undefined} data-modal-slug={modalSlug}>
+        {body}<button onClick={() => { close(); onCancel?.() }}>{cancelLabel}</button>
+        <button onClick={async () => { await onConfirm(); close() }}>{confirmLabel}</button>
+      </div> : null
+    },
     Button: ({ children, className, onClick, disabled, extraButtonProps, type = 'button' }: Children & {
       onClick?: () => void; disabled?: boolean; extraButtonProps?: ComponentProps<'button'>; type?: 'button' | 'submit' | 'reset'
     }) => <button {...extraButtonProps} className={className} onClick={onClick} disabled={disabled} type={type}>{children}</button>,

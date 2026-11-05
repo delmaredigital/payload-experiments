@@ -6,16 +6,21 @@ import { payloadUiMock, resetPayloadUiMock, setPayloadUiState } from '../_helper
 import { configure, field, original } from './fixtures.js'
 import { wrapExperimentBlock } from '../../../src/blocks/formState.js'
 import { BlockStatusField, BlockSlotRowLabel, CopyOriginalField } from '../../../src/admin/blocks/BlockPanel.js'
+import { API_MESSAGES } from '../../../src/admin/copy/common.js'
 import { BLOCK_COPY } from '../../../src/admin/copy/blocks.js'
 import type { LiveBlockStatus } from '../../../src/admin/blocks/model.js'
-const mocks = vi.hoisted(() => ({ replace: vi.fn() }))
+const mocks = vi.hoisted(() => ({ adapt: vi.fn(), replace: vi.fn() }))
 vi.mock('@payloadcms/ui', () => payloadUiMock())
-vi.mock('../../../src/admin/blocks/formApi.js', async importOriginal => ({ ...await importOriginal<typeof import('../../../src/admin/blocks/formApi.js')>(), replaceBlockRow: mocks.replace }))
+vi.mock('../../../src/admin/blocks/formApi.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../../src/admin/blocks/formApi.js')>()
+  mocks.adapt.mockImplementation(actual.adaptClientBlocksField)
+  return { ...actual, adaptClientBlocksField: mocks.adapt, replaceBlockRow: mocks.replace }
+})
 const props = { path: 'layout.0.xpBlockStatus' } as any
 const actionProps = { path: 'layout.0.slots.1.xpCopyOriginal' } as any
 const live: LiveBlockStatus = { name: 'Hero', kind: 'block', status: 'running', arms: [{ key: 'control', label: 'Old hero' }, { key: 'variantA', label: 'New hero' }], rollout: false }
 let fetch: ReturnType<typeof vi.fn>
-beforeEach(() => { resetPayloadUiMock(); mocks.replace.mockReset().mockResolvedValue(undefined); fetch = vi.fn(); vi.stubGlobal('fetch', fetch) })
+beforeEach(() => { resetPayloadUiMock(); mocks.adapt.mockClear(); mocks.replace.mockReset().mockResolvedValue(undefined); fetch = vi.fn(); vi.stubGlobal('fetch', fetch) })
 afterEach(async () => { cleanup(); await Promise.resolve(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 function prepare(status: unknown = live, options: { slug?: string; empty?: boolean } = {}) {
   const wrapped = wrapExperimentBlock(original, options.slug ?? 'hero-test', field)
@@ -77,12 +82,19 @@ test.each([{ deleted: true }, { missing: true }, { ...live, status: 'archived' }
 test.each(['draft', 'stopped', 'running', 'decided', 'archived'] as const)('copy action visibility for %s', async status => {
   prepare({ ...live, status, winnerArm: 'variantA' }); render(all()); await screen.findByText('New hero')
   expect(Boolean(screen.queryByText(BLOCK_COPY.copy))).toBe(['draft', 'stopped', 'running'].includes(status))
+  expect(screen.queryByRole('button', { name: BLOCK_COPY.unwrap })).toBeNull()
 })
-test.each([true, false])('copy confirms only when existing row has content (empty=%s)', async empty => {
-  prepare(live, { empty }); const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+test.each([true, false])('copy uses Payload confirmation only for populated rows (empty=%s)', async empty => {
+  prepare(live, { empty })
   render(all()); const button = await screen.findByText(BLOCK_COPY.copy); fireEvent.click(button)
-  if (!empty) { expect(confirm).toHaveBeenCalledOnce(); expect(mocks.replace).not.toHaveBeenCalled(); confirm.mockReturnValue(true); fireEvent.click(button) }
-  else expect(confirm).not.toHaveBeenCalled()
+  if (!empty) {
+    expect(screen.getByRole('dialog').textContent).toContain(BLOCK_COPY.confirmCopy)
+    expect(mocks.replace).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.cancel }))
+    expect(screen.queryByRole('dialog')).toBeNull(); expect(mocks.replace).not.toHaveBeenCalled()
+    fireEvent.click(button)
+    fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.replace }))
+  } else expect(screen.queryByRole('dialog')).toBeNull()
   await waitFor(() => expect(mocks.replace).toHaveBeenCalledOnce())
   const copied = mocks.replace.mock.calls[0]![0].rows[0].slots[1].blocks[0]
   expect(copied.id).not.toBe(original.id); expect(copied.items[0].id).not.toBe('nested-array')
@@ -96,4 +108,93 @@ test('Original row has no copy action', async () => {
   prepare(); setPayloadUiState({ rowLabel: { path: 'layout.0.slots.0', data: { slot: 'control' } } })
   render(<><BlockStatusField {...props} /><CopyOriginalField {...{ ...actionProps, path: 'layout.0.slots.0.xpCopyOriginal' }} /></>)
   await screen.findByText(BLOCK_COPY.running); expect(screen.queryByText(BLOCK_COPY.copy)).toBeNull()
+})
+
+test('each copy row has a stable unique modal slug', async () => {
+  prepare({ ...live, arms: [...live.arms, { key: 'variantB', label: 'Third' }] })
+  render(<><BlockStatusField {...props} /><CopyOriginalField {...actionProps} /><CopyOriginalField {...actionProps} /></>)
+  const buttons = await screen.findAllByText(BLOCK_COPY.copy)
+  fireEvent.click(buttons[0]!)
+  const first = screen.getByRole('dialog').getAttribute('data-modal-slug')
+  fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.cancel }))
+  fireEvent.click(buttons[1]!)
+  expect(screen.getByRole('dialog').getAttribute('data-modal-slug')).not.toBe(first)
+  fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.cancel }))
+  fireEvent.click(buttons[0]!)
+  expect(screen.getByRole('dialog').getAttribute('data-modal-slug')).toBe(first)
+})
+test.each(['draft', 'stopped'] as const)('failed %s sync offers a working retry', async status => {
+  prepare({ ...live, status, arms: [{ key: 'control', label: 'Original' }] })
+  mocks.replace.mockRejectedValueOnce(new Error('transport'))
+  render(all())
+  expect(await screen.findByRole('alert')).toHaveProperty('textContent', API_MESSAGES.failed)
+  expect(mocks.replace).toHaveBeenCalledOnce()
+  fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.retry }))
+  expect(await screen.findByText('Versions were updated to match the test. Save draft to keep them.')).toBeTruthy()
+  expect(mocks.replace).toHaveBeenCalledTimes(2)
+  expect(screen.queryByRole('alert')).toBeNull(); expect(screen.queryByText(BLOCK_COPY.retry)).toBeNull()
+})
+test('failed sync retry remains manage gated', async () => {
+  prepare({ ...live, status: 'draft', arms: [{ key: 'control', label: 'Original' }] })
+  mocks.replace.mockRejectedValueOnce(new Error('transport')); render(all())
+  await screen.findByRole('button', { name: BLOCK_COPY.retry })
+  act(() => setPayloadUiState({ auth: { permissions: { collections: {} } } }))
+  expect(screen.queryByRole('button', { name: BLOCK_COPY.retry })).toBeNull()
+  expect(mocks.replace).toHaveBeenCalledOnce()
+})
+test('same-commit owner replacement makes exactly one fresh read under StrictMode', async () => {
+  prepare()
+  const view = render(<StrictMode><BlockStatusField key="first" {...props} /><BlockSlotRowLabel /></StrictMode>)
+  await screen.findByText('New hero'); expect(fetch).toHaveBeenCalledOnce()
+  fetch.mockResolvedValue({ ok: true, json: async () => ({ slugs: { 'hero-test': { ...live, arms: [{ key: 'variantA', label: 'Fresh hero' }] } } }) })
+  view.rerender(<StrictMode><BlockStatusField key="second" {...props} /><BlockSlotRowLabel /></StrictMode>)
+  expect(await screen.findByText('Fresh hero')).toBeTruthy(); expect(fetch).toHaveBeenCalledTimes(2)
+})
+test('labels alone own no read; losing the last owner evicts status while a label stays mounted', async () => {
+  prepare()
+  const view = render(<BlockSlotRowLabel />)
+  expect(view.container.textContent).toBe('Variant A'); expect(fetch).not.toHaveBeenCalled()
+  view.rerender(<><BlockSlotRowLabel /><BlockStatusField {...props} /></>)
+  await screen.findByText('New hero'); expect(fetch).toHaveBeenCalledOnce()
+  view.rerender(<><BlockSlotRowLabel /></>)
+  await waitFor(() => expect(view.container.textContent).toBe('Variant A'))
+  fetch.mockResolvedValue({ ok: true, json: async () => ({ slugs: { 'hero-test': { ...live, arms: [{ key: 'variantA', label: 'Fresh hero' }] } } }) })
+  view.rerender(<><BlockSlotRowLabel /><BlockStatusField {...props} /></>)
+  await screen.findByText('Fresh hero'); expect(fetch).toHaveBeenCalledTimes(2)
+})
+
+test('typing elsewhere does not re-adapt panel, label or action configs', async () => {
+  prepare(); render(all()); await screen.findByText('New hero')
+  expect(mocks.adapt).toHaveBeenCalledTimes(3)
+  act(() => setPayloadUiState({ formFields: { title: { value: 'New title' } } }))
+  expect(mocks.adapt).toHaveBeenCalledTimes(3)
+})
+test('two live owners share one request through StrictMode replay', async () => {
+  prepare(); render(<StrictMode><BlockStatusField {...props} /><BlockStatusField {...props} /><BlockSlotRowLabel /></StrictMode>)
+  await screen.findByText('New hero'); expect(fetch).toHaveBeenCalledOnce()
+})
+
+test.each(['running', 'decided', 'archived'] as const)('failed sync cannot retry after the test becomes %s', async nextStatus => {
+  const status: LiveBlockStatus = { ...live, status: 'draft', arms: [{ key: 'control', label: 'Original' }] }
+  prepare(status); mocks.replace.mockRejectedValueOnce(new Error('transport'))
+  const view = render(all()); await screen.findByRole('button', { name: BLOCK_COPY.retry })
+  status.status = nextStatus
+  view.rerender(all())
+  expect(screen.queryByRole('button', { name: BLOCK_COPY.retry })).toBeNull()
+  expect(mocks.replace).toHaveBeenCalledOnce()
+})
+
+test.each(['draft', 'stopped'] as const)('same-commit %s owner replacement syncs only fresh arms', async status => {
+  prepare({ ...live, status })
+  const view = render(<BlockStatusField key="old" {...props} />)
+  await screen.findByText(status === 'draft' ? 'This block is being tested in the draft test Hero. Visitors see the Original until it starts.' : BLOCK_COPY.stopped)
+  expect(mocks.replace).not.toHaveBeenCalled()
+  let respond!: (value: unknown) => void
+  fetch.mockImplementationOnce(() => new Promise(resolve => { respond = resolve }))
+  view.rerender(<BlockStatusField key="new" {...props} />)
+  expect(fetch).toHaveBeenCalledTimes(2); expect(mocks.replace).not.toHaveBeenCalled()
+  await act(async () => respond({ ok: true, json: async () => ({ slugs: { 'hero-test': { ...live, status, arms: [{ key: 'control', label: 'Original' }, { key: 'variantB', label: 'Fresh version' }] } } }) }))
+  await screen.findByText('Versions were updated to match the test. Save draft to keep them.')
+  expect(mocks.replace).toHaveBeenCalledOnce()
+  expect(mocks.replace.mock.calls[0]![0].rows[0].slots.map((row: any) => row.slot)).toEqual(['control', 'variantB'])
 })

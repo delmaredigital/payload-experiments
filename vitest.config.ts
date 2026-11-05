@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 // One root config, one project per package. Tests never boot Payload or a
 // database: they inject fakes. `tests/parity` in the stats package compares
@@ -23,10 +23,24 @@ export default defineConfig({
         ssr: { resolve: { conditions: ['@delmaredigital/source', 'module', 'node', 'development|production'] } },
         test: {
           name: 'plugin',
+          exclude: [...configDefaults.exclude, 'tests/admin/blocks/formApi.v3.test.tsx'],
           root: 'packages/plugin',
           globals: true,
           environment: 'node',
           include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+        },
+      },
+      {
+        resolve: { conditions: ['@delmaredigital/source', 'module', 'browser', 'development|production'] },
+        ssr: { resolve: { conditions: ['@delmaredigital/source', 'module', 'node', 'development|production'] } },
+        test: {
+          name: 'plugin-form-api',
+          root: 'packages/plugin',
+          // Only the real-Form probe needs Vite to handle the public UI's CSS.
+          // Keep dependency handling in the other plugin tests unchanged.
+          server: { deps: { inline: ['@payloadcms/ui', 'react-image-crop'] } },
+          environment: 'jsdom',
+          include: ['tests/admin/blocks/formApi.v3.test.tsx'],
         },
       },
     ],

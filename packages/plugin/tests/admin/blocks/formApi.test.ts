@@ -1,4 +1,5 @@
 import { expect, test, vi } from 'vitest'
+import { BLOCK_COPY } from '../../../src/admin/copy/blocks.js'
 import { replaceBlockRow } from '../../../src/admin/blocks/formApi.js'
 import { original } from './fixtures.js'
 function setup(rows = [original]) {
@@ -33,13 +34,13 @@ test('N=0 removes row and normalizes only an empty whole field to []', async () 
 })
 test('rejects source edits while creating the draft or loading preferences, before any state request', async () => {
   const { args, edit, form } = setup(); edit([{ ...original, items: [] }])
-  await expect(replaceBlockRow(args)).rejects.toThrow()
+  await expect(replaceBlockRow(args)).rejects.toThrow(BLOCK_COPY.blockChanged)
   expect(args.getFormState).not.toHaveBeenCalled(); expect(form.replaceFieldRow).not.toHaveBeenCalled()
 })
 test('rejects any blocks-field edit while getFormState is pending and performs no mutation', async () => {
   const { args, edit, form } = setup()
   args.getFormState.mockImplementation(async () => { edit([original, { ...original, id: 'added' }]); return { state: {} } })
-  await expect(replaceBlockRow(args)).rejects.toThrow()
+  await expect(replaceBlockRow(args)).rejects.toThrow(BLOCK_COPY.blockChanged)
   expect(form.replaceFieldRow).not.toHaveBeenCalled(); expect(form.dispatchFields).not.toHaveBeenCalled()
 })
 test('missing server state is a failure with no mutation', async () => {

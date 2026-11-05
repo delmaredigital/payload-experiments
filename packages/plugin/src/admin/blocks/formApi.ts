@@ -1,7 +1,12 @@
 import type { ClientBlock, ClientConfig, ClientField, Field, FormState } from 'payload'
 import type { useForm, useServerFunctions } from '@payloadcms/ui'
 import { EXPERIMENT_BLOCK_SLUG, hostBlocks, type HostBlock } from '../../blocks/model.js'
-import { API_MESSAGES } from '../copy/common.js'
+import { BLOCK_COPY } from '../copy/blocks.js'
+
+/** The only form-state failure with block-specific editor copy. */
+export class BlockChangedError extends Error {
+  constructor() { super(BLOCK_COPY.blockChanged) }
+}
 
 export type RowsField = Extract<Field, { type: 'blocks' }>
 export const wrapMode: 'form-api' | 'fallback' = 'form-api'
@@ -64,7 +69,7 @@ export async function replaceBlockRow(args: {
 }): Promise<void> {
   const { form, getFormState, collectionSlug, id, field, index, rows } = args
   const data = form.getData(), before = hostBlocks(data[field])
-  if (args.expectedBlock && JSON.stringify(before[index]) !== JSON.stringify(args.expectedBlock)) throw new Error(API_MESSAGES.roundChanged)
+  if (args.expectedBlock && JSON.stringify(before[index]) !== JSON.stringify(args.expectedBlock)) throw new BlockChangedError()
   const original = JSON.stringify(data[field])
   const next = [...before.slice(0, index), ...rows, ...before.slice(index + 1)]
   const result = await getFormState({ collectionSlug, id, schemaPath: collectionSlug,
@@ -72,7 +77,8 @@ export async function replaceBlockRow(args: {
     docPreferences: args.docPreferences ?? { fields: {} }, operation: id == null ? 'create' : 'update',
     renderAllFields: true, skipValidation: true,
   })
-  if (!result.state || JSON.stringify(form.getDataByPath(field)) !== original) throw new Error(API_MESSAGES.roundChanged)
+  if (JSON.stringify(form.getDataByPath(field)) !== original) throw new BlockChangedError()
+  if (!result.state) throw new Error('Missing server form state')
   const state = result.state
   function subFieldState(rowIndex: number): FormState {
     const prefix = `${field}.${rowIndex}.`
