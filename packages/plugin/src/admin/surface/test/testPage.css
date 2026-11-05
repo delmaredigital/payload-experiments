@@ -16,6 +16,7 @@
 .xp-version-content { display: flex; flex-wrap: nowrap; gap: var(--xp-space-2); align-items: center; min-width: 0; }
 .xp-version-content .xp-ui-button { white-space: nowrap; }
 .xp-version-content--page { flex-direction: column; align-items: stretch; gap: var(--xp-space-3); }
+.xp-version-content--page > button { align-self: flex-start; }
 .xp-page-picker input[type="search"] { width: 100%; }
 .xp-page-picker ul { list-style: none; padding: 0; margin-block: var(--xp-space-3); }
 .xp-page-picker li > button { display: block; width: 100%; text-align: left; }
