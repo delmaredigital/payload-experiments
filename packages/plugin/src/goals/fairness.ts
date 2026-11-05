@@ -64,9 +64,9 @@ export async function goalContent<TUser extends { id: DocId }>(req: PayloadReque
       const placement = { collection: collection.slug, path: arm.pageTarget! }
       try {
         const page = await collection.findByPath(arm.pageTarget!, req)
-        if (!page?.published) { unchecked.push(placement); continue }
+        if (!page?.published) continue
         const doc = await clickGoalContent(req, collection.slug, page.id)
-        if (!doc) { unchecked.push({ ...placement, id: page.id }); continue }
+        if (!doc) continue
         collect(collection.contentOf(doc), byArm.get(arm.key)!, '', labels)
         readArms.add(arm.key)
       } catch (error) { failed(error, placement) }
@@ -81,7 +81,7 @@ export async function goalContent<TUser extends { id: DocId }>(req: PayloadReque
     for (const placement of docs) {
       try {
         const doc = await clickGoalContent(req, placement.collection, placement.id)
-        if (!doc) { unchecked.push(placement); continue }
+        if (!doc) continue
         const editor = documentEditor(options, placement.collection, doc)
         if (editor === 'blocks') {
           const registration = options.blocks?.collections.find(c => c.slug === placement.collection)

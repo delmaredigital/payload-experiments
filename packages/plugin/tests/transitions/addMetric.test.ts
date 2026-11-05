@@ -162,6 +162,11 @@ test.each(['secondary', 'guardrail'] as const)('add-metric reports unchecked pla
     Object.assign(f.payload.documents['xp-metrics']![1]!, { source: 'click:join', slug: 'join' })
     f.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async path => ({ id: path === '/a' ? 7 : path === '/b' ? 8 : 9, published: true }), contentOf: doc => doc.layout }] }
     f.payload.documents.pages = [{ id: 7, layout: [{ xpGoal: 'join' }] }, { id: 8, layout: disagree ? [] : [{ xpGoal: 'join' }] }]
+    const find = f.payload.db.findOne.bind(f.payload.db)
+    vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => {
+      if ((args.where?.id as { equals?: number })?.equals === 9) throw new Error('unreadable')
+      return find(args)
+    })
     const result = addMetric(f.req, { experimentId: 1, metric: 4, role, options: f.options })
     if (disagree && role === 'guardrail') {
       await expect(result).rejects.toMatchObject({ code: 'goal-in-some-versions' })
@@ -169,7 +174,7 @@ test.each(['secondary', 'guardrail'] as const)('add-metric reports unchecked pla
     } else {
       expect((await result).warnings).toEqual([
         ...(disagree ? [{ code: 'goal-in-some-versions', detail: { metricId: 4, name: 'Gifts' } }] : []),
-        { code: 'placement-unchecked', detail: { collection: 'pages', id: 9, path: '/unreadable' } },
+        { code: 'placement-unchecked', detail: { collection: 'pages', path: '/unreadable' } },
         { code: 'goal-added-mid-test', detail: { metricId: 4 } },
       ])
     }

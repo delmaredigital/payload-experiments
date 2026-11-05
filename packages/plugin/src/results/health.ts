@@ -8,6 +8,7 @@ const healthKey = (row: SnapshotHealth): string => JSON.stringify(row.code === '
 export function mergePageHealth(previous: readonly SnapshotHealth[], pages: readonly SnapshotHealth[]): SnapshotHealth[] {
   return [...new Map([...previous.filter(row => row.code === 'goal-in-some-versions' || row.code === 'placement-unchecked'), ...pages].map(row => [healthKey(row), row])).values()]
 }
-export function canonicalHealth(snapshot: Pick<Snapshot, 'health' | 'goalFairnessNotice'>): string {
-  return JSON.stringify([snapshot.goalFairnessNotice ?? '', ...(snapshot.health ?? []).map(healthKey).sort()])
+export function canonicalHealth(snapshot: Pick<Snapshot, 'health' | 'goalFairnessNotice'>, ignoreUncheckedPlacements = false): string {
+  return JSON.stringify([snapshot.goalFairnessNotice ?? '', ...(snapshot.health ?? [])
+    .filter(row => !ignoreUncheckedPlacements || row.code !== 'placement-unchecked').map(healthKey).sort()])
 }

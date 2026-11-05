@@ -240,16 +240,19 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
         const unchecked = (content?.unchecked ?? []).map(placement => ({ code: 'placement-unchecked' as const, detail: goalPlacementDetail(placement) }))
         for (const [index, snapshot] of snapshots.entries()) {
           const previous = phases[index]!.previousHealth ?? phases[index]!.frozenSnapshot?.health ?? []
-          snapshot.health = mergePageHealth(content && !content.unchecked.length ? [] : previous, [...health, ...goals, ...unchecked])
+          const unjudged = previous.filter(row => row.code === 'goal-in-some-versions'
+            && content && content.unchecked.length > 0 && arms.some(arm => !content.readArms.includes(arm.key))
+            && clicks.some(metric => metric.metricId === row.metricId && !asymmetricGoal(content, metric.source, arms)))
+          snapshot.health = mergePageHealth(unjudged, [...health, ...goals, ...unchecked])
           if (content?.skipped && current.kind === 'block') snapshot.goalFairnessNotice = LEGACY_FAIRNESS
           else delete snapshot.goalFairnessNotice
         }
       }
       if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
       // Order and optional empty health are semantically identical. Frozen
-      // inference gets a new row only when its page availability changes.
+      // inference ignores transient placement read errors when comparing health.
       const changed = snapshots.filter((snapshot, index) => !phases[index]!.frozenSnapshot
-        || canonicalHealth(snapshot) !== canonicalHealth(phases[index]!.frozenSnapshot!))
+        || canonicalHealth(snapshot, true) !== canonicalHealth(phases[index]!.frozenSnapshot!, true))
       // Unchanged health is a successful refresh with nothing to write.
       if (!changed.length) { summary.ran++; continue }
       await writeSnapshots(exec, changed)

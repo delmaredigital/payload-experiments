@@ -215,10 +215,15 @@ test.each(['primary', 'guardrail'] as const)('preflight judges readable arms wit
     Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', name: 'Join' })
     f.payload.documents['xp-metrics']!.push({ id: 3, source: 'events:signup' })
     f.payload.documents.pages = [{ id: 7, layout: [{ xpGoal: 'join' }] }, { id: 8, layout: disagree ? [] : [{ xpGoal: 'join' }] }]
+    const find = f.payload.db.findOne.bind(f.payload.db)
+    vi.spyOn(f.payload.db, 'findOne').mockImplementation(async args => {
+      if ((args.where?.id as { equals?: number })?.equals === 9) throw new Error('unreadable')
+      return find(args)
+    })
     f.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async path => ({ id: path === '/a' ? 7 : path === '/b' ? 8 : 9, published: true }), contentOf: doc => doc.layout }] }
     const result = (await preflightData(f.req, { experimentId: 1, options: f.options }, { now }))!
     expect(result.checks.filter(c => !c.ok).map(c => c.code)).toEqual(disagree ? ['goal-in-some-versions'] : [])
-    expect(result.checks).toContainEqual({ code: 'placement-unchecked', ok: true, warning: true, detail: { collection: 'pages', id: 9, path: '/unreadable' } })
+    expect(result.checks).toContainEqual({ code: 'placement-unchecked', ok: true, warning: true, detail: { collection: 'pages', path: '/unreadable' } })
     expect(result.goalNotes).toEqual([])
   }
 }, 5_000) // Measured 2 ms locally; cap exceeds 3×.

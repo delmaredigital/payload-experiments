@@ -846,16 +846,138 @@ test.each([
   clock += 1000
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
   const after = await snapshots()
-  expect(after).toHaveLength(2)
+  expect(after).toHaveLength(frozen ? 1 : 2)
   expect((after[0]!.snapshot as Snapshot).health).toEqual(amber)
   const expected = [...amber, ...[...(partial ? [] : [7]), 8].map(id => ({ code: 'placement-unchecked', detail: { collection: 'pages', id } }))]
-  expect((after[1]!.snapshot as Snapshot).health).toEqual(expected)
+  if (frozen) expect(after).toEqual(before)
+  else expect((after[1]!.snapshot as Snapshot).health).toEqual(expected)
   clock += 1000
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
   const repeated = await snapshots()
-  expect(repeated).toHaveLength(frozen ? 2 : 3)
-  expect((repeated.at(-1)!.snapshot as Snapshot).health).toEqual(expected)
+  expect(repeated).toHaveLength(frozen ? 1 : 3)
+  expect((repeated.at(-1)!.snapshot as Snapshot).health).toEqual(frozen ? amber : expected)
+  read.mockImplementation(async () => content)
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const recovered = await snapshots()
+  expect(recovered).toHaveLength(frozen ? 1 : 4)
+  expect((recovered.at(-1)!.snapshot as Snapshot).health).toEqual(amber)
+  if (frozen) expect(recovered).toEqual(before)
 }, 5_000) // Measured 20 ms locally; cap exceeds 3×.
+
+test.each(['deleted', 'unpublished', 'throwing', 'readable'] as const)('a block goal fix clears stale amber health with a %s frozen placement', async state => {
+  let clock = now
+  vi.spyOn(Date, 'now').mockImplementation(() => clock)
+  const phase = await seed('visitor', { metricDefinitions: [clickMetric] })
+  await database.db.update(xp_experiments).set({ kind: 'block', phase: 1 }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  await database.db.update(xp_phases).set({ placementDocs: [{ collection: 'pages', id: 7 }, { collection: 'pages', id: 8 }] }).where(eq(xp_phases.experiment, Number(phase.experiment)))
+  const context = payload()
+  context.options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  Object.assign(context.payload.config, { collections: [{ slug: 'pages', versions: { drafts: true } }] })
+  const content = { id: 7, _status: 'published', layout: [{ blockType: 'xpExperiment', experiment: `frozen-${serial}`, slots: [
+    { slot: 'control', blocks: [{ blockType: 'cta', xpGoal: 'join' }] }, { slot: 'variantA', blocks: [] as { blockType: string; xpGoal: string }[] },
+  ] }] }
+  const read = vi.fn(async (_args: { where: { id: { equals: number } } }) => content as typeof content | null)
+  Object.assign(context.payload.db, { findOne: read })
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(((await snapshots())[0]!.snapshot as Snapshot).health).toEqual([{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' }])
+  content.layout[0]!.slots[1]!.blocks.push({ blockType: 'cta', xpGoal: 'join' })
+  read.mockImplementation(async ({ where }) => {
+    if (where.id.equals === 7 || state === 'readable') return content
+    if (state === 'throwing') throw new Error('unreadable')
+    return state === 'deleted' ? null : { ...content, id: 8, _status: 'draft' }
+  })
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const after = await snapshots()
+  expect(after).toHaveLength(2)
+  expect((after[1]!.snapshot as Snapshot).health).toEqual(state === 'throwing'
+    ? [{ code: 'placement-unchecked', detail: { collection: 'pages', id: 8 } }] : [])
+  read.mockImplementation(async () => content)
+  clock += 1000
+  await runResults(context.payload, { sweep: false })
+  expect(((await snapshots()).at(-1)!.snapshot as Snapshot).health).toEqual([])
+}, 5_000) // Measured 6 ms locally; cap exceeds 3×.
+
+test('partial page reads carry only unjudged goals, refresh asymmetric goals, and clear fixes after all arms are read', async () => {
+  let clock = now
+  vi.spyOn(Date, 'now').mockImplementation(() => clock)
+  const gift = { ...clickMetric, metricId: 'gift', name: 'Gift clicks', source: 'click:gift', role: 'secondary' as const }
+  const phase = await seed('visitor', { metricDefinitions: [clickMetric, gift], arms: [
+    { key: 'control', label: 'Original', kind: 'control', weight: 34, pageTarget: '/a' },
+    { key: 'variantA', label: 'A', kind: 'variant', weight: 33, pageTarget: '/b' },
+    { key: 'variantB', label: 'B', kind: 'variant', weight: 33, pageTarget: '/c' },
+  ] })
+  await database.db.update(xp_experiments).set({ kind: 'page', phase: 1, pageCollection: 'pages' }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  const context = payload()
+  context.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', contentOf: doc => doc.layout,
+    findByPath: async path => ({ id: path === '/a' ? 7 : path === '/b' ? 8 : 9, published: true }),
+  }] }
+  Object.assign(context.payload.config, { collections: [{ slug: 'pages', fields: [] }] })
+  let stage = 0
+  Object.assign(context.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+    const id = where.id.equals
+    if (stage === 1 && id === 9) throw new Error('unreadable')
+    return { id, layout: id === 7 || stage === 2 ? [{ xpGoal: 'join' }, { xpGoal: 'gift' }] : stage === 1 ? [{ xpGoal: 'join' }] : [] }
+  }) })
+  const amber = (metricId: string, name: string) => ({ code: 'goal-in-some-versions', metricId, name })
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(((await snapshots())[0]!.snapshot as Snapshot).health).toEqual([amber('click', 'Join clicks'), amber('gift', 'Gift clicks')])
+  // The carried row keeps its old name; a freshly judged asymmetry uses the current definition.
+  await database.db.update(xp_phases).set({ metricDefinitions: [{ ...clickMetric, name: 'Join refreshed' }, { ...gift, name: 'Gift refreshed' }] }).where(eq(xp_phases.experiment, Number(phase.experiment)))
+  stage = 1
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(((await snapshots()).at(-1)!.snapshot as Snapshot).health).toEqual([
+    amber('click', 'Join clicks'), amber('gift', 'Gift refreshed'),
+    { code: 'placement-unchecked', detail: { collection: 'pages', path: '/c' } },
+  ])
+  stage = 2
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(((await snapshots()).at(-1)!.snapshot as Snapshot).health).toEqual([])
+}, 5_000) // Measured 12 ms locally; cap exceeds 3×.
+
+test('frozen goal health writes real changes with unchecked placements but ignores read failure and recovery alone', async () => {
+  let clock = now
+  vi.spyOn(Date, 'now').mockImplementation(() => clock)
+  const phase = await seed('visitor', { metricDefinitions: [clickMetric], endedAt: new Date(start + 1000).toISOString() })
+  await database.db.update(xp_experiments).set({ kind: 'block', phase: 1, status: 'decided', decision_winnerArm: 'variantA' }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  await database.db.update(xp_phases).set({ placementDocs: [{ collection: 'pages', id: 7 }, { collection: 'pages', id: 8 }] }).where(eq(xp_phases.experiment, Number(phase.experiment)))
+  const context = payload()
+  context.options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  Object.assign(context.payload.config, { collections: [{ slug: 'pages', fields: [] }] })
+  const content = { id: 7, layout: [{ blockType: 'xpExperiment', experiment: `frozen-${serial}`, slots: [
+    { slot: 'control', blocks: [{ blockType: 'cta', xpGoal: 'join' }] }, { slot: 'variantA', blocks: [{ blockType: 'cta', xpGoal: 'join' }] },
+  ] }] }
+  let unreadable = false
+  Object.assign(context.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+    if (unreadable && where.id.equals === 8) throw new Error('unreadable')
+    return content
+  }) })
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const original = (await snapshots())[0]!.snapshot as Snapshot
+  expect(original.health).toEqual([])
+  content.layout[0]!.slots[1]!.blocks = []
+  unreadable = true
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const changed = await snapshots()
+  const health = [{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' },
+    { code: 'placement-unchecked', detail: { collection: 'pages', id: 8 } }]
+  expect(changed).toHaveLength(2)
+  expect(changed[1]!.snapshot).toEqual({ ...original, computedAt: new Date(clock).toISOString(), health })
+  unreadable = false
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(await snapshots()).toEqual(changed)
+  content.layout[0]!.slots[1]!.blocks.push({ blockType: 'cta', xpGoal: 'join' })
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const fixed = await snapshots()
+  expect(fixed).toHaveLength(3)
+  expect(fixed[2]!.snapshot).toEqual({ ...original, computedAt: new Date(clock).toISOString() })
+}, 5_000) // Measured 7 ms locally; cap exceeds 3×.
 
 test.each(['running', 'decided'] as const)('page goal health reads published page content using served arms (%s)', async status => {
   vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -874,7 +996,6 @@ test.each(['running', 'decided'] as const)('page goal health reads published pag
   expect(findByPath.mock.calls.some(([path]) => path === '/loser')).toBe(status === 'running')
 }, 5_000) // Measured 5 ms locally; cap exceeds 3×.
 
-
 test.each([false, true])('results show a never-readable placement and readable-arm asymmetry (disagree: %s)', async disagree => {
   vi.spyOn(Date, 'now').mockReturnValue(now)
   const phase = await seed('visitor', { metricDefinitions: [clickMetric], arms: [
@@ -888,11 +1009,12 @@ test.each([false, true])('results show a never-readable placement and readable-a
   Object.assign(context.payload.config, { collections: [{ slug: 'pages', fields: [] }] })
   Object.assign(context.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
     const id = where.id.equals
-    return id === 9 ? null : { id, layout: disagree && id === 8 ? [] : [{ xpGoal: 'join' }] }
+    if (id === 9) throw new Error('unreadable')
+    return { id, layout: disagree && id === 8 ? [] : [{ xpGoal: 'join' }] }
   }) })
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
   expect(((await snapshots())[0]!.snapshot as Snapshot).health).toEqual([
     ...(disagree ? [{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' }] : []),
-    { code: 'placement-unchecked', detail: { collection: 'pages', id: 9, path: '/unreadable' } },
+    { code: 'placement-unchecked', detail: { collection: 'pages', path: '/unreadable' } },
   ])
 }, 5_000) // Measured 7 ms locally; cap exceeds 3×.

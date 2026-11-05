@@ -856,9 +856,11 @@ version table) gains a nullable text column. Render the value on the actual
 interactive element as `data-xp-goal={xpGoal}`; code can also set
 `data-xp-goal="join"` directly. Define a click goal with that short name first.
 The Payload field validates a manager's key against defined click goals and
-refuses a save or publish with an undefined key, refreshing a cached miss
-immediately. The field/prop configs use plain text. Goals in related documents
-and keys placed only in code are invisible to the content fairness check.
+refuses publishing with an undefined key, refreshing a cached miss immediately.
+Draft saves are also refused when the collection validates drafts
+(`versions.drafts.validate`). The field/prop configs use plain text. Goals in
+related documents and keys placed only in code are invisible to the content
+fairness check.
 
 `ExperimentsProvider` records native clicks when its server assignments arm
 click goals. Nested providers share one document listener; the deepest armed
