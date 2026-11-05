@@ -97,3 +97,8 @@ test('page health moves a running test to Needs attention even without a verdict
   expect(healthDot(doc, { ...summary('data-problem'), health: [{ code: 'version-page-unchecked', path: '/page' }] })).toBe('red')
   expect(groupTests([doc], { page: unavailable })[0]?.tests).toEqual([doc])
 })
+
+test('an unfinished whole-page draft has the Choose pages next step', () => {
+  expect(homeCard({ ...testDoc('page'), kind: 'page' }, { exposures: 0, days: 0, verdict: null, ready: false, next: { code: 'page-no-targets' } }, '/admin'))
+    .toMatchObject({ line: 'Next: Choose pages', href: '/admin/experiments/page', action: 'Continue setup' })
+})

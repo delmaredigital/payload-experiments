@@ -9,8 +9,8 @@ export interface TestsSurfaceProps {
   adminRoute: string
   apiRoute: string
   isAdmin: boolean
-  pages?: Array<{ collection: string; collectionLabel: string; id: DocId; title: string; editorUrl: string }>
-  pageCollections?: Array<{ slug: string; label: string; copyHint?: string; copyUrl?: string; copyLabel?: string }>
+  pages?: Array<{ collection: string; collectionLabel: string; id: DocId; title: string; editorUrl: string; editor: 'puck' | 'blocks' }>
+  pageCollections?: Array<{ slug: string; label: string; contentChecks: boolean; copyHint?: string; copyUrl?: string; copyLabel?: string }>
   canManage: boolean
   canReadResults: boolean
   flagPoints: SerializedFlagPoint[]

@@ -3,6 +3,10 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import * as paths from '../../src/admin/paths.js'
 const admin = [
+  ['XP_TEST_BLOCK', 'TestBlockField', 'blocks/TestBlockField'],
+  ['XP_BLOCK_STATUS', 'BlockStatusField', 'blocks/BlockPanel'],
+  ['XP_BLOCK_ROW_LABEL', 'BlockSlotRowLabel', 'blocks/BlockPanel'],
+  ['XP_COPY_ORIGINAL', 'CopyOriginalField', 'blocks/BlockPanel'],
   ['XP_PLACEMENT_STATUS', 'PlacementStatus', 'PlacementStatus'],
   ['XP_TESTS_NAV_CLIENT', 'TestsNavLink', 'TestsNavLink'],
   ['XP_TESTS_SURFACE', 'TestsSurface', 'surface/TestsSurface'],
@@ -32,7 +36,7 @@ const views = [
 ] as const
 const files = [
   'admin/surface/newTest/NewTest.tsx', 'admin/surface/ResultsRoute.tsx',
-  ...admin.map(([, , file]) => `admin/${file}.tsx`),
+  ...new Set(admin.map(([, , file]) => `admin/${file}.tsx`)),
   'client/ExperimentsProvider.tsx', 'client/useFlagPoint.ts', 'client/useExperiment.ts', 'client/ExperimentPageview.tsx', 'client/trackConversionBeacon.ts',
   'puck/ExperimentSlot.tsx', 'puck/experimentSlotField.ts', 'puck/editor/ExperimentSlotEditor.tsx', 'fields/armSelect.ts',
 ]

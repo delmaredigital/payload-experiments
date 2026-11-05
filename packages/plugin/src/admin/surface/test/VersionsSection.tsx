@@ -11,6 +11,8 @@ import { addHoldoutArm, addVariant, issuesByRow, removeArm, splitEvenly, totalWe
 import { allocationSentence } from '../../allocation.model.js'
 import { balanceWeight, orderedVersions, trafficShares } from './testPage.model.js'
 import { FieldErrors, ReadOnly, reasonFor, save, TextEdit } from './fields.js'
+import { PAGE_COPY } from '../../copy/pages.js'
+import { testPageCollection } from '../pagePicker/pagePicker.model.js'
 import { Section } from './Section.js'
 
 const COLOURS = { control: 'var(--xp-series-muted)', variantA: 'var(--xp-series-a)', variantB: 'var(--xp-series-b)', variantC: 'var(--xp-series-c)', holdout: 'var(--xp-series-muted)' }
@@ -34,9 +36,10 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
     save(test, 'allocation', () => ({ allocation }))
   }
   return <Section test={test} sectionId="versions">
+    {doc.kind === 'page' && testPageCollection(surface.pageCollections, doc, test.preflight?.pagePlacements)?.contentChecks === false ? <p>{PAGE_COPY.contentChecksOff}</p> : null}
     {reason ? <p className="xp-ui-help">{reason}</p> : null}
     <div className="xp-version-rows"><div className="xp-version-grid-head" aria-hidden="true"><span>{C.label}</span><span>{C.weight}</span><span /><span /></div>
-    {ordered.map(({ arm, index }) => <article className="xp-version-row" key={arm.key}>
+    {ordered.filter(({ arm }) => doc.kind !== 'page' || arm.kind !== 'holdout').map(({ arm, index }) => <article className="xp-version-row" key={arm.key} id={`xp-version-${arm.key}`} tabIndex={-1}>
       <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.label}`} value={arm.label} reason={reason} hideLabel disabled={Boolean(reason)}
         onCommit={label => update(arms => arms.map(current => current.key === arm.key ? { ...current, label } : current))} />
       <TextEdit label={`${GROUP_LABELS[arm.key]}: ${C.weight}`} type="number" min={0} max={100} value={doc.arms[index]!.weight} reason={reason} hideLabel disabled={Boolean(reason)}
@@ -56,8 +59,8 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
     {test.errors.arms ? <p role="alert">{test.errors.arms}</p> : null}
     <div className="xp-section-actions xp-ui-button-group" title={reason ?? undefined}>
       <Button disabled={Boolean(reason) || doc.arms.filter(arm => arm.kind === 'variant').length >= 3} onClick={() => update(arms => addVariant(arms, doc.kind))}>{C.addVersion}</Button>
-      <Button disabled={Boolean(reason) || doc.arms.some(arm => arm.kind === 'holdout')} onClick={() => update(addHoldoutArm)}>{C.addHoldout}</Button>
-      <Button disabled={Boolean(reason)} onClick={() => update(splitEvenly)}>{C.split}</Button></div>{doc.arms.some(arm => arm.kind === 'holdout') ? <p className="xp-ui-help">{ARMS_COPY.holdout}</p> : null}
+      {doc.kind !== 'page' ? <Button disabled={Boolean(reason) || doc.arms.some(arm => arm.kind === 'holdout')} onClick={() => update(addHoldoutArm)}>{C.addHoldout}</Button> : null}
+      <Button disabled={Boolean(reason)} onClick={() => update(splitEvenly)}>{C.split}</Button></div>{doc.kind !== 'page' && doc.arms.some(arm => arm.kind === 'holdout') ? <p className="xp-ui-help">{ARMS_COPY.holdout}</p> : null}
     {reasonFor(test, 'allocation') ? <ReadOnly label={C.allocation} value={`${doc.allocation}%`} reason={reasonFor(test, 'allocation')} />
       : <Range id={id} label={C.allocation} help={`${allocation}%`} min={1} max={100} value={allocation}
         onChange={e => { releasedAllocation.current = null; setAllocation(Number(e.target.value)) }} onPointerUp={commitAllocation} onKeyUp={e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) commitAllocation() }}

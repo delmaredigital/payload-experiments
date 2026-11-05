@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import type { TestsSurfaceProps } from '../../types/surface.js'
 import type { SerializedAttributeKeys, SerializedFlagPoint, SerializedMetricSource } from '../../types/admin.js'
 import type { useTestDocument } from './useTestDocument.js'
 
@@ -19,7 +20,8 @@ export interface SurfaceProps {
   flagPoints: SerializedFlagPoint[]
   attributeKeys: SerializedAttributeKeys
   metricSources: SerializedMetricSource[]
-  descriptions?: { block?: string; document?: string; setting?: string }
+  pageCollections?: TestsSurfaceProps['pageCollections']
+  admin?: TestsSurfaceProps['admin']
 }
 
 export interface SectionProps { test: TestDocApi; surface: SurfaceProps; resultsVersion?: number }

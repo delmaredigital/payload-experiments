@@ -74,3 +74,17 @@ for (const action of actions.filter(action => !action.host)) {
     }
   })
 }
+
+test('page setup refusals share copy and Choose pages stays a versions action', async () => {
+  const { unpublishedPageCopy, pageInUseCopy, sameAddressCopy } = await import('../../../src/admin/copy/readiness.js')
+  const { refuse } = await import('../../../src/transitions/start.js')
+  const { READINESS } = await import('../../../src/admin/surface/readiness/readiness.model.js')
+  for (const [code, detail, sentence] of [
+    ['page-target-unpublished', '/copy', unpublishedPageCopy('/copy')],
+    ['page-in-use', { paths: ['/copy'] }, pageInUseCopy('/copy')],
+    ['version-same-address', { arm: 'variantA', otherArm: 'control', path: '/copy' }, sameAddressCopy('Variant A', 'Original', '/copy')],
+  ] as const) {
+    expect(() => refuse(code, detail)).toThrow(sentence)
+    expect(READINESS[code]).toMatchObject({ section: 'versions', nextStep: 'Choose pages' })
+  }
+})

@@ -11,7 +11,7 @@ import { createApi } from '../../api.js'
 import { availableActions, actionGroupLabel } from '../../actions/actions.model.js'
 import type { ActionDecision, ActionId } from '../../actions/actions.model.js'
 import { AllocateAction, ConfirmAction } from '../readiness/ActionDialogs.js'
-import { READINESS, daysRemaining, displayDate, nextStep } from '../readiness/readiness.model.js'
+import { READINESS, daysRemaining, displayDate, nextStep, pageReadinessContext } from '../readiness/readiness.model.js'
 import { READINESS_COPY as R, runningCopy, stoppedCopy, decidedCopy } from '../../copy/readiness.js'
 import { RESULTS_COPY as C } from '../../copy/results.js'
 import { TEST_PAGE } from '../../copy/testPage.js'
@@ -36,7 +36,7 @@ export function ResultsHeader({ test, surface, resultsVersion, children, actions
   const available = availableActions({ status: doc.status, kind: doc.kind, arms: doc.arms, decision, canManage: surface.canManage })
     .filter(action => doc.status === 'running' ? ['allocate', 'stop'].includes(action.id) : action.id !== 'decide')
     .sort((a, b) => doc.status === 'running' ? ['allocate', 'stop'].indexOf(a.id) - ['allocate', 'stop'].indexOf(b.id) : 0)
-  const next = nextStep(test.preflight, { ...doc, flagPoints: surface.flagPoints })
+  const next = nextStep(test.preflight, pageReadinessContext(doc, test.preflight, surface))
   const ready = Boolean(test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
   const startReason = next?.sentence ?? (!ready ? test.preflightError ? R.checkError : R.checking : undefined)
   const action = available.find(item => item.id === selected)

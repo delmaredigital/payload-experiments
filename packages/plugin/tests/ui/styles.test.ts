@@ -7,6 +7,25 @@ function rule(selector: string): string {
   return rules.filter(m => m[1]!.trim().split(',').map(s => s.trim()).includes(selector)).map(m => m[2]).join('\n')
 }
 
+test('page content stacks with a full-width picker, quiet disabled reasons and indented copy steps', () => {
+  const page = readFileSync(new URL('../../src/admin/surface/test/testPage.css', import.meta.url), 'utf8')
+  const declarations = (selector: string) => [...page.matchAll(/([^{}]+)\{([^{}]+)\}/g)]
+    .filter(match => match[1]!.trim() === selector).map(match => match[2]).join('\n')
+  expect(declarations('.xp-version-content--page')).toContain('flex-direction: column')
+  expect(declarations('.xp-version-content--page')).toContain('align-items: stretch')
+  expect(declarations('.xp-version-content--page')).toMatch(/gap: var\(--xp-space-/)
+  expect(declarations('.xp-page-picker input[type="search"]')).toContain('width: 100%')
+  expect(declarations('.xp-page-picker ul')).toContain('list-style: none')
+  expect(declarations('.xp-page-picker ul')).toContain('padding: 0')
+  expect(declarations('.xp-page-picker li > button')).toContain('display: block')
+  expect(declarations('.xp-page-picker li > button')).toContain('width: 100%')
+  expect(declarations('.xp-page-picker li > button')).toContain('text-align: left')
+  expect(declarations('.xp-page-picker li > p')).toContain('color: var(--xp-text-2)')
+  expect(declarations('.xp-page-picker li > p')).toContain('font: var(--xp-text-small)')
+  expect(declarations('.xp-copy-route ol')).toContain('list-style: decimal')
+  expect(declarations('.xp-copy-route ol')).toMatch(/padding-inline-start: var\(--xp-space-/)
+})
+
 test('chips errors keep the red message and the same invalid border as text inputs', () => {
   expect(rule('.xp-ui-chips-control--invalid')).toContain('border-color: var(--xp-error)')
   expect(rule(".xp-ui-input[aria-invalid='true']")).toContain('border-color: var(--xp-error)')

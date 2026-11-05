@@ -5,7 +5,7 @@ import { formatDate } from '../format/date.js'
 import { armLabel } from '../labels.js'
 import { statusPill } from '../status.model.js'
 import { decidedLine, runningLine, SURFACE_COPY } from '../copy/surface.js'
-import { nextCopy } from '../copy/readiness.js'
+import { nextCopy, READINESS_COPY } from '../copy/readiness.js'
 import { READINESS } from './readiness/readiness.model.js'
 import type { ReadinessContext } from './readiness/readiness.model.js'
 import { sanitizeReadinessDetail } from '../../sanitizeReadinessDetail.js'
@@ -51,7 +51,7 @@ export function homeCard(test: HomeTest, summary: Summary, adminRoute: string, f
   if ((test.status === 'draft' || test.status === 'stopped') && summary?.ready !== true && next && Object.hasOwn(READINESS, next.code)) {
     // Keep unexpected text out of authored copy, including responses from older servers.
     const sentence = READINESS[next.code].next(sanitizeReadinessDetail(next.code, next.detail), { ...test, arms: test.arms ?? [], flagPoints })
-    if (sentence) line = nextCopy(sentence)
+    if (sentence) line = nextCopy(next.code === 'page-no-targets' ? READINESS_COPY.choosePages : sentence)
   }
   if (test.status === 'running') line = runningLine(number(summary?.days), number(test.analysis?.plannedDurationDays), number(summary?.exposures))
   if (test.status === 'decided') {

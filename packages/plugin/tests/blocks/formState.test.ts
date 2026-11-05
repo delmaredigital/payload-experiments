@@ -8,9 +8,9 @@ const text = { id: 'source', blockType: 'text', rows: [{ id: 'nested', text: 'Sa
 test('factory passes host configs through unmodified and validates row uniqueness without a unique index', () => {
   const blocks: Block[] = [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] }]
   const wrapper = createExperimentBlock({ blocks })
-  const slots = wrapper.fields[1] as Extract<Field, { type: 'array' }>
+  const slots = wrapper.fields[2] as Extract<Field, { type: 'array' }>
   expect(slots.unique).toBeUndefined()
-  expect((slots.fields[1] as Extract<Field, { type: 'blocks' }>).blocks).toBe(blocks)
+  expect((slots.fields[2] as Extract<Field, { type: 'blocks' }>).blocks).toBe(blocks)
   expect(slots.validate).toBe(validateExperimentSlots)
   expect(validateExperimentSlots([{ slot: 'control' }, { slot: 'control' }])).toBe('Each version appears once')
   expect(validateExperimentSlots([{ slot: 'control' }, { slot: 'variantA' }])).toBe(true)
@@ -41,14 +41,14 @@ test('factory uses editor-facing labels without changing the block admin', () =>
   const block = createExperimentBlock({ blocks: [] })
   expect(block.labels).toEqual({ singular: 'Experiment', plural: 'Experiments' })
   expect(block.admin).toBeUndefined()
-  expect(block.fields[0]).toMatchObject({ label: 'Test' })
-  const slots = block.fields[1] as Extract<Field, { type: 'array' }>
+  expect(block.fields[1]).toMatchObject({ label: 'Test' })
+  const slots = block.fields[2] as Extract<Field, { type: 'array' }>
   expect(slots.label).toBe('Versions')
-  expect(slots.fields[0]).toMatchObject({ label: 'Version', options: [
+  expect(slots.fields[1]).toMatchObject({ label: 'Version', options: [
     { label: 'Original', value: 'control' }, { label: 'Variant A', value: 'variantA' },
     { label: 'Variant B', value: 'variantB' }, { label: 'Variant C', value: 'variantC' },
   ] })
-  expect(slots.fields[1]).toMatchObject({ label: 'Content' })
+  expect(slots.fields[2]).toMatchObject({ label: 'Content' })
 }, 5000)
 
 test('fresh row ids follow named and unnamed containers and global block references only', () => {

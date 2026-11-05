@@ -284,7 +284,7 @@ test.each(['missing', 'draft', 'throws'] as const)('unpublished page target (%s)
   options.pages = { collections: [{ slug: 'pages', pathOf: doc => `/${doc.slug}`, findByPath }] }
   const result = await preflightData(req, { experimentId: 1, options })
   expect(result!.checks).toContainEqual({ code: 'page-target-unpublished', ok: false, detail: '/variant' })
-  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-target-unpublished', message: "/variant isn't a published page. Publish it, or pick another page." })
+  await expect(start(req, { experimentId: 1, options })).rejects.toMatchObject({ code: 'page-target-unpublished', message: "/variant isn't a published page yet. Publish it, or choose another page." })
   expect(findByPath.mock.calls.map(call => call[0])).toEqual(['/original', '/variant', '/original', '/variant', '/original', '/variant'])
   for (const call of findByPath.mock.calls) expect(call[1]).toBe(req)
   expect(experiment.status).toBe('draft')
@@ -632,3 +632,11 @@ test.each(['primary', 'guardrail'] as const)('Start judges readable arms after l
     }
   }
 }, 5_000) // Measured 2 ms locally; cap exceeds 3×.
+test('same-address refusal uses shared copy with display labels and keeps arm keys in detail', async () => {
+  const { refuse } = await import('../../src/transitions/start.js')
+  const detail = { arm: 'variantA', otherArm: 'control', path: '/about' }
+  expect(() => refuse('version-same-address', detail)).toThrow('Variant A has the same address (/about) as Original. Choose a different page.')
+  try { refuse('version-same-address', detail) } catch (error) {
+    expect(error).toMatchObject({ code: 'version-same-address', detail })
+  }
+})

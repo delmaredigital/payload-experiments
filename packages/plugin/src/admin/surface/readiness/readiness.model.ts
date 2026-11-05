@@ -5,8 +5,13 @@ import { formatDate } from '../../format/date.js'
 import { actionGroupLabel } from '../../actions/actions.model.js'
 import { asymmetricGoalsCopy, placementUncheckedCopy, interactingTestsCopy, sameAddressCopy, identicalVersionCopy, unsupportedContentCopy, versionPageUnavailableCopy, versionPageUncheckedCopy, placementFailureCopy, pageInUseCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
 
+import { normalisePath } from '../../../runtime/normalisePath.js'
+import { testPageCollection } from '../pagePicker/pagePicker.model.js'
+import type { SurfaceProps } from '../contracts.js'
 import { SECTION_ORDER, type SectionId } from '../contracts.js'
 export type ReadinessContext = Pick<TestDocument, 'arms' | 'unitType' | 'flagPoint'> & {
+  collectionLabel?: string
+  pagePlacements?: PreflightResult['pagePlacements']
   flagPoints?: readonly Pick<SerializedFlagPoint, 'id' | 'params'>[]
 }
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -60,15 +65,22 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'no-reach-per-day': row('length', () => C.noReach),
   'layer-full': row('versions', () => C.full),
   'layer-unit-mismatch': row('header', () => C.differentPeople),
-  'page-in-use': { ...row('versions', detail => {
+  'page-in-use': { ...row('versions', (detail, ctx) => {
     const paths = object(detail).paths
-    return pageInUseCopy(text(Array.isArray(paths) ? paths[0] : undefined, 'this page'))
-  }), nextStep: C.chooseDifferentPage },
+    const path = text(Array.isArray(paths) ? paths[0] : undefined, 'this page')
+    return pageInUseCopy(path, pageArm(path, ctx)?.kind === 'variant')
+  }), nextStep: C.choosePages },
   'page-no-targets': { ...row('versions', () => C.noTargets), nextStep: 'Choose pages' },
   'unknown-collection': row('versions', () => "That page type isn't set up for tests."),
   'version-identical': { ...row('versions', (detail, ctx) => identicalVersionCopy(text(object(detail).path, object(detail).title ? `${group(object(detail).arm, ctx)} on ${text(object(detail).title, 'this page')}` : group(object(detail).arm, ctx)))), nextStep: (detail, ctx) => `Edit ${text(object(detail).path, group(object(detail).arm, ctx))}` },
-  'version-same-address': { ...row('versions', (detail, ctx) => sameAddressCopy(group(object(detail).arm, ctx), group(object(detail).otherArm, ctx), text(object(detail).path, 'this address'))), nextStep: 'Choose pages' },
-  'page-target-unpublished': row('versions', detail => unpublishedPageCopy(text(detail, 'This page'))),
+  'version-same-address': { ...row('versions', (detail, ctx) => sameAddressCopy(group(object(detail).arm, ctx), group(object(detail).otherArm, ctx), text(object(detail).path, 'this address'), ctx.collectionLabel)), nextStep: 'Choose pages' },
+  'page-target-unpublished': { ...row('versions', (detail, ctx) => {
+    const path = text(typeof detail === 'string' ? detail : object(detail).path, 'This page')
+    const arm = ctx.arms.find(item => item.key === object(detail).arm) ?? pageArm(path, ctx)
+    const placement = (arm ? ctx.pagePlacements?.find(entry => entry.arm === arm.key) : undefined)
+      ?? ctx.pagePlacements?.find(entry => normalisePath(entry.path) === normalisePath(path))
+    return unpublishedPageCopy(path, ctx.pagePlacements && ctx.collectionLabel ? { original: arm?.kind === 'control', found: placement?.id != null && placement.published === false, collection: ctx.collectionLabel } : undefined)
+  }), nextStep: C.choosePages },
   'page-targets-unchecked': row('versions', () => C.uncheckedPages),
   'version-page-unavailable': row('versions', detail => versionPageUnavailableCopy(text(detail, 'This page'))),
   'version-page-unchecked': row('versions', detail => versionPageUncheckedCopy(text(detail, 'This page'))),
@@ -90,11 +102,13 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
 export function nextStep(preflight: PreflightResult | null, ctx: ReadinessContext) {
   for (const section of ['header', ...SECTION_ORDER] as const) {
     for (const check of preflight?.checks ?? []) {
+      if (!Object.hasOwn(READINESS, check.code)) continue
       const mapping = READINESS[check.code]
       if (check.ok || mapping.section !== section) continue
       const sentence = mapping.next(check.detail, ctx)
       const nextStep = typeof mapping.nextStep === 'function' ? mapping.nextStep(check.detail, ctx) : mapping.nextStep
-      if (sentence) return { section, sentence, code: check.code, ...(nextStep ? { nextStep } : {}) }
+      const arm = readinessArm(check.code, check.detail, ctx)
+      if (sentence) return { section, sentence, code: check.code, ...(arm ? { arm } : {}), ...(nextStep ? { nextStep } : {}) }
     }
   }
   return null
@@ -116,4 +130,19 @@ export function daysRemaining(doc: TestDocument, now: number): number | null {
   const days = doc.analysis?.plannedDurationDays
   const start = typeof doc.startedAt === 'string' ? Date.parse(doc.startedAt) : NaN
   return typeof days === 'number' && days > 0 && Number.isFinite(start) ? Math.max(0, Math.ceil(days - (now - start) / 86_400_000)) : null
+}
+
+function pageArm(path: string, ctx: ReadinessContext) {
+  return ctx.arms.find(arm => arm.pageTarget && normalisePath(arm.pageTarget) === normalisePath(path))
+}
+export function pageReadinessContext(doc: TestDocument, preflight: PreflightResult | null, surface: SurfaceProps): ReadinessContext {
+  return { ...doc, flagPoints: surface.flagPoints, pagePlacements: preflight?.pagePlacements,
+    collectionLabel: testPageCollection(surface.pageCollections, doc, preflight?.pagePlacements)?.label }
+}
+/** First affected row in arm order; shared by the wizard and the test-page jump. */
+export function readinessArm(code: ReadinessCode, detail: unknown, ctx: ReadinessContext) {
+  if (code === 'version-same-address') return ctx.arms.find(arm => arm.key === object(detail).arm)?.key
+  if (code === 'page-no-targets') return ctx.arms.find(arm => arm.kind !== 'holdout' && !arm.pageTarget)?.key
+  const paths = code === 'page-in-use' ? object(detail).paths : code === 'page-target-unpublished' ? [detail] : []
+  return ctx.arms.find(arm => arm.kind !== 'holdout' && arm.pageTarget && Array.isArray(paths) && paths.some(path => typeof path === 'string' && normalisePath(path) === normalisePath(arm.pageTarget!)))?.key
 }

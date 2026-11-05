@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import { expect, test } from 'vitest'
 import { ADVANCED_COPY } from '../../src/admin/copy/advanced.js'
+import { PAGE_COPY } from '../../src/admin/copy/pages.js'
 import { metricsCollection } from '../../src/collections/metrics.js'
 import { layersCollection } from '../../src/collections/layers.js'
 import { sampleOptions } from '../collections/fixtures.js'
@@ -10,6 +11,15 @@ import { copyPaths, editorFiles, helperPaths, helperStrings } from './copySource
 const forbidden = /\b(?:arms?|phases?|flag ?points?|unit ?types?|unitType|CUPED|exposure ?polic(?:y|ies)|percentiles?)\b|\bin (?:Metrics|Who(?! takes part\b)|Groups|Review)\b|\b(?:Metrics|Who|Review) tab\b/i
 const hits = (strings: string[]) => strings.filter(value => forbidden.test(value))
 const samples: Record<string, unknown[][]> = {
+  pageInUseCopy: [['/example'], ['/example', true]],
+  unpublishedPageCopy: [['/example'], ['/example', { original: true, found: true, collection: 'Pages' }], ['/example', { original: false, found: true, collection: 'Pages' }], ['/example', { original: false, found: false, collection: 'Pages' }]],
+  sameAddressCopy: [['Variant A', 'Original', '/example'], ['Variant A', 'Original', '/example', 'Pages']],
+  usedPageCopy: [['Original']], usedAddressCopy: [['Original', '/example', 'Pages']],
+  openOriginalCopy: [['Pages']], openCollectionCopy: [['Pages']], pageStepCopy: [['Variant A']],
+  blockPosition: [['Hero', 2]], blockTestName: [['About us', 'Hero']],
+  blockDraftStatus: [['Hero']], blockFinishedStatus: [['Shorter form']],
+  blockDecidedStatus: [['Shorter form', false], ['Shorter form', true]],
+  blockSaveNotice: [[false], [true]], blockSyncNotice: [[false], [true]],
   pageGuardCopy: [['Example', 'running'], ['Example', 'decided'], ['Example', 'archived'], ['Example', 'archived', 'original']],
   versionPageUnavailableCopy: [['/example', 'running'], ['/example', 'decided']], versionPageUncheckedCopy: [['/example', 'running'], ['/example', 'decided']],
   groupShare: [['50', 'Original'], ['50', 'Shorter form']],
@@ -97,6 +107,10 @@ test('exported editor copy and all copy functions use surface vocabulary', async
     const module = await import(/* @vite-ignore */ path)
     expect(hits(strings(module, '', true)), path).toEqual([])
   }
+})
+test('the unchosen-page sentence participates in the copy audit', () => {
+  expect(strings(PAGE_COPY)).toContain('No page chosen yet.')
+  expect(hits(strings(PAGE_COPY))).toEqual([])
 })
 test('admin and Puck JSX text uses surface vocabulary', () => {
   expect(editorFiles.filter(file => file.endsWith('.tsx')).flatMap(path =>
