@@ -1,9 +1,23 @@
 import { useMemo } from 'react'
 import { useAuth, useConfig, useDocumentInfo, useForm, useFormFields, useServerFunctions } from '@payloadcms/ui'
 import { adaptClientBlocksField, findClientBlocksField, replaceBlockRow, rowLocation } from './formApi.js'
+import type { ClientCollectionConfig } from 'payload'
 import type { ExperimentBlock, HostBlock } from '../../blocks/model.js'
 
-export function useBlockForm(path: string) {
+/** Declared so the d.ts build can name Payload UI's form types through public exports. */
+export type BlockFormApi = {
+  form: ReturnType<typeof useForm>
+  document: ReturnType<typeof useDocumentInfo>
+  config: ReturnType<typeof useConfig>['config']
+  collection: ClientCollectionConfig | undefined
+  field: ReturnType<typeof adaptClientBlocksField> | undefined
+  block: ExperimentBlock | undefined
+  manager: boolean
+  replace: (rows: HostBlock[]) => Promise<void>
+  location: ReturnType<typeof rowLocation>
+}
+
+export function useBlockForm(path: string): BlockFormApi {
   const form = useForm(), document = useDocumentInfo(), { config, getEntityConfig } = useConfig()
   const { getFormState } = useServerFunctions(), { permissions } = useAuth()
   // useForm's getters are stable; subscribe so changed slug/row paths are read again.
