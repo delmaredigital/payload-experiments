@@ -25,7 +25,7 @@ export function PagePicker({ collection, test, armKey, apiRoute, onChoose }: {
   const reload = () => { setPage(1); setRefresh(value => value + 1) }
   useEffect(() => {
     if (search === q) return
-    const timer = setTimeout(() => { setQuery(search); setPage(1); setRows([]); setMore(false) }, 250)
+    const timer = setTimeout(() => { setQuery(search); setPage(1); setRows([]); setMore(false); setLoading(true); setError('') }, 250)
     return () => clearTimeout(timer)
   }, [search, q])
   useEffect(() => {
