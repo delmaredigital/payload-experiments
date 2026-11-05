@@ -51,6 +51,7 @@ export function usePlacementLabels({ details, preflight, apiRoute, adminRoute, c
   }, [signature, preflight, apiRoute, adminRoute, canManage, collectionTitles, cache])
   return new Map(details.map(detail => {
     const label = preflight ? preflightPlacementLabel(detail, preflight, adminRoute) : cache.get(placementDetailKey(detail)) ?? resolvedPlacementLabel(detail, undefined, adminRoute)
+    // Results-only readers may not be able to open the collection, so they get the name without a link.
     return [placementDetailKey(detail), canManage ? label : { title: label.title }]
   }))
 }
