@@ -260,3 +260,18 @@ test('decided page health names the available discard action', () => {
   expect(dataQuality(snapshot, { status: 'decided' }).find(item => item.id === 'version-page-unchecked:/other')?.nextStep)
     .toBe("Couldn't check whether /other is published. Check that it is still published, or discard the winner.")
 })
+
+
+test('unchecked placement health uses the readiness warning and keeps placement rows distinct', () => {
+  const snapshot = makeSnapshot({ health: [
+    { code: 'placement-unchecked', detail: { collection: 'pages', id: 7, path: '/page' } },
+    { code: 'placement-unchecked', detail: { collection: 'pages', id: 8 } },
+  ] })
+  const rows = dataQuality(snapshot).filter(row => row.id.startsWith('placement-unchecked:'))
+  expect(rows.map(row => row.message)).toEqual([
+    "/page couldn't be checked, so the test can't confirm every version shows the same goals. Check that you can open it.",
+    "This page couldn't be checked, so the test can't confirm every version shows the same goals. Check that you can open it.",
+  ])
+  expect(rows.map(row => row.nextStep)).toEqual(['Open /page', 'Open the page'])
+  expect(new Set(rows.map(row => row.id)).size).toBe(2)
+}, 5_000) // Measured <1 ms locally; cap exceeds 3×.

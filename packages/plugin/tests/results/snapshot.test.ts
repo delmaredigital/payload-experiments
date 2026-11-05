@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import type { Snapshot } from '../../src/types/snapshot.js'
+import { canonicalHealth, mergePageHealth } from '../../src/results/health.js'
 import { assembleSnapshot, jsonInterval, validateSnapshot } from '../../src/results/snapshot.js'
 import { collectImports } from '../_helpers/importGraph.js'
 
@@ -53,3 +54,17 @@ test('page health is optional on old snapshots and validated on new snapshots', 
   expect(() => validateSnapshot({ ...snapshot, health: [{ code: 'unknown', path: '/version' }] })).toThrow(/shape/)
   expect(() => validateSnapshot({ ...snapshot, health: [{ code: 'version-page-unavailable' }] })).toThrow(/shape/)
 })
+
+
+test('unchecked placement health validates identifiers and merges without losing distinct placements', () => {
+  const snapshot = fixture('T7.json')
+  const a = { code: 'placement-unchecked' as const, detail: { collection: 'pages', id: 7, path: '/page' } }
+  const b = { code: 'placement-unchecked' as const, detail: { collection: 'pages', id: 8, path: '/page' } }
+  snapshot.health = [a, b]
+  expect(() => validateSnapshot(snapshot)).not.toThrow()
+  expect(() => validateSnapshot({ ...snapshot, health: [{ code: 'placement-unchecked', detail: { id: {} } }] })).toThrow(/shape/)
+  expect(() => validateSnapshot({ ...snapshot, health: [{ code: 'placement-unchecked' }] })).toThrow(/shape/)
+  expect(mergePageHealth([a], [a, b])).toEqual([a, b])
+  expect(canonicalHealth({ health: [a, b] })).toBe(canonicalHealth({ health: [b, a] }))
+  expect(canonicalHealth({ health: [a] })).not.toBe(canonicalHealth({ health: [b] }))
+}, 5_000) // Measured <1 ms locally; cap exceeds 3×.

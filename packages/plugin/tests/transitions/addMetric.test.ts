@@ -150,3 +150,28 @@ test.each(['secondary', 'guardrail'] as const)('click %s fairness is computed be
     expect(result.warnings.map(w => w.code)).toEqual(['goal-in-some-versions', 'goal-added-mid-test'])
   }
 })
+
+
+test.each(['secondary', 'guardrail'] as const)('add-metric reports unchecked placements and judges readable arms for a %s goal', async role => {
+  for (const disagree of [false, true]) {
+    const f = fixture('running')
+    Object.assign(f.experiment, { kind: 'page', pageCollection: 'pages', arms: [
+      ...defaultArms('page').map((arm, i) => ({ ...arm, weight: i ? 33 : 34, pageTarget: i ? '/b' : '/a' })),
+      { key: 'variantB', kind: 'variant', label: 'B', weight: 33, pageTarget: '/unreadable' },
+    ] })
+    Object.assign(f.payload.documents['xp-metrics']![1]!, { source: 'click:join', slug: 'join' })
+    f.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async path => ({ id: path === '/a' ? 7 : path === '/b' ? 8 : 9, published: true }), contentOf: doc => doc.layout }] }
+    f.payload.documents.pages = [{ id: 7, layout: [{ xpGoal: 'join' }] }, { id: 8, layout: disagree ? [] : [{ xpGoal: 'join' }] }]
+    const result = addMetric(f.req, { experimentId: 1, metric: 4, role, options: f.options })
+    if (disagree && role === 'guardrail') {
+      await expect(result).rejects.toMatchObject({ code: 'goal-in-some-versions' })
+      expect(f.payload.documents['xp-phases']![0]!.metricDefinitions).toHaveLength(1)
+    } else {
+      expect((await result).warnings).toEqual([
+        ...(disagree ? [{ code: 'goal-in-some-versions', detail: { metricId: 4, name: 'Gifts' } }] : []),
+        { code: 'placement-unchecked', detail: { collection: 'pages', id: 9, path: '/unreadable' } },
+        { code: 'goal-added-mid-test', detail: { metricId: 4 } },
+      ])
+    }
+  }
+}, 5_000) // Measured 8 ms locally; cap exceeds 3×.

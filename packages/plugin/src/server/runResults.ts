@@ -1,4 +1,4 @@
-import { asymmetricGoal, goalContent, LEGACY_FAIRNESS } from '../goals/fairness.js'
+import { asymmetricGoal, goalContent, goalPlacementDetail, LEGACY_FAIRNESS } from '../goals/fairness.js'
 import type { Arm } from '../types/contracts.js'
 import { XpAnalysisError } from '../errors.js'
 import { canonicalHealth, mergePageHealth } from '../results/health.js'
@@ -237,9 +237,10 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
           id, slug: current.slug ?? String(id), kind: current.kind ?? 'code', arms: arms as Arm[], pageCollection: current.pageCollection,
         }, current.testPlacementDocs ?? null)) : undefined
         const goals = clicks.filter(metric => content && asymmetricGoal(content, metric.source, arms)).map(metric => ({ code: 'goal-in-some-versions' as const, metricId: metric.metricId, name: metric.name }))
+        const unchecked = (content?.unchecked ?? []).map(placement => ({ code: 'placement-unchecked' as const, detail: goalPlacementDetail(placement) }))
         for (const [index, snapshot] of snapshots.entries()) {
           const previous = phases[index]!.previousHealth ?? phases[index]!.frozenSnapshot?.health ?? []
-          snapshot.health = mergePageHealth(content && !content.unchecked.length ? goals : previous, health)
+          snapshot.health = mergePageHealth(content && !content.unchecked.length ? [] : previous, [...health, ...goals, ...unchecked])
           if (content?.skipped && current.kind === 'block') snapshot.goalFairnessNotice = LEGACY_FAIRNESS
           else delete snapshot.goalFairnessNotice
         }

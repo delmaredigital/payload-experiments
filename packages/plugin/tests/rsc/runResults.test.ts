@@ -846,10 +846,16 @@ test.each([
   clock += 1000
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
   const after = await snapshots()
-  expect(after).toHaveLength(frozen ? 1 : 2)
-  for (const row of after) expect((row.snapshot as Snapshot).health).toEqual(amber)
-  if (frozen) expect(after).toEqual(before)
-}, 5_000) // Measured 11 ms locally; cap exceeds 3×.
+  expect(after).toHaveLength(2)
+  expect((after[0]!.snapshot as Snapshot).health).toEqual(amber)
+  const expected = [...amber, ...[...(partial ? [] : [7]), 8].map(id => ({ code: 'placement-unchecked', detail: { collection: 'pages', id } }))]
+  expect((after[1]!.snapshot as Snapshot).health).toEqual(expected)
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const repeated = await snapshots()
+  expect(repeated).toHaveLength(frozen ? 2 : 3)
+  expect((repeated.at(-1)!.snapshot as Snapshot).health).toEqual(expected)
+}, 5_000) // Measured 20 ms locally; cap exceeds 3×.
 
 test.each(['running', 'decided'] as const)('page goal health reads published page content using served arms (%s)', async status => {
   vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -867,3 +873,26 @@ test.each(['running', 'decided'] as const)('page goal health reads published pag
   expect(((await snapshots())[0]!.snapshot as Snapshot).health).toEqual(status === 'running' ? [{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' }] : [])
   expect(findByPath.mock.calls.some(([path]) => path === '/loser')).toBe(status === 'running')
 }, 5_000) // Measured 5 ms locally; cap exceeds 3×.
+
+
+test.each([false, true])('results show a never-readable placement and readable-arm asymmetry (disagree: %s)', async disagree => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { metricDefinitions: [clickMetric], arms: [
+    { key: 'control', label: 'Original', kind: 'control', weight: 34, pageTarget: '/a' },
+    { key: 'variantA', label: 'A', kind: 'variant', weight: 33, pageTarget: '/b' },
+    { key: 'variantB', label: 'B', kind: 'variant', weight: 33, pageTarget: '/unreadable' },
+  ] })
+  await database.db.update(xp_experiments).set({ kind: 'page', phase: 1, pageCollection: 'pages' }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  const context = payload()
+  context.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async path => ({ id: path === '/a' ? 7 : path === '/b' ? 8 : 9, published: true }), contentOf: doc => doc.layout }] }
+  Object.assign(context.payload.config, { collections: [{ slug: 'pages', fields: [] }] })
+  Object.assign(context.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+    const id = where.id.equals
+    return id === 9 ? null : { id, layout: disagree && id === 8 ? [] : [{ xpGoal: 'join' }] }
+  }) })
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(((await snapshots())[0]!.snapshot as Snapshot).health).toEqual([
+    ...(disagree ? [{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' }] : []),
+    { code: 'placement-unchecked', detail: { collection: 'pages', id: 9, path: '/unreadable' } },
+  ])
+}, 5_000) // Measured 7 ms locally; cap exceeds 3×.

@@ -1,5 +1,5 @@
 import type { AddMetricWarning } from '../../types/endpoints.js'
-import { asymmetricGoalsCopy } from './readiness.js'
+import { asymmetricGoalsCopy, placementUncheckedCopy } from './readiness.js'
 import type { ContentReportReason } from '../../types/reasons.js'
 
 export const ACTIONS_COPY = {
@@ -66,6 +66,11 @@ export const CONTENT_ENTRY_REFUSALS = {
   fallback: ACTIONS_COPY.contentEntryFallback,
 } as const
 
-export const addMetricWarningCopy = (warning: AddMetricWarning) => warning.code === 'goal-added-mid-test'
-  ? "Clicks before this goal was added aren't counted (the same for every version)."
-  : asymmetricGoalsCopy(warning.detail)
+export function addMetricWarningCopy(warning: AddMetricWarning): string {
+  if (warning.code === 'goal-added-mid-test') return "Clicks before this goal was added aren't counted (the same for every version)."
+  if (warning.code === 'placement-unchecked') {
+    const path = (warning.detail as { path?: unknown } | null | undefined)?.path
+    return placementUncheckedCopy(typeof path === 'string' ? path : 'This page')
+  }
+  return asymmetricGoalsCopy(warning.detail)
+}

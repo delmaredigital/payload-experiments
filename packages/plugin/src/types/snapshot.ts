@@ -1,4 +1,4 @@
-export type SnapshotHealth = { code: 'version-page-unavailable' | 'version-page-unchecked'; path: string } | { code: 'goal-in-some-versions'; metricId: string | number; name: string }
+export type SnapshotHealth = { code: 'version-page-unavailable' | 'version-page-unchecked'; path: string } | { code: 'goal-in-some-versions'; metricId: string | number; name: string } | { code: 'placement-unchecked'; detail: { collection?: string; id?: string | number; path?: string } }
 import type { GaussianPrior } from '@delmaredigital/experiments-stats'
 import type { DocId, MetricSource } from './contracts.js'
 import type { MetricUnavailableReason } from './reasons.js'

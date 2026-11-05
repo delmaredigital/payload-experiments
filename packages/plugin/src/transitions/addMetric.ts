@@ -1,4 +1,4 @@
-import { asymmetricGoal, goalContent } from '../goals/fairness.js'
+import { asymmetricGoal, goalContent, goalPlacementDetail } from '../goals/fairness.js'
 import type { PayloadRequest } from 'payload'
 import { lockMetricsForFreeze } from '../db/metricUsage.js'
 import { readState } from '../db/state.js'
@@ -25,6 +25,7 @@ export async function addMetric<TUser extends { id: DocId }>(req: PayloadRequest
       if (role === 'guardrail') refuse('goal-in-some-versions', detail)
       warnings.push({ code: 'goal-in-some-versions', detail })
     }
+    warnings.push(...content.unchecked.map(placement => ({ code: 'placement-unchecked' as const, detail: goalPlacementDetail(placement) })))
     warnings.push({ code: 'goal-added-mid-test', detail: { metricId } })
   }
   const at = new Date()

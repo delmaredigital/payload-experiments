@@ -460,7 +460,7 @@ test('Banner renders click fairness warnings, unchecked placements and outside-g
   expect(screen.getByText(checked.goalNotes[0]!.message)).toBeTruthy()
 }, 5_000) // Measured 6 ms locally; cap exceeds 3×.
 
-test('add-goal dialog shows both response warnings until Done with real document reloads', async () => {
+test('add-goal dialog shows all three response warnings until Done with real document reloads', async () => {
   const p = props({ status: 'running' })
   const readDocument = vi.fn(() => response(p.test.doc))
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -468,6 +468,7 @@ test('add-goal dialog shows both response warnings until Done with real document
     if (url.endsWith('/preflight')) return response(preflight())
     if (init?.method === 'POST') return response({ doc: {}, revision: 2, warnings: [
       { code: 'goal-in-some-versions', detail: { metricId: 4, name: 'Join' } }, { code: 'goal-added-mid-test', detail: { metricId: 4 } },
+      { code: 'placement-unchecked', detail: { collection: 'pages', id: 9, path: '/unreadable' } },
     ] })
     return response({ docs: [{ id: 4, name: 'Join' }] })
   }))
@@ -482,9 +483,10 @@ test('add-goal dialog shows both response warnings until Done with real document
   fireEvent.click(dialogButton('Add a goal'))
   expect(await screen.findByText("Clicks before this goal was added aren't counted (the same for every version).")).toBeTruthy()
   expect(within(screen.getByRole('dialog')).getByText("Join appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal.")).toBeTruthy()
+  expect(within(screen.getByRole('dialog')).getByText("/unreadable couldn't be checked, so the test can't confirm every version shows the same goals. Check that you can open it.")).toBeTruthy()
   expect(readDocument).toHaveBeenCalledTimes(1)
   expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'Add a goal' })).toBeNull()
   fireEvent.click(dialogButton('Done'))
   expect(screen.queryByRole('dialog')).toBeNull()
   await waitFor(() => expect(readDocument).toHaveBeenCalledTimes(2))
-}, 5_000) // Measured 148 ms locally with real reloads; cap exceeds 3×.
+}, 5_000) // Measured 105 ms locally with real reloads; cap exceeds 3×.

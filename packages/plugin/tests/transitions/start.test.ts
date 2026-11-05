@@ -606,3 +606,29 @@ test('Start rechecks click primary fairness after locks using detached published
   await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'goal-in-some-versions' })
   expect(f.payload.documents['xp-phases']).toEqual([])
 })
+
+
+test.each(['primary', 'guardrail'] as const)('Start judges readable arms after locks with an unchecked page for a %s goal', async role => {
+  for (const disagree of [true, false]) {
+    const f = fixture()
+    Object.assign(f.experiment, { kind: 'page', exposurePolicy: 'pageview', pageCollection: 'pages', targeting: [],
+      metrics: role === 'primary' ? { primary: 2 } : { primary: 4, guardrails: [2] },
+      arms: [...defaultArms('page').map((arm, i) => ({ ...arm, weight: i ? 33 : 34, pageTarget: i ? '/b' : '/a' })),
+        { key: 'variantB', kind: 'variant', label: 'B', weight: 33, pageTarget: '/unreadable' }] })
+    Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', slug: 'join' })
+    f.options.pages = { collections: [{ slug: 'pages', pathOf: d => String(d.path), findByPath: async path => ({ id: path === '/a' ? 7 : path === '/b' ? 8 : 9, published: true }), contentOf: d => d.layout }] }
+    Object.assign(f.payload.config, { collections: [{ slug: 'pages', versions: { drafts: true } }] })
+    Object.assign(f.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+      const id = where.id.equals
+      const locked = f.executor.calls.some(call => call.text.includes("hashtext('xp:pagepath')"))
+      expect(f.req.transactionID).toBeUndefined()
+      return id === 9 ? null : { id, _status: 'published', path: id === 7 ? '/a' : '/b', layout: locked && disagree && id === 8 ? [] : [{ xpGoal: 'join' }] }
+    }) })
+    if (disagree) {
+      await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'goal-in-some-versions' })
+      expect(f.payload.documents['xp-phases']).toEqual([])
+    } else {
+      await expect(start(f.req, { experimentId: 1, options: f.options })).resolves.toMatchObject({ doc: { status: 'running' } })
+    }
+  }
+}, 5_000) // Measured 2 ms locally; cap exceeds 3×.

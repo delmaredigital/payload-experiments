@@ -203,3 +203,22 @@ test.each([false, true])('outside goalNotes require a completely readable placem
     { metricId: 2, message: "This goal isn't inside the part being tested, so every version shows it the same way." },
   ])
 }, 5_000) // Measured 3 ms locally; cap exceeds 3×.
+
+
+test.each(['primary', 'guardrail'] as const)('preflight judges readable arms with one unchecked page for a %s goal', async role => {
+  for (const disagree of [true, false]) {
+    const f = setup()
+    Object.assign(f.payload.documents['xp-experiments']![0]!, { kind: 'page', exposurePolicy: 'pageview', pageCollection: 'pages',
+      metrics: role === 'primary' ? { primary: 2 } : { primary: 3, guardrails: [2] },
+      arms: [...defaultArms('page').map((arm, i) => ({ ...arm, weight: i ? 33 : 34, pageTarget: i ? '/b' : '/a' })),
+        { key: 'variantB', kind: 'variant', label: 'B', weight: 33, pageTarget: '/unreadable' }] })
+    Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', name: 'Join' })
+    f.payload.documents['xp-metrics']!.push({ id: 3, source: 'events:signup' })
+    f.payload.documents.pages = [{ id: 7, layout: [{ xpGoal: 'join' }] }, { id: 8, layout: disagree ? [] : [{ xpGoal: 'join' }] }]
+    f.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async path => ({ id: path === '/a' ? 7 : path === '/b' ? 8 : 9, published: true }), contentOf: doc => doc.layout }] }
+    const result = (await preflightData(f.req, { experimentId: 1, options: f.options }, { now }))!
+    expect(result.checks.filter(c => !c.ok).map(c => c.code)).toEqual(disagree ? ['goal-in-some-versions'] : [])
+    expect(result.checks).toContainEqual({ code: 'placement-unchecked', ok: true, warning: true, detail: { collection: 'pages', id: 9, path: '/unreadable' } })
+    expect(result.goalNotes).toEqual([])
+  }
+}, 5_000) // Measured 2 ms locally; cap exceeds 3×.

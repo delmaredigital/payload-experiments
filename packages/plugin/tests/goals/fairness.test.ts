@@ -11,7 +11,7 @@ const arms = defaultArms('block')
 const experiment = { id: 1, slug: 'fair', name: 'Fair', kind: 'block' as const, status: 'draft' as const, unitType: 'user' as const, arms, allocation: 100, exposurePolicy: 'render' as const, metrics: { primary: 2 }, analysis: { plannedDurationDays: 14 } }
 
 test('click primary is allowed for both unit types; primary/guardrail asymmetry refuses, secondary only warns', () => {
-  const content = { keys: [{ key: 'join', arms: ['control'], label: 'CTA' }], unchecked: [] }
+  const content = { keys: [{ key: 'join', arms: ['control'], label: 'CTA' }], unchecked: [], readArms: ['control', 'variantA'] }
   const base = { experiment, placements: [{ collection: 'pages', id: 1, title: 'Page', published: true, slots: { control: 1, variantA: 1, variantB: 0, variantC: 0 } }], metrics: [{ id: 2, source: 'click:join', name: 'Join' }], goalContent: content }
   expect(checkStart(base).filter(c => !c.ok).map(c => c.code)).toEqual(['goal-in-some-versions'])
   expect(checkStart({ ...base, goalContent: { ...content, keys: [] } }).filter(c => !c.ok)).toEqual([])
@@ -57,5 +57,18 @@ test('never-published main rows are unchecked and their click keys do not count'
   const payload = fakePayload({ config: { collections: [{ slug: 'pages', versions: { drafts: true } }] }, collections: { pages: [
     { id: 7, _status: 'draft', layout: [{ blockType: 'xpExperiment', experiment: 'fair', slots: [{ slot: 'control', blocks: [{ blockType: 'cta', xpGoal: 'join' }] }] }] },
   ] } })
-  expect(await goalContent(fakeReq({ payload }), options, experiment, [{ collection: 'pages', id: 7 }])).toEqual({ keys: [], unchecked: [{ collection: 'pages', id: 7 }] })
+  expect(await goalContent(fakeReq({ payload }), options, experiment, [{ collection: 'pages', id: 7 }])).toEqual({ keys: [], unchecked: [{ collection: 'pages', id: 7 }], readArms: [] })
 }, 5_000) // Measured 1 ms locally; cap exceeds 3×.
+
+
+test('only read arms participate; holdout follows control readability and keys', async () => {
+  const options = sampleOptions()
+  options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async path => ({ id: path === '/a' ? 7 : 8, published: true }), contentOf: doc => doc.layout }] }
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', fields: [] }] }, collections: { pages: [{ id: 7, layout: [{ xpGoal: 'join' }] }] } })
+  const tested = [...arms.map((arm, i) => ({ ...arm, pageTarget: i ? '/unreadable' : '/a' })), { key: 'holdout' as const, kind: 'holdout' as const, label: 'Holdout', weight: 0 }]
+  const content = await goalContent(fakeReq({ payload }), options, { ...experiment, kind: 'page', pageCollection: 'pages', arms: tested })
+  expect(content.readArms).toEqual(['control', 'holdout'])
+  expect(content.keys[0]!.arms).toEqual(['control', 'holdout'])
+  expect(asymmetricGoal(content, 'click:join', tested)).toBe(false)
+  expect(content.unchecked).toEqual([{ collection: 'pages', id: 8, path: '/unreadable' }])
+}, 5_000) // Measured <1 ms locally; cap exceeds 3×.
