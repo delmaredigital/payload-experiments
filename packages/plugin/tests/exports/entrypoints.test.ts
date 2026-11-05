@@ -119,3 +119,8 @@ test('surface-injected accent derivation stays module-only', () => {
     expect(namedExports(parse(file), false).has('deriveAccentFor'), file).toBe(false)
   }
 })
+
+test('createExperimentBlock is on the root entry only, never on /blocks', () => {
+  expect(namedExports(parse('index.ts'), true).get('createExperimentBlock')).toBe('../blocks/createExperimentBlock.js')
+  expect(namedExports(parse('blocks.ts'), false).has('createExperimentBlock')).toBe(false)
+})
