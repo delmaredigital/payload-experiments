@@ -54,7 +54,7 @@ export function useClickGoalPicker(apiRoute: string, { enabled = true, onSelect 
     list.listeners.push(setLoaded)
     return () => {
       list.listeners = list.listeners.filter(listener => listener !== setLoaded)
-      if (!list.listeners.length) goalLists.delete(api)
+      if (!list.listeners.length && goalLists.get(api) === list) goalLists.delete(api)
     }
   }, [api, enabled])
   const status = !enabled ? 'not-manager' : loaded.api === api ? loaded.status : 'loading'
