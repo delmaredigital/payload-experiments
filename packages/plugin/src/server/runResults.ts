@@ -241,7 +241,7 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
         for (const [index, snapshot] of snapshots.entries()) {
           const previous = phases[index]!.previousHealth ?? phases[index]!.frozenSnapshot?.health ?? []
           const unjudged = previous.filter(row => row.code === 'goal-in-some-versions'
-            && content && content.unchecked.length > 0 && arms.some(arm => !content.readArms.includes(arm.key))
+            && content && content.unchecked.length > 0
             && clicks.some(metric => metric.metricId === row.metricId && !asymmetricGoal(content, metric.source, arms)))
           snapshot.health = mergePageHealth(unjudged, [...health, ...goals, ...unchecked])
           if (content?.skipped && current.kind === 'block') snapshot.goalFairnessNotice = LEGACY_FAIRNESS
@@ -249,10 +249,16 @@ export async function runResults(payload: Payload, { budgetMs = 20_000, experime
         }
       }
       if (Date.now() >= analysisDeadline) throw new ResultsBudgetError()
-      // Order and optional empty health are semantically identical. Frozen
-      // inference ignores transient placement read errors when comparing health.
-      const changed = snapshots.filter((snapshot, index) => !phases[index]!.frozenSnapshot
-        || canonicalHealth(snapshot, true) !== canonicalHealth(phases[index]!.frozenSnapshot!, true))
+      // New read failures alone do not rewrite frozen inference. Recovery must
+      // clear an unchecked row stored alongside a real health change.
+      const changed = snapshots.filter((snapshot, index) => {
+        const frozen = phases[index]!.frozenSnapshot
+        if (!frozen || canonicalHealth(snapshot, true) !== canonicalHealth(frozen, true)) return true
+        const freshUnchecked = new Set((snapshot.health ?? []).filter(row => row.code === 'placement-unchecked')
+          .map(row => canonicalHealth({ health: [row] })))
+        return (frozen.health ?? []).some(row => row.code === 'placement-unchecked'
+          && !freshUnchecked.has(canonicalHealth({ health: [row] })))
+      })
       // Unchanged health is a successful refresh with nothing to write.
       if (!changed.length) { summary.ran++; continue }
       await writeSnapshots(exec, changed)

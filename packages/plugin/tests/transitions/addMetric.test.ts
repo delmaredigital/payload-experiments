@@ -180,3 +180,22 @@ test.each(['secondary', 'guardrail'] as const)('add-metric reports unchecked pla
     }
   }
 }, 5_000) // Measured 8 ms locally; cap exceeds 3×.
+
+test('add-metric excludes missing or unpublished version pages without an unchecked warning when readable arms agree', async () => {
+  for (const missing of [true, false]) {
+    const f = fixture('running')
+    Object.assign(f.experiment, { kind: 'page', pageCollection: 'pages', arms: [
+      ...defaultArms('page').map((arm, i) => ({ ...arm, weight: i ? 33 : 34, pageTarget: i ? '/b' : '/a' })),
+      { key: 'variantB', kind: 'variant', label: 'B', weight: 33, pageTarget: '/unavailable' },
+    ] })
+    Object.assign(f.payload.documents['xp-metrics']![1]!, { source: 'click:join', slug: 'join' })
+    f.payload.documents.pages = [{ id: 7, layout: [{ xpGoal: 'join' }] }, { id: 8, layout: [{ xpGoal: 'join' }] }]
+    f.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', contentOf: doc => doc.layout,
+      findByPath: async path => path === '/unavailable' ? (missing ? null : { id: 9, published: false })
+        : { id: path === '/a' ? 7 : 8, published: true },
+    }] }
+    const result = await addMetric(f.req, { experimentId: 1, metric: 4, role: 'secondary', options: f.options })
+    expect(result.warnings).toEqual([{ code: 'goal-added-mid-test', detail: { metricId: 4 } }])
+    expect(f.payload.logs.filter(log => log.level === 'error')).toEqual([])
+  }
+}, 5_000) // Measured 3 ms locally; cap exceeds 3×.

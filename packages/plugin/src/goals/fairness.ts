@@ -66,7 +66,7 @@ export async function goalContent<TUser extends { id: DocId }>(req: PayloadReque
         const page = await collection.findByPath(arm.pageTarget!, req)
         if (!page?.published) continue
         const doc = await clickGoalContent(req, collection.slug, page.id)
-        if (!doc) continue
+        if (!doc) { unchecked.push({ ...placement, id: page.id }); continue }
         collect(collection.contentOf(doc), byArm.get(arm.key)!, '', labels)
         readArms.add(arm.key)
       } catch (error) { failed(error, placement) }

@@ -65,7 +65,7 @@ test.each(['page', 'block', 'puck'] as const)('missing and unpublished %s conten
   options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => kind !== 'puck' }] }
   options.puck = { enabled: kind === 'puck', collections: ['pages'] }
   options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', contentOf: doc => doc.layout,
-    findByPath: async path => path === '/missing-path' ? null : ({ id: Number(path.slice(1)), published: path !== '/4' }),
+    findByPath: async path => path === '/missing-path' || path === '/2' ? null : ({ id: Number(path.slice(1)), published: path !== '/3' && path !== '/4' }),
   }] }
   const payload = fakePayload({ config: { collections: [{ slug: 'pages', versions: { drafts: true } }] }, collections: { pages: [
     { id: 1, _status: 'published', layout: kind === 'page' ? [{ xpGoal: 'join' }] : [{ blockType: 'xpExperiment', experiment: 'fair', slots: [
@@ -104,4 +104,18 @@ test('only read arms participate; holdout follows control readability and keys',
   expect(content.keys[0]!.arms).toEqual(['control', 'holdout'])
   expect(asymmetricGoal(content, 'click:join', tested)).toBe(false)
   expect(content.unchecked).toEqual([{ collection: 'pages', path: '/unreadable' }])
+}, 5_000) // Measured <1 ms locally; cap exceeds 3×.
+
+test.each(['missing', 'unpublished'] as const)('a published page lookup with a %s main row is unchecked with its id', async state => {
+  const options = sampleOptions()
+  options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', contentOf: doc => doc.layout,
+    findByPath: async () => ({ id: 7, published: true }),
+  }] }
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', versions: { drafts: true } }] },
+    collections: { pages: state === 'missing' ? [] : [{ id: 7, _status: 'draft', layout: [{ xpGoal: 'join' }] }] },
+  })
+  const content = await goalContent(fakeReq({ payload }), options, { ...experiment, kind: 'page', pageCollection: 'pages',
+    arms: [{ ...arms[0]!, pageTarget: '/a' }],
+  })
+  expect(content).toEqual({ keys: [], readArms: [], unchecked: [{ collection: 'pages', path: '/a', id: 7 }] })
 }, 5_000) // Measured <1 ms locally; cap exceeds 3×.

@@ -227,3 +227,23 @@ test.each(['primary', 'guardrail'] as const)('preflight judges readable arms wit
     expect(result.goalNotes).toEqual([])
   }
 }, 5_000) // Measured 2 ms locally; cap exceeds 3×.
+
+test('preflight excludes missing or unpublished version pages without an unchecked warning when readable arms agree', async () => {
+  for (const missing of [true, false]) {
+    const f = setup()
+    Object.assign(f.payload.documents['xp-experiments']![0]!, { kind: 'page', exposurePolicy: 'pageview', pageCollection: 'pages',
+      arms: [...defaultArms('page').map((arm, i) => ({ ...arm, weight: i ? 33 : 34, pageTarget: i ? '/b' : '/a' })),
+        { key: 'variantB', kind: 'variant', label: 'B', weight: 33, pageTarget: '/unavailable' }],
+    })
+    Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', name: 'Join' })
+    f.payload.documents.pages = [{ id: 7, layout: [{ xpGoal: 'join' }] }, { id: 8, layout: [{ xpGoal: 'join' }] }]
+    f.options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', contentOf: doc => doc.layout,
+      findByPath: async path => path === '/unavailable' ? (missing ? null : { id: 9, published: false })
+        : { id: path === '/a' ? 7 : 8, published: true },
+    }] }
+    const result = (await preflightData(f.req, { experimentId: 1, options: f.options }, { now }))!
+    expect(result.checks.filter(c => c.code === 'placement-unchecked')).toEqual([])
+    expect(result.checks.filter(c => c.code === 'goal-in-some-versions')).toEqual([{ code: 'goal-in-some-versions', ok: true }])
+    expect(f.payload.logs.filter(log => log.level === 'error')).toEqual([])
+  }
+}, 5_000) // Measured 1 ms locally; cap exceeds 3×.

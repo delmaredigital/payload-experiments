@@ -865,7 +865,7 @@ test.each([
   if (frozen) expect(recovered).toEqual(before)
 }, 5_000) // Measured 20 ms locally; cap exceeds 3×.
 
-test.each(['deleted', 'unpublished', 'throwing', 'readable'] as const)('a block goal fix clears stale amber health with a %s frozen placement', async state => {
+test.each(['deleted', 'unpublished', 'throwing', 'readable'] as const)('a block goal fix clears stale amber health only after a complete read (%s placement)', async state => {
   let clock = now
   vi.spyOn(Date, 'now').mockImplementation(() => clock)
   const phase = await seed('visitor', { metricDefinitions: [clickMetric] })
@@ -892,12 +892,13 @@ test.each(['deleted', 'unpublished', 'throwing', 'readable'] as const)('a block 
   const after = await snapshots()
   expect(after).toHaveLength(2)
   expect((after[1]!.snapshot as Snapshot).health).toEqual(state === 'throwing'
-    ? [{ code: 'placement-unchecked', detail: { collection: 'pages', id: 8 } }] : [])
+    ? [{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' },
+      { code: 'placement-unchecked', detail: { collection: 'pages', id: 8 } }] : [])
   read.mockImplementation(async () => content)
   clock += 1000
   await runResults(context.payload, { sweep: false })
   expect(((await snapshots()).at(-1)!.snapshot as Snapshot).health).toEqual([])
-}, 5_000) // Measured 6 ms locally; cap exceeds 3×.
+}, 5_000) // Measured 11 ms locally; cap exceeds 3×.
 
 test('partial page reads carry only unjudged goals, refresh asymmetric goals, and clear fixes after all arms are read', async () => {
   let clock = now
@@ -938,7 +939,7 @@ test('partial page reads carry only unjudged goals, refresh asymmetric goals, an
   expect(((await snapshots()).at(-1)!.snapshot as Snapshot).health).toEqual([])
 }, 5_000) // Measured 12 ms locally; cap exceeds 3×.
 
-test('frozen goal health writes real changes with unchecked placements but ignores read failure and recovery alone', async () => {
+test('frozen goal health ignores new read failures and writes exactly once to clear stored unchecked health on recovery', async () => {
   let clock = now
   vi.spyOn(Date, 'now').mockImplementation(() => clock)
   const phase = await seed('visitor', { metricDefinitions: [clickMetric], endedAt: new Date(start + 1000).toISOString() })
@@ -958,8 +959,12 @@ test('frozen goal health writes real changes with unchecked placements but ignor
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
   const original = (await snapshots())[0]!.snapshot as Snapshot
   expect(original.health).toEqual([])
-  content.layout[0]!.slots[1]!.blocks = []
+  const clean = await snapshots()
   unreadable = true
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(await snapshots()).toEqual(clean)
+  content.layout[0]!.slots[1]!.blocks = []
   clock += 1000
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
   const changed = await snapshots()
@@ -970,14 +975,19 @@ test('frozen goal health writes real changes with unchecked placements but ignor
   unreadable = false
   clock += 1000
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
-  expect(await snapshots()).toEqual(changed)
+  const recovered = await snapshots()
+  expect(recovered).toHaveLength(3)
+  expect(recovered[2]!.snapshot).toEqual({ ...original, computedAt: new Date(clock).toISOString(), health: [health[0]!] })
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(await snapshots()).toEqual(recovered)
   content.layout[0]!.slots[1]!.blocks.push({ blockType: 'cta', xpGoal: 'join' })
   clock += 1000
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
   const fixed = await snapshots()
-  expect(fixed).toHaveLength(3)
-  expect(fixed[2]!.snapshot).toEqual({ ...original, computedAt: new Date(clock).toISOString() })
-}, 5_000) // Measured 7 ms locally; cap exceeds 3×.
+  expect(fixed).toHaveLength(4)
+  expect(fixed[3]!.snapshot).toEqual({ ...original, computedAt: new Date(clock).toISOString() })
+}, 5_000) // Measured 14 ms locally; cap exceeds 3×.
 
 test.each(['running', 'decided'] as const)('page goal health reads published page content using served arms (%s)', async status => {
   vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -1018,3 +1028,56 @@ test.each([false, true])('results show a never-readable placement and readable-a
     { code: 'placement-unchecked', detail: { collection: 'pages', path: '/unreadable' } },
   ])
 }, 5_000) // Measured 7 ms locally; cap exceeds 3×.
+
+test.each([
+  { kind: 'block', frozen: false }, { kind: 'page', frozen: false }, { kind: 'puck', frozen: false },
+  { kind: 'block', frozen: true }, { kind: 'page', frozen: true }, { kind: 'puck', frozen: true },
+] as const)('an unchecked goal-bearing placement retains amber until a complete symmetric read ($kind, frozen: $frozen)', async ({ kind, frozen }) => {
+  let clock = now
+  vi.spyOn(Date, 'now').mockImplementation(() => clock)
+  const phase = await seed('visitor', { metricDefinitions: [clickMetric],
+    arms: [
+      { key: 'control', label: 'Original', kind: 'control', weight: 50, pageTarget: '/8' },
+      { key: 'variantA', label: 'Variant', kind: 'variant', weight: 50, pageTarget: '/7' },
+    ], ...(frozen ? { endedAt: new Date(start + 1000).toISOString() } : {}),
+  })
+  await database.db.update(xp_experiments).set({ kind: kind === 'page' ? 'page' : 'block', phase: 1, pageCollection: 'pages',
+    status: frozen ? 'decided' : 'running', decision_winnerArm: frozen ? 'variantA' : null,
+  }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  await database.db.update(xp_phases).set({ placementDocs: [7, 8].map(id => ({ collection: 'pages', id })) })
+    .where(eq(xp_phases.experiment, Number(phase.experiment)))
+  const context = payload()
+  context.options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => kind !== 'puck' }] }
+  context.options.puck = { enabled: kind === 'puck', collections: ['pages'] }
+  context.options.pages = { collections: [{ slug: 'pages', pathOf: doc => `/${doc.id}`, contentOf: doc => doc.layout,
+    findByPath: async path => ({ id: Number(path.slice(1)), published: true }),
+  }] }
+  Object.assign(context.payload.config, { collections: [{ slug: 'pages', fields: [] }] })
+  let stage = 0
+  Object.assign(context.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+    const id = where.id.equals
+    if (stage === 1 && id === 8) throw new Error('unreadable')
+    const control = stage < 2 && id === 8 ? [{ blockType: 'cta', xpGoal: 'join' }] : []
+    return { id, layout: kind === 'page' ? control : [{ blockType: 'xpExperiment', experiment: `frozen-${serial}`,
+      slots: [{ slot: 'control', blocks: control }, { slot: 'variantA', blocks: [] }],
+    }], puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: `frozen-${serial}`, control, variantA: [] } }] } }
+  }) })
+  const amber = [{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' }]
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const before = await snapshots()
+  expect((before[0]!.snapshot as Snapshot).health).toEqual(amber)
+  stage = 1
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const partial = await snapshots()
+  if (frozen) expect(partial).toEqual(before)
+  else expect((partial.at(-1)!.snapshot as Snapshot).health).toEqual([...amber, { code: 'placement-unchecked',
+    detail: kind === 'page' ? { collection: 'pages', path: '/8' } : { collection: 'pages', id: 8 },
+  }])
+  stage = 2
+  clock += 1000
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  const recovered = await snapshots()
+  expect(recovered).toHaveLength(frozen ? 2 : 3)
+  expect((recovered.at(-1)!.snapshot as Snapshot).health).toEqual([])
+}, 5_000) // Measured 9 ms locally; cap exceeds 3×.
