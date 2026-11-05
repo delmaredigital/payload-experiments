@@ -91,3 +91,9 @@ test.each(['user_id', 'UserID', 'visitor-id', 'sessionId', 'IP'])('identifying d
   const options = resolveOptions({ ...sampleOptions(), events: { dimensions: [name] } })
   await expect(createOnInit(options)(fakePayload())).rejects.toThrow(`forbids identifying key: ${name}`)
 })
+
+test('onInit reserves metric source ids starting with click:', async () => {
+  const options = sampleOptions()
+  options.metricSources![0]!.id = 'click:join'
+  await expect(createOnInit(options)(fakePayload())).rejects.toThrow('click:')
+})

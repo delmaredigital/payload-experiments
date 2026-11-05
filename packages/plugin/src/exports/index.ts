@@ -37,6 +37,8 @@ export type {
   TransitionSuccess,
   AllocateBody,
   AddMetricBody,
+  AddMetricWarning,
+  AddMetricResult,
   DecideBody,
   ArchiveBody,
   MakeContentResult,
@@ -70,3 +72,5 @@ export { createExperimentBlock } from '../blocks/createExperimentBlock.js'
 export { EXPERIMENT_BLOCK_SLUG } from '../blocks/model.js'
 export type { HostBlock, ExperimentBlock, ExperimentBlockGroup, ResolvedHostBlock, ResolvedExperimentBlocks } from '../blocks/model.js'
 export type { WrapBlockBody, SnapshotHealth } from '../types/index.js'
+
+export { xpGoalField } from '../fields/xpGoal.js'

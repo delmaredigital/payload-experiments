@@ -5,6 +5,7 @@ import type { DocId, MetricSource } from '../types/contracts.js'
 export interface MetricDefinition extends Record<string, unknown> {
   id: DocId
   source: string
+  direction?: 'increase' | 'decrease'
   attributionWindowHours?: number | null
   minSampleSize?: number | null
   guardrailThreshold?: number | null
@@ -20,10 +21,11 @@ export async function resolveCaps(metrics: MetricDefinition[], sources: MetricSo
   const from = new Date(start.getTime() - 90 * 86400000)
   for (const metric of metrics) {
     const source = sources.find(source => source.id === metric.source)
-    const kind = metric.source.startsWith('events:') ? 'binomial' : source?.kind
+    const kind = (metric.source.startsWith('events:') || metric.source.startsWith('click:')) ? 'binomial' : source?.kind
     const definition = { ...structuredClone(metric), ...(source ? { keyedBy: source.keyedBy } : {}), kind, resolvedCap: null as number | null, historyUnits: undefined as number | undefined, capNotice: undefined as 'no-history' | undefined }
+    if (metric.source.startsWith('click:')) { definition.direction = 'increase'; definition.capping = null }
     const cap = metric.capping?.type ? metric.capping : kind === 'revenue' ? { type: 'percentile' as const, value: 0.99 } : null
-    if (kind === 'revenue' || !source && cap && !metric.source.startsWith('events:')) {
+    if (kind === 'revenue' || !source && cap && !(metric.source.startsWith('events:') || metric.source.startsWith('click:'))) {
       definition.capping = cap
       if (cap?.type === 'absolute' && typeof cap.value === 'number' && Number.isFinite(cap.value) && cap.value >= 0) {
         definition.resolvedCap = cap.value

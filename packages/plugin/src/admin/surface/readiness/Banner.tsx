@@ -60,6 +60,8 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
     </div>
     {setup && test.preflight?.checks.some(check => check.code === 'page-targets-unchecked' && check.warning) ? <p>{C.uncheckedPages}</p> : null}
     {test.preflight?.checks.filter(check => check.code === 'make-content-unsupported' && check.warning).map(check => <p key={check.code}>{READINESS[check.code].next(check.detail, doc)}</p>)}
+    {test.preflight?.checks.filter(check => check.warning && ['goal-in-some-versions', 'placement-unchecked'].includes(check.code)).map((check, index) => <p key={`${check.code}:${index}`}>{READINESS[check.code].next(check.detail, doc)}</p>)}
+    {test.preflight?.goalNotes?.map(note => <p key={note.metricId}>{note.message}</p>)}
     {doc.status === 'stopped' ? <p>{stoppedCopy(displayDate(doc.stoppedAt))}</p> : null}
     <div className="xp-readiness__actions">
       {actions.map(item => {

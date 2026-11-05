@@ -27,6 +27,7 @@ const required = {
     ArmSelectField: '../admin/armSelect/ArmSelectField.js',
   },
   puck: {
+    xpGoalPuckField: '../puck/xpGoalField.js',
     ExperimentSlot: '../puck/ExperimentSlot.js',
     createExperimentSlot: '../puck/ExperimentSlot.js',
     createExperimentSlotField: '../puck/experimentSlotField.js',
@@ -40,7 +41,7 @@ const required = {
     CollectionEditRedirect: '../admin/views/CollectionEditRedirect.js',
   },
   puckEditor: { ExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', createExperimentSlotEditor: '../puck/editor/ExperimentSlotEditor.js', experimentOutlinePlugin: '../puck/editor/experimentOutlinePlugin.js' },
-  index: { createExperimentBlock: '../blocks/createExperimentBlock.js', createArmSelectField: '../fields/armSelect.js', contentDone: '../contentDone.js' },
+  index: { xpGoalField: '../fields/xpGoal.js', createExperimentBlock: '../blocks/createExperimentBlock.js', createArmSelectField: '../fields/armSelect.js', contentDone: '../contentDone.js' },
 } as const
 const requiredTypes = {
   rsc: { MetricUnavailableReason: '../types/reasons.js', ContentReportReason: '../types/reasons.js', ManifestInputs: '../manifest/compile.js', ManifestInputExperiment: '../manifest/compile.js', ManifestPhase: '../manifest/compile.js', ManifestCompileOptions: '../manifest/compile.js', Manifest: '../types/manifest.js', ManifestExperiment: '../types/manifest.js' },

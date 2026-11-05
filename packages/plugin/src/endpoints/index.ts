@@ -1,3 +1,4 @@
+import { handleClickKeys } from './clickKeys.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Endpoint, PayloadRequest } from 'payload'
 import { XP_MANIFEST_KEY_HEADER } from '../constants.js'
@@ -37,6 +38,7 @@ export const ROUTES: Array<{ method: Endpoint['method']; path: string; access: A
   { method: 'post', path: '/xp/experiments/:id/recompute', access: 'manage', handler: handleRecompute },
   { method: 'get', path: '/xp/experiments/summary', access: 'readResults', handler: handleSummary },
   { method: 'post', path: '/xp/blocks/wrap', access: 'manage', handler: handleWrapBlock },
+  { method: 'get', path: '/xp/experiments/:id/click-keys', access: 'manage', handler: handleClickKeys },
   { method: 'get', path: '/xp/pages', access: 'manage', handler: handlePages },
   { method: 'post', path: '/xp/placements/status', access: 'manage', handler: handlePlacementStatus },
 ]

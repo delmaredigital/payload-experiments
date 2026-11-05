@@ -774,3 +774,47 @@ test('CUPED credits a user aggregate once to the earliest eligible visitor with 
   const snapshot = (await snapshots())[0]!.snapshot as Snapshot
   expect(snapshot.metrics[0]!.perArm.map(arm => arm.covariate?.preSum)).toEqual([0, 10])
 })
+
+test('click sources aggregate click:key conversions with user_id and no registered event source', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('user', { metricDefinitions: [{ metricId: 'click', attributionWindowHours: 168, minSampleSize: 150, name: 'Join clicks', kind: 'binomial', role: 'primary', source: 'click:join', direction: 'increase' }] })
+  const context = payload()
+  await events(phase, [{ unitId: 'click-user', unitType: 'user', arm: 'control' }, { unitId: 'other-user', unitType: 'user', arm: 'variantA' },
+    { type: 'conversion', experimentId: undefined, phase: undefined, unitId: 'cookie', userId: 'click-user', eventName: 'click:join', value: 1 },
+    { type: 'conversion', experimentId: undefined, phase: undefined, unitId: 'cookie', userId: 'click-user', eventName: 'join', value: 1 }])
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0, unavailableMetrics: [] })
+  const snapshot = (await snapshots())[0]!.snapshot as Snapshot
+  expect(snapshot.metrics[0]!.perArm.map(a => a.converters)).toEqual([1, 0])
+})
+test('running block goal health recomputes published placements and null rounds carry an info line', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const phase = await seed('visitor', { metricDefinitions: [{ metricId: 'click', attributionWindowHours: 168, minSampleSize: 150, name: 'Join clicks', kind: 'binomial', role: 'primary', source: 'click:join', direction: 'increase' }] })
+  await database.db.update(xp_experiments).set({ kind: 'block', phase: 1 }).where(eq(xp_experiments.id, Number(phase.experiment)))
+  const context = payload()
+  context.options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  Object.assign(context.payload.config, { collections: [{ slug: 'pages', fields: [] }] })
+  const content = { id: 7, layout: [{ blockType: 'xpExperiment', experiment: `frozen-${serial}`, slots: [{ slot: 'control', blocks: [{ blockType: 'cta', xpGoal: 'join' }] }, { slot: 'variantA', blocks: [] }] }] }
+  Object.assign(context.payload.db, { findOne: vi.fn(async () => content) })
+  await runResults(context.payload, { sweep: false })
+  expect(((await snapshots())[0]!.snapshot as Snapshot).goalFairnessNotice).toBe("Goal fairness isn't checked for tests started before this update.")
+  await database.db.delete(xp_results_snapshots)
+  await database.db.update(xp_phases).set({ placementDocs: [{ collection: 'pages', id: 7 }] }).where(eq(xp_phases.experiment, Number(phase.experiment)))
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(((await snapshots())[0]!.snapshot as Snapshot).health).toEqual([{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' }])
+  content.layout[0]!.slots[1]!.blocks.push({ blockType: 'cta', xpGoal: 'join' })
+  await database.db.delete(xp_results_snapshots)
+  await runResults(context.payload, { sweep: false })
+  expect(((await snapshots())[0]!.snapshot as Snapshot).health).toEqual([])
+})
+
+test('mid-test click goal excludes pre-added clicks from outcomes for every arm', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(now)
+  const addedAt = new Date(start + 3_600_000).toISOString()
+  const phase = await seed('visitor', { metricDefinitions: [{ metricId: 'click', attributionWindowHours: 168, minSampleSize: 150, name: 'Join', kind: 'binomial', role: 'primary', source: 'click:join', direction: 'increase', addedAt }] })
+  const context = payload()
+  await events(phase, [{ unitId: 'early', arm: 'control' }, { unitId: 'late', arm: 'variantA' },
+    { type: 'conversion', experimentId: undefined, phase: undefined, unitId: 'early', eventName: 'click:join', value: 1, ts: new Date(start + 2000).toISOString() },
+    { type: 'conversion', experimentId: undefined, phase: undefined, unitId: 'late', eventName: 'click:join', value: 1, ts: addedAt }])
+  expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })
+  expect(((await snapshots())[0]!.snapshot as Snapshot).metrics[0]!.perArm.map(a => a.converters)).toEqual([0, 1])
+})

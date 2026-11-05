@@ -1,3 +1,5 @@
+import { goalContent } from '../goals/fairness.js'
+import { detached } from './placementInteractions.js'
 import type { PayloadRequest } from 'payload'
 import { lockAndRescanPlacements, placementInteractions } from './placementInteractions.js'
 import { lockPagePaths } from '../db/locks.js'
@@ -28,6 +30,7 @@ export async function readExperiment(req: PayloadRequest, id: DocId): Promise<Tr
 }
 export function refuse(code: RefusalCode, detail?: unknown): never {
   const messages: Partial<Record<RefusalCode, string>> = {
+    'goal-in-some-versions': "This goal appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal.",
     'placements-changed': "This test's pages changed while it was starting. Try again.",
     'page-busy': "One of this test's pages is being saved right now. Try again in a moment.",
     'interacting-tests': (() => { const d = (detail as Array<{ path: string; status: string; name: string; version: boolean }> | undefined)?.[0]; return d ? interactingTestsCopy(d.path, d.status, d.name, d.version) : 'Finish one of the tests first.' })(),
@@ -119,6 +122,11 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
       current.arms = current.arms.map(arm => arm.kind === 'control' ? { ...arm, params: defaults?.[point.id]?.params ?? point.defaultParams } : arm)
       const recheck = checkStart({ ...input, experiment: current }).find(check => !check.ok)
       if (recheck && recheck.code !== 'page-targets-unchecked' && recheck.code !== 'make-content-unsupported') refuse(recheck.code, recheck.detail)
+    }
+    if (input.metrics.some(metric => metric.source.startsWith('click:'))) {
+      const content = await detached(req, () => goalContent(req, options, current, placementDocs))
+      const failure = checkStart({ ...input, experiment: current, goalContent: content }).find(check => check.code === 'goal-in-some-versions' && !check.ok)
+      if (failure) refuse('goal-in-some-versions', failure.detail)
     }
     const lockedMetrics = await lockMetricsForFreeze(exec, caps.definitions.map(metric => metric.id))
     if (!lockedMetrics) {

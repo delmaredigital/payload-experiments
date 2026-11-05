@@ -27,6 +27,7 @@ export function createOnInit<TUser extends { id: string | number }>(options: Res
         throw new Error(`Experiments blocks field ${registration.slug}.${registration.field} must contain ${registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG}`)
       }
     }
+    if (options.metricSources?.some(source => source.id.startsWith('click:'))) throw new Error('metricSources ids starting with click: are reserved for click goals')
     validateDimensions(options.events?.dimensions)
     assertPostgresAdapter(payload)
     await probeTransactions(payload)

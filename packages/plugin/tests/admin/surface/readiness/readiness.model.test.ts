@@ -9,6 +9,8 @@ import { doc, preflight } from './fixtures.js'
 type Fixture = [string, unknown, string | null]
 const fixtures = {
   'make-content-unsupported': ['header', 'Landing page', "Landing page has more than one language, so Make it the content isn't available for it; you'll copy the winning version by hand."],
+  'goal-in-some-versions': ['win', { metricId: 1, name: 'Join' }, "Join appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal."],
+  'placement-unchecked': ['versions', { path: '/landing' }, "/landing couldn't be checked, so the test can't confirm every version shows the same goals. Check that you can open it."],
   'invalid-status': ['header', undefined, null],
   'no-placements': ['what', undefined, 'Not on a page yet. Open a page, add an Experiment block and choose this test.'],
   'placement-unpublished': ['versions', [{ title: 'Landing' }], "The block you're testing is only on a draft of Landing. Publish the page before you start."],
@@ -59,11 +61,11 @@ test('covers every literal start check and every member of both source unions (3
   const readinessUnion = source.split('export type ReadinessCode = ArmIssueCode')[1]!.split('export interface')[0]!
   const armUnion = endpoints.split('export type ArmIssueCode =')[1]!.split('\n')[0]!
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(28)
+  expect(literals).toHaveLength(29)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(41)
+  expect(members).toHaveLength(43)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
-  expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'version-identical', 'version-page-unavailable', 'version-page-unchecked'].sort())
+  expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'placement-unchecked', 'version-identical', 'version-page-unavailable', 'version-page-unchecked'].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())
 })
 test('block path readiness names the removal step', () => {

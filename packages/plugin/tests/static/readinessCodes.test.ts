@@ -6,7 +6,7 @@ const codes = [
   'weights-total', 'control-count', 'control-first', 'holdout-count', 'holdout-last', 'variant-count',
   'invalid-key', 'duplicate-key', 'slot-required', 'duplicate-slot',
   'invalid-status', 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-in-use', 'page-target-unpublished', 'page-targets-unchecked', 'page-user-unit',
-  'placement-unpublished', 'duplicate-version-row', 'interacting-tests',
+  'goal-in-some-versions', 'placement-unchecked', 'placement-unpublished', 'duplicate-version-row', 'interacting-tests',
   'version-identical', 'version-same-address', 'unknown-collection',
   'version-page-unavailable', 'version-page-unchecked',
   'block-path-rule',
@@ -21,9 +21,9 @@ test('ReadinessCode lists exactly the literal predicates and ARM_CHECK_ORDER (35
   const literals = [...source.matchAll(/\badd\('([^']+)'/g)].map(match => match[1])
   const order = source.match(/ARM_CHECK_ORDER[^=]*=\s*\[([\s\S]*?)\]/)![1]!
   const arms = [...order.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(28)
+  expect(literals).toHaveLength(29)
   expect(arms).toHaveLength(10)
-  expect(new Set([...literals, ...arms, 'version-identical', 'version-page-unavailable', 'version-page-unchecked'])).toEqual(new Set(codes))
-  expect(new Set(codes).size).toBe(41)
+  expect(new Set([...literals, ...arms, 'placement-unchecked', 'version-identical', 'version-page-unavailable', 'version-page-unchecked'])).toEqual(new Set(codes))
+  expect(new Set(codes).size).toBe(43)
   expect(exhaustive).toEqual({})
 })

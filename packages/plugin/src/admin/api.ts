@@ -1,7 +1,7 @@
 import type { DocId } from '../types/contracts.js'
 import type {
   WrapBlockBody, PagesResult, PlacementStatusBody, PlacementStatusResult, RestoreContentEntryBody, RestoreContentEntryResult, DismissContentEntryBody, DismissContentEntryResult, AddMetricBody, AllocateBody, ArchiveBody, DecideBody, ErrorEnvelope, MakeContentResult,
-  PreflightResult, PreviewTokenResult, RefusalCode, ResultsResponse, SummaryResponse, TransitionSuccess,
+  AddMetricResult, PreflightResult, PreviewTokenResult, RefusalCode, ResultsResponse, SummaryResponse, TransitionSuccess,
 } from '../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from './copy/common.js'
 import { CONTENT_ENTRY_REFUSALS } from './copy/actions.js'
@@ -49,7 +49,7 @@ export function createApi(apiBase: string) {
     placementStatus: (body: PlacementStatusBody) => request<PlacementStatusResult>(() => `${apiBase.replace(/\/$/, '')}/xp/placements/status`, 'POST', body),
     start: (id: DocId) => post<TransitionSuccess>(id, 'start'),
     allocate: (id: DocId, body: AllocateBody, options?: RequestOptions) => post<TransitionSuccess>(id, 'allocate', body, options),
-    addMetric: (id: DocId, body: AddMetricBody, options?: RequestOptions) => post<TransitionSuccess>(id, 'add-metric', body, options),
+    addMetric: (id: DocId, body: AddMetricBody, options?: RequestOptions) => post<AddMetricResult>(id, 'add-metric', body, options),
     stop: (id: DocId) => post<TransitionSuccess>(id, 'stop'),
     decide: (id: DocId, body: DecideBody) => post<TransitionSuccess>(id, 'decide', body),
     releaseHoldout: (id: DocId) => post<TransitionSuccess>(id, 'release-holdout'),

@@ -1,4 +1,5 @@
 export const OVERRIDE_ACCESS_ALLOW_LIST: Array<{ file: string; reason: string }> = [
+  { file: 'src/db/clickGoals.ts', reason: 'click-goal fairness reads published content raw' },
   { file: 'src/db/placements.ts', reason: 'interacting-tests computes placement paths from published rows' },
   { file: 'src/db/pageContent.ts', reason: 'version-identical compares published content raw (ids stripped)' },
   { file: 'src/db/pageContent.ts', reason: "status computes a page's published (or never-published draft) path" },

@@ -841,3 +841,27 @@ The WCAG 2.x gate requires at least 4.5:1 **foreground text on the accent fill**
 in each theme (the accent is used as a fill, not as page text). A failing
 colour is refused with its ratio. Status chips retain Payload semantic colours.
 `deriveAccent` is also exported from `/puck/editor` for editor integrations.
+
+
+Click goals use a goal's short name as their key (`click:<short-name>`). Add
+`xpGoalField()` from the root entry to a host block or array row, or add
+`xpGoalPuckField()` from `/puck` as the Puck component's `xpGoal` prop. Run the
+host's `payload migrate:create`: each table using the Payload field (and its
+version table) gains a nullable text column. Render the value on the actual
+interactive element as `data-xp-goal={xpGoal}`; code can also set
+`data-xp-goal="join"` directly. Define a click goal with that short name first.
+The field/prop configs currently use plain text; the admin picker is supplied
+by the admin surface. Goals in related documents and keys placed only in code
+are invisible to the content fairness check.
+
+`ExperimentsProvider` records native clicks when its server assignments arm
+click goals. Nested providers share one document listener; the deepest armed
+provider supplies the route and pageview id. Enter on links/buttons and Space
+on buttons count through the browser's native click. A focusable `div` needs
+`role="button"` and the host's own keyboard handler. Beacons use `sendBeacon`
+(with a keepalive fallback) so navigation/unload does not discard the click.
+Click and exposure beacons share `events.rateLimit`; size the adapter for both.
+New click goals are accepted within 30 seconds. A click goal may be primary;
+primary and guardrail goals must appear in every tested version or outside all
+of them. Secondary asymmetry warns, and results health checks published rows
+again on every run.

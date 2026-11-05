@@ -582,3 +582,27 @@ test('Start itself refuses placements-changed after a new placement appears duri
   await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'placements-changed', status: 409 })
   expect(f.payload.documents['xp-phases']).toEqual([])
 }, 5000)
+
+test('click primary starts for signed-in users and freezes a binomial increase metric without a cap', async () => {
+  const f = fixture()
+  f.experiment.unitType = 'user'
+  Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', slug: 'join', direction: 'increase', capping: { type: 'absolute', value: 5 } })
+  await start(f.req, { experimentId: 1, options: f.options })
+  expect(f.payload.documents['xp-phases']![0]!.metricDefinitions).toEqual([expect.objectContaining({ source: 'click:join', role: 'primary', kind: 'binomial', direction: 'increase', resolvedCap: null, capping: null })])
+})
+test('Start rechecks click primary fairness after locks using detached published reads', async () => {
+  const f = fixture()
+  f.experiment.kind = 'page'; f.experiment.exposurePolicy = 'pageview'; f.experiment.targeting = []
+  f.experiment.pageCollection = 'pages'
+  f.experiment.arms = defaultArms('page').map((arm, i) => ({ ...arm, pageTarget: i ? '/b' : '/a' }))
+  Object.assign(f.payload.documents['xp-metrics']![0]!, { source: 'click:join', slug: 'join' })
+  f.options.pages = { collections: [{ slug: 'pages', pathOf: d => String(d.path), findByPath: async path => ({ id: path === '/a' ? 7 : 8, published: true }), contentOf: d => d.layout }] }
+  Object.assign(f.payload.config, { collections: [{ slug: 'pages', versions: { drafts: true } }] })
+  Object.assign(f.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+    const locked = f.executor.calls.some(call => call.text.includes("hashtext('xp:pagepath')"))
+    expect(f.req.transactionID).toBeUndefined()
+    return { id: where.id.equals, _status: 'published', path: where.id.equals === 7 ? '/a' : '/b', layout: locked && where.id.equals === 8 ? [] : [{ xpGoal: 'join' }] }
+  }) })
+  await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'goal-in-some-versions' })
+  expect(f.payload.documents['xp-phases']).toEqual([])
+})

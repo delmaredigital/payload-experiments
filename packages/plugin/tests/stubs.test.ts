@@ -41,7 +41,7 @@ import { contentChangesHook } from '../src/hooks/contentChanges.js'
 
 const exportsByEntry = [
   [blocks, ['controlOnlyBlocks', 'segmentExperimentBlocks', 'EXPERIMENT_BLOCK_SLUG']],
-  [index, ['createExperimentBlock', 'EXPERIMENT_BLOCK_SLUG', 'createExperimentsPlugin', 'defineFlagPoint', 'defineMetricSource', 'createArmSelectField', 'contentDone']],
+  [index, ['xpGoalField', 'createExperimentBlock', 'EXPERIMENT_BLOCK_SLUG', 'createExperimentsPlugin', 'defineFlagPoint', 'defineMetricSource', 'createArmSelectField', 'contentDone']],
   [runtimeProxy, ['defineExperimentsProxyRuntime', 'createPostgresManifestLoader', 'createHttpManifestLoader']],
   [runtimeServer, ['defineExperimentsServerRuntime']],
   [proxy, ['resolveExperiments', 'applyExperiments', 'createExperimentProxy']],
@@ -49,7 +49,7 @@ const exportsByEntry = [
   [client, ['ExperimentGroup', 'ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
   [adminClient, ['wrapExperimentBlock', 'syncExperimentSlots', 'copyOriginalIntoVersion', 'unwrapExperimentBlock', 'findRegisteredBlocksField', 'XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField', 'PlacementStatus']],
   [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect', 'TestsNavLinkServer']],
-  [puck, ['ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
+  [puck, ['xpGoalPuckField', 'ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE']],
   [puckEditor, ['ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent', 'experimentOutlinePlugin']],
 ] as const
 
@@ -84,7 +84,7 @@ test.each(exportsByEntry)('entry exports every contracted value (%j)', (barrel, 
 })
 
 test('every route resolves a handler', () => {
-  expect(ROUTES).toHaveLength(21)
+  expect(ROUTES).toHaveLength(22)
   for (const route of ROUTES) expect(typeof route.handler, route.path).toBe('function')
 })
 

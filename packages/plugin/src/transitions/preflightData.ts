@@ -1,3 +1,4 @@
+import { goalContent, OUTSIDE_GOAL } from '../goals/fairness.js'
 import { placementInteractions, placementPaths, uniquePlacementDocs } from './placementInteractions.js'
 import { Forbidden, NotFound, type PayloadRequest } from 'payload'
 import { normalisePath } from '../runtime/normalisePath.js'
@@ -165,6 +166,7 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
         const paths = experiment.kind === 'page' ? experiment.arms.flatMap(a => typeof a.pageTarget === 'string' ? [a.pageTarget] : []) : await placementPaths(req, options, uniquePlacementDocs(input.placements ?? []))
         input.interactions = await placementInteractions(req, await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload), options, experiment, paths.map(normalisePath))
       }
+      if (input.metrics.some(metric => metric.source.startsWith('click:'))) input.goalContent = await goalContent(req, options, experiment, input.placements ? uniquePlacementDocs(input.placements.filter(placement => placement.published)) : undefined)
       inputs.set(String(experiment.id), input)
     } catch (cause) {
       if (!tolerateErrors) throw cause
@@ -342,5 +344,5 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
         ...(placement.slug ? { slug: placement.slug } : {}), ...await placementUrls(options, placement, pendingPreviews, onPreviewFailure, previews) })
     }
   }
-  return { checks: checkStart(input), placements, ...(e.kind === 'page' ? { pagePlacements } : {}), baseline, trafficPerDay, estimate: power }
+  return { checks: checkStart(input), ...(input.goalContent ? { goalNotes: input.metrics.filter(m => m.source.startsWith('click:') && input.goalContent && !input.goalContent.skipped && !input.goalContent.unchecked.length && !input.goalContent.keys.some(k => `click:${k.key}` === m.source)).map(m => ({ metricId: m.id, message: OUTSIDE_GOAL })) } : {}), placements, ...(e.kind === 'page' ? { pagePlacements } : {}), baseline, trafficPerDay, estimate: power }
 }

@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: click goals (`click:<short-name>`), delegated client click beacons, defined-key validation and published-content fairness checks at Start, add-goal and results runs. Click goals may be primary or guardrail goals. Migration impact: none in plugin collections; hosts adopting `xpGoalField()` or `xpGoalPuckField()` add one nullable text column per table using `xpGoal`, including version tables, with `payload migrate:create`.
+- Added: manager-only `GET /xp/experiments/:id/click-keys` and add-metric warning responses for click goals. Migration impact: no database change; consumers may adopt `warnings` in add-goal responses and optional `clickGoalsArmed` in client assignments.
+
 - Added: Experiment blocks for registered Payload blocks fields, with Original/version rendering, viewport groups, draft wrapping and winner replacement in published content and drafts. Migration impact: hosts adopting `createExperimentBlock` add the Experiment block and slots tables, their version tables, and the live/version `slot` enum types (`enum_<coll>_blocks_<slug>_slots_slot` and its `_v` counterpart) with `payload migrate:create`.
 - Added: `/blocks` exports `createExperimentBlock`, `controlOnlyBlocks`, `segmentExperimentBlocks` and `EXPERIMENT_BLOCK_SLUG` for host blocks fields. Migration impact: adopt the subpath in host imports; no additional database change.
 - Added: `resolveExperimentBlocks` from `/rsc` resolves versions and rendered exposures for host block rendering. Migration impact: wire the resolver into the host renderer; no database change.

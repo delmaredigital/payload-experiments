@@ -4,7 +4,7 @@ import { toClientAssignments } from '../../src/server/toClientAssignments.js'
 
 test('allow-list defaults to none and no unit ids escape', () => {
   const result = toClientAssignments(assignments(), { pathname: '/' })
-  expect(result).toStrictEqual({ v: 1, revision: 3, apiRoute: '/api', experiments: {}, flagPoints: {}, pageviews: [] })
+  expect(result).toStrictEqual({ v: 1, revision: 3, apiRoute: '/api', experiments: {}, flagPoints: {}, pageviews: [], clickGoalsArmed: true })
   expect(Object.getPrototypeOf(result.experiments)).toBe(Object.prototype)
   expect(Object.getPrototypeOf(result.flagPoints)).toBe(Object.prototype)
   expect(JSON.stringify(result)).not.toContain('visitor'); expect(JSON.stringify(result)).not.toContain('private-user')
@@ -24,6 +24,7 @@ test.each(['staff', 'bot', 'preview'] as const)('%s suppresses all client exposu
   const result = toClientAssignments(a, { pathname: '/variant', experiments: ['hero'], flagPoints: ['point'] })
   expect(result.experiments.hero!.exposable).toBe(false); expect(result.flagPoints.point!.exposable).toBe(false)
   expect(result.pageviews).toEqual([])
+  expect(result.clickGoalsArmed).toBe(false)
 })
 test('pageviews match served page; holdout serves control; unenrolled is excluded', () => {
   const m = manifest([page()]), a = assignments(m)
@@ -46,4 +47,17 @@ test('__proto__ allow-listed keys are own data properties on plain objects', () 
   expect(Object.getPrototypeOf(result.flagPoints)).toBe(Object.prototype)
   expect(Object.hasOwn(result.experiments, '__proto__')).toBe(true)
   expect(Object.hasOwn(result.flagPoints, '__proto__')).toBe(true)
+})
+
+ test('decided rollout holdout and winner enrolments arm click goals even without allow-lists', () => {
+  const m = manifest([experiment({ status: 'decided', phaseKind: 'rollout', winnerArm: 'variantA', holdoutKey: 'holdout', arms: [
+    { key: 'control', kind: 'control', weight: 45 }, { key: 'variantA', kind: 'variant', weight: 45 }, { key: 'holdout', kind: 'holdout', weight: 10 },
+  ] })])
+  const a = assignments(m)
+  for (const arm of ['holdout', 'variantA']) {
+    a.bySlug.hero!.arm = arm; a.bySlug.hero!.exposable = true
+    expect(toClientAssignments(a, { pathname: '/' }).clickGoalsArmed).toBe(true)
+  }
+  a.bySlug.hero!.exposable = false
+  expect(toClientAssignments(a, { pathname: '/' }).clickGoalsArmed).toBe(false)
 })

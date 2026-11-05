@@ -15,7 +15,7 @@ export function toClientAssignments(assignments: Assignments, opts: { pathname: 
     const point = assignments.flagPoints[id]!
     return [id, { ...point, params: { ...point.params }, exposable: point.exposable && !blocked }]
   }))
-  const result: ClientAssignments = { v: 1, revision: assignments.revision, apiRoute: opts.apiRoute ?? '/api', experiments, flagPoints, pageviews: [] }
+  const result: ClientAssignments = { v: 1, revision: assignments.revision, apiRoute: opts.apiRoute ?? '/api', experiments, flagPoints, pageviews: [], clickGoalsArmed: !blocked && Object.values(assignments.bySlug).some(a => a.exposable) }
   if (!blocked) for (const e of manifest?.experiments ?? []) {
     const a = assignments.bySlug[e.slug]
     if (e.kind !== 'page' || !a?.exposable) continue

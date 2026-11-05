@@ -1,3 +1,5 @@
+import { clickKeys } from '../goals/cache.js'
+import { validClickSource } from '../goals/key.js'
 import { safeError } from '../log.js'
 import { NextRequest } from 'next/server.js'
 import type { PayloadRequest } from 'payload'
@@ -47,7 +49,8 @@ export async function handleEvents<TUser extends { id: string | number } = { id:
       bot: isBot(req.headers.get('user-agent')), preview: isPreview(request),
     })
     if (unresolvedStaff) for (const assignment of Object.values(assignments.bySlug)) assignment.exposable = false
-    const rows = eventRows(events, manifest, assignments, options, visitorId, userId, new Date().toISOString(), attributes)
+    const keys = events.some(event => event && typeof event === 'object' && 'eventName' in event && validClickSource(event.eventName)) ? await clickKeys(req.payload) : undefined
+    const rows = eventRows(events, manifest, assignments, options, visitorId, userId, new Date().toISOString(), attributes, keys)
     // §7.8 events insert / assignment lookup exception: pooled SQL and cached manifest,
     // no Local API calls (and hence no implicit overrideAccess defaults).
     if (rows.length) await insertEvents(pooledExecutor(req.payload), rows, message => req.payload.logger.error(message))

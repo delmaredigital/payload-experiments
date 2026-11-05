@@ -11,9 +11,11 @@ export interface ResultsPhase extends AnalysisPhase {
   arms: Array<AnalysisPhase['arms'][number] & Pick<Arm, 'pageTarget'>>
   seed: string
   allocation: number
-  metricDefinitions: Array<FrozenMetric & { source: string; keyedBy?: UnitType; capNotice?: 'no-history' }>
+  metricDefinitions: Array<FrozenMetric & { source: string; addedAt?: string; keyedBy?: UnitType; capNotice?: 'no-history' }>
 }
 export interface ResultsCandidate {
+  slug?: string
+  testPlacementDocs?: import('./placements.js').PlacementDoc[] | null
   phase: ResultsPhase
   frozenSnapshot?: Snapshot | null
   kind?: ExperimentKind
@@ -57,6 +59,8 @@ export async function resultsCandidates(exec: Executor, { cutoff, experimentId }
       'startedAt', p.${q(p.startedAt)}, 'endedAt', p.${q(p.endedAt)}, 'seed', p.${q(p.seed)},
       'arms', p.${q(p.arms)}, 'allocation', p.${q(p.allocation)}, 'metricDefinitions', p.${q(p.metricDefinitions)},
       'analysis', p.${q(p.analysis)}, 'contentChanges', p.${q(p.contentChanges)}) AS "phase",
+    e.${q(e.slug)} AS "slug",
+    (SELECT t.${q(p.placementDocs)} FROM ${phases} t WHERE t.${q(p.experimentId)} = p.${q(p.experimentId)} AND t.${q(p.phaseKind)} = 'test' AND t.${q(p.phase)} <= p.${q(p.phase)} ORDER BY t.${q(p.phase)} DESC LIMIT 1) AS "testPlacementDocs",
     e.${q(e.pageCollection)} AS "pageCollection", e.${q(e.kind)} AS "kind", e.${q(e.phase)} AS "currentPhase", e.${q(e.unitType)} AS "unitType", e.${q(e.status)} AS "status", e.${q(e.decisionWinnerArm)} AS "winnerArm",
     latest."computedAt" AS "latestComputedAt",
     (SELECT t.${q(p.arms)} FROM ${phases} t WHERE t.${q(p.experimentId)} = p.${q(p.experimentId)} AND t.${q(p.phaseKind)} = 'test' AND t.${q(p.phase)} <= p.${q(p.phase)} ORDER BY t.${q(p.phase)} DESC LIMIT 1) AS "testArms",
@@ -71,7 +75,7 @@ export async function resultsCandidates(exec: Executor, { cutoff, experimentId }
         AND p.${q(p.endedAt)} IS NOT NULL
         AND (s.${q(s.computedAt)} > p.${q(p.endedAt)} + $2 * interval '1 millisecond' OR p.${q(p.endedAt)} < $1)
       ORDER BY s.${q(s.computedAt)} DESC, s.${q(s.id)} DESC LIMIT 1) frozen ON true
-    WHERE ((e.${q(e.kind)} = 'page'
+    WHERE (((e.${q(e.kind)} = 'page' OR EXISTS (SELECT 1 FROM jsonb_array_elements(p.${q(p.metricDefinitions)}) goal WHERE goal->>'source' LIKE 'click:%'))
         AND (p.${q(p.endedAt)} IS NULL OR p.${q(p.endedAt)} >= $1 OR EXISTS
           (SELECT 1 FROM ${snapshots} existing WHERE existing.${q(s.experimentId)} = p.${q(p.experimentId)} AND existing.${q(s.phase)} = p.${q(p.phase)}))
         AND e.${q(e.status)} IN ('running', 'decided') AND (p.${q(p.phase)} = e.${q(e.phase)}

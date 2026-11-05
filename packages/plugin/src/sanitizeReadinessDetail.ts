@@ -15,6 +15,12 @@ const failure = (value: unknown) => value === 'placements-failed' || value === '
  */
 export function sanitizeReadinessDetail(code: ReadinessCode, detail: unknown): unknown {
   switch (code) {
+    case 'goal-in-some-versions': {
+      const rows = Array.isArray(detail) ? detail : [detail]
+      return rows.filter(object).filter(row => key(row.metricId) || typeof row.metricId === 'number' && Number.isSafeInteger(row.metricId)).map(row => ({ metricId: row.metricId }))
+    }
+    case 'placement-unchecked':
+      return object(detail) ? Object.fromEntries(Object.entries(detail).filter(([k, v]) => k === 'path' ? path(v) : ['collection', 'id'].includes(k) && (key(v) || typeof v === 'number' && Number.isSafeInteger(v)))) : undefined
     case 'placement-unpublished':
     case 'duplicate-version-row':
     case 'interacting-tests':

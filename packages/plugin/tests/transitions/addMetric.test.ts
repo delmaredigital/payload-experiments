@@ -129,3 +129,24 @@ test.each(['slug', 'source'])('addMetric refuses a goal whose %s changed during 
   expect(payload.documents['xp-phases']![0]!.metricDefinitions).toHaveLength(1)
   expect(experiment.metrics).toEqual({ primary: 2 })
 })
+
+test.each(['secondary', 'guardrail'] as const)('click %s fairness is computed before the transition; guardrail refuses, secondary warns', async role => {
+  const f = fixture('running')
+  f.experiment.kind = 'page'; f.experiment.pageCollection = 'pages'
+  f.experiment.arms = defaultArms('page').map((arm, i) => ({ ...arm, pageTarget: i ? '/b' : '/a' }))
+  Object.assign(f.payload.documents['xp-metrics']![1]!, { source: 'click:join', slug: 'join' })
+  f.options.pages = { collections: [{ slug: 'pages', pathOf: d => String(d.path), findByPath: async path => ({ id: path === '/a' ? 7 : 8, published: true }), contentOf: d => d.layout }] }
+  Object.assign(f.payload.config, { collections: [{ slug: 'pages', versions: { drafts: true } }] })
+  Object.assign(f.payload.db, { findOne: vi.fn(async ({ where }: { where: { id: { equals: number } } }) => {
+    expect(f.req.context.xpTransition).not.toBe(true)
+    expect(f.executor.calls.some(c => c.text.includes('pg_advisory'))).toBe(false)
+    return { id: where.id.equals, _status: 'published', layout: where.id.equals === 7 ? [{ xpGoal: 'join' }] : [] }
+  }) })
+  if (role === 'guardrail') {
+    await expect(addMetric(f.req, { experimentId: 1, metric: 4, role, options: f.options })).rejects.toMatchObject({ code: 'goal-in-some-versions' })
+    expect(f.payload.documents['xp-phases']![0]!.metricDefinitions).toHaveLength(1)
+  } else {
+    const result = await addMetric(f.req, { experimentId: 1, metric: 4, role, options: f.options })
+    expect(result.warnings.map(w => w.code)).toEqual(['goal-in-some-versions', 'goal-added-mid-test'])
+  }
+})

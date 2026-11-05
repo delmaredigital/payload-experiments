@@ -58,3 +58,19 @@ test('attribution windows must be at least one hour (a zero window makes every r
   expect(fieldMin(collections.find(c => c.slug === 'xp-metrics')!.fields, 'attributionWindowHours')).toBe(1)
   expect(fieldMin(collections.find(c => c.slug === 'xp-experiments')!.fields, 'attributionWindowHours')).toBe(1)
 })
+
+test('click goal saves derive source from slug, force increase and clear capping on every save', () => {
+  expect(invoke(cap, { data: { source: 'click:old', slug: 'join', direction: 'decrease', capping: { type: 'absolute', value: 5 } } }))
+    .toMatchObject({ source: 'click:join', direction: 'increase', capping: { type: null, value: null } })
+  expect(invoke(cap, { data: { name: 'New label' }, originalDoc: { source: 'click:join', slug: 'join' } })).toMatchObject({ source: 'click:join', direction: 'increase' })
+  expect(serializeMetricSources(sampleOptions())).toContainEqual({ id: 'click:', label: 'A click on the page', kind: 'binomial', keyedBy: 'visitor', clientWritable: true })
+})
+test.each(['a', '1', 'join_us-2', 'a'.repeat(64)])('click key accepts %s', slug => {
+  expect(validate(field(config.fields, 'slug', 'text').validate, slug, { data: { source: `click:${slug}` } })).toBe(true)
+  expect(validate(field(config.fields, 'source', 'text').validate, `click:${slug}`)).toBe(true)
+})
+test.each(['', '_join', 'Join', 'a:b', 'a b', 'a'.repeat(65)])('click key rejects %s, other goal slugs are unchanged', slug => {
+  expect(validate(field(config.fields, 'slug', 'text').validate, slug, { data: { source: 'click:' } })).not.toBe(true)
+  expect(validate(field(config.fields, 'slug', 'text').validate, slug, { data: { source: 'revenue' } })).toBe(true)
+  expect(validate(field(config.fields, 'source', 'text').validate, `click:${slug}`)).not.toBe(true)
+})
