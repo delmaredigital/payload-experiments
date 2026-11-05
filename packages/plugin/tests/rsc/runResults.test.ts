@@ -17,6 +17,7 @@ import type { Snapshot } from '../../src/types/snapshot.js'
 import { analysePhase } from '../../src/results/analyse.js'
 import * as healthRefresh from '../../src/results/health.js'
 import { LEGACY_FAIRNESS } from '../../src/goals/fairness.js'
+import * as pageCollections from '../../src/transitions/pageCollection.js'
 import * as snapshotAnalysis from '../../src/results/snapshot.js'
 import * as aggregation from '../../src/results/aggregate.js'
 import type { ResultsPhase } from '../../src/db/snapshots.js'
@@ -827,6 +828,7 @@ const clickMetric = { metricId: 'click', attributionWindowHours: 168, minSampleS
 const freshGoal = { code: 'goal-in-some-versions' as const, metricId: 'click', name: 'Join clicks' }
 const storedGoal = { ...freshGoal, name: 'Stored join clicks' }
 const uncheckedPage = { code: 'placement-unchecked' as const, detail: { collection: 'pages', path: '/c' } }
+const uncheckedCollection = { code: 'placement-unchecked' as const, detail: {} }
 type GoalHealthCell = {
   name: string
   frozen: boolean
@@ -838,6 +840,8 @@ type GoalHealthCell = {
   nullRound?: boolean
   noContentOf?: boolean
   missingMain?: boolean
+  unresolvedCollection?: boolean
+  rollout?: { previous: NonNullable<Snapshot['health']> }
   previousNotice?: string
   expectedNotice?: string
 }
@@ -846,19 +850,31 @@ type GoalHealthCell = {
 async function runGoalHealthCell(cell: GoalHealthCell) {
   vi.spyOn(Date, 'now').mockReturnValue(now)
   const phase = await seed('visitor', { metricDefinitions: [clickMetric], arms: [
-    { key: 'control', label: 'Original', kind: 'control', weight: 50, pageTarget: '/a' },
+    { key: 'control', label: 'Original', kind: 'control', weight: cell.rollout ? 48 : 50, pageTarget: '/a' },
     { key: 'variantA', label: 'A', kind: 'variant', weight: 50, pageTarget: '/c' },
+    ...(cell.rollout ? [{ key: 'holdout' as const, label: 'Holdout', kind: 'holdout' as const, weight: 2 }] : []),
   ], ...(cell.frozen ? { endedAt: new Date(start + 1000).toISOString() } : {}) })
   const kind = cell.kind ?? 'page'
-  await database.db.update(xp_experiments).set({ kind, phase: 1, pageCollection: kind === 'page' ? 'pages' : null,
+  await database.db.update(xp_experiments).set({ kind, phase: cell.rollout ? 2 : 1, pageCollection: kind === 'page' ? 'pages' : null,
     status: cell.frozen ? 'decided' : 'running', decision_winnerArm: cell.frozen ? 'variantA' : null })
     .where(eq(xp_experiments.id, Number(phase.experiment)))
   await database.db.update(xp_phases).set({ placementDocs: cell.nullRound ? null : [{ collection: 'pages', id: 7 }] })
     .where(eq(xp_phases.experiment, Number(phase.experiment)))
-  const stored: Snapshot = { ...analysePhase({ phase, now: new Date(now - 1000), status: cell.frozen ? 'stopped' : 'running',
-    units: new Map(), metricData: [{ metricId: 'click', values: new Map() }],
-  }), health: cell.previous, ...(cell.previousNotice ? { goalFairnessNotice: cell.previousNotice } : {}) }
-  await snapshotDb.writeSnapshots(pooledExecutor(payload().payload), [stored])
+  const seeded = [{ phase, previous: cell.previous }]
+  if (cell.rollout) {
+    const rollout: ResultsPhase = { ...phase, phase: 2, phaseKind: 'rollout', startedAt: String(phase.endedAt), endedAt: null,
+      arms: phase.arms.filter(arm => arm.key === 'variantA' || arm.kind === 'holdout') }
+    await database.db.insert(xp_phases).values({ ...rollout, experiment: Number(phase.experiment),
+      startedAt: String(rollout.startedAt), endedAt: null, arms: [...rollout.arms] })
+    seeded.push({ phase: rollout, previous: cell.rollout.previous })
+  }
+  const stored = seeded.map(({ phase, previous }): Snapshot => ({
+    ...analysePhase({ phase, now: new Date(now - 1000), status: phase.endedAt ? 'stopped' : 'running',
+      units: new Map(), metricData: [{ metricId: 'click', values: new Map() }],
+      ...(phase.phaseKind === 'rollout' ? { winnerArm: 'variantA' } : {}),
+    }), health: previous, ...(cell.previousNotice ? { goalFairnessNotice: cell.previousNotice } : {}),
+  }))
+  await snapshotDb.writeSnapshots(pooledExecutor(payload().payload), stored)
   const before = await snapshots()
   const context = payload()
   const findByPath = vi.fn(async (path: string) => ({ id: path === '/a' ? 7 : 9, published: true }))
@@ -876,38 +892,59 @@ async function runGoalHealthCell(cell: GoalHealthCell) {
     return { id, layout: cell.outcome === 'asymmetric' && id === 9 ? [] : [{ xpGoal: 'join' }] }
   })
   Object.assign(context.payload.db, { findOne: read })
+  if (cell.unresolvedCollection) vi.spyOn(pageCollections, 'resolvePageCollection').mockRejectedValue(new Error('page collection unresolved'))
   // Observe the actual fresh result even when the frozen comparator suppresses
   // its write; the persisted row must then remain byte-for-byte unchanged.
   const refreshed = vi.spyOn(healthRefresh, 'mergePageHealth')
   const writes = vi.spyOn(snapshotDb, 'writeSnapshots')
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0, skipped: 0 })
-  expect(refreshed).toHaveBeenCalledTimes(1)
-  expect(refreshed.mock.results[0]!.value).toEqual(cell.expected)
+  expect(refreshed).toHaveBeenCalledTimes(seeded.length)
+  for (const result of refreshed.mock.results) expect(result.value).toEqual(cell.expected)
   const after = await snapshots()
-  expect(after).toHaveLength(before.length + cell.writes)
-  expect(writes.mock.calls.flatMap(([, rows]) => rows)).toHaveLength(cell.writes)
-  if (cell.writes) {
-    const written = after.find(row => row.id !== before[0]!.id)!.snapshot as Snapshot
-    expect(written.health).toEqual(cell.expected)
-    expect(written.goalFairnessNotice).toBe(cell.expectedNotice)
-  } else expect(after).toEqual(before)
+  const totalWrites = cell.writes + (cell.rollout ? 1 : 0)
+  expect(after).toHaveLength(before.length + totalWrites)
+  const written = writes.mock.calls.flatMap(([, rows]) => rows)
+  expect(written).toHaveLength(totalWrites)
+  for (const { phase } of seeded) {
+    const expectedWrites = phase.phaseKind === 'rollout' ? 1 : cell.writes
+    const previous = before.filter(row => row.phase === phase.phase)
+    const fresh = after.filter(row => row.phase === phase.phase && !previous.some(old => old.id === row.id))
+    expect(fresh).toHaveLength(expectedWrites)
+    expect(written.filter(row => row.phase === phase.phase)).toHaveLength(expectedWrites)
+    if (expectedWrites) {
+      const snapshot = fresh[0]!.snapshot as Snapshot
+      expect(snapshot.health).toEqual(cell.expected)
+      expect(snapshot.goalFairnessNotice).toBe(cell.expectedNotice)
+    } else expect(after.filter(row => row.phase === phase.phase)).toEqual(previous)
+  }
+  if (cell.unresolvedCollection) {
+    expect(pageCollections.resolvePageCollection).toHaveBeenCalledTimes(1)
+    expect(read).not.toHaveBeenCalled()
+  }
   if (kind === 'flag' || kind === 'code' || cell.nullRound || cell.noContentOf) {
     expect(read).not.toHaveBeenCalled()
     expect(context.payload.logs.filter(log => log.level === 'warn' || log.level === 'error')).toEqual([])
   }
 }
 
-const goalHealthCells: GoalHealthCell[] = [false, true].flatMap(frozen => [false, true].flatMap(previousGoal =>
-  (['complete symmetric', 'asymmetric', 'partial'] as const).map(outcome => ({
-    name: `goal table / ${frozen ? 'frozen' : 'live'} / previous ${previousGoal ? 'goal row' : 'none'} / ${outcome}`,
-    frozen, previous: previousGoal ? [storedGoal] : [], outcome,
-    expected: [
-      ...(outcome === 'asymmetric' ? [freshGoal] : outcome === 'partial' && previousGoal ? [storedGoal] : []),
-      ...(outcome === 'partial' ? [uncheckedPage] : []),
-    ],
-    writes: !frozen || (outcome === 'asymmetric' && !previousGoal) || (outcome === 'complete symmetric' && previousGoal) ? 1 : 0,
+const goalHealthCells: GoalHealthCell[] = [
+  ...[false, true].flatMap(frozen => [false, true].flatMap(previousGoal =>
+    (['complete symmetric', 'asymmetric', 'partial'] as const).map(outcome => ({
+      name: `goal table / ${frozen ? 'frozen' : 'live'} / previous ${previousGoal ? 'goal row' : 'none'} / ${outcome}`,
+      frozen, previous: previousGoal ? [storedGoal] : [], outcome,
+      expected: [
+        ...(outcome === 'asymmetric' ? [freshGoal] : outcome === 'partial' && previousGoal ? [storedGoal] : []),
+        ...(outcome === 'partial' ? [uncheckedPage] : []),
+      ],
+      writes: !frozen || (outcome === 'asymmetric' && !previousGoal) || (outcome === 'complete symmetric' && previousGoal) ? 1 : 0,
+    })),
+  )),
+  ...[false, true].map(previousGoal => ({
+    name: `goal table / candidate phases share asymmetric health / frozen test ${previousGoal ? 'unchanged' : 'changed'} and live rollout`,
+    frozen: true, previous: previousGoal ? [freshGoal] : [], rollout: { previous: previousGoal ? [] : [freshGoal] },
+    outcome: 'asymmetric' as const, expected: [freshGoal], writes: previousGoal ? 0 : 1,
   })),
-))
+]
 test.each(goalHealthCells.map(cell => [cell.name, cell] as const))(
   '%s', (_name, cell) => runGoalHealthCell(cell), 5_000,
 ) // Measured 8 ms maximum per cell locally; cap exceeds 3×.
@@ -932,6 +969,12 @@ const uncheckedHealthCells: GoalHealthCell[] = [
     previous: [storedGoal], outcome: 'partial', expected: [], writes: 1 },
   { name: 'unchecked table / frozen / same page read threw then main row missing', frozen: true, missingMain: true,
     previous: [uncheckedPage], outcome: 'partial', expected: [uncheckedPage], writes: 0 },
+  ...[false, true].map(frozen => ({ name: `unchecked table / ${frozen ? 'frozen' : 'live'} / unresolved page collection has empty detail`,
+    frozen, unresolvedCollection: true, previous: [], outcome: 'partial' as const, expected: [uncheckedCollection], writes: frozen ? 0 : 1 })),
+  { name: 'unchecked table / frozen / unresolved page collection remains unchecked', frozen: true, unresolvedCollection: true,
+    previous: [uncheckedCollection], outcome: 'partial', expected: [uncheckedCollection], writes: 0 },
+  { name: 'unchecked table / frozen / unresolved page collection recovers', frozen: true,
+    previous: [uncheckedCollection], outcome: 'complete symmetric', expected: [], writes: 1 },
 ]
 test.each(uncheckedHealthCells.map(cell => [cell.name, cell] as const))(
   '%s', (_name, cell) => runGoalHealthCell(cell), 5_000,
