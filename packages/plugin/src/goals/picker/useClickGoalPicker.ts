@@ -4,13 +4,41 @@ import { fetchAllDocs } from '../../lib/fetchAllDocs.js'
 import { CLICK_KEY } from '../key.js'
 import { clickGoalBody, clickGoalCreateError, clickGoalSlug, definedClickGoals, undefinedClickKey, type ClickGoal, type PickerStatus } from './clickGoalPicker.model.js'
 
+type GoalListState = { api: string; status: PickerStatus; goals: ClickGoal[] }
+type GoalList = { state: GoalListState; listeners: Array<(state: GoalListState) => void> }
+const goalLists = new Map<string, GoalList>()
+
+function publish(list: GoalList, state: GoalListState) {
+  list.state = state
+  list.listeners.forEach(listener => listener(state))
+}
+
+/** Rows at the same API base share both the in-flight read and its successful result. */
+function loadGoals(api: string): GoalList {
+  const cached = goalLists.get(api)
+  if (cached && (cached.state.status === 'loading' || cached.state.status === 'ready')) return cached
+  const list: GoalList = cached ?? { state: { api, status: 'loading', goals: [] }, listeners: [] }
+  if (cached) publish(list, { api, status: 'loading', goals: [] })
+  goalLists.set(api, list)
+  void (async () => {
+    try {
+      const result = await fetchAllDocs<ClickGoal>(`${api}/xp-metrics?where[source][like]=click:&depth=0`, { credentials: 'include' })
+      if (result.ok) { publish(list, { api, status: 'ready', goals: definedClickGoals(result.docs) }); return }
+      publish(list, { api, status: result.status === 403 ? 'not-manager' : 'error', goals: [] })
+    } catch {
+      publish(list, { api, status: 'error', goals: [] })
+    }
+  })()
+  return list
+}
+
 const emptyPanel = () => ({ open: false, name: '', slug: '', slugEdited: false, advanced: false, pending: false,
   errors: {} as { slug?: string; general?: string } })
 
 /** UI-free state shared by the two editor hosts. A refused read silently removes management. */
 export function useClickGoalPicker(apiRoute: string, { enabled = true, onSelect }: { enabled?: boolean; onSelect: (slug: string) => void }) {
   const api = apiRoute.replace(/\/$/, '')
-  const [loaded, setLoaded] = useState<{ api: string; status: PickerStatus; goals: ClickGoal[] }>({ api, status: 'loading', goals: [] })
+  const [loaded, setLoaded] = useState<GoalListState>({ api, status: 'loading', goals: [] })
   const [panel, setPanel] = useState(emptyPanel)
   const flight = useRef(false)
   const binding = useRef({ api, enabled, live: true, onSelect })
@@ -18,17 +46,11 @@ export function useClickGoalPicker(apiRoute: string, { enabled = true, onSelect 
   useEffect(() => { binding.current.live = true; return () => { binding.current.live = false } }, [])
   useEffect(() => {
     if (!enabled) return
-    const controller = new AbortController()
-    setLoaded({ api, status: 'loading', goals: [] }); setPanel(emptyPanel())
-    void (async () => {
-      try {
-        const result = await fetchAllDocs<ClickGoal>(`${api}/xp-metrics?where[source][like]=click:&depth=0`, { credentials: 'include', signal: controller.signal })
-        if (controller.signal.aborted) return
-        setLoaded(result.ok ? { api, status: 'ready', goals: definedClickGoals(result.docs) }
-          : { api, status: result.status === 403 ? 'not-manager' : 'error', goals: [] })
-      } catch { if (!controller.signal.aborted) setLoaded({ api, status: 'error', goals: [] }) }
-    })()
-    return () => controller.abort()
+    setPanel(emptyPanel())
+    const list = loadGoals(api)
+    setLoaded(list.state)
+    list.listeners.push(setLoaded)
+    return () => { list.listeners = list.listeners.filter(listener => listener !== setLoaded) }
   }, [api, enabled])
   const status = !enabled ? 'not-manager' : loaded.api === api ? loaded.status : 'loading'
   const goals = status === 'ready' ? loaded.goals : []
@@ -43,15 +65,17 @@ export function useClickGoalPicker(apiRoute: string, { enabled = true, onSelect 
     try {
       const response = await fetch(`${api}/xp-metrics`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(clickGoalBody(panel.name, panel.slug)) })
       const body: unknown = await response.json().catch(() => undefined)
-      if (!current()) return
       if (!response.ok) {
+        if (!current()) return
         if (response.status === 403) { setLoaded({ api, status: 'not-manager', goals: [] }); setPanel(emptyPanel()); return }
         const errors = clickGoalCreateError(panel.slug, body)
         setPanel(value => ({ ...value, pending: false, advanced: value.advanced || Boolean(errors.slug), errors })); return
       }
       const doc = (body as { doc?: ClickGoal } | undefined)?.doc
       if (!doc || typeof doc.slug !== 'string' || typeof doc.name !== 'string' || !isFiniteId(doc.id)) throw new Error('response')
-      setLoaded(value => ({ ...value, goals: [...value.goals.filter(goal => goal.id !== doc.id), doc] }))
+      const list = goalLists.get(api)
+      if (list) publish(list, { api, status: 'ready', goals: [...list.state.goals.filter(goal => goal.id !== doc.id), doc] })
+      if (!current()) return
       binding.current.onSelect(doc.slug); setPanel(emptyPanel())
     } catch { if (current()) setPanel(value => ({ ...value, pending: false, errors: clickGoalCreateError(panel.slug) })) }
     finally { flight.current = false }

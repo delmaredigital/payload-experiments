@@ -8,7 +8,6 @@ import { READINESS_COPY } from '../../../../src/admin/copy/readiness.js'
 import { TEST_PAGE } from '../../../../src/admin/copy/testPage.js'
 import { doc, preflight, props } from '../readiness/fixtures.js'
 
-vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
 vi.mock('../../../../src/admin/surface/readiness/parts.js', async () => ({ readinessParts: {
   Banner: () => null, SaveStatus: (await import('../../../../src/admin/surface/readiness/SaveStatus.js')).SaveStatus,
   sectionDone: () => ({ what: false, versions: false, win: false, who: true, length: false, advanced: true }),
@@ -22,10 +21,12 @@ test('a stale edit shows one alert with Reload, preserves typed values, and Relo
   const response = (body: unknown, status = 200) => ({ ok: status === 200, status, json: async () => body }) as Response
   let reads = 0
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/click-keys')) return response({ keys: [] })
     if (url.endsWith('/preflight')) return response(preflight())
     if (url.includes('/xp-metrics')) return response({ docs: [], hasNextPage: false })
     if (init?.method === 'PATCH') return refusal
-    return response({ ...doc, updatedAt: `2026-11-03T10:0${reads}:00.000Z`, name: ++reads === 1 ? 'Loaded name' : 'Newer saved name' })
+    if (url === `/custom-api/xp-experiments/${encodeURIComponent(String(doc.id))}?depth=0`) return response({ ...doc, updatedAt: `2026-11-03T10:0${reads}:00.000Z`, name: ++reads === 1 ? 'Loaded name' : 'Newer saved name' })
+    throw new Error(`Unrouted request: ${url}`)
   })
   vi.stubGlobal('fetch', fetcher)
   await act(async () => { render(<TestPage id={doc.id} surface={props().surface} />) })
@@ -68,7 +69,8 @@ test('a normal save error still shows the SaveStatus alert', () => {
 
 test.each(['draft', 'running'] as const)('real test page mounts in StrictMode (%s) with one fetch per resource and no errors', async status => {
   const response = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
-  const fetcher = vi.fn(async (url: string) => response(url.endsWith('/preflight') ? preflight()
+  const fetcher = vi.fn(async (url: string) => response(url.endsWith('/click-keys') ? { keys: [] }
+    : url.endsWith('/preflight') ? preflight()
     : url.includes('/xp-metrics') ? { docs: [], hasNextPage: false }
       : url.includes('/summary?') ? { [doc.id]: { exposures: 12 } }
         : { ...doc, status, updatedAt: '2026-11-03T10:00:00.000Z' }))

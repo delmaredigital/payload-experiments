@@ -2,15 +2,15 @@ import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { formatAdminURL } from 'payload/shared'
 
-import { fallbackPlacementLabel, placementDetail } from './placementLabels.model.js'
+import { placementDetail } from './placementLabels.model.js'
 export { placementDetailKey, placementDetail, fallbackPlacementLabel } from './placementLabels.model.js'
 export type { PlacementLabel } from './placementLabels.model.js'
 import type { PlacementLabel } from './placementLabels.model.js'
 export function resolvedPlacementLabel(value: unknown, match: { id?: DocId | null; title?: string; editorUrl?: string } | undefined, adminRoute: string): PlacementLabel {
   const detail = placementDetail(value)
-  if (!match) return fallbackPlacementLabel(value)
-  return { title: match.title?.trim() || detail.path || 'This page',
-    ...(match.id != null && detail.collection ? { href: match.editorUrl || formatAdminURL({ adminRoute, path: `/collections/${encodeURIComponent(detail.collection)}/${encodeURIComponent(String(match.id))}` }) } : {}) }
+  const id = match?.id ?? detail.id
+  return { title: match?.title?.trim() || detail.path || 'This page',
+    ...(id != null && detail.collection ? { href: match?.editorUrl || formatAdminURL({ adminRoute, path: `/collections/${encodeURIComponent(detail.collection)}/${encodeURIComponent(String(id))}` }) } : {}) }
 }
 export function preflightPlacementLabel(value: unknown, preflight: PreflightResult, adminRoute: string): PlacementLabel {
   const detail = placementDetail(value)

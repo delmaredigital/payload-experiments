@@ -99,6 +99,11 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     route, ...(id === undefined ? {} : { id }), adminRoute, apiRoute: req.payload.config.routes.api,
     canManage, canReadResults, isAdmin, flagPoints, ...(pages === undefined ? {} : { pages }),
     pageCollections: serializePageCollections(options.pages?.collections ?? [], req),
+    collectionTitles: Object.fromEntries(req.payload.config.collections.flatMap(collection => {
+      const title = collection.admin.useAsTitle
+      return title && title !== 'id' ? [[collection.slug, title]] : []
+    })),
+    userId: req.user.id, userCollection: req.payload.config.admin.user,
     attributeKeys: serializeAttributeKeys(options), metricSources: serializeMetricSources(options),
     ...(descriptions ? { admin: { descriptions: { ...descriptions } } } : {}),
   }

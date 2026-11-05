@@ -83,7 +83,7 @@ export function CheckboxList({ label, value, options, groups, reason, onToggle, 
     if (changed) onToggle(changed.value, next.includes(changed.value))
   }}>{searchable ? <SearchInput id={`${id}-search`} label={C.searchGoals} value={query} onChange={event => setQuery(event.target.value)} /> : null}{groups ? groups.map((group, index) => {
     const items = group.options.filter(option => visible.some(item => item.value === option.value))
-    return items.length ? <div key={index}>{group.label ? <h4>{group.label}</h4> : null}<ul>{items.map(option => <li key={option.value}><Checkbox
+    return items.length ? <div key={index}>{group.label ? <h3>{group.label}</h3> : null}<ul>{items.map(option => <li key={option.value}><Checkbox
       id={`${id}-${index}-${option.value}`} label={option.label} checked={value.includes(option.value)} onChange={event => onToggle(option.value, event.target.checked)} /></li>)}</ul></div> : null
   }) : null}</UICheckboxList>
 }

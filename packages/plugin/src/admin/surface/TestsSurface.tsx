@@ -27,6 +27,7 @@ function SurfacePage(props: TestsSurfaceProps) {
     canReadResults: props.canReadResults, isAdmin: props.isAdmin, flagPoints: props.flagPoints,
     attributeKeys: props.attributeKeys, metricSources: props.metricSources,
     admin: props.admin, pageCollections: props.pageCollections,
+    collectionTitles: props.collectionTitles, userId: props.userId, userCollection: props.userCollection,
   }
   const crumbs: Array<{ label: string; href?: string }> = [{ label: SURFACE_COPY.title }]
   if (props.route !== 'home') {

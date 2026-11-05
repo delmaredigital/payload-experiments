@@ -19,10 +19,10 @@ export function DialogFrame({ title, onClose, children, initialFocus, dismissibl
   return <Dialog open dismissible={dismissible} initialFocus={initialFocus} title={title} onClose={onClose}>{children}</Dialog>
 }
 
-export function ConfirmDialog({ id, action, winnerLabel, onClose, canManage = false, isDecided = false }: {
-  canManage?: boolean; isDecided?: boolean; id: DocId; action: ExperimentAction; winnerLabel: string; onClose: () => void
+export function ConfirmDialog({ id, action, winnerLabel, onClose, canManage = false, isDecided = false, apiRoute = '/api' }: {
+  apiRoute?: string; canManage?: boolean; isDecided?: boolean; id: DocId; action: ExperimentAction; winnerLabel: string; onClose: () => void
 }) {
-  const api = useApi()
+  const api = useApi(apiRoute)
   const [typed, setTyped] = useState('')
   const [busy, setBusy] = useState(false)
   const [reportBusy, setReportBusy] = useState(false)

@@ -29,7 +29,7 @@ function setup({ user = true, manage = () => true, readResults, adminRoute = '/c
     if (deniedCollections.includes(collection)) throw new Error('Forbidden')
     return { docs: pageDocs[collection] ?? [] }
   })
-  const payload = fakePayload({ config: { collections: [{ slug: 'pages', admin: { useAsTitle: 'title' }, labels: { plural: 'Pages' } }, { slug: 'articles', admin: { useAsTitle: 'heading' }, labels: { plural: 'Articles' } }], routes: { admin: adminRoute, api: '/data' }, admin: { routes: { login: loginRoute } }, custom: { xp: {
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', admin: { useAsTitle: 'title' }, labels: { plural: 'Pages' } }, { slug: 'articles', admin: { useAsTitle: 'heading' }, labels: { plural: 'Articles' } }], routes: { admin: adminRoute, api: '/data' }, admin: { user: 'editors', routes: { login: loginRoute } }, custom: { xp: {
     access: { manage, ...(admin ? { admin } : {}), ...(readResults ? { readResults } : {}) },
     ...(puck ? { puck } : {}),
     flagPoints: ['saved', 'fallback'].map(id => ({ id, label: id, params: { text: { type: 'text', label: 'Text' } }, defaultParams: { text: 'Original' }, placements: () => [], makeContent: () => {} })),
@@ -279,4 +279,16 @@ test('disabled Puck with blocks registered lists only blocks documents and uses 
   expect(editorUrl).toHaveBeenCalledOnce()
   expect(editorUrl).toHaveBeenCalledWith(expect.objectContaining({ editor: 'blocks' }))
   expect(appliesTo).toHaveBeenCalledTimes(2)
+})
+
+test('serialises registered collection title fields and current user identity for the surface', async () => {
+  const { props, payload } = setup({ puck: { enabled: true, collections: [{ slug: 'articles', field: 'content' }] } })
+  payload.config.collections.push({ slug: 'untitled', admin: { useAsTitle: 'id' } } as never,
+    { slug: 'unset', admin: {} } as never)
+  await ExperimentsRootView({ ...props, params: { segments: ['experiments'] } })
+  const clientProps = (mocks.render.mock.calls[0] as unknown as [{ clientProps: TestsSurfaceProps }])[0].clientProps
+  expect(JSON.parse(JSON.stringify(clientProps))).toMatchObject({
+    collectionTitles: { pages: 'title', articles: 'heading' }, userId: 'manager', userCollection: 'editors',
+  })
+  expect(Object.keys(clientProps.collectionTitles!)).toEqual(['pages', 'articles'])
 })

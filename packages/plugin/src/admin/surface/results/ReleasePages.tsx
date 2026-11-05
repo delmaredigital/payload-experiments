@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { useAuth, useConfig } from '@payloadcms/ui'
 import type { DocId } from '../../../types/contracts.js'
 import { Button } from '../../../ui/Button.js'
 import { Dialog } from '../../../ui/Dialog.js'
@@ -37,14 +36,13 @@ export function ReleasePagesDialog({ id, apiRoute, onClose, onSuccess, onRefusal
 }
 
 /** An inaccessible or deleted author never hides the recorded release date. */
-export function PagesReleased({ decision, apiRoute }: { decision: PageReleaseDecision; apiRoute: string }) {
-  const { user } = useAuth()
-  const { config } = useConfig()
-  const collection = config.admin.user
+export function PagesReleased({ decision, apiRoute, userId, userCollection: collection }: {
+  decision: PageReleaseDecision; apiRoute: string; userId?: DocId; userCollection?: string
+}) {
   const by = decision.pagesReleasedBy
   const [resolved, setResolved] = useState<{ key: string; author: { name?: string | null; email?: string | null } } | null>(null)
   const key = JSON.stringify([apiRoute, collection, by])
-  const own = pagesReleasedBy(by, user?.id)
+  const own = pagesReleasedBy(by, userId)
   useEffect(() => {
     if (!by || own || !collection) return
     const controller = new AbortController()
@@ -64,6 +62,6 @@ export function PagesReleased({ decision, apiRoute }: { decision: PageReleaseDec
     })()
     return () => controller.abort()
   }, [apiRoute, by, collection, key, own])
-  const name = own ?? pagesReleasedBy(by, user?.id, resolved?.key === key ? resolved.author : null)
+  const name = own ?? pagesReleasedBy(by, userId, resolved?.key === key ? resolved.author : null)
   return <p>{pagesReleasedCopy(formatDate(decision.pagesReleasedAt), name)}</p>
 }

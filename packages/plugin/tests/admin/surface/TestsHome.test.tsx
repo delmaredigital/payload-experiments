@@ -1,13 +1,10 @@
 // @vitest-environment jsdom
-import type { ComponentProps } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { TestsSurfaceProps } from '../../../src/types/surface.js'
-import { payloadUiMock } from '../_helpers/payloadUiMock.js'
 import { TestsHome } from '../../../src/admin/surface/TestsHome.js'
 import { TestsSurface } from '../../../src/admin/surface/TestsSurface.js'
 
-vi.mock('@payloadcms/ui', () => ({ ...payloadUiMock(), Link: (props: ComponentProps<'a'>) => <a {...props} /> }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 function fetchData(docs: unknown[], summaries = {}, totalDocs = docs.length) {
   const fetch = vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('/summary?') ? summaries : { docs, totalDocs })))
@@ -131,7 +128,7 @@ test('home and shell links support the root admin route', async () => {
   render(<TestsSurface {...props} />)
   await screen.findByText('Stopped test')
   expect(screen.getByRole('heading', { level: 1, name: 'Tests' })).toBeTruthy()
-  for (const [name, href] of [['Back to admin', '/'], ['New test', '/experiments/new'], ['Goals', '/experiments/goals'], ['View results', '/experiments/123/results']]) {
+  for (const [name, href] of [['Back to admin', '/'], ['New test', '/experiments/new'], ['Goals', '/experiments/goals'], ['View results', '/experiments/123/results'], ['Stopped test', '/experiments/123/results']]) {
     expect(screen.getByRole('link', { name }).getAttribute('href')).toBe(href)
   }
 })

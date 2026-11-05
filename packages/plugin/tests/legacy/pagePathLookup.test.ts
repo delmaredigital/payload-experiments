@@ -17,7 +17,7 @@ test('path lookup keeps the exact stored target and reads its title with manager
   expect(await (await handlePages(req, { options })).json()).toEqual({ docs: [{ id: 7, title: 'Landing', path: 'odd path/?a=1', pathKey: 'odd path/?a=1', published: true }], hasNextPage: false })
   expect(findByPath).toHaveBeenCalledWith('odd path/?a=1', req)
   expect(payload.calls).toHaveLength(1)
-  expect(payload.calls[0]).toMatchObject({ method: 'findByID', args: { req, overrideAccess: false, draft: false, depth: 0, id: 7 } })
+  expect(payload.calls[0]).toMatchObject({ method: 'findByID', args: { req, overrideAccess: false, draft: false, depth: 0, id: 7, disableErrors: true } })
 })
 test('missing target returns no rows and no Local API read', async () => {
   const f = fixture()
@@ -50,5 +50,16 @@ test('path route retains manage access and never invokes a lookup for a reader',
 test.each(['id', 'missing'])('path title never reveals a raw id when useAsTitle is %s', async titleField => {
   const f = fixture()
   f.payload.config.collections[0]!.admin.useAsTitle = titleField
-  expect(await (await handlePages(f.req, { options: f.options })).json()).toMatchObject({ docs: [{ title: 'odd path/?a=1' }] })
+  expect(await (await handlePages(f.req, { options: f.options })).json()).toMatchObject({ docs: [{ title: '' }] })
+})
+
+test.each([false, true])('a path hit hidden by document access returns 200 with zero rows (draft: %s)', async draft => {
+  const f = fixture(draft)
+  const read = vi.spyOn(f.payload, 'findByID')
+  if (draft) read.mockResolvedValueOnce({ id: 7, _status: 'draft' } as never)
+  read.mockResolvedValueOnce(null as never)
+  const response = await handlePages(f.req, { options: f.options })
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual({ docs: [], hasNextPage: false })
+  expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ req: f.req, overrideAccess: false, depth: 0, disableErrors: true }))
 })

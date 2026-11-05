@@ -15,8 +15,8 @@ import type { ActionGroup } from './actions.model.js'
 import { decideState } from './decide.model.js'
 import { DialogFrame } from './ConfirmDialog.js'
 
-export function DecideDialog({ id, arms, checks = [], onClose }: { id: DocId; arms: readonly ActionGroup[]; checks?: PreflightResult['checks']; onClose: () => void }) {
-  const api = useApi()
+export function DecideDialog({ id, arms, checks = [], onClose, apiRoute }: { apiRoute: string; id: DocId; arms: readonly ActionGroup[]; checks?: PreflightResult['checks']; onClose: () => void }) {
+  const api = useApi(apiRoute)
   const [snapshot, setSnapshot] = useState<ResultsResponse['snapshot']>(null)
   const [chosenArm, setChosenArm] = useState<string | null>(null)
   const [note, setNote] = useState('')

@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Changed: `TestsSurfaceProps` accepts optional `collectionTitles`, `userId` and `userCollection` so plugin pages no longer depend on Payload UI.
+  Migration impact: none; the root view fills these props.
+
 - Added: the Goals page creates click goals with "A click on the page", with their short name under Advanced. Migration impact: none.
 - Added: goal pickers group defined goals found on the test's page under "On this test's page", with a note explaining that linked-document and code goals are not listed. Migration impact: none.
 - Added: `xpGoalField()` has a manager picker with inline "+ New click goal" creation and a warning for undefined keys. Migration impact: new importMap component key (`XpGoalField`). Run `payload generate:importmap`.

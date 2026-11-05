@@ -1,18 +1,17 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useConfig } from '@payloadcms/ui'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { createApi } from '../api.js'
-import { fallbackPlacementLabel, placementDetail, placementDetailKey, preflightPlacementLabel, resolvedPlacementLabel } from './placementLabels.js'
+import { placementDetail, placementDetailKey, preflightPlacementLabel, resolvedPlacementLabel } from './placementLabels.js'
 import type { PlacementLabel } from './placementLabels.js'
 export { placementDetailKey } from './placementLabels.js'
 
 /** The view owns a cache, including misses, so repeated warnings never repeat reads. */
-export function usePlacementLabels({ details, preflight, apiRoute, adminRoute, canManage }: {
-  details: unknown[]; preflight?: PreflightResult | null; apiRoute: string; adminRoute: string; canManage: boolean
+export function usePlacementLabels({ details, preflight, apiRoute, adminRoute, canManage, collectionTitles }: {
+  details: unknown[]; preflight?: PreflightResult | null; apiRoute: string; adminRoute: string; canManage: boolean; collectionTitles?: Record<string, string>
 }): Map<string, PlacementLabel> {
-  const { config } = useConfig()
-  const cache = useMemo(() => new Map<string, PlacementLabel>(), [apiRoute, adminRoute])
+  const titlesSignature = JSON.stringify(collectionTitles)
+  const cache = useMemo(() => new Map<string, PlacementLabel>(), [apiRoute, adminRoute, titlesSignature])
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [, refresh] = useState(0)
@@ -26,7 +25,7 @@ export function usePlacementLabels({ details, preflight, apiRoute, adminRoute, c
     for (const value of pending) {
       const detail = placementDetail(value)
       // Reserve immediately: repeated renders do not issue duplicate requests.
-      save(value, fallbackPlacementLabel(value))
+      save(value, resolvedPlacementLabel(value, undefined, adminRoute))
       if (!detail.collection) continue
       if (detail.id != null) { blocks.set(detail.collection, [...blocks.get(detail.collection) ?? [], value]); continue }
       if (!detail.path) continue
@@ -41,14 +40,14 @@ export function usePlacementLabels({ details, preflight, apiRoute, adminRoute, c
         const response = await fetch(`${apiRoute.replace(/\/$/, '')}/${encodeURIComponent(collection)}?${query}`, { credentials: 'include' })
         if (!response.ok) return
         const data = await response.json() as { docs?: Array<Record<string, unknown>> }
-        const titleField = config.collections?.find(item => item.slug === collection)?.admin?.useAsTitle ?? 'title'
+        const titleField = collectionTitles?.[collection]
         for (const value of values) {
           const doc = data.docs?.find(doc => String(doc.id) === String(placementDetail(value).id))
-          if (doc) save(value, resolvedPlacementLabel(value, { id: placementDetail(value).id, title: titleField !== 'id' && typeof doc[titleField] === 'string' ? doc[titleField] as string : undefined }, adminRoute))
+          if (doc) save(value, resolvedPlacementLabel(value, { id: placementDetail(value).id, title: titleField && typeof doc[titleField] === 'string' ? doc[titleField] as string : undefined }, adminRoute))
         }
       } catch { /* An unreadable placement retains the neutral fallback. */ }
     })())
     void Promise.all(jobs).then(() => { if (mounted.current && jobs.length) refresh(value => value + 1) })
-  }, [signature, preflight, apiRoute, adminRoute, canManage, config.collections, cache])
-  return new Map(details.map(detail => [placementDetailKey(detail), preflight ? preflightPlacementLabel(detail, preflight, adminRoute) : canManage ? cache.get(placementDetailKey(detail)) ?? fallbackPlacementLabel(detail) : fallbackPlacementLabel(detail)]))
+  }, [signature, preflight, apiRoute, adminRoute, canManage, collectionTitles, cache])
+  return new Map(details.map(detail => [placementDetailKey(detail), preflight ? preflightPlacementLabel(detail, preflight, adminRoute) : canManage ? cache.get(placementDetailKey(detail)) ?? resolvedPlacementLabel(detail, undefined, adminRoute) : resolvedPlacementLabel(detail, undefined, adminRoute)]))
 }

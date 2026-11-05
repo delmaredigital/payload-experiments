@@ -18,11 +18,13 @@ export async function handlePages<TUser extends { id: string | number }>(req: Pa
   if (path !== null) {
     const found = await collection.findByPath(path, req)
     if (!found) return Response.json({ docs: [], hasNextPage: false } satisfies PagesResult, { headers: { 'Cache-Control': 'no-store' } })
-    const main = await req.payload.findByID({ collection: collection.slug, id: found.id, req, overrideAccess: false, depth: 0, draft: false })
+    const main = await req.payload.findByID({ collection: collection.slug, id: found.id, req, overrideAccess: false, depth: 0, draft: false, disableErrors: true })
+    if (!main) return Response.json({ docs: [], hasNextPage: false } satisfies PagesResult, { headers: { 'Cache-Control': 'no-store' } })
     const published = !drafts || main._status === 'published'
-    const doc = published ? main : await req.payload.findByID({ collection: collection.slug, id: main.id, req, overrideAccess: false, depth: 0, draft: true })
+    const doc = published ? main : await req.payload.findByID({ collection: collection.slug, id: main.id, req, overrideAccess: false, depth: 0, draft: true, disableErrors: true })
+    if (!doc) return Response.json({ docs: [], hasNextPage: false } satisfies PagesResult, { headers: { 'Cache-Control': 'no-store' } })
     const rawPath = collection.pathOf(doc)
-    return Response.json({ docs: [{ id: main.id, title: titleField !== 'id' && typeof doc[titleField] === 'string' && String(doc[titleField]).trim() ? String(doc[titleField]) : rawPath || path || 'This page', path: rawPath, pathKey: rawPath === null ? null : normalisePath(rawPath), published }], hasNextPage: false } satisfies PagesResult, { headers: { 'Cache-Control': 'no-store' } })
+    return Response.json({ docs: [{ id: main.id, title: titleField !== 'id' && typeof doc[titleField] === 'string' && String(doc[titleField]).trim() ? String(doc[titleField]) : '', path: rawPath, pathKey: rawPath === null ? null : normalisePath(rawPath), published }], hasNextPage: false } satisfies PagesResult, { headers: { 'Cache-Control': 'no-store' } })
   }
   const result = await req.payload.find({ collection: collection.slug, req, overrideAccess: false, depth: 0, draft: false,
     sort: '-createdAt', limit: 20, page, where: q && titleField !== 'id' ? { [titleField]: { like: q } } : undefined })

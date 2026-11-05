@@ -10,7 +10,6 @@ import type { SurfaceProps } from '../../../../src/admin/surface/contracts.js'
 import { fixture, phaseFor, revenueSnapshot } from '../../results/fixtures.js'
 import type { ResultsResponse } from '../../../../src/types/endpoints.js'
 import { RESULTS_COPY } from '../../../../src/admin/copy/results.js'
-vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
 vi.mock('../../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
 const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: false, flagPoints: [], attributeKeys: {}, metricSources: [] }
 const snapshot = fixture('T7')
@@ -484,7 +483,7 @@ test('results resolves placement warnings by page path and batched block ids and
   const original = fetcher.getMockImplementation()!
   fetcher.mockImplementation((url, init) => url.includes('/xp/pages?') ? Promise.resolve(json({ docs: [{ id: 7, title: 'Landing title' }] }))
     : url.includes('/posts?') ? Promise.resolve(json({ docs: [{ id: 9, title: 'Article title' }] })) : original(url, init))
-  render(<ResultsBody id={1} surface={surface} />)
+  render(<ResultsBody id={1} surface={{ ...surface, collectionTitles: { posts: 'title' } }} />)
   expect((await screen.findByRole('link', { name: 'Open Landing title' })).getAttribute('href')).toBe('/admin/collections/pages/7')
   expect((await screen.findByRole('link', { name: 'Open Article title' })).getAttribute('href')).toBe('/admin/collections/posts/9')
   expect(screen.getByText(/This page couldn't be checked/)).toBeTruthy()

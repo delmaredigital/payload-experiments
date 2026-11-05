@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import React, { createElement, useState } from 'react'
+import React, { createElement, useMemo, useState } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from 'vitest'
-import { payloadUiMock, resetPayloadUiMock, setAuth, setField } from '../admin/_helpers/payloadUiMock.js'
+import { payloadUiMock, resetPayloadUiMock, setAuth, setConfig, setField } from '../admin/_helpers/payloadUiMock.js'
 import { XpGoalField } from '../../src/admin/goals/XpGoalField.js'
 import { xpGoalPuckEditorField } from '../../src/puck/editor/xpGoalPuckEditorField.js'
 import { CLICK_GOAL_COPY as C } from '../../src/goals/picker/copy.js'
@@ -12,18 +12,22 @@ vi.mock('@payloadcms/ui', () => ({ ...payloadUiMock(),
   FieldError: ({ showError }: { showError: boolean }) => showError ? <p role="alert">Server validation error</p> : null }))
 const rows = [{ id: 1, name: 'Join us', slug: 'join', source: 'click:join' }]
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+let apiSequence = 0
+let apiRoute: string
 let fetcher: ReturnType<typeof vi.fn>, select: Mock<(value: string) => void>
 beforeEach(() => {
   resetPayloadUiMock(); select = vi.fn()
+  apiRoute = `/picker-api-${++apiSequence}`
+  setConfig({ config: { routes: { api: apiRoute, admin: '/admin' } } })
   setAuth({ permissions: { collections: { 'xp-experiments': { update: true } } } })
   setField({ value: 'missing', setValue: select, showError: false }, 'buttons.0.xpGoal')
   fetcher = vi.fn(async () => json({ docs: rows, hasNextPage: false })); vi.stubGlobal('fetch', fetcher)
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 function Payload({ path = 'buttons.0.xpGoal' }: { path?: string }) { return <XpGoalField {...{ path, field: { name: 'xpGoal', type: 'text', label: C.label, admin: { description: 'Host help' } } } as any} /> }
-const puckField = xpGoalPuckEditorField()
 function Puck() {
   const [value, setValue] = useState('missing')
+  const puckField = useMemo(() => xpGoalPuckEditorField({ routes: { api: apiRoute } }), [apiRoute])
   return createElement(puckField.render, { value, onChange: (next: string) => { select(next); setValue(next) } } as any)
 }
 
@@ -127,4 +131,42 @@ test('a deferred create uses the current array-row setter after a reorder', asyn
   await act(async () => complete(json({ doc: { id: 2, name: 'New goal', slug: 'new-goal', source: 'click:new-goal' } })))
   expect(movedSelect).toHaveBeenCalledWith('new-goal')
   expect(select).not.toHaveBeenCalled()
+})
+
+test('three array rows share an in-flight read, a created goal, and the loaded list on remount', async () => {
+  let finish!: (response: Response) => void
+  fetcher.mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve }))
+  const rowsView = render(<><Payload /><Payload path="buttons.1.xpGoal" /><Payload path="buttons.2.xpGoal" /></>)
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  await act(async () => { finish(json({ docs: rows, hasNextPage: false })) })
+  expect(await screen.findAllByRole('option', { name: 'Join us' })).toHaveLength(3)
+  fireEvent.click(screen.getAllByText(C.newGoal)[0]!)
+  fireEvent.change(screen.getByLabelText(C.name), { target: { value: 'Shared goal' } })
+  fetcher.mockResolvedValueOnce(json({ doc: { id: 2, name: 'Shared goal', slug: 'shared-goal', source: 'click:shared-goal' } }))
+  fireEvent.click(screen.getByText(C.createGoal))
+  await waitFor(() => expect(screen.getAllByRole('option', { name: 'Shared goal' })).toHaveLength(3))
+  expect(select).toHaveBeenCalledWith('shared-goal')
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  rowsView.unmount()
+  render(<Payload />)
+  expect(await screen.findByRole('option', { name: 'Shared goal' })).toBeTruthy()
+  expect(fetcher).toHaveBeenCalledTimes(2)
+})
+
+test.each([403, 500, 'offline'] as const)('a failed shared load is retried by the next mount (%s)', async failure => {
+  if (failure === 'offline') fetcher.mockRejectedValueOnce(new Error('offline'))
+  else fetcher.mockResolvedValueOnce(json({}, failure))
+  render(<Payload />)
+  await act(async () => {})
+  expect(screen.queryByRole('combobox')).toBeNull()
+  render(<Payload path="buttons.1.xpGoal" />)
+  await waitFor(() => expect(screen.getAllByRole('option', { name: 'Join us' })).toHaveLength(2))
+  expect(fetcher).toHaveBeenCalledTimes(2)
+})
+
+test('different API bases have separate shared lists', async () => {
+  render(<><Payload />{createElement(xpGoalPuckEditorField({ routes: { api: '/other-api' } }).render, { value: '', onChange: select } as any)}</>)
+  await waitFor(() => expect(screen.getAllByRole('option', { name: 'Join us' })).toHaveLength(2))
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  expect(fetcher.mock.calls.map(([url]) => new URL(url, 'https://host').pathname)).toEqual([`${apiRoute}/xp-metrics`, '/other-api/xp-metrics'])
 })

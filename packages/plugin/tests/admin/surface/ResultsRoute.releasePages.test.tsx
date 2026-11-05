@@ -5,24 +5,18 @@ import { ResultsRoute } from '../../../src/admin/surface/ResultsRoute.js'
 import type { TestDocument } from '../../../src/admin/surface/testDocument.model.js'
 import { API_MESSAGES } from '../../../src/admin/copy/common.js'
 import { props } from './readiness/fixtures.js'
-import { resetPayloadUiMock, setAuth, setConfig } from '../_helpers/payloadUiMock.js'
-
-vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
 vi.mock('../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
   Banner: () => null, SaveStatus: () => null,
 } }))
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 const at = '2026-11-03T12:00:00Z'
 const eligible = props({ id: 'page/test', kind: 'page', status: 'archived', decision: { phase: 1, winnerArm: 'variantA' } }).test.doc!
-const surface = { ...props().surface, canReadResults: true }
+const surface = { ...props().surface, canReadResults: true, userId: 7, userCollection: 'editors' }
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
-  setAuth({ user: { id: 7 } })
-  const config = { config: { routes: { api: '/custom-api', admin: '/admin' }, admin: { user: 'editors' } } }
-  setConfig(config)
 })
-afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.clearAllMocks() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 
 function setup(doc: TestDocument = eligible, options: { refusal?: Response; author?: Response | Error } = {}) {
   let saved = structuredClone(doc)
@@ -148,4 +142,15 @@ test.each([
   const url = new URL(fetcher.mock.calls.find(([url]) => url.includes('/editors/'))![0], 'https://example.test')
   expect(url.pathname).toBe('/custom-api/editors/other%2Feditor')
   expect(Object.fromEntries(url.searchParams)).toEqual({ depth: '0', 'select[name]': 'true', 'select[email]': 'true' })
+})
+
+test.each([
+  [json({ name: 'Alex Editor' }), 'Pages released 3 Nov 2026 by Alex Editor'],
+  [json({}, 403), 'Pages released 3 Nov 2026'],
+] as const)('a user-less surface resolves the release author or keeps the date (%s)', async (author, line) => {
+  const fetcher = setup({ ...eligible, decision: { winnerArm: 'variantA', pagesReleasedAt: at, pagesReleasedBy: '7' } }, { author })
+  render(<ResultsRoute id={eligible.id} surface={{ ...surface, userId: undefined }} />)
+  await screen.findByText(line)
+  await waitFor(() => expect(fetcher.mock.calls.filter(([url]) => url.includes('/editors/7?'))).toHaveLength(1))
+  expect(screen.queryByText('Pages released 3 Nov 2026 by you')).toBeNull()
 })

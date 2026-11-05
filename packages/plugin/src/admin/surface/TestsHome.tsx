@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
 import type { SummaryResponse } from '../../types/endpoints.js'
 import { fetchAllDocs } from '../../lib/fetchAllDocs.js'
@@ -103,7 +102,7 @@ function TestGroups({ tests, summaries, goalNames, adminRoute, flagPoints, searc
       const card = homeCard(test, summaries[test.id], adminRoute, flagPoints, goalNames)
       return <article className="xp-tests-row" key={test.id}>
         <div className="xp-tests-row-main">
-          <div className="xp-tests-row-name"><Link href={card.href}>{test.name}</Link><span className="xp-tests-kind">{card.kind}</span>
+          <div className="xp-tests-row-name"><a href={card.href}>{test.name}</a><span className="xp-tests-kind">{card.kind}</span>
             <span title={card.pill.tooltip}><StatusChip status={test.status} /></span>
           </div>
           <div className="xp-tests-row-line">

@@ -102,7 +102,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
   const card = shown ? verdictCard({ snapshot: shown, decisionSnapshot: data?.decisionSnapshot, isDecidedTestRound, winnerLabel: winner }) : null
   const placementLabels = usePlacementLabels({
     details: shown?.health?.filter(item => item.code === 'placement-unchecked').map(item => item.detail) ?? [],
-    apiRoute: surface.apiRoute, adminRoute: surface.adminRoute, canManage: manage,
+    apiRoute: surface.apiRoute, adminRoute: surface.adminRoute, canManage: manage, collectionTitles: surface.collectionTitles,
   })
   const context = { status, phase, inLayer: doc?.layer != null, layerSlices: doc?.layerSlices, allocation: doc?.allocation, placementLabels }
   const primary = phase?.metrics.find(metric => metric.role === 'primary')
@@ -117,7 +117,7 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
       }}>{C.releasePages}</Button> : null}
     </>
   // Release details come only from the manager's own document, never the results response.
-  const released = manage && doc?.decision?.pagesReleasedAt ? <PagesReleased decision={doc.decision} apiRoute={surface.apiRoute} /> : null
+  const released = manage && doc?.decision?.pagesReleasedAt ? <PagesReleased decision={doc.decision} apiRoute={surface.apiRoute} userId={surface.userId} userCollection={surface.userCollection} /> : null
   const meta = <><div className="xp-round-meta">
     {phases.length > 0 ? <Select id="xp-results-round" label={C.round} disabled={deciding || releasing} value={round ?? ''} onChange={event => results.setRound(Number(event.target.value))}>
       {roundOptions(phases).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -157,9 +157,9 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
       {(['guardrail', 'secondary'] as const).map(role => phase.metrics.filter(metric => metric.role === role).map(metric =>
         <MetricTable key={metric.metricId} metric={metric} snapshot={shown} phase={phase} />))}
     </> : <>{meta}{state === 'empty' || state === 'ready' ? <p>{C.empty}</p> : null}</>}
-    {manage && placements && actionablePreviewPages(placements, doc?.flagPoint).length > 0 ? <section className="xp-results-block"><div className="xp-results-block-head"><h2>{C.previews}</h2></div><PreviewLinks experimentId={id} flagPoint={doc?.flagPoint} placements={placements} arms={doc?.arms ?? []} /></section> : null}
+    {manage && placements && actionablePreviewPages(placements, doc?.flagPoint).length > 0 ? <section className="xp-results-block"><div className="xp-results-block-head"><h2>{C.previews}</h2></div><PreviewLinks apiRoute={surface.apiRoute} experimentId={id} flagPoint={doc?.flagPoint} placements={placements} arms={doc?.arms ?? []} /></section> : null}
     {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retryPreview}</Button></> : null}
-    {deciding && manage && phase ? <DecideDialog id={id} arms={phase.arms} checks={checks} onClose={() => setDeciding(false)} /> : null}
+    {deciding && manage && phase ? <DecideDialog apiRoute={surface.apiRoute} id={id} arms={phase.arms} checks={checks} onClose={() => setDeciding(false)} /> : null}
     {releasing && manage ? <ReleasePagesDialog id={id} apiRoute={surface.apiRoute} onClose={() => setReleasing(false)}
       onRefusal={setActionError} onSuccess={() => { results.reload(); onPagesReleased?.() }} /> : null}
   </div>

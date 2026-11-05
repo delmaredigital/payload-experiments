@@ -9,15 +9,13 @@ import T2 from '../../_fixtures/snapshots/T2.json'
 import T3 from '../../_fixtures/snapshots/T3.json'
 import T7 from '../../_fixtures/snapshots/T7.json'
 import T4 from '../../_fixtures/snapshots/T4.json'
-import { resetPayloadUiMock } from '../_helpers/payloadUiMock.js'
 
-vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
 vi.mock('../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
 })
-afterEach(() => { cleanup(); resetPayloadUiMock(); vi.unstubAllGlobals(); vi.clearAllMocks() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const arms = [{ key: 'control' }, { key: 'variantA' }, { key: 'holdout' }]
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status })
 const submitButton = () => screen.getByRole('button', { name: 'Decide' }) as HTMLButtonElement
@@ -30,7 +28,7 @@ test('guarded submit requires note and exact typed label; sends wire body and re
   const fetcher = vi.fn().mockResolvedValueOnce(response({ phases: [], snapshot: null }))
     .mockResolvedValueOnce(response({ doc: {}, revision: 2 }))
   vi.stubGlobal('fetch', fetcher)
-  render(<DecideDialog id="xp1" arms={arms} onClose={vi.fn()} />)
+  render(<DecideDialog apiRoute="/api" id="xp1" arms={arms} onClose={vi.fn()} />)
   expect(submitButton().disabled).toBe(true)
   await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
   expect(screen.getByRole('button', { name: 'Cancel' })).toBe(document.activeElement)
@@ -50,7 +48,7 @@ test('guarded submit requires note and exact typed label; sends wire body and re
 test('recommended row 7 prefill is unguarded; refusal message stays open without reload', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({ phases: [], snapshot: T7 }))
     .mockResolvedValueOnce(response({ errors: [{ code: 'future-refusal', message: 'Please review the latest settings.' }] }, 409)))
-  render(<DecideDialog id={1} arms={arms} onClose={vi.fn()} />)
+  render(<DecideDialog apiRoute="/api" id={1} arms={arms} onClose={vi.fn()} />)
   await waitFor(() => expect(submitButton().disabled).toBe(false))
   expect((screen.getByLabelText('Group') as HTMLSelectElement).value).toBe(T7.verdict.recommendedArm)
   expect(screen.queryByLabelText('Confirmation')).toBeNull()
@@ -64,7 +62,7 @@ test('confirmation-required refetches newest results and re-evaluates the guard 
     .mockResolvedValueOnce(response({ errors: [{ code: 'confirmation-required', message: 'Confirm this choice.' }] }, 422))
     .mockResolvedValueOnce(response({ phases: [], snapshot: T4 }))
   vi.stubGlobal('fetch', fetcher)
-  render(<DecideDialog id={1} arms={arms} onClose={vi.fn()} />)
+  render(<DecideDialog apiRoute="/api" id={1} arms={arms} onClose={vi.fn()} />)
   await waitFor(() => expect(submitButton().disabled).toBe(false))
   fireEvent.click(submitButton())
   await screen.findByLabelText('Confirmation')
@@ -82,7 +80,7 @@ test('retryable POST refusal offers Retry and reloads only after successful retr
     .mockResolvedValueOnce(response({ errors: [{ code: 'commit-unverified', message: 'Unverified' }] }, 500))
     .mockResolvedValueOnce(response({ doc: {}, revision: 3 }))
   vi.stubGlobal('fetch', fetcher)
-  render(<DecideDialog id={1} arms={arms} onClose={vi.fn()} />)
+  render(<DecideDialog apiRoute="/api" id={1} arms={arms} onClose={vi.fn()} />)
   await waitFor(() => expect(submitButton().disabled).toBe(false))
   fireEvent.click(submitButton())
   fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
@@ -95,7 +93,7 @@ test('failed results load can retry; Escape closes and restores trigger focus', 
   const trigger = document.createElement('button')
   document.body.append(trigger)
   trigger.focus()
-  const view = render(<DecideDialog id={1} arms={arms} onClose={onClose} />)
+  const view = render(<DecideDialog apiRoute="/api" id={1} arms={arms} onClose={onClose} />)
   fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
   await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
   expect(screen.queryByRole('alert')).toBeNull()
@@ -113,7 +111,7 @@ test('rapid Decide clicks submit once; pending controls and successful submit st
   const pending = new Promise<Response>(done => { resolve = done })
   const fetcher = vi.fn().mockResolvedValueOnce(response({ phases: [], snapshot: null })).mockReturnValue(pending)
   vi.stubGlobal('fetch', fetcher)
-  render(<DecideDialog id={1} arms={arms} onClose={vi.fn()} />)
+  render(<DecideDialog apiRoute="/api" id={1} arms={arms} onClose={vi.fn()} />)
   await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
   chooseAndConfirm()
   const submit = submitButton()
@@ -138,7 +136,7 @@ test.each([
 ])('$name copy renders with the stored group label', async ({ chosen, holdout, copy }) => {
   const fetcher = vi.fn().mockResolvedValueOnce(response({ phases: [], snapshot: null })).mockResolvedValueOnce(response({ doc: {}, revision: 2 }))
   vi.stubGlobal('fetch', fetcher)
-  render(<DecideDialog id={1} arms={[
+  render(<DecideDialog apiRoute="/api" id={1} arms={[
     { key: 'control', label: ' Original ' }, { key: 'variantA', label: ' Short headline ' },
     ...(holdout ? [{ key: 'holdout' }] : []),
   ]} onClose={vi.fn()} />)
@@ -165,7 +163,7 @@ test.each([
   { name: 'different choice', snapshot: T7, chosen: 'control', reason: 'You chose a different group than the results recommend.' },
 ])('$name reason renders only after a group is chosen', async ({ snapshot, chosen, reason }) => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ phases: [], snapshot })))
-  render(<DecideDialog id={1} arms={arms} onClose={vi.fn()} />)
+  render(<DecideDialog apiRoute="/api" id={1} arms={arms} onClose={vi.fn()} />)
   await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
   fireEvent.change(screen.getByLabelText('Group'), { target: { value: '' } })
   expect(screen.queryByText(reason)).toBeNull()
@@ -178,7 +176,7 @@ test.each([
 test('Escape consumed by the group dropdown leaves the dialog open', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ phases: [], snapshot: null })))
   const onClose = vi.fn()
-  render(<DecideDialog id={1} arms={arms} onClose={onClose} />)
+  render(<DecideDialog apiRoute="/api" id={1} arms={arms} onClose={onClose} />)
   await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
   chooseAndConfirm()
   const group = screen.getByLabelText('Group')
@@ -194,7 +192,7 @@ test('Escape consumed by the group dropdown leaves the dialog open', async () =>
 
 test('no recommendation displays an explicit empty selection before choosing Original', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ phases: [], snapshot: null })))
-  render(<DecideDialog id={1} arms={arms} onClose={vi.fn()} />)
+  render(<DecideDialog apiRoute="/api" id={1} arms={arms} onClose={vi.fn()} />)
   await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
   const group = screen.getByLabelText('Group') as HTMLSelectElement
   expect(group.value).toBe('')

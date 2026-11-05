@@ -8,6 +8,9 @@ export interface TestsSurfaceProps {
   returnToTest?: string
   adminRoute: string
   apiRoute: string
+  collectionTitles?: Record<string, string>
+  userId?: string | number
+  userCollection?: string
   isAdmin: boolean
   pages?: Array<{ collection: string; collectionLabel: string; id: DocId; title: string; editorUrl: string; editor: 'puck' | 'blocks' }>
   pageCollections?: Array<{ slug: string; label: string; contentChecks: boolean; copyHint?: string; copyUrl?: string; copyLabel?: string }>

@@ -42,9 +42,11 @@ export function GoalSection({ test, surface }: SectionProps) {
     if (!surface.canManage) { setClickKeys([]); return }
     let active = true
     let lastReturn = -Infinity
+    let sequence = 0
     async function loadKeys() {
+      const request = ++sequence
       const result = await api.clickKeys(doc.id)
-      if (active) setClickKeys(result.ok && Array.isArray(result.data?.keys) ? result.data.keys : [])
+      if (active && request === sequence) setClickKeys(result.ok && Array.isArray(result.data?.keys) ? result.data.keys : [])
     }
     const focus = () => {
       if (document.visibilityState !== 'visible' || Date.now() - lastReturn < 100) return

@@ -14,6 +14,9 @@ export type TestDocApi = ReturnType<typeof useTestDocument>
 export interface SurfaceProps {
   adminRoute: string
   apiRoute: string
+  collectionTitles?: Record<string, string>
+  userId?: string | number
+  userCollection?: string
   canManage: boolean
   canReadResults: boolean
   isAdmin: boolean

@@ -11,10 +11,10 @@ import { TEST_PAGE } from './copy/testPage.js'
 import { API_MESSAGES, refusalMessage } from './copy/common.js'
 import { actionablePreviewPages } from './previewLinks.model.js'
 
-export function PreviewLinks({ experimentId, placements, arms, flagPoint }: {
-  flagPoint?: string; experimentId: DocId; placements: PreflightResult['placements']; arms: readonly { key: string; kind?: string; label?: string }[]
+export function PreviewLinks({ experimentId, placements, arms, flagPoint, apiRoute }: {
+  apiRoute: string; flagPoint?: string; experimentId: DocId; placements: PreflightResult['placements']; arms: readonly { key: string; kind?: string; label?: string }[]
 }) {
-  const api = useApi()
+  const api = useApi(apiRoute)
   const inFlight = useRef(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

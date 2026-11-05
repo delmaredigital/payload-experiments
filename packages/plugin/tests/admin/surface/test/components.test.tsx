@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/admin/surface/contracts.js'
 import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
@@ -624,7 +624,7 @@ test('click goals found on the page lead every role picker, with block labels an
   const select = screen.getByRole('combobox', { name: 'Goal' })
   expect(within(select).getByRole('group', { name: "On this test's page" }).textContent).toBe('Hero interest · Hero')
   expect(within(select).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose a goal', 'Hero interest · Hero', 'Registration · yes/no', 'Other clicks · yes/no'])
-  expect(screen.getAllByRole('heading', { name: "On this test's page" })).toHaveLength(2)
+  expect(screen.getAllByRole('heading', { level: 3, name: "On this test's page" })).toHaveLength(2)
   expect(screen.getByText("Goals inside linked documents aren't shown. Goals added in code (data-xp-goal) work but aren't listed here.")).toBeTruthy()
   expect(screen.queryByText('A click shows interest, not the result you want.')).toBeNull()
   expect(screen.queryByText('+ New click goal')).toBeNull()
@@ -674,4 +674,22 @@ test('grouped and plain SelectEdit and CheckboxList retain their values and comm
     <CheckboxList label="Checks" value={['a']} options={options} onToggle={toggle} /></>)
   expect(screen.queryByRole('heading')).toBeNull(); expect(screen.queryByRole('list')).toBeNull()
   expect((screen.getByRole('checkbox', { name: 'Alpha' }) as HTMLInputElement).checked).toBe(true)
+})
+
+test('an older click-key response arriving last cannot replace the latest page grouping', async () => {
+  const pending: Array<(response: Response) => void> = []
+  vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith('/click-keys')
+    ? new Promise<Response>(resolve => { pending.push(resolve) })
+    : Promise.resolve(new Response(JSON.stringify({ docs: [clickMetric] })))))
+  render(<GoalSection {...clickProps()} />)
+  await screen.findAllByText('Hero interest · yes/no')
+  expect(pending).toHaveLength(1)
+  fireEvent.focus(window)
+  expect(pending).toHaveLength(2)
+  await act(async () => { pending[1]!(new Response(JSON.stringify({ keys: [{ key: 'hero-cta', arms: ['control'], label: 'Latest Hero' }] }))) })
+  const group = () => within(screen.getByRole('combobox', { name: 'Goal' })).getByRole('group', { name: "On this test's page" })
+  expect(group().textContent).toBe('Hero interest · Latest Hero')
+  await act(async () => { pending[0]!(new Response(JSON.stringify({ keys: [{ key: 'hero-cta', arms: ['control'], label: 'Old Hero' }] }))) })
+  expect(group().textContent).toBe('Hero interest · Latest Hero')
+  expect(screen.queryByText('Hero interest · Old Hero')).toBeNull()
 })

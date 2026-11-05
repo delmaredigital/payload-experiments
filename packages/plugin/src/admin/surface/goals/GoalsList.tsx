@@ -1,7 +1,6 @@
 'use client'
 import { sourceFor } from '../../metricSource.model.js'
 import { useEffect, useState } from 'react'
-import { Link } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
 import { Banner, EmptyState } from '../../../ui/Feedback.js'
 import { Button } from '../../../ui/Button.js'
@@ -51,7 +50,7 @@ export function GoalsList({ surface, returnToTest }: { surface: SurfaceProps; re
               const href = url(`/experiments/goals/${encodeURIComponent(String(goal.id))}${returnQuery}`)
               return <article className="xp-tests-row" key={`${typeof goal.id}:${goal.id}`}>
                 <div className="xp-tests-row-main">
-                  <div className="xp-tests-row-name"><Link href={href}>{goal.name}</Link>{label ? <span className="xp-tests-kind">{label[0]!.toUpperCase() + label.slice(1)}</span> : null}</div>
+                  <div className="xp-tests-row-name"><a href={href}>{goal.name}</a>{label ? <span className="xp-tests-kind">{label[0]!.toUpperCase() + label.slice(1)}</span> : null}</div>
                   <div className="xp-tests-row-line"><span>{goal.direction === 'decrease' ? C.decrease : C.increase}</span><span aria-hidden="true">·</span><span>{count ? goalUsedBy(count) : C.unused}</span></div>
                 </div>
                 <Button className="xp-tests-row-action" variant={returnToTest ? 'primary' : 'secondary'} size="sm" href={returnToTest

@@ -2,7 +2,6 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath, URL as NodeURL } from 'node:url'
-import type { ComponentProps } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { SurfaceProps } from '../../../src/admin/surface/contracts.js'
@@ -12,7 +11,6 @@ import { TestsSurface } from '../../../src/admin/surface/TestsSurface.js'
 
 const push = vi.hoisted(() => vi.fn())
 vi.mock('next/navigation.js', () => ({ useRouter: () => ({ push }) }))
-vi.mock('@payloadcms/ui', () => ({ Link: (props: ComponentProps<'a'>) => <a {...props} /> }))
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
@@ -50,6 +48,7 @@ test('list pages through goals and tests and renders compact rows, kinds, direct
   vi.stubGlobal('fetch', fetch)
   render(<GoalsList surface={surface} returnToTest="test/1" />)
   const row = (await screen.findByRole('link', { name: 'Register' })).closest('article')!
+  expect(within(row).getByRole('link', { name: 'Register' }).tagName).toBe('A')
   expect(within(row).getByText('Yes/no')).toBeTruthy()
   expect(within(row).getByText('More is better')).toBeTruthy()
   expect(within(row).getByText('Used by 2 tests')).toBeTruthy()
