@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.4.0-rc.1] - 2026-11-05
+
+### plugin
+
 - Changed: `TestsSurfaceProps` accepts optional `collectionTitles`, `userId` and `userCollection` so plugin pages no longer depend on Payload UI. Migration impact: none; the root view fills these props.
 - Added: the Goals page creates click goals with "A click on the page", with their short name under Advanced. Migration impact: none.
 - Added: goal pickers group defined goals found on the test's page under "On this test's page", with a note explaining that linked-document and code goals are not listed. Migration impact: none.
@@ -32,8 +36,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed: the Goals "Measured by" list (`serializeMetricSources`) offers "A click on the page". Migration impact: no database change; hosts can adopt click goals without registering a metric source.
 - Changed: publishing with an undefined `xpGoal` key is refused by field validation, as are draft saves when the collection validates drafts (`versions.drafts.validate`). Migration impact: define the click goal before publishing content that uses its key (or saving a validated draft); no plugin database change.
 - Changed: clicks before a goal was added mid-test are excluded from that goal's results for every version. Migration impact: no database change; historical clicks before the add do not contribute to the newly added goal.
-- Added: an "A whole page" test card that walks through choosing the Original and a page for each version, a page picker on whole-page tests, and step-by-step copy instructions (or the host's `copyHint`).
-- Added: "A block on a page" lists pages edited with a `blocks` field too.
+- Added: an "A whole page" test card that walks through choosing the Original and a page for each version, a page picker on whole-page tests, and step-by-step copy instructions (or the host's `copyHint`). Migration impact: none.
+- Added: "A block on a page" lists pages edited with a `blocks` field too. Migration impact: none.
 - Added: "Test a block on this page" for `blocks` collections, and the Experiment block's status line, version labels, "Copy the Original into this version", version sync, and Unwrap. Migration impact: no database columns; new importMap component keys (`TestBlockField`, `BlockStatusField`, `BlockSlotRowLabel`, `CopyOriginalField`). Run `payload generate:importmap`.
 - Added: Experiment blocks for registered Payload blocks fields, with Original/version rendering, viewport groups, draft wrapping and winner replacement in published content and drafts. Migration impact: hosts adopting `createExperimentBlock` add the Experiment block and slots tables, their version tables, and the live/version `slot` enum types (`enum_<coll>_blocks_<slug>_slots_slot` and its `_v` counterpart) with `payload migrate:create`.
 - Added: the package root exports `createExperimentBlock`, and `/blocks` exports `controlOnlyBlocks`, `segmentExperimentBlocks` and `EXPERIMENT_BLOCK_SLUG` for host blocks fields. Migration impact: import `createExperimentBlock` from the package root and the helpers from `/blocks`; no additional database change.
@@ -53,6 +57,15 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added: permanent retirement of deleted test short names; new tests choose an unused suffix. Migration impact: nullable `xp_state.retired_slugs`; run `payload migrate:create`.
 - Changed: legacy page tests resolve one collection from the Original (or the sole registration), then use it for every version. Migration impact: none; register `pageCollection` explicitly when several collections share an address.
 - Changed: Puck consumers share the document-editor `appliesTo` rule, and `admin.editorUrl` receives `editor` and `doc`. Migration impact: none.
+
+### BREAKING
+
+- `onInit` refuses a registered blocks field that lacks the Experiment block or sits inside a named group, array or tab, and refuses host `metricSources` ids starting with the reserved `click:` prefix. Fix the registration, or rename the source, before booting.
+- Saves on every registered `pages`, `blocks` and `puck` collection take a guard read and advisory locks, and can be refused `page-busy` (retry) or `interacting-tests` (finish the other test first).
+- Start refuses `placement-unpublished` for Experiment blocks and Puck slots found only on drafts, so an existing Puck test whose slot is only on a draft can't start until its page is published.
+- Deciding a stopped page test refuses an unpublished Original or winner page (`page-target-unpublished`).
+- TypeScript: `Snapshot.health` and `SummaryResponse.health` are unions (narrow before reading `.path`); `ReadinessCode` and `RefusalCode` gain `goal-in-some-versions` and `placement-unchecked` (exhaustive switches add them); add-metric responses always carry `warnings`.
+- Migration impact: four nullable plugin columns, no backfill: `xp_experiments.page_collection` and its version counterpart `_xp_experiments_v.version_page_collection`, `xp_phases.placement_docs` and `xp_state.retired_slugs`; run `payload migrate:create`. Hosts adopting `createExperimentBlock` also add, per blocks field, the Experiment block and slots tables, their `_v` version tables and the live/version `slot` enum types; hosts adopting `xpGoalField()` add one nullable text column per table using it, version tables included (`xpGoalPuckField()` adds none). Run `payload generate:importmap` for the new component keys `PlacementStatus`, `TestBlockField`, `BlockStatusField`, `BlockSlotRowLabel`, `CopyOriginalField` and `XpGoalField` (all `@delmaredigital/payload-experiments/admin/client`).
 
 ## [0.3.0-rc.4] - 2026-11-04
 
