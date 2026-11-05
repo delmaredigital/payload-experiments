@@ -116,6 +116,7 @@
   "bugs": { "url": "https://github.com/delmaredigital/payload-experiments/issues" },
   "homepage": "https://delmaredigital.com/developers",
   "devDependencies": {
+    "@delmaredigital/payload-puck": "0.10.3",
     "payload": "^3.90.2",
     "@payloadcms/db-postgres": "^3.90.2",
     "@payloadcms/ui": "^3.90.2",
