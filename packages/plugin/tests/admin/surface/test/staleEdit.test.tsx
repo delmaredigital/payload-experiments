@@ -20,13 +20,15 @@ test('a stale edit shows one alert with Reload, preserves typed values, and Relo
   const refusal = new Promise<Response>(resolve => { refuse = resolve })
   const response = (body: unknown, status = 200) => ({ ok: status === 200, status, json: async () => body }) as Response
   let reads = 0
+  const unrouted: string[] = []
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith('/click-keys')) return response({ keys: [] })
     if (url.endsWith('/preflight')) return response(preflight())
     if (url.includes('/xp-metrics')) return response({ docs: [], hasNextPage: false })
     if (init?.method === 'PATCH') return refusal
     if (url === `/custom-api/xp-experiments/${encodeURIComponent(String(doc.id))}?depth=0`) return response({ ...doc, updatedAt: `2026-11-03T10:0${reads}:00.000Z`, name: ++reads === 1 ? 'Loaded name' : 'Newer saved name' })
-    throw new Error(`Unrouted request: ${url}`)
+    unrouted.push(url)
+    return response({}, 599)
   })
   vi.stubGlobal('fetch', fetcher)
   await act(async () => { render(<TestPage id={doc.id} surface={props().surface} />) })
@@ -60,6 +62,7 @@ test('a stale edit shows one alert with Reload, preserves typed values, and Relo
   expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull()
   expect(screen.getByLabelText<HTMLTextAreaElement>('Why are you testing this? (optional)').value).toBe('')
   expect(patches()).toHaveLength(1)
+  expect(unrouted).toEqual([])
 })
 
 test('a normal save error still shows the SaveStatus alert', () => {

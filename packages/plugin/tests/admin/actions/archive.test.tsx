@@ -22,7 +22,7 @@ test.each(['discard', 'hard-coded'] as const)('%s uses shared typed phrase and e
   const pending = new Promise<Response>(done => { resolve = done })
   const fetcher = vi.fn().mockReturnValue(pending)
   vi.stubGlobal('fetch', fetcher)
-  render(<ConfirmDialog id="xp1" action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  render(<ConfirmDialog apiRoute="/api" id="xp1" action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
   const phrase = expectedConfirm(mode, 'Variant A')
   expect(screen.getByText(phrase, { selector: 'strong' })).toBeTruthy()
@@ -48,7 +48,7 @@ test.each(['discard', 'hard-coded'] as const)('%s uses shared typed phrase and e
 test('archive refusal remains open and a retryable refusal offers retry', async () => {
   const action = availableActions({ status: 'stopped', kind: 'block', arms: [], canManage: true }).find(item => item.id === 'archive')!
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ errors: [{ code: 'commit-unverified' }] }, 500)))
-  render(<ConfirmDialog id={1} action={action} winnerLabel="Original" onClose={vi.fn()} />)
+  render(<ConfirmDialog apiRoute="/api" id={1} action={action} winnerLabel="Original" onClose={vi.fn()} />)
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
   fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
   await screen.findByRole('alert')

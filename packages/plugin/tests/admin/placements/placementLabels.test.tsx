@@ -44,9 +44,12 @@ test.each([403, 500, 200])('unreadable or missing lookups link known ids with pa
 })
 test('results-only reader makes no requests, even for named collections and ids', () => {
   const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher)
-  const { result } = renderHook(() => usePlacementLabels({ ...options, canManage: false }))
+  const { result, rerender } = renderHook(({ preflight }: { preflight?: PreflightResult }) => usePlacementLabels({ ...options, canManage: false, preflight }), { initialProps: {} })
   expect(fetcher).not.toHaveBeenCalled()
-  expect(result.current.get(placementDetailKey(block))).toEqual({ title: '/post', href: '/cms/collections/posts/123' })
+  expect(result.current.get(placementDetailKey(block))).toEqual({ title: '/post' })
+  rerender({ preflight: { placements: [{ ...block, title: 'Named post', editorUrl: '/editor/post' }], checks: [], baseline: null, trafficPerDay: null, estimate: null } })
+  expect(result.current.get(placementDetailKey(block))).toEqual({ title: 'Named post' })
+  expect(fetcher).not.toHaveBeenCalled()
 })
 test('a preflight title is preferred over a path and document links require an id', () => {
   expect(preflightPlacementLabel(page, { placements: [], pagePlacements: [{ ...page, arm: 'control', published: false, title: 'Named draft' }], checks: [], baseline: null, trafficPerDay: null, estimate: null }, '/cms')).toEqual({ title: 'Named draft' })

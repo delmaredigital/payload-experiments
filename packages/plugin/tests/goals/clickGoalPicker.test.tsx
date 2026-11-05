@@ -133,7 +133,7 @@ test('a deferred create uses the current array-row setter after a reorder', asyn
   expect(select).not.toHaveBeenCalled()
 })
 
-test('three array rows share an in-flight read, a created goal, and the loaded list on remount', async () => {
+test('three array rows share an in-flight read and a created goal, then refresh on remount', async () => {
   let finish!: (response: Response) => void
   fetcher.mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve }))
   const rowsView = render(<><Payload /><Payload path="buttons.1.xpGoal" /><Payload path="buttons.2.xpGoal" /></>)
@@ -148,8 +148,38 @@ test('three array rows share an in-flight read, a created goal, and the loaded l
   expect(select).toHaveBeenCalledWith('shared-goal')
   expect(fetcher).toHaveBeenCalledTimes(2)
   rowsView.unmount()
+  fetcher.mockResolvedValueOnce(json({ docs: [...rows, { id: 2, name: 'Shared goal', slug: 'shared-goal', source: 'click:shared-goal' }], hasNextPage: false }))
   render(<Payload />)
   expect(await screen.findByRole('option', { name: 'Shared goal' })).toBeTruthy()
+  expect(fetcher).toHaveBeenCalledTimes(3)
+})
+
+test('three rows share one read and remount fetches a goal created elsewhere', async () => {
+  const rowsView = render(<><Payload /><Payload path="buttons.1.xpGoal" /><Puck /></>)
+  expect(await screen.findAllByRole('option', { name: 'Join us' })).toHaveLength(3)
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  rowsView.unmount()
+  fetcher.mockResolvedValueOnce(json({ docs: [{ id: 2, name: 'New goal', slug: 'missing', source: 'click:missing' }], hasNextPage: false }))
+  render(<Puck />)
+  expect(await screen.findByRole('option', { name: 'New goal' })).toBeTruthy()
+  expect(screen.queryByRole('option', { name: 'Join us' })).toBeNull()
+  expect(screen.queryByText(C.undefinedKey)).toBeNull()
+  expect(fetcher).toHaveBeenCalledTimes(2)
+})
+
+test('an abandoned in-flight read cannot overwrite a remounted list', async () => {
+  let finish!: (response: Response) => void
+  fetcher.mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve }))
+  const view = render(<Payload />)
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  view.unmount()
+  fetcher.mockResolvedValueOnce(json({ docs: [{ id: 2, name: 'New goal', slug: 'missing', source: 'click:missing' }], hasNextPage: false }))
+  render(<Payload />)
+  expect(await screen.findByRole('option', { name: 'New goal' })).toBeTruthy()
+  await act(async () => { finish(json({ docs: rows, hasNextPage: false })) })
+  render(<Payload path="buttons.1.xpGoal" />)
+  expect(await screen.findAllByRole('option', { name: 'New goal' })).toHaveLength(2)
+  expect(screen.queryByRole('option', { name: 'Join us' })).toBeNull()
   expect(fetcher).toHaveBeenCalledTimes(2)
 })
 

@@ -49,5 +49,8 @@ export function usePlacementLabels({ details, preflight, apiRoute, adminRoute, c
     })())
     void Promise.all(jobs).then(() => { if (mounted.current && jobs.length) refresh(value => value + 1) })
   }, [signature, preflight, apiRoute, adminRoute, canManage, collectionTitles, cache])
-  return new Map(details.map(detail => [placementDetailKey(detail), preflight ? preflightPlacementLabel(detail, preflight, adminRoute) : canManage ? cache.get(placementDetailKey(detail)) ?? resolvedPlacementLabel(detail, undefined, adminRoute) : resolvedPlacementLabel(detail, undefined, adminRoute)]))
+  return new Map(details.map(detail => {
+    const label = preflight ? preflightPlacementLabel(detail, preflight, adminRoute) : cache.get(placementDetailKey(detail)) ?? resolvedPlacementLabel(detail, undefined, adminRoute)
+    return [placementDetailKey(detail), canManage ? label : { title: label.title }]
+  }))
 }

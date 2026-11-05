@@ -9,11 +9,13 @@ type GoalList = { state: GoalListState; listeners: Array<(state: GoalListState) 
 const goalLists = new Map<string, GoalList>()
 
 function publish(list: GoalList, state: GoalListState) {
+  // A read may finish after its last row unmounts and a new list has started.
+  if (!list.listeners.length || goalLists.get(state.api) !== list) return
   list.state = state
   list.listeners.forEach(listener => listener(state))
 }
 
-/** Rows at the same API base share both the in-flight read and its successful result. */
+/** Mounted rows at the same API base share the in-flight read and its result. */
 function loadGoals(api: string): GoalList {
   const cached = goalLists.get(api)
   if (cached && (cached.state.status === 'loading' || cached.state.status === 'ready')) return cached
@@ -50,7 +52,10 @@ export function useClickGoalPicker(apiRoute: string, { enabled = true, onSelect 
     const list = loadGoals(api)
     setLoaded(list.state)
     list.listeners.push(setLoaded)
-    return () => { list.listeners = list.listeners.filter(listener => listener !== setLoaded) }
+    return () => {
+      list.listeners = list.listeners.filter(listener => listener !== setLoaded)
+      if (!list.listeners.length) goalLists.delete(api)
+    }
   }, [api, enabled])
   const status = !enabled ? 'not-manager' : loaded.api === api ? loaded.status : 'loading'
   const goals = status === 'ready' ? loaded.goals : []
