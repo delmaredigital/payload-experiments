@@ -47,7 +47,7 @@ test('only theme.css references Payload tokens directly', () => {
 test('Puck editor chrome uses scoped classes, tokens, and explicit reset-resistant controls', () => {
   const css = readFileSync(join(src, 'puck/editor/editor.css'), 'utf8')
   expect(css).not.toContain('!important')
-  const rules = css.replace(/^(?:\[data-theme='dark'\] \.xp-slot-root,\s*\.dark )?\.xp-slot-root\s*\{[^}]+\}/gm, '')
+  const rules = css.replace(/^(?:\[data-theme='dark'\] \.xp-slot-root,\s*\.dark |\[class\*="_PuckFields"\] )?\.xp-slot-root\s*\{[^}]+\}/gm, '')
   expect(rules).not.toMatch(/#[0-9a-f]{3,8}\b|\b(?:rgb|hsl)a?\(/i)
   expect(references(css).every(name => name.startsWith('--xp-'))).toBe(true)
   const controls = css.match(/\.xp-slot-editor \.xp-ui-button,\s*\.xp-slot-editor \.xp-ui-tab,\s*\.xp-slot-editor \.xp-ui-input\s*\{([^}]+)\}/)?.[1] ?? ''

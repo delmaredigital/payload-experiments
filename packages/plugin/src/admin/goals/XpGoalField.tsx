@@ -4,6 +4,7 @@ import type { TextFieldClientProps } from 'payload'
 import { useId, type ChangeEvent, type KeyboardEvent } from 'react'
 import { useClickGoalPicker } from '../../goals/picker/useClickGoalPicker.js'
 import { CLICK_GOAL_COPY as C } from '../../goals/picker/copy.js'
+import '../theme.css'
 import './xpGoalField.css'
 
 export function XpGoalField({ path, field, readOnly }: TextFieldClientProps) {

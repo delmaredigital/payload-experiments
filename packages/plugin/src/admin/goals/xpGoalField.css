@@ -2,25 +2,25 @@
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: calc(var(--base) * .5);
-  margin-bottom: var(--base);
+  gap: var(--xp-space-2);
+  margin-bottom: var(--xp-space-5);
 }
 
 .xp-goal-field__select {
   flex: 1 1 auto;
   min-width: 0;
-  margin-bottom: 0;
 }
 
 .xp-goal-field__panel {
-  border: 1px solid var(--theme-elevation-150);
-  border-radius: var(--style-radius-m);
-  padding: calc(var(--base) * .8);
-  margin-block: var(--base);
+  border: 1px solid var(--xp-border);
+  border-radius: var(--xp-radius-control);
+  padding: var(--xp-space-4);
+  margin-block: var(--xp-space-5);
 }
 
 .xp-goal-field__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(var(--base) * .5);
+  gap: var(--xp-space-2);
+  margin-top: var(--xp-space-5);
 }

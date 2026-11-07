@@ -71,7 +71,7 @@ test('sidebar enabled and solid disabled buttons meet their text contrast thresh
   const disabled = properties(rules.get('[class*="_PuckFields"] .xp-puck-field .xp-ui-button:disabled')!)
   expect(disabled).toMatchObject({ opacity: '1', background: 'var(--xp-surface-3)', color: 'var(--xp-text-2)', 'border-color': 'var(--xp-border-strong)' })
   const css = readFileSync(new URL('puck/editor/editor.css', source), 'utf8')
-  const tokens = declarations([...css.matchAll(/\.xp-slot-root\s*\{([^}]+)\}/g)][2]![1]!)
+  const tokens = declarations(css.match(/\[class\*="_PuckFields"\] \.xp-slot-root\s*\{([^}]+)\}/)![1]!)
   const resolve = (value: string): string => value.replace(/var\((--[\w-]+)\)/g, (_, name: string) => tokens[name]!)
   const primary = properties(rules.get('.xp-ui-button--primary')!)
   const secondary = properties(rules.get('.xp-ui-button--secondary')!)
