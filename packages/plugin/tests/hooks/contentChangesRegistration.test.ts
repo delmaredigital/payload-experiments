@@ -12,7 +12,7 @@ test('capture installs only on configured and enabled Puck collections', async (
   const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [
     { slug: 'pages', fields: [], versions: { drafts: {} } }, asks,
   ] })
-  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([pageGuardBeforeChange, contentChangesBeforeHook])
+  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([pageGuardBeforeChange, contentChangesBeforeHook, expect.any(Function)])
   expect(config.collections?.[0]?.hooks?.afterChange).toEqual([pageGuardAfterChange, contentChangesHook])
   expect(config.collections?.[1]).toBe(asks)
   options.puck.enabled = false
@@ -28,5 +28,5 @@ test.each(['puck', 'blocks'] as const)('%s-only receives guard and audit hooks w
   const config = await createExperimentsPlugin(options)({ collections: [{ slug: 'pages', fields: [] }] } as unknown as Config)
   const collection = config.collections![0]!
   expect(collection.fields).toEqual([])
-  expect(collection.hooks).toEqual({ beforeChange: [pageGuardBeforeChange, contentChangesBeforeHook], afterChange: [pageGuardAfterChange, contentChangesHook], beforeOperation: [pageGuardBeforeOperation], afterOperation: [pageGuardAfterOperation], beforeDelete: [pageGuardBeforeDelete] })
+  expect(collection.hooks).toEqual({ beforeChange: [pageGuardBeforeChange, contentChangesBeforeHook, ...(kind === 'puck' ? [expect.any(Function)] : [])], afterChange: [pageGuardAfterChange, contentChangesHook], beforeOperation: [pageGuardBeforeOperation], afterOperation: [pageGuardAfterOperation], beforeDelete: [pageGuardBeforeDelete] })
 })

@@ -3,6 +3,7 @@ import type { ExperimentsPluginOptions } from './types/contracts.js'
 import { buildCollections } from './collections/index.js'
 import { buildEndpoints } from './endpoints/index.js'
 import { contentChangesBeforeHook, contentChangesHook } from './hooks/contentChanges.js'
+import { puckGoalsBeforeChange } from './hooks/puckGoals.js'
 import { pageGuardAfterChange, pageGuardAfterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from './hooks/pageGuard.js'
 import { createOnInit } from './onInit.js'
 import { puckCollections, resolveOptions } from './options.js'
@@ -42,12 +43,12 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
       } },
       collections: [
         ...(config.collections ?? []).map(collection => {
-          const puck = options.puck?.enabled && registrations.some(entry => entry.slug === collection.slug)
+          const puck = options.puck?.enabled && registrations.find(entry => entry.slug === collection.slug)
           const page = options.pages?.collections.some(entry => entry.slug === collection.slug)
           const blocks = options.blocks?.collections.find(entry => entry.slug === collection.slug)
           if (!puck && !page && !blocks) return collection
           return { ...collection, fields: [...(page ? [{ name: 'xpPlacementStatus', type: 'ui' as const, admin: { position: 'sidebar' as const, components: { Field: paths.XP_PLACEMENT_STATUS } } }] : []), ...(blocks ? injectTestBlock(collection.fields, blocks) : collection.fields)], hooks: { ...collection.hooks,
-            beforeChange: [...(collection.hooks?.beforeChange ?? []), pageGuardBeforeChange, contentChangesBeforeHook],
+            beforeChange: [...(collection.hooks?.beforeChange ?? []), pageGuardBeforeChange, contentChangesBeforeHook, ...(puck ? [puckGoalsBeforeChange(puck.field)] : [])],
             beforeOperation: [...(collection.hooks?.beforeOperation ?? []), pageGuardBeforeOperation],
             beforeDelete: [...(collection.hooks?.beforeDelete ?? []), pageGuardBeforeDelete],
             afterOperation: [pageGuardAfterOperation, ...(collection.hooks?.afterOperation ?? [])],
