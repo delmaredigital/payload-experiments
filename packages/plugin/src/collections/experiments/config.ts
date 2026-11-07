@@ -43,8 +43,8 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
     hooks: {
       beforeOperation: [deleteGuardBeforeOperation], beforeValidate: [createDefaults], beforeChange: [flagControlParams, lockHook, pickExperimentSlug], beforeDelete: [deleteGuard], afterDelete: [deleteGuardAfter],
       afterError: [({ error }) => {
-        // Payload preserves public Error status/message, but omits custom codes.
-        if (error instanceof XpRefusal && error.code === 'stale-edit') {
+        // Payload preserves public Error status/message, but omits custom codes; the admin maps refusals by code.
+        if (error instanceof XpRefusal) {
           return { status: error.status, response: { errors: [{ code: error.code, message: error.message }] } }
         }
       }],
