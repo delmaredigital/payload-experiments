@@ -36,6 +36,7 @@ export async function decide(req: PayloadRequest, { experimentId, winnerArm, not
     if (test.phaseKind !== 'test') refuse('invalid-status')
     if (current.kind === 'block' && current.status === 'stopped') {
       const rescan = await lockAndRescanPlacements(req, exec, options, { ...current, arms: test.arms }, placements)
+      if (rescan.placements.length === 0) refuse('placement-removed')
       await refreshPlacementDocs(exec, experimentId, test.phase, rescan.docs)
     }
     if (current.kind === 'page' && current.status === 'stopped') {
