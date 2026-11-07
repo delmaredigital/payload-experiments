@@ -4,6 +4,7 @@ import type {
   AddMetricResult, ClickKeysResult, PreflightResult, PreviewTokenResult, RefusalCode, ResultsResponse, SummaryResponse, TransitionSuccess,
 } from '../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from './copy/common.js'
+import { BLOCK_COPY } from './copy/blocks.js'
 import { CONTENT_ENTRY_REFUSALS } from './copy/actions.js'
 
 // `data` is undefined when a 2xx response has no JSON body (the server always sends one; callers must not assume it).
@@ -13,10 +14,11 @@ export type ApiResult<T> = { ok: true; data: T | undefined } | {
 type RequestOptions = NonNullable<Parameters<typeof refusalMessage>[3]>
 
 export function createApi(apiBase: string) {
+  const collectionBase = `${apiBase.replace(/\/$/, '')}/xp-experiments`
   const base = `${apiBase.replace(/\/$/, '')}/xp/experiments`
   const route = (id: DocId, action: string) => `${base}/${encodeURIComponent(id)}/${action}`
 
-  async function request<T>(path: () => string, method: 'GET' | 'POST', body?: unknown, options?: RequestOptions, signal?: AbortSignal): Promise<ApiResult<T>> {
+  async function request<T>(path: () => string, method: 'GET' | 'POST' | 'DELETE', body?: unknown, options?: RequestOptions, signal?: AbortSignal): Promise<ApiResult<T>> {
     try {
       const response = await fetch(path(), {
         method, credentials: 'include', ...(signal ? { signal } : {}),
@@ -44,6 +46,14 @@ export function createApi(apiBase: string) {
   }
   const post = <T>(id: DocId, action: string, body?: unknown, options?: RequestOptions) => request<T>(() => route(id, action), 'POST', body, options)
   return {
+    findTestIdBySlug: async (slug: string): Promise<ApiResult<DocId>> => {
+      const result = await request<{ docs: Array<{ id: DocId }> }>(() => `${collectionBase}?where[slug][equals]=${encodeURIComponent(slug)}&depth=0&limit=1`, 'GET', undefined, { notFound: BLOCK_COPY.alreadyDeleted })
+      if (!result.ok) return result
+      const id = result.data?.docs?.[0]?.id
+      if (id === undefined) return { ok: false, status: 404, code: 'not-found', message: refusalMessage('not-found', 404, undefined, { notFound: BLOCK_COPY.alreadyDeleted }), retryable: false }
+      return { ok: true, data: id }
+    },
+    deleteTest: (id: DocId) => request<unknown>(() => `${collectionBase}/${encodeURIComponent(id)}`, 'DELETE', undefined, { notFound: BLOCK_COPY.noLongerDraft }),
     wrapBlock: (body: WrapBlockBody) => request<Record<string, unknown>>(() => `${apiBase.replace(/\/$/, '')}/xp/blocks/wrap`, 'POST', body),
     pages: (query: { collection: string; q?: string; path?: string; page?: number }, signal?: AbortSignal) => request<PagesResult>(() => `${apiBase.replace(/\/$/, '')}/xp/pages?${new URLSearchParams({ collection: query.collection, ...(query.q ? { q: query.q } : {}), ...(query.path !== undefined ? { path: query.path } : {}), ...(query.page ? { page: String(query.page) } : {}) })}`, 'GET', undefined, undefined, signal),
     placementStatus: (body: PlacementStatusBody) => request<PlacementStatusResult>(() => `${apiBase.replace(/\/$/, '')}/xp/placements/status`, 'POST', body),

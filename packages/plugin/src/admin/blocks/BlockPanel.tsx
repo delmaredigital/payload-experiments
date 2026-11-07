@@ -1,13 +1,19 @@
 'use client'
-import { Banner, Button, ConfirmationModal, useModal, useFormInitializing, useRowLabel } from '@payloadcms/ui'
+import { Banner, Button, ConfirmationModal, toast, useModal, useFormInitializing, useRowLabel } from '@payloadcms/ui'
 import type { UIFieldClientProps } from 'payload'
+import { formatAdminURL } from 'payload/shared'
 import { useEffect, useId, useRef, useState } from 'react'
 import { copyOriginalIntoVersion, syncExperimentSlots, unwrapExperimentBlock } from '../../blocks/formState.js'
-import { BLOCK_COPY, blockSyncNotice } from '../copy/blocks.js'
+import { BLOCK_COPY, blockSyncNotice, blockUnwrapNotice, blockDeleteConfirmation, blockUnwrapConfirmation, blockRunningUnwrap, blockDecidedUnwrap, blockFinishedCopy } from '../copy/blocks.js'
 import { API_MESSAGES } from '../copy/common.js'
 import { isOrphan, liveStatus, slotLabel, statusSentence } from './model.js'
-import { useBlockStatus } from './statusCache.js'
+import { createApi } from '../api.js'
+import { useBlockStatus, setBlockStatus } from './statusCache.js'
 import { useBlockForm } from './useBlockForm.js'
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : API_MESSAGES.failed
+}
 
 export function BlockStatusField({ path }: UIFieldClientProps) {
   const context = useBlockForm(path), { block, field, manager, config, collection, replace } = context
@@ -15,17 +21,19 @@ export function BlockStatusField({ path }: UIFieldClientProps) {
   const status = useBlockStatus(config.routes.api, block?.experiment, true)
   const synced = useRef(false), syncing = useRef(false)
   const [notice, setNotice] = useState(false), [error, setError] = useState<string>(), [busy, setBusy] = useState(false)
-  const [syncFailed, setSyncFailed] = useState(false)
+  const [syncError, setSyncError] = useState<string>()
+  const { openModal } = useModal()
+  const modalSlug = `xp-unwrap-${useId()}`
   const canSync = !initializing && manager && block && field && liveStatus(status) && ['draft', 'stopped'].includes(status.status)
   async function sync() {
     if (!canSync || syncing.current) return
-    syncing.current = true; setBusy(true); setSyncFailed(false)
+    syncing.current = true; setBusy(true); setSyncError(undefined)
     try {
       const next = syncExperimentSlots(block, status.arms, field)
       if (JSON.stringify(next.slots) !== JSON.stringify(block.slots)) {
         await replace([next]); setNotice(true)
       }
-    } catch { setSyncFailed(true) }
+    } catch (error) { console.error(error); setSyncError(errorMessage(error)) }
     finally { syncing.current = false; setBusy(false) }
   }
   useEffect(() => {
@@ -33,21 +41,45 @@ export function BlockStatusField({ path }: UIFieldClientProps) {
     synced.current = true
     void sync()
   })
-  if (!status) return null
+  if (!status || !manager) return null
+  const draft = liveStatus(status) && status.status === 'draft'
+  const stopped = liveStatus(status) && status.status === 'stopped'
   async function unwrap() {
     if (!block || !field || busy) return
     setBusy(true); setError(undefined)
-    try { await replace(unwrapExperimentBlock(block, field)) } catch { setError(API_MESSAGES.failed) }
+    let deleted = false
+    try {
+      if (draft) {
+        const api = createApi(config.routes.api)
+        const found = await api.findTestIdBySlug(block.experiment)
+        if (!found.ok) throw new Error(found.message)
+        if (found.data === undefined) throw new Error(API_MESSAGES.failed)
+        const removed = await api.deleteTest(found.data)
+        if (!removed.ok) throw new Error(removed.message)
+        deleted = true
+        setBlockStatus(config.routes.api, block.experiment, { deleted: true })
+      }
+      await replace(unwrapExperimentBlock(block, field))
+      toast.success(blockUnwrapNotice(Boolean(collection?.versions?.drafts), deleted))
+    } catch (error) { console.error(error); setError(deleted ? BLOCK_COPY.finishUnwrap : errorMessage(error)) }
     finally { setBusy(false) }
   }
   const sentence = statusSentence(status)
+  const linkedCopy = liveStatus(status) ? status.status === 'running' ? blockRunningUnwrap
+    : status.status === 'decided' ? blockDecidedUnwrap
+      : status.status === 'archived' && status.winnerArm ? blockFinishedCopy(slotLabel(status.winnerArm, status)) : undefined : undefined
+  const href = formatAdminURL({ adminRoute: config.routes.admin, path: `/experiments/by-slug/${encodeURIComponent(block?.experiment ?? '')}` })
   return <div>
-    {liveStatus(status) && status.status === 'running' ? <Banner>{sentence}</Banner> : <p>{sentence}</p>}
+    {liveStatus(status) && status.status === 'running' ? <Banner>{sentence}</Banner> : linkedCopy && liveStatus(status) && status.status === 'archived' ? null : <p>{sentence}</p>}
+    {linkedCopy ? <p>{linkedCopy.before}<a href={href}>{linkedCopy.link}</a>{linkedCopy.after}</p> : null}
     {notice ? <p role="status">{blockSyncNotice(Boolean(collection?.versions?.drafts))}</p> : null}
-    {manager && isOrphan(status) ? <Button disabled={busy} onClick={() => void unwrap()}>{BLOCK_COPY.unwrap}</Button> : null}
+    {isOrphan(status) || draft || stopped ? <Button disabled={busy} onClick={() => draft || stopped ? openModal(modalSlug) : void unwrap()}>{draft ? BLOCK_COPY.removeAndUnwrap : BLOCK_COPY.unwrap}</Button> : null}
+    {draft || stopped ? <ConfirmationModal modalSlug={modalSlug} heading={draft ? BLOCK_COPY.removeAndUnwrap : BLOCK_COPY.unwrap}
+      body={draft ? blockDeleteConfirmation(status.name) : blockUnwrapConfirmation(status.name)}
+      confirmLabel={draft ? BLOCK_COPY.deleteAndUnwrap : BLOCK_COPY.unwrap} cancelLabel={BLOCK_COPY.cancel} onConfirm={unwrap} /> : null}
     {error ? <p role="alert">{error}</p> : null}
-    {syncFailed ? <p role="alert">{API_MESSAGES.failed}</p> : null}
-    {syncFailed && canSync ? <Button disabled={busy} onClick={() => void sync()}>{BLOCK_COPY.retry}</Button> : null}
+    {syncError ? <p role="alert">{syncError}</p> : null}
+    {syncError && canSync ? <Button disabled={busy} onClick={() => void sync()}>{BLOCK_COPY.retry}</Button> : null}
   </div>
 }
 
@@ -70,7 +102,7 @@ export function CopyOriginalField({ path }: UIFieldClientProps) {
   async function copy() {
     if (!block || !field || busy || !slot) return
     setBusy(true); setError(undefined)
-    try { await replace([copyOriginalIntoVersion(block, slot, field)]) } catch { setError(API_MESSAGES.failed) }
+    try { await replace([copyOriginalIntoVersion(block, slot, field)]) } catch (error) { console.error(error); setError(errorMessage(error)) }
     finally { setBusy(false) }
   }
   function requestCopy() {

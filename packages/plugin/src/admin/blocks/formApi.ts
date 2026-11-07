@@ -56,6 +56,12 @@ export function dataAt(data: unknown, path: string): unknown {
   return path.split('.').reduce<unknown>((value, key) => value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined, data)
 }
 
+/** Stable object keys; array order and scalar values remain significant. */
+function stringify(value: unknown): string | undefined {
+  return JSON.stringify(value, (_, item: unknown) => item && typeof item === 'object' && !Array.isArray(item)
+    ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : item)
+}
+
 /** Payload 3.90.2 and 4 beta.6 use the same row APIs. Sync replaces the whole
  * wrapper so add/drop/reorder and the server-rendered component slots stay together.
  * N=0 needs UPDATE: removeFieldRow alone serializes the empty field as number 0.
@@ -69,15 +75,16 @@ export async function replaceBlockRow(args: {
 }): Promise<void> {
   const { form, getFormState, collectionSlug, id, field, index, rows } = args
   const data = form.getData(), before = hostBlocks(data[field])
-  if (args.expectedBlock && JSON.stringify(before[index]) !== JSON.stringify(args.expectedBlock)) throw new BlockChangedError()
-  const original = JSON.stringify(data[field])
+  if (args.expectedBlock && stringify(form.getDataByPath(`${field}.${index}`)) !== stringify(args.expectedBlock)) throw new BlockChangedError()
+  // Compare the same reader on both sides: getData() keeps empty row counts as 0.
+  const original = stringify(form.getDataByPath(field))
   const next = [...before.slice(0, index), ...rows, ...before.slice(index + 1)]
   const result = await getFormState({ collectionSlug, id, schemaPath: collectionSlug,
     data: { ...data, [field]: next }, docPermissions: args.docPermissions,
     docPreferences: args.docPreferences ?? { fields: {} }, operation: id == null ? 'create' : 'update',
     renderAllFields: true, skipValidation: true,
   })
-  if (JSON.stringify(form.getDataByPath(field)) !== original) throw new BlockChangedError()
+  if (stringify(form.getDataByPath(field)) !== original) throw new BlockChangedError()
   if (!result.state) throw new Error('Missing server form state')
   const state = result.state
   function subFieldState(rowIndex: number): FormState {
