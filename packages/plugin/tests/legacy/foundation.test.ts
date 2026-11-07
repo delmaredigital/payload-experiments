@@ -37,7 +37,7 @@ test('blocks validates the whole registration and requires appliesTo for double 
 test('triple registration composes one guarded audit pair and a column-free sidebar field', async () => {
   const config = await createExperimentsPlugin({ ...sampleOptions(), pages: { collections: [page()] }, puck: { enabled: true, collections: ['pages'] }, blocks: { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => false }] } })({ collections: [{ slug: 'pages', fields: [] }] } as unknown as Config)
   const collection = config.collections![0]!
-  expect(collection.hooks?.beforeChange).toEqual([pageGuardBeforeChange, contentChangesBeforeHook])
+  expect(collection.hooks?.beforeChange).toEqual([pageGuardBeforeChange, contentChangesBeforeHook, expect.any(Function)])
   expect(collection.hooks?.afterChange).toEqual([pageGuardAfterChange, contentChangesHook])
   expect(collection.hooks?.beforeDelete).toEqual([pageGuardBeforeDelete])
   expect(collection.fields[0]).toMatchObject({ name: 'xpPlacementStatus', type: 'ui', admin: { position: 'sidebar' } })

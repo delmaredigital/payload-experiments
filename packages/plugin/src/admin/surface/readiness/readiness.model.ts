@@ -33,6 +33,7 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'placement-unchecked': { ...row('versions', detail => placementUncheckedCopy(text(object(detail).title ?? object(detail).path, 'This page'))), nextStep: detail => `Open ${text(object(detail).title ?? object(detail).path, 'the page')}` },
   'invalid-status': row('header', () => null),
   'no-placements': row('what', detail => detail === undefined ? C.noPlacements : placementFailureCopy(detail)),
+  'placement-removed': row('what', () => C.placementRemoved),
   'placement-unpublished': { ...row('versions', detail => (Array.isArray(detail) && detail.length ? detail : [detail]).map(placement => `The block you're testing is only on a draft of ${text(object(placement).title, 'this page')}. Publish the page before you start.`).join('\n')), nextStep: 'Publish the page' },
   'duplicate-version-row': { ...row('versions', detail => `The Experiment block on ${text(first(detail).title, 'this page')} has the same version twice. Remove one of them, then save.`), nextStep: detail => `Edit ${text(first(detail).title, 'this page')}` },
   'interacting-tests': { ...row('versions', detail => interactingTestsCopy(text(first(detail).path, 'this page'), text(first(detail).status, 'running'), text(first(detail).name, 'another test'), first(detail).version === true)), nextStep: detail => `Open ${text(first(detail).name, 'the test')}${first(detail).version === true ? `\nEdit ${text(first(detail).path, 'this page')}` : ''}` },

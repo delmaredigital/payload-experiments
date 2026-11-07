@@ -11,6 +11,11 @@ export const BLOCK_COPY = {
   copy: 'Copy the Original into this version',
   confirmCopy: 'Replace this version’s content with a copy of the Original? Edits you made to this version will be lost.',
   unwrap: 'Unwrap',
+  removeAndUnwrap: 'Remove the test and unwrap',
+  deleteAndUnwrap: 'Delete and unwrap',
+  alreadyDeleted: 'This test was already deleted. Reload the page.',
+  noLongerDraft: 'This test is no longer a draft. Reload the page.',
+  finishUnwrap: 'The test was removed; use Unwrap to finish.',
   deleted: "This block's test was deleted; the page shows the Original.",
   discarded: 'This test has ended; the page shows the Original.',
   running: "Running: visitors see different versions. Edit a version's tab to change it; the change is noted on the results.",
@@ -28,6 +33,13 @@ export const blockPosition = (label: string, position: number) => `${label} (blo
 export const blockTestName = (title: string, label: string) => `${title}: ${label}`
 export const blockDraftStatus = (name: string) => `This block is being tested in the draft test ${name}. Visitors see the Original until it starts.`
 export const blockDecidedStatus = (winner: string, rollout: boolean) => `Decided: visitors see ${winner}${rollout ? '; a holdout still sees the Original' : ''}.`
-export const blockFinishedStatus = (winner: string) => `Finished: visitors see ${winner}. Use "Make it the content" on the test to replace this block.`
+export type BlockLinkedCopy = { before: string; link: string; after: string }
+export const blockRunningUnwrap: BlockLinkedCopy = { before: 'Stop ', link: 'the test', after: ' to unwrap.' }
+export const blockDecidedUnwrap: BlockLinkedCopy = { before: 'To put the winner into this page, use "Make it the content" on ', link: 'the test', after: '.' }
+export const blockFinishedCopy = (winner: string): BlockLinkedCopy => ({ before: `Finished: visitors see ${winner}. Use "Make it the content" on `, link: 'the test', after: ' to replace this block.' })
+export const blockFinishedStatus = (winner: string) => { const copy = blockFinishedCopy(winner); return copy.before + copy.link + copy.after }
+export const blockDeleteConfirmation = (name: string) => `Delete the draft test ${name} and put the Original back in its place? Deleting the test can't be undone.`
+export const blockUnwrapConfirmation = (name: string) => `Put the Original back in this block's place? The test ${name} and its results are kept; it can't be started again.`
+export const blockUnwrapNotice = (drafts: boolean, deleted: boolean) => `${deleted ? 'The draft test was deleted and the block unwrapped.' : 'The block was unwrapped.'} ${drafts ? 'Save draft' : 'Save'} to keep it.`
 export const blockSaveNotice = (drafts: boolean) => drafts ? 'Save a draft of this page to add the test.' : 'Save this page to add the test.'
 export const blockSyncNotice = (drafts: boolean) => drafts ? 'Versions were updated to match the test. Save draft to keep them.' : 'Versions were updated to match the test. Save to keep them.'

@@ -45,7 +45,7 @@ test('appends contentChangesHook to listed collections while preserving existing
   options.puck = { enabled: true, collections: ['pages'] }
   const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [pages, posts] })
   expect(config.collections?.[0]?.hooks?.afterChange).toEqual([previous, pageGuardAfterChange, contentChangesHook])
-  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange, pageGuardBeforeChange, contentChangesBeforeHook])
+  expect(config.collections?.[0]?.hooks?.beforeChange).toEqual([beforeChange, pageGuardBeforeChange, contentChangesBeforeHook, expect.any(Function)])
   expect(config.collections?.[1]).toBe(posts)
   expect(pages.hooks.afterChange).toEqual([previous])
 })
@@ -129,7 +129,7 @@ test('page and Puck registrations compose once while preserving host hooks', asy
   options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => null }] }
   const config = await createExperimentsPlugin(options)({ secret: 'test', db: {} as Config['db'], collections: [{ slug: 'pages', fields: [], hooks: { beforeChange: [host], beforeDelete: [host], beforeOperation: [host] } }] })
   const hooks = config.collections![0]!.hooks!
-  expect(hooks.beforeChange).toEqual([host, pageGuardBeforeChange, contentChangesBeforeHook])
+  expect(hooks.beforeChange).toEqual([host, pageGuardBeforeChange, contentChangesBeforeHook, expect.any(Function)])
   expect(hooks.beforeDelete).toEqual([host, pageGuardBeforeDelete])
   expect(hooks.beforeOperation).toEqual([host, pageGuardBeforeOperation])
   expect(hooks.afterOperation).toEqual([pageGuardAfterOperation])

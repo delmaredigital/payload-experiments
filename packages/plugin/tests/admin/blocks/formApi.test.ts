@@ -1,10 +1,10 @@
 import { expect, test, vi } from 'vitest'
 import { BLOCK_COPY } from '../../../src/admin/copy/blocks.js'
-import { replaceBlockRow } from '../../../src/admin/blocks/formApi.js'
+import { dataAt, replaceBlockRow } from '../../../src/admin/blocks/formApi.js'
 import { original } from './fixtures.js'
 function setup(rows = [original]) {
   let data = { layout: rows }
-  const form = { getData: () => data, getDataByPath: () => data.layout, getFields: () => ({ layout: { rows: rows.map(row => ({ id: row.id })) } }),
+  const form = { getData: () => data, getDataByPath: (path: string) => dataAt(data, path), getFields: () => ({ layout: { rows: rows.map(row => ({ id: row.id })) } }),
     replaceFieldRow: vi.fn(), addFieldRow: vi.fn(), removeFieldRow: vi.fn(), dispatchFields: vi.fn() }
   const args = { form: form as any, getFormState: vi.fn(async () => ({ state: {
     layout: { rows: [{ id: original.id, blockType: original.blockType }], value: 1 },

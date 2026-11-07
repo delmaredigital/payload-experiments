@@ -37,6 +37,8 @@ export function sanitizeReadinessDetail(code: ReadinessCode, detail: unknown): u
         ? { rules: detail.rules } : undefined
     case 'no-placements':
       return failure(detail) ? detail : undefined
+    case 'placement-removed':
+      return undefined
     case 'page-in-use': {
       if (!object(detail) || !Array.isArray(detail.paths)) return undefined
       const paths = detail.paths.filter(path)

@@ -220,3 +220,35 @@ test('page lookup encodes the raw stored path without normalising it', async () 
   await createApi('/custom-api').pages({ collection: 'pages', path: 'Raw path/?a=1' })
   expect(fetcher).toHaveBeenLastCalledWith('/custom-api/xp/pages?collection=pages&path=Raw+path%2F%3Fa%3D1', expect.objectContaining({ method: 'GET', credentials: 'include' }))
 })
+
+
+test('findTestIdBySlug uses the collection REST route, encoded filter, and manager credentials', async () => {
+  respond({ docs: [{ id: 'test-one' }, { id: 'ignored' }] })
+  expect(await api.findTestIdBySlug('hero /?&')).toEqual({ ok: true, data: 'test-one' })
+  expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/custom/api/xp-experiments?where[slug][equals]=hero%20%2F%3F%26&depth=0&limit=1', { method: 'GET', credentials: 'include' })
+})
+test('a missing draft lookup gives the block-specific not-found refusal', async () => {
+  respond({ docs: [] })
+  expect(await api.findTestIdBySlug('missing')).toEqual({ ok: false, status: 404, code: 'not-found', message: 'This test was already deleted. Reload the page.', retryable: false })
+})
+test.each([true, false])('a route-level lookup 404 uses the normal not-found refusal (JSON=%s)', async json => {
+  fetchMock.mockResolvedValueOnce(json ? Response.json({ errors: [{ message: 'Not found' }] }, { status: 404 }) : new Response('Not found', { status: 404 }))
+  expect(await api.findTestIdBySlug('hero-test')).toMatchObject({ ok: false, status: 404, message: 'This test no longer exists.' })
+})
+test('deleteTest uses collection DELETE with an encoded id and credentials', async () => {
+  respond({ id: 1 })
+  expect(await api.deleteTest('id /?')).toEqual({ ok: true, data: { id: 1 } })
+  expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/custom/api/xp-experiments/id%20%2F%3F', { method: 'DELETE', credentials: 'include' })
+})
+test.each([
+  [403, { errors: [{ message: 'You are not allowed to perform this action.' }] }],
+  [404, { errors: [{ code: 'not-found', message: 'Not found' }] }],
+  [409, { errors: [{ code: 'invalid-status', message: 'Only draft or archived tests can be deleted.' }] }],
+] as const)('DELETE %s uses the no-longer-draft refusal', async (status, body) => {
+  respond(body, status)
+  expect(await api.deleteTest(1)).toMatchObject({ ok: false, status, message: 'This test is no longer a draft. Reload the page.' })
+})
+test.each([403, 404])('non-JSON DELETE %s uses the no-longer-draft refusal', async status => {
+  fetchMock.mockResolvedValueOnce(new Response('Refused', { status }))
+  expect(await api.deleteTest(1)).toMatchObject({ ok: false, status, message: 'This test is no longer a draft. Reload the page.' })
+})

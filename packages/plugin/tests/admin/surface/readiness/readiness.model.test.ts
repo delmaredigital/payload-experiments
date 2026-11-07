@@ -5,6 +5,7 @@ import { ARM_CHECK_ORDER } from '../../../../src/transitions/checkStart.js'
 import { SECTION_ORDER } from '../../../../src/admin/surface/contracts.js'
 import { READINESS, daysRemaining, displayDate, nextStep, sectionDone } from '../../../../src/admin/surface/readiness/readiness.model.js'
 import { doc, preflight } from './fixtures.js'
+import { sanitizeReadinessDetail } from '../../../../src/sanitizeReadinessDetail.js'
 
 type Fixture = [string, unknown, string | null]
 const fixtures = {
@@ -12,6 +13,7 @@ const fixtures = {
   'goal-in-some-versions': ['win', { metricId: 1, name: 'Join' }, "Join appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal."],
   'placement-unchecked': ['versions', { path: '/landing' }, "/landing couldn't be checked, so the test can't confirm every version shows the same goals. Check that you can open it."],
   'invalid-status': ['header', undefined, null],
+  'placement-removed': ['what', undefined, "The block for this test was removed from its page, so it can't start again. Its results are kept. To test the block again, start a new test from the page."],
   'no-placements': ['what', undefined, 'Not on a page yet. Open a page, add an Experiment block and choose this test.'],
   'placement-unpublished': ['versions', [{ title: 'Landing' }], "The block you're testing is only on a draft of Landing. Publish the page before you start."],
   'duplicate-version-row': ['versions', [{ title: 'Landing' }], 'The Experiment block on Landing has the same version twice. Remove one of them, then save.'],
@@ -54,20 +56,29 @@ const fixtures = {
 } satisfies Record<ReadinessCode, Fixture>
 const ctx = { ...doc, flagPoint: 'ask', flagPoints: [{ id: 'ask', params: { headline: { type: 'text' as const, label: 'Headline text' } } }] }
 
-test('covers every literal start check and every member of both source unions (35 including health)', () => {
+test('removed placement has authored copy without detail or a link', () => {
+  for (const detail of [undefined, 'forbidden', 'placements-failed', { title: 'Private page' }]) {
+    expect(sanitizeReadinessDetail('placement-removed', detail)).toBeUndefined()
+    expect(nextStep(preflight([{ code: 'placement-removed', ok: false, detail }]), ctx)).toEqual({
+      section: 'what', code: 'placement-removed', sentence: fixtures['placement-removed'][2],
+    })
+  }
+}, 5_000) // Measured 1.876 ms locally; cap exceeds 3×.
+
+test('covers every literal start check and every member of both source unions (44 including health)', () => {
   const source = readFileSync(new URL('../../../../src/transitions/checkStart.ts', import.meta.url), 'utf8')
   const endpoints = readFileSync(new URL('../../../../src/types/endpoints.ts', import.meta.url), 'utf8')
   const literals = [...source.matchAll(/add\('([^']+)'/g)].map(match => match[1])
   const readinessUnion = source.split('export type ReadinessCode = ArmIssueCode')[1]!.split('export interface')[0]!
   const armUnion = endpoints.split('export type ArmIssueCode =')[1]!.split('\n')[0]!
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(29)
+  expect(literals).toHaveLength(30)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(43)
+  expect(members).toHaveLength(44)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
   expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'placement-unchecked', 'version-identical', 'version-page-unavailable', 'version-page-unchecked'].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())
-})
+}, 5_000) // Measured 1.105 ms locally; cap exceeds 3×.
 test('block path readiness names the removal step', () => {
   expect(READINESS['block-path-rule'].nextStep).toBe('Remove rule')
   expect(nextStep(preflight([{ code: 'block-path-rule', ok: false, detail: { rules: [1] } }]), ctx))
@@ -78,7 +89,7 @@ for (const code of Object.keys(fixtures) as ReadinessCode[]) {
     const [section, detail, sentence] = fixtures[code]
     expect(READINESS[code].section).toBe(section)
     expect(READINESS[code].next(detail, ctx)).toBe(sentence)
-  })
+  }, 5_000) // Measured max 0.130 ms locally; cap exceeds 3×.
 }
 test('header first, then contract section order, rather than checkStart order', () => {
   const codes: ReadinessCode[] = ['no-planned-duration', 'invalid-targeting-rule', 'no-primary-metric', 'empty-slot', 'flag-no-point', 'page-user-unit']
