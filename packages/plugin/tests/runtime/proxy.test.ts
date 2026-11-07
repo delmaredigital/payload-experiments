@@ -568,3 +568,32 @@ test('consenting assign failure with corrupt arms returns empty assignments with
   expect(result.rewrite).toBeUndefined()
   expect(log).toHaveBeenCalledExactlyOnceWith('[payload-experiments] assign failed; serving non-exposable control')
 })
+
+// CORE-L5b (owner smoke, 2026-11-07): a whole-page test whose Original is the homepage.
+const homepage = (control: number) => manifest([page({ arms: [
+  { key: 'control', kind: 'control', weight: control, pageTarget: '/' },
+  { key: 'variantA', kind: 'variant', weight: 100 - control, pageTarget: '/home-2' },
+] })])
+test.each([
+  { path: '/', control: 0, served: '/home-2', search: '' },
+  { path: '/?x=1', control: 0, served: '/home-2', search: '?x=1' },
+  { path: '/', control: 100, served: '/', search: '' },
+  { path: '/home-2', control: 100, served: '/', search: '' },
+  { path: '/home-2', control: 0, served: '/home-2', search: '' },
+  { path: '/home-2/', control: 100, served: '/', search: '' },
+  // A root target must not own every path: an unrelated page is never rewritten.
+  { path: '/about', control: 0, served: undefined, search: undefined },
+])('homepage Original: $path with control weight $control serves $served', async ({ path, control, served, search }) => {
+  const m = homepage(control)
+  const req = request(path, { headers: { cookie: `xp_id=${encodeUnitCookie('visitor', secrets)}`, 'x-host': 'keep' } })
+  const result = await resolveExperiments(req, runtime(m))
+  expect(decode(result, m, 'visitor').bySlug.hero).toMatchObject({ arm: control === 100 ? 'control' : 'variantA', exposable: true })
+  expect(result.rewrite?.pathname).toBe(served)
+  expect(result.rewrite?.search).toBe(search)
+  const response = await createExperimentProxy(runtime(m))(req)
+  const rewrite = response.headers.get('x-middleware-rewrite')
+  if (served === undefined) expect([rewrite, response.headers.get('x-middleware-next')]).toEqual([null, '1'])
+  else expect([new URL(rewrite!).pathname, new URL(rewrite!).search]).toEqual([served, search])
+  expect(response.headers.get('x-middleware-request-x-host')).toBe('keep')
+  expect(response.headers.get('x-middleware-request-x-xp-assignments')).toBeTruthy()
+})
