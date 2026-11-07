@@ -3,8 +3,12 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { payloadUiMock, resetPayloadUiMock, setEntityConfig, toast } from './_helpers/payloadUiMock.js'
 
-const { useConfig, FieldDescription, TextareaInput, CheckboxInput } = payloadUiMock()
+const { useConfig, FieldDescription, TextareaInput, CheckboxInput, Button } = payloadUiMock()
 afterEach(() => { cleanup(); resetPayloadUiMock() })
+test('mock buttons forward their public style', () => {
+  render(<Button buttonStyle="primary" margin={false}>Create</Button>)
+  expect(screen.getByRole('button', { name: 'Create' }).getAttribute('data-button-style')).toBe('primary')
+})
 test('mock descriptions, textareas and checkboxes render and accept changes', () => {
   const textChange = vi.fn(), checkChange = vi.fn()
   render(<>

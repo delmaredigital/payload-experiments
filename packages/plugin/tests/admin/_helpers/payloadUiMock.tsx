@@ -77,19 +77,19 @@ function FieldLabel({ label, as: Element = 'label' }: { label?: ReactNode; as?: 
   return label ? <Element>{label}</Element> : null
 }
 type Option = { label: string; value: string }
-function SelectInput({ label, description, options = [], value, onChange, disabled, readOnly, hasMany, name, path }: {
+function SelectInput({ label, description, options = [], value, onChange, disabled, readOnly, hasMany, name, path, className }: {
   label?: ReactNode; description?: ReactNode; options?: Option[]; value?: string | string[] | Option | Option[] | null;
   onChange?: (option: Option | Option[] | null) => void; disabled?: boolean; readOnly?: boolean;
-  hasMany?: boolean; name?: string; path?: string
+  hasMany?: boolean; name?: string; path?: string; className?: string; placeholder?: string; isClearable?: boolean
 }) {
   const selected = Array.isArray(value) ? value.map(item => typeof item === 'string' ? item : item.value)
     : typeof value === 'object' ? value?.value : value
-  return <><label>{label}<select name={name ?? path} multiple={hasMany} disabled={disabled || readOnly}
+  return <div className={className}><label>{label}<select name={name ?? path} multiple={hasMany} disabled={disabled || readOnly}
     value={selected ?? (hasMany ? [] : '')} onChange={event => {
       const picked = Array.from(event.target.selectedOptions).map(item => options.find(option => option.value === item.value)!)
       onChange?.(hasMany ? picked : picked[0] ?? null)
     }}>{!hasMany ? <option value="" /> : null}{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-    <FieldDescription description={description} path={path} /></>
+    <FieldDescription description={description} path={path} /></div>
 }
 export const toast = Object.assign(vi.fn(), {
   success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), loading: vi.fn(), dismiss: vi.fn(), promise: vi.fn(),
@@ -133,9 +133,9 @@ export function payloadUiMock() {
         <button onClick={async () => { await onConfirm(); close() }}>{confirmLabel}</button>
       </div> : null
     },
-    Button: ({ children, className, onClick, disabled, extraButtonProps, type = 'button' }: Children & {
-      onClick?: () => void; disabled?: boolean; extraButtonProps?: ComponentProps<'button'>; type?: 'button' | 'submit' | 'reset'
-    }) => <button {...extraButtonProps} className={className} onClick={onClick} disabled={disabled} type={type}>{children}</button>,
+    Button: ({ children, className, onClick, disabled, extraButtonProps, buttonStyle, type = 'button' }: Children & {
+      onClick?: () => void; disabled?: boolean; extraButtonProps?: ComponentProps<'button'>; type?: 'button' | 'submit' | 'reset'; buttonStyle?: string; margin?: boolean
+    }) => <button {...extraButtonProps} className={className} onClick={onClick} disabled={disabled} type={type} data-button-style={buttonStyle}>{children}</button>,
     Banner: ({ children, className }: Children) => <div className={className} role="status">{children}</div>,
     Pill: ({ children, className }: Children) => <span className={className}>{children}</span>,
     FieldDescription, FieldLabel, TextInput, TextareaInput, CheckboxInput, SelectInput, toast,

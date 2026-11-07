@@ -74,6 +74,10 @@
 .xp-ui-chips p:not(.xp-ui-error) { margin: 0; color: var(--xp-text-muted); font-size: var(--xp-font-size-small); }
 /* Quiet actions and breadcrumb links stay neutral; only the selected tab takes the text accent. */
 .xp-ui-button-group { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; }
+.xp-ui-inline-row { display: flex; flex-wrap: wrap; align-items: end; gap: var(--xp-space-3); min-width: 0; }
+.xp-ui-inline-row > .xp-ui-field { flex: 1 1 auto; min-width: 0; }
+.xp-ui-inline-row > .xp-ui-button { flex: 0 0 auto; }
+.xp-ui-subpanel { display: grid; gap: var(--xp-space-3); border: 1px solid var(--xp-border); border-radius: var(--xp-radius-card); padding: var(--xp-space-4); }
 @media (prefers-reduced-motion: reduce) {
   .xp-ui-button, .xp-ui-input, .xp-ui-toggle, .xp-ui-toggle::before, .xp-ui-chips-control { transition: none; }
 }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { ConfigProvider, Form, UploadHandlersProvider, ServerFunctionsProvider, useForm } from '@payloadcms/ui'
 import type { ClientConfig } from 'payload'
@@ -15,6 +15,23 @@ const config = { collections: [], globals: [], routes: { api: '/api', admin: '/a
 let form: ReturnType<typeof useForm>
 function Probe() { form = useForm(); return null }
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+
+test('real SelectInput selects the second goal into Payload Form data', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ docs: [
+    { id: 'join', name: 'Join', slug: 'join', source: 'click:join' },
+    { id: 'donate', name: 'Donate', slug: 'donate', source: 'click:donate' },
+  ], hasNextPage: false }))))
+  render(<ConfigProvider config={config}><ServerFunctionsProvider serverFunction={async () => ({}) as any}><UploadHandlersProvider>
+    <Form initialState={{ 'buttons.0.xpGoal': { value: '', initialValue: '', valid: true } }}><Probe />
+      <XpGoalField {...{ path: 'buttons.0.xpGoal', field: { name: 'xpGoal', type: 'text', label: C.label } } as any} />
+    </Form>
+  </UploadHandlersProvider></ServerFunctionsProvider></ConfigProvider>)
+  await screen.findByText(C.newGoal)
+  fireEvent.keyDown(await screen.findByRole('combobox'), { key: 'ArrowDown', code: 'ArrowDown' })
+  fireEvent.click(await screen.findByRole('option', { name: 'Donate' }))
+  await waitFor(() => expect(form.getData()).toEqual({ buttons: [{ xpGoal: 'donate' }] }))
+  expect(Object.keys(form.getFields())).toEqual(['buttons.0.xpGoal'])
+})
 
 test('inline panel never joins real Payload Form state or serialized outer form data', async () => {
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ docs: [{ id: 'join', name: 'Join', slug: 'join', source: 'click:join' }], hasNextPage: false })))

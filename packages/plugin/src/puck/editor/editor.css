@@ -170,6 +170,91 @@
   --xp-font-size-body: 15px;
 }
 
+[class*="_PuckFields"] .xp-slot-root {
+  --xp-bg: rgb(245, 245, 245);
+  --xp-surface: rgb(255, 255, 255);
+  --xp-surface-2: rgb(235, 235, 235);
+  --xp-surface-3: rgb(221, 221, 221);
+  --xp-border: rgb(235, 235, 235);
+  --xp-border-strong: rgb(195, 195, 195);
+  --xp-text: rgb(34, 34, 34);
+  --xp-text-2: rgb(87, 87, 87);
+  --xp-text-3: rgb(141, 141, 141);
+  --xp-accent: rgb(47, 47, 47);
+  --xp-accent-hover: rgb(20, 20, 20);
+  --xp-accent-active: rgb(7, 7, 7);
+  --xp-accent-subtle: rgb(208, 208, 208);
+  --xp-accent-fg: rgb(255, 255, 255);
+  --xp-accent-text: rgb(34, 34, 34);
+  --xp-accent-text-decoration: none;
+  --xp-focus: rgb(47, 47, 47);
+  --xp-series-muted: rgb(181, 181, 181);
+  --xp-success: #1a6a3a;
+  --xp-success-bg: #e8f4ec;
+  --xp-success-border: #bddfc9;
+  --xp-warning: #8a5a0b;
+  --xp-warning-bg: #fbf3e1;
+  --xp-warning-border: #ecd6a2;
+  --xp-error: #a63030;
+  --xp-error-bg: #fbeaea;
+  --xp-error-border: #efc3c3;
+  --xp-series-a: #2a78d6;
+  --xp-series-b: #eb6834;
+  --xp-series-c: #8056b3;
+  --xp-radius-control: 8px;
+  --xp-radius-card: 12px;
+  --xp-radius-chip: 6px;
+  --xp-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --xp-mono: 'SF Mono', Menlo, Consolas, Monaco, monospace;
+  --xp-text-display: 600 28px/32px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --xp-text-title: 600 20px/28px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --xp-text-body: 400 15px/22px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --xp-text-small: 400 13px/18px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --xp-motion: 120ms;
+  --xp-space-half: 2px;
+  --xp-space-one-half: 6px;
+  --xp-version-share-width: 96px;
+  --xp-version-share-width-mobile: 84px;
+  --xp-version-state-width: 192px;
+  --xp-version-remove-width: 128px;
+  --xp-targeting-attribute-width: 150px;
+  --xp-targeting-comparison-width: 140px;
+  --xp-legend-key-size: 10px;
+  --xp-legend-key-radius: 3px;
+  --xp-space-1: 4px;
+  --xp-space-2: 8px;
+  --xp-space-3: 12px;
+  --xp-space-4: 16px;
+  --xp-space-5: 20px;
+  --xp-space-6: 24px;
+  --xp-space-7: 28px;
+  --xp-space-8: 32px;
+  --xp-surface-raised: rgb(235, 235, 235);
+  --xp-border-control: rgb(195, 195, 195);
+  --xp-input-border: rgb(181, 181, 181);
+  --xp-border-accent: rgb(154, 154, 154);
+  --xp-text-muted: rgb(87, 87, 87);
+  --xp-text-strong: rgb(34, 34, 34);
+  --xp-text-emphasis: rgb(34, 34, 34);
+  --xp-input-bg: rgb(255, 255, 255);
+  --xp-overlay: rgba(5, 5, 5, 0.5);
+  --xp-success-surface: #e8f4ec;
+  --xp-success-text: #1a6a3a;
+  --xp-success-text-strong: #1a6a3a;
+  --xp-warning-surface: #fbf3e1;
+  --xp-warning-text: #8a5a0b;
+  --xp-warning-text-strong: #8a5a0b;
+  --xp-error-surface: #fbeaea;
+  --xp-error-text: #a63030;
+  --xp-radius: 8px;
+  --xp-radius-large: 12px;
+  --xp-dash-card-gap: 12px;
+  --xp-dash-card-gap-small: 8px;
+  --xp-font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --xp-font-size-small: 13px;
+  --xp-font-size-body: 15px;
+}
+
 /* Shared primitives: no host palette references, and no global element resets. */
 .xp-ui-chips, .xp-ui-chips-control, .xp-ui-chips-item, .xp-ui-button, .xp-ui-input, .xp-ui-toggle, .xp-ui-tab, .xp-ui-dialog, .xp-ui-card { box-sizing: border-box; }
 .xp-ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 7px 14px; border-radius: var(--xp-radius-control); border: 1px solid transparent; font: 500 14px/20px var(--xp-font); color: var(--xp-text); background: transparent; cursor: pointer; white-space: normal; overflow-wrap: anywhere; max-width: 100%; min-width: 0; text-decoration: none; transition: background-color var(--xp-motion), border-color var(--xp-motion), color var(--xp-motion); }
@@ -246,6 +331,10 @@
 .xp-ui-chips p:not(.xp-ui-error) { margin: 0; color: var(--xp-text-muted); font-size: var(--xp-font-size-small); }
 /* Quiet actions and breadcrumb links stay neutral; only the selected tab takes the text accent. */
 .xp-ui-button-group { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; }
+.xp-ui-inline-row { display: flex; flex-wrap: wrap; align-items: end; gap: var(--xp-space-3); min-width: 0; }
+.xp-ui-inline-row > .xp-ui-field { flex: 1 1 auto; min-width: 0; }
+.xp-ui-inline-row > .xp-ui-button { flex: 0 0 auto; }
+.xp-ui-subpanel { display: grid; gap: var(--xp-space-3); border: 1px solid var(--xp-border); border-radius: var(--xp-radius-card); padding: var(--xp-space-4); }
 @media (prefers-reduced-motion: reduce) {
   .xp-ui-button, .xp-ui-input, .xp-ui-toggle, .xp-ui-toggle::before, .xp-ui-chips-control { transition: none; }
 }
@@ -385,3 +474,16 @@
 .xp-slot-readout > .xp-ui-button { justify-self: start; }
 .xp-slot-editor .xp-ui-tablist { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
 .xp-slot-root.xp-puck-field { display: grid; gap: var(--xp-space-3); min-width: 0; }
+
+/* Puck's inline field sidebar stays light, including under Payload's dark-mode text overrides. */
+[class*="_PuckFields"] .xp-slot-root .xp-ui-button--secondary { color: var(--xp-text); }
+[class*="_PuckFields"] .xp-slot-root .xp-ui-button--primary { color: var(--xp-accent-fg); }
+[class*="_PuckFields"] .xp-slot-root .xp-ui-error { color: var(--xp-error); }
+[class*="_PuckFields"] .xp-slot-root .xp-ui-help { color: var(--xp-text-2); }
+[class*="_PuckFields"] .xp-slot-root .xp-ui-field label { color: var(--xp-text); }
+[class*="_PuckFields"] .xp-puck-field .xp-ui-button:disabled {
+  opacity: 1;
+  background: var(--xp-surface-3);
+  border-color: var(--xp-border-strong);
+  color: var(--xp-text-2);
+}
