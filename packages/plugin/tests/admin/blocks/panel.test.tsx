@@ -233,7 +233,9 @@ test.each([true, false])('draft delete precedes replace, updates cache for label
 })
 test.each([
   [{ docs: [] }, {}, 200, 'This test was already deleted. Reload the page.', 2],
+  [{ docs: [{ id: 4 }] }, { errors: [{ message: 'You are not allowed to perform this action.' }] }, 403, 'This test is no longer a draft. Reload the page.', 3],
   [{ docs: [{ id: 4 }] }, {}, 404, 'This test is no longer a draft. Reload the page.', 3],
+  [{ docs: [{ id: 4 }] }, { errors: [{ code: 'invalid-status', message: 'Only draft or archived tests can be deleted.' }] }, 409, 'This test is no longer a draft. Reload the page.', 3],
   [{ docs: [{ id: 4 }] }, { errors: [{ message: 'This page is locked.' }] }, 409, 'This page is locked.', 3],
   [{ docs: [{ id: 4 }] }, {}, 500, API_MESSAGES.failed, 3],
 ] as const)('draft refusal %s replaces nothing and displays the API message', async (lookup, deletion, status, message, calls) => {
@@ -243,7 +245,25 @@ test.each([
   expect(await screen.findByRole('alert')).toHaveProperty('textContent', message)
   expect(mocks.replace).not.toHaveBeenCalled(); expect(toast.success).not.toHaveBeenCalled()
   expect(fetch).toHaveBeenCalledTimes(calls)
-  expect(console.error).toHaveBeenCalledWith(expect.any(Error))
+})
+test('a draft that starts before confirmation is refused without unwrapping or marking the cache deleted', async () => {
+  let serverStatus: LiveBlockStatus['status'] = 'draft'
+  prepare({ ...live, status: serverStatus }); render(all()); await screen.findByText('New hero')
+  fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.removeAndUnwrap }))
+  serverStatus = 'running'
+  fetch.mockImplementation(async (_url, options) => options.method === 'DELETE'
+    ? Response.json({ errors: [{ message: 'You are not allowed to perform this action.' }] }, { status: serverStatus === 'running' ? 403 : 200 })
+    : Response.json({ docs: [{ id: 4, status: serverStatus }] }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: BLOCK_COPY.deleteAndUnwrap }))
+  expect(await screen.findByRole('alert')).toHaveProperty('textContent', BLOCK_COPY.noLongerDraft)
+  expect(fetch.mock.calls.slice(1)).toEqual([
+    ['/api/xp-experiments?where[slug][equals]=hero-test&depth=0&limit=1', { method: 'GET', credentials: 'include' }],
+    ['/api/xp-experiments/4', { method: 'DELETE', credentials: 'include' }],
+  ])
+  expect(mocks.replace).not.toHaveBeenCalled(); expect(toast.success).not.toHaveBeenCalled()
+  expect(screen.getByText('New hero')).toBeTruthy()
+  expect(screen.getByRole('button', { name: BLOCK_COPY.removeAndUnwrap })).toBeTruthy()
+  expect(screen.queryByText(BLOCK_COPY.deleted)).toBeNull()
 })
 test('replacement failure after deleting a draft shows the exact retry message and orphan Unwrap', async () => {
   prepare({ ...live, status: 'draft' }); render(all()); await screen.findByText('New hero')
@@ -289,18 +309,17 @@ test('non-managers see no status, sentences, actions or links', async () => {
   await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
   expect(view.container.textContent).toBe(''); expect(screen.queryByRole('link')).toBeNull()
 })
-test.each(['copy', 'sync', 'orphan unwrap', 'stopped unwrap'] as const)('%s shows specific errors and falls back only without text', async path => {
+test.each(['copy', 'sync', 'orphan unwrap', 'stopped unwrap'] as const)('%s shows known errors and hides developer error text', async path => {
   const status = path === 'sync' || path === 'stopped unwrap' ? { ...live, status: 'stopped', arms: path === 'sync' ? [{ key: 'control', label: 'Original' }] : live.arms }
     : path === 'orphan unwrap' ? { deleted: true } : live
   prepare(status, { empty: true })
   const specific = new BlockChangedError()
-  mocks.replace.mockRejectedValueOnce(specific).mockRejectedValueOnce(new Error())
+  mocks.replace.mockRejectedValueOnce(specific).mockRejectedValueOnce(new Error('Missing server form state'))
   render(all())
   if (path === 'copy') fireEvent.click(await screen.findByText(BLOCK_COPY.copy))
   else if (path === 'orphan unwrap') fireEvent.click(await screen.findByRole('button', { name: BLOCK_COPY.unwrap }))
   else if (path === 'stopped unwrap') await confirmUnwrap(false)
   expect(await screen.findByRole('alert')).toHaveProperty('textContent', specific.message)
-  expect(console.error).toHaveBeenCalledWith(specific)
   if (path === 'copy') fireEvent.click(screen.getByText(BLOCK_COPY.copy))
   else if (path === 'orphan unwrap') fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.unwrap }))
   else if (path === 'stopped unwrap') {
@@ -309,7 +328,7 @@ test.each(['copy', 'sync', 'orphan unwrap', 'stopped unwrap'] as const)('%s show
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: BLOCK_COPY.unwrap }))
   } else fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.retry }))
   await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(API_MESSAGES.failed))
-  expect(console.error).toHaveBeenCalledTimes(2)
+  expect(screen.queryByText('Missing server form state')).toBeNull()
 })
 test('explicit cache update publishes to owners and labels without another read', async () => {
   prepare(); render(all()); await screen.findByText('New hero')

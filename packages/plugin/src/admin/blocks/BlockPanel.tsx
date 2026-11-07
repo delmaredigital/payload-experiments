@@ -10,9 +10,10 @@ import { isOrphan, liveStatus, slotLabel, statusSentence } from './model.js'
 import { createApi } from '../api.js'
 import { useBlockStatus, setBlockStatus } from './statusCache.js'
 import { useBlockForm } from './useBlockForm.js'
+import { BlockChangedError, RefusalError } from './formApi.js'
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : API_MESSAGES.failed
+  return error instanceof BlockChangedError || error instanceof RefusalError ? error.message : API_MESSAGES.failed
 }
 
 export function BlockStatusField({ path }: UIFieldClientProps) {
@@ -33,7 +34,7 @@ export function BlockStatusField({ path }: UIFieldClientProps) {
       if (JSON.stringify(next.slots) !== JSON.stringify(block.slots)) {
         await replace([next]); setNotice(true)
       }
-    } catch (error) { console.error(error); setSyncError(errorMessage(error)) }
+    } catch (error) { setSyncError(errorMessage(error)) }
     finally { syncing.current = false; setBusy(false) }
   }
   useEffect(() => {
@@ -52,16 +53,15 @@ export function BlockStatusField({ path }: UIFieldClientProps) {
       if (draft) {
         const api = createApi(config.routes.api)
         const found = await api.findTestIdBySlug(block.experiment)
-        if (!found.ok) throw new Error(found.message)
-        if (found.data === undefined) throw new Error(API_MESSAGES.failed)
+        if (!found.ok) throw new RefusalError(found.message)
         const removed = await api.deleteTest(found.data)
-        if (!removed.ok) throw new Error(removed.message)
+        if (!removed.ok) throw new RefusalError(removed.message)
         deleted = true
         setBlockStatus(config.routes.api, block.experiment, { deleted: true })
       }
       await replace(unwrapExperimentBlock(block, field))
       toast.success(blockUnwrapNotice(Boolean(collection?.versions?.drafts), deleted))
-    } catch (error) { console.error(error); setError(deleted ? BLOCK_COPY.finishUnwrap : errorMessage(error)) }
+    } catch (error) { setError(deleted ? BLOCK_COPY.finishUnwrap : errorMessage(error)) }
     finally { setBusy(false) }
   }
   const sentence = statusSentence(status)
@@ -102,7 +102,7 @@ export function CopyOriginalField({ path }: UIFieldClientProps) {
   async function copy() {
     if (!block || !field || busy || !slot) return
     setBusy(true); setError(undefined)
-    try { await replace([copyOriginalIntoVersion(block, slot, field)]) } catch (error) { console.error(error); setError(errorMessage(error)) }
+    try { await replace([copyOriginalIntoVersion(block, slot, field)]) } catch (error) { setError(errorMessage(error)) }
     finally { setBusy(false) }
   }
   function requestCopy() {

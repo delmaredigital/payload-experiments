@@ -46,14 +46,16 @@ export function createApi(apiBase: string) {
   }
   const post = <T>(id: DocId, action: string, body?: unknown, options?: RequestOptions) => request<T>(() => route(id, action), 'POST', body, options)
   return {
-    findTestIdBySlug: async (slug: string): Promise<ApiResult<DocId>> => {
-      const result = await request<{ docs: Array<{ id: DocId }> }>(() => `${collectionBase}?where[slug][equals]=${encodeURIComponent(slug)}&depth=0&limit=1`, 'GET', undefined, { notFound: BLOCK_COPY.alreadyDeleted })
+    findTestIdBySlug: async (slug: string): Promise<Extract<ApiResult<DocId>, { ok: false }> | { ok: true; data: DocId }> => {
+      const result = await request<{ docs: Array<{ id: DocId }> }>(() => `${collectionBase}?where[slug][equals]=${encodeURIComponent(slug)}&depth=0&limit=1`, 'GET')
       if (!result.ok) return result
       const id = result.data?.docs?.[0]?.id
       if (id === undefined) return { ok: false, status: 404, code: 'not-found', message: refusalMessage('not-found', 404, undefined, { notFound: BLOCK_COPY.alreadyDeleted }), retryable: false }
       return { ok: true, data: id }
     },
-    deleteTest: (id: DocId) => request<unknown>(() => `${collectionBase}/${encodeURIComponent(id)}`, 'DELETE', undefined, { notFound: BLOCK_COPY.noLongerDraft }),
+    deleteTest: (id: DocId) => request<unknown>(() => `${collectionBase}/${encodeURIComponent(id)}`, 'DELETE', undefined, {
+      notFound: BLOCK_COPY.noLongerDraft, forbidden: BLOCK_COPY.noLongerDraft, codes: { 'invalid-status': BLOCK_COPY.noLongerDraft },
+    }),
     wrapBlock: (body: WrapBlockBody) => request<Record<string, unknown>>(() => `${apiBase.replace(/\/$/, '')}/xp/blocks/wrap`, 'POST', body),
     pages: (query: { collection: string; q?: string; path?: string; page?: number }, signal?: AbortSignal) => request<PagesResult>(() => `${apiBase.replace(/\/$/, '')}/xp/pages?${new URLSearchParams({ collection: query.collection, ...(query.q ? { q: query.q } : {}), ...(query.path !== undefined ? { path: query.path } : {}), ...(query.page ? { page: String(query.page) } : {}) })}`, 'GET', undefined, undefined, signal),
     placementStatus: (body: PlacementStatusBody) => request<PlacementStatusResult>(() => `${apiBase.replace(/\/$/, '')}/xp/placements/status`, 'POST', body),

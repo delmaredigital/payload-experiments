@@ -8,6 +8,9 @@ export class BlockChangedError extends Error {
   constructor() { super(BLOCK_COPY.blockChanged) }
 }
 
+/** An API refusal already translated into editor-facing copy. */
+export class RefusalError extends Error {}
+
 export type RowsField = Extract<Field, { type: 'blocks' }>
 export const wrapMode: 'form-api' | 'fallback' = 'form-api'
 
