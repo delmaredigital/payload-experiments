@@ -11,6 +11,11 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: Copy the Original, and other version changes in the block panel, failed when a version or any block on the page held an empty list.
+  Migration impact: none.
+- Changed: Unwrap follows the test's status, with draft deletion, stopped-test confirmation, and specific error text when a change fails.
+  Migration impact: none.
+
 ## [0.4.0-rc.1] - 2026-11-05
 
 ### plugin

@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { StrictMode } from 'react'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { payloadUiMock, resetPayloadUiMock, setPayloadUiState } from '../_helpers/payloadUiMock.js'
+import { payloadUiMock, resetPayloadUiMock, setPayloadUiState, toast } from '../_helpers/payloadUiMock.js'
 import { configure, field, original } from './fixtures.js'
 import { wrapExperimentBlock } from '../../../src/blocks/formState.js'
 import { BlockStatusField, BlockSlotRowLabel, CopyOriginalField } from '../../../src/admin/blocks/BlockPanel.js'
+import { BlockChangedError } from '../../../src/admin/blocks/formApi.js'
+import { setBlockStatus } from '../../../src/admin/blocks/statusCache.js'
 import { API_MESSAGES } from '../../../src/admin/copy/common.js'
 import { BLOCK_COPY } from '../../../src/admin/copy/blocks.js'
 import type { LiveBlockStatus } from '../../../src/admin/blocks/model.js'
@@ -20,7 +22,7 @@ const props = { path: 'layout.0.xpBlockStatus' } as any
 const actionProps = { path: 'layout.0.slots.1.xpCopyOriginal' } as any
 const live: LiveBlockStatus = { name: 'Hero', kind: 'block', status: 'running', arms: [{ key: 'control', label: 'Old hero' }, { key: 'variantA', label: 'New hero' }], rollout: false }
 let fetch: ReturnType<typeof vi.fn>
-beforeEach(() => { resetPayloadUiMock(); mocks.adapt.mockClear(); mocks.replace.mockReset().mockResolvedValue(undefined); fetch = vi.fn(); vi.stubGlobal('fetch', fetch) })
+beforeEach(() => { resetPayloadUiMock(); mocks.adapt.mockClear(); mocks.replace.mockReset().mockResolvedValue(undefined); fetch = vi.fn(); vi.stubGlobal('fetch', fetch); vi.spyOn(console, 'error').mockImplementation(() => {}) })
 afterEach(async () => { cleanup(); await Promise.resolve(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 function prepare(status: unknown = live, options: { slug?: string; empty?: boolean } = {}) {
   const wrapped = wrapExperimentBlock(original, options.slug ?? 'hero-test', field)
@@ -76,13 +78,14 @@ test.each([{ deleted: true }, { missing: true }, { ...live, status: 'archived' }
   prepare(status); render(all()); const button = await screen.findByText(BLOCK_COPY.unwrap)
   fireEvent.click(button); await waitFor(() => expect(mocks.replace).toHaveBeenCalledOnce())
   expect(mocks.replace.mock.calls[0]![0].rows[0].id).not.toBe(original.id)
+  expect(toast.success).toHaveBeenCalledExactlyOnceWith('The block was unwrapped. Save draft to keep it.')
   act(() => setPayloadUiState({ auth: { permissions: { collections: {} } } }))
   expect(screen.queryByText(BLOCK_COPY.unwrap)).toBeNull()
 })
 test.each(['draft', 'stopped', 'running', 'decided', 'archived'] as const)('copy action visibility for %s', async status => {
   prepare({ ...live, status, winnerArm: 'variantA' }); render(all()); await screen.findByText('New hero')
   expect(Boolean(screen.queryByText(BLOCK_COPY.copy))).toBe(['draft', 'stopped', 'running'].includes(status))
-  expect(screen.queryByRole('button', { name: BLOCK_COPY.unwrap })).toBeNull()
+  expect(Boolean(screen.queryByRole('button', { name: BLOCK_COPY.unwrap }))).toBe(status === 'stopped')
 })
 test.each([true, false])('copy uses Payload confirmation only for populated rows (empty=%s)', async empty => {
   prepare(live, { empty })
@@ -125,7 +128,7 @@ test('each copy row has a stable unique modal slug', async () => {
 })
 test.each(['draft', 'stopped'] as const)('failed %s sync offers a working retry', async status => {
   prepare({ ...live, status, arms: [{ key: 'control', label: 'Original' }] })
-  mocks.replace.mockRejectedValueOnce(new Error('transport'))
+  mocks.replace.mockRejectedValueOnce(new Error())
   render(all())
   expect(await screen.findByRole('alert')).toHaveProperty('textContent', API_MESSAGES.failed)
   expect(mocks.replace).toHaveBeenCalledOnce()
@@ -136,7 +139,7 @@ test.each(['draft', 'stopped'] as const)('failed %s sync offers a working retry'
 })
 test('failed sync retry remains manage gated', async () => {
   prepare({ ...live, status: 'draft', arms: [{ key: 'control', label: 'Original' }] })
-  mocks.replace.mockRejectedValueOnce(new Error('transport')); render(all())
+  mocks.replace.mockRejectedValueOnce(new Error()); render(all())
   await screen.findByRole('button', { name: BLOCK_COPY.retry })
   act(() => setPayloadUiState({ auth: { permissions: { collections: {} } } }))
   expect(screen.queryByRole('button', { name: BLOCK_COPY.retry })).toBeNull()
@@ -176,7 +179,7 @@ test('two live owners share one request through StrictMode replay', async () => 
 
 test.each(['running', 'decided', 'archived'] as const)('failed sync cannot retry after the test becomes %s', async nextStatus => {
   const status: LiveBlockStatus = { ...live, status: 'draft', arms: [{ key: 'control', label: 'Original' }] }
-  prepare(status); mocks.replace.mockRejectedValueOnce(new Error('transport'))
+  prepare(status); mocks.replace.mockRejectedValueOnce(new Error())
   const view = render(all()); await screen.findByRole('button', { name: BLOCK_COPY.retry })
   status.status = nextStatus
   view.rerender(all())
@@ -197,4 +200,152 @@ test.each(['draft', 'stopped'] as const)('same-commit %s owner replacement syncs
   await screen.findByText('Versions were updated to match the test. Save draft to keep them.')
   expect(mocks.replace).toHaveBeenCalledOnce()
   expect(mocks.replace.mock.calls[0]![0].rows[0].slots.map((row: any) => row.slot)).toEqual(['control', 'variantB'])
+})
+
+async function confirmUnwrap(draft: boolean) {
+  fireEvent.click(await screen.findByRole('button', { name: draft ? BLOCK_COPY.removeAndUnwrap : BLOCK_COPY.unwrap }))
+  const dialog = screen.getByRole('dialog')
+  expect(dialog.getAttribute('aria-label')).toBe(draft ? BLOCK_COPY.removeAndUnwrap : BLOCK_COPY.unwrap)
+  expect(dialog.textContent).toContain(draft
+    ? "Delete the draft test Hero and put the Original back in its place? Deleting the test can't be undone."
+    : "Put the Original back in this block's place? The test Hero and its results are kept; it can't be started again.")
+  expect(mocks.replace).not.toHaveBeenCalled()
+  fireEvent.click(within(dialog).getByRole('button', { name: draft ? BLOCK_COPY.deleteAndUnwrap : BLOCK_COPY.unwrap }))
+}
+function respondDelete(lookup: unknown = { docs: [{ id: 'test /?' }] }, deletion: unknown = {}, status = 200) {
+  fetch.mockResolvedValueOnce(Response.json(lookup))
+  fetch.mockResolvedValueOnce(Response.json(deletion, { status }))
+}
+test.each([true, false])('draft delete precedes replace, updates cache for labels, and toasts (drafts=%s)', async drafts => {
+  prepare({ ...live, status: 'draft' })
+  if (!drafts) setPayloadUiState({ entityConfig: { slug: 'pages', fields: [field], versions: false } })
+  render(all()); await screen.findByText('New hero')
+  respondDelete()
+  mocks.replace.mockImplementation(async () => {
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(screen.queryByText('New hero')).toBeNull()
+  })
+  await confirmUnwrap(true)
+  await waitFor(() => expect(toast.success).toHaveBeenCalledExactlyOnceWith(`The draft test was deleted and the block unwrapped. ${drafts ? 'Save draft' : 'Save'} to keep it.`))
+  expect(mocks.replace).toHaveBeenCalledOnce()
+  expect(fetch.mock.calls[1]![0]).toBe('/api/xp-experiments?where[slug][equals]=hero-test&depth=0&limit=1')
+  expect(fetch.mock.calls[2]).toEqual(['/api/xp-experiments/test%20%2F%3F', { method: 'DELETE', credentials: 'include' }])
+})
+test.each([
+  [{ docs: [] }, {}, 200, 'This test was already deleted. Reload the page.', 2],
+  [{ docs: [{ id: 4 }] }, { errors: [{ message: 'You are not allowed to perform this action.' }] }, 403, 'This test is no longer a draft. Reload the page.', 3],
+  [{ docs: [{ id: 4 }] }, {}, 404, 'This test is no longer a draft. Reload the page.', 3],
+  [{ docs: [{ id: 4 }] }, { errors: [{ code: 'invalid-status', message: 'Only draft or archived tests can be deleted.' }] }, 409, 'This test is no longer a draft. Reload the page.', 3],
+  [{ docs: [{ id: 4 }] }, { errors: [{ message: 'This page is locked.' }] }, 409, 'This page is locked.', 3],
+  [{ docs: [{ id: 4 }] }, {}, 500, API_MESSAGES.failed, 3],
+] as const)('draft refusal %s replaces nothing and displays the API message', async (lookup, deletion, status, message, calls) => {
+  prepare({ ...live, status: 'draft' }); render(all()); await screen.findByText('New hero')
+  respondDelete(lookup, deletion, status)
+  await confirmUnwrap(true)
+  expect(await screen.findByRole('alert')).toHaveProperty('textContent', message)
+  expect(mocks.replace).not.toHaveBeenCalled(); expect(toast.success).not.toHaveBeenCalled()
+  expect(fetch).toHaveBeenCalledTimes(calls)
+})
+test('a draft that starts before confirmation is refused without unwrapping or marking the cache deleted', async () => {
+  let serverStatus: LiveBlockStatus['status'] = 'draft'
+  prepare({ ...live, status: serverStatus }); render(all()); await screen.findByText('New hero')
+  fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.removeAndUnwrap }))
+  serverStatus = 'running'
+  fetch.mockImplementation(async (_url, options) => options.method === 'DELETE'
+    ? Response.json({ errors: [{ message: 'You are not allowed to perform this action.' }] }, { status: serverStatus === 'running' ? 403 : 200 })
+    : Response.json({ docs: [{ id: 4, status: serverStatus }] }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: BLOCK_COPY.deleteAndUnwrap }))
+  expect(await screen.findByRole('alert')).toHaveProperty('textContent', BLOCK_COPY.noLongerDraft)
+  expect(fetch.mock.calls.slice(1)).toEqual([
+    ['/api/xp-experiments?where[slug][equals]=hero-test&depth=0&limit=1', { method: 'GET', credentials: 'include' }],
+    ['/api/xp-experiments/4', { method: 'DELETE', credentials: 'include' }],
+  ])
+  expect(mocks.replace).not.toHaveBeenCalled(); expect(toast.success).not.toHaveBeenCalled()
+  expect(screen.getByText('New hero')).toBeTruthy()
+  expect(screen.getByRole('button', { name: BLOCK_COPY.removeAndUnwrap })).toBeTruthy()
+  expect(screen.queryByText(BLOCK_COPY.deleted)).toBeNull()
+})
+test('replacement failure after deleting a draft shows the exact retry message and orphan Unwrap', async () => {
+  prepare({ ...live, status: 'draft' }); render(all()); await screen.findByText('New hero')
+  respondDelete(); mocks.replace.mockRejectedValueOnce(new BlockChangedError())
+  await confirmUnwrap(true)
+  expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'The test was removed; use Unwrap to finish.')
+  expect(screen.queryByRole('button', { name: BLOCK_COPY.removeAndUnwrap })).toBeNull()
+  expect(screen.getByText(BLOCK_COPY.deleted)).toBeTruthy()
+  expect(toast.success).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.unwrap }))
+  await waitFor(() => expect(mocks.replace).toHaveBeenCalledTimes(2))
+  expect(fetch).toHaveBeenCalledTimes(3)
+  expect(toast.success).toHaveBeenCalledWith('The block was unwrapped. Save draft to keep it.')
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+test.each([true, false])('stopped confirmation preserves the test, replaces then toasts (drafts=%s)', async drafts => {
+  prepare({ ...live, status: 'stopped' })
+  if (!drafts) setPayloadUiState({ entityConfig: { slug: 'pages', fields: [field], versions: false } })
+  render(all()); await screen.findByText('New hero')
+  mocks.replace.mockImplementation(async () => expect(toast.success).not.toHaveBeenCalled())
+  await confirmUnwrap(false)
+  await waitFor(() => expect(toast.success).toHaveBeenCalledExactlyOnceWith(`The block was unwrapped. ${drafts ? 'Save draft' : 'Save'} to keep it.`))
+  expect(mocks.replace).toHaveBeenCalledOnce(); expect(fetch).toHaveBeenCalledOnce()
+})
+test.each([
+  ['running', 'Stop the test to unwrap.'],
+  ['decided', 'To put the winner into this page, use "Make it the content" on the test.'],
+  ['archived', 'Finished: visitors see New hero. Use "Make it the content" on the test to replace this block.'],
+] as const)('%s gives a linked sentence with no Unwrap action', async (status, sentence) => {
+  prepare({ ...live, status, winnerArm: 'variantA' }, { slug: 'hero /?' })
+  render(<BlockStatusField {...props} />)
+  const link = await screen.findByRole('link', { name: 'the test' })
+  expect(link.getAttribute('href')).toBe('/cms/experiments/by-slug/hero%20%2F%3F')
+  expect(link.parentElement?.textContent).toBe(sentence)
+  expect(screen.queryByRole('button')).toBeNull()
+  if (status === 'running') expect(screen.getByRole('status').textContent).toBe(BLOCK_COPY.running)
+  if (status === 'decided') expect(screen.getByText('Decided: visitors see New hero.')).toBeTruthy()
+})
+test('non-managers see no status, sentences, actions or links', async () => {
+  prepare(); setPayloadUiState({ auth: { permissions: { collections: {} } } })
+  fetch.mockResolvedValue(Response.json({ slugs: {}, docs: {} }, { status: 403 }))
+  const view = render(<BlockStatusField {...props} />)
+  await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+  expect(view.container.textContent).toBe(''); expect(screen.queryByRole('link')).toBeNull()
+})
+test.each(['copy', 'sync', 'orphan unwrap', 'stopped unwrap'] as const)('%s shows known errors and hides developer error text', async path => {
+  const status = path === 'sync' || path === 'stopped unwrap' ? { ...live, status: 'stopped', arms: path === 'sync' ? [{ key: 'control', label: 'Original' }] : live.arms }
+    : path === 'orphan unwrap' ? { deleted: true } : live
+  prepare(status, { empty: true })
+  const specific = new BlockChangedError()
+  mocks.replace.mockRejectedValueOnce(specific).mockRejectedValueOnce(new Error('Missing server form state'))
+  render(all())
+  if (path === 'copy') fireEvent.click(await screen.findByText(BLOCK_COPY.copy))
+  else if (path === 'orphan unwrap') fireEvent.click(await screen.findByRole('button', { name: BLOCK_COPY.unwrap }))
+  else if (path === 'stopped unwrap') await confirmUnwrap(false)
+  expect(await screen.findByRole('alert')).toHaveProperty('textContent', specific.message)
+  if (path === 'copy') fireEvent.click(screen.getByText(BLOCK_COPY.copy))
+  else if (path === 'orphan unwrap') fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.unwrap }))
+  else if (path === 'stopped unwrap') {
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.unwrap }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: BLOCK_COPY.unwrap }))
+  } else fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.retry }))
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(API_MESSAGES.failed))
+  expect(screen.queryByText('Missing server form state')).toBeNull()
+})
+test('explicit cache update publishes to owners and labels without another read', async () => {
+  prepare(); render(all()); await screen.findByText('New hero')
+  act(() => setBlockStatus('/api', 'hero-test', { deleted: true }))
+  expect(screen.getByText(BLOCK_COPY.deleted)).toBeTruthy()
+  expect(screen.getByText('Variant A')).toBeTruthy()
+  expect(screen.queryByText('New hero')).toBeNull()
+  expect(fetch).toHaveBeenCalledOnce()
+})
+test('a stale pending status read cannot overwrite the deletion cache entry', async () => {
+  prepare()
+  let respond!: (response: Response) => void
+  fetch.mockImplementationOnce(() => new Promise(resolve => { respond = resolve }))
+  render(all())
+  await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+  act(() => setBlockStatus('/api', 'hero-test', { deleted: true }))
+  await act(async () => respond(Response.json({ slugs: { 'hero-test': live } })))
+  expect(screen.getByText(BLOCK_COPY.deleted)).toBeTruthy()
+  expect(screen.getByText('Variant A')).toBeTruthy()
 })
