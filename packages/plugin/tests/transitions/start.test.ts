@@ -1,3 +1,4 @@
+import { READINESS_COPY } from '../../src/admin/copy/readiness.js'
 import { expect, test, vi } from 'vitest'
 import { fakePayload } from '../_fakes/payload.js'
 import { pageArms, pageOccupancyDb } from '../_helpers/pageOccupancy.js'
@@ -640,3 +641,25 @@ test('same-address refusal uses shared copy with display labels and keeps arm ke
     expect(error).toMatchObject({ code: 'version-same-address', detail })
   }
 })
+
+test.each([false, true])('removed stopped block refuses preflight and Start (removed after preflight=%s)', async afterPreflight => {
+  const f = blockFixture()
+  Object.assign(f.experiment, { status: 'stopped', phase: 1 })
+  if (afterPreflight) {
+    const query = f.executor.query
+    f.executor.query = async (text, params) => {
+      if (text.includes("hashtext('xp:experiment')")) f.payload.documents.pages = []
+      return query(text, params)
+    }
+  } else {
+    f.payload.documents.pages = []
+    const result = await preflightData(f.req, { experimentId: 1, options: f.options })
+    expect(result!.checks).toContainEqual({ code: 'placement-removed', ok: false })
+    expect(result!.checks).toContainEqual({ code: 'no-placements', ok: true })
+  }
+  await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'placement-removed', status: 422, message: READINESS_COPY.placementRemoved })
+  expect(f.experiment).toMatchObject({ status: 'stopped', phase: 1 })
+  expect(f.payload.calls.filter(call => call.method !== 'find')).toEqual([])
+  expect(f.executor.calls.some(call => call.text.includes('RETURNING "revision"'))).toBe(false)
+  if (afterPreflight) expect(f.payload.dbCalls.some(call => call.method === 'rollbackTransaction')).toBe(true)
+}, 5_000) // Measured max 0.411 ms locally; cap exceeds 3×.

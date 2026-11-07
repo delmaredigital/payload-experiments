@@ -16,6 +16,7 @@ export const READINESS_COPY = {
   everyone: 'Everyone already takes part.',
   participation: 'How many people take part (%)',
   noPlacements: 'Not on a page yet. Open a page, add an Experiment block and choose this test.',
+  placementRemoved: "The block for this test was removed from its page, so it can't start again. Its results are kept. To test the block again, start a new test from the page.",
   noPoint: 'Choose the setting to test.',
   busy: 'Another test is already running on this setting. Stop it first.',
   noGoal: 'Choose a goal.', unknownGoal: "This goal's data source isn't available. Choose another goal.",

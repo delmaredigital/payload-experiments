@@ -1,3 +1,4 @@
+import { READINESS_COPY } from '../../src/admin/copy/readiness.js'
 import { expect, test, vi } from 'vitest'
 import { fakePayload } from '../_fakes/payload.js'
 import { createFakeExecutor } from '../_fakes/executor.js'
@@ -260,3 +261,28 @@ test('decide from stopped refreshes block placement docs from its detached resca
     expect.objectContaining({ params: [JSON.stringify([{ collection: 'pages', id: 10 }]), 1, 1] }),
   ])
 }, 5000)
+
+test.each([
+  ['control', false], ['variantA', false], ['control', true], ['variantA', true],
+] as const)('removed stopped block refuses %s before every write (removed during rescan=%s)', async (winnerArm, duringRescan) => {
+  const f = fixture('stopped'), options = f.payload.config.custom!.xp as ReturnType<typeof sampleOptions>
+  f.experiment.kind = 'block'
+  options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  f.payload.documents.pages = duringRescan ? [{ id: 10, _status: 'published', layout: [{ blockType: 'xpExperiment', experiment: 'hero', slots: [
+    { slot: 'control', blocks: [{ blockType: 'text' }] }, { slot: 'variantA', blocks: [{ blockType: 'text' }] },
+  ] }] }] : []
+  const query = f.executor.query
+  f.executor.query = async (text, params) => {
+    if (text.includes("hashtext('xp:experiment')")) f.payload.documents.pages = []
+    return query(text, params)
+  }
+  const phaseBefore = structuredClone(f.phase)
+  await expect(decide(f.req, { experimentId: 1, winnerArm, note: 'Choose winner', confirmation: winnerArm === 'control' ? 'Original' : 'Better title' }))
+    .rejects.toMatchObject({ code: 'placement-removed', status: 422, message: READINESS_COPY.placementRemoved })
+  expect(f.experiment).toMatchObject({ status: 'stopped', phase: 1 })
+  expect(f.payload.documents['xp-phases']).toEqual([phaseBefore])
+  expect(f.payload.calls.filter(call => call.method === 'find' && call.args.collection === 'xp-phases')).toHaveLength(1)
+  expect(f.payload.calls.filter(call => call.method !== 'find')).toEqual([])
+  expect(f.executor.calls.some(call => /\b(UPDATE|INSERT|DELETE)\b/.test(call.text))).toBe(false)
+  expect(f.payload.dbCalls.some(call => call.method === 'rollbackTransaction')).toBe(true)
+}, 5_000) // Measured max 4.149 ms locally; cap exceeds 3×.

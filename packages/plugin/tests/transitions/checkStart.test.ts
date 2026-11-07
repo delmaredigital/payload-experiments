@@ -49,19 +49,38 @@ const cases: Array<[string, (input: CheckStartInput) => void]> = [
   ['block-path-rule', i => { i.experiment.targeting = [{ attribute: 'path', op: 'eq', value: '/home' }] }],
 ]
 describe('checkStart', () => {
+  test.each([
+    ['stopped', 1, 0, undefined, true],
+    ['draft', 0, 0, undefined, false],
+    ['draft', 1, 0, undefined, false],
+    ['stopped', 0, 0, undefined, false],
+    ['stopped', undefined, 0, undefined, false],
+    ['stopped', 1, 0, 'placements-failed', false],
+    ['stopped', 1, 1, 'forbidden', false],
+    ['stopped', 1, 1, undefined, false],
+  ] as const)('removed block: status=%s phase=%s placements=%s error=%s', (status, phase, count, placementError, removed) => {
+    const input = ready()
+    Object.assign(input.experiment, { status, phase })
+    input.placements = input.placements!.slice(0, count)
+    input.placementError = placementError
+    const checks = checkStart(input)
+    expect(checks).toContainEqual({ code: 'placement-removed', ok: !removed })
+    expect(checks).toContainEqual({ code: 'no-placements', ok: removed || count > 0 && placementError === undefined,
+      ...(placementError ? { detail: placementError } : {}) })
+  }, 5_000) // Measured max 1.461 ms locally; cap exceeds 3×.
   test.each(cases)('refuses %s', (code, mutate) => {
     const input = ready(); mutate(input)
     expect(checkStart(input)).toContainEqual(expect.objectContaining({ code, ok: false }))
   })
   test('all checks pass and remain in fixed order even when many checks fail', () => {
     const input = ready()
-    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'interacting-tests', 'unknown-collection', 'version-same-address', 'page-in-use', 'page-target-unpublished', 'page-targets-unchecked', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'placement-unpublished', 'duplicate-version-row', 'empty-slot', 'make-content-unsupported', 'layer-unit-mismatch', 'layer-full', 'goal-in-some-versions', 'unknown-metric-source', 'unit-source-mismatch', 'block-path-rule', 'undeclared-targeting-key', 'invalid-targeting-rule']
+    const order = ['invalid-status', ...ARM_CHECK_ORDER, 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'interacting-tests', 'unknown-collection', 'version-same-address', 'page-in-use', 'page-target-unpublished', 'page-targets-unchecked', 'page-user-unit', 'flag-no-point', 'flag-params-invalid', 'flag-point-busy', 'flag-placement-missing', 'no-placements', 'placement-removed', 'placement-unpublished', 'duplicate-version-row', 'empty-slot', 'make-content-unsupported', 'layer-unit-mismatch', 'layer-full', 'goal-in-some-versions', 'unknown-metric-source', 'unit-source-mismatch', 'block-path-rule', 'undeclared-targeting-key', 'invalid-targeting-rule']
     expect(checkStart(input)).toEqual(order.map(code => ({ code, ok: true })))
     for (const [, mutate] of cases) {
       const changed = ready(); mutate(changed)
       expect(checkStart(changed).map(check => check.code)).toEqual(order)
     }
-  })
+  }, 5_000) // Measured 1.873 ms locally; cap exceeds 3×.
   test('block path rules report only offending indexes before other targeting failures', () => {
     const input = ready()
     input.experiment.targeting = [
@@ -169,4 +188,3 @@ test('pageTargetPaths covers every path the runtime matches, holdout and empty t
     { key: 'variantB', kind: 'variant', weight: 0 },
   ] as never)).toEqual(['/', '/a', '/h'])
 })
-

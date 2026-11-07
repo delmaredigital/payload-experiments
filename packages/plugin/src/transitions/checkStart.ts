@@ -31,6 +31,7 @@ export type ReadinessCode = ArmIssueCode
   | 'flag-point-busy'
   | 'flag-placement-missing'
   | 'no-placements'
+  | 'placement-removed'
   | 'empty-slot'
   | 'make-content-unsupported'
   | 'layer-unit-mismatch'
@@ -42,7 +43,7 @@ export type ReadinessCode = ArmIssueCode
   | 'invalid-targeting-rule'
 
 export interface StartExperiment {
-  id: DocId; slug: string; status: Status; kind: ExperimentKind; unitType: UnitType
+  id: DocId; slug: string; status: Status; kind: ExperimentKind; unitType: UnitType; phase?: number
   pageCollection?: string | null
   arms: Arm[]; allocation: number; exposurePolicy: ExposurePolicy; flagPoint?: string | null
   layer?: DocId | { id: DocId } | null; targeting?: TargetingRule[] | null
@@ -139,7 +140,9 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('flag-placement-missing', e.kind !== 'flag' || !input.flagPlacementError && missing.length === 0 && failed.length === 0,
     input.flagPlacementError ?? { missing: missing.map(arm => arm.key), placements: failed.map(({ arm, ok, detail }) => ({ arm, ok, detail })) })
   const placements = input.placements ?? []
-  add('no-placements', e.kind !== 'block' || !input.placementError && placements.length > 0, input.placementError)
+  const placementRemoved = e.kind === 'block' && e.status === 'stopped' && (e.phase ?? 0) >= 1 && placements.length === 0 && input.placementError === undefined
+  add('no-placements', placementRemoved || e.kind !== 'block' || !input.placementError && placements.length > 0, input.placementError)
+  add('placement-removed', !placementRemoved)
   const unpublished = placements.filter(p => !p.published && !placements.some(other => other.published && other.collection === p.collection && String(other.id) === String(p.id)))
   add('placement-unpublished', unpublished.length === 0, unpublished.map(placementDetail))
   const duplicates = placements.filter(p => p.published && p.duplicateRows)
