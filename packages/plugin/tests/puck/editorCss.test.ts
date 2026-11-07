@@ -84,7 +84,7 @@ test('sidebar enabled and solid disabled buttons meet their text contrast thresh
 
 test('installed Puck still ships the field-panel class used by the sidebar theme boundary', () => {
   const shipped = readFileSync(require.resolve('@puckeditor/core/puck.css'), 'utf8')
-  expect(shipped).toMatch(/\._PuckFields[\w-]*/)
+  expect(shipped).toMatch(/\._PuckFields_[a-z0-9]+_\d+/)
 })
 test.each(['light', 'dark'] as const)('every %s token equals theme.css resolved against reference Payload', mode => {
   const theme = readFileSync(new URL('admin/theme.css', source), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')

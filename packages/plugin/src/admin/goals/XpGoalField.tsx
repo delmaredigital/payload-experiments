@@ -16,7 +16,7 @@ export function XpGoalField({ path, field, readOnly }: TextFieldClientProps) {
   const picker = useClickGoalPicker(config.routes.api, { enabled: access?.update === true, onSelect: setValue })
   const id = useId(), namePath = `${id}-name`, slugPath = `${id}-slug`
   const stopEnter = (event: KeyboardEvent<HTMLInputElement>) => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation() } }
-  return <div>
+  return <div className="field-type xp-goal-field">
     <TextInput path={path} label={field.label ?? C.label} description={field.admin?.description}
       required={field.required} readOnly={locked} value={value ?? ''} showError={showError}
       Error={<FieldError path={path} showError={showError} />}

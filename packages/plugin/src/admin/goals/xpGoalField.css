@@ -1,9 +1,13 @@
+.xp-goal-field {
+  display: grid;
+  gap: var(--xp-field-gap);
+}
+
 .xp-goal-field__row {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
   gap: var(--xp-space-2);
-  margin-bottom: var(--xp-space-5);
 }
 
 .xp-goal-field__select {
@@ -12,15 +16,24 @@
 }
 
 .xp-goal-field__panel {
+  display: grid;
+  gap: var(--xp-field-gap);
   border: 1px solid var(--xp-border);
   border-radius: var(--xp-radius-control);
   padding: var(--xp-space-4);
-  margin-block: var(--xp-space-5);
+}
+
+.xp-goal-field__panel > h3,
+.xp-goal-field__panel > p {
+  margin: 0;
+}
+
+.xp-goal-field__panel details[open] > summary {
+  margin-bottom: var(--xp-field-gap);
 }
 
 .xp-goal-field__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--xp-space-2);
-  margin-top: var(--xp-space-5);
 }
