@@ -443,6 +443,9 @@ test('server slug errors for click: use authored duplicate copy and open Advance
   expect(await screen.findByText(duplicateSlug)).toBeTruthy()
   expect(document.querySelector('details')!.open).toBe(true)
   expect(screen.queryByText('Value must be unique')).toBeNull()
+  fireEvent.change(screen.getByLabelText('Measured by'), { target: { value: 'signup' } })
+  expect(screen.queryByText(duplicateSlug)).toBeNull()
+  expect(screen.getByLabelText('Short name').getAttribute('aria-invalid')).not.toBe('true')
 })
 test('server slug errors for signup point at the main Short name field and leave Advanced closed', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response({ errors: [{ data: { errors: [{ path: 'slug', message: 'Value must be unique' }] } }] }, 400)))

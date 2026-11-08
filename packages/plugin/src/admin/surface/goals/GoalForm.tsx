@@ -147,6 +147,8 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
                 const revenue = sourceFor(sourceId, surface.metricSources)?.kind === 'revenue'
                 setDraft(current => ({ ...current, source: sourceId, ...(!slugEdited && !usedBy ? { slug: sourceId === 'click:' ? clickGoalSlug(current.name) : goalSlug(current.name) } : {}), capType: revenue ? 'percentile' : '', capValue: revenue ? '0.99' : '' }))
                 if (sourceId === 'click:' && !slugEdited && !usedBy) setFieldErrors(current => ({ ...current, slug: clickGoalSlug(draft.name) ? undefined : C.slugRule }))
+                // The slug error's copy and place depend on the kind; drop it when the kind changes, the next save re-checks.
+                else if ((sourceId === 'click:') !== click) setFieldErrors(current => ({ ...current, slug: undefined }))
               }}><option value="">{C.chooseSource}</option>{options.map(option => <option key={option.value} value={option.value}>{option.value === 'click:' ? sourceFor(option.value, surface.metricSources)?.label : option.label}</option>)}
                 {!click && draft.source && !options.some(option => option.value === draft.source) ? <option value={draft.source}>{draft.source}</option> : null}
               </Select>
