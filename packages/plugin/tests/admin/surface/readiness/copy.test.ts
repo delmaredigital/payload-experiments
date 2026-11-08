@@ -5,7 +5,7 @@ import * as copy from '../../../../src/admin/copy/readiness.js'
 import { PAGE_COPY } from '../../../../src/admin/copy/pages.js'
 
 test('unchosen page copy stays aligned with the page-row empty state', () => {
-  expect(PAGE_COPY.noPage).toBe('No page chosen yet.')
+  expect(PAGE_COPY.choose).toBe('Choose a page')
 })
 
 test('block path readiness uses the coordinator removal copy', () => {

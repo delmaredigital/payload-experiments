@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs'
+import { referencePalette, resolvedTokens } from '../../../../scripts/generate-editor-css.mjs'
+import { contrast } from '../../src/ui/accent.js'
 import { expect, test } from 'vitest'
 
 const css = readFileSync(new URL('../../src/ui/ui.css', import.meta.url), 'utf8')
@@ -8,20 +10,19 @@ function rule(selector: string): string {
 }
 
 test('page content stacks with a full-width picker, quiet disabled reasons and indented copy steps', () => {
-  const page = readFileSync(new URL('../../src/admin/surface/test/testPage.css', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../../src/admin/surface/test/testPage.css', import.meta.url), 'utf8') + readFileSync(new URL('../../src/admin/surface/pagePicker/pagePicker.css', import.meta.url), 'utf8')
   const declarations = (selector: string) => [...page.matchAll(/([^{}]+)\{([^{}]+)\}/g)]
     .filter(match => match[1]!.trim() === selector).map(match => match[2]).join('\n')
   expect(declarations('.xp-version-content--page')).toContain('flex-direction: column')
   expect(declarations('.xp-version-content--page')).toContain('align-items: stretch')
   expect(declarations('.xp-version-content--page')).toMatch(/gap: var\(--xp-space-/)
-  expect(declarations('.xp-page-picker input[type="search"]')).toContain('width: 100%')
-  expect(declarations('.xp-page-picker ul')).toContain('list-style: none')
-  expect(declarations('.xp-page-picker ul')).toContain('padding: 0')
-  expect(declarations('.xp-page-picker li > button')).toContain('display: block')
-  expect(declarations('.xp-page-picker li > button')).toContain('width: 100%')
-  expect(declarations('.xp-page-picker li > button')).toContain('text-align: left')
-  expect(declarations('.xp-page-picker li > p')).toContain('color: var(--xp-text-2)')
-  expect(declarations('.xp-page-picker li > p')).toContain('font: var(--xp-text-small)')
+  expect(declarations('.xp-page-combobox')).toContain('width: 100%')
+  expect(declarations('.xp-page-combobox input')).toContain('width: 100%')
+  expect(declarations('.xp-page-option')).toContain('display: block')
+  expect(declarations('.xp-page-option')).toContain('width: 100%')
+  expect(declarations('.xp-page-option')).toContain('text-align: left')
+  expect(declarations('.xp-page-option-detail')).toContain('color: var(--xp-text-2)')
+  expect(declarations('.xp-page-option-detail')).toContain('font: var(--xp-text-small)')
   expect(declarations('.xp-copy-route ol')).toContain('list-style: decimal')
   expect(declarations('.xp-copy-route ol')).toMatch(/padding-inline-start: var\(--xp-space-/)
 })
@@ -90,4 +91,18 @@ test('inline link actions have no horizontal padding and checkbox legends align 
   expect(rule('.xp-ui-button--link')).toContain('color: var(--xp-accent-text)')
   expect(rule('.xp-ui-button--link:hover')).toContain('text-decoration: underline')
   expect(rule('.xp-ui-checkbox-list legend')).toContain('padding: 0')
+})
+
+test.each(['light', 'dark'] as const)('%s page options have readable text and a visible selection marker', mode => {
+  const palette = referencePalette(mode)
+  const tokens = resolvedTokens(mode)
+  expect(Object.keys(palette).length).toBeGreaterThan(0)
+  const hex = (value: string) => value.replace(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/, (_, r: string, g: string, b: string) => '#' + [r, g, b].map(v => Number(v).toString(16).padStart(2, '0')).join(''))
+  const values = Object.fromEntries(['text', 'text-2', 'surface', 'surface-2', 'accent'].map(name => [name, hex(tokens[`--xp-${name}`]!)]))
+  for (const background of ['surface', 'surface-2']) {
+    const ratios = Object.fromEntries(['text', 'text-2', 'accent'].map(name => [name, contrast(values[name]!, values[background]!)]))
+    expect(ratios.text).toBeGreaterThanOrEqual(4.5)
+    expect(ratios['text-2']).toBeGreaterThanOrEqual(4.5)
+    expect(ratios.accent).toBeGreaterThanOrEqual(3)
+  }
 })

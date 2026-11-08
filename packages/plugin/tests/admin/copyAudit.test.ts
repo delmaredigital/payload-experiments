@@ -18,6 +18,7 @@ const samples: Record<string, unknown[][]> = {
   unpublishedPageCopy: [['/example'], ['/example', { original: true, found: true, collection: 'Pages' }], ['/example', { original: false, found: true, collection: 'Pages' }], ['/example', { original: false, found: false, collection: 'Pages' }]],
   sameAddressCopy: [['Variant A', 'Original', '/example'], ['Variant A', 'Original', '/example', 'Pages']],
   usedPageCopy: [['Original']], usedAddressCopy: [['Original', '/example', 'Pages']],
+  pageNotFoundCopy: [['/example', 'Pages']], pageFieldCopy: [['Variant A']],
   openOriginalCopy: [['Pages']], openCollectionCopy: [['Pages']], pageStepCopy: [['Variant A']],
   blockPosition: [['Hero', 2]], blockTestName: [['About us', 'Hero']],
   blockDraftStatus: [['Hero']], blockFinishedStatus: [['Shorter form']],
@@ -111,8 +112,8 @@ test('exported editor copy and all copy functions use surface vocabulary', async
     expect(hits(strings(module, '', true)), path).toEqual([])
   }
 })
-test('the unchosen-page sentence participates in the copy audit', () => {
-  expect(strings(PAGE_COPY)).toContain('No page chosen yet.')
+test('the unchosen-page placeholder participates in the copy audit', () => {
+  expect(strings(PAGE_COPY)).toContain('Choose a page')
   expect(hits(strings(PAGE_COPY))).toEqual([])
 })
 test('admin and Puck JSX text uses surface vocabulary', () => {
@@ -234,4 +235,11 @@ test.each([
 })
 test('fetch options can still contain authored messages', () => {
   expect(hits(helperStrings("const load = () => fetch('/phase', { message: 'Choose an arm' })"))).toEqual(['Choose an arm'])
+})
+
+test('page combobox copy retains only used keys and names unresolved pages', async () => {
+  const { pageNotFoundCopy, pageFieldCopy } = await import('../../src/admin/copy/pages.js')
+  expect(pageNotFoundCopy('/example', 'Pages')).toBe("/example isn't in Pages. Choose a page.")
+  expect(pageFieldCopy('Variant A')).toBe('Page for Variant A')
+  for (const removed of ['search', 'change', 'close', 'noPage']) expect(PAGE_COPY).not.toHaveProperty(removed)
 })

@@ -10,7 +10,7 @@ import { changedPatch, editablePatch, payloadFieldErrors } from './testDocument.
 import type { TestDocument, TestDocumentPatch } from './testDocument.model.js'
 
 type View = {
-  chosenPages: Partial<Record<Arm['key'], { id: DocId; path: string }>>
+  chosenPages: Partial<Record<Arm['key'], { id: DocId; path: string; title?: string; published?: boolean }>>
   doc: TestDocument | null
   preflight: PreflightResult | null
   preflightError: string | null
@@ -306,7 +306,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
     document.addEventListener('visibilitychange', visible)
     return () => { window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visible) }
   }, [refetchPreflightOnFocus, refreshPreflight])
-  const choosePage = useCallback((arm: Arm['key'], page: { id: DocId; path: string }) => {
+  const choosePage = useCallback((arm: Arm['key'], page: { id: DocId; path: string; title?: string; published?: boolean }) => {
     const session = current.current
     const doc = session?.key === key ? optimistic(session) : null
     if (!session || !doc) return Promise.resolve()
