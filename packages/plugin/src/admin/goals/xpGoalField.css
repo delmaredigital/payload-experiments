@@ -1,0 +1,48 @@
+.xp-goal-field {
+  display: grid;
+  gap: var(--xp-field-gap);
+}
+
+.xp-goal-field__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--xp-space-2);
+}
+
+.xp-goal-field__select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.xp-goal-field__panel {
+  display: grid;
+  gap: var(--xp-field-gap);
+  border: 1px solid var(--xp-border);
+  border-radius: var(--xp-radius-control);
+  padding: var(--xp-space-4);
+}
+
+.xp-goal-field > p,
+.xp-goal-field__panel > h3,
+.xp-goal-field__panel > p {
+  margin: 0;
+}
+
+.xp-goal-field__panel details[open] > summary {
+  margin-bottom: var(--xp-field-gap);
+}
+
+.xp-goal-field__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--xp-space-2);
+}
+
+/* Payload halves the gap between fields below 768px; match it inside the field. */
+@media (max-width: 768px) {
+  .xp-goal-field,
+  .xp-goal-field__panel {
+    gap: calc(var(--xp-field-gap) / 2);
+  }
+}

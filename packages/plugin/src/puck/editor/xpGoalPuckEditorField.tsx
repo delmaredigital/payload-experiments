@@ -15,12 +15,15 @@ function XpGoalPuckEditor({ value, onChange, api, readOnly }: { value: string; o
   return <div className="xp-slot-root xp-puck-field">
     <TextInput id={`${id}-value`} label={C.label} value={value ?? ''} readOnly={readOnly} onChange={event => onChange(event.currentTarget.value)} />
     {picker.canManage && !readOnly ? <>
-      <Select id={`${id}-picker`} label={C.choose} value={picker.goals.some(goal => goal.slug === value) ? value : ''}
-        onChange={event => { if (event.currentTarget.value) onChange(event.currentTarget.value) }}>
-        <option value="">{C.choose}</option>{picker.goals.map(goal => <option key={goal.id} value={goal.slug}>{goal.name}</option>)}
-      </Select>
+      <div className="xp-ui-inline-row">
+        <Select id={`${id}-picker`} label={C.choose} value={picker.goals.some(goal => goal.slug === value) ? value : ''}
+          onChange={event => { if (event.currentTarget.value) onChange(event.currentTarget.value) }}>
+          <option value="">{C.choose}</option>{picker.goals.map(goal => <option key={goal.id} value={goal.slug}>{goal.name}</option>)}
+        </Select>
+        {!picker.panel.open ? <Button type="button" onClick={picker.open}>{C.newGoal}</Button> : null}
+      </div>
       {picker.undefinedKey(value ?? '') ? <p className="xp-ui-help" role="status">{C.undefinedKey}</p> : null}
-      {!picker.panel.open ? <Button type="button" onClick={picker.open}>{C.newGoal}</Button> : <section aria-labelledby={`${id}-title`}>
+      {picker.panel.open ? <section className="xp-ui-subpanel" aria-labelledby={`${id}-title`}>
         <h3 id={`${id}-title`}>{C.title}</h3>
         <TextInput id={`${id}-name`} label={C.name} value={picker.panel.name} disabled={picker.panel.pending} onKeyDown={stopEnter}
           onChange={event => picker.setName(event.currentTarget.value)} />
@@ -30,10 +33,10 @@ function XpGoalPuckEditor({ value, onChange, api, readOnly }: { value: string; o
         </details>
         {picker.panel.errors.general ? <p className="xp-ui-error" role="alert">{picker.panel.errors.general}</p> : null}
         <div className="xp-ui-button-group">
-          <Button type="button" disabled={picker.panel.pending || !picker.panel.name.trim()} onClick={() => void picker.create()}>{C.createGoal}</Button>
+          <Button type="button" variant="primary" disabled={picker.panel.pending || !picker.panel.name.trim()} onClick={() => void picker.create()}>{C.createGoal}</Button>
           <Button type="button" disabled={picker.panel.pending} onClick={picker.cancel}>{C.cancel}</Button>
         </div>
-      </section>}
+      </section> : null}
     </> : null}
   </div>
 }

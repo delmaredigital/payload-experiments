@@ -7,7 +7,12 @@ import { XpGoalField } from '../../src/admin/goals/XpGoalField.js'
 import { xpGoalPuckEditorField } from '../../src/puck/editor/xpGoalPuckEditorField.js'
 import { CLICK_GOAL_COPY as C } from '../../src/goals/picker/copy.js'
 
+const pickerSelect = vi.hoisted(() => vi.fn())
 vi.mock('@payloadcms/ui', () => ({ ...payloadUiMock(),
+  SelectInput: (props: Parameters<ReturnType<typeof payloadUiMock>['SelectInput']>[0]) => {
+    pickerSelect(props)
+    return createElement(payloadUiMock().SelectInput, props)
+  },
   FieldLabel: ({ path, label }: { path: string; label: string }) => <label htmlFor={`field-${path.replace(/\./g, '__')}`}>{label}</label>,
   FieldError: ({ showError }: { showError: boolean }) => showError ? <p role="alert">Server validation error</p> : null }))
 const rows = [{ id: 1, name: 'Join us', slug: 'join', source: 'click:join' }]
@@ -16,6 +21,7 @@ let apiSequence = 0
 let apiRoute: string
 let fetcher: ReturnType<typeof vi.fn>, select: Mock<(value: string) => void>
 beforeEach(() => {
+  pickerSelect.mockClear()
   resetPayloadUiMock(); select = vi.fn()
   apiRoute = `/picker-api-${++apiSequence}`
   setConfig({ config: { routes: { api: apiRoute, admin: '/admin' } } })
@@ -30,6 +36,34 @@ function Puck() {
   const puckField = useMemo(() => xpGoalPuckEditorField({ routes: { api: apiRoute } }), [apiRoute])
   return createElement(puckField.render, { value, onChange: (next: string) => { select(next); setValue(next) } } as any)
 }
+
+test('Payload picker passes a unique path, matched value, options and single-option changes to SelectInput', async () => {
+  const { rerender } = render(<Payload />)
+  await screen.findByRole('option', { name: 'Join us' })
+  const props = () => pickerSelect.mock.lastCall![0]
+  expect(props()).toMatchObject({ path: 'buttons.0.xpGoal__xpGoalPicker', value: undefined,
+    label: C.choose, placeholder: C.choose, isClearable: false, options: [{ label: 'Join us', value: 'join' }] })
+  act(() => { props().onChange(null); props().onChange([{ value: 'join' }]) })
+  expect(select).not.toHaveBeenCalled()
+  act(() => props().onChange({ value: 'join', label: 'Join us' }))
+  expect(select).toHaveBeenCalledWith('join')
+  act(() => setField({ value: 'join', setValue: select }, 'buttons.1.xpGoal'))
+  rerender(<Payload path="buttons.1.xpGoal" />)
+  expect(props()).toMatchObject({ path: 'buttons.1.xpGoal__xpGoalPicker', value: 'join' })
+})
+
+test.each([{ host: 'Payload', Host: Payload, row: 'xp-goal-field__row', panel: 'xp-goal-field__panel', actions: 'xp-goal-field__actions' },
+  { host: 'Puck', Host: Puck, row: 'xp-ui-inline-row', panel: 'xp-ui-subpanel', actions: 'xp-ui-button-group' }])('$host groups picker and creation controls', async ({ Host, row, panel, actions, host }) => {
+  render(<Host />)
+  const newGoal = await screen.findByRole('button', { name: C.newGoal })
+  expect(newGoal.closest(`.${row}`)?.contains(screen.getByRole('combobox'))).toBe(true)
+  fireEvent.click(newGoal)
+  const create = screen.getByRole('button', { name: C.createGoal })
+  expect(create.closest(`.${panel}`)?.contains(screen.getByLabelText(C.name))).toBe(true)
+  expect(create.closest(`.${actions}`)?.contains(screen.getByRole('button', { name: C.cancel }))).toBe(true)
+  if (host === 'Payload') expect(create.getAttribute('data-button-style')).toBe('primary')
+  else expect(create.classList.contains('xp-ui-button--primary')).toBe(true)
+})
 
 describe.each([{ host: 'Payload', Host: Payload }, { host: 'Puck', Host: Puck }])('$host drives the shared headless picker', ({ Host }) => {
   test('warning only after ready, source contains matches filtered, picking selects slug', async () => {

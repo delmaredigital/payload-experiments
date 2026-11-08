@@ -42,6 +42,7 @@ export function generateEditorCss() {
   const block = (selector, mode) => `${selector} {\n${Object.entries(resolvedTokens(mode)).map(([name, value]) => `  ${name}: ${value};`).join('\n')}\n}\n`
   return '/* generated — do not edit. Run pnpm generate:editor-css. Reference: Payload 3.90.2. */\n'
     + block('.xp-slot-root', 'light') + '\n' + block("[data-theme='dark'] .xp-slot-root,\n.dark .xp-slot-root", 'dark')
+    + '\n' + block('[class*="_PuckFields"] .xp-slot-root', 'light')
     + '\n' + readFileSync(join(src, 'ui/ui.css'), 'utf8') + '\n' + readFileSync(join(src, 'puck/editor/editor.chrome.css'), 'utf8')
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

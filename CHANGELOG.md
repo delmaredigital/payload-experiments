@@ -17,6 +17,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Migration impact: none.
 - Changed: Unwrap follows the test's status, with draft deletion, stopped-test confirmation, and specific error text when a change fails.
   Migration impact: none.
+- Fixed: click-goal field layout in the admin and contrast in the page editor's field sidebar when the admin is in dark mode. Sidebar styling keys off Puck's field-panel class, checked by a test against the installed Puck.
+  Migration impact: none.
 
 ## [0.4.0-rc.1] - 2026-11-05
 
