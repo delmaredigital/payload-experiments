@@ -259,6 +259,10 @@ await linkIdentity(serverRuntime, { headers: request.headers, userId, verified: 
 the account in this browser. Registration without that proof uses `false`.
 A session refresh or an account's verified-email flag is not proof here.
 
+### Erasing a user
+
+When you erase a user, call `eraseUser(payload, { userId })` from `/rsc` so their test data goes too; see the [full reference](https://github.com/delmaredigital/payload-experiments/blob/main/packages/plugin/REFERENCE.md#server-components-rsc).
+
 ### Puck (optional)
 
 For [steps 2](#2-add-the-plugin) and [6](#6-render-the-assigned-version), add
@@ -405,6 +409,10 @@ Callbacks receive `{ req }` and return a boolean or a promise of one.
 | `admin` | Code tests and analysis-method changes | `manage` |
 | `readResults` | Read results | `manage` |
 | `readIdentities` | Read identity links | `admin` |
+
+## Full reference (until the docs site)
+
+The longer option-by-option reference from before this rewrite is in [REFERENCE.md](https://github.com/delmaredigital/payload-experiments/blob/main/packages/plugin/REFERENCE.md) until the documentation site exists.
 
 ## License
 

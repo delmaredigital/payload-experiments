@@ -15,6 +15,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Migration impact: none.
 - Fixed: A duplicate short name on a non-click goal now points to the Short name field, not to Advanced.
   Migration impact: none.
+- Changed: README rewritten for the people who install and use it; full reference kept in REFERENCE.md until the docs site.
+  Migration impact: none.
 
 ## [0.4.0-rc.2] - 2026-11-07
 

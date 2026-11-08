@@ -10,7 +10,7 @@ const parse = (text: string) => ts.createSourceFile('snippet.tsx', text, ts.Scri
 
 // Like entrypoints.test.ts: inspect named export declarations with the TS compiler,
 // including type exports. The entrypoint suite separately forbids export * barrels.
-function checkImports(markdown: string): { count: number; failures: string[] } {
+function checkImports(markdown: string, file = 'README.md'): { count: number; failures: string[] } {
   let count = 0
   const failures: string[] = []
   for (const block of markdown.matchAll(/^[ \t]*(`{3,}|~{3,})(?:ts|tsx|typescript)(?:[ \t]+[^\r\n]*)?\r?\n([\s\S]*?)^[ \t]*\1[ \t]*\r?$/gm)) {
@@ -22,7 +22,7 @@ function checkImports(markdown: string): { count: number; failures: string[] } {
       if (specifier !== prefix && !specifier.startsWith(`${prefix}/`)) continue
       count++
       const line = firstLine + source.getLineAndCharacterOfPosition(node.getStart(source)).line
-      const context = `README.md:${line} ${specifier}`
+      const context = `${file}:${line} ${specifier}`
       const entry = pkg.exports[specifier === prefix ? '.' : `.${specifier.slice(prefix.length)}`]
       const target = typeof entry === 'object' ? entry['@delmaredigital/source'] : undefined
       if (!target?.startsWith('./src/')) {
@@ -44,14 +44,15 @@ function checkImports(markdown: string): { count: number; failures: string[] } {
     }
   }
   const occurrences = [...markdown.matchAll(/\bfrom\s+['"]@delmaredigital\/payload-experiments(?:\/[^'"]*)?['"]/g)].length
-  if (count !== occurrences) failures.push(`README.md: parsed ${count} package imports in TypeScript fences; found ${occurrences} from occurrences in the whole README`)
-  if (!count) failures.push('README.md: no package imports found in TypeScript fences')
+  if (count !== occurrences) failures.push(`${file}: parsed ${count} package imports in TypeScript fences; found ${occurrences} from occurrences in the whole file`)
+  if (!count) failures.push(`${file}: no package imports found in TypeScript fences`)
   return { count, failures }
 }
 
-// Measured in the scoped exports run: 15 ms / 2 ms; each below 1/3 of the 5,000 ms cap.
-test('README imports exist on their public package entries', () => {
-  const result = checkImports(readFileSync(new URL('README.md', root), 'utf8'))
+// Measured in the scoped exports run: README 12 ms, REFERENCE 4 ms, fixtures 1 ms; each below 1/3 of the 5,000 ms cap.
+// REFERENCE.md is the interim full reference (repo only) until the docs site exists.
+test.each(['README.md', 'REFERENCE.md'])('%s imports exist on their public package entries', file => {
+  const result = checkImports(readFileSync(new URL(file, root), 'utf8'), file)
   expect(result.count).toBeGreaterThan(0)
   expect(result.failures).toEqual([])
 }, 5_000)
@@ -71,7 +72,7 @@ test('reports missing names, source conditions and skipped imports; accepts fenc
   expect(checkImports(fixture(`import { Nope } from '${prefix}/puck/editor.css'`)).failures)
     .toEqual([`README.md:4 ${prefix}/puck/editor.css: specifier has no @delmaredigital/source condition in the exports map`])
   expect(checkImports(`${fixture(valid)}\n${valid}`).failures).toEqual([
-    'README.md: parsed 1 package imports in TypeScript fences; found 2 from occurrences in the whole README',
+    'README.md: parsed 1 package imports in TypeScript fences; found 2 from occurrences in the whole file',
   ])
   expect(checkImports('No imports').failures).toEqual(['README.md: no package imports found in TypeScript fences'])
 }, 5_000)
