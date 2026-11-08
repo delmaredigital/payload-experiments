@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.4.0-rc.2] - 2026-11-07
+
+### plugin
+
 - Changed: choosing a page in the new-test wizard and in a test's Versions now uses one searchable field that shows the chosen page.
   Migration impact: none.
 - Changed: Tests and Goals appear as a regular "Tests" nav group, the first named group, visible to managers only. The nav highlights on the Tests home and Goals page; on deeper test pages the surface breadcrumbs show where you are.
@@ -22,6 +26,14 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Migration impact: none.
 - Fixed: click-goal field layout in the admin and contrast in the page editor's field sidebar when the admin is in dark mode. Sidebar styling keys off Puck's field-panel class, checked by a test against the installed Puck.
   Migration impact: none.
+- Fixed: Publishing a Puck page whose components name a click goal that does not exist is now refused, with the component's location and "No click goal has this name yet. Create it with "+ New click goal"." Draft saves are still allowed, matching Payload block fields. The check runs for managers (`access.manage`); a malformed goal name is refused for everyone. On a Puck collection without drafts every save is checked.
+  Migration impact: none in code. A page that already names an undefined click goal cannot be published by a manager until the goal is created or the name is removed.
+- Fixed: Start and Decide on a stopped block test whose Experiment block was removed from its page are refused with "The block for this test was removed from its page, so it can't start again. Its results are kept. To test the block again, start a new test from the page." (new refusal code `placement-removed`). Archive still works.
+  Migration impact: none. Hosts that switch over refusal codes gain `placement-removed`.
+- Fixed: REST errors from the tests collection keep their refusal `code` for every refusal, not only `stale-edit`, so the admin shows the specific message (for example deleting a test that is no longer a draft, `invalid-status`, 409).
+  Migration impact: none.
+- Corrected (0.4.0-rc.1 entry): `admin.editorUrl` now receives a required `editor` argument (`'puck' | 'blocks' | 'page'`) as well as `doc`. A host that types its own `editorUrl` function, or calls it in tests, must accept or pass `editor`. The rc.1 entry said "Migration impact: none"; that was wrong.
+  Migration impact: TypeScript hosts update the `editorUrl` signature and any direct callers; runtime behaviour is unchanged.
 
 ## [0.4.0-rc.1] - 2026-11-05
 
@@ -68,7 +80,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added: `pageKindSeoContract` from `/rsc` to test host metadata and sitemap wiring. Migration impact: none.
 - Added: permanent retirement of deleted test short names; new tests choose an unused suffix. Migration impact: nullable `xp_state.retired_slugs`; run `payload migrate:create`.
 - Changed: legacy page tests resolve one collection from the Original (or the sole registration), then use it for every version. Migration impact: none; register `pageCollection` explicitly when several collections share an address.
-- Changed: Puck consumers share the document-editor `appliesTo` rule, and `admin.editorUrl` receives `editor` and `doc`. Migration impact: none.
+- Changed: Puck consumers share the document-editor `appliesTo` rule, and `admin.editorUrl` receives `editor` and `doc`. Migration impact: none. (see 0.4.0-rc.2: corrected)
 
 ### BREAKING
 
