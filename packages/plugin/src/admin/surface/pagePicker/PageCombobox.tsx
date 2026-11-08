@@ -175,7 +175,7 @@ export function PageCombobox({ collection, test, armKey, apiRoute }: {
           setActive(optionKeys[Math.max(0, Math.min(optionKeys.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))] ?? null)
         } else if (open && activeKey && (event.key === 'Home' || event.key === 'End')) {
           event.preventDefault(); setActive(optionKeys[event.key === 'Home' ? 0 : optionKeys.length - 1] ?? null)
-        } else if (open && activeKey && event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); choose(activeKey) }
+        } else if (open && activeKey && event.key === 'Enter' && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); choose(activeKey) }
       }} />
     {open ? <div className="xp-page-combobox-popup">
       <div id={`${id}-list`} role="listbox" aria-label={label}>

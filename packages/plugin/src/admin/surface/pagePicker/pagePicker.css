@@ -6,5 +6,5 @@
 .xp-page-option[aria-selected='true'] { border-color: var(--xp-accent); }
 .xp-page-option-check { position: absolute; inset-inline-end: var(--xp-space-2); top: var(--xp-space-3); color: var(--xp-accent); }
 .xp-page-option[data-active='true'] { background: var(--xp-surface-2); outline: 2px solid var(--xp-focus); outline-offset: -4px; }
-.xp-page-option[aria-disabled='true'] { --xp-border-strong: var(--xp-text-2); cursor: not-allowed; border-color: var(--xp-border-strong); border-style: dashed; }
+.xp-page-option[aria-disabled='true'] { cursor: not-allowed; border-color: var(--xp-text-2); border-style: dashed; }
 .xp-page-option[aria-disabled='true'] strong { font-weight: 400; }
