@@ -1,6 +1,7 @@
 import { CLICK_GOAL_COPY } from '../../goals/picker/copy.js'
 export const GOALS_COPY = {
   slugRule: CLICK_GOAL_COPY.slugRule, duplicateSlug: CLICK_GOAL_COPY.duplicateSlug,
+  duplicateSlugMain: 'Another goal already uses this short name. Choose another.',
   title: 'Goals', goal: 'Goal', newGoal: 'New goal', name: 'Name', source: 'Measured by', directionColumn: 'Better when',
   direction: 'Better when it goes', increase: 'More is better', decrease: 'Less is better', usedBy: 'Used by', status: 'Status',
   inUse: 'In use', unused: 'Not used yet', empty: 'No goals yet. A goal is what a test tries to improve.',

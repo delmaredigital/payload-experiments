@@ -41,15 +41,13 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
   const [loadError, setLoadError] = useState('')
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [seenFieldErrors, setSeenFieldErrors] = useState(fieldErrors)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [pending, setPending] = useState<'save' | 'delete' | null>(null)
   const [slugEdited, setSlugEdited] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const inFlight = useRef(false)
-  const advanced = useRef<HTMLDetailsElement>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  useEffect(() => {
-    if (advanced.current && (fieldErrors.slug || fieldErrors.capType || fieldErrors.capValue || fieldErrors.warningPercent)) advanced.current.open = true
-  }, [fieldErrors])
   const listUrl = surfaceUrls.goals(surface.adminRoute, returnToTest ? { return: returnToTest } : undefined)
   useEffect(() => {
     const controller = new AbortController()
@@ -78,6 +76,11 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
   }, [base, id, attempt])
   const source = sourceFor(draft.source, surface.metricSources)
   const click = draft.source.startsWith('click:')
+  // Keep the disclosure and its new field errors in the same commit.
+  if (fieldErrors !== seenFieldErrors) {
+    setSeenFieldErrors(fieldErrors)
+    if ((click && fieldErrors.slug) || fieldErrors.capType || fieldErrors.capValue || fieldErrors.warningPercent) setAdvancedOpen(true)
+  }
   const hint = metricSourceHint(source)
   const options = metricSourceOptions(surface.metricSources)
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft(current => ({ ...current, [key]: value }))
@@ -106,7 +109,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
         path: `/experiments/${encodeURIComponent(returnToTest)}?${new URLSearchParams({ goal: String(saved.doc.id) })}` }) : listUrl)
     } catch (cause) {
       setError(cause instanceof GoalResponseError ? cause.message : C.saveError)
-      if (cause instanceof GoalResponseError) setFieldErrors(Object.fromEntries(Object.entries(cause.fields).flatMap(([path, message]) => fieldNames[path] ? [[fieldNames[path], path === 'slug' ? C.duplicateSlug : message]] : [])))
+      if (cause instanceof GoalResponseError) setFieldErrors(Object.fromEntries(Object.entries(cause.fields).flatMap(([path, message]) => fieldNames[path] ? [[fieldNames[path], path === 'slug' ? click ? C.duplicateSlug : C.duplicateSlugMain : message]] : [])))
       inFlight.current = false; setPending(null)
     }
   }
@@ -144,6 +147,8 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
                 const revenue = sourceFor(sourceId, surface.metricSources)?.kind === 'revenue'
                 setDraft(current => ({ ...current, source: sourceId, ...(!slugEdited && !usedBy ? { slug: sourceId === 'click:' ? clickGoalSlug(current.name) : goalSlug(current.name) } : {}), capType: revenue ? 'percentile' : '', capValue: revenue ? '0.99' : '' }))
                 if (sourceId === 'click:' && !slugEdited && !usedBy) setFieldErrors(current => ({ ...current, slug: clickGoalSlug(draft.name) ? undefined : C.slugRule }))
+                // The slug error's copy and place depend on the kind; drop it when the kind changes, the next save re-checks.
+                else if ((sourceId === 'click:') !== click) setFieldErrors(current => ({ ...current, slug: undefined }))
               }}><option value="">{C.chooseSource}</option>{options.map(option => <option key={option.value} value={option.value}>{option.value === 'click:' ? sourceFor(option.value, surface.metricSources)?.label : option.label}</option>)}
                 {!click && draft.source && !options.some(option => option.value === draft.source) ? <option value={draft.source}>{draft.source}</option> : null}
               </Select>
@@ -154,7 +159,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
                 onChange={event => set('attributionWindowHours', event.currentTarget.value === '' ? null : Number(event.currentTarget.value))} />
               <NumberInput id="xp-goal-minimum" label={C.minimum} required min="1" step="any" value={draft.minSampleSize ?? ''} error={fieldErrors.minSampleSize}
                 onChange={event => set('minSampleSize', event.currentTarget.value === '' ? null : Number(event.currentTarget.value))} />
-              <details className="xp-goal-advanced" ref={advanced}><summary>{C.advanced}</summary>
+              <details className="xp-goal-advanced" open={advancedOpen} onToggle={event => setAdvancedOpen(event.currentTarget.open)}><summary>{C.advanced}</summary>
                 <div className="xp-goal-advanced-fields">
                   {click ? <><TextInput id="xp-goal-slug" label={C.slug} required value={draft.slug} readOnly={usedBy > 0}
                 help={usedBy ? C.slugLocked : C.slugHelp} error={fieldErrors.slug}
