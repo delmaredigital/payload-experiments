@@ -6,7 +6,7 @@ import type { DocId } from '../../../types/contracts.js'
 import type { SurfaceProps } from '../contracts.js'
 import { useTestDocument } from '../useTestDocument.js'
 import { CopyRoute } from '../pagePicker/CopyRoute.js'
-import { PagePicker } from '../pagePicker/PagePicker.js'
+import { PageCombobox } from '../pagePicker/PageCombobox.js'
 import { testPageCollection, controlFirst } from '../pagePicker/pagePicker.model.js'
 import { NEW_TEST_COPY as C } from '../../copy/newTest.js'
 import { READINESS_COPY } from '../../copy/readiness.js'
@@ -14,6 +14,7 @@ import { TEST_PAGE } from '../../copy/testPage.js'
 import { SURFACE_COPY } from '../../copy/surface.js'
 import { pageStepCopy } from '../../copy/pages.js'
 import { READINESS, nextStep, pageReadinessContext, readinessArm } from '../readiness/readiness.model.js'
+import { FieldErrors } from '../test/fields.js'
 import { SaveStatus } from '../readiness/SaveStatus.js'
 import { createApi } from '../../api.js'
 import { useTransition } from '../readiness/useTransition.js'
@@ -43,7 +44,7 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
     if (section === 'versions') setStep(key ?? arms.find(item => !item.pageTarget)?.key ?? 'control')
     else router.push(`${testUrl}#section-${section}`)
   }
-  const picker = arm && collection ? <PagePicker key={`${collection.slug}/${arm.key}`} collection={collection} test={test} armKey={arm.key} apiRoute={surface.apiRoute} /> : null
+  const picker = arm && collection ? <PageCombobox key={`${collection.slug}/${arm.key}`} collection={collection} test={test} armKey={arm.key} apiRoute={surface.apiRoute} /> : null
   return <div className="xp-new-test xp-page-wizard">
     <h2>{step === 'collection' ? C.collection : step === 'review' ? C.review : arm?.kind === 'control' ? C.original : pageStepCopy(arm?.label ?? '')}</h2>
     <SaveStatus test={test} />
@@ -68,6 +69,7 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
       }}>{ready ? C.start : C.finishSetup}</button>
       {transition.error ? <p role="alert">{transition.error}</p> : null}
     </> : arm?.kind === 'control' ? <><p>{C.originalHelp}</p>{picker}</> : collection ? <CopyRoute collection={collection}>{picker}</CopyRoute> : null}
+    {arm ? <FieldErrors test={test} path={`arms.${doc.arms.findIndex(item => item.key === arm.key)}.pageTarget`} /> : null}
     <div className="xp-new-test-actions">
       <button type="button" disabled={busy} onClick={() => {
         const previous = steps[steps.indexOf(step) - 1]

@@ -31,3 +31,9 @@ test('host hint replaces generic instructions entirely and precedes publishing a
   expect(link.getAttribute('target')).toBe('_blank')
   expect(container.querySelector('.xp-copy-route-action')?.nextElementSibling?.textContent).toContain('Copy in the page tree.')
 })
+
+test('guidance may render without wrapping a field', () => {
+  const { container } = render(<CopyRoute collection={collection} />)
+  expect(screen.getByText('Then choose the page you made.').nextElementSibling).toBeNull()
+  expect(container.querySelectorAll('li')).toHaveLength(3)
+})

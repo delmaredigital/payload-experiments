@@ -7,7 +7,7 @@ import { actionGroupLabel } from '../../actions/actions.model.js'
 
 export type PageRow = PagesResult['docs'][number]
 export type PageCollection = NonNullable<TestsSurfaceProps['pageCollections']>[number]
-export type PageSelections = Partial<Record<Arm['key'], { id: DocId; path: string }>>
+export type PageSelections = Partial<Record<Arm['key'], { id: DocId; path: string; title?: string; published?: boolean }>>
 /** The server resolves legacy collections; the client consumes its placements verbatim. */
 export function testPageCollection(collections: readonly PageCollection[] | undefined, doc: { pageCollection?: string | null }, placements: PreflightResult['pagePlacements']) {
   const slug = doc.pageCollection || placements?.find(entry => entry.collection)?.collection

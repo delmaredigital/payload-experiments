@@ -23,7 +23,7 @@ function server(checks = preflight().checks) {
     if (url.includes('/xp/pages?')) return response({ docs: [
       { id: 1, title: 'Welcome', path: '/welcome/', pathKey: '/welcome', published: true },
       { id: 2, title: 'Copy', path: '/copy/', pathKey: '/copy', published: false },
-    ], hasNextPage: false })
+    ].filter(row => { const path = new URL(url, 'http://localhost').searchParams.get('path'); return !path || row.path.replace(/\/$/, '') === path.replace(/\/$/, '') }), hasNextPage: false })
     if (url.endsWith('/preflight')) return response(preflight(checks))
     if (init?.method === 'POST' && url.endsWith('/start')) return response({ revision: 1 })
     if (init?.method === 'PATCH') { stored = { ...stored, ...JSON.parse(init.body as string) }; return response({ doc: stored }) }
@@ -35,7 +35,8 @@ function server(checks = preflight().checks) {
   return { fetcher, stored: () => stored }
 }
 async function choose(title: string) {
-  fireEvent.click(await screen.findByRole('button', { name: new RegExp(title) }))
+  fireEvent.click(screen.getByRole('combobox'))
+  fireEvent.click(await screen.findByRole('option', { name: new RegExp(title.replace(' /', '.*/')) }))
   await waitFor(() => expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(false))
 }
 test('Name posts a complete page body via createTest; single collection skips its step and saves page choices across leaving', async () => {
@@ -81,6 +82,7 @@ test('multiple collections save through the document session and survive a reloa
   expect((chosen as HTMLInputElement).checked).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: 'Next' }))
   await screen.findByText('Choose the page visitors see today.')
+  fireEvent.click(screen.getByRole('combobox'))
   await waitFor(() => expect(api.fetcher.mock.calls.some(([url]) => url.includes('collection=articles'))).toBe(true))
 })
 test.each([false, true])('Review main action reflects readiness (%s); Finish setup jumps to affected version', async ready => {
@@ -96,7 +98,8 @@ test.each([false, true])('Review main action reflects readiness (%s); Finish set
   if (ready) await waitFor(() => expect(push).toHaveBeenCalledWith('/admin/experiments/xp1'))
   else {
     expect(screen.getByText('Choose the page visitors see today.')).toBeTruthy()
-    await screen.findByRole('button', { name: /Welcome/ })
+    fireEvent.click(screen.getByRole('combobox'))
+    await screen.findByRole('option', { name: /Welcome/ })
   }
 })
 test('Review refetches on focus and visibility, and late responses cannot restore a stale refusal', async () => {
@@ -132,7 +135,7 @@ test('Review refetches on focus and visibility, and late responses cannot restor
   await screen.findByRole('button', { name: 'Start' })
   expect(screen.queryByText(/isn't published yet/)).toBeNull()
 })
-test('test page uses the registered picker with placement links; a no-id entry has only path and Draft', async () => {
+test('Versions uses one inline field, exact placement links and sibling variant guidance', async () => {
   server()
   const p = props({ kind: 'page', pageCollection: 'pages', arms: [
     { key: 'control', kind: 'control', label: 'Original', weight: 50, pageTarget: '/welcome' },
@@ -142,62 +145,32 @@ test('test page uses the registered picker with placement links; a no-id entry h
   p.test.preflight!.pagePlacements = [{ arm: 'control', path: '/welcome', title: 'Welcome', id: 1, collection: 'pages', published: true, editorUrl: '/edit', url: '/preview' },
     { arm: 'variantA', path: '/copy/', id: null, collection: 'pages', published: false, title: 'Hidden', editorUrl: '/wrong', url: '/wrong-preview' }]
   const view = render(<VersionContent {...p} armIndex={0} />)
-  expect(screen.getByText('Where it shows')).toBeTruthy()
-  expect(screen.getByText('Welcome · /welcome')).toBeTruthy()
+  expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('Welcome · /welcome')
   expect(screen.getByRole('link', { name: 'Open' }).getAttribute('href')).toBe('/edit')
   expect(screen.getByRole('link', { name: 'Preview' }).getAttribute('href')).toBe('/preview')
-  fireEvent.click(screen.getByRole('button', { name: 'Change' }))
-  await screen.findByLabelText('Search pages by title')
-  expect(screen.queryByText('Copy from the page tree.')).toBeNull()
-  expect(screen.queryByText('Then choose the page you made.')).toBeNull()
+  fireEvent.click(screen.getByRole('combobox'))
+  await screen.findByRole('listbox')
   expect(view.container.querySelector('.xp-copy-route')).toBeNull()
   view.rerender(<VersionContent {...p} armIndex={1} />)
-  expect(screen.getByText('/copy/ · Draft', { selector: 'p' })).toBeTruthy()
+  fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Escape' })
   expect(screen.queryByRole('link', { name: 'Open' })).toBeNull()
   expect(screen.queryByRole('link', { name: 'Preview' })).toBeNull()
-  expect(screen.queryByText('Hidden')).toBeNull()
-  expect(screen.getByText('Copy from the page tree.')).toBeTruthy()
-  expect(screen.getByText('Then choose the page you made.').nextElementSibling?.className).toBe('xp-page-picker')
-  expect(view.container.querySelector('.xp-version-content--page')).toBeTruthy()
-  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-  expect(screen.queryByText('Then choose the page you made.')).toBeNull()
-  expect(screen.queryByText('Copy from the page tree.')).toBeNull()
-  expect(screen.queryByLabelText('Search pages by title')).toBeNull()
-  expect(screen.getByRole('button', { name: 'Change' })).toBeTruthy()
+  expect(view.container.querySelector('.xp-copy-route')?.nextElementSibling?.className).toBe('xp-page-combobox')
+  expect(view.container.querySelector('.xp-copy-route .xp-page-combobox')).toBeNull()
+  await waitFor(() => expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('Copy · /copy/ · Draft'))
   view.unmount()
   render(<VersionsSection {...p} parts={pageParts} />)
   expect(screen.getByText('Content checks are off for this page type.')).toBeTruthy()
   expect(document.getElementById('xp-version-variantA')).toBeTruthy()
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Page for Variant A' }) as HTMLInputElement).value).toBe('Copy · /copy/ · Draft'))
 })
-test.each([undefined, ''])('unchosen page (%s) has authored empty copy, while a chosen path without an id remains Draft', pageTarget => {
+test.each([undefined, ''])('unchosen page (%s) shows the field placeholder', pageTarget => {
   const p = props({ kind: 'page', pageCollection: 'pages', arms: [{ key: 'variantA', kind: 'variant', label: 'Variant A', weight: 100, pageTarget }] })
   p.surface.pageCollections = collections
   p.test.preflight!.pagePlacements = [{ arm: 'variantA', path: '', id: null, published: false }]
-  const view = render(<VersionContent {...p} armIndex={0} />)
-  expect(screen.getByText('No page chosen yet.')).toBeTruthy()
-  expect(screen.queryByText(/Draft/)).toBeNull()
-  expect(screen.queryByText('Then choose the page you made.')).toBeNull()
-  expect(screen.getByRole('button', { name: 'Choose a page' })).toBeTruthy()
-  p.test.doc!.arms[0]!.pageTarget = '/chosen'
-  view.rerender(<VersionContent {...p} armIndex={0} />)
-  expect(screen.getByText('/chosen · Draft')).toBeTruthy()
-  expect(screen.queryByText('No page chosen yet.')).toBeNull()
-})
-test('a version row shows copy instructions only when open, immediately followed by the picker', async () => {
-  server()
-  const p = props({ kind: 'page', pageCollection: 'pages', arms: [{ key: 'variantA', kind: 'variant', label: 'Variant A', weight: 100, pageTarget: '/copy' }] })
-  p.surface.pageCollections = collections
-  p.test.preflight!.pagePlacements = [{ arm: 'variantA', path: '/copy', id: 2, published: true, editorUrl: '/edit-copy', url: '/preview-copy' }]
   render(<VersionContent {...p} armIndex={0} />)
-  expect(screen.getByText('Where it shows')).toBeTruthy()
-  expect(screen.getByRole('link', { name: 'Open' }).getAttribute('href')).toBe('/edit-copy')
-  expect(screen.getByRole('link', { name: 'Preview' }).getAttribute('href')).toBe('/preview-copy')
-  expect(screen.queryByText('Then choose the page you made.')).toBeNull()
-  expect(screen.queryByRole('link', { name: 'Open tree' })).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Change' }))
-  await screen.findByRole('button', { name: /Welcome/ })
-  expect(screen.getByRole('link', { name: 'Open tree' })).toBeTruthy()
-  expect(screen.getByText('Then choose the page you made.').nextElementSibling?.className).toBe('xp-page-picker')
+  expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('')
+  expect(screen.getByRole('combobox').getAttribute('placeholder')).toBe('Choose a page')
 })
 test.each(['future-code', 'toString'])('Review tolerates unknown readiness code %s with the home-card fallback', async code => {
   server([{ code, ok: false }] as unknown as ReturnType<typeof preflight>['checks'])
@@ -236,4 +209,42 @@ test('existing page tests fall back to server placement collection; unconfigured
   view.rerender(<VersionContent {...p} armIndex={0} />)
   expect(screen.queryByLabelText('Original: Page address')).toBeNull()
   expect(screen.getByText('Where it shows')).toBeTruthy()
+})
+
+test('reproduction: wizard PATCHes the clicked page and shows the current choice', async () => {
+  const api = server()
+  render(<PageWizard id="xp1" surface={surface} />)
+  await screen.findByText('Choose the page visitors see today.')
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('combobox'))
+  fireEvent.click(await screen.findByRole('option', { name: /Welcome/ }))
+  await waitFor(() => expect(api.fetcher.mock.calls.some(([, init]) => init?.method === 'PATCH' && JSON.parse(init.body as string).arms?.[0]?.pageTarget === '/welcome/')).toBe(true))
+  expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('Welcome · /welcome/')
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+  expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('Welcome · /welcome/')
+})
+test('reproduction: Versions ignores an old placement after choosing a new page', () => {
+  const p = props({ kind: 'page', pageCollection: 'pages', arms: [{ key: 'control', kind: 'control', label: 'Original', weight: 100, pageTarget: '/new' }] })
+  p.surface.pageCollections = collections
+  p.test.chosenPages = { control: { id: 2, path: '/new' } }
+  p.test.preflight!.pagePlacements = [{ arm: 'control', collection: 'pages', id: 1, path: '/old', title: 'Old page', published: true }]
+  render(<VersionContent {...p} armIndex={0} />)
+  expect(screen.queryByText('Old page · /old')).toBeNull()
+  expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('/new')
+})
+
+test('wizard shows page-target errors at the document index when Original is reordered first', async () => {
+  const api = server()
+  const initial = api.fetcher.getMockImplementation()!
+  api.fetcher.mockImplementation(async (url, init) => {
+    if (init?.method === 'PATCH') return new Response(JSON.stringify({ errors: [{ data: { errors: [{ path: 'arms.1.pageTarget', message: 'Pick a published Original.' }] } }] }), { status: 400 })
+    if (url.includes('/xp-experiments/') && init?.method === 'GET') return response({ ...api.stored(), arms: [...api.stored().arms].reverse() })
+    return initial(url, init)
+  })
+  render(<PageWizard id="xp1" surface={surface} />)
+  await screen.findByRole('combobox', { name: 'Page for Original' })
+  fireEvent.click(screen.getByRole('combobox'))
+  fireEvent.click(await screen.findByRole('option', { name: /Welcome/ }))
+  expect((await screen.findByText('Pick a published Original.')).getAttribute('role')).toBe('alert')
 })
