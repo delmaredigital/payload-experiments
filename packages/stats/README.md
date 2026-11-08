@@ -1,5 +1,7 @@
 # @delmaredigital/experiments-stats
 
+Most people want [@delmaredigital/payload-experiments](https://www.npmjs.com/package/@delmaredigital/payload-experiments); this package is the statistics engine it uses.
+
 A pure TypeScript port of GrowthBook's MIT statistics and assignment code.
 Functions are synchronous and deterministic, accept plain numbers, arrays and
 objects, and have no runtime dependencies. The package covers assignment,

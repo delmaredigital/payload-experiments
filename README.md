@@ -4,10 +4,10 @@ No-code A/B testing for [Payload CMS](https://payloadcms.com) and Next.js, with 
 
 | Package | npm | What it is |
 |---|---|---|
-| [`@delmaredigital/payload-experiments`](packages/plugin) | pending | The Payload plugin: experiments, layers, metrics, events, Next.js runtime, results, admin views, optional Puck slot |
-| [`@delmaredigital/experiments-stats`](packages/stats) | pending | Pure TypeScript statistics engine (GrowthBook `gbstats` port): assignment hashing, sequential and fixed-horizon tests, Bayesian effects, CUPED, SRM, power |
+| [`@delmaredigital/payload-experiments`](packages/plugin) | [npm](https://www.npmjs.com/package/@delmaredigital/payload-experiments) | The Payload plugin: experiments, layers, metrics, events, Next.js runtime, results, admin views, optional Puck slot |
+| [`@delmaredigital/experiments-stats`](packages/stats) | [npm](https://www.npmjs.com/package/@delmaredigital/experiments-stats) | Pure TypeScript statistics engine (GrowthBook `gbstats` port): assignment hashing, sequential and fixed-horizon tests, Bayesian effects, CUPED, SRM, power |
 
-**Status:** design complete, implementation in progress. Not yet published.
+**Status:** pre-1.0 and published on npm. A minor release can require changes; see the [CHANGELOG](CHANGELOG.md).
 
 ## Why
 
