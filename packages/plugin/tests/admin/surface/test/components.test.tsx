@@ -58,7 +58,7 @@ test.each(['running', 'decided', 'archived'] as const)('returned goals do not ed
   await waitFor(() => expect(window.location.search).toBe(''))
   expect(p.test.stage).not.toHaveBeenCalled()
   expect(p.test.commit).not.toHaveBeenCalled()
-  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/experiments/goals')
+  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/collections/xp-metrics')
   window.history.replaceState(null, '', '/')
 })
 
@@ -69,7 +69,7 @@ test('page load states are clear and the ready view has stacked anchored section
   const view = render(<TestPage id={1} surface={surface} />)
   expect(screen.getByText('Loading test…')).toBeTruthy()
   const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' })
-  expect(within(breadcrumb).getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/cms/experiments')
+  expect(within(breadcrumb).getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/cms/collections/xp-experiments')
   expect(within(breadcrumb).getByText('Test').getAttribute('aria-current')).toBe('page')
   for (const [loadState, message] of [['forbidden', "You don't have access to this test."], ['missing', 'This test no longer exists.'], ['error', "Couldn't load this test."]] as const) {
     hook.mockReturnValue({ ...p.test, doc: null, loadState })
@@ -243,7 +243,7 @@ test('goals load via the host API and preserve the current metrics group on sele
   view.rerender(<GoalSection {...p} />)
   fireEvent.change(screen.getByLabelText('Goal'), { target: { value: '' } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: null, guardrails: [], secondary: [2] } })
-  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/experiments/goals?return=1')
+  expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/collections/xp-metrics?return=1')
 })
 test('save refusals render inline', () => {
   const p = props()

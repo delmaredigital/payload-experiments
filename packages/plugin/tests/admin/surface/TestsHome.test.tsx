@@ -17,7 +17,7 @@ test('loading then empty state with the creation and Goals links', async () => {
   expect(screen.getByRole('status').textContent).toBe('Loading tests…')
   expect(await screen.findByText('Create a test to learn what works.')).toBeTruthy()
   expect(screen.getAllByRole('link', { name: 'New test' }).every(link => link.getAttribute('href') === '/control/experiments/new')).toBe(true)
-  expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/experiments/goals')
+  expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/collections/xp-metrics')
   const url = new URL(fetch.mock.calls[0]![0], 'https://example.test')
   expect(url.pathname).toBe('/data/xp-experiments')
   expect(Object.fromEntries(url.searchParams)).toEqual({
@@ -128,7 +128,7 @@ test('home and shell links support the root admin route', async () => {
   render(<TestsSurface {...props} />)
   await screen.findByText('Stopped test')
   expect(screen.getByRole('heading', { level: 1, name: 'Tests' })).toBeTruthy()
-  for (const [name, href] of [['Back to admin', '/'], ['New test', '/experiments/new'], ['Goals', '/experiments/goals'], ['View results', '/experiments/123/results'], ['Stopped test', '/experiments/123/results']]) {
+  for (const [name, href] of [['Back to admin', '/'], ['New test', '/experiments/new'], ['Goals', '/collections/xp-metrics'], ['View results', '/experiments/123/results'], ['Stopped test', '/experiments/123/results']]) {
     expect(screen.getByRole('link', { name }).getAttribute('href')).toBe(href)
   }
 })
@@ -177,7 +177,7 @@ test('compact rows show all health labels, sentences and custom-route links', as
     expect(within(link.closest('article')!).getByText(action).getAttribute('href')).toBe(link.getAttribute('href'))
   }
   expect(container.querySelector('details')!.open).toBe(false)
-  expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/experiments/goals')
+  expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/collections/xp-metrics')
 })
 
 test('home renders shared readiness sentences, context and safe fallback copy', async () => {

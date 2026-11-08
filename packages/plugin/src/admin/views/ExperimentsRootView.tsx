@@ -1,19 +1,10 @@
-import { accentStyles } from '../../ui/accent.js'
 import type { AdminViewServerProps } from 'payload'
-import { flattenTopLevelFields, formatAdminURL } from 'payload/shared'
+import { formatAdminURL } from 'payload/shared'
 import { notFound, redirect } from 'next/navigation.js'
-import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'
-import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } from '../../collections/serialize.js'
-import { serializePageCollections } from '../pageCollections.js'
-import { collectionLabel as resolveLabel } from '../../collections/labels.js'
-import { documentEditor, puckCollections } from '../../options.js'
-import { xpOptionsFromReq } from '../../options/fromReq.js'
-import type { ExperimentsAccess } from '../../types/contracts.js'
-import type { FlagDefault } from '../../types/manifest.js'
-import type { TestsRoute, TestsSurfaceProps } from '../../types/surface.js'
-import { XP_TESTS_SURFACE } from '../paths.js'
-import { SURFACE_COPY } from '../copy/surface.js'
-import { routeAccess } from './access.model.js'
+import type { TestsRoute } from '../../types/surface.js'
+import { surfaceUrls } from '../surfaceUrls.js'
+import { buildSurfaceProps } from './buildSurfaceProps.js'
+import { renderTestsSurface } from './renderTestsSurface.js'
 
 export async function ExperimentsRootView({ initPageResult, params, searchParams }: Pick<AdminViewServerProps, 'initPageResult' | 'params' | 'searchParams'>) {
   const { req } = initPageResult
@@ -44,73 +35,14 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     return redirect(formatAdminURL({ adminRoute,
       path: `${login}?redirect=${encodeURIComponent(currentPath)}` }))
   }
-  // Keep the server export importable in plain Node; Next loads the CSS-bearing client boundary when this view renders.
-  const { RootViewMessage } = await import('../components/RootViewMessage.js')
-  const options = xpOptionsFromReq(req)
-  async function permits(access: ExperimentsAccess): Promise<boolean> {
-    try { return await access({ req }) === true } catch { return false }
+  const clientProps = await buildSurfaceProps({ req, route, id, searchParams })
+  if (clientProps?.canManage && (route === 'home' || route === 'goals')) {
+    return redirect(route === 'home' ? surfaceUrls.home(adminRoute, await searchParams) : surfaceUrls.goals(adminRoute, await searchParams))
   }
-  const canManage = await permits(options.access.manage)
-  const isAdmin = options.access.admin ? await permits(options.access.admin) : false
-  const canReadResults = options.access.readResults ? await permits(options.access.readResults) : canManage
-  if (routeAccess({ route, hasUser: true, canManage, canReadResults }) !== 'ok') {
-    return <RootViewMessage>{SURFACE_COPY.noAccess}</RootViewMessage>
-  }
-
-  if (canManage && id && tail[0] === 'by-slug') {
+  if (clientProps?.canManage && id && tail[0] === 'by-slug') {
     const result = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 1, where: { slug: { equals: id } } })
     if (!result.docs[0]) return notFound()
-    id = String(result.docs[0].id)
+    clientProps.id = String(result.docs[0].id)
   }
-  const flagPoints = serializeFlagPoints(options)
-  // xp-state is manager-readable only. Results-only readers do not edit settings.
-  if (canManage && flagPoints.length) {
-    const state = await req.payload.findGlobal({ slug: 'xp-state', req, overrideAccess: false, depth: 0 })
-    const defaults = state.flagDefaults as Record<string, FlagDefault> | undefined
-    for (const point of flagPoints) point.effectiveDefaults = defaults?.[point.id]?.params ?? point.defaultParams
-  }
-  const registrations = [...new Set([...(options.puck?.enabled ? puckCollections(options) : []), ...options.blocks?.collections ?? []].map(entry => entry.slug))]
-  const pages = route === 'new' && canManage && registrations.length ? (await Promise.all(registrations.map(async collection => {
-    try {
-      const config = req.payload.config.collections.find(item => item.slug === collection)
-      const useAsTitle = config?.admin.useAsTitle ?? 'id'
-      const collectionLabel = resolveLabel(config?.labels.plural, collection, req)
-      // appliesTo may inspect any stored field; ordinary Puck lists keep their title-only projection.
-      const predicateFields = options.blocks?.collections.some(entry => entry.slug === collection)
-        ? Object.fromEntries(flattenTopLevelFields(config?.fields ?? []).map(field => [field.name, true])) : {}
-      const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0,
-        limit: 50, sort: '-updatedAt', draft: true, select: { [useAsTitle]: true, ...predicateFields } })
-      // The new-test list uses the latest draft's editing intent, as the "Test a block" field condition does (§4.1).
-      return result.docs.map(doc => {
-        const editor = documentEditor(options, collection, doc)
-        if (editor !== 'puck' && editor !== 'blocks') return null
-        const id = doc.id
-        const customUrl = options.admin?.editorUrl?.({ collection, id, draft: true, editor, doc })
-        const title = doc[useAsTitle]
-        return { collection, collectionLabel, id, editor, title: typeof title === 'string' || typeof title === 'number' ? String(title) : String(id),
-          editorUrl: typeof customUrl === 'string' ? customUrl : formatAdminURL({ adminRoute, path: `/collections/${collection}/${encodeURIComponent(String(id))}` }) }
-      }).filter((page): page is NonNullable<typeof page> => page !== null)
-    } catch { return [] }
-  }))).flat() : undefined
-  const descriptions = options.admin?.descriptions
-  const returnToTest = (await searchParams)?.return
-  const clientProps: TestsSurfaceProps = {
-    ...(typeof returnToTest === 'string' && /^[\w-]+$/.test(returnToTest) ? { returnToTest } : {}),
-    route, ...(id === undefined ? {} : { id }), adminRoute, apiRoute: req.payload.config.routes.api,
-    canManage, canReadResults, isAdmin, flagPoints, ...(pages === undefined ? {} : { pages }),
-    pageCollections: serializePageCollections(options.pages?.collections ?? [], req),
-    collectionTitles: Object.fromEntries(req.payload.config.collections.flatMap(collection => {
-      const title = collection.admin.useAsTitle
-      return title && title !== 'id' ? [[collection.slug, title]] : []
-    })),
-    userId: req.user.id, userCollection: req.payload.config.admin.user,
-    attributeKeys: serializeAttributeKeys(options), metricSources: serializeMetricSources(options),
-    ...(descriptions ? { admin: { descriptions: { ...descriptions } } } : {}),
-  }
-  function TestsSurfaceFallback() {
-    return <RootViewMessage alert>{SURFACE_COPY.notInstalled}</RootViewMessage>
-  }
-  const css = accentStyles(options.theme?.accent)
-  const surface = RenderServerComponent({ Component: XP_TESTS_SURFACE, Fallback: TestsSurfaceFallback, importMap: req.payload.importMap, clientProps })
-  return css ? <><style>{css}</style>{surface}</> : surface
+  return renderTestsSurface(req, clientProps)
 }

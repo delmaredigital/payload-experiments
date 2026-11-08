@@ -32,6 +32,9 @@ const retiredFiles = [
   'admin/results/ResultsView.tsx',
 ]
 const views = [
+  ['XP_TESTS_COLLECTION_LIST', 'TestsCollectionListView'],
+  ['XP_GOALS_COLLECTION_LIST', 'GoalsCollectionListView'],
+  ['XP_GOAL_EDIT_REDIRECT', 'GoalEditRedirect'],
   ['XP_TESTS_NAV_LINK', 'TestsNavLinkServer'],
   ['XP_TESTS_VIEW', 'ExperimentsRootView'], ['XP_TESTS_LIST_REDIRECT', 'CollectionListRedirect'], ['XP_TEST_EDIT_REDIRECT', 'CollectionEditRedirect'],
 ] as const

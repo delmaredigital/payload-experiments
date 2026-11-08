@@ -1,4 +1,5 @@
 'use client'
+import { surfaceUrls } from '../../surfaceUrls.js'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation.js'
 import { formatAdminURL } from 'payload/shared'
@@ -49,8 +50,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
   useEffect(() => {
     if (advanced.current && (fieldErrors.slug || fieldErrors.capType || fieldErrors.capValue || fieldErrors.warningPercent)) advanced.current.open = true
   }, [fieldErrors])
-  const returnQuery = returnToTest ? `?${new URLSearchParams({ return: returnToTest })}` : ''
-  const listUrl = formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${returnQuery}` })
+  const listUrl = surfaceUrls.goals(surface.adminRoute, returnToTest ? { return: returnToTest } : undefined)
   useEffect(() => {
     const controller = new AbortController()
     setReady(false); setLoadError('')
@@ -121,7 +121,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
   }
   const title = goal?.name ?? (id === undefined ? C.newGoal : C.goal)
   return <SurfaceShell adminRoute={surface.adminRoute} title={title}
-    crumbs={[{ label: SURFACE_COPY.title, href: formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }) },
+    crumbs={[{ label: SURFACE_COPY.title, href: surfaceUrls.home(surface.adminRoute) },
       { label: C.title, href: listUrl }, { label: title }]}
     status={usedBy ? <span className="xp-tests-kind">{goalInUse(usedBy)}</span> : undefined}>
     <div className="xp-goals">

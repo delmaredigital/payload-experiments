@@ -44,9 +44,9 @@ test.each(['/control', '/'])('dispatches real home / new / test / results pages 
       expect(within(crumbs).queryByRole('link')).toBeNull()
       expect(within(crumbs).getByText('Tests').hasAttribute('href')).toBe(false)
       expect(await within(main).findByText('Create a test to learn what works.')).toBeTruthy()
-      expect(within(header).getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe(`${root}/experiments/goals`)
+      expect(within(header).getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe(`${root}/collections/xp-metrics`)
     } else {
-      expect(within(crumbs).getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe(`${root}/experiments`)
+      expect(within(crumbs).getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe(`${root}/collections/xp-experiments`)
       if (route === 'new') {
         expect(within(main).getByRole('heading', { name: 'What do you want to test?' })).toBeTruthy()
         fireEvent.click(within(main).getByRole('button', { name: /A block on a page/ }))
@@ -67,11 +67,12 @@ test.each(['/control', '/'])('dispatches real home / new / test / results pages 
   }
 })
 
-test('results-only readers retain the shared main and the Tests breadcrumb link', () => {
+test('results-only readers retain the shared main and an unlinked Tests breadcrumb', () => {
   render(<TestsSurface {...props} route="results" canManage={false} />)
   expect(screen.getAllByRole('main')).toHaveLength(1)
   expect(within(screen.getByRole('main')).getByText('Results body')).toBeTruthy()
-  expect(screen.getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/control/experiments')
+  expect(screen.queryByRole('link', { name: 'Tests' })).toBeNull()
+  expect(screen.getByText('Tests').hasAttribute('href')).toBe(false)
   expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Test')
   expect(hook).not.toHaveBeenCalled()

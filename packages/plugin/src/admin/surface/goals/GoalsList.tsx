@@ -1,4 +1,5 @@
 'use client'
+import { surfaceUrls } from '../../surfaceUrls.js'
 import { sourceFor } from '../../metricSource.model.js'
 import { useEffect, useState } from 'react'
 import { formatAdminURL } from 'payload/shared'
@@ -36,7 +37,7 @@ export function GoalsList({ surface, returnToTest }: { surface: SurfaceProps; re
   const goals = data?.goals.filter(goal => !showSearch || goal.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())) ?? []
   const newGoal = surface.canManage ? <Button variant="primary" href={url(`/experiments/goals/new${returnQuery}`)}>{C.newGoal}</Button> : null
   return <SurfaceShell adminRoute={surface.adminRoute} title={C.title}
-    crumbs={[{ label: SURFACE_COPY.title, href: url('/experiments') }, { label: C.title }]}
+    crumbs={[{ label: SURFACE_COPY.title, href: surfaceUrls.home(surface.adminRoute) }, { label: C.title }]}
     actions={<>{returnToTest ? <Button variant="quiet" href={url(`/experiments/${encodeURIComponent(returnToTest)}`)}>{C.backToTest}</Button> : null}{newGoal}</>}>
     <div className="xp-goals">
       {showSearch ? <SearchInput id="xp-goals-search" label={C.search} placeholder={C.search} value={search} onChange={event => setSearch(event.target.value)} /> : null}

@@ -2,7 +2,7 @@
 import { fetchAllDocs } from '../../../lib/fetchAllDocs.js'
 import { Button } from '../../../ui/Button.js'
 import { useEffect, useMemo, useState } from 'react'
-import { formatAdminURL } from 'payload/shared'
+import { surfaceUrls } from '../../surfaceUrls.js'
 import type { SectionProps } from '../contracts.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
 import { METRIC_KIND_LABELS } from '../../copy/metrics.js'
@@ -115,7 +115,7 @@ export function GoalSection({ test, surface }: SectionProps) {
     ? reviewView(test.preflight, { primaryMetricKind: kind }).baseline : null
   return <Section test={test} sectionId="win">
     {failed ? <p role="alert">{C.goalsError} <span className="xp-ui-button-group"><Button onClick={() => setAttempt(n => n + 1)}>{C.retry}</Button></span></p> : null}
-    <SelectEdit labelAction={<span className="xp-ui-button-group"><Button variant="link" size="sm" href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/goals${!reason ? `?${new URLSearchParams({ return: String(doc.id) })}` : ''}` })}>{C.manageGoals}</Button></span>} label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} groups={onPage.size ? [{ options: [{ value: '', label: C.chooseGoal }] }, ...roleGroups('primary')!] : undefined} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
+    <SelectEdit labelAction={<span className="xp-ui-button-group"><Button variant="link" size="sm" href={surfaceUrls.goals(surface.adminRoute, !reason ? { return: String(doc.id) } : undefined)}>{C.manageGoals}</Button></span>} label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} groups={onPage.size ? [{ options: [{ value: '', label: C.chooseGoal }] }, ...roleGroups('primary')!] : undefined} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
     <p>{C.goalHelp}</p>
     {primary && isClickSource(primary.source) ? <p>{C.clickGoalHelp}</p> : null}
     {baseline ? <p>{primary?.name ? `${primary.name}: ` : ''}{baseline}</p> : null}

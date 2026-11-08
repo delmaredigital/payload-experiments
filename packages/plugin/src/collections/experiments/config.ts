@@ -1,5 +1,6 @@
 import type { CollectionConfig, Field, FieldAccess } from 'payload'
 import type { Arm, ExperimentKind, ResolvedOptions } from '../../types/contracts.js'
+import { SURFACE_COPY } from '../../admin/copy/surface.js'
 import * as paths from '../../admin/paths.js'
 import { managedAccess } from '../access.js'
 import { serializeAttributeKeys, serializeFlagPoints } from '../serialize.js'
@@ -27,15 +28,15 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
     : { name, type: 'relationship', relationTo: 'xp-metrics', hasMany: false }
   return {
     slug: 'xp-experiments', graphQL: false, disableDuplicate: true, versions: { drafts: false, maxPerDoc: 50 },
+    labels: { singular: SURFACE_COPY.test, plural: SURFACE_COPY.navAllTests },
     access: {
       ...managedAccess(options),
       delete: async ({ req }) => (await options.access.manage({ req })) === true
         ? { status: { in: ['draft', 'archived'] } } : false,
     },
     admin: {
-      // group:false hides navigation while keeping custom view routes reachable (hidden causes 404s).
-      group: false, useAsTitle: 'name', defaultColumns: ['name', 'status', 'kind', 'flagPoint'],
-      components: { views: { list: { Component: paths.XP_TESTS_LIST_REDIRECT }, edit: {
+      group: 'Tests', useAsTitle: 'name', defaultColumns: ['name', 'status', 'kind', 'flagPoint'],
+      components: { views: { list: { Component: paths.XP_TESTS_COLLECTION_LIST }, edit: {
         default: { Component: paths.XP_TEST_EDIT_REDIRECT },
         results: { Component: paths.XP_TEST_EDIT_REDIRECT, path: '/results', tab: { label: 'Results', href: '/results' } },
       } } },

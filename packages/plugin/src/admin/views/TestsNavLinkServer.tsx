@@ -5,6 +5,7 @@ import { XP_TESTS_NAV_CLIENT } from '../paths.js'
 
 type NavPreference = { groups?: Record<string, { open?: boolean }> }
 
+/** @deprecated Retained for existing import maps until 0.5.0. */
 export async function TestsNavLinkServer({ payload, user, permissions }: Pick<ServerProps, 'payload' | 'user' | 'permissions'>) {
   const testPermissions: { update?: boolean } | undefined = permissions?.collections?.['xp-experiments']
   if (!user?.collection || testPermissions?.update !== true) return null

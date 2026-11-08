@@ -1,17 +1,18 @@
 'use client'
 
+import { surfaceUrls } from './surfaceUrls.js'
 import './theme.css'
 import { Link, NavGroup, useAuth, useConfig } from '@payloadcms/ui'
-import { formatAdminURL } from 'payload/shared'
 import { usePathname } from 'next/navigation.js'
 import { SURFACE_COPY } from './copy/surface.js'
 
+/** @deprecated Retained for existing import maps until 0.5.0. */
 function TestsNav({ isOpen = true }: { isOpen?: boolean }) {
   const { config } = useConfig()
   const { permissions } = useAuth()
   const pathname = usePathname()
-  const href = formatAdminURL({ adminRoute: config.routes.admin, path: '/experiments' })
-  const goalsHref = formatAdminURL({ adminRoute: config.routes.admin, path: '/experiments/goals' })
+  const href = surfaceUrls.home(config.routes.admin)
+  const goalsHref = surfaceUrls.goals(config.routes.admin)
   const base = href.replace(/\/$/, '')
   const goalsBase = goalsHref.replace(/\/$/, '')
   const goalsActive = pathname === goalsBase || Boolean(pathname?.startsWith(`${goalsBase}/`))

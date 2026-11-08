@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Changed: Tests and Goals appear as a regular "Tests" nav group, the first named group, visible to managers only. The nav highlights on the Tests home and Goals page; on deeper test pages the surface breadcrumbs show where you are.
+  Import-map keys changed: added `@delmaredigital/payload-experiments/admin/rsc#TestsCollectionListView`, `@delmaredigital/payload-experiments/admin/rsc#GoalsCollectionListView`, `@delmaredigital/payload-experiments/admin/rsc#GoalEditRedirect`; no longer referenced: `@delmaredigital/payload-experiments/admin/rsc#CollectionListRedirect`, `@delmaredigital/payload-experiments/admin/rsc#TestsNavLinkServer`, `@delmaredigital/payload-experiments/admin/client#TestsNavLink`, `@delmaredigital/payload-experiments/admin/client#TestsDashboardCards`. Hosts must regenerate their import map; without regeneration, Payload falls back to its raw `DefaultListView` table at both collection URLs. The old exports remain until 0.5.0.
+  Migration impact: none; regenerate the import map; generated types reorder only. Host `migrate:create` diffs by name, so this collection-order change is a no-op.
 - Fixed: Copy the Original, and other version changes in the block panel, failed when a version or any block on the page held an empty list.
   Migration impact: none.
 - Changed: Unwrap follows the test's status, with draft deletion, stopped-test confirmation, and specific error text when a change fails.

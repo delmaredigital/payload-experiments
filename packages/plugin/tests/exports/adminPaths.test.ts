@@ -60,6 +60,7 @@ test('every XP_* path constant names a public admin export', () => {
 // Explicit public-file inventory: adding a new public component means extending this gate.
 test.each([
   'constants.ts', 'admin/paths.ts', 'admin/TestsNavLink.tsx', 'admin/views/TestsNavLinkServer.tsx', 'admin/TestsDashboardCards.tsx', 'admin/surface/TestsSurface.tsx',
+  'admin/views/TestsCollectionListView.tsx', 'admin/views/GoalsCollectionListView.tsx', 'admin/views/GoalEditRedirect.tsx',
   'admin/views/ExperimentsRootView.tsx', 'admin/views/CollectionListRedirect.tsx', 'admin/views/CollectionEditRedirect.tsx',
   'client/ExperimentsProvider.tsx', 'client/context.ts', 'client/useFlagPoint.ts', 'client/useExperiment.ts',
   'client/ExperimentPageview.tsx', 'client/beacon.ts', 'client/idempotency.ts', 'client/trackConversionBeacon.ts', 'client/ViewportExposure.tsx',
@@ -70,4 +71,14 @@ test.each([
   'fields/armSelect.ts',
 ])('%s has no placeholder marker', file => {
   expect(readFileSync(join(src, file), 'utf8')).not.toContain('// XP-PLACEHOLDER')
+})
+
+
+test('legacy import-map exports stay available without config references until 0.5.0', () => {
+  for (const name of ['TestsNavLinkServer', 'CollectionListRedirect']) expect(serverExports.has(name)).toBe(true)
+  for (const name of ['TestsNavLink', 'TestsDashboardCards']) expect(exports.has(name)).toBe(true)
+  const config = readFileSync(join(src, 'plugin.ts'), 'utf8')
+  for (const constant of ['XP_TESTS_NAV_LINK', 'XP_TESTS_NAV_CLIENT', 'XP_TESTS_DASHBOARD_CARDS', 'XP_TESTS_LIST_REDIRECT']) {
+    expect(config).not.toContain(constant)
+  }
 })

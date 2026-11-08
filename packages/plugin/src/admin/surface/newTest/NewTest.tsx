@@ -1,5 +1,6 @@
 'use client'
 
+import { surfaceUrls } from '../../surfaceUrls.js'
 import { fetchAllDocs } from '../../../lib/fetchAllDocs.js'
 
 import { useEffect, useRef, useState } from 'react'
@@ -117,7 +118,7 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
     </form>}
     <div className="xp-new-test-actions">
       <button type="button" disabled={pending} onClick={() => {
-        if (step === 'kind') router.push(formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }))
+        if (step === 'kind') router.push(surfaceUrls.home(surface.adminRoute))
         else { setError(''); setStep(step === 'name' && kind === 'flag' ? 'setting' : 'kind') }
       }}>{C.back}</button>
       {step === 'setting' ? <button type="button" disabled={!point} onClick={() => setStep('name')}>{C.next}</button> : null}

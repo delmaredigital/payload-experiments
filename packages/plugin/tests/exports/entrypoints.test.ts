@@ -37,6 +37,10 @@ const required = {
   },
   rsc: { resolveExperimentBlocks: '../server/resolveExperimentBlocks.js', pageKindSeoContract: '../server/pageKindSeoContract.js', captureContentBaseline: '../hooks/contentChanges.js', compileManifest: '../manifest/compile.js' },
   adminRsc: {
+    TestsCollectionListView: '../admin/views/TestsCollectionListView.js',
+    GoalsCollectionListView: '../admin/views/GoalsCollectionListView.js',
+    GoalEditRedirect: '../admin/views/GoalEditRedirect.js',
+
     TestsNavLinkServer: '../admin/views/TestsNavLinkServer.js',
     ExperimentsRootView: '../admin/views/ExperimentsRootView.js',
     CollectionListRedirect: '../admin/views/CollectionListRedirect.js',

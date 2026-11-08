@@ -18,7 +18,7 @@ test('manager sees both links inside a Tests group, with stable ids and labels',
   const group = container.querySelector('.nav-group')!
   expect(group.querySelector('.nav-group__label')?.textContent).toBe('Tests')
   for (const [name, id, href] of [
-    ['All tests', 'nav-xp-tests', '/admin/experiments'], ['Goals', 'nav-xp-goals', '/admin/experiments/goals'],
+    ['All tests', 'nav-xp-tests', '/admin/collections/xp-experiments'], ['Goals', 'nav-xp-goals', '/admin/collections/xp-metrics'],
   ]) {
     const link = screen.getByRole('link', { name })
     expect(link.id).toBe(id)
@@ -44,13 +44,13 @@ test('missing permissions render no Tests group', () => {
 })
 
 test.each([
-  ['/admin/experiments', 'nav-xp-tests', 'DIV'],
-  ['/admin/experiments/abc', 'nav-xp-tests', 'A'],
-  ['/admin/experiments/abc/results', 'nav-xp-tests', 'A'],
-  ['/admin/experiments/goals', 'nav-xp-goals', 'DIV'],
-  ['/admin/experiments/goals/new', 'nav-xp-goals', 'A'],
-  ['/admin/experiments/goals-other', 'nav-xp-tests', 'A'],
-  ['/admin/experiments-other', null, null],
+  ['/admin/collections/xp-experiments', 'nav-xp-tests', 'DIV'],
+  ['/admin/collections/xp-experiments/abc', 'nav-xp-tests', 'A'],
+  ['/admin/collections/xp-experiments/abc/results', 'nav-xp-tests', 'A'],
+  ['/admin/collections/xp-metrics', 'nav-xp-goals', 'DIV'],
+  ['/admin/collections/xp-metrics/new', 'nav-xp-goals', 'A'],
+  ['/admin/collections/xp-metrics-other', null, null],
+  ['/admin/collections/xp-experiments-other', null, null],
   ['/admin/collections/users', null, null],
 ])('only the correct entry is active on %s', (pathname, activeId, tag) => {
   setNextNavigation({ pathname })
@@ -71,26 +71,26 @@ test.each([
 test.each(['/control', '/'])('nav hrefs respect admin route %s', admin => {
   setConfig({ config: { routes: { admin, api: '/api' } } })
   const base = admin === '/' ? '' : admin
-  setNextNavigation({ pathname: `${base}/experiments/123` })
+  setNextNavigation({ pathname: `${base}/collections/xp-experiments/123` })
   render(<TestsNavLink />)
   const link = screen.getByRole('link', { name: 'All tests' })
-  expect(link.getAttribute('href')).toBe(`${base}/experiments`)
+  expect(link.getAttribute('href')).toBe(`${base}/collections/xp-experiments`)
   expect(link.getAttribute('aria-current')).toBe('page')
-  expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe(`${base}/experiments/goals`)
+  expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe(`${base}/collections/xp-metrics`)
 })
 
 test('active descendants work when Payload formats trailing slashes', () => {
   vi.stubEnv('NEXT_TRAILING_SLASH', 'true')
-  setNextNavigation({ pathname: '/admin/experiments/goals/new/' })
+  setNextNavigation({ pathname: '/admin/collections/xp-metrics/new/' })
   const { container } = render(<TestsNavLink />)
-  expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/admin/experiments/goals/')
+  expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/admin/collections/xp-metrics/')
   expect(container.querySelectorAll('[aria-current="page"]')).toHaveLength(1)
   expect(container.querySelector('[aria-current="page"]')?.id).toBe('nav-xp-goals')
 })
 
 test('exact formatted trailing-slash href renders a div', () => {
   vi.stubEnv('NEXT_TRAILING_SLASH', 'true')
-  setNextNavigation({ pathname: '/admin/experiments/' })
+  setNextNavigation({ pathname: '/admin/collections/xp-experiments/' })
   const { container } = render(<TestsNavLink />)
   expect(container.querySelector('#nav-xp-tests')?.tagName).toBe('DIV')
   expect(container.querySelector('#nav-xp-tests')?.getAttribute('aria-current')).toBe('page')

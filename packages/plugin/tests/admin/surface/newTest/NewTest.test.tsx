@@ -32,7 +32,7 @@ test('offers only configured cards with host descriptions, and a useful empty st
   view.rerender(<NewTest surface={{ ...surface, flagPoints: [] }} />)
   expect(screen.getByText('A developer needs to set up pages or settings before you can create a test.')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Back' }))
-  expect(push).toHaveBeenCalledWith('/control/experiments')
+  expect(push).toHaveBeenCalledWith('/control/collections/xp-experiments')
 })
 test('block hand-off groups page links, marks a full list, and never creates anything', () => {
   const fetch = vi.fn()

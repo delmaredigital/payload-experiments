@@ -49,6 +49,6 @@ test('the prologue checker skips comments and blank lines, and rejects missing o
 })
 
 
-test.each(['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect', 'TestsNavLinkServer'])('Tests server view %s has no client directive', name => {
+test.each(['ExperimentsRootView', 'TestsCollectionListView', 'GoalsCollectionListView', 'GoalEditRedirect', 'CollectionListRedirect', 'CollectionEditRedirect', 'TestsNavLinkServer'])('Tests server view %s has no client directive', name => {
   expect(isClient(join(src, `admin/views/${name}.tsx`))).toBe(false)
 })

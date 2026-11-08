@@ -257,12 +257,18 @@ test('targeting values match the attribute type and operator', () => {
 })
 
 
-test('Tests collections leave the nav while their routes and redirect views stay reachable', () => {
-  for (const slug of ['xp-experiments', 'xp-layers', 'xp-metrics']) {
-    expect(bySlug(slug).admin?.group).toBe(false)
+test('Tests collections form a regular group and render their surface in place', () => {
+  for (const slug of ['xp-experiments', 'xp-metrics']) {
+    expect(bySlug(slug).admin?.group).toBe('Tests')
     expect(bySlug(slug).admin).not.toHaveProperty('hidden')
   }
-  expect(experiments.admin?.components?.views?.list).toEqual({ Component: paths.XP_TESTS_LIST_REDIRECT })
+  expect(bySlug('xp-layers').admin?.group).toBe(false)
+  for (const slug of ['xp-phases', 'xp-events', 'xp-identities', 'xp-results-snapshots']) {
+    expect(bySlug(slug).admin?.hidden).toBe(true)
+  }
+  expect(experiments.labels).toEqual({ singular: 'Test', plural: 'All tests' })
+  expect(experiments.admin?.components?.views?.list).toEqual({ Component: paths.XP_TESTS_COLLECTION_LIST })
+  expect(bySlug('xp-metrics').admin?.components?.views).toEqual({ list: { Component: paths.XP_GOALS_COLLECTION_LIST }, edit: { default: { Component: paths.XP_GOAL_EDIT_REDIRECT } } })
   expect(bySlug('xp-metrics').labels).toEqual({ singular: 'Goal', plural: 'Goals' })
   expect(bySlug('xp-layers').labels).toEqual({ singular: 'Test group', plural: 'Test groups (advanced)' })
 })

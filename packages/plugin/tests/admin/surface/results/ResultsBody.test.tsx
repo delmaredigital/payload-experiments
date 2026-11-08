@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { beforeEach, afterEach, expect, test, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { URL as NodeURL } from 'node:url'
+import { ReaderResultsShell } from '../../../../src/admin/surface/results/ResultsHeader.js'
 import { ResultsBody } from '../../../../src/admin/surface/results/ResultsBody.js'
 import * as resultsHook from '../../../../src/admin/surface/results/useResults.js'
 import { reloadPage } from '../../../../src/admin/reload.js'
@@ -489,4 +490,12 @@ test('results resolves placement warnings by page path and batched block ids and
   expect(screen.getByText(/This page couldn't be checked/)).toBeTruthy()
   expect(fetcher.mock.calls.filter(call => call[0].includes('/xp/pages?'))).toHaveLength(1)
   expect(fetcher.mock.calls.filter(call => call[0].includes('/posts?'))).toHaveLength(1)
+})
+
+test.each([true, false])('results shell links the Tests crumb only for managers: %s', canManage => {
+  render(<ReaderResultsShell surface={{ ...surface, canManage }} data={response}><p>Results</p></ReaderResultsShell>)
+  const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' })
+  expect(crumbs.textContent).toContain('Tests')
+  expect(within(crumbs).queryByRole('link', { name: 'Tests' })?.getAttribute('href') ?? null)
+    .toBe(canManage ? '/admin/collections/xp-experiments' : null)
 })

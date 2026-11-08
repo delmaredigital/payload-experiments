@@ -1,6 +1,7 @@
 import type { DocumentViewServerProps, ListViewServerProps } from 'payload'
 import { expect, test, vi } from 'vitest'
 import { CollectionListRedirect } from '../../../src/admin/views/CollectionListRedirect.js'
+import { GoalEditRedirect } from '../../../src/admin/views/GoalEditRedirect.js'
 import { CollectionEditRedirect } from '../../../src/admin/views/CollectionEditRedirect.js'
 import { fakeReq } from '../../_fakes/req.js'
 import { fakePayload } from '../../_fakes/payload.js'
@@ -11,7 +12,7 @@ vi.mock('next/navigation', () => ({ redirect }))
 
 test.each(['/control', '/'])('list redirects using only list-view props with admin at %s', adminRoute => {
   const props = { payload: fakePayload({ config: { routes: { admin: adminRoute } } }) } satisfies Pick<ListViewServerProps, 'payload'>
-  const expected = adminRoute === '/' ? '/experiments' : '/control/experiments'
+  const expected = adminRoute === '/' ? '/collections/xp-experiments' : '/control/collections/xp-experiments'
   expect(() => CollectionListRedirect(props)).toThrow(expected)
   expect(redirect).toHaveBeenLastCalledWith(expected)
 })
@@ -28,6 +29,17 @@ test.each(['/control', '/'])('document-view props redirect edit/create/results w
     } satisfies Pick<DocumentViewServerProps, 'initPageResult' | 'params' | 'routeSegments'>
     const target = `${adminRoute === '/' ? '' : adminRoute}/experiments${expected}`
     await expect(CollectionEditRedirect(props)).rejects.toThrow(target)
+    expect(redirect).toHaveBeenLastCalledWith(target)
+  }
+})
+
+test.each(['/control', '/'])('Goals document override sends create and edit to the authored forms at %s', async adminRoute => {
+  const payload = fakePayload({ config: { routes: { admin: adminRoute } } })
+  for (const [id, expected] of [['create', 'new'], ['123', '123'], ['x/y', 'x%2Fy']]) {
+    const segments = ['collections', 'xp-metrics', id!]
+    const props = { initPageResult: fakeInitPageResult({ req: fakeReq({ payload }), docID: id === 'create' ? undefined : id }), params: { segments }, routeSegments: segments } satisfies Pick<DocumentViewServerProps, 'initPageResult' | 'params' | 'routeSegments'>
+    const target = `${adminRoute === '/' ? '' : adminRoute}/experiments/goals/${expected}`
+    await expect(GoalEditRedirect(props)).rejects.toThrow(target)
     expect(redirect).toHaveBeenLastCalledWith(target)
   }
 })

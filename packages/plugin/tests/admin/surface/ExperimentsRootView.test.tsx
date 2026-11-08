@@ -58,7 +58,7 @@ test.each(['..', 'test/1', '', ['123']])('invalid goals return context %j is ign
   const { clientProps } = mocks.render.mock.calls[0]![0] as { clientProps: TestsSurfaceProps }
   expect(clientProps).not.toHaveProperty('returnToTest')
 })
-test.each(routes)('%j dispatches to %s through the import map', async (tail, route, id) => {
+test.each(routes.filter(([, route]) => route !== 'home' && route !== 'goals'))('%j dispatches to %s through the import map', async (tail, route, id) => {
   const { props, payload, req, findGlobal } = setup()
   await ExperimentsRootView({ ...props, params: { segments: ['experiments', ...tail] }, searchParams: {} })
   expect(mocks.render).toHaveBeenCalledWith({ Component: XP_TESTS_SURFACE, Fallback: expect.any(Function), importMap: payload.importMap, clientProps: expect.objectContaining({ route, ...(id ? { id } : {}) }) })
@@ -125,7 +125,7 @@ test('missing import-map component renders the server fallback', async () => {
     return importMap[Component] ? null : <Fallback />
   })
   const { props } = setup()
-  const result = await ExperimentsRootView({ ...props, params: { segments: ['experiments'] } })
+  const result = await ExperimentsRootView({ ...props, params: { segments: ['experiments', 'new'] } })
   const html = renderToStaticMarkup(result)
   expect(html).toContain('role="alert"')
   expect(html).toContain("The Tests screen isn&#x27;t installed yet. Run `payload generate:importmap` and reload.")
@@ -164,7 +164,7 @@ test('failed collection reads are skipped, missing titles and editor URLs have c
   ] }) }))
   expect(find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'other', draft: true, depth: 0 }))
 })
-test.each([[], ['12'], ['12', 'results']].map(segments => [segments]))('pages are not loaded for route %j', async segments => {
+test.each([['12'], ['12', 'results']].map(segments => [segments]))('pages are not loaded for route %j', async segments => {
   const { props, find } = setup({ puck: { enabled: true, collections: ['pages'] } })
   await ExperimentsRootView({ ...props, params: { segments } })
   expect(find).not.toHaveBeenCalled()
@@ -205,10 +205,10 @@ test('a per-language collection label picks a readable string without a translat
 
 test('root emits exactly one scoped accent style only when configured', async () => {
   const { props, payload } = setup()
-  expect(renderToStaticMarkup(await ExperimentsRootView(props))).not.toContain('<style>')
+  expect(renderToStaticMarkup(await ExperimentsRootView({ ...props, params: { segments: ['new'] } }))).not.toContain('<style>')
   const xp = payload.config.custom.xp as ExperimentsPluginOptions
   xp.theme = { accent: '#1f3a68' }
-  const html = renderToStaticMarkup(await ExperimentsRootView(props))
+  const html = renderToStaticMarkup(await ExperimentsRootView({ ...props, params: { segments: ['new'] } }))
   expect(html.match(/<style>/g)).toHaveLength(1)
   expect(html).toContain('--xp-accent:#1f3a68;')
   expect(html).toContain('[data-theme="dark"][data-theme="dark"]')
@@ -285,10 +285,18 @@ test('serialises registered collection title fields and current user identity fo
   const { props, payload } = setup({ puck: { enabled: true, collections: [{ slug: 'articles', field: 'content' }] } })
   payload.config.collections.push({ slug: 'untitled', admin: { useAsTitle: 'id' } } as never,
     { slug: 'unset', admin: {} } as never)
-  await ExperimentsRootView({ ...props, params: { segments: ['experiments'] } })
+  await ExperimentsRootView({ ...props, params: { segments: ['experiments', 'new'] } })
   const clientProps = (mocks.render.mock.calls[0] as unknown as [{ clientProps: TestsSurfaceProps }])[0].clientProps
   expect(JSON.parse(JSON.stringify(clientProps))).toMatchObject({
     collectionTitles: { pages: 'title', articles: 'heading' }, userId: 'manager', userCollection: 'editors',
   })
   expect(Object.keys(clientProps.collectionTitles!)).toEqual(['pages', 'articles'])
+})
+
+test.each([['home', []], ['goals', ['goals']]] as const)('%s alias redirects managers to its collection, preserving repeated query values', async (route, tail) => {
+  const { props } = setup()
+  const collection = route === 'home' ? 'xp-experiments' : 'xp-metrics'
+  await expect(ExperimentsRootView({ ...props, params: { segments: ['experiments', ...tail] }, searchParams: { return: 'abc', filter: ['a', 'b'] } }))
+    .rejects.toThrow(`redirect:/control/collections/${collection}?return=abc&filter=a&filter=b`)
+  expect(mocks.render).not.toHaveBeenCalled()
 })

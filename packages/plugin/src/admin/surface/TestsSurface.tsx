@@ -1,7 +1,7 @@
 'use client'
 
+import { surfaceUrls } from '../surfaceUrls.js'
 import { useState } from 'react'
-import { formatAdminURL } from 'payload/shared'
 import type { TestsSurfaceProps } from '../../types/surface.js'
 import { SURFACE_COPY } from '../copy/surface.js'
 import type { SurfaceProps } from './contracts.js'
@@ -31,7 +31,7 @@ function SurfacePage(props: TestsSurfaceProps) {
   }
   const crumbs: Array<{ label: string; href?: string }> = [{ label: SURFACE_COPY.title }]
   if (props.route !== 'home') {
-    crumbs[0]!.href = formatAdminURL({ adminRoute: props.adminRoute, path: '/experiments' })
+    crumbs[0]!.href = props.canManage ? surfaceUrls.home(props.adminRoute) : undefined
     crumbs.push({ label: props.route === 'new' ? SURFACE_COPY.newTest : props.route === 'results' ? SURFACE_COPY.resultsTitle : SURFACE_COPY.test })
   }
   if (props.route === 'home') return <TestsHome adminRoute={props.adminRoute} apiRoute={props.apiRoute} canManage={props.canManage} flagPoints={props.flagPoints} crumbs={crumbs} />

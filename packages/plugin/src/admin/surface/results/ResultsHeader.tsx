@@ -1,4 +1,5 @@
 'use client'
+import { surfaceUrls } from '../../surfaceUrls.js'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { formatAdminURL } from 'payload/shared'
@@ -45,7 +46,7 @@ export function ResultsHeader({ test, surface, resultsVersion, children, actions
       : doc.status === 'decided' ? decidedCopy(displayDate(doc.decidedAt), winner) : doc.status === 'archived' ? R.archived : null
   const testURL = formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(doc.id))}` })
   return <SurfaceShell adminRoute={surface.adminRoute} title={doc.name}
-    crumbs={[{ label: C.tests, href: formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }) }, { label: doc.name, href: testURL }, { label: C.results }]}
+    crumbs={[{ label: C.tests, href: surface.canManage ? surfaceUrls.home(surface.adminRoute) : undefined }, { label: doc.name, href: testURL }, { label: C.results }]}
     status={<><span className="xp-tests-kind">{TEST_PAGE.kinds[doc.kind]}</span><StatusChip status={doc.status} /></>}
     subtitle={<>{sentence ? <p role="status">{sentence}</p> : null}{released}
       {surface.canManage ? test.preflight?.checks.filter(check => check.code === 'make-content-unsupported' && check.warning).map((check, index) =>
@@ -67,5 +68,5 @@ export function ReaderResultsShell({ surface, children, data }: { surface: Secti
   // CORE-48 sends a missing name as an empty string.
   const title = data?.experiment?.name?.trim() || C.test
   return <SurfaceShell adminRoute={surface.adminRoute} title={title}
-    crumbs={[{ label: C.tests, href: formatAdminURL({ adminRoute: surface.adminRoute, path: '/experiments' }) }, { label: title }, { label: C.results }]}>{children}</SurfaceShell>
+    crumbs={[{ label: C.tests, href: surface.canManage ? surfaceUrls.home(surface.adminRoute) : undefined }, { label: title }, { label: C.results }]}>{children}</SurfaceShell>
 }

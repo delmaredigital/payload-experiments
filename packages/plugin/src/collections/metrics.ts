@@ -1,7 +1,7 @@
 import { CLICK_KEY, isClickSource, validClickSource } from '../goals/key.js'
 import type { CollectionConfig } from 'payload'
 import type { ResolvedOptions } from '../types/contracts.js'
-import { XP_METRIC_SOURCE_SELECT } from '../admin/paths.js'
+import { XP_METRIC_SOURCE_SELECT, XP_GOALS_COLLECTION_LIST, XP_GOAL_EDIT_REDIRECT } from '../admin/paths.js'
 import { managedAccess } from './access.js'
 import { serializeMetricSources } from './serialize.js'
 import { validateCappingType, validateCappingValue } from './metricValidation.js'
@@ -11,8 +11,7 @@ export function metricsCollection(options: ResolvedOptions): CollectionConfig {
   const sources = serializeMetricSources(options)
   return {
     slug: 'xp-metrics', graphQL: false, disableDuplicate: true, versions: false,
-    // group:false hides navigation while keeping collection routes reachable (hidden causes 404s).
-    labels: { singular: 'Goal', plural: 'Goals' }, admin: { group: false, useAsTitle: 'name' }, access: managedAccess(options),
+    labels: { singular: 'Goal', plural: 'Goals' }, admin: { group: 'Tests', useAsTitle: 'name', components: { views: { list: { Component: XP_GOALS_COLLECTION_LIST }, edit: { default: { Component: XP_GOAL_EDIT_REDIRECT } } } } }, access: managedAccess(options),
     hooks: { beforeDelete: [metricDeleteGuard], beforeChange: [metricChangeGuard], beforeValidate: [({ data, originalDoc }) => {
       if (!data) return data
       if (isClickSource(data.source ?? originalDoc?.source)) {

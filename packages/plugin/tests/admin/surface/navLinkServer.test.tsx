@@ -64,3 +64,13 @@ test('missing user or permissions renders nothing without a preference read', as
   expect(await TestsNavLinkServer({ ...props, permissions: undefined })).toBeNull()
   expect(find).not.toHaveBeenCalled()
 })
+
+
+test('deprecated export stays callable without plugin injection until 0.5.0', async () => {
+  const { createExperimentsPlugin } = await import('../../../src/plugin.js')
+  const { sampleOptions } = await import('../../collections/fixtures.js')
+  const config = await createExperimentsPlugin(sampleOptions())({ secret: 'test-only', db: {} as import('payload').Config['db'] })
+  expect(config.admin?.components?.beforeNavLinks).toBeUndefined()
+  expect(config.admin?.components?.beforeDashboard).toBeUndefined()
+  expect(config.admin?.dependencies).not.toHaveProperty('xpTestsNav')
+})

@@ -15,3 +15,7 @@ export const XP_BLOCK_STATUS = '@delmaredigital/payload-experiments/admin/client
 export const XP_BLOCK_ROW_LABEL = '@delmaredigital/payload-experiments/admin/client#BlockSlotRowLabel'
 export const XP_COPY_ORIGINAL = '@delmaredigital/payload-experiments/admin/client#CopyOriginalField'
 export const XP_GOAL_FIELD = '@delmaredigital/payload-experiments/admin/client#XpGoalField'
+
+export const XP_TESTS_COLLECTION_LIST = '@delmaredigital/payload-experiments/admin/rsc#TestsCollectionListView'
+export const XP_GOALS_COLLECTION_LIST = '@delmaredigital/payload-experiments/admin/rsc#GoalsCollectionListView'
+export const XP_GOAL_EDIT_REDIRECT = '@delmaredigital/payload-experiments/admin/rsc#GoalEditRedirect'

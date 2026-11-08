@@ -22,6 +22,8 @@ const nonOperationMethods = [
   // Assigned during init rather than by the constructor; no access-controlled operation.
   'sendEmail',
 ]
+// Authentication, not an access-checked operation; the full user is needed for the host's access callbacks.
+const AUTHENTICATION_ALLOW_LIST = ['src/admin/views/renderCollectionList.ts']
 const methods = new Set(operationMethods)
 // Construct without init: no config, database connection or server is needed.
 const payloadMethods = (() => {
@@ -279,7 +281,7 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
         payloadReceiver(arg)) report(node, 'local-api-indirect')
       // Every matching method is suspect unless its argument or receiver syntax
       // proves it is outside the Local API. Unknown receivers stay suspect.
-      if (methods.has(method) && !nonLocalArgument(arg) && !(builtinReceiver(receiver) && globalExempt(receiver, method))) {
+      if (!(method === 'auth' && AUTHENTICATION_ALLOW_LIST.includes(file)) && methods.has(method) && !nonLocalArgument(arg) && !(builtinReceiver(receiver) && globalExempt(receiver, method))) {
         if (!arg || !ts.isObjectLiteralExpression(arg)) {
           if (!allowed) report(node, 'local-api-nonliteral')
         } else {
@@ -705,4 +707,13 @@ test('page path lookups need no privileged access exception', () => {
   const file = 'src/endpoints/pages.ts'
   expect(OVERRIDE_ACCESS_ALLOW_LIST.some(entry => matchesGlob(file, entry.file))).toBe(false)
   expect(scan(readFileSync(join(pluginRoot, file), 'utf8'), file)).toEqual([])
+})
+
+test('only the collection-list authentication helper may omit overrideAccess for auth', () => {
+  expect(AUTHENTICATION_ALLOW_LIST).toEqual(['src/admin/views/renderCollectionList.ts'])
+  expect(scan('payload.auth({ headers: requestHeaders })', AUTHENTICATION_ALLOW_LIST[0]!)).toEqual([])
+  expect(scan('payload.auth({ headers: requestHeaders })', 'src/admin/views/unapproved.ts').map(v => v.rule))
+    .toEqual(['local-api-override-required'])
+  expect(scan('payload.find({})', AUTHENTICATION_ALLOW_LIST[0]!).map(v => v.rule))
+    .toEqual(['local-api-override-required'])
 })

@@ -27,21 +27,17 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
     // Erase the user subtype only at this non-generic factory boundary.
     const { collections, globals } = buildCollections(options as unknown as Parameters<typeof buildCollections>[0])
     const onInit = createOnInit(options)
-    const beforeDashboard = config.admin?.components?.beforeDashboard ?? []
-    const beforeNavLinks = config.admin?.components?.beforeNavLinks ?? []
     return {
       ...config,
       admin: { ...config.admin,
         dependencies: { ...config.admin?.dependencies,
           xpTestsSurface: { path: paths.XP_TESTS_SURFACE, type: 'component' },
-          xpTestsNav: { path: paths.XP_TESTS_NAV_CLIENT, type: 'component' },
         },
         components: { ...config.admin?.components,
         views: { ...config.admin?.components?.views, xpTests: { Component: paths.XP_TESTS_VIEW, path: '/experiments/:segments*' } },
-        beforeDashboard: beforeDashboard.includes(paths.XP_TESTS_DASHBOARD_CARDS) ? beforeDashboard : [...beforeDashboard, paths.XP_TESTS_DASHBOARD_CARDS],
-        beforeNavLinks: beforeNavLinks.includes(paths.XP_TESTS_NAV_LINK) ? beforeNavLinks : [...beforeNavLinks, paths.XP_TESTS_NAV_LINK],
       } },
       collections: [
+        ...['xp-experiments', 'xp-metrics'].map(slug => collections.find(collection => collection.slug === slug)!),
         ...(config.collections ?? []).map(collection => {
           const puck = options.puck?.enabled && registrations.find(entry => entry.slug === collection.slug)
           const page = options.pages?.collections.some(entry => entry.slug === collection.slug)
@@ -55,7 +51,7 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
             afterChange: [...(collection.hooks?.afterChange ?? []), pageGuardAfterChange, contentChangesHook],
           } }
         }),
-        ...collections,
+        ...collections.filter(collection => collection.slug !== 'xp-experiments' && collection.slug !== 'xp-metrics'),
       ],
       globals: [...(config.globals ?? []), ...globals],
       endpoints: [...(config.endpoints ?? []), ...buildEndpoints({ options })],

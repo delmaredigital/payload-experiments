@@ -48,7 +48,7 @@ const exportsByEntry = [
   [rsc, ['resolveExperimentBlocks', 'getAssignments', 'resolveExperimentData', 'recordExposures', 'getFlagPoint', 'linkIdentity', 'trackConversion', 'eraseUser', 'runResults', 'recordContentChange', 'captureContentBaseline', 'experimentSitemapFilter', 'experimentMetadata', 'toClientAssignments', 'compileManifest', 'pageKindSeoContract']],
   [client, ['ExperimentGroup', 'ExperimentsProvider', 'useFlagPoint', 'useExperiment', 'ExperimentPageview', 'trackConversionBeacon', 'MAX_EVENTS_PER_BODY', 'DEFAULT_MAX_BODY_BYTES']],
   [adminClient, ['XpGoalField', 'TestBlockField', 'BlockStatusField', 'BlockSlotRowLabel', 'CopyOriginalField', 'wrapExperimentBlock', 'syncExperimentSlots', 'copyOriginalIntoVersion', 'unwrapExperimentBlock', 'findRegisteredBlocksField', 'XP_IF_UPDATED_AT_HEADER', 'TestsDashboardCards', 'TestsNavLink', 'TestsSurface', 'MetricSourceSelect', 'LayerUsage', 'ArmSelectField', 'PlacementStatus']],
-  [adminRsc, ['ExperimentsRootView', 'CollectionListRedirect', 'CollectionEditRedirect', 'TestsNavLinkServer']],
+  [adminRsc, ['ExperimentsRootView', 'TestsCollectionListView', 'GoalsCollectionListView', 'GoalEditRedirect', 'CollectionListRedirect', 'CollectionEditRedirect', 'TestsNavLinkServer']],
   [puck, ['xpGoalPuckField', 'ExperimentSlot', 'createExperimentSlot', 'createExperimentSlotField', 'EXPERIMENT_SLOT_TYPE', 'experimentsPuck']],
   [puckEditor, ['xpGoalPuckEditorField', 'ExperimentSlotEditor', 'createExperimentSlotEditor', 'deriveAccent', 'experimentOutlinePlugin', 'experimentsPuckEditor']],
 ] as const

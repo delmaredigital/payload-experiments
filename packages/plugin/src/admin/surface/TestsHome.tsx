@@ -1,5 +1,6 @@
 'use client'
 
+import { surfaceUrls } from '../surfaceUrls.js'
 import { useEffect, useMemo, useState } from 'react'
 import { formatAdminURL } from 'payload/shared'
 import type { SummaryResponse } from '../../types/endpoints.js'
@@ -78,7 +79,7 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, fla
       <SearchInput id="xp-tests-search" label={SURFACE_COPY.search} placeholder={SURFACE_COPY.search}
         value={search} onChange={event => setSearch(event.target.value)} />
     </div>
-    {canManage ? <Button href={formatAdminURL({ adminRoute, path: '/experiments/goals' })}>{SURFACE_COPY.goals}</Button> : null}
+    {canManage ? <Button href={surfaceUrls.goals(adminRoute)}>{SURFACE_COPY.goals}</Button> : null}
     {newTest}
   </>}>
     {state.loading ? <p role="status">{SURFACE_COPY.loading}</p>
