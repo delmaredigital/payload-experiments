@@ -17,9 +17,9 @@ test.each(['tab', 'row', 'collapsible'])('injects immediately after registered f
     : layout === 'row' ? [{ type: 'row', fields: inner }] : [{ type: 'collapsible', label: 'Content', fields: inner }]
   freeze(fields)
   const result = apply(fields, data => data.editor === 'blocks')
-  const registered = findRegisteredBlocksField(result.collections![0]!.fields, 'layout')!
+  const registered = findRegisteredBlocksField(result.collections!.find(c => c.slug === 'pages')!.fields, 'layout')!
   const parentPath = registered.path.slice(0, -1)
-  const parent = parentPath.reduce<any>((data, key) => data[key], result.collections![0]!.fields)
+  const parent = parentPath.reduce<any>((data, key) => data[key], result.collections!.find(c => c.slug === 'pages')!.fields)
   expect(parent.map((item: any) => item.name)).toEqual(['layout', 'xpTestBlock', 'footer'])
   expect(inner.map(item => 'name' in item ? item.name : '')).toEqual(['layout', 'footer'])
   const ui = parent[1]
@@ -30,8 +30,8 @@ test.each(['tab', 'row', 'collapsible'])('injects immediately after registered f
 })
 test('throwing appliesTo returns false for partial create data', () => {
   const result = apply([field], () => { throw new Error('partial') })
-  expect((result.collections![0]!.fields[1] as any).admin.condition({})).toBe(false)
+  expect((result.collections!.find(c => c.slug === 'pages')!.fields[1] as any).admin.condition({})).toBe(false)
 })
 test('Puck-only collection has no test-block field', () => {
-  expect(apply([field], undefined, false).collections![0]!.fields).toEqual([field])
+  expect(apply([field], undefined, false).collections!.find(c => c.slug === 'pages')!.fields).toEqual([field])
 })

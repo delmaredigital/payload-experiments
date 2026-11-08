@@ -48,6 +48,10 @@ export function helperStrings(source: string, path = ''): string[] {
   implementation(file)
   function literals(root: ts.Node, proseOnly = false) {
     function visit(node: ts.Node) {
+      // ADM-L5c: only this URL helper's /collections/ literals are admin paths, not copy.
+      // Keep scanning its prose, and the same strings everywhere else.
+      if (path === join(src, 'admin/surfaceUrls.ts') && (ts.isStringLiteralLike(node) || ts.isTemplateHead(node))
+        && node.text.startsWith('/collections/')) return
       // A helper's path default is a Payload field path, like the JSX path attribute.
       if (ts.isParameter(node.parent) && ts.isIdentifier(node.parent.name) && node.parent.name.text === 'path'
         && ts.isStringLiteralLike(node) && /^[\w.[\]]+$/.test(node.text)) return

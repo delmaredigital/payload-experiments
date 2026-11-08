@@ -13,9 +13,12 @@ function checkSource(file: string, text: string): string[] {
   const violations: string[] = []
   function check(specifier: string, typeOnly = false) {
     // Registered server components need the public Node-ESM-safe renderer, without the client UI barrel.
-    if (['ExperimentsRootView', 'TestsNavLinkServer'].some(name =>
+    if (['ExperimentsRootView', 'TestsNavLinkServer', 'renderTestsSurface'].some(name =>
       file === fileURLToPath(new URL(`../../src/admin/views/${name}.tsx`, import.meta.url)))
       && specifier === '@payloadcms/ui/elements/RenderServerComponent') return
+    // server-only list view; createLocalReq has no public alternative
+    if (file === fileURLToPath(new URL('../../src/admin/views/renderCollectionList.ts', import.meta.url))
+      && specifier === 'payload') return
     if (specifier.startsWith('@payloadcms/ui') && !['@payloadcms/ui', '@payloadcms/ui/shared'].includes(specifier)
       || specifier.startsWith('@payloadcms/next') || specifier.startsWith('payload/dist') || /\.scss(?:$|[?#])/.test(specifier)
       || specifier === 'payload' && !typeOnly) violations.push(`${file}: ${specifier}`)
@@ -70,6 +73,17 @@ test('the server renderer exception applies only to the registered server compon
   const text = "import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'"
   expect(checkSource(fileURLToPath(new URL('../../src/admin/views/ExperimentsRootView.tsx', import.meta.url)), text)).toEqual([])
   expect(checkSource(fileURLToPath(new URL('../../src/admin/views/TestsNavLinkServer.tsx', import.meta.url)), text)).toEqual([])
+  expect(checkSource(fileURLToPath(new URL('../../src/admin/views/renderTestsSurface.tsx', import.meta.url)), text)).toEqual([])
   expect(checkSource('src/admin/surface/TestsSurface.tsx', text)).toHaveLength(1)
   expect(checkSource('src/admin/views/AnotherView.tsx', text)).toHaveLength(1)
+})
+
+test('only the server list helper may value-import the public Payload module', () => {
+  const text = "import { createLocalReq } from 'payload'"
+  const server = fileURLToPath(new URL('../../src/admin/views/renderCollectionList.ts', import.meta.url))
+  expect(checkSource(server, text)).toEqual([])
+  expect(checkSource(server, "import { createLocalReq } from 'payload/dist/private'")).toHaveLength(1)
+  for (const file of ['../../src/client/client.tsx', '../../src/admin/surface/TestsSurface.tsx', '../../src/admin/views/renderTestsSurface.tsx']) {
+    expect(checkSource(fileURLToPath(new URL(file, import.meta.url)), text)).toHaveLength(1)
+  }
 })

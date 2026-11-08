@@ -35,7 +35,7 @@ export function experimentsCollection(options: ResolvedOptions): CollectionConfi
         ? { status: { in: ['draft', 'archived'] } } : false,
     },
     admin: {
-      group: 'Tests', useAsTitle: 'name', defaultColumns: ['name', 'status', 'kind', 'flagPoint'],
+      group: SURFACE_COPY.title, useAsTitle: 'name', defaultColumns: ['name', 'status', 'kind', 'flagPoint'],
       components: { views: { list: { Component: paths.XP_TESTS_COLLECTION_LIST }, edit: {
         default: { Component: paths.XP_TEST_EDIT_REDIRECT },
         results: { Component: paths.XP_TEST_EDIT_REDIRECT, path: '/results', tab: { label: 'Results', href: '/results' } },

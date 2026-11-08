@@ -99,6 +99,18 @@ test('all admin and Puck helper copy says test, not experiment', () => {
     .map(value => ({ path, value })))).toEqual([])
 })
 
+test('only surfaceUrls admin paths are excluded from helper copy', () => {
+  const path = fileURLToPath(new URL('../../src/admin/surfaceUrls.ts', import.meta.url))
+  for (const source of [
+    "export const home = () => '/collections/xp-experiments'",
+    'export const home = () => `/collections/xp-experiments${query}`',
+  ]) {
+    expect(helperCopyHits(source, path)).toEqual([])
+    expect(helperCopyHits(source, 'other.ts')).toEqual(['/collections/xp-experiments'])
+  }
+  expect(helperCopyHits("export const title = () => 'Choose an experiment'", path)).toEqual(['Choose an experiment'])
+})
+
 test('only the approved Puck integration name is developer metadata', () => {
   const source = "export function integration() { return { name: 'experiments', title: 'Choose an experiment' } }"
   for (const file of ['puck/integration.ts', 'puck/editor/integration.ts']) {

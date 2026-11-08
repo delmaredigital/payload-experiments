@@ -12,9 +12,10 @@ vi.mock('next/navigation', () => ({ redirect }))
 
 test.each(['/control', '/'])('list redirects using only list-view props with admin at %s', adminRoute => {
   const props = { payload: fakePayload({ config: { routes: { admin: adminRoute } } }) } satisfies Pick<ListViewServerProps, 'payload'>
-  const expected = adminRoute === '/' ? '/collections/xp-experiments' : '/control/collections/xp-experiments'
+  const expected = adminRoute === '/' ? '/experiments' : '/control/experiments'
   expect(() => CollectionListRedirect(props)).toThrow(expected)
   expect(redirect).toHaveBeenLastCalledWith(expected)
+  expect(redirect.mock.lastCall?.[0]).not.toContain('/collections/xp-experiments')
 })
 
 test.each(['/control', '/'])('document-view props redirect edit/create/results with admin at %s', async adminRoute => {

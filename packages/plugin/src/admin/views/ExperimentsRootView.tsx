@@ -1,6 +1,7 @@
 import type { AdminViewServerProps } from 'payload'
 import { formatAdminURL } from 'payload/shared'
 import { notFound, redirect } from 'next/navigation.js'
+import { xpOptionsFromReq } from '../../options/fromReq.js'
 import type { TestsRoute } from '../../types/surface.js'
 import { surfaceUrls } from '../surfaceUrls.js'
 import { buildSurfaceProps } from './buildSurfaceProps.js'
@@ -35,10 +36,13 @@ export async function ExperimentsRootView({ initPageResult, params, searchParams
     return redirect(formatAdminURL({ adminRoute,
       path: `${login}?redirect=${encodeURIComponent(currentPath)}` }))
   }
-  const clientProps = await buildSurfaceProps({ req, route, id, searchParams })
-  if (clientProps?.canManage && (route === 'home' || route === 'goals')) {
+  if (route === 'home' || route === 'goals') {
+    let canManage = false
+    try { canManage = await xpOptionsFromReq(req).access.manage({ req }) === true } catch { /* Deny failed access checks. */ }
+    if (!canManage) return renderTestsSurface(req, null)
     return redirect(route === 'home' ? surfaceUrls.home(adminRoute, await searchParams) : surfaceUrls.goals(adminRoute, await searchParams))
   }
+  const clientProps = await buildSurfaceProps({ req, route, id, searchParams })
   if (clientProps?.canManage && id && tail[0] === 'by-slug') {
     const result = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 1, where: { slug: { equals: id } } })
     if (!result.docs[0]) return notFound()

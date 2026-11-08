@@ -23,7 +23,18 @@ const nonOperationMethods = [
   'sendEmail',
 ]
 // Authentication, not an access-checked operation; the full user is needed for the host's access callbacks.
-const AUTHENTICATION_ALLOW_LIST = ['src/admin/views/renderCollectionList.ts']
+const AUTHENTICATION_ALLOW_LIST = [{ file: 'src/admin/views/renderCollectionList.ts', count: 1 }]
+function authenticationCalls(source: ts.SourceFile): ts.CallExpression[] {
+  const calls: ts.CallExpression[] = []
+  function walk(node: ts.Node) {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+      && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === 'payload'
+      && node.expression.name.text === 'auth') calls.push(node)
+    ts.forEachChild(node, walk)
+  }
+  walk(source)
+  return calls
+}
 const methods = new Set(operationMethods)
 // Construct without init: no config, database connection or server is needed.
 const payloadMethods = (() => {
@@ -56,6 +67,8 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
   })
   const allowed = allowList.some(entry => matchesGlob(file, entry.file))
   const inDb = file.startsWith('src/db/')
+  const authentication = AUTHENTICATION_ALLOW_LIST.find(entry => entry.file === file)
+  const allowedAuthenticationCalls = new Set(authenticationCalls(source).slice(0, authentication?.count ?? 0))
   // Bind this source alone: symbols distinguish same-named aliases in separate
   // scopes without loading dependencies or typechecking the scanned program.
   const options: ts.CompilerOptions = { noLib: true, noResolve: true }
@@ -281,7 +294,7 @@ function scan(text: string, file: string, allowList = OVERRIDE_ACCESS_ALLOW_LIST
         payloadReceiver(arg)) report(node, 'local-api-indirect')
       // Every matching method is suspect unless its argument or receiver syntax
       // proves it is outside the Local API. Unknown receivers stay suspect.
-      if (!(method === 'auth' && AUTHENTICATION_ALLOW_LIST.includes(file)) && methods.has(method) && !nonLocalArgument(arg) && !(builtinReceiver(receiver) && globalExempt(receiver, method))) {
+      if (!allowedAuthenticationCalls.has(node) && methods.has(method) && !nonLocalArgument(arg) && !(builtinReceiver(receiver) && globalExempt(receiver, method))) {
         if (!arg || !ts.isObjectLiteralExpression(arg)) {
           if (!allowed) report(node, 'local-api-nonliteral')
         } else {
@@ -709,11 +722,17 @@ test('page path lookups need no privileged access exception', () => {
   expect(scan(readFileSync(join(pluginRoot, file), 'utf8'), file)).toEqual([])
 })
 
-test('only the collection-list authentication helper may omit overrideAccess for auth', () => {
-  expect(AUTHENTICATION_ALLOW_LIST).toEqual(['src/admin/views/renderCollectionList.ts'])
-  expect(scan('payload.auth({ headers: requestHeaders })', AUTHENTICATION_ALLOW_LIST[0]!)).toEqual([])
+test('only one direct payload.auth call in the collection-list helper may omit overrideAccess', () => {
+  expect(AUTHENTICATION_ALLOW_LIST).toEqual([{ file: 'src/admin/views/renderCollectionList.ts', count: 1 }])
+  const { file, count } = AUTHENTICATION_ALLOW_LIST[0]!
+  const text = readFileSync(join(pluginRoot, file), 'utf8')
+  expect(authenticationCalls(ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true))).toHaveLength(count)
+  expect(scan('payload.auth({ headers: requestHeaders })', file)).toEqual([])
+  expect(scan('payload.auth({}); payload.auth({})', file).map(v => v.rule)).toEqual(['local-api-override-required'])
+  for (const receiver of ['other', 'req.payload']) {
+    expect(scan(`${receiver}.auth({})`, file).map(v => v.rule)).toEqual(['local-api-override-required'])
+  }
   expect(scan('payload.auth({ headers: requestHeaders })', 'src/admin/views/unapproved.ts').map(v => v.rule))
     .toEqual(['local-api-override-required'])
-  expect(scan('payload.find({})', AUTHENTICATION_ALLOW_LIST[0]!).map(v => v.rule))
-    .toEqual(['local-api-override-required'])
+  expect(scan('payload.find({})', file).map(v => v.rule)).toEqual(['local-api-override-required'])
 })

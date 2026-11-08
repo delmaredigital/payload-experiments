@@ -1,19 +1,23 @@
 import { createLocalReq, sanitizeConfig } from 'payload'
-import type { Config, SanitizedPermissions } from 'payload'
+import type { Config, SanitizedConfig, SanitizedPermissions } from 'payload'
 import { EntityType, groupNavItems } from '@payloadcms/ui/shared'
-import { expect, test } from 'vitest'
+import { beforeAll, expect, test } from 'vitest'
 import { createExperimentsPlugin } from '../../../src/plugin.js'
 import { sampleOptions } from '../../collections/fixtures.js'
 import { fakePayload } from '../../_fakes/payload.js'
 
-test.each([true, false])('built config uses real Payload read permissions to group Tests for manager=%s', async manager => {
+let config: SanitizedConfig
+beforeAll(async () => {
   const options = sampleOptions()
   options.access.manage = ({ req }) => req.user?.role === 'manager'
-  const config = await sanitizeConfig(await createExperimentsPlugin(options)({
+  config = await sanitizeConfig(await createExperimentsPlugin(options)({
     secret: 'test-only', db: {} as Config['db'],
     collections: [{ slug: 'pages', fields: [], admin: { group: 'Content' } }, { slug: 'editors', auth: true, fields: [] }],
     globals: [{ slug: 'settings', fields: [] }],
   }))
+})
+
+test.each([true, false])('built config uses real Payload read permissions to group Tests for manager=%s', async manager => {
   expect(config.collections.slice(0, 3).map(item => item.slug)).toEqual(['xp-experiments', 'xp-metrics', 'pages'])
   expect(config.admin.user).toBe('editors')
   const req = await createLocalReq({ user: { id: 1, collection: 'editors', role: manager ? 'manager' : 'reader' } }, fakePayload({ config }))

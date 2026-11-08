@@ -1,3 +1,4 @@
+import { SURFACE_COPY } from '../admin/copy/surface.js'
 import { CLICK_KEY, isClickSource, validClickSource } from '../goals/key.js'
 import type { CollectionConfig } from 'payload'
 import type { ResolvedOptions } from '../types/contracts.js'
@@ -11,7 +12,7 @@ export function metricsCollection(options: ResolvedOptions): CollectionConfig {
   const sources = serializeMetricSources(options)
   return {
     slug: 'xp-metrics', graphQL: false, disableDuplicate: true, versions: false,
-    labels: { singular: 'Goal', plural: 'Goals' }, admin: { group: 'Tests', useAsTitle: 'name', components: { views: { list: { Component: XP_GOALS_COLLECTION_LIST }, edit: { default: { Component: XP_GOAL_EDIT_REDIRECT } } } } }, access: managedAccess(options),
+    labels: { singular: 'Goal', plural: 'Goals' }, admin: { group: SURFACE_COPY.title, useAsTitle: 'name', components: { views: { list: { Component: XP_GOALS_COLLECTION_LIST }, edit: { default: { Component: XP_GOAL_EDIT_REDIRECT } } } } }, access: managedAccess(options),
     hooks: { beforeDelete: [metricDeleteGuard], beforeChange: [metricChangeGuard], beforeValidate: [({ data, originalDoc }) => {
       if (!data) return data
       if (isClickSource(data.source ?? originalDoc?.source)) {

@@ -20,7 +20,7 @@ vi.mock('../../src/collections/experiments/armInvariants.js', async importOrigin
 
 const options = sampleOptions()
 const { collections, globals } = buildCollections(options)
-const experiments = collections[0]!
+const experiments = collections.find(collection => collection.slug === 'xp-experiments')!
 const bySlug = (slug: string) => collections.find(collection => collection.slug === slug)!
 const flagPoints = [{ id: 'cta', label: 'CTA', params: { title: { type: 'text', label: 'Title' } }, defaultParams: { title: 'Join' }, effectiveDefaults: { title: 'Join' } }]
 const attributeKeys = { country: { type: 'string', values: ['US', 'CA'] }, age: { type: 'number' } }
@@ -189,7 +189,7 @@ test('registered text validators, page unit and exposure policy validation', () 
 })
 
 test('field access hides code kind and analysis method from non-admins', async () => {
-  const config = buildCollections({ ...options, access: { manage: () => true, admin: () => false } }).collections[0]!
+  const config = buildCollections({ ...options, access: { manage: () => true, admin: () => false } }).collections.find(collection => collection.slug === 'xp-experiments')!
   const req = fakeReq()
   expect(await invoke(field(config.fields, 'kind', 'select').access?.read, { req, doc: { kind: 'code' } })).toBe(false)
   expect(await invoke(field(config.fields, 'kind', 'select').access?.read, { req, doc: { kind: 'block' } })).toBe(true)
@@ -239,7 +239,7 @@ test('arms validation delegates kind and joins issue messages', () => {
 test('targeting values match the attribute type and operator', () => {
   const options = sampleOptions()
   options.attributeKeys!.subscribed = { type: 'boolean' }
-  const config = buildCollections(options).collections[0]!
+  const config = buildCollections(options).collections.find(collection => collection.slug === 'xp-experiments')!
   const validator = field(field(config.fields, 'targeting', 'array').fields, 'value', 'json').validate
   const check = (attribute: string, op: string, value: unknown) => validate(validator, value, { siblingData: { attribute, op } })
   expect(check('age', 'gt', 18)).toBe(true)

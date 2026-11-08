@@ -134,7 +134,7 @@ test('only enabled Puck registrations append the goal hook after existing hooks'
   options.blocks = { collections: [{ slug: 'blocks', field: 'layout' }] }
   const input = { collections: ['puck', 'pages', 'blocks'].map(slug => ({ slug, fields: [], hooks: { beforeChange: [host] } })) } as unknown as Config
   const config = await createExperimentsPlugin(options)(input)
-  const hooks = config.collections!.slice(0, 3).map(c => c.hooks!.beforeChange!)
+  const hooks = ['puck', 'pages', 'blocks'].map(slug => config.collections!.find(c => c.slug === slug)!.hooks!.beforeChange!)
   expect(hooks.map(h => h.length)).toEqual([4, 3, 3])
   expect(hooks[0]!.slice(0, 3)).toEqual(hooks[1])
   const f = fixture({ drafts: false })
@@ -142,5 +142,5 @@ test('only enabled Puck registrations append the goal hook after existing hooks'
     .rejects.toMatchObject(refused('contentJson.props.xpGoal'))
   options.puck.enabled = false
   const disabled = await createExperimentsPlugin(options)(input)
-  expect(disabled.collections![0]).toBe(input.collections![0])
+  expect(disabled.collections!.find(c => c.slug === 'puck')).toBe(input.collections!.find(c => c.slug === 'puck'))
 }, 3_000)

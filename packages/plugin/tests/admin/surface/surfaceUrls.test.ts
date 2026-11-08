@@ -4,6 +4,14 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import { surfaceUrls } from '../../../src/admin/surfaceUrls.js'
 
+const legacyRedirect = fileURLToPath(new URL('../../../src/admin/views/CollectionListRedirect.tsx', import.meta.url))
+function legacyListUrls(file: string, source: string): string[] {
+  // The deprecated xp-experiments list override must hop through /experiments
+  // once; pointing it at its own canonical collection list would loop.
+  const text = file === legacyRedirect ? source.replace("path: '/experiments'", '') : source
+  return text.match(/['"`]\/experiments(?:\/goals)?(?:['"`]|\$\{(?:returnQuery|!reason)|\?)/g) ?? []
+}
+
 test.each(['/control', '/'])('collection list URLs keep repeated query values with admin=%s', admin => {
   const base = admin === '/' ? '' : admin
   expect(surfaceUrls.home(admin)).toBe(`${base}/collections/xp-experiments`)
@@ -20,7 +28,15 @@ test('all list URL producers use the shared helper; deeper surface routes stay l
     const source = readFileSync(file, 'utf8')
     // Root's login path and route parser deliberately retain the legacy namespace.
     if (file.endsWith('/ExperimentsRootView.tsx')) continue
-    expect(source, file).not.toMatch(/['"`]\/experiments(?:\/goals)?(?:['"`]|\$\{(?:returnQuery|!reason)|\?)/)
+    expect(legacyListUrls(file, source), file).toEqual([])
     if (!file.endsWith('/surfaceUrls.ts')) expect(source, file).not.toMatch(/path: ['"`]\/collections\/xp-(?:experiments|metrics)/)
   }
+})
+
+test('only the deprecated list override gets one exact legacy home target', () => {
+  const source = "redirect(formatAdminURL({ path: '/experiments' }))"
+  expect(legacyListUrls(legacyRedirect, source)).toEqual([])
+  expect(legacyListUrls('another.tsx', source)).toHaveLength(1)
+  expect(legacyListUrls(legacyRedirect, source + source)).toHaveLength(1)
+  expect(legacyListUrls(legacyRedirect, "const path = '/experiments/goals'")).toHaveLength(1)
 })

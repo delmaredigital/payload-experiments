@@ -294,9 +294,12 @@ test('serialises registered collection title fields and current user identity fo
 })
 
 test.each([['home', []], ['goals', ['goals']]] as const)('%s alias redirects managers to its collection, preserving repeated query values', async (route, tail) => {
-  const { props } = setup()
+  const manage = vi.fn(() => true)
+  const { props, req, findGlobal } = setup({ manage })
   const collection = route === 'home' ? 'xp-experiments' : 'xp-metrics'
   await expect(ExperimentsRootView({ ...props, params: { segments: ['experiments', ...tail] }, searchParams: { return: 'abc', filter: ['a', 'b'] } }))
     .rejects.toThrow(`redirect:/control/collections/${collection}?return=abc&filter=a&filter=b`)
+  expect(manage).toHaveBeenCalledExactlyOnceWith({ req })
+  expect(findGlobal).not.toHaveBeenCalled()
   expect(mocks.render).not.toHaveBeenCalled()
 })
