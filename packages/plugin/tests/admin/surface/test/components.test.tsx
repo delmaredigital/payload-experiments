@@ -8,6 +8,7 @@ import { TestPage } from '../../../../src/admin/surface/test/TestPage.js'
 import { Hypothesis, TestName, SelectEdit, CheckboxList } from '../../../../src/admin/surface/test/fields.js'
 import { VersionsSection } from '../../../../src/admin/surface/test/VersionsSection.js'
 import { LengthSection } from '../../../../src/admin/surface/test/LengthSection.js'
+import { jumpToSection } from '../../../../src/admin/surface/test/jumpToSection.js'
 import { AdvancedSection } from '../../../../src/admin/surface/test/AdvancedSection.js'
 import { TargetingSection } from '../../../../src/admin/surface/test/TargetingSection.js'
 import { GoalSection } from '../../../../src/admin/surface/test/GoalSection.js'
@@ -515,6 +516,59 @@ test('Advanced opens when a threshold error arrives and leaves the field error v
   view.rerender(<AdvancedSection {...p} />)
   expect(details.open).toBe(true)
   expect(within(details).getByRole('alert').textContent).toBe('Enter a minimum of one person per version.')
+})
+
+test('Advanced mounts open when an analysis error is already present', () => {
+  const p = props()
+  p.test.errors = { 'analysis.minExposuresPerArm': 'Enter a minimum of one person per version.' }
+  const view = render(<AdvancedSection {...p} />)
+  expect(view.container.querySelector('details')!.open).toBe(true)
+})
+
+test('Advanced stays closed after a synced close while the same error remains', () => {
+  const p = props()
+  p.test.errors = { 'analysis.minExposuresPerArm': 'Enter a minimum of one person per version.' }
+  const view = render(<AdvancedSection {...p} />)
+  const details = view.container.querySelector('details')!
+  expect(details.open).toBe(true)
+  details.open = false
+  fireEvent(details, new Event('toggle'))
+  expect(details.open).toBe(false)
+  view.rerender(<AdvancedSection {...p} />)
+  expect(details.open).toBe(false)
+})
+
+test('jumpToSection reopens Advanced after a synced close and it stays open on rerender', () => {
+  const p = props()
+  p.test.errors = { 'analysis.minExposuresPerArm': 'Enter a minimum of one person per version.' }
+  const view = render(<AdvancedSection {...p} />)
+  const details = view.container.querySelector('details')!
+  expect(details.open).toBe(true)
+  details.open = false
+  fireEvent(details, new Event('toggle'))
+  expect(details.open).toBe(false)
+  jumpToSection('advanced')
+  fireEvent(details, new Event('toggle'))
+  expect(details.open).toBe(true)
+  view.rerender(<AdvancedSection {...p} />)
+  expect(details.open).toBe(true)
+})
+
+test('Advanced reopens for a returning error after its closed state was synced', () => {
+  const p = props()
+  p.test.errors = { 'analysis.minExposuresPerArm': 'Enter a minimum of one person per version.' }
+  const view = render(<AdvancedSection {...p} />)
+  const details = view.container.querySelector('details')!
+  expect(details.open).toBe(true)
+  details.open = false
+  fireEvent(details, new Event('toggle'))
+  expect(details.open).toBe(false)
+  p.test.errors = {}
+  view.rerender(<AdvancedSection {...p} />)
+  expect(details.open).toBe(false)
+  p.test.errors = { 'analysis.minExposuresPerArm': 'Enter a minimum of one person per version.' }
+  view.rerender(<AdvancedSection {...p} />)
+  expect(details.open).toBe(true)
 })
 
 test('a deleted primary goal displays Choose a goal with a matching old baseline present', async () => {

@@ -11,6 +11,11 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: Advanced on the goal form and the test page now opens in the same update as the error that needs it.
+  Migration impact: none.
+- Fixed: A duplicate short name on a non-click goal now points to the Short name field, not to Advanced.
+  Migration impact: none.
+
 ## [0.4.0-rc.2] - 2026-11-07
 
 ### plugin
