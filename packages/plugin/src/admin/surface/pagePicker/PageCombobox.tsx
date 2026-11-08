@@ -29,25 +29,27 @@ export function PageCombobox({ collection, test, armKey, apiRoute }: {
   const resolved = chosen ?? placement
   const needsLookup = Boolean(target && !resolved)
   const lookupKey = JSON.stringify([collection.slug, target])
-  const lookups = useRef(new Map<string, { row?: PageRow; missing?: boolean }>())
+  const lookups = useRef<Record<string, { row?: PageRow; missing?: boolean } | undefined>>({})
   const [, updateLookup] = useState(0)
   const lookupRevision = useRef(0)
   useEffect(() => {
-    if (!needsLookup || lookups.current.has(lookupKey)) return
+    if (!needsLookup || lookups.current[lookupKey]) return
     const controller = new AbortController()
     const request = ++lookupRevision.current
+    const pending = {}
+    const discardPending = () => { if (lookups.current[lookupKey] === pending) delete lookups.current[lookupKey] }
     // Defer dispatch so StrictMode's discarded effect cannot cache an aborted attempt.
     void Promise.resolve().then(async () => {
       if (controller.signal.aborted) return
-      lookups.current.set(lookupKey, {})
+      lookups.current[lookupKey] = pending
       const result = await api.pages({ collection: collection.slug, path: target }, controller.signal)
-      if (controller.signal.aborted || !isLatestPageRequest(request, lookupRevision.current)) return
-      lookups.current.set(lookupKey, result.ok && result.data ? { row: result.data.docs[0], missing: result.data.docs.length === 0 } : {})
+      if (controller.signal.aborted || !isLatestPageRequest(request, lookupRevision.current)) { discardPending(); return }
+      lookups.current[lookupKey] = result.ok && result.data ? { row: result.data.docs[0], missing: result.data.docs.length === 0 } : {}
       updateLookup(value => value + 1)
     })
-    return () => controller.abort()
+    return () => { controller.abort(); discardPending() }
   }, [api, collection.slug, target, lookupKey, needsLookup])
-  const lookup = lookups.current.get(lookupKey)
+  const lookup = lookups.current[lookupKey]
   const value = resolved ? display(resolved) : !target ? '' : lookup?.missing ? pageNotFoundCopy(target, collection.label) : lookup?.row ? (lookup.row.title ? display(lookup.row) : target) : target
   const currentId = resolved?.id ?? lookup?.row?.id
   const [open, setOpen] = useState(false)
@@ -66,11 +68,11 @@ export function PageCombobox({ collection, test, armKey, apiRoute }: {
   const locked = reasonFor(test, 'arms')
   const saving = test.saving === 'saving'
   const blocked = Boolean(locked || saving)
-  const reset = () => { setPage(1); setReveal(8); firstNew.current = null; setRefresh(value => value + 1) }
+  const reset = () => { setPage(1); setReveal(8); setActive(null); firstNew.current = null; setRefresh(value => value + 1) }
   const close = () => { setOpen(false); setActive(null) }
-  const show = () => {
+  const show = (query = '') => {
     if (blocked || open) return
-    setSearch(''); setQuery(''); setRows([]); setMore(false); setActive(null); reset(); setOpen(true)
+    setSearch(query); setQuery(query); setRows([]); setMore(false); setActive(null); reset(); setOpen(true)
   }
   useEffect(() => {
     if (search === q) return
@@ -98,10 +100,16 @@ export function PageCombobox({ collection, test, armKey, apiRoute }: {
     void api.pages({ collection: collection.slug, q, page }, controller.signal).then(result => {
       if (controller.signal.aborted || !isLatestPageRequest(request, revision.current)) return
       if (result.ok && result.data) {
-        setRows(current => {
-          const combined = page === 1 ? result.data!.docs : [...current, ...result.data!.docs]
-          return combined.filter((row, index) => combined.findIndex(item => item.id === row.id) === index)
-        })
+        // These rows belong to this request; a reset/search aborts it. Commit the
+        // pending highlight with the rows, before a final page can remove More.
+        const combined = page === 1 ? result.data.docs : [...rows, ...result.data.docs]
+        const nextRows = combined.filter((row, index) => combined.findIndex(item => item.id === row.id) === index)
+        setRows(nextRows)
+        if (firstNew.current != null) {
+          const row = nextRows[firstNew.current]
+          setActive(row ? String(row.id) : null)
+          firstNew.current = null
+        }
         setMore(result.data.hasNextPage)
       } else { setMore(false); setError(C.error); firstNew.current = null }
       setLoading(false)
@@ -112,13 +120,6 @@ export function PageCombobox({ collection, test, armKey, apiRoute }: {
   const hasMore = rows.length > reveal || more
   const optionKeys = [...visibleRows.map(row => String(row.id)), ...(hasMore ? ['more'] : [])]
   const activeKey = active != null && optionKeys.includes(active) ? active : undefined
-  useEffect(() => {
-    if (firstNew.current != null && !loading) {
-      const row = rows[firstNew.current]
-      setActive(row ? String(row.id) : null)
-      firstNew.current = null
-    } else if (active && !optionKeys.includes(active)) setActive(null)
-  }, [rows, loading, reveal, hasMore, active])
   useEffect(() => {
     if (open && activeKey) root.current?.ownerDocument.getElementById(`${id}-option-${activeKey}`)?.scrollIntoView?.({ block: 'nearest' })
   }, [open, activeKey, id])
@@ -146,11 +147,15 @@ export function PageCombobox({ collection, test, armKey, apiRoute }: {
     <TextInput id={id} label={label} role="combobox" aria-autocomplete="list" autoComplete="off"
       aria-expanded={open} aria-controls={`${id}-list`} aria-activedescendant={open && activeKey ? `${id}-option-${activeKey}` : undefined}
       placeholder={C.choose} value={open ? search : value} disabled={Boolean(locked)} readOnly={saving} aria-disabled={saving || undefined}
-      onClick={show} onBlur={event => { if (!root.current?.contains(event.relatedTarget as Node)) close() }}
+      onClick={() => show()} onBlur={event => { if (!root.current?.contains(event.relatedTarget as Node)) close() }}
+      onPaste={event => {
+        if (blocked || open) return
+        event.preventDefault(); show(event.clipboardData.getData('text/plain'))
+      }}
       onChange={event => {
         if (blocked) return
+        if (!open) { show((event.nativeEvent as InputEvent).data ?? ''); return }
         const query = event.currentTarget.value
-        if (!open) { setOpen(true); setQuery(''); reset() }
         if (query === q) reset()
         setSearch(query); setRows([]); setMore(false); setActive(null); setReveal(8); setLoading(true); setError(''); firstNew.current = null; revision.current++
       }}
@@ -161,7 +166,7 @@ export function PageCombobox({ collection, test, armKey, apiRoute }: {
         }
         if (blocked) return
         if (!open && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-          event.preventDefault(); show(); setSearch(event.key); return
+          event.preventDefault(); show(event.key); return
         }
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
           event.preventDefault()
@@ -170,7 +175,7 @@ export function PageCombobox({ collection, test, armKey, apiRoute }: {
           setActive(optionKeys[Math.max(0, Math.min(optionKeys.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))] ?? null)
         } else if (open && activeKey && (event.key === 'Home' || event.key === 'End')) {
           event.preventDefault(); setActive(optionKeys[event.key === 'Home' ? 0 : optionKeys.length - 1] ?? null)
-        } else if (open && activeKey && event.key === 'Enter') { event.preventDefault(); choose(activeKey) }
+        } else if (open && activeKey && event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); choose(activeKey) }
       }} />
     {open ? <div className="xp-page-combobox-popup">
       <div id={`${id}-list`} role="listbox" aria-label={label}>

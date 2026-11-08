@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { StrictMode } from 'react'
+import { Profiler, StrictMode } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { PageCombobox } from '../../../../src/admin/surface/pagePicker/PageCombobox.js'
@@ -159,13 +159,51 @@ test('Escape, Tab and outside click restore the selected display; reopen clears 
 test('typing from closed keeps the first character and searches; locked input is disabled', async () => {
   const fetcher = vi.fn().mockImplementation(async () => response([]))
   vi.stubGlobal('fetch', fetcher)
-  const view = setup()
+  const p = props({ kind: 'page' }); p.test.doc!.arms[1]!.pageTarget = ''
+  const view = setup(p)
   fireEvent.keyDown(input(), { key: 'w' })
   expect(input().value).toBe('w')
   expect(input().getAttribute('aria-expanded')).toBe('true')
   await waitFor(() => expect(fetcher.mock.calls.at(-1)![0]).toContain('q=w'))
+  expect(fetcher).toHaveBeenCalledOnce()
+  expect(fetcher.mock.calls[0]![0]).toContain('q=w')
   view.p.test.doc!.status = 'running'; view.rerender()
   expect(input().disabled).toBe(true)
+})
+test('pasting into a closed selected field searches only the pasted text', async () => {
+  const fetcher = vi.fn().mockImplementation(async () => response([]))
+  vi.stubGlobal('fetch', fetcher)
+  const p = props({ kind: 'page' }); p.test.doc!.arms[1]!.pageTarget = '/page-1'
+  p.test.chosenPages = { variantA: { id: 1, path: '/page-1', title: 'Picked', published: true } }
+  setup(p)
+  expect(input().value).toBe('Picked · /page-1')
+  fireEvent.paste(input(), { clipboardData: { getData: () => 'pasted' } })
+  expect(input().value).toBe('pasted')
+  await waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
+  expect(fetcher.mock.calls[0]![0]).toContain('q=pasted')
+})
+test('composition input into a closed selected field searches only the inserted text', async () => {
+  const fetcher = vi.fn().mockImplementation(async () => response([]))
+  vi.stubGlobal('fetch', fetcher)
+  const p = props({ kind: 'page' }); p.test.doc!.arms[1]!.pageTarget = '/page-1'
+  p.test.chosenPages = { variantA: { id: 1, path: '/page-1', title: 'Picked', published: true } }
+  setup(p)
+  fireEvent.input(input(), { target: { value: 'Picked · /page-1文' }, data: '文', inputType: 'insertCompositionText', isComposing: true })
+  expect(input().value).toBe('文')
+  await waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
+  expect(fetcher.mock.calls[0]![0]).toContain(`q=${encodeURIComponent('文')}`)
+})
+test('Enter during IME composition leaves the active option unchosen', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => response([row(1)])))
+  const view = setup(); open(); await screen.findByRole('option'); key('ArrowDown')
+  const enter = new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true })
+  fireEvent(input(), enter)
+  expect(enter.defaultPrevented).toBe(false)
+  expect(view.p.test.choosePage).not.toHaveBeenCalled()
+  expect(input().getAttribute('aria-expanded')).toBe('true')
+  expect(active()?.textContent).toContain('Page 1')
+  key('Enter')
+  expect(view.p.test.choosePage).toHaveBeenCalledOnce()
 })
 test('saving while open blocks both Enter and click without disabling input', async () => {
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => response([row(1)])))
@@ -238,6 +276,25 @@ test('StrictMode replay dispatches one usable exact-path lookup', async () => {
   await waitFor(() => expect(input().value).toBe('Copy · /copy'))
   expect(fetcher).toHaveBeenCalledOnce()
 })
+test.each(['found', 'missing'] as const)('interrupted exact-path lookup can be re-enabled for the same key: %s', async state => {
+  const old = deferred(), next = deferred()
+  const fetcher = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise)
+  vi.stubGlobal('fetch', fetcher)
+  const p = props({ kind: 'page' }); p.test.doc!.arms[1]!.pageTarget = '/copy'
+  const view = setup(p)
+  await waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
+  p.test.chosenPages = { variantA: { id: 1, path: '/copy', title: 'Chosen', published: true } }; view.rerender()
+  expect(fetcher.mock.calls[0]![1].signal.aborted).toBe(true)
+  p.test.chosenPages = {}; view.rerender()
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+  // The discarded response must not delete the newer attempt's placeholder.
+  await act(async () => old.resolve(response([row(1, '/copy', 'Old', true)])))
+  expect(input().value).toBe('/copy')
+  await act(async () => next.resolve(response(state === 'missing' ? [] : [row(2, '/copy', 'Copy', true)])))
+  expect(input().value).toBe(state === 'missing' ? "/copy isn't in Pages. Choose a page." : 'Copy · /copy')
+  view.rerender()
+  expect(fetcher).toHaveBeenCalledTimes(2)
+})
 test('deleting a query back to the previous search during debounce reloads rather than remaining empty', async () => {
   const fetcher = vi.fn().mockImplementation(async () => response([row(1)]))
   vi.stubGlobal('fetch', fetcher); setup(); open()
@@ -269,4 +326,23 @@ test('keyboard More on an exhausted cache activates the first new row even when 
   expect(active()?.textContent).toContain('Page 41')
   expect(screen.queryByRole('option', { name: 'More' })).toBeNull()
   expect(input().getAttribute('aria-expanded')).toBe('true')
+})
+
+test('the final server page and its first active row appear in the same commit', async () => {
+  const final = deferred()
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response(Array.from({ length: 8 }, (_, i) => row(i + 1)), true)).mockReturnValueOnce(final.promise))
+  const p = props({ kind: 'page' })
+  p.test.doc!.arms[1]!.pageTarget = ''
+  const commits: Array<string | undefined> = []
+  render(<Profiler id="page-picker" onRender={() => {
+    if (screen.queryByRole('option', { name: /Page 10/ })) commits.push(active()?.textContent ?? undefined)
+  }}><PageCombobox collection={collection} test={p.test} armKey="variantA" apiRoute="/data" /></Profiler>)
+  open(); await screen.findByRole('option', { name: 'More' })
+  key('ArrowDown'); key('End'); key('Enter')
+  expect(active()?.textContent).toBe('More')
+  await act(async () => final.resolve(response([row(9), row(10)])))
+  expect(commits.length).toBeGreaterThan(0)
+  // Check the first commit, before any passive effect could schedule a repair.
+  for (const text of commits) expect(text).toContain('Page 9')
+  expect(screen.queryByRole('option', { name: 'More' })).toBeNull()
 })

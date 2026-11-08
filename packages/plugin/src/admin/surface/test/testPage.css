@@ -16,7 +16,6 @@
 .xp-version-content { display: flex; flex-wrap: nowrap; gap: var(--xp-space-2); align-items: center; min-width: 0; }
 .xp-version-content .xp-ui-button { white-space: nowrap; }
 .xp-version-content--page { flex-direction: column; align-items: stretch; gap: var(--xp-space-3); }
-.xp-version-content--page > button { align-self: flex-start; }
 .xp-copy-route ol { list-style: decimal; padding-inline-start: var(--xp-space-6); }
 .xp-content-chip { flex-shrink: 0; display: inline-flex; width: fit-content; border-radius: var(--xp-radius-chip); padding: var(--xp-space-half) var(--xp-space-2); font: var(--xp-text-small); background: var(--xp-surface-2); color: var(--xp-text-2); }
 .xp-content-chip.xp-content-ready { background: var(--xp-success-bg); color: var(--xp-success); }

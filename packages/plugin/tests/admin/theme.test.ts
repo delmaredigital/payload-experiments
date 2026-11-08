@@ -143,3 +143,14 @@ test.each(['light', 'dark'] as const)('%s default status chip has a border disti
   // elevation-100 is already surface-2, so accent-subtle needs another step.
   expect(resolve(tokens['--xp-accent-subtle']!)).not.toBe(resolve('var(--theme-elevation-100)'))
 })
+
+test.each(['light', 'dark'] as const)('%s disabled page rows have a visible dashed border at 3:1 against both row backgrounds', mode => {
+  const css = readFileSync(join(src, 'admin/surface/pagePicker/pagePicker.css'), 'utf8')
+  const rule = css.match(/\.xp-page-option\[aria-disabled='true'\] \{([^}]+)\}/)![1]!
+  expect(rule).toContain('border-style: dashed')
+  expect(rule).toContain('border-color: var(--xp-border-strong)')
+  const { resolve } = themeTokens(mode)
+  const localBorder = rule.match(/--xp-border-strong: ([^;]+);/)![1]!
+  const hex = (value: string) => resolve(value).replace(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/, (_, ...channels: string[]) => '#' + channels.slice(0, 3).map(v => Number(v).toString(16).padStart(2, '0')).join(''))
+  for (const background of ['surface', 'surface-2']) expect(contrast(hex(localBorder), hex(`var(--xp-${background})`))).toBeGreaterThanOrEqual(3)
+})
