@@ -4,7 +4,9 @@ import { CLICK_KEY } from '../goals/key.js'
 import { puckGoalRefusal } from '../goals/picker/copy.js'
 
 /** Host component labels are not passed to the plugin; display their type as words. */
-export function puckBlockName(type: string): string {
+export function puckBlockName(rawType: string): string {
+  // Cap before any regex: the type comes from saved page JSON and the first pattern backtracks on long capital runs.
+  const type = rawType.slice(0, 64)
   const words = type.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Za-z])([0-9])/g, '$1 $2').replace(/[\s_-]+/g, ' ').trim()
   return words ? words[0]!.toUpperCase() + words.slice(1) : 'Page'
@@ -23,11 +25,12 @@ export function puckGoalsBeforeChange(field: string): CollectionBeforeChangeHook
     }
     const errors: Array<{ path: string; message: string }> = []
     let first: { key: string; block: string } | undefined
-    async function walk(value: unknown, path: string, block = 'Page'): Promise<void> {
+    // Holds the raw component type; it is humanised once, for the first refusal only.
+    async function walk(value: unknown, path: string, block = ''): Promise<void> {
       if (!value || typeof value !== 'object') return
       const item = value as Record<string, unknown>
       if (typeof item.type === 'string' && item.props && typeof item.props === 'object' && !Array.isArray(item.props)) {
-        block = puckBlockName(item.type)
+        block = item.type
       }
       for (const [key, prop] of Object.entries(value)) {
         const propPath = `${path}.${key}`
@@ -43,7 +46,7 @@ export function puckGoalsBeforeChange(field: string): CollectionBeforeChangeHook
     await walk(value, field)
     if (first) {
       const error = new ValidationError({ collection: collection.slug, errors })
-      error.message = puckGoalRefusal(first.key, first.block, !CLICK_KEY.test(first.key), errors.length - 1)
+      error.message = puckGoalRefusal(first.key, first.block ? puckBlockName(first.block) : 'Page', !CLICK_KEY.test(first.key), errors.length - 1)
       throw error
     }
     return data

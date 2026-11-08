@@ -168,3 +168,10 @@ test('refusal sentences read exactly as the owner approved', () => {
   expect(puckGoalRefusal('missing', 'Page', false, 1)).toBe('Click goal "missing" doesn\'t exist yet. Create it with "+ New click goal" on the Page block, then publish. (and 1 more)')
   expect(puckGoalRefusal('X'.repeat(80), 'Page', true)).toContain(`"${'X'.repeat(64)}…"`)
 }, 3_000)
+
+// A saved type is untrusted page JSON; a long capital run must not backtrack. Measured 0 ms.
+test('humanising caps the type before matching', () => {
+  const started = performance.now()
+  expect(puckBlockName('A'.repeat(100_000))).toBe('A'.repeat(64))
+  expect(performance.now() - started).toBeLessThan(250)
+}, 3_000)
