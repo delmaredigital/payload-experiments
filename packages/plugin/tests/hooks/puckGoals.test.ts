@@ -2,7 +2,8 @@ import { ValidationError, type CollectionBeforeChangeHook, type Config } from 'p
 import { beforeEach, expect, test, vi } from 'vitest'
 import { definedClickKeys } from '../../src/db/clickGoals.js'
 import { clickKeys } from '../../src/goals/cache.js'
-import { puckGoalsBeforeChange } from '../../src/hooks/puckGoals.js'
+import { puckBlockName, puckGoalsBeforeChange } from '../../src/hooks/puckGoals.js'
+import { CLICK_GOAL_COPY, puckGoalRefusal } from '../../src/goals/picker/copy.js'
 import { createExperimentsPlugin } from '../../src/plugin.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
@@ -16,8 +17,8 @@ beforeEach(() => {
 })
 
 // Measured related run: slowest case 5.261 ms; each explicit 3,000 ms cap exceeds 3×.
-const missing = 'No click goal has this name yet. Create it with "+ New click goal".'
-const grammar = 'Use a click goal short name.'
+const missing = CLICK_GOAL_COPY.undefinedKey
+const grammar = CLICK_GOAL_COPY.invalidKey
 function fixture({ drafts = true, manager = true, configured = true, field = 'puckData' } = {}) {
   const options = sampleOptions()
   const manage = vi.fn(async () => manager)
@@ -29,7 +30,7 @@ function fixture({ drafts = true, manager = true, configured = true, field = 'pu
     return hook({ collection: { slug: 'pages', ...(drafts ? { versions: { drafts: {} } } : {}) }, data, originalDoc, req, operation } as Parameters<CollectionBeforeChangeHook>[0])
   } }
 }
-function refused(path: string, message = missing) {
+function refused(path: string, message: string = missing) {
   return { name: 'ValidationError', data: { collection: 'pages', errors: [{ path, message }] } }
 }
 
@@ -41,9 +42,24 @@ test.each(['draft', undefined])('draft-enabled write with status %s skips lookup
 }, 3_000)
 
 test('published write refuses an undefined goal with its exact path and copy', async () => {
-  const pending = fixture().save({ _status: 'published', puckData: { content: [{}, {}, { props: { xpGoal: 'missing' } }] } })
+  const pending = fixture().save({ _status: 'published', puckData: { content: [{}, {}, { type: 'CourseCTA', props: { xpGoal: 'missing' } }] } })
   await expect(pending).rejects.toBeInstanceOf(ValidationError)
   await expect(pending).rejects.toMatchObject(refused('puckData.content.2.props.xpGoal'))
+  await expect(pending).rejects.toMatchObject({ message: puckGoalRefusal('missing', 'Course CTA', false), status: 400, isPublic: true })
+}, 3_000)
+
+test.each([['CourseCTA', 'Course CTA'], ['heroBanner', 'Hero Banner'], ['course_cta', 'Course cta'],
+  ['course-cta', 'Course cta'], ['XMLParser', 'XML Parser'], ['Hero2Col', 'Hero 2 Col'], ['my  -- block', 'My block']])('humanises %s as %s', (type, name) => {
+  expect(puckBlockName(type!)).toBe(name)
+}, 3_000)
+
+test('the nearest component type supplies the name, without trusting a saved label as config', async () => {
+  await expect(fixture().save({ _status: 'published', puckData: { content: [{ type: 'OuterBlock', props: {
+    slot: [{ type: 'heroBanner', label: 'Untrusted saved label', props: { cta: { xpGoal: 'BAD' } } }],
+  } }] } })).rejects.toMatchObject({
+    name: 'ValidationError', message: puckGoalRefusal('BAD', 'Hero Banner', true), status: 400,
+    data: { errors: [{ path: 'puckData.content.0.props.slot.0.props.cta.xpGoal', message: grammar }] },
+  })
 }, 3_000)
 
 test('publishing a stored draft without its JSON checks the stored JSON', async () => {
@@ -72,7 +88,7 @@ test('defined goals at root, content, zones and nested prop arrays all save', as
 test('two bad props produce two errors with their full paths', async () => {
   await expect(fixture().save({ _status: 'published', puckData: {
     root: { props: { xpGoal: 'missing' } }, zones: { 'hero:main': [{ props: { cta: { xpGoal: 'BAD' } } }] },
-  } })).rejects.toMatchObject({ data: { errors: [
+  } })).rejects.toMatchObject({ message: puckGoalRefusal('missing', 'Page', false, 1), data: { errors: [
     { path: 'puckData.root.props.xpGoal', message: missing },
     { path: 'puckData.zones.hero:main.0.props.cta.xpGoal', message: grammar },
   ] } })
@@ -143,4 +159,12 @@ test('only enabled Puck registrations append the goal hook after existing hooks'
   options.puck.enabled = false
   const disabled = await createExperimentsPlugin(options)(input)
   expect(disabled.collections!.find(c => c.slug === 'puck')).toBe(input.collections!.find(c => c.slug === 'puck'))
+}, 3_000)
+
+// Pins the user-facing copy literally, so a copy change cannot pass by construction. Measured 1 ms.
+test('refusal sentences read exactly as the owner approved', () => {
+  expect(puckGoalRefusal('missing', 'Course CTA', false)).toBe('Click goal "missing" doesn\'t exist yet. Create it with "+ New click goal" on the Course CTA block, then publish.')
+  expect(puckGoalRefusal('BAD', 'Hero Banner', true)).toBe('Click goal "BAD" on the Hero Banner block isn\'t a valid short name. Use lowercase letters, numbers, - and _, then publish.')
+  expect(puckGoalRefusal('missing', 'Page', false, 1)).toBe('Click goal "missing" doesn\'t exist yet. Create it with "+ New click goal" on the Page block, then publish. (and 1 more)')
+  expect(puckGoalRefusal('X'.repeat(80), 'Page', true)).toContain(`"${'X'.repeat(64)}…"`)
 }, 3_000)

@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: Puck publish refusals name the invalid click goal and its block in the Save Failed dialog, while preserving Payload's field-level errors.
+  Migration impact: none.
 - Fixed: Advanced on the goal form and the test page now opens in the same update as the error that needs it.
   Migration impact: none.
 - Fixed: A duplicate short name on a non-click goal now points to the Short name field, not to Advanced.
