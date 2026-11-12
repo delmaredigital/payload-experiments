@@ -15,7 +15,7 @@ function focusable(node: HTMLDialogElement): HTMLElement[] {
 /** Native modal stays in its rendering document, including a Puck canvas iframe.
  * `initialFocus="cancel"` targets the focusable control marked `data-dialog-cancel`.
  */
-export function Dialog({ open, title, onClose, children, dismissible = true, initialFocus }: { open: boolean; dismissible?: boolean; initialFocus?: 'cancel'; title: string; onClose: () => void; children: ReactNode }) {
+export function Dialog({ open, title, onClose, children, dismissible = true, initialFocus, className = '', headerActions, closeOnBackdrop = false }: { open: boolean; className?: string; headerActions?: ReactNode; closeOnBackdrop?: boolean; dismissible?: boolean; initialFocus?: 'cancel'; title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null)
   const heading = useId()
   const closeRequested = useRef(false)
@@ -36,7 +36,12 @@ export function Dialog({ open, title, onClose, children, dismissible = true, ini
     ;(preferred ?? elements[0] ?? node).focus()
     return () => { node.close(); if (previous?.isConnected) previous.focus() }
   }, [open, initialFocus])
-  return <dialog ref={ref} aria-labelledby={heading} className="xp-ui-dialog" tabIndex={-1} onCancel={event => { event.preventDefault(); requestClose() }}
+  return <dialog ref={ref} aria-labelledby={heading} className={`xp-ui-dialog ${className}`} tabIndex={-1} onCancel={event => { if (event.target !== event.currentTarget) return; event.preventDefault(); requestClose() }}
+    onClick={event => {
+      if (!closeOnBackdrop || event.target !== event.currentTarget) return
+      const rect = event.currentTarget.getBoundingClientRect()
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) requestClose()
+    }}
     onKeyDown={event => {
       if (event.defaultPrevented) return
       if (event.key === 'Escape') { event.preventDefault(); requestClose(); return }
@@ -47,5 +52,5 @@ export function Dialog({ open, title, onClose, children, dismissible = true, ini
       if (!first) { event.preventDefault(); node.focus() }
       else if (event.shiftKey && (active === first || active === node)) { event.preventDefault(); last?.focus() }
       else if (!event.shiftKey && (active === last || active === node)) { event.preventDefault(); first.focus() }
-    }}><h2 id={heading}>{title}</h2>{children}</dialog>
+    }}>{headerActions ? <header className="xp-ui-dialog-header"><h2 id={heading}>{title}</h2>{headerActions}</header> : <h2 id={heading}>{title}</h2>}{children}</dialog>
 }

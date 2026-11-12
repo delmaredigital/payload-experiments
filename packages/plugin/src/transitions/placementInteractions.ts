@@ -5,7 +5,7 @@ import { placementPathContent, placementTests, type PlacementDoc, type Placement
 import { lockPagePaths } from '../db/locks.js'
 import { normalisePath } from '../runtime/normalisePath.js'
 import { scanBlockPlacements, type BlockPlacement } from './placements.js'
-import { interactingTestsCopy } from '../admin/copy/readiness.js'
+import { interactingTestsCopy } from '../testSurface/copy/readiness.js'
 import { XpRefusal } from '../errors.js'
 import { pageTargetPaths } from './checkStart.js'
 

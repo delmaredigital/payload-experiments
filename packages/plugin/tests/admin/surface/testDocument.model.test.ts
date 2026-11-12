@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { changedPatch, editablePatch, payloadFieldErrors } from '../../../src/admin/surface/testDocument.model.js'
-import type { TestDocument, TestDocumentPatch } from '../../../src/admin/surface/testDocument.model.js'
+import { changedPatch, editablePatch, payloadFieldErrors } from '../../../src/testSurface/surface/testDocument.model.js'
+import type { TestDocument, TestDocumentPatch } from '../../../src/testSurface/surface/testDocument.model.js'
 import type { Status } from '../../../src/types/contracts.js'
 import { EDITABLE_BY_STATUS } from '../../../src/collections/experiments/editability.js'
-import { lockedReason } from '../../../src/admin/lockedNotice.model.js'
+import { lockedReason } from '../../../src/testSurface/lockedNotice.model.js'
 import { XpLockedFieldError } from '../../../src/errors.js'
 
 const doc: TestDocument = {

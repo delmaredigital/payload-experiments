@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { PreflightResult } from '../../../src/types/endpoints.js'
-import { reviewView } from '../../../src/admin/review/review.model.js'
+import { reviewView } from '../../../src/testSurface/review/review.model.js'
 
 const preflight: PreflightResult = { checks: [], placements: [], baseline: { metricId: 1, value: 0.125, days: 28 }, trafficPerDay: null, estimate: null }
 test.each([

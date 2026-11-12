@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { TARGETING_OPS, isOpValid } from '../../../src/targeting/ops.js'
-import { coerceValue, emptyListHint, humaniseAttribute, opLabel, opsFor, readListValue, rowPath, valueInput } from '../../../src/admin/targeting/targeting.model.js'
+import { coerceValue, emptyListHint, humaniseAttribute, opLabel, opsFor, readListValue, rowPath, valueInput } from '../../../src/testSurface/targeting/targeting.model.js'
 import { experimentsCollection } from '../../../src/collections/experiments/config.js'
 import { field, sampleOptions, validate } from '../../collections/fixtures.js'
 

@@ -1,19 +1,19 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { useTestDocument } from '../../../../src/admin/surface/useTestDocument.js'
-import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
-import { VersionsSection } from '../../../../src/admin/surface/test/VersionsSection.js'
-import { pageBlockParts } from '../../../../src/admin/surface/pageBlock/parts.js'
+import { useTestDocument } from '../../../../src/testSurface/surface/useTestDocument.js'
+import type { TestDocument } from '../../../../src/testSurface/surface/testDocument.model.js'
+import { VersionsSection } from '../../../../src/testSurface/surface/test/VersionsSection.js'
+import { pageBlockParts } from '../../../../src/testSurface/surface/pageBlock/parts.js'
 import { checkArms } from '../../../../src/collections/experiments/armInvariants.js'
-import type { SurfaceProps } from '../../../../src/admin/surface/contracts.js'
-import { defaultArms } from '../../../../src/admin/arms/arms.model.js'
+import type { SurfaceProps } from '../../../../src/testSurface/surface/contracts.js'
+import { defaultArms } from '../../../../src/testSurface/arms/arms.model.js'
 
-vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
+vi.mock('../../../../src/testSurface/surface/readiness/parts.js', () => ({ readinessParts: {
   Banner: () => null, SaveStatus: () => null,
   sectionDone: () => ({ what: false, versions: false, win: false, who: true, length: false, advanced: true }),
 } }))
-vi.mock('../../../../src/admin/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
+vi.mock('../../../../src/testSurface/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
 const response = (value: unknown, status = 200) => ({ ok: status === 200, status, json: async () => value }) as Response
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }

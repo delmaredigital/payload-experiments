@@ -1,12 +1,12 @@
 'use client'
 
-import { surfaceUrls } from '../surfaceUrls.js'
+import { surfaceUrls } from '../../testSurface/surfaceUrls.js'
 import { useEffect, useMemo, useState } from 'react'
 import { formatAdminURL } from 'payload/shared'
 import type { SummaryResponse } from '../../types/endpoints.js'
 import { fetchAllDocs } from '../../lib/fetchAllDocs.js'
-import { createApi } from '../api.js'
-import { noMatchesLine, SURFACE_COPY } from '../copy/surface.js'
+import { createApi } from '../../testSurface/api.js'
+import { noMatchesLine, SURFACE_COPY } from '../../testSurface/copy/surface.js'
 import { Banner, EmptyState, StatusChip } from '../../ui/Feedback.js'
 import { Button } from '../../ui/Button.js'
 import { SearchInput } from '../../ui/Inputs.js'
@@ -15,7 +15,7 @@ import type { SurfaceShellProps } from './SurfaceShell.js'
 import { sanitizeReadinessDetail } from '../../sanitizeReadinessDetail.js'
 import { groupTests, homeCard } from './home.model.js'
 import type { HomeTest } from './home.model.js'
-import type { ReadinessContext } from './readiness/readiness.model.js'
+import type { ReadinessContext } from '../../testSurface/surface/readiness/readiness.model.js'
 
 const HOME_FIELDS = ['name', 'kind', 'status', 'analysis', 'arms', 'decidedAt', 'decision', 'unitType', 'flagPoint', 'updatedAt'] as const
 // Typecheck fails if HomeTest gains a field the list request does not select (Payload always returns id).

@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { MetricSourceSelect } from '../../../src/admin/MetricSourceSelect.js'
-import { METRICS_COPY } from '../../../src/admin/copy/metrics.js'
+import { METRICS_COPY } from '../../../src/testSurface/copy/metrics.js'
 import { payloadUiMock, resetPayloadUiMock, setField, setFormFields } from '../_helpers/payloadUiMock.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())

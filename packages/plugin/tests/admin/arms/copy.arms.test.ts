@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { ArmIssueCode } from '../../../src/types/endpoints.js'
-import { ARMS_COPY, GROUP_LABELS, ISSUE_COPY, issueMessage } from '../../../src/admin/copy/arms.js'
+import { ARMS_COPY, GROUP_LABELS, ISSUE_COPY, issueMessage } from '../../../src/testSurface/copy/arms.js'
 
 const codes: ArmIssueCode[] = ['weights-total', 'control-count', 'control-first', 'holdout-last', 'holdout-count', 'variant-count', 'duplicate-key', 'duplicate-slot', 'slot-required', 'invalid-key']
 const exhaustive: Record<ArmIssueCode, string> = ISSUE_COPY

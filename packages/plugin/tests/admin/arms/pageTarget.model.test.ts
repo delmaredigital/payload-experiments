@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { pageTargetIssue, setPageTarget, showsPageTarget } from '../../../src/admin/arms/pageTarget.model.js'
-import { ARMS_COPY } from '../../../src/admin/copy/arms.js'
+import { pageTargetIssue, setPageTarget, showsPageTarget } from '../../../src/testSurface/arms/pageTarget.model.js'
+import { ARMS_COPY } from '../../../src/testSurface/copy/arms.js'
 import type { Arm, ExperimentKind } from '../../../src/types/contracts.js'
 
 test('only page experiments show paths, and never for holdout', () => {

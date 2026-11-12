@@ -9,9 +9,9 @@ import { props as testProps } from './readiness/fixtures.js'
 const hook = vi.hoisted(() => vi.fn())
 vi.mock('@payloadcms/ui', () => ({ Link: (props: ComponentProps<'a'>) => <a {...props} /> }))
 vi.mock('next/navigation.js', () => ({ useRouter: () => ({ push: vi.fn() }) }))
-vi.mock('../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: hook }))
-vi.mock('../../../src/admin/surface/results/ResultsBody.js', () => ({ ResultsBody: ({ renderPage }: import('../../../src/admin/surface/results/ResultsBody.js').ResultsPageParts & { renderPage?: (parts: import('../../../src/admin/surface/results/ResultsBody.js').ResultsPageParts) => import('react').ReactNode }) => renderPage ? renderPage({ children: <p>Results body</p>, actions: null, released: null }) : <p>Results body</p> }))
-vi.mock('../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
+vi.mock('../../../src/testSurface/surface/useTestDocument.js', () => ({ useTestDocument: hook }))
+vi.mock('../../../src/testSurface/surface/results/ResultsBody.js', () => ({ ResultsBody: ({ renderPage }: import('../../../src/testSurface/surface/results/ResultsBody.js').ResultsPageParts & { renderPage?: (parts: import('../../../src/testSurface/surface/results/ResultsBody.js').ResultsPageParts) => import('react').ReactNode }) => renderPage ? renderPage({ children: <p>Results body</p>, actions: null, released: null }) : <p>Results body</p> }))
+vi.mock('../../../src/testSurface/surface/readiness/parts.js', () => ({ readinessParts: {
   Banner: () => null, SaveStatus: () => null,
   sectionDone: () => ({ what: false, versions: false, win: false, who: true, length: false, advanced: true }),
 } }))

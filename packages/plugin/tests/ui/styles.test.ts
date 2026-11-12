@@ -10,9 +10,9 @@ function rule(selector: string): string {
 }
 
 test('page content stacks with a full-width picker, quiet disabled reasons and indented copy steps', () => {
-  const page = readFileSync(new URL('../../src/admin/surface/test/testPage.css', import.meta.url), 'utf8') + readFileSync(new URL('../../src/admin/surface/pagePicker/pagePicker.css', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../../src/testSurface/surface/test/testPage.css', import.meta.url), 'utf8') + readFileSync(new URL('../../src/testSurface/surface/pagePicker/pagePicker.css', import.meta.url), 'utf8')
   const declarations = (selector: string) => [...page.matchAll(/([^{}]+)\{([^{}]+)\}/g)]
-    .filter(match => match[1]!.trim() === selector).map(match => match[2]).join('\n')
+    .filter(match => match[1]!.trim() === `:where(.xp-test-surface) ${selector}`).map(match => match[2]).join('\n')
   expect(declarations('.xp-version-content--page')).toContain('flex-direction: column')
   expect(declarations('.xp-version-content--page')).toContain('align-items: stretch')
   expect(declarations('.xp-version-content--page')).toMatch(/gap: var\(--xp-space-/)
@@ -79,7 +79,7 @@ test('plain surface links use neutral text and underline on hover without overri
 
 test('surface button defaults cannot restyle chip remove buttons', () => {
   const surface = readFileSync(new URL('../../src/admin/surface/surface.css', import.meta.url), 'utf8')
-  const page = readFileSync(new URL('../../src/admin/surface/test/testPage.css', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../../src/testSurface/surface/test/testPage.css', import.meta.url), 'utf8')
   expect(surface).not.toContain('.xp-tests-surface button')
   expect(surface).toContain('.xp-tests-toolbar button:not(.xp-ui-button)')
   expect(page).not.toContain('.xp-test-page button:not(.xp-ui-button)')

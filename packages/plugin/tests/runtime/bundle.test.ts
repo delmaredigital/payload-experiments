@@ -41,7 +41,7 @@ test('contentDone is pure and the admin result imports it without a server graph
   expect(graph.bare).toEqual([])
   expect(graph.dynamic).toEqual([])
   expect(graph.files).toEqual([helper])
-  const admin = collectImports(fileURLToPath(new URL('../../src/admin/actions/MakeContentResult.tsx', import.meta.url)))
+  const admin = collectImports(fileURLToPath(new URL('../../src/testSurface/actions/MakeContentResult.tsx', import.meta.url)))
   expect(admin.files).toContain(helper)
   expect(admin.files.filter(file => /\/src\/(db|server|endpoints|transitions)\//.test(file))).toEqual([])
   expect([...admin.bare, ...admin.dynamic].filter(name => /^(payload(?:\/|$)|pg(?:\/|$)|node:)/.test(name))).toEqual([])

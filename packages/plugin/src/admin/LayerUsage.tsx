@@ -3,7 +3,7 @@ import { FieldDescription, FieldLabel, useDocumentInfo } from '@payloadcms/ui'
 import type { ComponentProps } from 'react'
 import type { UIFieldClientProps } from 'payload'
 import { useLayerExperiments } from './useLayerUsage.js'
-import { statusLabel } from './labels.js'
+import { statusLabel } from '../testSurface/labels.js'
 import { HISTORY_COPY, layerRow, layerSummary } from './copy/history.js'
 
 export function LayerUsage({ field, path }: UIFieldClientProps) {

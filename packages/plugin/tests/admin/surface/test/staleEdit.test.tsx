@@ -3,16 +3,16 @@ import { StrictMode } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { TestPage } from '../../../../src/admin/surface/test/TestPage.js'
-import { SaveStatus } from '../../../../src/admin/surface/readiness/SaveStatus.js'
-import { READINESS_COPY } from '../../../../src/admin/copy/readiness.js'
-import { TEST_PAGE } from '../../../../src/admin/copy/testPage.js'
+import { SaveStatus } from '../../../../src/testSurface/surface/readiness/SaveStatus.js'
+import { READINESS_COPY } from '../../../../src/testSurface/copy/readiness.js'
+import { TEST_PAGE } from '../../../../src/testSurface/copy/testPage.js'
 import { doc, preflight, props } from '../readiness/fixtures.js'
 
-vi.mock('../../../../src/admin/surface/readiness/parts.js', async () => ({ readinessParts: {
-  Banner: () => null, SaveStatus: (await import('../../../../src/admin/surface/readiness/SaveStatus.js')).SaveStatus,
+vi.mock('../../../../src/testSurface/surface/readiness/parts.js', async () => ({ readinessParts: {
+  Banner: () => null, SaveStatus: (await import('../../../../src/testSurface/surface/readiness/SaveStatus.js')).SaveStatus,
   sectionDone: () => ({ what: false, versions: false, win: false, who: true, length: false, advanced: true }),
 } }))
-vi.mock('../../../../src/admin/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
+vi.mock('../../../../src/testSurface/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 test('a stale edit shows one alert with Reload, preserves typed values, and Reload discards them', async () => {

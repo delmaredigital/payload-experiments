@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest'
-import { defaultArms } from '../../../../src/admin/arms/arms.model.js'
-import { balanceWeight, durationSuggestion, exposureOptions, orderedVersions, trafficShares } from '../../../../src/admin/surface/test/testPage.model.js'
-import { placementLine, slotReady } from '../../../../src/admin/surface/pageBlock/pageBlock.model.js'
-import * as copy from '../../../../src/admin/copy/testPage.js'
+import { defaultArms } from '../../../../src/testSurface/arms/arms.model.js'
+import { balanceWeight, durationSuggestion, exposureOptions, orderedVersions, trafficShares } from '../../../../src/testSurface/surface/test/testPage.model.js'
+import { placementLine, slotReady } from '../../../../src/testSurface/surface/pageBlock/pageBlock.model.js'
+import * as copy from '../../../../src/testSurface/copy/testPage.js'
 import type { PreflightResult } from '../../../../src/types/endpoints.js'
 
 const placements: PreflightResult['placements'] = [{ collection: 'pages', id: 1, title: 'Welcome', detail: 'Published', ok: true,

@@ -5,7 +5,7 @@ import T2 from '../../_fixtures/snapshots/T2.json'
 import T3 from '../../_fixtures/snapshots/T3.json'
 import T4 from '../../_fixtures/snapshots/T4.json'
 import T7 from '../../_fixtures/snapshots/T7.json'
-import { decideState } from '../../../src/admin/actions/decide.model.js'
+import { decideState } from '../../../src/testSurface/actions/decide.model.js'
 import { expectedConfirm } from '../../../src/transitions/confirmPhrases.js'
 
 const arms = [{ key: 'control' }, { key: 'variantA' }, { key: 'holdout' }]

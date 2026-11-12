@@ -1,6 +1,6 @@
 import { createLocalReq, type PayloadRequest } from 'payload'
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import { readTargetingRules } from '../src/admin/targeting/targeting.model.js'
+import { readTargetingRules } from '../src/testSurface/targeting/targeting.model.js'
 import { createIntegrationHarness } from './harness.js'
 
 // Train only: real Local API field validation, serial + uuid Postgres adapters.

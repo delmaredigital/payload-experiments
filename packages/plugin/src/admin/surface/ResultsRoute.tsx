@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import type { DocId } from '../../types/contracts.js'
-import type { SurfaceProps } from './contracts.js'
-import { useTestDocument } from './useTestDocument.js'
+import type { SurfaceProps } from '../../testSurface/surface/contracts.js'
+import { useTestDocument } from '../../testSurface/surface/useTestDocument.js'
 import { ResultsHeader, ReaderResultsShell } from './results/ResultsHeader.js'
-import { ResultsBody } from './results/ResultsBody.js'
-import { TEST_PAGE as C } from '../copy/testPage.js'
+import { ResultsBody } from '../../testSurface/surface/results/ResultsBody.js'
+import { TEST_PAGE as C } from '../../testSurface/copy/testPage.js'
 import { Button } from '../../ui/Button.js'
 
 export function ResultsRoute(props: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {

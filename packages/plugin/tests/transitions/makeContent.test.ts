@@ -2,7 +2,7 @@ import { Forbidden, Locked, NotFound, ValidationError, killTransaction, type Fie
 import { afterEach, expect, test, vi } from 'vitest'
 import { createExperimentBlock } from '../../src/blocks/createExperimentBlock.js'
 import { contentChangesBeforeHook, contentChangesHook } from '../../src/hooks/contentChanges.js'
-import { contentReportCopy } from '../../src/admin/copy/actions.js'
+import { contentReportCopy } from '../../src/testSurface/copy/actions.js'
 import { preflightData } from '../../src/transitions/preflightData.js'
 import { dismissContentEntry } from '../../src/transitions/dismissContentEntry.js'
 import { restoreContentEntry } from '../../src/transitions/restoreContentEntry.js'

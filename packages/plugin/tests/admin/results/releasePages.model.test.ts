@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { canReleasePages, pagesReleasedBy } from '../../../src/admin/results/releasePages.model.js'
+import { canReleasePages, pagesReleasedBy } from '../../../src/testSurface/results/releasePages.model.js'
 
 const eligible = { kind: 'page', status: 'archived', decision: { winnerArm: 'variantA' } }
 test('an archived whole-page winner can release its pages', () => {

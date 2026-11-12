@@ -1,10 +1,10 @@
 'use client'
 
-import { surfaceUrls } from './surfaceUrls.js'
+import { surfaceUrls } from '../testSurface/surfaceUrls.js'
 import './theme.css'
 import './dashboard.css'
 import { Card, useAuth, useConfig } from '@payloadcms/ui'
-import { SURFACE_COPY } from './copy/surface.js'
+import { SURFACE_COPY } from '../testSurface/copy/surface.js'
 
 /** @deprecated Retained for existing import maps until 0.5.0. */
 export function TestsDashboardCards() {

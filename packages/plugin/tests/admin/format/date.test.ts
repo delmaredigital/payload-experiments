@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { formatDate } from '../../../src/admin/format/date.js'
+import { formatDate } from '../../../src/testSurface/format/date.js'
 
 test.each(['2026-10-25T12:00:00Z', Date.UTC(2026, 9, 25, 12), new Date('2026-10-25T12:00:00Z')])('dates use the same day-month-year format: %s', value => {
   expect(formatDate(value)).toBe('25 Oct 2026')

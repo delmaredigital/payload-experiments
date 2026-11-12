@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
-import * as copy from '../../../src/admin/copy/results.js'
-import { armRows, cappedCell, collectingLine, dataQuality, guardrailChips, powerLine, rolloutLine, roundOptions, verdictCard, verdictLabel } from '../../../src/admin/results/results.model.js'
+import * as copy from '../../../src/testSurface/copy/results.js'
+import { armRows, cappedCell, collectingLine, dataQuality, guardrailChips, powerLine, rolloutLine, roundOptions, verdictCard, verdictLabel } from '../../../src/testSurface/results/results.model.js'
 import { fixture, fixtures, phaseFor, revenueSnapshot } from './fixtures.js'
 
 function userWords(value: unknown): void {
@@ -10,7 +10,7 @@ function userWords(value: unknown): void {
 }
 test('results copy uses group and round vocabulary, including string templates', () => {
   userWords(copy)
-  expect(readFileSync(new URL('../../../src/admin/copy/results.ts', import.meta.url), 'utf8')).not.toMatch(/\b(arms?|phases?)\b/i)
+  expect(readFileSync(new URL('../../../src/testSurface/copy/results.ts', import.meta.url), 'utf8')).not.toMatch(/\b(arms?|phases?)\b/i)
 })
 test.each(Object.keys(fixtures))('%s model outputs use user vocabulary', name => {
   const snapshot = fixture(name)

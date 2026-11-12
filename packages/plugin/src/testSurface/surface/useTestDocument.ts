@@ -67,7 +67,9 @@ function stage(session: Session, partial: TestDocumentPatch) {
 }
 
 /** Section data only: staging never saves. Call commit on blur or a section action. */
-export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus = false }: { apiRoute: string; refetchPreflightOnFocus?: boolean }) {
+export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus = false, enabled = true, onDocument, onPreflight }: { apiRoute: string; refetchPreflightOnFocus?: boolean; enabled?: boolean; onDocument?: (doc: TestDocument) => void; onPreflight?: (preflight: PreflightResult) => void }) {
+  const observers = useRef({ onDocument, onPreflight })
+  observers.current = { onDocument, onPreflight }
   const base = apiRoute.replace(/\/$/, '')
   const documentId = String(id)
   const key = JSON.stringify([base, documentId])
@@ -78,6 +80,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
   const [reloadCount, setReloadCount] = useState(0)
 
   useEffect(() => {
+    if (!enabled) return
     const controller = new AbortController()
     const session: Session = {
       key, saved: null, pending: {}, queue: [], tail: Promise.resolve(), view: initialView(),
@@ -125,6 +128,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
       if (revision !== preflightRevision) return
       session.preflightLoading = false
       if (data) {
+        observers.current.onPreflight?.(data)
         session.view.preflight = data
         session.view.preflightError = null
         if (initial) session.view.loadState = 'ready'
@@ -194,13 +198,14 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
               // The old timestamp is no longer a valid baseline. The next queued save
               // must recover it with a GET before sending another PATCH.
               session.saved = readable ? doc : { ...session.saved, ...patch, updatedAt: undefined }
+              if (readable) observers.current.onDocument?.(doc)
               saved = true
               // Keep readiness pending even while recovering an unreadable successful PATCH body.
               session.preflightReads++
               session.publish()
               session.view.errors = clearErrors(session.view.errors, patch)
               delete session.view.errors._section
-              if (!readable && !controller.signal.aborted) session.saved = await readDocument()
+              if (!readable && !controller.signal.aborted) { session.saved = await readDocument(); observers.current.onDocument?.(session.saved) }
             }
           }
         } catch (error) {
@@ -245,6 +250,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
         if (controller.signal.aborted) return
         if (doc.id == null || !doc.status) throw new Error(API_MESSAGES.unreadable)
         session.saved = doc
+        observers.current.onDocument?.(doc)
         await refreshPreflight(true)
         if (controller.signal.aborted) return
         session.publish()
@@ -270,7 +276,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
         if (drainingSaves.get(key) === draining) drainingSaves.delete(key)
       })
     }
-  }, [key, base, documentId, reloadCount])
+  }, [key, base, documentId, reloadCount, enabled])
 
   const stagePartial = useCallback((partial: TestDocumentPatch) => {
     const session = current.current
@@ -314,5 +320,16 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
     stage(session, { arms: doc.arms.map(item => item.key === arm ? { ...item, pageTarget: page.path } : item) })
     return commit()
   }, [key, commit])
-  return { ...(state.key === key ? state.view : initialView()), stage: stagePartial, commit, reload, refreshPreflight, choosePage }
+  // Transition responses outlive this mount just like submitted PATCHes. Publish
+  // their authoritative document before attempting a mount-dependent reload.
+  const transitionActions: { acceptTransition?: (result: unknown) => void } = {
+    acceptTransition(result) {
+      const doc = (result as { doc?: TestDocument } | undefined)?.doc
+      if (!doc || doc.id == null || !doc.status || !Array.isArray(doc.arms) || String(doc.id) !== documentId) return
+      observers.current.onDocument?.(doc)
+      const session = current.current
+      if (session?.key === key && !session.controller.signal.aborted) { session.saved = doc; session.publish() }
+    },
+  }
+  return { ...transitionActions, ...(state.key === key ? state.view : initialView()), stage: stagePartial, commit, reload, refreshPreflight, choosePage }
 }

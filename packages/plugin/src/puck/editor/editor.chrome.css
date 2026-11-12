@@ -146,3 +146,23 @@
 }
 
 .xp-slot-control-events { display: contents; }
+
+/* The configure surface is opt-in and always outside the Puck component tree. */
+.xp-slot-editor.xp-configure-host .xp-ui-drawer { margin: 0; }
+.xp-configure-panel { font: var(--xp-text-body); color: var(--xp-text); }
+.xp-configure-panel .xp-test-page { margin: 0; padding: var(--xp-space-5); min-width: 0; }
+.xp-configure-panel .xp-test-layout { grid-template-columns: minmax(0, 1fr); gap: var(--xp-space-5); }
+.xp-configure-panel .xp-test-content { max-width: none; gap: var(--xp-space-5); }
+.xp-configure-panel .xp-test-rail { position: static; }
+.xp-configure-panel .xp-test-rail-list { flex-direction: row; overflow-x: auto; }
+.xp-configure-panel .xp-test-rail-item { white-space: nowrap; }
+.xp-configure-panel .xp-test-rail-item--advanced { margin-top: 0; }
+.xp-configure-panel .xp-test-readiness-bar { position: sticky; bottom: 0; margin: var(--xp-space-5) calc(-1 * var(--xp-space-5)) calc(-1 * var(--xp-space-5)); }
+.xp-configure-panel .xp-readiness--bar { grid-template-columns: minmax(0, 1fr); padding: var(--xp-space-4) var(--xp-space-5); }
+.xp-configure-panel .xp-readiness--bar > .xp-readiness__actions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+.xp-configure-panel .xp-readiness__separator { display: none; }
+.xp-configure-panel .xp-targeting-row { grid-template-columns: minmax(0, 1fr); }
+.xp-configure-panel .xp-targeting-row > * { min-width: 0; }
+.xp-configure-panel .xp-version-rows { grid-template-columns: minmax(0, 1fr) var(--xp-version-share-width-mobile); }
+.xp-configure-panel .xp-version-content, .xp-configure-panel .xp-version-remove { grid-column: 1 / -1; }
+.xp-configure-panel .xp-version-grid-head > :nth-child(n+3) { display: none; }

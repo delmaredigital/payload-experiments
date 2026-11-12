@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from 'vitest'
-import { createApi } from '../../src/admin/api.js'
+import { createApi } from '../../src/testSurface/api.js'
 import type { ClickKeysResult, ErrorEnvelope, ResultsResponse } from '../../src/types/endpoints.js'
 import type { ExperimentKind, Status } from '../../src/types/contracts.js'
 

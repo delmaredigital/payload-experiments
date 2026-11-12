@@ -19,12 +19,13 @@ import { armsFromBlock, bannerFor, currentPuckDocument, isSharedTest, tabsFor, t
 import { cloneSlot } from './cloneSlot.js'
 import { openCreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
-import { acquireArms, loadArms, setArms, useArms } from './armsCache.js'
+import { acquireArms, loadArms, publishExperiment, useArms } from './armsCache.js'
 import { AddVariant, RemoveVersion, VersionActions, VersionWeights, useArmWrites } from './VersionBuilder.js'
 import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
 import { acquirePlacements, invalidatePlacements, refreshPlacements } from './placementsCache.js'
 import { localPlacements } from './localPlacements.js'
+import { ConfigureTestButton, type EditorTestSurface } from './ConfigureTestDrawer.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
@@ -39,7 +40,7 @@ function isExperiment(value: unknown): value is EditorExperiment {
       ['control', 'variant', 'holdout'].includes(arm.kind) && typeof arm.label === 'string')
 }
 
-function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAccent> }) {
+function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAccent>; surface?: EditorTestSurface }) {
   const getPuck = useGetPuck()
   const { admin, api } = usePuckRoutes()
   const root = useRef<HTMLElement>(null)
@@ -122,7 +123,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     return () => { current = false; controller.abort(); releaseArms(); document.removeEventListener('visibilitychange', onVisible) }
   }, [experimentId, api])
 
-  const status = loaded?.id === experimentId ? loaded?.doc?.status : undefined
+  const cachedExperiment = loaded?.id === experimentId ? knownArms?.doc : undefined
+  const status = cachedExperiment?.status ?? (loaded?.id === experimentId ? loaded?.doc?.status : undefined)
   useEffect(() => {
     if (experimentId === undefined || !status) return
     return acquirePlacements(api, experimentId, placements => {
@@ -136,7 +138,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
 
   const result = experimentId === undefined || loaded?.id !== experimentId ? undefined : loaded
   const shared = locallyShared || result?.shared === true
-  const experiment = result?.doc
+  const experiment = cachedExperiment ?? result?.doc
   const editable = experiment?.status === 'draft' || experiment?.status === 'stopped'
   const [removed, setRemoved] = useState<{ key: string; revision: number } | null>(null)
   useEffect(() => {
@@ -144,7 +146,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     if (removed?.key === bindingKey) root.current?.querySelector<HTMLButtonElement>('[role="tab"]')?.focus()
   }, [removed, bindingKey])
   const writes = useArmWrites(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, doc => {
-    setArms(experimentId!, doc.arms.map(arm => arm.key))
+    publishExperiment(experimentId!, doc)
     if (isCurrentBinding()) setLoaded(value => ({ id: experimentId, doc, shared: value?.id === experimentId ? value?.shared : undefined }))
   }, isCurrentBinding, () => setClearError(null))
   const tabs = tabsFor(experiment)
@@ -274,8 +276,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       <div className="xp-ui-button-group">
         {experimentId === undefined ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
-        {experiment ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`} target="_blank" rel="noopener noreferrer">{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</Button> : null}
-        {experimentId !== undefined && experiment?.status !== 'draft' ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}`} target="_blank" rel="noopener noreferrer">{editorCopy.openTest}</Button> : null}
+        {experimentId !== undefined ? <ConfigureTestButton id={experimentId} routes={{ admin, api }} surface={props.surface} /> : null}
         {!shared ? newTestButton : null}
         {experimentId !== undefined && canDetach ? <Button disabled={checkingDetach} onClick={() => void requestDetach()}>{editorCopy.detach}</Button> : null}
         {experiment && editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}
@@ -311,15 +312,15 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   </section>
 }
 
-export function createExperimentSlotEditor({ routes: inputRoutes, accent }: { routes?: PuckRoutes; accent?: string } = {}): ComponentConfig<ExperimentSlotProps> {
+export function createExperimentSlotEditor({ routes: inputRoutes, accent, surface }: { routes?: PuckRoutes; accent?: string; surface?: EditorTestSurface } = {}): ComponentConfig<ExperimentSlotProps> {
   validateAccent(accent)
   const sets = accent ? deriveAccent(accent) : undefined
   const routes = resolvePuckRoutes(inputRoutes)
   return {
     label: experimentSlotLabel,
-    fields: { ...experimentSlotFields, experiment: createExperimentSlotField({ routes }) },
+    fields: { ...experimentSlotFields, experiment: createExperimentSlotField({ routes, renderActions: test => <ConfigureTestButton id={test.id} routes={routes} surface={surface} />, onBind: (previous, next) => { if (previous) invalidatePlacements(routes.api, previous.id); if (next) invalidatePlacements(routes.api, next.id) } }) },
     defaultProps: experimentSlotDefaultProps,
-    render: props => <PuckHostProvider routes={routes}><EditorRender {...props} accent={sets} /></PuckHostProvider>,
+    render: props => <PuckHostProvider routes={routes}><EditorRender {...props} accent={sets} surface={surface} /></PuckHostProvider>,
   }
 }
 

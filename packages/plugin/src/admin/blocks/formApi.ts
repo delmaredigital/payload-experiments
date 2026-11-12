@@ -1,7 +1,7 @@
 import type { ClientBlock, ClientConfig, ClientField, Field, FormState } from 'payload'
 import type { useForm, useServerFunctions } from '@payloadcms/ui'
 import { EXPERIMENT_BLOCK_SLUG, hostBlocks, type HostBlock } from '../../blocks/model.js'
-import { BLOCK_COPY } from '../copy/blocks.js'
+import { BLOCK_COPY } from '../../testSurface/copy/blocks.js'
 
 /** The only form-state failure with block-specific editor copy. */
 export class BlockChangedError extends Error {

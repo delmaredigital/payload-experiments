@@ -1,4 +1,4 @@
-import { READINESS_COPY } from '../../src/admin/copy/readiness.js'
+import { READINESS_COPY } from '../../src/testSurface/copy/readiness.js'
 import { expect, test, vi } from 'vitest'
 import { fakePayload } from '../_fakes/payload.js'
 import { pageArms, pageOccupancyDb } from '../_helpers/pageOccupancy.js'
@@ -553,7 +553,7 @@ test.each(['placement-unpublished', 'duplicate-version-row', 'empty-slot'])('pre
   expect(refusal.status).toBe(422)
   expect(bodies[1]).toMatchObject({ errors: [{ code, detail: [{ collection: 'pages', id: 10, title: 'Landing' }] }] })
   if (code === 'empty-slot') {
-    const { READINESS } = await import('../../src/admin/surface/readiness/readiness.model.js')
+    const { READINESS } = await import('../../src/testSurface/surface/readiness/readiness.model.js')
     expect(READINESS['empty-slot'].next(bodies[1].errors[0].detail, { arms: defaultArms('block'), unitType: 'visitor' })).toBe('Add content for Variant A on the page.')
   }
   function assertNoDoc(value: unknown) {

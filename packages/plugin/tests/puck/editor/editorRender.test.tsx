@@ -106,7 +106,7 @@ test('missing selectors do not dispatch selection and native chrome controls kee
   fireEvent.click(title)
   expect(puck.dispatch).not.toHaveBeenCalled()
   puck.getSelectorForId.mockReturnValue({ index: 2, zone: 'parent:content' })
-  const link = screen.getByRole('link', { name: 'Set up the test' })
+  const link = screen.getByLabelText('Original traffic (%)')
   const open = vi.fn((event: MouseEvent) => event.preventDefault())
   link.addEventListener('click', open)
   fireEvent.click(link)
@@ -338,29 +338,23 @@ test.each(['running', 'draft'] as const)('%s: only the selected variant has a co
   expect(puck.dispatch.mock.calls[0]![0].data.props.variantB[0].props.text).toBe('Hello')
 })
 
-test.each([
-  ['draft', 'Set up the test', '/admin/experiments/1'],
-  ['running', 'View results', '/admin/experiments/1/results'],
-] as const)('%s binding opens %s in a new tab', async (status, label, href) => {
+test.each(['draft', 'running'] as const)('%s binding offers Configure test', async status => {
   vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status })))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props()} />)
-  const link = await screen.findByRole('link', { name: label })
-  expect(link.getAttribute('href')).toBe(href)
-  expect(link.getAttribute('target')).toBe('_blank')
-  expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+  await screen.findByRole('heading', { name: 'Example' })
+  expect(screen.getByRole('button', { name: 'Configure test' }).classList.contains('xp-ui-button--primary')).toBe(true)
+  expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
 })
 
-test('a draft binding links to setup, a running binding links to results, and neither offers to create a test', async () => {
+test('binding changes keep Configure test and never offer to create an unbound test', async () => {
   vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status: 'draft' })))
   const Editor = ExperimentSlotEditor.render
   const view = render(<Editor {...props()} />)
-  expect((await screen.findByRole('link', { name: 'Set up the test' })).getAttribute('href')).toBe('/admin/experiments/1')
-  expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
+  await screen.findByRole('heading', { name: 'Example' })
   view.rerender(<Editor {...props({ experiment: { id: 2, slug: 'running' } })} />)
   await screen.findByRole('tab', { name: 'New headline' })
-  expect(screen.queryByRole('link', { name: 'Set up the test' })).toBeNull()
-  expect(screen.getByRole('link', { name: 'View results' }).getAttribute('href')).toBe('/admin/experiments/2/results')
+  expect(screen.getByRole('button', { name: 'Configure test' })).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
 })
 
@@ -372,16 +366,13 @@ test('unbound header names the registered block and marks it Not set up', () => 
   expect(screen.getByRole('button', { name: 'Test this block' }).classList.contains('xp-ui-button--primary')).toBe(true)
 })
 
-test.each(['draft', 'running'] as const)('custom routes reach the bound %s fetch and link', async status => {
+test.each(['draft', 'running'] as const)('custom routes reach the bound %s fetch', async status => {
   vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status })))
   const Editor = createExperimentSlotEditor({ routes: { api: '/content-api/', admin: '/manage/' } }).render
   render(<Editor {...props({ experiment: { id: 'id/with space', slug: 'example' } })} />)
-  const link = await screen.findByRole('link', { name: status === 'draft' ? 'Set up the test' : 'View results' })
+  await screen.findByRole('heading', { name: 'Example' })
   expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments/id%2Fwith%20space?depth=0', expect.objectContaining({ credentials: 'include' }))
-  expect(link.getAttribute('href')).toBe(`/manage/experiments/id%2Fwith%20space${status === 'draft' ? '' : '/results'}`)
-  expect(link.getAttribute('target')).toBe('_blank')
-  expect(link.getAttribute('rel')).toBe('noopener noreferrer')
-  expect(link.classList.contains('xp-ui-button--secondary')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Configure test' })).toBeTruthy()
 })
 
 test('custom API route reaches both drawer requests', async () => {
@@ -434,11 +425,8 @@ test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('%s o
   vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
   const Editor = createExperimentSlotEditor({ routes: { admin: '/manage' } }).render
   const view = render(<Editor {...props()} />)
-  const link = await screen.findByRole('link', { name: status === 'draft' ? 'Set up the test' : 'Open the test' })
-  expect(link.getAttribute('href')).toBe('/manage/experiments/1')
-  expect(link.getAttribute('target')).toBe('_blank')
-  expect(link.getAttribute('rel')).toBe('noopener noreferrer')
-  if (status !== 'draft') expect(screen.getByRole('link', { name: 'View results' }).getAttribute('href')).toBe('/manage/experiments/1/results')
+  await screen.findByRole('heading', { name: 'Example' })
+  expect(screen.getByRole('button', { name: 'Configure test' }).classList.contains('xp-ui-button--primary')).toBe(true)
   const create = screen.getByRole('button', { name: 'Start a new test from this block' }) as HTMLButtonElement
   expect(create.disabled).toBe(false)
   expect(create.classList.contains('xp-ui-button--secondary')).toBe(true)

@@ -9,3 +9,6 @@ export { deriveAccent } from '../ui/accent.js'
 export { xpGoalPuckEditorField } from '../puck/editor/xpGoalPuckEditorField.js'
 
 export type { PuckRoutes } from '../puck/routes.js'
+
+export type { EditorTestSurface } from '../puck/editor/ConfigureTestDrawer.js'
+export { ExperimentsEditorProvider } from '../puck/editor/ConfigureTestDrawer.js'

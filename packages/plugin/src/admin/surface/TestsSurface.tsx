@@ -1,10 +1,10 @@
 'use client'
 
-import { surfaceUrls } from '../surfaceUrls.js'
+import { surfaceUrls } from '../../testSurface/surfaceUrls.js'
 import { useState } from 'react'
 import type { TestsSurfaceProps } from '../../types/surface.js'
-import { SURFACE_COPY } from '../copy/surface.js'
-import type { SurfaceProps } from './contracts.js'
+import { SURFACE_COPY } from '../../testSurface/copy/surface.js'
+import type { SurfaceProps } from '../../testSurface/surface/contracts.js'
 import { NewTest } from './newTest/NewTest.js'
 import { TestPage } from './test/TestPage.js'
 import { ResultsRoute } from './ResultsRoute.js'

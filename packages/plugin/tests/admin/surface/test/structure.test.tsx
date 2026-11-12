@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs'
 import { URL as NodeURL } from 'node:url'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { Rail } from '../../../../src/admin/surface/test/Rail.js'
-import { Section } from '../../../../src/admin/surface/test/Section.js'
-import { ReadinessBar } from '../../../../src/admin/surface/test/ReadinessBar.js'
-import { TestName } from '../../../../src/admin/surface/test/fields.js'
+import { Rail } from '../../../../src/testSurface/surface/test/Rail.js'
+import { Section } from '../../../../src/testSurface/surface/test/Section.js'
+import { ReadinessBar } from '../../../../src/testSurface/surface/test/ReadinessBar.js'
+import { TestName } from '../../../../src/testSurface/surface/test/fields.js'
 import { props, preflight } from '../readiness/fixtures.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
@@ -47,7 +47,7 @@ test('rail follows observed sections, disconnects and keeps the active mobile ch
   view.unmount(); expect(disconnect).toHaveBeenCalledOnce()
 })
 test('mobile rail stays visible as a horizontally scrollable chip row at 960px', () => {
-  const css = readFileSync(new NodeURL('../../../../src/admin/surface/test/testPage.css', import.meta.url), 'utf8')
+  const css = readFileSync(new NodeURL('../../../../src/testSurface/surface/test/testPage.css', import.meta.url), 'utf8')
   const mobile = css.slice(css.indexOf('@media (max-width: 960px)'))
   expect(mobile).toContain('.xp-test-rail-list { flex-direction: row; overflow-x: auto; }')
   expect(mobile).toContain('.xp-test-rail-item { white-space: nowrap; }')
@@ -100,7 +100,7 @@ test('bar measures wrapped height and releases its resize observer', () => {
 })
 
 test('setup-only clearance does not apply to the results page', () => {
-  const css = readFileSync(new NodeURL('../../../../src/admin/surface/test/testPage.css', import.meta.url), 'utf8')
+  const css = readFileSync(new NodeURL('../../../../src/testSurface/surface/test/testPage.css', import.meta.url), 'utf8')
   expect(css).toMatch(/\.xp-test-page--setup \{[^}]*padding: 0 0 160px/)
   expect(css).not.toMatch(/\.xp-test-page > \.xp-test-header/)
 })

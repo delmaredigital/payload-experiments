@@ -35,6 +35,14 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
 /** Share mounted reads, but destructive actions always bypass settled cached knowledge. */
 export function refreshPlacements(api: string, id: DocId) { return read(api, id, true).promise }
 
+/** Reuse the surface's successful preflight, without another editor request. */
+export function publishPlacements(api: string, id: DocId, placements: Placements) {
+  const key = keyFor(api, id)
+  cache.get(key)?.controller.abort()
+  cache.set(key, { controller: new AbortController(), promise: Promise.resolve(placements), pending: false })
+  for (const notify of consumers.get(key) ?? []) notify(placements)
+}
+
 export function invalidatePlacements(api: string, id: DocId) {
   const key = keyFor(api, id)
   cache.get(key)?.controller.abort()

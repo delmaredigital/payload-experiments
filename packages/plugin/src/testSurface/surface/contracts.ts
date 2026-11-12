@@ -27,6 +27,8 @@ export interface SurfaceProps {
   admin?: TestsSurfaceProps['admin']
 }
 
+export type EditorTestSurface = Omit<SurfaceProps, 'adminRoute' | 'apiRoute'>
+
 export interface SectionProps { test: TestDocApi; surface: SurfaceProps; resultsVersion?: number }
 
 /** Kind-specific pieces the generic test page composes (Setting kind: ADM-22). */
@@ -34,7 +36,7 @@ export interface KindParts {
   /** Section 1 body for this kind. */
   Binding: ComponentType<SectionProps>
   /** The content cell of one version row in Section 2. */
-  VersionContent: ComponentType<SectionProps & { armIndex: number }>
+  VersionContent: ComponentType<SectionProps & { armIndex: number; summary?: boolean }>
 }
 
 /** Readiness pieces (ADM-23). */

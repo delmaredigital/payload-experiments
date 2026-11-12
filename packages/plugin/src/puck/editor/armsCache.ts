@@ -4,8 +4,9 @@ import { useSyncExternalStore } from 'react'
 import type { DocId } from '../../types/contracts.js'
 import type { EditorExperiment } from './editor.model.js'
 
-type Arms = { arms: string[] }
+type Arms = { arms: string[]; doc?: EditorExperiment }
 const cache = new Map<string, Arms>()
+const revisions = new Map<string, number>()
 const listeners = new Set<() => void>()
 type Pending = { controller: AbortController; consumers: AbortSignal[]; promise: Promise<EditorExperiment> }
 const pending = new Map<string, Pending>()
@@ -35,11 +36,14 @@ export function loadArms(testId: DocId, load: (signal: AbortSignal) => Promise<E
     const controller = new AbortController()
     request = { controller, consumers: [], promise: undefined! }
     const entry = request
+    const revision = revisions.get(key) ?? 0
     entry.promise = load(controller.signal).then(doc => {
-      if (!controller.signal.aborted) setArms(testId, doc.arms.map(arm => arm.key))
+      if ((revisions.get(key) ?? 0) !== revision) return cache.get(key)?.doc ?? doc
+      if (!controller.signal.aborted) publishExperiment(testId, doc)
       return doc
     }, error => {
-      if (!controller.signal.aborted) setArms(testId, undefined)
+      if ((revisions.get(key) ?? 0) !== revision && cache.get(key)?.doc) return cache.get(key)!.doc!
+      if (!controller.signal.aborted && (revisions.get(key) ?? 0) === revision) setArms(testId, undefined)
       throw error
     }).finally(() => { if (pending.get(key) === entry) pending.delete(key) })
     pending.set(key, entry)
@@ -65,8 +69,19 @@ export function subscribe(listener: () => void): () => void {
   return () => { listeners.delete(listener) }
 }
 
-/** The editor's document fetch is the only producer; undefined means unknown. */
+export function publishExperiment(testId: DocId, doc: EditorExperiment) {
+  const previous = cache.get(String(testId))?.doc
+  // Surface reads and chrome writes share this producer too. A GET that began
+  // before a save cannot overwrite its newer server timestamp when it finishes.
+  if (previous?.updatedAt && doc.updatedAt && Date.parse(previous.updatedAt) > Date.parse(doc.updatedAt)) return
+  revisions.set(String(testId), (revisions.get(String(testId)) ?? 0) + 1)
+  cache.set(String(testId), { arms: doc.arms.map(arm => arm.key), doc })
+  for (const listener of listeners) listener()
+}
+
+/** undefined means unknown. */
 export function setArms(testId: DocId, arms: string[] | undefined): void {
+  revisions.set(String(testId), (revisions.get(String(testId)) ?? 0) + 1)
   if (arms) cache.set(String(testId), { arms: [...arms] })
   else cache.delete(String(testId))
   for (const listener of listeners) listener()

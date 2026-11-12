@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import type { VerdictCode } from '../../../../src/types/snapshot.js'
-import { RECOMMENDATION, recommendation } from '../../../../src/admin/surface/results/recommendation.model.js'
+import { RECOMMENDATION, recommendation } from '../../../../src/testSurface/surface/results/recommendation.model.js'
 import { computeVerdict, type VerdictInput } from '../../../../src/results/verdict.js'
 import { fixture, phaseFor } from '../../results/fixtures.js'
 

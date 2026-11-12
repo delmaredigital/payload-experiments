@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { URL as NodeURL } from 'node:url'
 import type { PhaseSummary } from '../../../src/types/endpoints.js'
 import type { Snapshot, VerdictCode } from '../../../src/types/snapshot.js'
-import type { LegacySnapshot } from '../../../src/admin/results/snapshot.js'
+import type { LegacySnapshot } from '../../../src/testSurface/results/snapshot.js'
 
 type Check = (value: unknown, path: string) => void
 function fail(path: string): never { throw new Error(`Incomplete snapshot: ${path}`) }

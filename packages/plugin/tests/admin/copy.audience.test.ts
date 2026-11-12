@@ -1,9 +1,9 @@
 import { expect, test } from 'vitest'
-import * as audience from '../../src/admin/copy/audience.js'
-import * as metrics from '../../src/admin/copy/metrics.js'
-import { allocationSentence } from '../../src/admin/allocation.model.js'
-import { metricSourceHint, metricSourceOptions } from '../../src/admin/metricSource.model.js'
-import { opLabel, opsFor } from '../../src/admin/targeting/targeting.model.js'
+import * as audience from '../../src/testSurface/copy/audience.js'
+import * as metrics from '../../src/testSurface/copy/metrics.js'
+import { allocationSentence } from '../../src/testSurface/allocation.model.js'
+import { metricSourceHint, metricSourceOptions } from '../../src/testSurface/metricSource.model.js'
+import { opLabel, opsFor } from '../../src/testSurface/targeting/targeting.model.js'
 
 function check(value: unknown) {
   if (typeof value === 'string') expect(value).not.toMatch(/\b(arms?|phases?)\b/i)

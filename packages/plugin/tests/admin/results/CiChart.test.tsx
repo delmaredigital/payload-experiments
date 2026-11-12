@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test } from 'vitest'
-import { theme } from '../../../src/admin/theme.js'
-import { CiChart } from '../../../src/admin/results/CiChart.js'
+import { theme } from '../../../src/testSurface/theme.js'
+import { CiChart } from '../../../src/testSurface/results/CiChart.js'
 import { fixture, phaseFor } from './fixtures.js'
 
 afterEach(cleanup)

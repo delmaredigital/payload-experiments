@@ -16,7 +16,7 @@ import { testPageCollection } from '../pagePicker/pagePicker.model.js'
 import { Section } from './Section.js'
 
 const COLOURS = { control: 'var(--xp-series-muted)', variantA: 'var(--xp-series-a)', variantB: 'var(--xp-series-b)', variantC: 'var(--xp-series-c)', holdout: 'var(--xp-series-muted)' }
-export function VersionsSection({ test, surface, parts }: SectionProps & { parts: KindParts }) {
+export function VersionsSection({ test, surface, parts, contentOnCanvas = false }: SectionProps & { parts: KindParts; contentOnCanvas?: boolean }) {
   const id = useId()
   const doc = test.doc!
   const [weightEdit, setWeightEdit] = useState<{ key: Arm['key']; weight: number } | null>(null)
@@ -37,6 +37,7 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
   }
   return <Section test={test} sectionId="versions">
     {doc.kind === 'page' && testPageCollection(surface.pageCollections, doc, test.preflight?.pagePlacements)?.contentChecks === false ? <p>{PAGE_COPY.contentChecksOff}</p> : null}
+    {contentOnCanvas ? <p>{C.editVersionsOnCanvas}</p> : null}
     {reason ? <p className="xp-ui-help">{reason}</p> : null}
     <div className="xp-version-rows"><div className="xp-version-grid-head" aria-hidden="true"><span>{C.label}</span><span>{C.weight}</span><span /><span /></div>
     {ordered.filter(({ arm }) => doc.kind !== 'page' || arm.kind !== 'holdout').map(({ arm, index }) => <article className="xp-version-row" key={arm.key} id={`xp-version-${arm.key}`} tabIndex={-1}>
@@ -46,7 +47,7 @@ export function VersionsSection({ test, surface, parts }: SectionProps & { parts
         isValid={raw => raw.trim() !== '' && Number.isInteger(Number(raw)) && Number(raw) >= 0 && Number(raw) <= 100} invalidMessage={C.invalidShare}
         onDraft={value => setWeightEdit({ key: arm.key, weight: Number(value) })}
         onCommit={value => update(arms => balanceWeight(arms, arm.key, Number(value)))} />
-      <parts.VersionContent test={test} surface={surface} armIndex={index} />
+      <parts.VersionContent test={test} surface={surface} armIndex={index} summary={contentOnCanvas} />
       <div className="xp-ui-button-group xp-version-remove">{arm.kind !== 'control' ? <Button variant="quiet" size="sm" disabled={Boolean(reason)} title={reason ?? undefined} onClick={() => update(arms => splitEvenly(removeArm(arms, arm.key)))}>{C.remove}</Button> : null}</div>
       {issues.rows[index]?.map((issue, i) => <p role="alert" key={i}>{issueMessage(issue, totalWeight(live))}</p>)}
       <FieldErrors test={test} path={`arms.${index}`} />

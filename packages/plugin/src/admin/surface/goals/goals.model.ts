@@ -1,5 +1,5 @@
-import { TEST_PAGE } from '../../copy/testPage.js'
-import { statusLabel } from '../../labels.js'
+import { TEST_PAGE } from '../../../testSurface/copy/testPage.js'
+import { statusLabel } from '../../../testSurface/labels.js'
 import type { DocId, Status } from '../../../types/contracts.js'
 
 export interface Goal {

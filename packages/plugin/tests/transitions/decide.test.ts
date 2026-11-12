@@ -1,4 +1,4 @@
-import { READINESS_COPY } from '../../src/admin/copy/readiness.js'
+import { READINESS_COPY } from '../../src/testSurface/copy/readiness.js'
 import { expect, test, vi } from 'vitest'
 import { fakePayload } from '../_fakes/payload.js'
 import { createFakeExecutor } from '../_fakes/executor.js'

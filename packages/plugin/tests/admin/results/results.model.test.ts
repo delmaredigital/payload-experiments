@@ -2,9 +2,9 @@ import { expect, test } from 'vitest'
 import {
   armRows, cappedCell, collectingLine, dataQuality, defaultRound, guardrailChips,
   powerLine, rolloutLine, roundOptions, verdictCard, verdictLabel,
-} from '../../../src/admin/results/results.model.js'
-import { RESULTS_COPY } from '../../../src/admin/copy/results.js'
-import { formatCI } from '../../../src/admin/results/format.js'
+} from '../../../src/testSurface/results/results.model.js'
+import { RESULTS_COPY } from '../../../src/testSurface/copy/results.js'
+import { formatCI } from '../../../src/testSurface/results/format.js'
 import { fixture, fixtures, legacyFixture, makeSnapshot, phaseFor, revenueSnapshot } from './fixtures.js'
 
 test.each(Object.keys(fixtures))('%s keeps the server headline verbatim', name => {

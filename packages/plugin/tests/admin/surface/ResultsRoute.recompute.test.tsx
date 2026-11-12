@@ -2,11 +2,11 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ResultsRoute } from '../../../src/admin/surface/ResultsRoute.js'
-import { runningCopy } from '../../../src/admin/copy/readiness.js'
+import { runningCopy } from '../../../src/testSurface/copy/readiness.js'
 import { props } from './readiness/fixtures.js'
 
 const mocks = vi.hoisted(() => ({ hook: vi.fn() }))
-vi.mock('../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: mocks.hook }))
+vi.mock('../../../src/testSurface/surface/useTestDocument.js', () => ({ useTestDocument: mocks.hook }))
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }

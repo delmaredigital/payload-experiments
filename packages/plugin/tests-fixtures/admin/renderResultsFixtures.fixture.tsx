@@ -8,9 +8,9 @@ import { ConfigProvider } from '@payloadcms/ui'
 import type { ClientConfig } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { ResultsRoute } from '../../src/admin/surface/ResultsRoute.js'
-import type { SurfaceProps } from '../../src/admin/surface/contracts.js'
+import type { SurfaceProps } from '../../src/testSurface/surface/contracts.js'
 import type { ArmKey } from '../../src/types/contracts.js'
-import type { TestDocument } from '../../src/admin/surface/testDocument.model.js'
+import type { TestDocument } from '../../src/testSurface/surface/testDocument.model.js'
 import { fixture, phaseFor, revenueSnapshot } from '../../tests/admin/results/fixtures.js'
 
 vi.mock('next/navigation', () => ({

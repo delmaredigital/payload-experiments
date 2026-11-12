@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { lockedReason } from '../../src/admin/lockedNotice.model.js'
+import { lockedReason } from '../../src/testSurface/lockedNotice.model.js'
 import type { Status } from '../../src/types/contracts.js'
 import type { EditableField } from '../../src/types/admin.js'
 

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { disabledPageReason, isLatestPageRequest, testPageCollection } from '../../../../src/admin/surface/pagePicker/pagePicker.model.js'
-import type { PageRow } from '../../../../src/admin/surface/pagePicker/pagePicker.model.js'
+import { disabledPageReason, isLatestPageRequest, testPageCollection } from '../../../../src/testSurface/surface/pagePicker/pagePicker.model.js'
+import type { PageRow } from '../../../../src/testSurface/surface/pagePicker/pagePicker.model.js'
 import { doc } from '../readiness/fixtures.js'
 
 const arms = doc.arms.map(arm => ({ ...arm, pageTarget: arm.kind === 'control' ? '/about/' : '/copy' }))

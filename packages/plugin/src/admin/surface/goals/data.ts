@@ -1,7 +1,7 @@
 import { DocsResponseError, fetchAllDocs } from '../../../lib/fetchAllDocs.js'
-import { refusalMessage } from '../../copy/common.js'
+import { refusalMessage } from '../../../testSurface/copy/common.js'
 import { GOALS_COPY as C } from '../../copy/goals.js'
-import { payloadFieldErrors } from '../testDocument.model.js'
+import { payloadFieldErrors } from '../../../testSurface/surface/testDocument.model.js'
 
 export class GoalResponseError extends Error {
   constructor(message: string, public readonly fields: Record<string, string>) { super(message) }

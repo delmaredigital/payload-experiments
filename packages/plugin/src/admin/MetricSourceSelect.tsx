@@ -2,8 +2,8 @@
 import { SelectInput, useField } from '@payloadcms/ui'
 import type { TextFieldClientProps } from 'payload'
 import type { SerializedMetricSource } from '../types/admin.js'
-import { metricSourceHint, metricSourceOptions, sourceFor } from './metricSource.model.js'
-import { METRICS_COPY } from './copy/metrics.js'
+import { metricSourceHint, metricSourceOptions, sourceFor } from '../testSurface/metricSource.model.js'
+import { METRICS_COPY } from '../testSurface/copy/metrics.js'
 
 export function MetricSourceSelect({ path, field, readOnly }: TextFieldClientProps) {
   const { value, setValue } = useField<string>({ path })

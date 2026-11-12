@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
-import { availableActions } from '../../../../src/admin/actions/actions.model.js'
-import * as copy from '../../../../src/admin/copy/readiness.js'
-import { PAGE_COPY } from '../../../../src/admin/copy/pages.js'
+import { availableActions } from '../../../../src/testSurface/actions/actions.model.js'
+import * as copy from '../../../../src/testSurface/copy/readiness.js'
+import { PAGE_COPY } from '../../../../src/testSurface/copy/pages.js'
 
 test('unchosen page copy stays aligned with the page-row empty state', () => {
   expect(PAGE_COPY.choose).toBe('Choose a page')
@@ -15,7 +15,7 @@ test('block path readiness uses the coordinator removal copy', () => {
 
 test('readiness copy uses editor language, including generated sentences', () => {
   const forbidden = /\b(arms?|phases?|flag point|unit type|CUPED|exposure policy)\b/i
-  const source = readFileSync(new URL('../../../../src/admin/copy/readiness.ts', import.meta.url), 'utf8')
+  const source = readFileSync(new URL('../../../../src/testSurface/copy/readiness.ts', import.meta.url), 'utf8')
   expect(source).not.toMatch(forbidden)
   for (const value of Object.values(copy)) {
     if (typeof value === 'object') for (const sentence of Object.values(value)) expect(sentence).not.toMatch(forbidden)

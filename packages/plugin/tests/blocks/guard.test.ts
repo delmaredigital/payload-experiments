@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest'
 import { guardExperimentIds, pageGuardBeforeChange, pageGuardAfterChange } from '../../src/hooks/pageGuard.js'
 import { isPageBusy } from '../../src/db/pageBusy.js'
-import { placementGuardCopy } from '../../src/admin/copy/readiness.js'
+import { placementGuardCopy } from '../../src/testSurface/copy/readiness.js'
 import { withTransition } from '../../src/transitions/kernel.js'
 import { hostTransaction } from '../../src/transitions/makeContent.js'
 import type { PlacementTest } from '../../src/db/placements.js'

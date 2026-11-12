@@ -1,6 +1,5 @@
 'use client'
 import { theme } from '../../theme.js'
-import '../../styles.js'
 
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -34,14 +33,14 @@ import { PagesReleased, ReleasePagesDialog } from './ReleasePages.js'
 import { usePlacementLabels } from '../../placements/usePlacementLabels.js'
 
 export type ResultsPageParts = { children: ReactNode; actions: ReactNode; released: ReactNode; data?: ResultsResponse }
-type ResultsBodyProps = { renderPage?: (parts: ResultsPageParts) => ReactNode; id: DocId; surface: SurfaceProps; onRecomputed?: () => void; onPagesReleased?: () => void }
+type ResultsBodyProps = { renderPage?: (parts: ResultsPageParts) => ReactNode; id: DocId; surface: SurfaceProps; onChanged?: (doc?: Record<string, unknown>) => void; onRecomputed?: () => void; onPagesReleased?: () => void }
 
-export function ResultsBody({ id, surface, onRecomputed, onPagesReleased, renderPage }: ResultsBodyProps) {
+export function ResultsBody({ id, surface, onRecomputed, onPagesReleased, renderPage, onChanged }: ResultsBodyProps) {
   // A different test owns an independent selection and action lifecycle.
-  return <ResultsContent key={`${surface.apiRoute}/${id}`} id={id} surface={surface} onRecomputed={onRecomputed} onPagesReleased={onPagesReleased} renderPage={renderPage} />
+  return <ResultsContent key={`${surface.apiRoute}/${id}`} id={id} surface={surface} onRecomputed={onRecomputed} onPagesReleased={onPagesReleased} renderPage={renderPage} onChanged={onChanged} />
 }
 
-function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage }: ResultsBodyProps) {
+function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage, onChanged }: ResultsBodyProps) {
   const results = useResults(id, surface)
   const { api, doc, round, phases, state, data } = results
   const manage = surface.canManage && surface.canReadResults
@@ -159,11 +158,11 @@ function ResultsContent({ id, surface, onRecomputed, onPagesReleased, renderPage
     </> : <>{meta}{state === 'empty' || state === 'ready' ? <p>{C.empty}</p> : null}</>}
     {manage && placements && actionablePreviewPages(placements, doc?.flagPoint).length > 0 ? <section className="xp-results-block"><div className="xp-results-block-head"><h2>{C.previews}</h2></div><PreviewLinks apiRoute={surface.apiRoute} experimentId={id} flagPoint={doc?.flagPoint} placements={placements} arms={doc?.arms ?? []} /></section> : null}
     {manage && previewError ? <><p role="alert">{previewError}</p><Button onClick={() => setPreviewRefresh(value => value + 1)}>{C.retryPreview}</Button></> : null}
-    {deciding && manage && phase ? <DecideDialog apiRoute={surface.apiRoute} id={id} arms={phase.arms} checks={checks} onClose={() => setDeciding(false)} /> : null}
+    {deciding && manage && phase ? <DecideDialog apiRoute={surface.apiRoute} id={id} arms={phase.arms} checks={checks} onClose={() => setDeciding(false)} onSuccess={onChanged ? doc => { setDeciding(false); onChanged(doc) } : undefined} /> : null}
     {releasing && manage ? <ReleasePagesDialog id={id} apiRoute={surface.apiRoute} onClose={() => setReleasing(false)}
       onRefusal={setActionError} onSuccess={() => { results.reload(); onPagesReleased?.() }} /> : null}
   </div>
-  return renderPage ? renderPage({ children: content, actions, released, data }) : content
+  return <div className="xp-test-surface">{renderPage ? renderPage({ children: content, actions, released, data }) : content}</div>
 }
 
 function MetricTable({ metric, snapshot, phase, leader }: {

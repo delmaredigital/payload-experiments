@@ -1,7 +1,7 @@
 import type { CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook } from 'payload'
 import { describe, expect, test, vi } from 'vitest'
 import { pageGuardAfterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from '../../src/hooks/pageGuard.js'
-import { pageGuardCopy } from '../../src/admin/copy/readiness.js'
+import { pageGuardCopy } from '../../src/testSurface/copy/readiness.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
 import { createFakeExecutor } from '../_fakes/executor.js'

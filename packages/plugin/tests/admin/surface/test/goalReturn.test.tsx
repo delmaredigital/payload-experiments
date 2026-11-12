@@ -4,9 +4,9 @@ import type { ComponentProps } from 'react'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { XP_IF_UPDATED_AT_HEADER } from '../../../../src/constants.js'
-import { GoalSection } from '../../../../src/admin/surface/test/GoalSection.js'
-import { useTestDocument } from '../../../../src/admin/surface/useTestDocument.js'
-import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
+import { GoalSection } from '../../../../src/testSurface/surface/test/GoalSection.js'
+import { useTestDocument } from '../../../../src/testSurface/surface/useTestDocument.js'
+import type { TestDocument } from '../../../../src/testSurface/surface/testDocument.model.js'
 import { doc, preflight, props } from '../readiness/fixtures.js'
 
 vi.mock('@payloadcms/ui', () => ({ Link: (props: ComponentProps<'a'>) => <a {...props} /> }))

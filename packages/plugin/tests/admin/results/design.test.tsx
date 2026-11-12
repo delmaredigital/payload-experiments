@@ -3,10 +3,10 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { readFileSync } from 'node:fs'
 import { URL as NodeURL } from 'node:url'
 import { afterEach, expect, test } from 'vitest'
-import { VerdictHero } from '../../../src/admin/results/VerdictHero.js'
-import { DataTable } from '../../../src/admin/results/DataTable.js'
-import { StatTile } from '../../../src/admin/results/StatTile.js'
-import { armRows, verdictCard } from '../../../src/admin/results/results.model.js'
+import { VerdictHero } from '../../../src/testSurface/results/VerdictHero.js'
+import { DataTable } from '../../../src/testSurface/results/DataTable.js'
+import { StatTile } from '../../../src/testSurface/results/StatTile.js'
+import { armRows, verdictCard } from '../../../src/testSurface/results/results.model.js'
 import { fixture, phaseFor, revenueSnapshot } from './fixtures.js'
 afterEach(cleanup)
 
@@ -70,7 +70,7 @@ test('table scroll region is named, keyboard focusable and cues only the remaini
 })
 
 test('table CSS scrolls horizontally, pins Group and draws token-based edge cues above the cells', () => {
-  const css = readFileSync(new NodeURL('../../../src/admin/results/results.css', import.meta.url), 'utf8')
+  const css = readFileSync(new NodeURL('../../../src/testSurface/results/results.css', import.meta.url), 'utf8')
   const rule = (selector: string) => css.slice(css.indexOf('\n' + selector)).split('}')[0]!
   expect(rule('.xp-data-table-wrap {')).toMatch(/overflow-x:\s*auto/)
   const pinned = rule('.xp-data-table tr > :first-child {')

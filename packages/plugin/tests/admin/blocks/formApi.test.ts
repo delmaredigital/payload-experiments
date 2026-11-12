@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { BLOCK_COPY } from '../../../src/admin/copy/blocks.js'
+import { BLOCK_COPY } from '../../../src/testSurface/copy/blocks.js'
 import { dataAt, replaceBlockRow } from '../../../src/admin/blocks/formApi.js'
 import { original } from './fixtures.js'
 function setup(rows = [original]) {

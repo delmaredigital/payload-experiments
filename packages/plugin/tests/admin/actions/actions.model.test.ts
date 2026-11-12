@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
-import { availableActions, type ContentReport } from '../../../src/admin/actions/actions.model.js'
+import { availableActions, type ContentReport } from '../../../src/testSurface/actions/actions.model.js'
 import { contentDone } from '../../../src/contentDone.js'
-import { decideCopy, makeContentCopy, releaseCopy } from '../../../src/admin/copy/actions.js'
+import { decideCopy, makeContentCopy, releaseCopy } from '../../../src/testSurface/copy/actions.js'
 
 type Input = Parameters<typeof availableActions>[0]
 type Case = { name: string; input: Partial<Input>; expected: Array<[string, string, string]> }

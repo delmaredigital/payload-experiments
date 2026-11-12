@@ -2,7 +2,7 @@
 import { Profiler, StrictMode } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { PageCombobox } from '../../../../src/admin/surface/pagePicker/PageCombobox.js'
+import { PageCombobox } from '../../../../src/testSurface/surface/pagePicker/PageCombobox.js'
 import { props } from '../readiness/fixtures.js'
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks() })

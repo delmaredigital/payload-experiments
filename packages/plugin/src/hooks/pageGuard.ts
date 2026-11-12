@@ -4,7 +4,7 @@ import { lockPlacementScope, sortLockKeys } from '../db/locks.js'
 import { txExecutor, pooledExecutor } from '../db/executor.js'
 import { normalisePath } from '../runtime/normalisePath.js'
 import { XpNoTransactionError, XpRefusal } from '../errors.js'
-import { placementGuardCopy, pageGuardCopy, READINESS_COPY } from '../admin/copy/readiness.js'
+import { placementGuardCopy, pageGuardCopy, READINESS_COPY } from '../testSurface/copy/readiness.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 
 import { placementSlugs } from '../blocks/bindings.js'

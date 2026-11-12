@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { formatCI, formatCount, formatCurrency, formatMetric, formatNumber, formatPercent, formatProbability } from '../../../src/admin/results/format.js'
+import { formatCI, formatCount, formatCurrency, formatMetric, formatNumber, formatPercent, formatProbability } from '../../../src/testSurface/results/format.js'
 
 test('intervals retain both signs and enough precision near zero', () => {
   expect(formatCI([-0.021, 0.054])).toBe('−2.1% to +5.4%')

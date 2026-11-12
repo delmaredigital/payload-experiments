@@ -8,7 +8,7 @@ import { deleteGuard, deleteGuardAfter, deleteGuardBeforeOperation } from '../..
 import { checkArms } from '../../src/collections/experiments/armInvariants.js'
 import { XpNotImplemented } from '../../src/errors.js'
 import * as paths from '../../src/admin/paths.js'
-import { METRICS_COPY, METRIC_KIND_LABELS } from '../../src/admin/copy/metrics.js'
+import { METRICS_COPY, METRIC_KIND_LABELS } from '../../src/testSurface/copy/metrics.js'
 import { HISTORY_COPY, layerRow, layerSummary } from '../../src/admin/copy/history.js'
 import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } from '../../src/collections/serialize.js'
 import { fakeReq } from '../_fakes/req.js'

@@ -250,8 +250,8 @@ test('readout shows exposed people per version and summary headline; Refresh fet
   await screen.findByText('Variant A is ahead')
   expect(screen.getByText('Original: 1,234 people')).toBeTruthy()
   expect(screen.getByText('Variant A: 1,456 people')).toBeTruthy()
-  const link = screen.getByRole('link', { name: C.viewResults })
-  expect(link.getAttribute('href')).toBe('/manage/experiments/builder-test/results'); expect(link.getAttribute('target')).toBe('_blank')
+  const link = screen.getByRole('button', { name: C.configure })
+  expect(link.classList.contains('xp-ui-button--primary')).toBe(true)
   vi.useFakeTimers()
   await act(async () => { await vi.advanceTimersByTimeAsync(300_000) })
   expect(order.filter(call => call === 'results')).toHaveLength(1)
@@ -270,7 +270,7 @@ test('a null verdict and snapshot show only Collecting without people', async ()
 test.each([403, 500])('results unavailable on %s retains the link', async status => {
   doc.status = 'running'; resultsStatus = status; await mount()
   await screen.findByText(C.resultsUnavailable)
-  expect(screen.getByRole('link', { name: C.viewResults })).toBeTruthy()
+  expect(screen.getByRole('button', { name: C.configure })).toBeTruthy()
 })
 
 test('a network readout failure retains the link; draft never requests results', async () => {
@@ -282,7 +282,7 @@ test('a network readout failure retains the link; draft never requests results',
     return fetcher(url, init)
   })
   await mount(); await screen.findByText(C.resultsUnavailable)
-  expect(screen.getByRole('link', { name: C.viewResults })).toBeTruthy()
+  expect(screen.getByRole('button', { name: C.configure })).toBeTruthy()
 })
 
 

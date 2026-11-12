@@ -1,6 +1,6 @@
 'use client'
 
-import { surfaceUrls } from '../../surfaceUrls.js'
+import { surfaceUrls } from '../../../testSurface/surfaceUrls.js'
 import { fetchAllDocs } from '../../../lib/fetchAllDocs.js'
 
 import { useEffect, useRef, useState } from 'react'
@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation.js'
 import { formatAdminURL } from 'payload/shared'
 import type { DocId, UnitType } from '../../../types/contracts.js'
 import type { TestsSurfaceProps } from '../../../types/surface.js'
-import type { SurfaceProps } from '../contracts.js'
+import type { SurfaceProps } from '../../../testSurface/surface/contracts.js'
 import { NEW_TEST_COPY as C } from '../../copy/newTest.js'
 import { CreateRefused, createTest } from '../../../puck/editor/createTest.js'
 import { PageWizard } from './PageWizard.js'

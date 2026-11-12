@@ -3,7 +3,7 @@ import { createLocalReq } from 'payload'
 import { formatAdminURL } from 'payload/shared'
 import { headers } from 'next/headers.js'
 import { redirect } from 'next/navigation.js'
-import { surfaceUrls } from '../surfaceUrls.js'
+import { surfaceUrls } from '../../testSurface/surfaceUrls.js'
 import { buildSurfaceProps } from './buildSurfaceProps.js'
 import { renderTestsSurface } from './renderTestsSurface.js'
 

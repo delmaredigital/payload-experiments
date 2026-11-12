@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import type { Arm } from '../../../src/types/contracts.js'
 import { checkArms } from '../../../src/collections/experiments/armInvariants.js'
 import { createDefaults } from '../../../src/collections/experiments/createDefaults.js'
-import { addHoldoutArm, addVariant, defaultArms, issuesByRow, readArms, removeArm, removeHoldout, setWeight, splitEvenly, totalWeight, withSlotsFor } from '../../../src/admin/arms/arms.model.js'
+import { addHoldoutArm, addVariant, defaultArms, issuesByRow, readArms, removeArm, removeHoldout, setWeight, splitEvenly, totalWeight, withSlotsFor } from '../../../src/testSurface/arms/arms.model.js'
 
 test.each(['block', 'page', 'flag', 'code'] as const)('%s client defaults match the server create hook', async kind => {
   const data = { kind } as { kind: typeof kind; arms?: Arm[] }

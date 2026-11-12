@@ -707,17 +707,48 @@ Puck's config and plugin list.
 'use client'
 
 import { PuckConfigProvider } from '@delmaredigital/payload-puck/client'
-import { experimentsPuckEditor } from '@delmaredigital/payload-experiments/puck/editor'
+import { ExperimentsEditorProvider, experimentsPuckEditor, type EditorTestSurface } from '@delmaredigital/payload-experiments/puck/editor'
 import { editorConfig } from './editorConfig'
 
 const integrations = [experimentsPuckEditor()]
 
-export function PuckProvider({ children }: { children: React.ReactNode }) {
-  return <PuckConfigProvider config={editorConfig} integrations={integrations}>
-    {children}
-  </PuckConfigProvider>
+export function PuckProvider({ children, surface }: { children: React.ReactNode; surface: EditorTestSurface }) {
+  return <ExperimentsEditorProvider surface={surface}>
+    <PuckConfigProvider config={editorConfig} integrations={integrations}>
+      {children}
+    </PuckConfigProvider>
+  </ExperimentsEditorProvider>
 }
 ```
+
+The bound block and its Test sidebar field both offer **Configure test**. It
+opens a full-height right drawer with the same goal, guardrails, secondary goals,
+audience, split, length, readiness, actions and results as the admin test surface.
+Version content is edited on the canvas. The panel edits the test immediately;
+it does not save or publish the page. A Start refusal uses the server's sentence.
+Escape, Close and the backdrop dismiss the drawer and return focus to its button.
+Links that leave the surface open in a new tab.
+
+Supply the current request's context from the server boundary that already owns
+its Payload request:
+
+```tsx
+import { getExperimentsEditorSurface } from '@delmaredigital/payload-experiments/rsc'
+
+const surface = await getExperimentsEditorSurface(req)
+// Pass surface to the client PuckProvider above.
+```
+
+This helper reuses the admin's serializers and access checks. Keep the context
+request-scoped; never reuse one person's permissions for another person. The
+provider passes it to both canvas and sidebar buttons while the Puck integration
+stays at module scope. Alternatively pass the same `surface` object to
+`experimentsPuckEditor({ surface })` or `createExperimentSlotEditor({ surface })`
+when the host already keeps that configuration stable. The editor cannot infer
+these values from its route URLs. Without context, Configure test uses the
+results-only reader surface and offers no management actions. Results readers
+also get that same read-only surface; the server still authorizes every request.
+No endpoint or database migration is added.
 
 Each object includes the test block and its **A/B tests** sidebar category. The
 editor object also includes the outline plugin: it hides empty version slots
@@ -732,7 +763,7 @@ The separate pieces stay exported:
 - `/puck`: `ExperimentSlot`, `createExperimentSlot({ routes })`,
   `EXPERIMENT_SLOT_TYPE` and `createExperimentSlotField({ routes })`.
 - `/puck/editor`: `ExperimentSlotEditor`,
-  `createExperimentSlotEditor({ routes, accent })` and `experimentOutlinePlugin()`.
+  `createExperimentSlotEditor({ routes, accent, surface })` and `experimentOutlinePlugin()`.
 
 Register the render and editor blocks under the same `EXPERIMENT_SLOT_TYPE` key (import it from `/puck`),
 add a sidebar category listing it, and add `experimentOutlinePlugin()` to Puck's

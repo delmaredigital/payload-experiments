@@ -1,4 +1,4 @@
-import { SURFACE_COPY } from '../admin/copy/surface.js'
+import { SURFACE_COPY } from '../testSurface/copy/surface.js'
 import { CLICK_KEY, isClickSource, validClickSource } from '../goals/key.js'
 import type { CollectionConfig } from 'payload'
 import type { ResolvedOptions } from '../types/contracts.js'

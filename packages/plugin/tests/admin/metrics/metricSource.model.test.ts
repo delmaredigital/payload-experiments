@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import type { SerializedMetricSource } from '../../../src/types/admin.js'
-import { metricSourceHint, metricSourceOptions, sourceFor } from '../../../src/admin/metricSource.model.js'
-import { METRICS_COPY } from '../../../src/admin/copy/metrics.js'
+import { metricSourceHint, metricSourceOptions, sourceFor } from '../../../src/testSurface/metricSource.model.js'
+import { METRICS_COPY } from '../../../src/testSurface/copy/metrics.js'
 
 const sources: SerializedMetricSource[] = [
   { id: 'gifts', label: 'Gifts', kind: 'revenue', keyedBy: 'user', clientWritable: false },

@@ -7,8 +7,8 @@ import { ExperimentSlot } from '../../src/puck/ExperimentSlot.js'
 import { createExperimentSlotField } from '../../src/puck/experimentSlotField.js'
 import { ExperimentPicker } from '../../src/puck/ExperimentPicker.js'
 import { slotLabels } from '../../src/puck/copy.js'
-import { GROUP_LABELS } from '../../src/admin/copy/arms.js'
-import { ARM_LABELS as adminArmLabels } from '../../src/admin/labels.js'
+import { GROUP_LABELS } from '../../src/testSurface/copy/arms.js'
+import { ARM_LABELS as adminArmLabels } from '../../src/testSurface/labels.js'
 import { ARM_LABELS } from '../../src/labels/arms.js'
 
 type RenderProps = Parameters<typeof ExperimentSlot.render>[0]

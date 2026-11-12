@@ -23,3 +23,10 @@ test('the editor click-goal field shares the neutral picker and loads scoped CSS
   expect(graph.files.some(file => file.endsWith('/goals/picker/useClickGoalPicker.ts'))).toBe(true)
   expect(graph.files.some(file => file.endsWith('/puck/editor/editor.css'))).toBe(true)
 })
+
+
+test('the shared mountable surface is neutral, including erased type imports', () => {
+  const graph = collectImports(fileURLToPath(new URL('../../../src/testSurface/surface/test/TestSurface.tsx', import.meta.url)), { includeTypes: true })
+  expect(graph.files.filter(file => /\/src\/admin\//.test(file))).toEqual([])
+  expect([...graph.bare, ...graph.dynamic].filter(name => /^@payloadcms\/(ui|next)(?:\/|$)/.test(name))).toEqual([])
+})

@@ -9,7 +9,7 @@ import { decide } from '../src/transitions/decide.js'
 import { archive } from '../src/transitions/archive.js'
 import { pgPoolExecutor } from '../src/db/executor.js'
 import { readState } from '../src/db/state.js'
-import { READINESS_COPY } from '../src/admin/copy/readiness.js'
+import { READINESS_COPY } from '../src/testSurface/copy/readiness.js'
 import type { DocId, ResolvedOptions } from '../src/types/contracts.js'
 
 // Run with XP_IT_ID_TYPE=serial and uuid (2026-11-07: tests 136-278 ms locally on both).

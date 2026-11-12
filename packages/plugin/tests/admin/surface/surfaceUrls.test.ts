@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
-import { surfaceUrls } from '../../../src/admin/surfaceUrls.js'
+import { surfaceUrls } from '../../../src/testSurface/surfaceUrls.js'
 
 const legacyRedirect = fileURLToPath(new URL('../../../src/admin/views/CollectionListRedirect.tsx', import.meta.url))
 function legacyListUrls(file: string, source: string): string[] {

@@ -12,7 +12,7 @@ function Binding({ test }: SectionProps) {
       {placement.editorUrl ? <Button variant="link" size="sm" href={placement.editorUrl}>{C.openPage}</Button> : null}</p>)}<p>{C.editedOnPage}</p>
   </> : <p>{C.notPlaced}</p>}</div>
 }
-function VersionContent({ test, armIndex }: SectionProps & { armIndex: number }) {
+function VersionContent({ test, armIndex, summary }: SectionProps & { armIndex: number; summary?: boolean }) {
   const arm = test.doc?.arms[armIndex]
   if (!arm) return null
   if (arm.kind === 'holdout') return <span className="xp-content-chip">{C.holdoutContent}</span>
@@ -20,7 +20,7 @@ function VersionContent({ test, armIndex }: SectionProps & { armIndex: number })
   const pages = placementPages(placements)
   const ready = placements.length > 0 && placements.every(placement => slotReady(placement, arm))
   return <div className="xp-version-content"><span className={`xp-content-chip ${ready ? 'xp-content-ready' : 'xp-content-empty'}`}>{ready ? C.ready : C.empty}</span>
-    <div className="xp-ui-button-group">{pages.filter(page => page.editorUrl).map(page => <Button key={page.key} variant="link" size="sm" href={page.editorUrl!}
-      aria-label={pages.length > 1 ? `${C.editOnPage}: ${page.title}` : undefined}>{C.editOnPage}</Button>)}</div></div>
+    <div className="xp-ui-button-group">{!summary ? pages.filter(page => page.editorUrl).map(page => <Button key={page.key} variant="link" size="sm" href={page.editorUrl!}
+      aria-label={pages.length > 1 ? `${C.editOnPage}: ${page.title}` : undefined}>{C.editOnPage}</Button>) : null}</div></div>
 }
 export const pageBlockParts: KindParts = { Binding, VersionContent }

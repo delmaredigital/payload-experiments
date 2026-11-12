@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import type { ParamField } from '../../../../src/types/contracts.js'
-import { displayParam, paramCheckMessage, paramControl } from '../../../../src/admin/surface/setting/setting.model.js'
-import { SETTING_COPY } from '../../../../src/admin/copy/setting.js'
+import { displayParam, paramCheckMessage, paramControl } from '../../../../src/testSurface/surface/setting/setting.model.js'
+import { SETTING_COPY } from '../../../../src/testSurface/copy/setting.js'
 
 test('small option sets use segments; larger, empty or absent option sets use a select', () => {
   for (const length of [0, 1, 4, 5]) {

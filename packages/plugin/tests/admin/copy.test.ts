@@ -3,13 +3,13 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import { helperPaths, helperStrings } from './copySources.js'
 import { DEFAULT_SEQUENTIAL_TUNING_PARAMETER } from '../../src/constants.js'
-import { ADVANCED_COPY } from '../../src/admin/copy/advanced.js'
+import { ADVANCED_COPY } from '../../src/testSurface/copy/advanced.js'
 import * as puckCopy from '../../src/puck/copy.js'
 import * as puckEditorCopy from '../../src/puck/editor/copy.js'
 import * as clickGoalCopy from '../../src/goals/picker/copy.js'
-import * as labels from '../../src/admin/labels.js'
+import * as labels from '../../src/testSurface/labels.js'
 import { STATUS_TOOLTIPS } from '../../src/admin/copy/status.js'
-import { API_MESSAGES, refusalMessage } from '../../src/admin/copy/common.js'
+import { API_MESSAGES, refusalMessage } from '../../src/testSurface/copy/common.js'
 import type { ArmKey, ExperimentKind, Status } from '../../src/types/contracts.js'
 import type { VerdictCode } from '../../src/types/snapshot.js'
 
@@ -52,7 +52,7 @@ function modules(directory: URL): URL[] {
   })
 }
 test('all copy exports and label maps use user language', async () => {
-  for (const url of modules(new URL('../../src/admin/copy/', import.meta.url))) {
+  for (const url of [...modules(new URL('../../src/admin/copy/', import.meta.url)), ...modules(new URL('../../src/testSurface/copy/', import.meta.url))]) {
     checkStrings(await import(/* @vite-ignore */ fileURLToPath(url)))
   }
   checkStrings(labels)
@@ -100,7 +100,7 @@ test('all admin and Puck helper copy says test, not experiment', () => {
 })
 
 test('only surfaceUrls admin paths are excluded from helper copy', () => {
-  const path = fileURLToPath(new URL('../../src/admin/surfaceUrls.ts', import.meta.url))
+  const path = fileURLToPath(new URL('../../src/testSurface/surfaceUrls.ts', import.meta.url))
   for (const source of [
     "export const home = () => '/collections/xp-experiments'",
     'export const home = () => `/collections/xp-experiments${query}`',

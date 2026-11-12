@@ -10,7 +10,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { GoalForm } from '../../src/admin/surface/goals/GoalForm.js'
 import { GoalsList } from '../../src/admin/surface/goals/GoalsList.js'
 import type { Goal } from '../../src/admin/surface/goals/goals.model.js'
-import type { SurfaceProps } from '../../src/admin/surface/contracts.js'
+import type { SurfaceProps } from '../../src/testSurface/surface/contracts.js'
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/admin/experiments/goals', useSearchParams: () => new URLSearchParams(),

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { ResultsResponse } from '../../../src/types/endpoints.js'
-import { chartModel } from '../../../src/admin/results/chart.model.js'
+import { chartModel } from '../../../src/testSurface/results/chart.model.js'
 import { fixture, phaseFor } from './fixtures.js'
 
 const phase = phaseFor(fixture('T7'))

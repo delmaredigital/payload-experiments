@@ -1,6 +1,6 @@
 import { NEW_TEST_COPY } from '../../../src/admin/copy/newTest.js'
 import { expect, test } from 'vitest'
-import { decidedLine, runningLine, SURFACE_COPY } from '../../../src/admin/copy/surface.js'
+import { decidedLine, runningLine, SURFACE_COPY } from '../../../src/testSurface/copy/surface.js'
 
 test('surface copy avoids the anti-goal vocabulary', () => {
   const copy = JSON.stringify([SURFACE_COPY, NEW_TEST_COPY, runningLine('1', '28', '200'), decidedLine('today', 'Original')])

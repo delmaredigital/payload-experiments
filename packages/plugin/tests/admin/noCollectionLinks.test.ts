@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { expect, test } from 'vitest'
 
-const surfaceUrls = fileURLToPath(new URL('../../src/admin/surfaceUrls.ts', import.meta.url))
+const surfaceUrls = fileURLToPath(new URL('../../src/testSurface/surfaceUrls.ts', import.meta.url))
 const listPaths = ['/collections/xp-experiments', '/collections/xp-metrics']
 function checkSource(path: string, text: string): string[] {
   const occurrences = [...text.matchAll(/collections\/xp-/g)]

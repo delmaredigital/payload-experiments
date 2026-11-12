@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { useResults } from '../../../../src/admin/surface/results/useResults.js'
-import { API_MESSAGES } from '../../../../src/admin/copy/common.js'
+import { useResults } from '../../../../src/testSurface/surface/results/useResults.js'
+import { API_MESSAGES } from '../../../../src/testSurface/copy/common.js'
 import { fixture, phaseFor } from '../../results/fixtures.js'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })

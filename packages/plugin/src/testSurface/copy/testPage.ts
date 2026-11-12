@@ -2,6 +2,7 @@ const guardrailsShort = 'Must not get worse'
 const secondaryShort = 'Also keep an eye on'
 
 export const TEST_PAGE = {
+  editVersionsOnCanvas: 'Edit version content on the canvas.',
   clickPageGroup: "On this test's page",
   clickGoalsNote: "Goals inside linked documents aren't shown. Goals added in code (data-xp-goal) work but aren't listed here.",
   clickGoalHelp: 'A click shows interest, not the result you want.',

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
-import { createApi } from '../api.js'
+import { createApi } from '../../testSurface/api.js'
 import type { BlockStatus } from './model.js'
 
 type Entry = { value: BlockStatus | null; owners: number; mounts: WeakSet<object>; revision: number; pending?: Promise<void> }

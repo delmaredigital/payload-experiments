@@ -3,9 +3,9 @@ import { REST_GET, REST_PATCH } from '@payloadcms/next/routes'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { getPayload } from 'payload'
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
-import { useTestDocument } from '../src/admin/surface/useTestDocument.js'
-import { TEST_PAGE } from '../src/admin/copy/testPage.js'
-import type { TestDocument } from '../src/admin/surface/testDocument.model.js'
+import { useTestDocument } from '../src/testSurface/surface/useTestDocument.js'
+import { TEST_PAGE } from '../src/testSurface/copy/testPage.js'
+import type { TestDocument } from '../src/testSurface/surface/testDocument.model.js'
 import { createIntegrationHarness } from './harness.js'
 
 // jsdom installs its own-realm Uint8Array/ArrayBuffer globals, while Node's TextEncoder and Buffer

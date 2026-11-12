@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
-import type { SectionProps, TestDocApi } from '../../../../src/admin/surface/contracts.js'
-import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
+import type { SectionProps, TestDocApi } from '../../../../src/testSurface/surface/contracts.js'
+import type { TestDocument } from '../../../../src/testSurface/surface/testDocument.model.js'
 import type { PreflightResult } from '../../../../src/types/endpoints.js'
 
 export const doc: TestDocument = {

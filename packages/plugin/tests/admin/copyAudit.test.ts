@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import { expect, test } from 'vitest'
-import { ADVANCED_COPY } from '../../src/admin/copy/advanced.js'
-import { PAGE_COPY } from '../../src/admin/copy/pages.js'
+import { ADVANCED_COPY } from '../../src/testSurface/copy/advanced.js'
+import { PAGE_COPY } from '../../src/testSurface/copy/pages.js'
 import { metricsCollection } from '../../src/collections/metrics.js'
 import { layersCollection } from '../../src/collections/layers.js'
 import { sampleOptions } from '../collections/fixtures.js'
@@ -238,7 +238,7 @@ test('fetch options can still contain authored messages', () => {
 })
 
 test('page combobox copy retains only used keys and names unresolved pages', async () => {
-  const { pageNotFoundCopy, pageFieldCopy } = await import('../../src/admin/copy/pages.js')
+  const { pageNotFoundCopy, pageFieldCopy } = await import('../../src/testSurface/copy/pages.js')
   expect(pageNotFoundCopy('/example', 'Pages')).toBe("/example isn't in Pages. Choose a page.")
   expect(pageFieldCopy('Variant A')).toBe('Page for Variant A')
   for (const removed of ['search', 'change', 'close', 'noPage']) expect(PAGE_COPY).not.toHaveProperty(removed)

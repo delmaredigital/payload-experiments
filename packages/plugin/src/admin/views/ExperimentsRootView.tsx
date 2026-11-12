@@ -3,7 +3,7 @@ import { formatAdminURL } from 'payload/shared'
 import { notFound, redirect } from 'next/navigation.js'
 import { xpOptionsFromReq } from '../../options/fromReq.js'
 import type { TestsRoute } from '../../types/surface.js'
-import { surfaceUrls } from '../surfaceUrls.js'
+import { surfaceUrls } from '../../testSurface/surfaceUrls.js'
 import { buildSurfaceProps } from './buildSurfaceProps.js'
 import { renderTestsSurface } from './renderTestsSurface.js'
 

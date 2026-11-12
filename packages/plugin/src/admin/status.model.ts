@@ -1,5 +1,5 @@
 import type { Status } from '../types/contracts.js'
-import { statusLabel } from './labels.js'
+import { statusLabel } from '../testSurface/labels.js'
 import { STATUS_TOOLTIPS } from './copy/status.js'
 
 export type PillTone = 'neutral' | 'success' | 'warning' | 'info' | 'muted'

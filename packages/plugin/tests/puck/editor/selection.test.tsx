@@ -51,7 +51,7 @@ test.each([false, true].flatMap(nested => [false, true].map(fullScreen => ({ nes
   expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('test-block'))
   actions.length = 0
   const chrome = heading.closest<HTMLElement>('.xp-slot-chrome')!
-  for (const target of [within(chrome).getByRole('link', { name: 'Set up the test' }), within(chrome).getByLabelText('Original traffic (%)')]) {
+  for (const target of [within(chrome).getByText('Original traffic (%)'), within(chrome).getByLabelText('Original traffic (%)')]) {
     fireEvent.click(target)
     expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('test-block'))
   }
@@ -159,7 +159,7 @@ test('header allows Puck pointer events, controls block them, and non-interactiv
   fireEvent.pointerDown(heading)
   expect(pointer).toHaveBeenCalledOnce()
   pointer.mockClear()
-  for (const control of [within(chrome).getByRole('link', { name: 'Set up the test' }), within(chrome).getByLabelText('Original traffic (%)'), within(chrome).getByText('Original traffic (%)'), screen.getByRole('tab', { name: 'Original' })]) fireEvent.pointerDown(control)
+  for (const control of [within(chrome).getByText('Original traffic (%)'), within(chrome).getByLabelText('Original traffic (%)'), within(chrome).getByText('Original traffic (%)'), screen.getByRole('tab', { name: 'Original' })]) fireEvent.pointerDown(control)
   expect(pointer).not.toHaveBeenCalled()
   for (const target of [heading, chrome, within(chrome).getByText('This block shows the Original to everyone until the test starts.')]) {
     actions.length = 0

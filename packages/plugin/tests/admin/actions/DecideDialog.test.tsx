@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, afterEach, expect, test, vi } from 'vitest'
-import { DecideDialog } from '../../../src/admin/actions/DecideDialog.js'
-import { reloadPage } from '../../../src/admin/reload.js'
+import { DecideDialog } from '../../../src/testSurface/actions/DecideDialog.js'
+import { reloadPage } from '../../../src/testSurface/reload.js'
 import { expectedConfirm } from '../../../src/transitions/confirmPhrases.js'
 import T1 from '../../_fixtures/snapshots/T1.json'
 import T2 from '../../_fixtures/snapshots/T2.json'
@@ -10,7 +10,7 @@ import T3 from '../../_fixtures/snapshots/T3.json'
 import T7 from '../../_fixtures/snapshots/T7.json'
 import T4 from '../../_fixtures/snapshots/T4.json'
 
-vi.mock('../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
+vi.mock('../../../src/testSurface/reload.js', () => ({ reloadPage: vi.fn() }))
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }

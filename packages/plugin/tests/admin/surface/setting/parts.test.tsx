@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/admin/surface/contracts.js'
-import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
+import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/testSurface/surface/contracts.js'
+import type { TestDocument } from '../../../../src/testSurface/surface/testDocument.model.js'
 import type { SerializedFlagPoint } from '../../../../src/types/admin.js'
 import type { Status } from '../../../../src/types/contracts.js'
 import { payloadUiMock } from '../../_helpers/payloadUiMock.js'
-import { settingParts } from '../../../../src/admin/surface/setting/parts.js'
-import { lockedReason } from '../../../../src/admin/lockedNotice.model.js'
+import { settingParts } from '../../../../src/testSurface/surface/setting/parts.js'
+import { lockedReason } from '../../../../src/testSurface/lockedNotice.model.js'
 import { EDITABLE_BY_STATUS } from '../../../../src/collections/experiments/editability.js'
 
 vi.mock('@payloadcms/ui', () => payloadUiMock())

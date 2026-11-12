@@ -3,12 +3,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { ResultsResponse, SummaryResponse } from '../../types/endpoints.js'
 import { Button } from '../../ui/Button.js'
 import type { EditorExperiment } from './editor.model.js'
+import { formatCount } from '../../testSurface/results/format.js'
 import { editorCopy as C } from './copy.js'
 
 type Readout = { headline: string; people: Record<string, number> | null } | 'unavailable' | null
-// Matches admin/results/format.ts formatCount; importing it would pull admin copy into this bundle.
-const formatCount = (value: number | undefined) => typeof value === 'number' && Number.isFinite(value)
-  ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value) : '—'
 
 export function ResultsReadout({ id, api, experiment }: { id: string | number; api: string; experiment: EditorExperiment }) {
   const [data, setData] = useState<Readout>(null)
@@ -36,7 +34,7 @@ export function ResultsReadout({ id, api, experiment }: { id: string | number; a
     }
     void load()
     return () => controller.abort()
-  }, [id, api, refresh])
+  }, [id, api, refresh, experiment.status])
   return <div className="xp-slot-readout">
     {data === 'unavailable' ? <p className="xp-ui-help">{C.resultsUnavailable}</p> : data ? <>
       <strong>{data.headline}</strong>

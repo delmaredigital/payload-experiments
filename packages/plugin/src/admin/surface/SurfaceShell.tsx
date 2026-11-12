@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { formatAdminURL } from 'payload/shared'
 import { Breadcrumb } from '../../ui/Breadcrumb.js'
 import { Button } from '../../ui/Button.js'
-import { SURFACE_COPY } from '../copy/surface.js'
+import { SURFACE_COPY } from '../../testSurface/copy/surface.js'
 import './surface.css'
 
 export interface SurfaceShellProps {
@@ -19,7 +19,7 @@ export interface SurfaceShellProps {
 }
 export function SurfaceShell({ adminRoute, children, crumbs = [{ label: SURFACE_COPY.title }],
   title = SURFACE_COPY.title, status, actions, subtitle }: SurfaceShellProps) {
-  return <div className="xp-tests-surface">
+  return <div className="xp-tests-surface xp-test-surface">
     <header className="xp-tests-shell-header">
       <div className="xp-tests-container xp-tests-shell-top">
         <Breadcrumb items={crumbs} />

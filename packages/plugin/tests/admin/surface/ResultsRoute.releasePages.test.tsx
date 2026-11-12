@@ -2,10 +2,10 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ResultsRoute } from '../../../src/admin/surface/ResultsRoute.js'
-import type { TestDocument } from '../../../src/admin/surface/testDocument.model.js'
-import { API_MESSAGES } from '../../../src/admin/copy/common.js'
+import type { TestDocument } from '../../../src/testSurface/surface/testDocument.model.js'
+import { API_MESSAGES } from '../../../src/testSurface/copy/common.js'
 import { props } from './readiness/fixtures.js'
-vi.mock('../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
+vi.mock('../../../src/testSurface/surface/readiness/parts.js', () => ({ readinessParts: {
   Banner: () => null, SaveStatus: () => null,
 } }))
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })

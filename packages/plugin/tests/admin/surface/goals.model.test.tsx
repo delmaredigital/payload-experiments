@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { goalSlug, goalUsage, goalUsageRows, visibleGoalUsage } from '../../../src/admin/surface/goals/goals.model.js'
-import { TEST_PAGE } from '../../../src/admin/copy/testPage.js'
+import { TEST_PAGE } from '../../../src/testSurface/copy/testPage.js'
 
 test('usage counts tests once across all roles, preserving API id types', () => {
   const counts = goalUsage([

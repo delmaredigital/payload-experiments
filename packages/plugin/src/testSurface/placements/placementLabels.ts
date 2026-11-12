@@ -1,6 +1,6 @@
 import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
-import { formatAdminURL } from 'payload/shared'
+import { formatAdminURL } from '../format/adminURL.js'
 
 import { placementDetail } from './placementLabels.model.js'
 export { placementDetailKey, placementDetail, fallbackPlacementLabel } from './placementLabels.model.js'

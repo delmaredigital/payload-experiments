@@ -8,8 +8,8 @@ import { ConfigProvider } from '@payloadcms/ui'
 import type { ClientConfig } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { TestPage } from '../../src/admin/surface/test/TestPage.js'
-import type { SurfaceProps } from '../../src/admin/surface/contracts.js'
-import type { TestDocument } from '../../src/admin/surface/testDocument.model.js'
+import type { SurfaceProps } from '../../src/testSurface/surface/contracts.js'
+import type { TestDocument } from '../../src/testSurface/surface/testDocument.model.js'
 import type { PreflightResult } from '../../src/types/endpoints.js'
 
 vi.mock('next/navigation', () => ({

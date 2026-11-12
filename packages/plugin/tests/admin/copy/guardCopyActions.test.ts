@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { placementGuardCopy, pageGuardCopy, versionPageUnavailableCopy, versionPageUncheckedCopy } from '../../../src/admin/copy/readiness.js'
+import { placementGuardCopy, pageGuardCopy, versionPageUnavailableCopy, versionPageUncheckedCopy } from '../../../src/testSurface/copy/readiness.js'
 import { ROUTES } from '../../../src/endpoints/index.js'
 import type { Status } from '../../../src/types/contracts.js'
 import { createFakeExecutor } from '../../_fakes/executor.js'
@@ -76,9 +76,9 @@ for (const action of actions.filter(action => !action.host)) {
 }
 
 test('page setup refusals share copy and Choose pages stays a versions action', async () => {
-  const { unpublishedPageCopy, pageInUseCopy, sameAddressCopy } = await import('../../../src/admin/copy/readiness.js')
+  const { unpublishedPageCopy, pageInUseCopy, sameAddressCopy } = await import('../../../src/testSurface/copy/readiness.js')
   const { refuse } = await import('../../../src/transitions/start.js')
-  const { READINESS } = await import('../../../src/admin/surface/readiness/readiness.model.js')
+  const { READINESS } = await import('../../../src/testSurface/surface/readiness/readiness.model.js')
   for (const [code, detail, sentence] of [
     ['page-target-unpublished', '/copy', unpublishedPageCopy('/copy')],
     ['page-in-use', { paths: ['/copy'] }, pageInUseCopy('/copy')],

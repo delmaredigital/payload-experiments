@@ -4,7 +4,7 @@ import { accentStyles } from '../../ui/accent.js'
 import { xpOptionsFromReq } from '../../options/fromReq.js'
 import type { TestsSurfaceProps } from '../../types/surface.js'
 import { XP_TESTS_SURFACE } from '../paths.js'
-import { SURFACE_COPY } from '../copy/surface.js'
+import { SURFACE_COPY } from '../../testSurface/copy/surface.js'
 
 export async function renderTestsSurface(req: PayloadRequest, clientProps: TestsSurfaceProps | null) {
   // Keep the server export importable in plain Node; Next loads the CSS-bearing client boundary on render.

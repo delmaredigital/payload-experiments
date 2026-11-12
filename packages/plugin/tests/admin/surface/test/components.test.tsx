@@ -1,30 +1,30 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/admin/surface/contracts.js'
-import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
-import { defaultArms } from '../../../../src/admin/arms/arms.model.js'
+import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/testSurface/surface/contracts.js'
+import type { TestDocument } from '../../../../src/testSurface/surface/testDocument.model.js'
+import { defaultArms } from '../../../../src/testSurface/arms/arms.model.js'
 import { TestPage } from '../../../../src/admin/surface/test/TestPage.js'
-import { Hypothesis, TestName, SelectEdit, CheckboxList } from '../../../../src/admin/surface/test/fields.js'
-import { VersionsSection } from '../../../../src/admin/surface/test/VersionsSection.js'
-import { LengthSection } from '../../../../src/admin/surface/test/LengthSection.js'
-import { jumpToSection } from '../../../../src/admin/surface/test/jumpToSection.js'
-import { AdvancedSection } from '../../../../src/admin/surface/test/AdvancedSection.js'
-import { TargetingSection } from '../../../../src/admin/surface/test/TargetingSection.js'
-import { GoalSection } from '../../../../src/admin/surface/test/GoalSection.js'
-import { pageParts } from '../../../../src/admin/surface/test/pageParts.js'
-import { pageBlockParts } from '../../../../src/admin/surface/pageBlock/parts.js'
+import { Hypothesis, TestName, SelectEdit, CheckboxList } from '../../../../src/testSurface/surface/test/fields.js'
+import { VersionsSection } from '../../../../src/testSurface/surface/test/VersionsSection.js'
+import { LengthSection } from '../../../../src/testSurface/surface/test/LengthSection.js'
+import { jumpToSection } from '../../../../src/testSurface/surface/test/jumpToSection.js'
+import { AdvancedSection } from '../../../../src/testSurface/surface/test/AdvancedSection.js'
+import { TargetingSection } from '../../../../src/testSurface/surface/test/TargetingSection.js'
+import { GoalSection } from '../../../../src/testSurface/surface/test/GoalSection.js'
+import { pageParts } from '../../../../src/testSurface/surface/test/pageParts.js'
+import { pageBlockParts } from '../../../../src/testSurface/surface/pageBlock/parts.js'
 import { EDITABLE_BY_STATUS } from '../../../../src/collections/experiments/editability.js'
-import { lockedReason } from '../../../../src/admin/lockedNotice.model.js'
+import { lockedReason } from '../../../../src/testSurface/lockedNotice.model.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
 const hook = vi.hoisted(() => vi.fn())
-vi.mock('../../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: hook }))
-vi.mock('../../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
+vi.mock('../../../../src/testSurface/surface/useTestDocument.js', () => ({ useTestDocument: hook }))
+vi.mock('../../../../src/testSurface/surface/readiness/parts.js', () => ({ readinessParts: {
   Banner: () => null, SaveStatus: () => null,
   sectionDone: () => ({ what: false, versions: false, win: false, who: true, length: false, advanced: true }),
 } }))
-vi.mock('../../../../src/admin/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
+vi.mock('../../../../src/testSurface/surface/setting/parts.js', () => ({ settingParts: { Binding: () => null, VersionContent: () => null } }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const doc = (partial: Partial<TestDocument> = {}): TestDocument => ({ id: 1, name: 'Welcome test', slug: 'welcome', status: 'draft', kind: 'block', unitType: 'visitor', arms: defaultArms('block'), allocation: 100, exposurePolicy: 'render', analysis: { plannedDurationDays: 28, minExposuresPerArm: 200 }, ...partial })
 const surface: SurfaceProps = { adminRoute: '/cms', apiRoute: '/cms-api', canManage: true, canReadResults: true, isAdmin: true, flagPoints: [], attributeKeys: { country: { type: 'string', values: ['US', 'CA'] }, path: { type: 'string' }, age: { type: 'number' }, member: { type: 'boolean' } }, metricSources: [{ id: 'signup', label: 'Signups', kind: 'binomial', keyedBy: 'visitor', clientWritable: true }] }

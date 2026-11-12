@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test } from 'vitest'
-import { DataTable as ArmTable } from '../../../src/admin/results/DataTable.js'
-import { CappedCell } from '../../../src/admin/results/CappedCell.js'
-import { DataQualityPanel } from '../../../src/admin/results/DataQualityPanel.js'
-import { VerdictHero as VerdictCard } from '../../../src/admin/results/VerdictHero.js'
-import { armRows, cappedCell, collectingLine, dataQuality, guardrailChips, powerLine, rolloutLine, verdictCard } from '../../../src/admin/results/results.model.js'
-import { RESULTS_COPY } from '../../../src/admin/copy/results.js'
+import { DataTable as ArmTable } from '../../../src/testSurface/results/DataTable.js'
+import { CappedCell } from '../../../src/testSurface/results/CappedCell.js'
+import { DataQualityPanel } from '../../../src/testSurface/results/DataQualityPanel.js'
+import { VerdictHero as VerdictCard } from '../../../src/testSurface/results/VerdictHero.js'
+import { armRows, cappedCell, collectingLine, dataQuality, guardrailChips, powerLine, rolloutLine, verdictCard } from '../../../src/testSurface/results/results.model.js'
+import { RESULTS_COPY } from '../../../src/testSurface/copy/results.js'
 import { fixture, fixtures, phaseFor, revenueSnapshot } from './fixtures.js'
 
 afterEach(cleanup)

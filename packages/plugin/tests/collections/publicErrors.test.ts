@@ -4,7 +4,7 @@ import { experimentsCollection } from '../../src/collections/experiments/config.
 import { sampleOptions } from './fixtures.js'
 import { fakeReq } from '../_fakes/req.js'
 import { fakePayload } from '../_fakes/payload.js'
-import { refusalMessage } from '../../src/admin/copy/common.js'
+import { refusalMessage } from '../../src/testSurface/copy/common.js'
 import type { PayloadRequest, SanitizedCollectionConfig } from 'payload'
 
 test('locked-field errors expose a public HTTP 400 and the experiment status', () => {

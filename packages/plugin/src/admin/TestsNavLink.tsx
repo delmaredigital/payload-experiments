@@ -1,10 +1,10 @@
 'use client'
 
-import { surfaceUrls } from './surfaceUrls.js'
+import { surfaceUrls } from '../testSurface/surfaceUrls.js'
 import './theme.css'
 import { Link, NavGroup, useAuth, useConfig } from '@payloadcms/ui'
 import { usePathname } from 'next/navigation.js'
-import { SURFACE_COPY } from './copy/surface.js'
+import { SURFACE_COPY } from '../testSurface/copy/surface.js'
 
 /** @deprecated Retained for existing import maps until 0.5.0. */
 function TestsNav({ isOpen = true }: { isOpen?: boolean }) {

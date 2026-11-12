@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, expect, test, vi } from 'vitest'
 import { assembleSnapshot } from '../../../src/results/snapshot.js'
-import * as legacy from '../../../src/admin/results/legacy.js'
-import * as display from '../../../src/admin/results/results.model.js'
-import { isLegacySnapshot, type LegacySnapshot } from '../../../src/admin/results/snapshot.js'
-import { RESULTS_COPY } from '../../../src/admin/copy/results.js'
-import { recommendation } from '../../../src/admin/surface/results/recommendation.model.js'
+import * as legacy from '../../../src/testSurface/results/legacy.js'
+import * as display from '../../../src/testSurface/results/results.model.js'
+import { isLegacySnapshot, type LegacySnapshot } from '../../../src/testSurface/results/snapshot.js'
+import { RESULTS_COPY } from '../../../src/testSurface/copy/results.js'
+import { recommendation } from '../../../src/testSurface/surface/results/recommendation.model.js'
 import { fixture, fixtures, legacyFixture, phaseFor } from './fixtures.js'
 
 afterEach(() => vi.restoreAllMocks())
@@ -41,7 +41,7 @@ test.each(Object.keys(fixtures))('latest writer shape %s never takes a fallback 
   expect(minimumRead).not.toHaveBeenCalled()
   // A populated current snapshot cannot exercise a dormant ?? fallback. Also
   // forbid that source dependency so the requested mutation cannot hide in it.
-  const model = readFileSync(new URL('../../../src/admin/results/results.model.ts', import.meta.url), 'utf8')
+  const model = readFileSync(new URL('../../../src/testSurface/results/results.model.ts', import.meta.url), 'utf8')
   expect(model).not.toContain('ctx.minExposuresPerArm')
 })
 

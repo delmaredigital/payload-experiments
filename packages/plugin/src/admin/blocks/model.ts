@@ -1,6 +1,6 @@
 import type { PlacementStatusResult } from '../../types/endpoints.js'
 import { hostBlocks } from '../../blocks/model.js'
-import { BLOCK_COPY, blockDecidedStatus, blockDraftStatus, blockFinishedStatus, blockPosition } from '../copy/blocks.js'
+import { BLOCK_COPY, blockDecidedStatus, blockDraftStatus, blockFinishedStatus, blockPosition } from '../../testSurface/copy/blocks.js'
 import type { RowsField } from './formApi.js'
 export type BlockStatus = PlacementStatusResult['slugs'][string]
 export type LiveBlockStatus = Extract<BlockStatus, { status: string }>

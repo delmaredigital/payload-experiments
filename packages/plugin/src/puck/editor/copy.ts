@@ -2,6 +2,9 @@ import { ARM_LABELS } from '../../labels/arms.js'
 
 export const editorCopy = {
   labels: ARM_LABELS,
+  configure: 'Configure test',
+  openInTab: 'Open in a new tab',
+  closeConfigure: 'Close',
   selectBlock: 'Select this test block',
   placementsError: "Couldn't check where this test is used. Try again.",
   notSetUp: 'Not set up',
@@ -28,9 +31,7 @@ export const editorCopy = {
   creating: 'Creating…',
   cancel: 'Cancel',
   name: 'Name',
-  setup: 'Set up the test',
   openTest: 'Open the test',
-  viewResults: 'View results',
   nameExists: "This name is too close to an existing test. Choose a different name.",
   createError: "Couldn't create the test. Try again.",
   loading: 'Loading test…',

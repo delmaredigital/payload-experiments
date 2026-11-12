@@ -6,9 +6,9 @@ import type { ResultsResponse } from '../../../src/types/endpoints.js'
 import { preflight, props } from './readiness/fixtures.js'
 
 const mocks = vi.hoisted(() => ({ hook: vi.fn(), body: vi.fn(), data: undefined as ResultsResponse | undefined }))
-vi.mock('../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: mocks.hook }))
-vi.mock('../../../src/admin/surface/results/ResultsBody.js', () => ({ ResultsBody: (input: { renderPage?: (parts: import('../../../src/admin/surface/results/ResultsBody.js').ResultsPageParts) => import('react').ReactNode }) => { mocks.body(input); return input.renderPage ? input.renderPage({ children: <p>Results body</p>, actions: null, released: null, data: mocks.data }) : <p>Results body</p> } }))
-vi.mock('../../../src/admin/surface/readiness/parts.js', () => ({ readinessParts: {
+vi.mock('../../../src/testSurface/surface/useTestDocument.js', () => ({ useTestDocument: mocks.hook }))
+vi.mock('../../../src/testSurface/surface/results/ResultsBody.js', () => ({ ResultsBody: (input: { renderPage?: (parts: import('../../../src/testSurface/surface/results/ResultsBody.js').ResultsPageParts) => import('react').ReactNode }) => { mocks.body(input); return input.renderPage ? input.renderPage({ children: <p>Results body</p>, actions: null, released: null, data: mocks.data }) : <p>Results body</p> } }))
+vi.mock('../../../src/testSurface/surface/readiness/parts.js', () => ({ readinessParts: {
   Banner: () => <p>Readiness banner</p>, SaveStatus: () => <span>Save status</span>,
 } }))
 afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.data = undefined })

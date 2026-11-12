@@ -25,7 +25,7 @@ function isSurfaceTypeImport(file: string, node: ts.ImportDeclaration): boolean 
   const bindings = clause?.namedBindings
   // The shared order is a runtime dependency, but these two imports are erased.
   // In particular ReturnType<typeof useTestDocument> never runs the React hook.
-  return file === fileURLToPath(new URL('../../src/admin/surface/contracts.ts', import.meta.url))
+  return file === fileURLToPath(new URL('../../src/testSurface/surface/contracts.ts', import.meta.url))
     && ts.isStringLiteral(node.moduleSpecifier)
     && Boolean(clause?.isTypeOnly) && !clause?.name && Boolean(bindings && ts.isNamedImports(bindings)
       && bindings.elements.length === 1 && (
@@ -185,7 +185,7 @@ test('only home card URL formatting may import Payload shared code', () => {
   }
 })
 test('only the erased surface contract imports are allowed, never React or hook value edges', () => {
-  const contract = fileURLToPath(new URL('../../src/admin/surface/contracts.ts', import.meta.url))
+  const contract = fileURLToPath(new URL('../../src/testSurface/surface/contracts.ts', import.meta.url))
   for (const [file, source, allowed] of [
     [contract, "import type { ComponentType } from 'react'", true],
     [contract, "import { ComponentType } from 'react'", false],

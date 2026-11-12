@@ -1,6 +1,6 @@
 import type { CollectionConfig, Field, FieldAccess } from 'payload'
 import type { Arm, ExperimentKind, ResolvedOptions } from '../../types/contracts.js'
-import { SURFACE_COPY } from '../../admin/copy/surface.js'
+import { SURFACE_COPY } from '../../testSurface/copy/surface.js'
 import * as paths from '../../admin/paths.js'
 import { managedAccess } from '../access.js'
 import { serializeAttributeKeys, serializeFlagPoints } from '../serialize.js'

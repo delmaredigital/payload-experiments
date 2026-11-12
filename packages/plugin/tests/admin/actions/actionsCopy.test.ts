@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
-import { ACTIONS_COPY, contentReportCopy, decideCopy, hardCodedLabel, makeContentCopy, releaseCopy } from '../../../src/admin/copy/actions.js'
+import { ACTIONS_COPY, contentReportCopy, decideCopy, hardCodedLabel, makeContentCopy, releaseCopy } from '../../../src/testSurface/copy/actions.js'
 import { expectedConfirm } from '../../../src/transitions/confirmPhrases.js'
 
 test('forbidden content reports explain how to archive a deleted or trashed page', () => {
@@ -14,7 +14,7 @@ test('copy uses editor vocabulary and never stores a typed phrase', () => {
     expect(value).not.toMatch(/\b(arms?|phases?)\b/i)
     expect(phrases).not.toContain(value)
   }
-  const source = readFileSync(new URL('../../../src/admin/copy/actions.ts', import.meta.url), 'utf8')
+  const source = readFileSync(new URL('../../../src/testSurface/copy/actions.ts', import.meta.url), 'utf8')
   expect(source).not.toContain("'discard winner'")
   expect(source).not.toContain('`the developer has hard-coded')
 })

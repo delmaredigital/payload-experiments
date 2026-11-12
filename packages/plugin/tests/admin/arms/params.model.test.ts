@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import type { Arm, ParamField } from '../../../src/types/contracts.js'
 import type { SerializedFlagPoint } from '../../../src/types/admin.js'
-import { coerceParam, paramIssue, paramsForArm, paramsReadOnly, setParam } from '../../../src/admin/arms/params.model.js'
+import { coerceParam, paramIssue, paramsForArm, paramsReadOnly, setParam } from '../../../src/testSurface/arms/params.model.js'
 
 test.each(['text', 'textarea'] as const)('%s coercion and required copy', type => {
   const field: ParamField = { type, label: 'Headline', required: true }

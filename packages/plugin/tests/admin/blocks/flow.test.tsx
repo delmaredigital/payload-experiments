@@ -4,10 +4,10 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { payloadUiMock, resetPayloadUiMock, setDocumentInfo, setFormModified, setPayloadUiState, setEntityConfig } from '../_helpers/payloadUiMock.js'
 import { collection, configure, original } from './fixtures.js'
 import { TestBlockField } from '../../../src/admin/blocks/TestBlockField.js'
-import { API_MESSAGES } from '../../../src/admin/copy/common.js'
+import { API_MESSAGES } from '../../../src/testSurface/copy/common.js'
 import { wrapExperimentBlock } from '../../../src/blocks/formState.js'
 import { field } from './fixtures.js'
-import { BLOCK_COPY } from '../../../src/admin/copy/blocks.js'
+import { BLOCK_COPY } from '../../../src/testSurface/copy/blocks.js'
 import { CreateRefused } from '../../../src/puck/editor/createTest.js'
 const mocks = vi.hoisted(() => ({ mode: 'form-api', adapt: vi.fn(), replace: vi.fn(), create: vi.fn() }))
 vi.mock('@payloadcms/ui', () => payloadUiMock())

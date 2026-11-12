@@ -13,9 +13,9 @@ import { RESULTS_COPY } from '../copy/results.js'
 import { ACTIONS_COPY as C, decideCopy } from '../copy/actions.js'
 import type { ActionGroup } from './actions.model.js'
 import { decideState } from './decide.model.js'
-import { DialogFrame } from './ConfirmDialog.js'
+import { Dialog } from '../../ui/Dialog.js'
 
-export function DecideDialog({ id, arms, checks = [], onClose, apiRoute }: { apiRoute: string; id: DocId; arms: readonly ActionGroup[]; checks?: PreflightResult['checks']; onClose: () => void }) {
+export function DecideDialog({ id, arms, checks = [], onClose, apiRoute, onSuccess }: { apiRoute: string; onSuccess?: (doc?: Record<string, unknown>) => void; id: DocId; arms: readonly ActionGroup[]; checks?: PreflightResult['checks']; onClose: () => void }) {
   const api = useApi(apiRoute)
   const [snapshot, setSnapshot] = useState<ResultsResponse['snapshot']>(null)
   const [chosenArm, setChosenArm] = useState<string | null>(null)
@@ -58,7 +58,7 @@ export function DecideDialog({ id, arms, checks = [], onClose, apiRoute }: { api
     setBusy(true)
     setError(null)
     const result = await api.decide(id, state.body)
-    if (result.ok) { reloadPage(); return }
+    if (result.ok) { if (onSuccess) onSuccess(result.data?.doc); else reloadPage(); return }
     else {
       setError(result)
       if (result.code === 'confirmation-required') { setTyped(''); await refresh() }
@@ -68,7 +68,7 @@ export function DecideDialog({ id, arms, checks = [], onClose, apiRoute }: { api
   }
   const enabled = !busy && !loading && !loadFailed && state.canSubmit
   const label = state.options.find(option => option.value === chosenArm)?.label
-  return <DialogFrame dismissible={!busy} initialFocus="cancel" title={C.decide} onClose={() => { if (!busy) onClose() }}>
+  return <Dialog open dismissible={!busy} initialFocus="cancel" title={C.decide} onClose={() => { if (!busy) onClose() }}>
     {loading ? <p role="status">{C.loading}</p> : null}
     <Select id="xp-winner" name="xp-winner" label={C.group} value={chosenArm ?? ''}
       disabled={busy || loading} required onChange={event => {
@@ -88,5 +88,5 @@ export function DecideDialog({ id, arms, checks = [], onClose, apiRoute }: { api
     {error?.retryable ? <Button disabled={busy || loading || (!loadFailed && !state.canSubmit)}
       onClick={() => { if (loadFailed) { setError(null); void refresh() } else void submit() }}>{C.retry}</Button> : null}
     <Button data-dialog-cancel disabled={busy} onClick={onClose}>{C.cancel}</Button>
-  </DialogFrame>
+  </Dialog>
 }

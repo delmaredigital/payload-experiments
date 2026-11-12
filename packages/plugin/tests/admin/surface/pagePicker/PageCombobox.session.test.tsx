@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { useTestDocument } from '../../../../src/admin/surface/useTestDocument.js'
-import { VersionContent } from '../../../../src/admin/surface/test/pageParts.js'
-import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
+import { useTestDocument } from '../../../../src/testSurface/surface/useTestDocument.js'
+import { VersionContent } from '../../../../src/testSurface/surface/test/pageParts.js'
+import type { TestDocument } from '../../../../src/testSurface/surface/testDocument.model.js'
 import { props, preflight } from '../readiness/fixtures.js'
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })

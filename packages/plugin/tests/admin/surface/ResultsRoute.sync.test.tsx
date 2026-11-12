@@ -6,7 +6,7 @@ import { props } from './readiness/fixtures.js'
 import { fixture, phaseFor } from '../results/fixtures.js'
 
 const mocks = vi.hoisted(() => ({ hook: vi.fn() }))
-vi.mock('../../../src/admin/surface/useTestDocument.js', () => ({ useTestDocument: mocks.hook }))
+vi.mock('../../../src/testSurface/surface/useTestDocument.js', () => ({ useTestDocument: mocks.hook }))
 vi.mock('../../../src/admin/surface/test/TestHeader.js', () => ({ TestHeader: () => <p>Test header</p> }))
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })

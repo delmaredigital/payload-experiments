@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { allocationGroups, allocationLayer, allocationSentence } from '../../../src/admin/allocation.model.js'
-import type { AllocationGroup } from '../../../src/admin/allocation.model.js'
+import { allocationGroups, allocationLayer, allocationSentence } from '../../../src/testSurface/allocation.model.js'
+import type { AllocationGroup } from '../../../src/testSurface/allocation.model.js'
 
 const groups = (weights: number[]): AllocationGroup[] => weights.map((weight, index) => ({
   key: (['control', 'variantA', 'variantB'] as const)[index]!, kind: index ? 'variant' : 'control', weight,

@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, afterEach, expect, test, vi } from 'vitest'
-import { ACTIONS_COPY } from '../../../src/admin/copy/actions.js'
-import { MakeContentResult as Report } from '../../../src/admin/actions/MakeContentResult.js'
-import { createApi } from '../../../src/admin/api.js'
+import { ACTIONS_COPY } from '../../../src/testSurface/copy/actions.js'
+import { MakeContentResult as Report } from '../../../src/testSurface/actions/MakeContentResult.js'
+import { createApi } from '../../../src/testSurface/api.js'
 import type { ComponentProps } from 'react'
-import { ConfirmDialog } from '../../../src/admin/actions/ConfirmDialog.js'
-import { availableActions } from '../../../src/admin/actions/actions.model.js'
-import { reloadPage } from '../../../src/admin/reload.js'
+import { ConfirmActionHarness } from './ConfirmActionHarness.js'
+import { availableActions } from '../../../src/testSurface/actions/actions.model.js'
+import { reloadPage } from '../../../src/testSurface/reload.js'
 import { resetPayloadUiMock } from '../_helpers/payloadUiMock.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../_helpers/payloadUiMock.js')).payloadUiMock())
-vi.mock('../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
+vi.mock('../../../src/testSurface/reload.js', () => ({ reloadPage: vi.fn() }))
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
@@ -40,7 +40,7 @@ test('make-content retry reposts and keeps results visible until Done reloads', 
   vi.stubGlobal('fetch', fetcher)
   const action = availableActions({ status: 'decided', kind: 'block', arms: [{ key: 'variantA' }],
     decision: { winnerArm: 'variantA' }, canManage: true }).find(item => item.id === 'make-content')!
-  render(<ConfirmDialog apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  render(<ConfirmActionHarness apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: 'Make it the content' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull())
@@ -86,7 +86,7 @@ test('make-content and Retry each POST once on rapid clicks while pending', asyn
   vi.stubGlobal('fetch', fetcher)
   const action = availableActions({ status: 'decided', kind: 'block', arms: [{ key: 'variantA' }],
     decision: { winnerArm: 'variantA' }, canManage: true }).find(item => item.id === 'make-content')!
-  render(<ConfirmDialog apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  render(<ConfirmActionHarness apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
   const submit = screen.getByRole('button', { name: 'Make it the content' }) as HTMLButtonElement
   act(() => { submit.click(); submit.click() })
   expect(fetcher).toHaveBeenCalledTimes(1)
@@ -231,14 +231,14 @@ test.each([
   expect(screen.getByText('pages/2: Dismissed')).toBeTruthy()
 })
 
-test('ConfirmDialog clears a stale retry error as soon as Dismiss starts', async () => {
+test('ConfirmActionHarness clears a stale retry error as soon as Dismiss starts', async () => {
   let dismiss!: (response: Response) => void
   const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(partial)))
     .mockResolvedValueOnce(new Response(JSON.stringify({ errors: [{ code: 'commit-unverified' }] }), { status: 500 }))
     .mockReturnValueOnce(new Promise<Response>(resolve => { dismiss = resolve }))
   vi.stubGlobal('fetch', fetcher)
   const action = availableActions({ status: 'decided', kind: 'block', arms: [], canManage: true }).find(item => item.id === 'make-content')!
-  render(<ConfirmDialog apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  render(<ConfirmActionHarness apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: 'Make it the content' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
   await screen.findByRole('alert')
@@ -247,13 +247,13 @@ test('ConfirmDialog clears a stale retry error as soon as Dismiss starts', async
   await act(async () => { dismiss(entryResponse(dismissedEntry)) })
 })
 
-test('ConfirmDialog finishes through after-content archive once all failures are dismissed', async () => {
+test('ConfirmActionHarness finishes through after-content archive once all failures are dismissed', async () => {
   const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ...partial, docs: [failedEntry] })))
     .mockResolvedValueOnce(entryResponse(dismissedEntry))
     .mockResolvedValueOnce(new Response(JSON.stringify({ doc: { status: 'archived' }, revision: 3 })))
   vi.stubGlobal('fetch', fetcher)
   const action = availableActions({ status: 'decided', kind: 'block', arms: [], canManage: true }).find(item => item.id === 'make-content')!
-  render(<ConfirmDialog apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  render(<ConfirmActionHarness apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: 'Make it the content' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Dismiss pages/2' }))
   const finish = await screen.findByRole('button', { name: 'Finish archiving' })
@@ -271,7 +271,7 @@ test.each([false, true])('already archived make-content response offers Done wit
   fetcher.mockResolvedValueOnce(new Response(JSON.stringify(archived)))
   vi.stubGlobal('fetch', fetcher)
   const action = availableActions({ status: 'decided', kind: 'block', arms: [], canManage: true }).find(item => item.id === 'make-content')!
-  render(<ConfirmDialog apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  render(<ConfirmActionHarness apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: 'Make it the content' }))
   if (retry) fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
   await waitFor(() => expect(screen.getByText('pages/2: Updated — Someone is editing this page. Wait for them to finish, then retry.')).toBeTruthy())
@@ -286,7 +286,7 @@ test('a refused Finish can be attempted again without reposting make-content', a
     .mockResolvedValueOnce(new Response(JSON.stringify({ doc: { status: 'archived' }, revision: 3 })))
   vi.stubGlobal('fetch', fetcher)
   const action = availableActions({ status: 'decided', kind: 'block', arms: [], canManage: true }).find(item => item.id === 'make-content')!
-  render(<ConfirmDialog apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
+  render(<ConfirmActionHarness apiRoute="/api" canManage isDecided id={1} action={action} winnerLabel="Variant A" onClose={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: 'Make it the content' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Finish archiving' }))
   await screen.findByRole('alert')

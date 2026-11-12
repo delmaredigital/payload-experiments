@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { experimentsCollection } from '../../src/collections/experiments/config.js'
-import { readTargetingRules } from '../../src/admin/targeting/targeting.model.js'
+import { readTargetingRules } from '../../src/testSurface/targeting/targeting.model.js'
 import { fakeReq } from '../_fakes/req.js'
 import { field, sampleOptions, validate } from './fixtures.js'
 

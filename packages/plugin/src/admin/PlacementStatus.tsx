@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { UIFieldClientProps } from 'payload'
 import { formatAdminURL } from 'payload/shared'
 import type { PageTestStatus } from '../types/endpoints.js'
-import { createApi } from './api.js'
+import { createApi } from '../testSurface/api.js'
 import { pageStatusCopy } from './placementStatus.model.js'
 
 /** Manage-only endpoint: access-filtered editors see no status or error text. */

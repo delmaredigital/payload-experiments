@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import type { SurfaceProps } from '../../../../src/admin/surface/contracts.js'
+import type { SurfaceProps } from '../../../../src/testSurface/surface/contracts.js'
 import type { TestsSurfaceProps } from '../../../../src/types/surface.js'
 import { NewTest } from '../../../../src/admin/surface/newTest/NewTest.js'
 

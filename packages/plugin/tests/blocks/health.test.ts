@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { canonicalHealth, mergePageHealth } from '../../src/results/health.js'
 import { healthDot } from '../../src/admin/surface/home.model.js'
-import { dataQuality } from '../../src/admin/results/results.model.js'
+import { dataQuality } from '../../src/testSurface/results/results.model.js'
 import { makeSnapshot } from '../admin/results/fixtures.js'
 import { validateSnapshot } from '../../src/results/snapshot.js'
 

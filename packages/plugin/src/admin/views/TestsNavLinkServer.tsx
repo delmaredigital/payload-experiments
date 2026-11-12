@@ -1,6 +1,6 @@
 import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'
 import type { ServerProps } from 'payload'
-import { SURFACE_COPY } from '../copy/surface.js'
+import { SURFACE_COPY } from '../../testSurface/copy/surface.js'
 import { XP_TESTS_NAV_CLIENT } from '../paths.js'
 
 type NavPreference = { groups?: Record<string, { open?: boolean }> }

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { PreviewLinks } from '../../../src/admin/PreviewLinks.js'
-import { API_MESSAGES } from '../../../src/admin/copy/common.js'
-import { REVIEW_COPY } from '../../../src/admin/copy/review.js'
+import { PreviewLinks } from '../../../src/testSurface/PreviewLinks.js'
+import { API_MESSAGES } from '../../../src/testSurface/copy/common.js'
+import { REVIEW_COPY } from '../../../src/testSurface/copy/review.js'
 import type { PreflightResult } from '../../../src/types/endpoints.js'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })

@@ -17,6 +17,7 @@ export function useTransition(test: TestDocApi, onSuccess?: () => void) {
     try {
       const result = await request()
       if (result.ok) {
+        test.acceptTransition?.(result.data)
         if (reloadOnSuccess) {
           await test.reload()
           onSuccess?.()

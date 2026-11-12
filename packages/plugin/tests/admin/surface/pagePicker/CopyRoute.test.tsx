@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test } from 'vitest'
-import { CopyRoute } from '../../../../src/admin/surface/pagePicker/CopyRoute.js'
+import { CopyRoute } from '../../../../src/testSurface/surface/pagePicker/CopyRoute.js'
 const collection = { slug: 'pages', label: 'Pages', contentChecks: false, copyUrl: '/control/collections/pages', copyLabel: 'Open Pages' }
 afterEach(cleanup)
 test('generic route has three steps, a new-tab link, and a zero-content action slot before the steps', () => {

@@ -1,4 +1,4 @@
-import { formatAdminURL } from 'payload/shared'
+import { formatAdminURL } from './format/adminURL.js'
 
 type SurfaceQuery = Record<string, string | string[] | undefined>
 export function surfaceQuery(query: SurfaceQuery = {}): string {

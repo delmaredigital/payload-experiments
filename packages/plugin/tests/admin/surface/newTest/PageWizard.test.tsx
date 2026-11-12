@@ -3,10 +3,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, expect, test, vi } from 'vitest'
 import { NewTest } from '../../../../src/admin/surface/newTest/NewTest.js'
 import { PageWizard } from '../../../../src/admin/surface/newTest/PageWizard.js'
-import { VersionContent } from '../../../../src/admin/surface/test/pageParts.js'
-import { VersionsSection } from '../../../../src/admin/surface/test/VersionsSection.js'
-import { pageParts } from '../../../../src/admin/surface/test/pageParts.js'
-import type { TestDocument } from '../../../../src/admin/surface/testDocument.model.js'
+import { VersionContent } from '../../../../src/testSurface/surface/test/pageParts.js'
+import { VersionsSection } from '../../../../src/testSurface/surface/test/VersionsSection.js'
+import { pageParts } from '../../../../src/testSurface/surface/test/pageParts.js'
+import type { TestDocument } from '../../../../src/testSurface/surface/testDocument.model.js'
 import { props, preflight } from '../readiness/fixtures.js'
 const push = vi.hoisted(() => vi.fn())
 vi.mock('next/navigation.js', () => ({ useRouter: () => ({ push }) }))

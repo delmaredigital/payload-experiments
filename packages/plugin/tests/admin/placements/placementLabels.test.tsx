@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { usePlacementLabels, placementDetailKey } from '../../../src/admin/placements/usePlacementLabels.js'
-import { preflightPlacementLabel } from '../../../src/admin/placements/placementLabels.js'
+import { usePlacementLabels, placementDetailKey } from '../../../src/testSurface/placements/usePlacementLabels.js'
+import { preflightPlacementLabel } from '../../../src/testSurface/placements/placementLabels.js'
 import type { PreflightResult } from '../../../src/types/endpoints.js'
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 const page = { collection: 'pages', path: '/landing' }

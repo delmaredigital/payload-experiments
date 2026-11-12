@@ -4,14 +4,14 @@ import { beforeEach, afterEach, expect, test, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { URL as NodeURL } from 'node:url'
 import { ReaderResultsShell } from '../../../../src/admin/surface/results/ResultsHeader.js'
-import { ResultsBody } from '../../../../src/admin/surface/results/ResultsBody.js'
-import * as resultsHook from '../../../../src/admin/surface/results/useResults.js'
-import { reloadPage } from '../../../../src/admin/reload.js'
-import type { SurfaceProps } from '../../../../src/admin/surface/contracts.js'
+import { ResultsBody } from '../../../../src/testSurface/surface/results/ResultsBody.js'
+import * as resultsHook from '../../../../src/testSurface/surface/results/useResults.js'
+import { reloadPage } from '../../../../src/testSurface/reload.js'
+import type { SurfaceProps } from '../../../../src/testSurface/surface/contracts.js'
 import { fixture, phaseFor, revenueSnapshot } from '../../results/fixtures.js'
 import type { ResultsResponse } from '../../../../src/types/endpoints.js'
-import { RESULTS_COPY } from '../../../../src/admin/copy/results.js'
-vi.mock('../../../../src/admin/reload.js', () => ({ reloadPage: vi.fn() }))
+import { RESULTS_COPY } from '../../../../src/testSurface/copy/results.js'
+vi.mock('../../../../src/testSurface/reload.js', () => ({ reloadPage: vi.fn() }))
 const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: false, flagPoints: [], attributeKeys: {}, metricSources: [] }
 const snapshot = fixture('T7')
 const phase = phaseFor(snapshot)
@@ -210,7 +210,7 @@ test('errors, missing and empty results render distinct states', async () => {
 })
 test('surface sources have no document Form or document/form hooks', () => {
   for (const name of ['ResultsBody.tsx', 'useResults.ts']) {
-    const source = readFileSync(new NodeURL(`../../../../src/admin/surface/results/${name}`, import.meta.url), 'utf8')
+    const source = readFileSync(new NodeURL(`../../../../src/testSurface/surface/results/${name}`, import.meta.url), 'utf8')
     expect(source).not.toMatch(/\b(useDocumentInfo|useFormFields|Form)\b/)
   }
 })
