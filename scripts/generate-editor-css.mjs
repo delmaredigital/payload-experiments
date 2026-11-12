@@ -43,7 +43,6 @@ export function generateEditorCss() {
   return '/* generated — do not edit. Run pnpm generate:editor-css. Reference: Payload 3.90.2. */\n'
     + block('.xp-slot-root', 'light') + '\n' + block("[data-theme='dark'] .xp-slot-root,\n.dark .xp-slot-root", 'dark')
     + '\n' + block('[class*="_PuckFields"] .xp-slot-root', 'light')
-    + '\n' + ['testSurface/surface/test/testPage.css', 'testSurface/surface/setting/setting.css', 'testSurface/surface/pagePicker/pagePicker.css', 'testSurface/results/results.css'].map(path => readFileSync(join(src, path), 'utf8')).join('\n')
     + '\n' + readFileSync(join(src, 'ui/ui.css'), 'utf8') + '\n' + readFileSync(join(src, 'puck/editor/editor.chrome.css'), 'utf8')
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

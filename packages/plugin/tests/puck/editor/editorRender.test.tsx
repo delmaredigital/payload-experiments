@@ -10,7 +10,7 @@ const puck = vi.hoisted(() => ({ item: {
     control: [{ type: 'Text', props: { id: 'source-id', text: 'Hello', nested: [{ type: 'Text', props: { id: 'nested-id', text: 'Nested' } }] } }],
     variantA: [], variantB: [], variantC: [],
   },
-}, dispatch: vi.fn(), getSelectorForId: vi.fn(), selectors: [] as unknown[], title: 'Welcome page', selected: true as boolean | 'other' }))
+}, dispatch: vi.fn(), getSelectorForId: vi.fn(), selectors: [] as unknown[], title: 'Welcome page', dragging: false, selected: true as boolean | 'other' }))
 
 function selectedItem() {
   return puck.selected === 'other' ? { type: 'Text', props: { id: 'other-block', control: [], variantA: [] } } : puck.selected ? puck.item : null
@@ -26,7 +26,7 @@ vi.mock('@puckeditor/core', async importOriginal => {
     puck.selectors.push(result)
     return result
   },
-  useGetPuck: () => () => ({ selectedItem: selectedItem(), getItemById: (id: string) => id === puck.item.props.id ? puck.item : undefined, dispatch: puck.dispatch, getSelectorForId: puck.getSelectorForId }),
+  useGetPuck: () => () => ({ appState: { data: { root: { props: {} }, content: [puck.item] }, ui: { isDragging: puck.dragging } }, config: { components: {} }, selectedItem: selectedItem(), getItemById: (id: string) => id === puck.item.props.id ? puck.item : undefined, dispatch: puck.dispatch, getSelectorForId: puck.getSelectorForId }),
   }
 })
 
@@ -56,6 +56,7 @@ beforeEach(() => {
   puck.dispatch.mockReset()
   puck.getSelectorForId.mockReset().mockReturnValue({ index: 2, zone: 'parent:content' })
   puck.selectors.length = 0
+  puck.dragging = false
   puck.selected = true
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => doc }))
 })
@@ -74,6 +75,7 @@ test.each([false, 'other'] as const)('clicking non-interactive chrome selects th
     expect(puck.getSelectorForId).toHaveBeenLastCalledWith('slot-1')
     expect(puck.dispatch).toHaveBeenCalledExactlyOnceWith({ type: 'setUi', ui: { itemSelector: { index: 2, zone: 'parent:content' } } })
   }
+  puck.dragging = false
   puck.selected = true
   view.rerender(<Editor {...props()} />)
   expect(chrome.dataset.selected).toBe('true')
@@ -150,7 +152,7 @@ test.each(['running', 'draft'].flatMap(status => [false, 'other'].map(selection 
   fireEvent.click(screen.getByRole('button', { name: 'Options for New headline' }))
   fireEvent.click(screen.getByRole('button', { name: 'Copy Original here' }))
   expect(puck.getSelectorForId).toHaveBeenCalledWith('slot-1')
-  expect(puck.dispatch).toHaveBeenCalledOnce()
+  await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
   const action = puck.dispatch.mock.calls[0]![0]
   expect(action).toMatchObject({ type: 'replace', destinationIndex: 2, destinationZone: 'parent:content', data: {
     type: 'ExperimentSlot', props: { id: 'slot-1', experiment: { id: 1, slug: 'example' }, control: puck.item.props.control },
@@ -517,6 +519,7 @@ test.each([0, 1, 2])('shared notice uses existing placement read: %s placements'
 
 test.each([false, 'other'] as const)('removal asks first and clears only this binding with selection %s', async selection => {
   vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status: 'draft' }) } as Response)
+  vi.mocked(fetch).mockImplementation(async (url: RequestInfo | URL) => new Response(JSON.stringify(String(url).endsWith('/preflight') ? { placements: [] } : { ...doc, status: 'draft' })))
   puck.selected = selection
   const Editor = ExperimentSlotEditor.render
   const view = render(<Editor {...props()} />)
@@ -525,19 +528,38 @@ test.each([false, 'other'] as const)('removal asks first and clears only this bi
   const calls = vi.mocked(fetch).mock.calls.length
   const remove = () => fireEvent.click(screen.getByRole('button', { name: 'Remove the test from this block' }))
   remove()
+  await screen.findByRole('dialog')
   expect(document.activeElement).toBe(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
   expect(puck.dispatch).not.toHaveBeenCalled()
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
   expect(puck.dispatch).not.toHaveBeenCalled()
   remove()
+  await screen.findByRole('dialog')
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove the test from this block' }))
-  expect(puck.dispatch).toHaveBeenCalledOnce()
+  await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
   const action = puck.dispatch.mock.calls[0]![0]
   expect(action.data.props).toEqual({ ...puck.item.props, experiment: null })
   for (const slot of ['control', 'variantA', 'variantB', 'variantC'] as const) expect(action.data.props[slot]).toBe(puck.item.props[slot])
   view.rerender(<Editor {...props({ experiment: null })} />)
   expect(screen.getByRole('button', { name: 'Test this block' })).toBeTruthy()
   expect(screen.queryByRole('dialog')).toBeNull()
-  expect(vi.mocked(fetch).mock.calls).toHaveLength(calls + 1)
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(calls + 7)
   expect(vi.mocked(fetch).mock.calls.at(-1)?.[0]).toContain('/preflight')
+})
+
+test('the click that ends a drag cannot dispatch another selection after Puck clears drag state', async () => {
+  const Editor = ExperimentSlotEditor.render
+  render(<Editor {...props({ experiment: null })} />)
+  const heading = screen.getByRole('heading', { name: 'Experiment block' })
+  fireEvent.pointerDown(heading)
+  puck.dragging = true
+  fireEvent.pointerMove(heading)
+  fireEvent.pointerUp(heading)
+  puck.dragging = false
+  fireEvent.click(heading)
+  expect(puck.dispatch).not.toHaveBeenCalled()
+  fireEvent.pointerDown(heading)
+  fireEvent.pointerUp(heading)
+  fireEvent.click(heading)
+  expect(puck.dispatch).toHaveBeenCalledExactlyOnceWith({ type: 'setUi', ui: { itemSelector: { index: 2, zone: 'parent:content' } } })
 })

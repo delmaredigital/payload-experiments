@@ -1,3 +1,4 @@
+import { handleEditorSurface } from './editorSurface.js'
 import { handleClickKeys } from './clickKeys.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Endpoint, PayloadRequest } from 'payload'
@@ -41,19 +42,30 @@ export const ROUTES: Array<{ method: Endpoint['method']; path: string; access: A
   { method: 'get', path: '/xp/experiments/:id/click-keys', access: 'manage', handler: handleClickKeys },
   { method: 'get', path: '/xp/pages', access: 'manage', handler: handlePages },
   { method: 'post', path: '/xp/placements/status', access: 'manage', handler: handlePlacementStatus },
+  { method: 'get', path: '/xp/editor-surface', access: 'surface', handler: handleEditorSurface },
 ]
-function error(status: number, code: RefusalCode, message: string, detail?: unknown): Response {
+function endpointError(status: number, code: RefusalCode, message: string, detail?: unknown): Response {
   return Response.json({ errors: [{ code, message, ...(detail === undefined ? {} : { detail }) }] } satisfies ErrorEnvelope, { status })
 }
 export function buildEndpoints<TUser extends { id: string | number } = { id: string | number }>(ctx: { options: ResolvedOptions<TUser> }): Endpoint[] {
   return ROUTES.map(route => ({ method: route.method, path: route.path, handler: async req => {
     const { options } = ctx
     const handlerContext: EndpointContext<TUser> = { options }
+    const error = (status: number, code: RefusalCode, message: string, detail?: unknown) => {
+      const response = endpointError(status, code, message, detail)
+      if (route.access === 'surface') response.headers.set('Cache-Control', 'private, no-store')
+      return response
+    }
     try {
       if (route.access === 'manage' || route.access === 'readResults') {
         if (!req.user) return error(401, 'unauthenticated', 'Authentication required')
         const access = route.access === 'readResults' ? options.access.readResults ?? options.access.manage : options.access.manage
         if (await access({ req }) !== true) return error(403, 'forbidden', 'Access denied')
+      } else if (route.access === 'surface') {
+        if (!req.user) return error(401, 'unauthenticated', 'Authentication required')
+        const manage = await options.access.manage({ req }) === true
+        const read = options.access.readResults ? await options.access.readResults({ req }) === true : manage
+        if (!manage && !read) return error(403, 'forbidden', 'Access denied')
       } else if (route.access === 'manifestKey') {
         const secret = options.runtime.proxyRuntime.secrets[0]
         if (!secret) return error(401, 'unauthenticated', 'Invalid manifest key')

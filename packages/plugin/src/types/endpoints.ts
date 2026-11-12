@@ -44,7 +44,7 @@ export type ResultsResponse = {
 export type SummaryResponse = Record<DocId, { ready?: boolean; next?: { code: ReadinessCode; detail?: unknown }; health?: import('./snapshot.js').SnapshotHealth[]; exposures: number; days: number; verdict: { code: VerdictCode; headline: string } | null }>
 // Client conversion value is accepted on the wire; the server stores 1 for client conversions.
 export type EventBody = { events: Array<{ type: 'exposure'; experiment: string; phase: number; arm: string; policy: ExposurePolicy } | { type: 'conversion'; eventName: string; value?: number; idempotencyKey: string; attributes?: Record<string, string | number | boolean> }> }
-export type AccessKind = 'manage' | 'readResults' | 'manifestKey' | 'signedCookie'
+export type AccessKind = 'manage' | 'readResults' | 'surface' | 'manifestKey' | 'signedCookie'
 
 export type EndpointContext<TUser extends { id: string | number } = { id: string | number }> = { options: ResolvedOptions<TUser>; unit?: { visitorId: string } }
 

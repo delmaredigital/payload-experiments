@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
 import { Puck, registerOverlayPortal, useGetPuck, type Config } from '@puckeditor/core'
+import { EditorControls } from '../../../src/puck/editor/EditorControls.js'
 import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
 
 const config: Config = { components: {
@@ -175,4 +176,49 @@ test.each(['header', 'tab'] as const)('pressing the %s closes the version menu',
   expect(screen.getByRole('button', { name: 'Rename' })).toBeTruthy()
   fireEvent.pointerDown(target === 'header' ? heading : screen.getByRole('tab', { name: 'Variant A' }))
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull())
+})
+
+test.each([false, true])('menu padding and all control descendants keep selection and block drag (%s)', async selected => {
+  const actions: unknown[] = []
+  let read!: ReturnType<typeof useGetPuck>
+  function Probe() { read = useGetPuck(); return null }
+  function Chrome() {
+    const get = useGetPuck()
+    return <EditorControls className="controls" onSelect={() => get().dispatch({ type: 'setUi', ui: { itemSelector: get().getSelectorForId('controls') } })}>
+      <h3>Header</h3><div role="menu"><span>Menu child</span></div><div role="listbox"><span>List child</span></div>
+      <button><span>Button child</span></button><label><span>Label child</span><input /></label>
+    </EditorControls>
+  }
+  render(<Puck config={{ components: { Controls: { render: Chrome } } }} data={{ root: { props: {} }, content: [{ type: 'Controls', props: { id: 'controls' } }] }} iframe={{ enabled: false }}
+    onAction={action => { if (action.type === 'setUi' && 'itemSelector' in action.ui) actions.push(action.ui.itemSelector) }}><Puck.Preview /><Probe /></Puck>)
+  if (selected) fireEvent.click(screen.getByRole('heading', { name: 'Header' }))
+  const before = read().appState.ui.itemSelector
+  const chrome = document.querySelector('.controls')!
+  const pointer = vi.fn()
+  chrome.parentElement!.addEventListener('pointerdown', pointer)
+  actions.length = 0
+  for (const target of [screen.getByRole('menu'), screen.getByRole('listbox'), ...['Menu child', 'List child', 'Button child', 'Label child'].map(text => screen.getByText(text))]) {
+    fireEvent.pointerDown(target); fireEvent.pointerUp(target); fireEvent.click(target)
+  }
+  expect(pointer).not.toHaveBeenCalled()
+  expect(actions).toEqual([])
+  expect(read().appState.ui.itemSelector).toEqual(before)
+})
+
+// Puck's delay sensor may activate a stationary long press; Puck owns the drop's
+// single selection. The chrome must not repeat that dispatch for the trailing click.
+test('an activated stationary press leaves Puck as the only selection dispatcher', async () => {
+  let read!: ReturnType<typeof useGetPuck>
+  const actions: unknown[] = []
+  function Probe() { read = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block] }} iframe={{ enabled: false }}
+    onAction={action => { if (action.type === 'setUi' && 'itemSelector' in action.ui) actions.push(action.ui.itemSelector) }}><Puck.Preview /><Probe /></Puck>)
+  const heading = await screen.findByRole('heading', { name: 'Selection test' })
+  actions.length = 0
+  fireEvent.pointerDown(heading)
+  act(() => read().dispatch({ type: 'setUi', ui: { isDragging: true } }))
+  fireEvent.pointerUp(heading)
+  act(() => read().dispatch({ type: 'setUi', ui: { isDragging: false, itemSelector: read().getSelectorForId('test-block') } }))
+  fireEvent.click(heading)
+  expect(actions).toEqual([read().getSelectorForId('test-block')])
 })

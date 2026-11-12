@@ -3,14 +3,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
 import { Puck, useGetPuck, type Config } from '@puckeditor/core'
-import { ExperimentsEditorProvider } from '../../../src/puck/editor/ConfigureTestDrawer.js'
+import { ConfigureTestDrawer } from '../../../src/puck/editor/ConfigureTestDrawer.js'
 import { createExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
-import type { EditorTestSurface } from '../../../src/puck/editor/ConfigureTestDrawer.js'
+import type { SurfaceProps } from '../../../src/testSurface/surface/contracts.js'
 import { doc as base, preflight } from '../../admin/surface/readiness/fixtures.js'
 import { fixture, phaseFor } from '../../admin/results/fixtures.js'
 import type { TestDocument } from '../../../src/testSurface/surface/testDocument.model.js'
 
-const surface: EditorTestSurface = { canManage: true, canReadResults: true, isAdmin: true, flagPoints: [],
+const surface: Omit<SurfaceProps, 'apiRoute' | 'adminRoute'> = { canManage: true, canReadResults: true, isAdmin: true, flagPoints: [],
   attributeKeys: { country: { type: 'string' } }, metricSources: [] }
 const block = (id = 'test-block') => ({ type: 'ExperimentSlot', props: { id, experiment: { id: base.id, slug: base.slug }, control: [], variantA: [], variantB: [], variantC: [] } })
 const snapshot = fixture('T7'), phase = phaseFor(snapshot)
@@ -19,9 +19,10 @@ let saved: TestDocument
 let startRefusal = ''
 let read!: ReturnType<typeof useGetPuck>
 let actions: unknown[]
-function setup(status: TestDocument['status'] = 'draft', context = surface, count = 1, mount: 'option' | 'provider' | 'absent' = 'option') {
+function setup(status: TestDocument['status'] = 'draft', context = surface, count = 1) {
   saved = { ...base, status, updatedAt: '2026-11-12T10:00:00Z', ...(status === 'decided' ? { decision: { phase: phase.phase, winnerArm: 'variantA' } } : {}) }
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/xp/editor-surface')) return response(context)
     if (url.includes('/xp-experiments?')) return response({ docs: [saved] })
     if (url.endsWith('/start')) {
       if (startRefusal) return response({ errors: [{ code: 'invalid-status', message: startRefusal }] }, 400)
@@ -32,24 +33,25 @@ function setup(status: TestDocument['status'] = 'draft', context = surface, coun
     if (init?.method === 'PATCH') { saved = { ...saved, ...JSON.parse(String(init.body)), updatedAt: '2026-11-12T10:01:00Z' }; return response({ doc: saved }) }
     if (url.includes('/xp-experiments/')) return response(saved)
     if (url.endsWith('/preflight')) return context.canManage ? response(preflight()) : response({}, 403)
-    if (url.includes('/results')) return response({ experiment: { name: saved.name, kind: saved.kind, status: saved.status }, phases: [phase], snapshot, series: [] })
+    if (url.includes('/results')) return response(saved.status === 'draft' ? { experiment: { name: saved.name, kind: saved.kind, status: saved.status }, phases: [], snapshot: null, series: [] } : { experiment: { name: saved.name, kind: saved.kind, status: saved.status }, phases: [phase], snapshot, series: [] })
     if (url.includes('/summary?')) return response({ [saved.id]: { exposures: 100 } })
     if (url.includes('/xp-metrics')) return response({ docs: [{ id: 1, name: 'Registrations', source: 'registration' }, { id: 2, name: 'Lessons', source: 'lessons' }, { id: 3, name: 'Donations', source: 'donations' }] })
     if (url.endsWith('/click-keys')) return response({ keys: [] })
     throw new Error(`Unrouted ${url}`)
   })
   vi.stubGlobal('fetch', fetcher)
-  const config: Config = { components: { ExperimentSlot: createExperimentSlotEditor({ routes: { api: '/api', admin: '/manage' }, surface: mount === 'option' ? context : undefined }) } }
+  const config: Config = { components: { ExperimentSlot: createExperimentSlotEditor({ routes: { api: '/api', admin: '/manage' } }) } }
   function Probe() { read = useGetPuck(); return null }
   actions = []
   const editor = <Puck config={config} data={{ root: { props: {} }, content: Array.from({ length: count }, (_, i) => block(i === 0 ? 'test-block' : `other-${i}`)) }} iframe={{ enabled: false }}
     onAction={action => { if (action.type === 'setUi' && 'itemSelector' in action.ui) actions.push(action.ui.itemSelector) }}>
     <Puck.Preview /><div data-testid="fields"><Puck.Fields /></div><Probe />
   </Puck>
-  render(mount === 'provider' ? <ExperimentsEditorProvider surface={context}>{editor}</ExperimentsEditorProvider> : editor)
+  render(editor)
   return fetcher
 }
 beforeEach(() => {
+  vi.stubGlobal('PointerEvent', MouseEvent)
   startRefusal = ''
   // Puck's body capture listener hit-tests even idle pointer moves. jsdom has no layout.
   Object.defineProperty(document, 'elementsFromPoint', { configurable: true, value: () => [] })
@@ -93,7 +95,7 @@ test.each(['chrome', 'sidebar'].flatMap(from => ['Escape', 'Close', 'backdrop'].
   const { trigger, drawer } = await open(from)
   if (how === 'Escape') fireEvent.keyDown(drawer, { key: 'Escape' })
   else if (how === 'Close') fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
-  else fireEvent.click(drawer, { clientX: -10, clientY: -10 })
+  else { fireEvent.pointerDown(drawer, { clientX: -10, clientY: -10 }); fireEvent.pointerUp(drawer, { clientX: -10, clientY: -10 }); fireEvent.click(drawer, { clientX: -10, clientY: -10 }) }
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(document.activeElement).toBe(trigger)
 })
@@ -139,15 +141,16 @@ test('Start and Stop update all bound blocks without changing the page or reload
   expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/start') || url.endsWith('/stop'))).toHaveLength(2)
 })
 
-test('a saved name/version change updates the chrome and tabs', async () => {
+test('a saved name updates the chrome; versions summarize canvas labels and edit shares only', async () => {
   setup()
   const { drawer } = await open()
   const name = await within(drawer).findByLabelText('Test name')
   fireEvent.change(name, { target: { value: 'New test title' } }); fireEvent.blur(name)
   await waitFor(() => expect(document.querySelector('.xp-slot-title')?.textContent).toBe('New test title'))
-  const version = within(drawer).getByLabelText('Variant A: Version label')
-  fireEvent.change(version, { target: { value: 'New version' } }); fireEvent.blur(version)
-  await screen.findByRole('tab', { name: 'New version' })
+  expect(within(drawer).queryByLabelText('Variant A: Version label')).toBeNull()
+  expect(within(drawer).queryByRole('button', { name: 'Add version' })).toBeNull()
+  expect(within(drawer).queryByRole('button', { name: 'Remove version' })).toBeNull()
+  expect(within(drawer).getByLabelText('Variant A: Share (%)')).toBeTruthy()
 })
 
 test('a start refusal displays the same server sentence without a custom page-save warning', async () => {
@@ -232,17 +235,100 @@ test('a delayed old editor read cannot overwrite Start from the panel', async ()
 })
 
 
-test('the request-scoped provider reaches both editor mounts without rebuilding the integration', async () => {
-  setup('draft', surface, 1, 'provider')
+test('an empty draft loads full manager setup with zero host wiring and no results request', async () => {
+  const fetcher = setup()
   const { drawer } = await open('sidebar')
   expect(await within(drawer).findByLabelText('Test name')).toBeTruthy()
   expect(within(drawer).getByRole('button', { name: 'Start' })).toBeTruthy()
+  expect(fetcher.mock.calls.some(([url]) => url.includes('/results'))).toBe(false)
+  expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/xp/editor-surface'))).toHaveLength(1)
 })
 
-test('missing server context fails closed to the reader surface', async () => {
-  setup('draft', surface, 1, 'absent')
+test.each([401, 403, 500])('surface failure %s explains access or offers setup recovery and Retry', async status => {
+  const fetcher = setup()
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation((url, init) => url.endsWith('/xp/editor-surface') ? Promise.resolve(response({}, status)) : original(url, init))
+  const { drawer } = await open()
+  expect(await within(drawer).findByText(status === 500 ? "Setup isn't available right now." : "You don't have access to this test.")).toBeTruthy()
+  expect(within(drawer).queryByLabelText('Test name')).toBeNull()
+  if (status === 500) {
+    expect(within(drawer).getByRole('link', { name: 'Open in a new tab' }).className).toContain('xp-ui-button--primary')
+    fetcher.mockImplementation(original)
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Retry' }))
+    expect(await within(drawer).findByLabelText('Test name')).toBeTruthy()
+  }
+})
+
+test('panel leaves the editor goal query untouched', async () => {
+  window.history.replaceState({}, '', '/editor?goal=2')
+  const fetcher = setup()
+  const { drawer } = await open()
+  await within(drawer).findByLabelText('Goal')
+  await waitFor(() => expect(fetcher.mock.calls.some(([url]) => url.includes('/xp-metrics'))).toBe(true))
+  await act(async () => {})
+  expect(window.location.search).toBe('?goal=2')
+  expect(fetcher.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false)
+  window.history.replaceState({}, '', '/')
+})
+
+test('a name save preserves loaded results, while a phase or status transition reloads them', async () => {
+  const fetcher = setup('running')
   const { drawer } = await open()
   await within(drawer).findByRole('table', { name: 'Registrations' })
-  expect(within(drawer).queryByLabelText('Test name')).toBeNull()
-  expect(within(drawer).queryByRole('button', { name: 'Start' })).toBeNull()
+  const before = fetcher.mock.calls.filter(([url]) => url.includes('/results')).length
+  const name = within(drawer).getByLabelText('Test name')
+  fireEvent.change(name, { target: { value: 'Renamed' } }); fireEvent.blur(name)
+  await waitFor(() => expect(document.querySelector('.xp-slot-title')?.textContent).toBe('Renamed'))
+  expect(fetcher.mock.calls.filter(([url]) => url.includes('/results'))).toHaveLength(before)
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Stop' }))
+  const confirmation = screen.getAllByRole('dialog').find(dialog => dialog !== drawer)!
+  fireEvent.click(within(confirmation).getByRole('button', { name: 'Stop' }))
+  await waitFor(() => expect(fetcher.mock.calls.filter(([url]) => url.includes('/results')).length).toBeGreaterThan(before))
+})
+
+test('selecting text inside and releasing on the backdrop keeps the panel open', async () => {
+  setup()
+  const { drawer } = await open()
+  const name = await within(drawer).findByLabelText('Test name')
+  fireEvent.pointerDown(name, { clientX: 10, clientY: 10 })
+  fireEvent.pointerUp(drawer, { clientX: -10, clientY: -10 })
+  fireEvent.click(drawer, { clientX: -10, clientY: -10 })
+  expect(screen.getByRole('dialog')).toBe(drawer)
+  fireEvent.pointerDown(drawer, { clientX: -10, clientY: -10 })
+  fireEvent.pointerUp(name, { clientX: 10, clientY: 10 })
+  fireEvent.click(drawer, { clientX: -10, clientY: -10 })
+  expect(screen.getByRole('dialog')).toBe(drawer)
+})
+
+test('concurrent panel mounts share one pending setup read and show quiet loading', async () => {
+  let finish!: (response: Response) => void
+  const fetcher = vi.fn(() => new Promise<Response>(resolve => { finish = resolve }))
+  vi.stubGlobal('fetch', fetcher)
+  const routes = { api: '/session-api', admin: '/manage' }
+  render(<><ConfigureTestDrawer id="one" routes={routes} onClose={vi.fn()} /><ConfigureTestDrawer id="two" routes={routes} onClose={vi.fn()} /></>)
+  expect(screen.getAllByRole('status').every(node => node.textContent === 'Loading test…')).toBe(true)
+  expect(fetcher).toHaveBeenCalledExactlyOnceWith('/session-api/xp/editor-surface', { credentials: 'include', cache: 'no-store' })
+  await act(async () => finish(response({}, 403)))
+  expect(screen.getAllByText("You don't have access to this test.")).toHaveLength(2)
+})
+
+test('setup reads share the response body as well as the headers', async () => {
+  let finish!: (data: unknown) => void
+  const fetcher = vi.fn(async () => ({ ok: true, status: 200,
+    json: () => new Promise(resolve => { finish = resolve }),
+  }))
+  vi.stubGlobal('fetch', fetcher)
+  const routes = { api: '/slow-body', admin: '/manage' }
+  const one = <ConfigureTestDrawer id="one" routes={routes} onClose={vi.fn()} />
+  const view = render(one)
+  await waitFor(() => expect(finish).toBeTypeOf('function'))
+  view.rerender(<>{one}<ConfigureTestDrawer id="two" routes={routes} onClose={vi.fn()} /></>)
+  expect(fetcher).toHaveBeenCalledOnce()
+  // A malformed completed body takes the same ordinary recovery path in both mounts.
+  await act(async () => finish({}))
+  expect(screen.getAllByText("Setup isn't available right now.")).toHaveLength(2)
+  view.unmount()
+  render(one)
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+  await act(async () => finish({}))
 })

@@ -26,7 +26,10 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
     } catch { return undefined }
   })().then(placements => {
     entry.pending = false
-    if (cache.get(key) === entry) for (const notify of consumers.get(key) ?? []) notify(placements)
+    if (cache.get(key) === entry) {
+      if (placements === undefined) cache.delete(key)
+      for (const notify of consumers.get(key) ?? []) notify(placements)
+    }
     return placements
   })
   return entry
@@ -36,10 +39,11 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
 export function refreshPlacements(api: string, id: DocId) { return read(api, id, true).promise }
 
 /** Reuse the surface's successful preflight, without another editor request. */
-export function publishPlacements(api: string, id: DocId, placements: Placements) {
+export function publishPlacements(api: string, id: DocId, placements: Placements | undefined) {
   const key = keyFor(api, id)
   cache.get(key)?.controller.abort()
-  cache.set(key, { controller: new AbortController(), promise: Promise.resolve(placements), pending: false })
+  if (placements === undefined) cache.delete(key)
+  else cache.set(key, { controller: new AbortController(), promise: Promise.resolve(placements), pending: false })
   for (const notify of consumers.get(key) ?? []) notify(placements)
 }
 

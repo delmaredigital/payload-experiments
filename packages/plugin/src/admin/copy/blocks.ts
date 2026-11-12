@@ -1,3 +1,4 @@
+import { API_MESSAGES } from '../../testSurface/copy/common.js'
 export const BLOCK_COPY = {
   testBlock: 'Test a block on this page',
   pick: 'Choose a block',
@@ -13,8 +14,8 @@ export const BLOCK_COPY = {
   unwrap: 'Unwrap',
   removeAndUnwrap: 'Remove the test and unwrap',
   deleteAndUnwrap: 'Delete and unwrap',
-  alreadyDeleted: 'This test was already deleted. Reload the page.',
-  noLongerDraft: 'This test is no longer a draft. Reload the page.',
+  alreadyDeleted: API_MESSAGES.testAlreadyDeleted,
+  noLongerDraft: API_MESSAGES.testNoLongerDraft,
   finishUnwrap: 'The test was removed; use Unwrap to finish.',
   deleted: "This block's test was deleted; the page shows the Original.",
   discarded: 'This test has ended; the page shows the Original.',

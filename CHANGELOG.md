@@ -11,7 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-- Added: Configure test in the Puck canvas and sidebar opens the shared test setup and results surface in a right drawer. Hosts provide request-scoped context with `getExperimentsEditorSurface(req)` and `ExperimentsEditorProvider`, or the editor factory's `surface` option; without it the panel offers results-only access. Saves and transitions refresh bound blocks without reloading the page.
+- Added: Configure test in the Puck canvas and sidebar opens shared setup and results in a right drawer with zero host wiring. The private, uncached `/xp/editor-surface` endpoint returns the requesting user's admin surface configuration. Version labels summarize canvas versions; shares remain editable. Saves and transitions refresh bound blocks without reloading the page.
   Migration impact: none; host context wiring is required to adopt in-editor configuration.
 - Fixed: test block headers can initiate dragging, non-interactive chrome selects once, controls stay isolated, and running-test detach checks fresh placements before offering and confirming removal.
   Migration impact: none.

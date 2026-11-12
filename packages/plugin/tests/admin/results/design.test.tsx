@@ -71,7 +71,12 @@ test('table scroll region is named, keyboard focusable and cues only the remaini
 
 test('table CSS scrolls horizontally, pins Group and draws token-based edge cues above the cells', () => {
   const css = readFileSync(new NodeURL('../../../src/testSurface/results/results.css', import.meta.url), 'utf8')
-  const rule = (selector: string) => css.slice(css.indexOf('\n' + selector)).split('}')[0]!
+  const rule = (selector: string) => {
+    const scoped = selector.split(', ').map(part => `:where(.xp-test-surface) ${part}`).join(', ')
+    const start = css.indexOf('\n' + scoped)
+    expect(start, scoped).toBeGreaterThanOrEqual(0)
+    return css.slice(start).split('}')[0]!
+  }
   expect(rule('.xp-data-table-wrap {')).toMatch(/overflow-x:\s*auto/)
   const pinned = rule('.xp-data-table tr > :first-child {')
   expect(pinned).toMatch(/position:\s*sticky/)

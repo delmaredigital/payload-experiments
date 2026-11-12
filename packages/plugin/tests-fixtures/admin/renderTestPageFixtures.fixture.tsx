@@ -22,7 +22,7 @@ const entry = require.resolve('@payloadcms/ui')
 const src = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const cssPaths = [require.resolve('@payloadcms/next/css'), join(entry.slice(0, entry.lastIndexOf('/dist/') + 5), 'styles.css'),
   join(src, 'admin/theme.css'), join(src, 'ui/ui.css'), join(src, 'admin/surface/surface.css'),
-  join(src, 'admin/surface/test/testPage.css'), join(src, 'admin/surface/setting/setting.css')]
+  join(src, 'testSurface/surface/test/testPage.css'), join(src, 'testSurface/surface/setting/setting.css')]
 const config = { collections: [], globals: [], routes: { admin: '/admin', api: '/api' } } as unknown as ClientConfig
 const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: true,
   flagPoints: [{ id: 'upsell', label: 'Recurring upsell', description: 'Offer a recurring gift after registration.',

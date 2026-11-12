@@ -22,7 +22,7 @@ const require = createRequire(import.meta.url)
 const entry = require.resolve('@payloadcms/ui')
 const src = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const cssPaths = [require.resolve('@payloadcms/next/css'), join(entry.slice(0, entry.lastIndexOf('/dist/') + 5), 'styles.css'),
-  join(src, 'admin/theme.css'), join(src, 'ui/ui.css'), join(src, 'admin/surface/surface.css'), join(src, 'admin/results/results.css')]
+  join(src, 'admin/theme.css'), join(src, 'ui/ui.css'), join(src, 'admin/surface/surface.css'), join(src, 'testSurface/results/results.css')]
 const config = { collections: [], globals: [], routes: { admin: '/admin', api: '/api' }, admin: { user: 'editors' } } as unknown as ClientConfig
 const surface: SurfaceProps = { adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: true,
   flagPoints: [], attributeKeys: {}, metricSources: [] }

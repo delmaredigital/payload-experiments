@@ -63,7 +63,9 @@ test('Puck editor chrome uses scoped classes, tokens, and explicit reset-resista
   expect(css).toMatch(/\.xp-slot-editor \.xp-ui-dialog\s*\{[^}]*margin: auto;/)
   // The only inline chrome style is the explicitly validated host accent.
   expect(readFileSync(join(src, 'puck/editor/ExperimentSlotEditor.tsx'), 'utf8')).toContain('style={props.accent ? accentVariables(props.accent[mode])')
-  expect(readFileSync(join(src, 'puck/editor/CreateExperimentDrawer.tsx'), 'utf8')).not.toContain('style=')
+  const drawer = readFileSync(join(src, 'puck/editor/CreateExperimentDrawer.tsx'), 'utf8')
+  expect(drawer.match(/style=/g)).toHaveLength(1)
+  expect(drawer).toContain('style={Object.fromEntries(Array.from(source.style).map(key => [key, source.style.getPropertyValue(key)]))}')
 })
 
 test('Puck iframe styles define every used token as a literal on the light and dark roots', () => {
@@ -84,7 +86,7 @@ test('Puck iframe styles define every used token as a literal on the light and d
 
 test('the design vocabulary is complete and mirrored by theme.ts', () => {
   const css = readFileSync(themePath, 'utf8')
-  const ts = readFileSync(join(src, 'admin/theme.ts'), 'utf8')
+  const ts = readFileSync(join(src, 'testSurface/theme.ts'), 'utf8')
   const names = ['bg', 'surface', 'surface-2', 'surface-3', 'border', 'border-strong', 'text', 'text-2', 'text-3',
     'accent', 'accent-text', 'accent-hover', 'accent-active', 'accent-subtle', 'accent-fg', 'focus', 'series-a', 'series-b', 'series-muted',
     'radius-control', 'radius-card', 'radius-chip', 'font', 'mono', 'text-display', 'text-title', 'text-body', 'text-small', 'motion',
@@ -145,7 +147,7 @@ test.each(['light', 'dark'] as const)('%s default status chip has a border disti
 })
 
 test.each(['light', 'dark'] as const)('%s disabled page rows have a visible dashed border at 3:1 against both row backgrounds', mode => {
-  const css = readFileSync(join(src, 'admin/surface/pagePicker/pagePicker.css'), 'utf8')
+  const css = readFileSync(join(src, 'testSurface/surface/pagePicker/pagePicker.css'), 'utf8')
   const rule = css.match(/\.xp-page-option\[aria-disabled='true'\] \{([^}]+)\}/)![1]!
   expect(rule).toContain('border-style: dashed')
   const { resolve } = themeTokens(mode)

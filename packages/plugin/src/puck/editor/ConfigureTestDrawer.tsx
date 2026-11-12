@@ -1,5 +1,5 @@
 'use client'
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { registerOverlayPortal } from '@puckeditor/core'
 import type { DocId } from '../../types/contracts.js'
@@ -7,41 +7,62 @@ import type { SurfaceProps } from '../../testSurface/surface/contracts.js'
 import { TestSurface } from '../../testSurface/surface/test/TestSurface.js'
 import { Drawer } from '../../ui/Drawer.js'
 import { Button } from '../../ui/Button.js'
+import { TEST_PAGE } from '../../testSurface/copy/testPage.js'
 import { editorCopy as C } from './copy.js'
 import { publishExperiment } from './armsCache.js'
 import { publishPlacements } from './placementsCache.js'
 import type { resolvePuckRoutes } from '../routes.js'
 import './editor.css'
 
-/** The host supplies the same serialised permissions/configuration as the admin mount. */
-export type { EditorTestSurface } from '../../testSurface/surface/contracts.js'
-import type { EditorTestSurface } from '../../testSurface/surface/contracts.js'
-const EditorSurfaceContext = createContext<EditorTestSurface | undefined>(undefined)
-export function ExperimentsEditorProvider({ surface, children }: { surface: EditorTestSurface; children: ReactNode }) {
-  return <EditorSurfaceContext.Provider value={surface}>{children}</EditorSurfaceContext.Provider>
+// Only pending requests are shared. Settled permissions never survive a drawer session.
+type SurfaceState = { surface?: SurfaceProps; error?: 'forbidden' | 'unavailable' }
+const pending = new Map<string, Promise<SurfaceState>>()
+function readSurface(api: string): Promise<SurfaceState> {
+  let request = pending.get(api)
+  if (!request) {
+    request = fetch(`${api}/xp/editor-surface`, { credentials: 'include', cache: 'no-store' }).then(async response => {
+      if (response.status === 401 || response.status === 403) return { error: 'forbidden' as const }
+      if (!response.ok) throw new Error('surface')
+      const surface = await response.json() as SurfaceProps
+      if (!surface || typeof surface.canManage !== 'boolean' || typeof surface.canReadResults !== 'boolean') throw new Error('surface')
+      return { surface }
+    }).catch(() => ({ error: 'unavailable' as const }))
+    pending.set(api, request)
+    const release = () => { if (pending.get(api) === request) pending.delete(api) }
+    void request.then(release, release)
+  }
+  return request
 }
 
-export function ConfigureTestDrawer({ id, routes, surface, onClose }: {
-  id: DocId; routes: ReturnType<typeof resolvePuckRoutes>; surface?: EditorTestSurface; onClose: () => void
+export function ConfigureTestDrawer({ id, routes, onClose }: {
+  id: DocId; routes: ReturnType<typeof resolvePuckRoutes>; onClose: () => void
 }) {
   const [title, setTitle] = useState(C.configure as string)
-  const context: SurfaceProps = { canManage: false, canReadResults: true, isAdmin: false,
-    flagPoints: [], attributeKeys: {}, metricSources: [], ...surface, adminRoute: routes.admin, apiRoute: routes.api }
+  const [state, setState] = useState<SurfaceState>({})
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    let active = true
+    setState({})
+    void readSurface(routes.api).then(result => {
+      if (active) setState(result.surface ? { surface: { ...result.surface, adminRoute: routes.admin, apiRoute: routes.api } } : result)
+    })
+    return () => { active = false }
+  }, [routes.api, routes.admin, attempt])
   return <Drawer title={title} closeLabel={C.closeConfigure} onClose={onClose}
-    actions={<Button variant="link" size="sm" href={`${routes.admin}/experiments/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer">{C.openInTab}</Button>}>
+    actions={<Button variant={state.error === 'unavailable' ? 'primary' : 'link'} size="sm" href={`${routes.admin}/experiments/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer">{C.openInTab}</Button>}>
     <div className="xp-configure-panel xp-test-surface" onClickCapture={event => {
       // Internal section jumps stay in the drawer; navigation never replaces the editor.
       const link = (event.target as Element).closest<HTMLAnchorElement>('a[href]')
       if (link && !link.getAttribute('href')?.startsWith('#')) { link.target = '_blank'; link.rel = 'noopener noreferrer' }
     }}>
-      <TestSurface id={id} surface={context} embedded onTitleChange={setTitle}
-        onDocument={doc => publishExperiment(id, doc)} onPreflight={preflight => publishPlacements(routes.api, id, preflight.placements)} />
+      {state.surface ? <TestSurface id={id} surface={state.surface} embedded onTitleChange={setTitle}
+        onDocument={doc => publishExperiment(id, doc)} onPreflight={preflight => publishPlacements(routes.api, id, preflight.placements)} /> : <div role={state.error ? 'alert' : 'status'}><p>{state.error === 'forbidden' ? TEST_PAGE.forbidden : state.error ? C.setupUnavailable : TEST_PAGE.loading}</p>{state.error === 'unavailable' ? <Button onClick={() => setAttempt(value => value + 1)}>{C.retrySetup}</Button> : null}</div>}
     </div>
   </Drawer>
 }
 
 /** Separate document root, like the creation dialog: Puck has no ancestor handlers here. */
-export function openConfigureTestDrawer(source: HTMLElement, routes: ReturnType<typeof resolvePuckRoutes>, id: DocId, surface?: EditorTestSurface) {
+export function openConfigureTestDrawer(source: HTMLElement, routes: ReturnType<typeof resolvePuckRoutes>, id: DocId) {
   // A canvas iframe's modal would cover only the canvas. Mount over the whole editor.
   const doc = source.ownerDocument.defaultView?.frameElement?.ownerDocument ?? source.ownerDocument
   const container = doc.createElement('div')
@@ -59,15 +80,13 @@ export function openConfigureTestDrawer(source: HTMLElement, routes: ReturnType<
     queueMicrotask(() => { root.unmount(); release?.(); container.remove(); if (source.isConnected) source.focus() })
   }
   root.render(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()} onPointerMove={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}>
-    <ConfigureTestDrawer id={id} routes={routes} surface={surface} onClose={close} />
+    <ConfigureTestDrawer id={id} routes={routes} onClose={close} />
   </div>)
   return { close }
 }
 
-export function ConfigureTestButton({ id, routes, surface }: { id: DocId; routes: ReturnType<typeof resolvePuckRoutes>; surface?: EditorTestSurface }) {
-  const inherited = useContext(EditorSurfaceContext)
-  const context = surface ?? inherited
+export function ConfigureTestButton({ id, routes }: { id: DocId; routes: ReturnType<typeof resolvePuckRoutes> }) {
   const drawer = useRef<ReturnType<typeof openConfigureTestDrawer>>(undefined)
   useEffect(() => () => drawer.current?.close(), [id, routes.api])
-  return <Button variant="primary" onClick={event => { drawer.current?.close(); drawer.current = openConfigureTestDrawer(event.currentTarget, routes, id, context) }}>{C.configure}</Button>
+  return <Button variant="primary" onClick={event => { drawer.current?.close(); drawer.current = openConfigureTestDrawer(event.currentTarget, routes, id) }}>{C.configure}</Button>
 }

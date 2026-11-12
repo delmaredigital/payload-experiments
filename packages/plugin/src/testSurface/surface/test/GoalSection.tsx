@@ -15,7 +15,7 @@ import { CheckboxList, FieldErrors, reasonFor, save, SelectEdit } from './fields
 import { Section } from './Section.js'
 
 type Metric = { id: string | number; name: string; source: string }
-export function GoalSection({ test, surface }: SectionProps) {
+export function GoalSection({ test, surface, embedded = false }: SectionProps & { embedded?: boolean }) {
   const api = useMemo(() => createApi(surface.apiRoute), [surface.apiRoute])
   const [clickKeys, setClickKeys] = useState<ClickKeysResult['keys']>([])
   const [metrics, setMetrics] = useState<Metric[]>([])
@@ -60,7 +60,7 @@ export function GoalSection({ test, surface }: SectionProps) {
   }, [api, doc.id, surface.canManage])
   const reason = reasonFor(test, 'metrics')
   useEffect(() => {
-    if (!loaded) return
+    if (embedded || !loaded) return
     const url = new URL(window.location.href)
     const goalId = url.searchParams.get('goal')
     if (goalId == null) return
@@ -71,7 +71,7 @@ export function GoalSection({ test, surface }: SectionProps) {
       save(test, 'metrics', () => ({ metrics: { ...doc.metrics, primary: goal.id,
         guardrails: doc.metrics?.guardrails?.filter(id => String(id) !== goalId), secondary: doc.metrics?.secondary?.filter(id => String(id) !== goalId) } }))
     }
-  }, [loaded, metrics, reason, doc.metrics, test])
+  }, [embedded, loaded, metrics, reason, doc.metrics, test])
   const unknownGoal = loaded ? C.missingGoal : C.goalUnavailable
   const options = metrics.map(metric => {
     const kind = sourceFor(metric.source, surface.metricSources)?.kind

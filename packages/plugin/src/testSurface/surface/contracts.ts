@@ -27,8 +27,6 @@ export interface SurfaceProps {
   admin?: TestsSurfaceProps['admin']
 }
 
-export type EditorTestSurface = Omit<SurfaceProps, 'adminRoute' | 'apiRoute'>
-
 export interface SectionProps { test: TestDocApi; surface: SurfaceProps; resultsVersion?: number }
 
 /** Kind-specific pieces the generic test page composes (Setting kind: ADM-22). */

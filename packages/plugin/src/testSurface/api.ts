@@ -4,7 +4,6 @@ import type {
   AddMetricResult, ClickKeysResult, PreflightResult, PreviewTokenResult, RefusalCode, ResultsResponse, SummaryResponse, TransitionSuccess,
 } from '../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from './copy/common.js'
-import { BLOCK_COPY } from './copy/blocks.js'
 import { CONTENT_ENTRY_REFUSALS } from './copy/actions.js'
 
 // `data` is undefined when a 2xx response has no JSON body (the server always sends one; callers must not assume it).
@@ -50,11 +49,11 @@ export function createApi(apiBase: string) {
       const result = await request<{ docs: Array<{ id: DocId }> }>(() => `${collectionBase}?where[slug][equals]=${encodeURIComponent(slug)}&depth=0&limit=1`, 'GET')
       if (!result.ok) return result
       const id = result.data?.docs?.[0]?.id
-      if (id === undefined) return { ok: false, status: 404, code: 'not-found', message: refusalMessage('not-found', 404, undefined, { notFound: BLOCK_COPY.alreadyDeleted }), retryable: false }
+      if (id === undefined) return { ok: false, status: 404, code: 'not-found', message: refusalMessage('not-found', 404, undefined, { notFound: API_MESSAGES.testAlreadyDeleted }), retryable: false }
       return { ok: true, data: id }
     },
     deleteTest: (id: DocId) => request<unknown>(() => `${collectionBase}/${encodeURIComponent(id)}`, 'DELETE', undefined, {
-      notFound: BLOCK_COPY.noLongerDraft, forbidden: BLOCK_COPY.noLongerDraft, codes: { 'invalid-status': BLOCK_COPY.noLongerDraft },
+      notFound: API_MESSAGES.testNoLongerDraft, forbidden: API_MESSAGES.testNoLongerDraft, codes: { 'invalid-status': API_MESSAGES.testNoLongerDraft },
     }),
     wrapBlock: (body: WrapBlockBody) => request<Record<string, unknown>>(() => `${apiBase.replace(/\/$/, '')}/xp/blocks/wrap`, 'POST', body),
     pages: (query: { collection: string; q?: string; path?: string; page?: number }, signal?: AbortSignal) => request<PagesResult>(() => `${apiBase.replace(/\/$/, '')}/xp/pages?${new URLSearchParams({ collection: query.collection, ...(query.q ? { q: query.q } : {}), ...(query.path !== undefined ? { path: query.path } : {}), ...(query.page ? { page: String(query.page) } : {}) })}`, 'GET', undefined, undefined, signal),

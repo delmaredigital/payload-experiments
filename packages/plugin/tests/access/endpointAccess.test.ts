@@ -32,6 +32,7 @@ const routes = [
   ['get', '/xp/experiments/:id/click-keys', 'manage'],
   ['get', '/xp/pages', 'manage'],
   ['post', '/xp/placements/status', 'manage'],
+  ['get', '/xp/editor-surface', 'surface'],
 ] as const
 
 async function endpoints(value: unknown = true, results?: ExperimentsAccess) {
@@ -58,7 +59,7 @@ function reachHandler(path: string) {
 }
 
 for (const [method, path, access] of routes) {
-  if (access === 'manage' || access === 'readResults') {
+  if (access === 'manage' || access === 'readResults' || access === 'surface') {
     test(`${method} ${path}: anonymous 401, learner and truthy access 403, true reaches the handler`, async () => {
       reachHandler(path)
       for (const value of [false, 'yes', {}, true]) {

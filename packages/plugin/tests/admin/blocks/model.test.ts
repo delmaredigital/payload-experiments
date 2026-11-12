@@ -1,7 +1,7 @@
 import type { ClientConfig } from 'payload'
 import { expect, test } from 'vitest'
 import { blockChoices, statusSentence, slotLabel } from '../../../src/admin/blocks/model.js'
-import { BLOCK_COPY, blockTestName } from '../../../src/testSurface/copy/blocks.js'
+import { BLOCK_COPY, blockTestName } from '../../../src/admin/copy/blocks.js'
 import { adaptClientBlocksField } from '../../../src/admin/blocks/formApi.js'
 import { copyOriginalIntoVersion, unwrapExperimentBlock, wrapExperimentBlock } from '../../../src/blocks/formState.js'
 import type { BlockStatus, LiveBlockStatus } from '../../../src/admin/blocks/model.js'

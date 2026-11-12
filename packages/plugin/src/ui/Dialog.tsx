@@ -18,6 +18,13 @@ function focusable(node: HTMLDialogElement): HTMLElement[] {
 export function Dialog({ open, title, onClose, children, dismissible = true, initialFocus, className = '', headerActions, closeOnBackdrop = false }: { open: boolean; className?: string; headerActions?: ReactNode; closeOnBackdrop?: boolean; dismissible?: boolean; initialFocus?: 'cancel'; title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null)
   const heading = useId()
+  const backdropPress = useRef(false)
+  const onBackdrop = (event: { target: EventTarget | null; clientX: number; clientY: number }) => {
+    const node = ref.current
+    if (!node || event.target !== node) return false
+    const rect = node.getBoundingClientRect()
+    return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom
+  }
   const closeRequested = useRef(false)
   const requestClose = () => {
     if (!open || !dismissible || closeRequested.current) return
@@ -30,17 +37,24 @@ export function Dialog({ open, title, onClose, children, dismissible = true, ini
     const doc = node.ownerDocument
     const previous = doc.activeElement as HTMLElement | null
     closeRequested.current = false
+    // Observe before overlay portals stop pointerdown during ancestor capture.
+    const down = (event: PointerEvent) => { backdropPress.current = onBackdrop(event) }
+    const up = (event: PointerEvent) => { if (!onBackdrop(event)) backdropPress.current = false }
+    const cancel = () => { backdropPress.current = false }
+    doc.addEventListener('pointerdown', down, true)
+    doc.addEventListener('pointerup', up, true)
+    doc.addEventListener('pointercancel', cancel, true)
     node.showModal()
     const elements = focusable(node)
     const preferred = initialFocus === 'cancel' ? elements.find(element => element.hasAttribute('data-dialog-cancel')) : undefined
     ;(preferred ?? elements[0] ?? node).focus()
-    return () => { node.close(); if (previous?.isConnected) previous.focus() }
+    return () => { doc.removeEventListener('pointerdown', down, true); doc.removeEventListener('pointerup', up, true); doc.removeEventListener('pointercancel', cancel, true); node.close(); if (previous?.isConnected) previous.focus() }
   }, [open, initialFocus])
   return <dialog ref={ref} aria-labelledby={heading} className={`xp-ui-dialog ${className}`} tabIndex={-1} onCancel={event => { if (event.target !== event.currentTarget) return; event.preventDefault(); requestClose() }}
     onClick={event => {
-      if (!closeOnBackdrop || event.target !== event.currentTarget) return
-      const rect = event.currentTarget.getBoundingClientRect()
-      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) requestClose()
+      const startedOnBackdrop = backdropPress.current
+      backdropPress.current = false
+      if (closeOnBackdrop && startedOnBackdrop && onBackdrop(event)) requestClose()
     }}
     onKeyDown={event => {
       if (event.defaultPrevented) return

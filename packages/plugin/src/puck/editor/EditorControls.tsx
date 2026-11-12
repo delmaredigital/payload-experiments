@@ -1,10 +1,10 @@
 'use client'
 
-import { registerOverlayPortal } from '@puckeditor/core'
-import { useEffect, useState, type ReactNode } from 'react'
+import { registerOverlayPortal, useGetPuck } from '@puckeditor/core'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
-export const CONTROL_SELECTOR = 'button, a, label, input, select, textarea, [role="tab"], dialog, [role="dialog"], [contenteditable="true"]'
+export const CONTROL_SELECTOR = 'button, a, label, input, select, textarea, [role="tab"], [role="menu"], [role="listbox"], dialog, [role="dialog"], [contenteditable="true"]'
 
 /** Give React a delegation boundary before Puck's native component click listeners.
  * A normal React onClick runs too late: native child/parent selection already ran.
@@ -13,6 +13,15 @@ export const CONTROL_SELECTOR = 'button, a, label, input, select, textarea, [rol
  * Puck 0.24 chunk-DQXMVPVM.mjs:3754–3778, 3847, 12996–12999.
  */
 export function EditorControls({ children, className, selected, onSelect }: { children: ReactNode; className: string; selected?: boolean; onSelect?: () => void }) {
+  const getPuck = useGetPuck()
+  const endedDrag = useRef(false)
+  const select = () => {
+    // Puck keeps isDragging true through drop processing. Capture pointerup too,
+    // since drop completion may clear it before the browser dispatches click.
+    const suppress = endedDrag.current || getPuck().appState.ui.isDragging
+    endedDrag.current = false
+    if (!suppress) onSelect?.()
+  }
   const [element, setElement] = useState<HTMLDivElement | null>(null)
   useEffect(() => {
     if (!element) return
@@ -37,15 +46,23 @@ export function EditorControls({ children, className, selected, onSelect }: { ch
     const paddingClick = (event: MouseEvent) => {
       if (event.target !== element) return
       event.stopPropagation()
-      onSelect?.()
+      select()
     }
     element.addEventListener('click', paddingClick)
     return () => element.removeEventListener('click', paddingClick)
-  }, [element, onSelect])
+  })
+  useEffect(() => {
+    if (!element) return
+    const down = () => { endedDrag.current = false }
+    const up = () => { endedDrag.current = getPuck().appState.ui.isDragging }
+    element.addEventListener('pointerdown', down, true)
+    element.addEventListener('pointerup', up, true)
+    return () => { element.removeEventListener('pointerdown', down, true); element.removeEventListener('pointerup', up, true) }
+  }, [element, getPuck])
   return <div ref={setElement} className={className} data-selected={selected}>
     {element ? createPortal(<div className="xp-slot-control-events" onClick={event => {
       event.stopPropagation()
-      if (!(event.target as Element).closest(CONTROL_SELECTOR)) onSelect?.()
+      if (!(event.target as Element).closest(CONTROL_SELECTOR)) select()
     }} onKeyDown={event => event.stopPropagation()}>{children}</div>, element) : null}
   </div>
 }

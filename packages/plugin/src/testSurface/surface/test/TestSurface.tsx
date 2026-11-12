@@ -50,9 +50,9 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
     <Section test={test} sectionId="what">
       <TestName {...props} /><parts.Binding {...props} /><Hypothesis {...props} />
     </Section>
-    <VersionsSection {...props} parts={parts} contentOnCanvas={embedded} /><GoalSection {...props} /><TargetingSection {...props} />
+    <VersionsSection {...props} parts={parts} contentOnCanvas={embedded} /><GoalSection {...props} embedded={embedded} /><TargetingSection {...props} />
     <LengthSection {...props} /><AdvancedSection {...props} />
-    {embedded && surface.canReadResults && test.doc.status !== 'draft' ? <ResultsBody key={`${test.doc.id}/${test.doc.updatedAt}/${test.doc.status}`} id={id} surface={surface} onChanged={doc => { test.acceptTransition?.({ doc }); void test.reload() }} /> : null}
+    {embedded && surface.canReadResults && test.doc.status !== 'draft' ? <ResultsBody key={`${test.doc.id}/${test.doc.phase}/${test.doc.status}`} id={id} surface={surface} onChanged={doc => { test.acceptTransition?.({ doc }); void test.reload() }} /> : null}
     </div></div>
     <ReadinessBar {...props} onHeightChange={setBarHeight} />
   </div>)

@@ -1,4 +1,6 @@
 export const API_MESSAGES = {
+  testAlreadyDeleted: 'This test was already deleted. Reload the page.',
+  testNoLongerDraft: 'This test is no longer a draft. Reload the page.',
   notFound: 'This test no longer exists.',
   goalNotFound: 'That goal no longer exists. Choose another goal.',
   roundChanged: 'This round has changed. Reload the page.',

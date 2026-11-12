@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { CreateExperimentDrawer } from '../../../src/puck/editor/CreateExperimentDrawer.js'
+import { CreateExperimentDrawer, openCreateExperimentDrawer } from '../../../src/puck/editor/CreateExperimentDrawer.js'
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
@@ -105,4 +105,18 @@ test('a refusal without an inner field message uses generic copy', async () => {
   expect((await screen.findByRole('alert')).textContent).toBe("Couldn't create the test. Try again.")
   expect(fetch).toHaveBeenCalledTimes(2)
   expect(onCreate).not.toHaveBeenCalled()
+})
+
+test('creation dialog keeps the host accent on its own token root', async () => {
+  const source = document.createElement('div')
+  source.style.setProperty('--xp-accent', '#1f3a68')
+  source.style.setProperty('--xp-accent-fg', '#ffffff')
+  document.body.append(source)
+  let drawer!: ReturnType<typeof openCreateExperimentDrawer>
+  await act(async () => { drawer = openCreateExperimentDrawer(source, { admin: '/manage', api: '/api' }, { initialName: 'Page', onCreate: vi.fn() }) })
+  const root = screen.getByRole('dialog').closest<HTMLElement>('.xp-slot-root')!
+  expect(root.style.getPropertyValue('--xp-accent')).toBe('#1f3a68')
+  expect(root.style.getPropertyValue('--xp-accent-fg')).toBe('#ffffff')
+  await act(async () => drawer.closeIfIdle())
+  source.remove()
 })

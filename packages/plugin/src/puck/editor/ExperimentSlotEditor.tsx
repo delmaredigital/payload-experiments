@@ -25,7 +25,7 @@ import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
 import { acquirePlacements, invalidatePlacements, refreshPlacements } from './placementsCache.js'
 import { localPlacements } from './localPlacements.js'
-import { ConfigureTestButton, type EditorTestSurface } from './ConfigureTestDrawer.js'
+import { ConfigureTestButton } from './ConfigureTestDrawer.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
@@ -40,7 +40,7 @@ function isExperiment(value: unknown): value is EditorExperiment {
       ['control', 'variant', 'holdout'].includes(arm.kind) && typeof arm.label === 'string')
 }
 
-function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAccent>; surface?: EditorTestSurface }) {
+function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAccent> }) {
   const getPuck = useGetPuck()
   const { admin, api } = usePuckRoutes()
   const root = useRef<HTMLElement>(null)
@@ -240,10 +240,15 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     setCheckingDetach(true)
     setClearError(null)
     try {
-      if (experiment.status === 'running') {
-        const placements = await refreshPlacements(api, experimentId)
-        if (!isCurrentBinding()) return
-        if (!placements) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null); return }
+      const [response, placements] = await Promise.all([
+        fetch(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}?depth=0`, { credentials: 'include', cache: 'no-store' }),
+        refreshPlacements(api, experimentId),
+      ])
+      const current: unknown = response.ok ? await response.json() : null
+      if (!isCurrentBinding()) return
+      if (!isExperiment(current) || !placements) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null); return }
+      publishExperiment(experimentId, current)
+      if (current.status === 'running') {
         const local = getPuck()
         const anotherLocal = (localPlacements(local.appState.data, local.config).get(String(experimentId))?.size ?? 0) > 1
         if (!anotherLocal && !isSharedTest(placements, currentPuckDocument(window.location.pathname, admin, placements))) {
@@ -253,6 +258,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       if (!isCurrentBinding()) return
       if (confirm) { bind(null); setDetaching(null) }
       else setDetaching(bindingKey)
+    } catch {
+      if (isCurrentBinding()) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null) }
     } finally { detachBusy.current = false; setCheckingDetach(false) }
   }
   const newTestButton = experimentId !== undefined ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
@@ -276,7 +283,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       <div className="xp-ui-button-group">
         {experimentId === undefined ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
-        {experimentId !== undefined ? <ConfigureTestButton id={experimentId} routes={{ admin, api }} surface={props.surface} /> : null}
+        {experimentId !== undefined ? <ConfigureTestButton id={experimentId} routes={{ admin, api }} /> : null}
         {!shared ? newTestButton : null}
         {experimentId !== undefined && canDetach ? <Button disabled={checkingDetach} onClick={() => void requestDetach()}>{editorCopy.detach}</Button> : null}
         {experiment && editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}
@@ -312,15 +319,15 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   </section>
 }
 
-export function createExperimentSlotEditor({ routes: inputRoutes, accent, surface }: { routes?: PuckRoutes; accent?: string; surface?: EditorTestSurface } = {}): ComponentConfig<ExperimentSlotProps> {
+export function createExperimentSlotEditor({ routes: inputRoutes, accent }: { routes?: PuckRoutes; accent?: string } = {}): ComponentConfig<ExperimentSlotProps> {
   validateAccent(accent)
   const sets = accent ? deriveAccent(accent) : undefined
   const routes = resolvePuckRoutes(inputRoutes)
   return {
     label: experimentSlotLabel,
-    fields: { ...experimentSlotFields, experiment: createExperimentSlotField({ routes, renderActions: test => <ConfigureTestButton id={test.id} routes={routes} surface={surface} />, onBind: (previous, next) => { if (previous) invalidatePlacements(routes.api, previous.id); if (next) invalidatePlacements(routes.api, next.id) } }) },
+    fields: { ...experimentSlotFields, experiment: createExperimentSlotField({ routes, renderActions: test => <ConfigureTestButton id={test.id} routes={routes} />, onBind: (previous, next) => { if (previous) invalidatePlacements(routes.api, previous.id); if (next) invalidatePlacements(routes.api, next.id) } }) },
     defaultProps: experimentSlotDefaultProps,
-    render: props => <PuckHostProvider routes={routes}><EditorRender {...props} accent={sets} surface={surface} /></PuckHostProvider>,
+    render: props => <PuckHostProvider routes={routes}><EditorRender {...props} accent={sets} /></PuckHostProvider>,
   }
 }
 

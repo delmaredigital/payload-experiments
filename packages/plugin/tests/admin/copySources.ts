@@ -10,9 +10,9 @@ export function files(directory: string): string[] {
     return entry.isDirectory() ? files(path) : [path]
   })
 }
-export const editorFiles = [...files(join(src, 'admin')), ...files(join(src, 'puck'))]
-export const copyPaths = [...files(join(src, 'admin/copy')).filter(file => file.endsWith('.ts')),
-  join(src, 'admin/labels.ts'), join(src, 'puck/copy.ts'), join(src, 'puck/editor/copy.ts'), join(src, 'goals/picker/copy.ts')]
+export const editorFiles = [...files(join(src, 'admin')), ...files(join(src, 'puck')), ...files(join(src, 'testSurface'))]
+export const copyPaths = [...files(join(src, 'testSurface/copy')).filter(file => file.endsWith('.ts')),...files(join(src, 'admin/copy')).filter(file => file.endsWith('.ts')),
+  join(src, 'testSurface/labels.ts'), join(src, 'puck/copy.ts'), join(src, 'puck/editor/copy.ts'), join(src, 'goals/picker/copy.ts')]
 export const helperPaths = editorFiles.filter(file => file.endsWith('.ts') && !copyPaths.includes(file))
 
 const copyProperties = new Set(['message', 'label', 'title', 'headline', 'detail', 'hint'])
@@ -50,7 +50,7 @@ export function helperStrings(source: string, path = ''): string[] {
     function visit(node: ts.Node) {
       // ADM-L5c: only this URL helper's /collections/ literals are admin paths, not copy.
       // Keep scanning its prose, and the same strings everywhere else.
-      if (path === join(src, 'admin/surfaceUrls.ts') && (ts.isStringLiteralLike(node) || ts.isTemplateHead(node))
+      if (path === join(src, 'testSurface/surfaceUrls.ts') && (ts.isStringLiteralLike(node) || ts.isTemplateHead(node))
         && node.text.startsWith('/collections/')) return
       // A helper's path default is a Payload field path, like the JSX path attribute.
       if (ts.isParameter(node.parent) && ts.isIdentifier(node.parent.name) && node.parent.name.text === 'path'

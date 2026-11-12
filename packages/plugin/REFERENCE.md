@@ -405,6 +405,7 @@ Routes below are relative to Payload's `config.routes.api` (normally `/api`):
 | Endpoint | Permission and response |
 | --- | --- |
 | `GET /xp/experiments/:id/results?phase=1&series=1` | `access.readResults`; round summaries, newest selected-round `snapshot` (`null` before a run), optional `decisionSnapshot` and requested time series. Without `phase`, a decided experiment opens on its decision round. |
+| `GET /xp/editor-surface` | Logged-in manager or results reader; serialized admin surface configuration for the requesting user, with `Cache-Control: private, no-store`. No host wiring. |
 | `GET /xp/experiments/summary?ids=...` | `access.readResults`; map of experiment ids to exposures, days and verdict summary. Encode each id individually, comma-join, and request at most 100 ids. |
 | `POST /xp/experiments/:id/recompute` | `access.manage`; runs results for one experiment without sweeping and returns `{ snapshotId }`. Failed or budget-exhausted work returns an error. Frozen rounds stay frozen. |
 
@@ -707,17 +708,15 @@ Puck's config and plugin list.
 'use client'
 
 import { PuckConfigProvider } from '@delmaredigital/payload-puck/client'
-import { ExperimentsEditorProvider, experimentsPuckEditor, type EditorTestSurface } from '@delmaredigital/payload-experiments/puck/editor'
+import { experimentsPuckEditor } from '@delmaredigital/payload-experiments/puck/editor'
 import { editorConfig } from './editorConfig'
 
 const integrations = [experimentsPuckEditor()]
 
-export function PuckProvider({ children, surface }: { children: React.ReactNode; surface: EditorTestSurface }) {
-  return <ExperimentsEditorProvider surface={surface}>
-    <PuckConfigProvider config={editorConfig} integrations={integrations}>
+export function PuckProvider({ children }: { children: React.ReactNode }) {
+  return <PuckConfigProvider config={editorConfig} integrations={integrations}>
       {children}
-    </PuckConfigProvider>
-  </ExperimentsEditorProvider>
+  </PuckConfigProvider>
 }
 ```
 
@@ -729,26 +728,17 @@ it does not save or publish the page. A Start refusal uses the server's sentence
 Escape, Close and the backdrop dismiss the drawer and return focus to its button.
 Links that leave the surface open in a new tab.
 
-Supply the current request's context from the server boundary that already owns
-its Payload request:
-
-```tsx
-import { getExperimentsEditorSurface } from '@delmaredigital/payload-experiments/rsc'
-
-const surface = await getExperimentsEditorSurface(req)
-// Pass surface to the client PuckProvider above.
-```
-
-This helper reuses the admin's serializers and access checks. Keep the context
-request-scoped; never reuse one person's permissions for another person. The
-provider passes it to both canvas and sidebar buttons while the Puck integration
-stays at module scope. Alternatively pass the same `surface` object to
-`experimentsPuckEditor({ surface })` or `createExperimentSlotEditor({ surface })`
-when the host already keeps that configuration stable. The editor cannot infer
-these values from its route URLs. Without context, Configure test uses the
-results-only reader surface and offers no management actions. Results readers
-also get that same read-only surface; the server still authorizes every request.
-No endpoint or database migration is added.
+The drawer loads `GET <config.routes.api>/xp/editor-surface` when it opens;
+no host provider or server wiring is needed. The endpoint requires a logged-in
+user with `options.access.manage({ req }) === true` or results access (defaulting
+to manage). It returns the same serialized access flags, effective flag defaults,
+attribute keys, metric sources, page collections, collection titles, routes and
+user context as the admin page. Every response is `Cache-Control: private, no-store`.
+Results readers get the read-only results surface. While loading the drawer shows
+a quiet loading sentence. Access failures show the existing forbidden sentence;
+other failures show “Setup isn't available right now.” with **Open in a new tab**
+and Retry. Version names summarize the canvas; traffic shares stay editable, and
+adding, removing or renaming a version uses the block chrome.
 
 Each object includes the test block and its **A/B tests** sidebar category. The
 editor object also includes the outline plugin: it hides empty version slots

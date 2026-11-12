@@ -747,3 +747,15 @@ test('an older click-key response arriving last cannot replace the latest page g
   expect(group().textContent).toBe('Hero interest · Latest Hero')
   expect(screen.queryByText('Hero interest · Old Hero')).toBeNull()
 })
+
+test.each([false, true])('versions mount keeps share edits; canvas summary cannot rename, add or remove versions (%s)', contentOnCanvas => {
+  const p = props()
+  render(<VersionsSection {...p} parts={pageBlockParts} contentOnCanvas={contentOnCanvas} />)
+  expect(Boolean(screen.queryByLabelText('Variant A: Version label'))).toBe(!contentOnCanvas)
+  expect(Boolean(screen.queryByRole('button', { name: 'Add a version' }))).toBe(!contentOnCanvas)
+  expect(Boolean(screen.queryByRole('button', { name: 'Remove version' }))).toBe(!contentOnCanvas)
+  if (contentOnCanvas) expect(screen.getByText('Edit version content on the canvas.')).toBeTruthy()
+  const share = screen.getByLabelText('Original: Share (%)')
+  fireEvent.change(share, { target: { value: '40' } }); fireEvent.blur(share)
+  expect(p.test.stage).toHaveBeenCalledWith({ arms: [{ ...p.test.doc!.arms[0], weight: 40 }, { ...p.test.doc!.arms[1], weight: 60 }] })
+})

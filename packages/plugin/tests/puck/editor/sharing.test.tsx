@@ -135,7 +135,7 @@ test('a status refresh closes an ineligible detach confirmation before it can ch
   vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight') ? { placements: [] } : { ...doc, status }))))
   mount({ root: { props: {} }, content: [block('only')] })
   fireEvent.click(await screen.findByRole('button', { name: 'Remove the test from this block' }))
-  expect(screen.getByRole('dialog')).toBeTruthy()
+  expect(await screen.findByRole('dialog')).toBeTruthy()
   status = 'running'
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
   fireEvent(document, new Event('visibilitychange'))
@@ -178,4 +178,26 @@ test.each(['offer', 'confirm', 'failure'] as const)('RUNNING rechecks stale shar
   await screen.findByText(stage === 'failure' ? "Couldn't check where this test is used. Try again." : 'Stop the test to remove it from this block.', { selector: '[role="alert"], [role="alert"] *' })
   expect(read().getItemById('only')?.props.experiment).toEqual(block('only').props.experiment)
   expect(placementsRead).toHaveBeenCalledTimes(stage === 'confirm' ? 3 : 2)
+})
+
+test.each(['offer', 'confirm'] as const)('stale DRAFT cache reads current RUNNING status before detach %s', async stage => {
+  window.history.replaceState({}, '', '/admin/puck-editor/pages/saved')
+  let status = 'draft'
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight') ? { placements: [placement] } : { ...doc, status }))))
+  let read!: ReturnType<typeof useGetPuck>
+  function Probe() { read = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block('only')] }} iframe={{ enabled: false }}><Puck.Preview /><Probe /></Puck>)
+  const button = await screen.findByRole('button', { name: 'Remove the test from this block' })
+  if (stage === 'offer') status = 'running'
+  fireEvent.click(button)
+  if (stage === 'confirm') {
+    const dialog = await screen.findByRole('dialog')
+    status = 'running'
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove the test from this block' }))
+  }
+  await screen.findByText('Stop the test to remove it from this block.', { selector: '[role="alert"], [role="alert"] *' })
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(read().getItemById('only')?.props.experiment).toEqual(block('only').props.experiment)
+  const reads = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/xp-experiments/'))
+  expect(reads).toHaveLength(stage === 'confirm' ? 3 : 2)
 })

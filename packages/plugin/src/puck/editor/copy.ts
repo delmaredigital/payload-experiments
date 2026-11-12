@@ -1,6 +1,8 @@
 import { ARM_LABELS } from '../../labels/arms.js'
 
 export const editorCopy = {
+  retrySetup: 'Retry',
+  setupUnavailable: "Setup isn't available right now.",
   labels: ARM_LABELS,
   configure: 'Configure test',
   openInTab: 'Open in a new tab',
@@ -68,7 +70,7 @@ export const editorCopy = {
   people: (label: string, count: string) => `${label}: ${count} people`,
 } as const
 
-// Minimal editor-side equivalent of admin/copy/common.ts: the editor graph cannot import admin.
+// Minimal editor-side equivalent of testSurface/copy/common.ts: kept local to the editor creation flow.
 // Never accept server text as a fallback.
 export function writeRefusal(code: string | undefined, status: number): string {
   if (code === 'stale-edit') return editorCopy.staleEdit

@@ -9,7 +9,7 @@ import { BlockStatusField, BlockSlotRowLabel, CopyOriginalField } from '../../..
 import { BlockChangedError } from '../../../src/admin/blocks/formApi.js'
 import { setBlockStatus } from '../../../src/admin/blocks/statusCache.js'
 import { API_MESSAGES } from '../../../src/testSurface/copy/common.js'
-import { BLOCK_COPY } from '../../../src/testSurface/copy/blocks.js'
+import { BLOCK_COPY } from '../../../src/admin/copy/blocks.js'
 import type { LiveBlockStatus } from '../../../src/admin/blocks/model.js'
 const mocks = vi.hoisted(() => ({ adapt: vi.fn(), replace: vi.fn() }))
 vi.mock('@payloadcms/ui', () => payloadUiMock())
