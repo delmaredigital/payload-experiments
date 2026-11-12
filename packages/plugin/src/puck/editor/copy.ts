@@ -2,6 +2,8 @@ import { ARM_LABELS } from '../../labels/arms.js'
 
 export const editorCopy = {
   retrySetup: 'Retry',
+  controlsUnavailable: "Test controls couldn't load.",
+  setupForbidden: "You don't have access to set up tests.",
   setupUnavailable: "Setup isn't available right now.",
   labels: ARM_LABELS,
   configure: 'Configure test',

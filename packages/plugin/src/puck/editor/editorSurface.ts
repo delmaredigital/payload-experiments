@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { SurfaceProps } from '../../testSurface/surface/contracts.js'
 
 // Only pending requests are shared. Settled permissions never survive a drawer session.
@@ -24,8 +24,10 @@ export function readSurface(api: string): Promise<SurfaceState> {
 }
 
 /** Share only pending requests across canvas blocks and sidebar controls. */
-export function useEditorSurface(api: string): SurfaceState {
+export function useEditorSurface(api: string): SurfaceState & { retry: () => void } {
   const [loaded, setLoaded] = useState<{ api: string; state: SurfaceState }>()
+  const [attempt, setAttempt] = useState(0)
+  const retry = useCallback(() => { setLoaded(undefined); setAttempt(value => value + 1) }, [])
   useEffect(() => {
     let active = true
     const load = () => { void readSurface(api).then(state => { if (active) setLoaded({ api, state }) }) }
@@ -33,6 +35,6 @@ export function useEditorSurface(api: string): SurfaceState {
     const onVisible = () => { if (document.visibilityState === 'visible') load() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { active = false; document.removeEventListener('visibilitychange', onVisible) }
-  }, [api])
-  return loaded?.api === api ? loaded.state : {}
+  }, [api, attempt])
+  return { ...(loaded?.api === api ? loaded.state : {}), retry }
 }

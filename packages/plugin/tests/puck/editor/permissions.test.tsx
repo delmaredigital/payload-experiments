@@ -191,3 +191,49 @@ test('a bound 404 is calm, retains page-owned version tabs and permits removal',
   fireEvent.click(within(dialog).getByRole('button', { name: detach }))
   await waitFor(() => expect(read().getItemById('permission-slot')?.props.experiment).toBeNull())
 })
+
+
+test.each(['none', 'results', 'manager'] as const)('a deleted bound test takes priority for a %s reader and never offers Configure', async role => {
+  setup(role, 404)
+  const chrome = document.querySelector<HTMLElement>('.xp-slot-chrome')!
+  await within(chrome).findByText("This test isn't available to you. You can still edit its content.")
+  expect(within(chrome).queryByText("You can view this test's results.")).toBeNull()
+  expect(within(chrome).queryByRole('button', { name: 'Configure test' })).toBeNull()
+  expect(within(chrome).queryByRole('alert')).toBeNull()
+})
+
+test('an unbound results-only reader sees the setup-access line without a create invitation', async () => {
+  setup('results', 200, undefined, true)
+  const chrome = document.querySelector<HTMLElement>('.xp-slot-chrome')!
+  await within(chrome).findByText("You don't have access to set up tests.")
+  expect(within(chrome).queryByText('Choose or create a test to show different versions.')).toBeNull()
+  expect(within(chrome).queryByRole('button')).toBeNull()
+})
+
+test.each([500, 'network', 'malformed'] as const)('a failed controls read (%s) is quiet and Retry loads the bound controls', async failure => {
+  let finish!: (response: Response) => void
+  let reject!: (cause: Error) => void
+  const pending = new Promise<Response>((resolve, fail) => { finish = resolve; reject = fail })
+  const fetcher = setup('manager', 200, pending)
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation((url: string) => {
+    if (url.endsWith('/xp/editor-surface')) {
+      if (failure === 'network') return Promise.reject(new Error('offline'))
+      return Promise.resolve(response(failure === 'malformed' ? {} : null, failure === 500 ? 500 : 200))
+    }
+    return original(url)
+  })
+  await act(async () => {
+    if (failure === 'network') reject(new Error('offline'))
+    else finish(failure === 'malformed' ? response({}) : response({}, 500))
+  })
+  const chrome = document.querySelector<HTMLElement>('.xp-slot-chrome')!
+  await within(chrome).findByText("Test controls couldn't load.")
+  expect(within(chrome).queryByRole('alert')).toBeNull()
+  expect(within(chrome).queryByText('This block shows the Original to everyone until the test starts.')).toBeNull()
+  expect(within(chrome).queryByRole('button', { name: 'Configure test' })).toBeNull()
+  fetcher.mockImplementation((url: string) => url.endsWith('/xp/editor-surface') ? Promise.resolve(response(surface)) : original(url))
+  fireEvent.click(within(chrome).getByRole('button', { name: 'Retry' }))
+  expect(await within(chrome).findByRole('button', { name: 'Configure test' })).toBeTruthy()
+  expect(within(chrome).queryByText("Test controls couldn't load.")).toBeNull()
+})

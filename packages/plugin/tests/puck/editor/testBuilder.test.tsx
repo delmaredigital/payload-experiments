@@ -474,6 +474,7 @@ test('a successful in-flight arm write clears a document-refetch error', async (
   let complete!: (response: Response) => void
   let refetch = false
   vi.mocked(fetch).mockImplementation(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    if (String(_url).endsWith('/xp/editor-surface')) return response({ canManage: true, canReadResults: true })
     if (init?.method === 'PATCH') return new Promise(resolve => { complete = resolve })
     if (refetch) throw new Error('offline')
     return response(doc)

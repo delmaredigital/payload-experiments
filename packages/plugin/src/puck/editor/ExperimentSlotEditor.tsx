@@ -26,7 +26,7 @@ import { EditorControls } from './EditorControls.js'
 import { acquirePlacements, invalidatePlacements, refreshPlacements } from './placementsCache.js'
 import { localPlacements } from './localPlacements.js'
 import { useEditorSurface } from './editorSurface.js'
-import { ConfigureTestButton } from './ConfigureTestDrawer.js'
+import { ConfigureTestButton, ConfigureTestControl } from './ConfigureTestDrawer.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
@@ -297,15 +297,18 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         <h3 className="xp-slot-title">{experiment?.name ?? experimentSlotLabel}</h3>
         {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
       </header>
-      {!access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
-        : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : result?.missing ? pickerCopy.unavailable : pickerCopy.forbidden}</p> : <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
+      {result?.missing ? <p className="xp-ui-help">{pickerCopy.unavailable}</p>
+        : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : experimentId !== undefined && access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>
+        : experimentId === undefined && resultsOnly ? <p className="xp-ui-help">{editorCopy.setupForbidden}</p>
+        : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
+        : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
         {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
       </Banner>}
       {orphanSlots.map(slot => <Banner key={slot} tone="warning">{editorCopy.orphan(slotLabels[slot])}</Banner>)}
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       <div className="xp-ui-button-group">
         {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
-        {experimentId !== undefined && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestButton id={experimentId} routes={{ admin, api }} /> : null}
+        {experimentId !== undefined && access.surface && !result?.missing && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}
         {!shared ? newTestButton : null}
         {experimentId !== undefined && canDetach ? <Button disabled={checkingDetach} onClick={() => void requestDetach()}>{editorCopy.detach}</Button> : null}
         {experiment && editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}

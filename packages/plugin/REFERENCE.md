@@ -800,7 +800,10 @@ Page editors without manage or results access see "You don't have access to this
 test. You can still edit its content." Populated versions remain available from
 the page's own slot data with default version labels; their content stays editable
 on the canvas. The sidebar Test field becomes a read-only sentence. Configure and
-new-test actions are hidden. Results-only readers see "You can view this test's
+new-test actions are hidden. A missing bound test always shows the unavailable line and no Configure, including
+for results readers. An unbound results-only reader sees "You don't have access to
+set up tests." A failed controls read shows "Test controls couldn't load." with
+Retry; retry rechecks permissions before showing controls. Results-only readers see "You can view this test's
 results." and can open Configure to read results,
 without management controls or new-test actions. Both can remove the binding after
 confirmation; all version content is retained. A refused (401/403) or missing (404)

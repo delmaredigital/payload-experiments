@@ -68,10 +68,14 @@ export function openConfigureTestDrawer(source: HTMLElement, routes: ReturnType<
   return { close }
 }
 
-export function ConfigureTestButton({ id, routes }: { id: DocId; routes: ReturnType<typeof resolvePuckRoutes> }) {
+/** The canvas already has current permissions; use them without a second read. */
+export function ConfigureTestControl({ id, routes }: { id: DocId; routes: ReturnType<typeof resolvePuckRoutes> }) {
   const drawer = useRef<ReturnType<typeof openConfigureTestDrawer>>(undefined)
   useEffect(() => () => drawer.current?.close(), [id, routes.api])
+  return <Button variant="primary" onClick={event => { drawer.current?.close(); drawer.current = openConfigureTestDrawer(event.currentTarget, routes, id) }}>{C.configure}</Button>
+}
+export function ConfigureTestButton({ id, routes }: { id: DocId; routes: ReturnType<typeof resolvePuckRoutes> }) {
   const access = useEditorSurface(routes.api)
   if (!access.surface || !access.surface.canManage && !access.surface.canReadResults) return null
-  return <Button variant="primary" onClick={event => { drawer.current?.close(); drawer.current = openConfigureTestDrawer(event.currentTarget, routes, id) }}>{C.configure}</Button>
+  return <ConfigureTestControl id={id} routes={routes} />
 }
