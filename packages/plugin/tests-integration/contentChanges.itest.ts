@@ -79,12 +79,25 @@ test('maxPerDoc 2, five drafts, then unchanged publish records no marker', async
   expect(await f.markers()).toHaveLength(0)
 })
 test('unpublish then republish unchanged records no marker', async () => {
-  const f = await setup('audit-republish')
+  const f = await setup('audit-republish', false, false)
+  await f.payload.create({ collection: 'audit-pages', req: f.req, overrideAccess: false,
+    data: { title: 'Another published placement', content: f.content('Published'), _status: 'published' } })
+  await f.begin()
+  expect(await f.markers()).toHaveLength(0)
   await f.payload.update({ collection: 'audit-pages', id: f.page.id, req: f.req, overrideAccess: false,
     draft: false, data: { _status: 'draft' } })
   expect(await f.markers()).toHaveLength(0)
   await f.save('Published', false)
   expect(await f.markers()).toHaveLength(0)
+})
+
+test('unpublish of the only published placement is refused without a content marker', async () => {
+  const f = await setup('audit-last-placement')
+  await expect(f.payload.update({ collection: 'audit-pages', id: f.page.id, req: f.req, overrideAccess: false,
+    draft: false, data: { _status: 'draft' } })).rejects.toMatchObject({ code: 'locked-placement', status: 409,
+    message: '“audit-last-placement” is running and this page is the only published place it appears. Stop the test first.' })
+  expect(await f.markers()).toHaveLength(0)
+  expect((await f.payload.findByID({ collection: 'audit-pages', id: f.page.id, overrideAccess: false, draft: false }))._status).toBe('published')
 })
 
 test('first publish of unchanged slots created in a draft records one marker', async () => {

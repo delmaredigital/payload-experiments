@@ -7,11 +7,12 @@ import { txExecutor } from '../src/db/executor.js'
 import { removableBlockTests } from '../src/db/placements.js'
 import type { DocId, ResolvedOptions } from '../src/types/contracts.js'
 
-// Train-only, serial + uuid. Estimates, not measurements: ~10-20 s test work
-// (the timeout case intentionally waits 5 s), plus harness bootstrap per mode.
+// Postgres serial + uuid: ~6.4 s including the intentional 5 s timeout,
+// plus harness bootstrap per mode.
 let harness: Awaited<ReturnType<typeof createIntegrationHarness>>
 let restoreCache: (() => void) | undefined
 let sequence = 0
+let manager: NonNullable<PayloadRequest['user']>
 beforeAll(async () => {
   harness = await createIntegrationHarness({
     puckCollections: ['removal-pages'],
@@ -20,6 +21,9 @@ beforeAll(async () => {
       fields: [{ name: 'title', type: 'text' }, { name: 'puckData', type: 'json' }],
     }],
   })
+  const user = await harness.payload.create({ collection: 'users', overrideAccess: true,
+    data: { email: 'placement-manager@example.test', password: 'integration-only-password' } })
+  manager = { ...user, collection: 'users' }
   const cache = (globalThis as typeof globalThis & {
     _payload: Map<string, { payload: typeof harness.payload; initializedCrons: boolean; promise: null; reload: boolean; ws: null }>
   })._payload
@@ -29,7 +33,7 @@ beforeAll(async () => {
   expect(await getPayload({ config: harness.payload.config })).toBe(harness.payload)
 }, 60_000)
 afterAll(async () => { restoreCache?.(); await harness?.teardown() }, 60_000)
-const request = () => createLocalReq({}, harness.payload)
+const request = () => createLocalReq({ user: manager }, harness.payload)
 const options = () => harness.payload.config.custom!.xp as ResolvedOptions
 const empty = { content: [] }
 async function fixture(count = 1) {
@@ -55,18 +59,29 @@ async function begin() {
   const pid = (await txExecutor(req).query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid
   return { req, pid }
 }
+async function expectExperimentLock(req: PayloadRequest, pid: number, experimentId: DocId, transaction: unknown) {
+  // Anonymous includeLockStatus reads can roll back the caller's transaction in
+  // Payload 3.90.2. Prove Start borrowed it and still holds E before racing.
+  expect(await req.transactionID).toBe(transaction)
+  const { rows } = await harness.pool.query<{ held: boolean }>(`SELECT EXISTS (SELECT 1 FROM pg_locks
+    WHERE pid = $1 AND locktype = 'advisory' AND granted
+    AND classid::bigint = (hashtext('xp:experiment')::bigint & 4294967295)
+    AND objid::bigint = (hashtext($2)::bigint & 4294967295) AND objsubid = 2) AS held`, [pid, String(experimentId)])
+  expect(rows[0]!.held).toBe(true)
+}
 async function settle<T>(req: PayloadRequest, work: () => Promise<T>) {
   try { const result = await work(); await commitTransaction(req); return result }
   catch (error) { await killTransaction(req); throw error }
 }
-async function waitForExperimentLock(pid: number, pending: Promise<unknown>) {
+async function waitForExperimentLock(pid: number, experimentId: DocId, pending: Promise<unknown>) {
   let finished = false
   void pending.then(() => { finished = true }, () => { finished = true })
   const deadline = Date.now() + 4_000
   while (Date.now() < deadline) {
     const { rows } = await harness.pool.query<{ waiting: boolean }>(`SELECT EXISTS (SELECT 1 FROM pg_locks
       WHERE pid = $1 AND locktype = 'advisory' AND NOT granted
-      AND classid::bigint = (hashtext('xp:experiment')::bigint & 4294967295)) AS waiting`, [pid])
+      AND classid::bigint = (hashtext('xp:experiment')::bigint & 4294967295)
+      AND objid::bigint = (hashtext($2)::bigint & 4294967295) AND objsubid = 2) AS waiting`, [pid, String(experimentId)])
     if (rows[0]!.waiting) return
     if (finished) throw new Error('Operation finished without waiting on E')
     await new Promise(resolve => setTimeout(resolve, 10))
@@ -80,12 +95,14 @@ test.each(['start', 'remove'])('%s first: Start and removal serialize in both or
   const f = await fixture(), first = await begin(), second = await begin()
   let pending: Promise<unknown> | undefined
   try {
+    const transaction = await first.req.transactionID
     if (firstOperation === 'start') await start(first.req, { experimentId: f.experiment.id, options: options() })
     else await remove(first.req, f.pages[0]!.id)
+    await expectExperimentLock(first.req, first.pid, f.experiment.id, transaction)
     pending = settle<unknown>(second.req, () => firstOperation === 'start' ? remove(second.req, f.pages[0]!.id)
       : start(second.req, { experimentId: f.experiment.id, options: options() }))
     const outcome = Promise.allSettled([pending])
-    await waitForExperimentLock(second.pid, pending)
+    await waitForExperimentLock(second.pid, f.experiment.id, pending)
     await commitTransaction(first.req)
     expect((await outcome)[0]).toMatchObject({ status: 'rejected', reason: {
       code: firstOperation === 'start' ? 'locked-placement' : 'no-placements',
@@ -129,7 +146,9 @@ test.each(['PATCH', 'DELETE'] as const)('bulk REST %s of the last two placements
 test('the 5 s experiment lock timeout maps to page-busy while Start holds E', async () => {
   const f = await fixture(), holder = await begin()
   try {
+    const transaction = await holder.req.transactionID
     await start(holder.req, { experimentId: f.experiment.id, options: options() })
+    await expectExperimentLock(holder.req, holder.pid, f.experiment.id, transaction)
     const before = Date.now()
     await expect(remove(await request(), f.pages[0]!.id)).rejects.toMatchObject({ code: 'page-busy', status: 409 })
     expect(Date.now() - before).toBeGreaterThanOrEqual(4_500)

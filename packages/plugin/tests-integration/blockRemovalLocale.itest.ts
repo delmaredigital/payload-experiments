@@ -2,6 +2,7 @@ import { createLocalReq, type CollectionConfig } from 'payload'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { createIntegrationHarness } from './harness.js'
 import { scanBlockPlacements } from '../src/transitions/placements.js'
+import { createExperimentBlock } from '../src/blocks/createExperimentBlock.js'
 import { start } from '../src/transitions/start.js'
 import type { ResolvedOptions } from '../src/types/contracts.js'
 
@@ -15,7 +16,8 @@ beforeAll(async () => {
     collections: ([
       { slug: 'locale-puck', trash: true, versions: { drafts: true }, fields: [{ name: 'puckData', type: 'json', localized: true }] },
       { slug: 'locale-blocks', trash: true, versions: { drafts: true }, fields: [{ name: 'layout', type: 'blocks', localized: true,
-        blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] }] }] },
+        blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] },
+          createExperimentBlock({ blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] }] })] }] },
     ] satisfies CollectionConfig[]).map(collection => ({ ...collection, access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true } })),
   })
 }, 60_000)
