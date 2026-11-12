@@ -4,6 +4,7 @@ export const GOALS_COPY = {
   duplicateSlugMain: 'Another goal already uses this short name. Choose another.',
   title: 'Goals', goal: 'Goal', newGoal: 'New goal', name: 'Name', source: 'Measured by', directionColumn: 'Better when',
   direction: 'Better when it goes', increase: 'More is better', decrease: 'Less is better', usedBy: 'Used by', status: 'Status',
+  unreadableTest: "A test you can't open", showLess: 'Show less',
   inUse: 'In use', unused: 'Not used yet', empty: 'No goals yet. A goal is what a test tries to improve.',
   loading: 'Loading goals…', loadError: "Couldn't load goals. Try again.", retry: 'Try again',
   slug: 'Short name', slugHelp: 'A unique short name for this goal.', slugLocked: 'The short name stays the same once a test uses this goal.',
@@ -25,3 +26,5 @@ export function goalUsedBy(count: number) { return `Used by ${count} ${count ===
 export function goalInUse(count: number) { return `In use by ${count} ${count === 1 ? 'test' : 'tests'}` }
 export function goalDeleteLocked(count: number) { return `${goalUsedBy(count)}. Remove it from those tests first.` }
 export function goalsNoMatches(search: string) { return `No goals match “${search}”.` }
+
+export function goalShowAll(count: number) { return `Show all ${count}` }

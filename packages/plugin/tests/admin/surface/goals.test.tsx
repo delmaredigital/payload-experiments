@@ -492,3 +492,47 @@ test('a saved click source selects the shared click option and list uses its kin
   expect(screen.getByText('Yes/no')).toBeTruthy()
   expect(screen.queryByText('click:hero-cta')).toBeNull()
 })
+
+test('a goal lists the tests that use it with routes, role labels and status', async () => {
+  await loadForm([
+    { id: 'test/one', name: 'A clearer button', status: 'running', metrics: { primary: 7, secondary: [7], guardrails: [7] } },
+    { id: 'second', name: 'A shorter form', status: 'stopped', metrics: { secondary: [7] } },
+    { id: 'hidden', status: 'draft', metrics: { guardrails: [7] } },
+    { id: 'other', name: 'Not related', status: 'draft', metrics: { primary: 8 } },
+  ])
+  const list = document.getElementById('xp-goal-usage')!
+  expect(within(list).getByRole('heading', { name: 'Used by' })).toBeTruthy()
+  expect(within(list).getByRole('link', { name: 'A clearer button' }).getAttribute('href')).toBe('/control/experiments/test%2Fone')
+  expect(within(list).getByText('Goal · Must not get worse · Also keep an eye on · Running')).toBeTruthy()
+  expect(within(list).getByText('Also keep an eye on · Stopped')).toBeTruthy()
+  expect(within(list).getByText("A test you can't open").tagName).toBe('SPAN')
+  expect(list.querySelector('a[href*=hidden]')).toBeNull()
+  expect(screen.queryByText('Not related')).toBeNull()
+  expect(screen.getByText('In use by 3 tests')).toBeTruthy()
+  expect(within(document.getElementById('xp-goal-used')!).getByRole('link', { name: 'Used by' }).getAttribute('href')).toBe('#xp-goal-usage')
+})
+test('more than five using tests can be expanded and collapsed', async () => {
+  await loadForm(Array.from({ length: 7 }, (_, id) => ({ id, name: `Test ${id}`, status: 'draft', metrics: { primary: 7 } })))
+  const list = document.getElementById('xp-goal-usage')!
+  expect(within(list).getAllByRole('listitem')).toHaveLength(5)
+  expect(screen.queryByRole('link', { name: 'Test 6' })).toBeNull()
+  const toggle = within(list).getByRole('button', { name: 'Show all 7' })
+  expect(toggle.getAttribute('aria-expanded')).toBe('false')
+  fireEvent.click(toggle)
+  expect(within(list).getAllByRole('listitem')).toHaveLength(7)
+  expect(screen.getByRole('link', { name: 'Test 6' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Show less' }))
+  expect(within(list).getAllByRole('listitem')).toHaveLength(5)
+})
+test('a failed usage read retains existing load-failure behaviour and offers no broken list', async () => {
+  const fetch = vi.fn(async (url: string) => url.includes('/xp-experiments?') ? response({}, 500) : response(goal))
+  vi.stubGlobal('fetch', fetch)
+  render(<GoalForm surface={surface} id="7" />)
+  expect((await screen.findByRole('alert')).textContent).toContain("Couldn't load goals. Try again.")
+  expect(document.getElementById('xp-goal-usage')).toBeNull()
+  expect(screen.queryByText('In use by 0 tests')).toBeNull()
+  fetch.mockImplementation(async (url: string) => response(url.includes('/xp-experiments?') ? { docs: [] } : goal))
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+  await screen.findByLabelText('Name')
+  expect(document.getElementById('xp-goal-usage')).toBeNull()
+})

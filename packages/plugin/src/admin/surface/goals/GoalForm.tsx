@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation.js'
 import { formatAdminURL } from 'payload/shared'
 import type { SurfaceProps } from '../contracts.js'
-import { GOALS_COPY as C, goalDeleteLocked, goalInUse } from '../../copy/goals.js'
+import { GOALS_COPY as C, goalDeleteLocked, goalInUse, goalShowAll } from '../../copy/goals.js'
 import { metricSourceHint, metricSourceOptions, sourceFor } from '../../metricSource.model.js'
 import { validateCappingType, validateCappingValue } from '../../../collections/metricValidation.js'
 import { CLICK_KEY } from '../../../goals/key.js'
 import { clickGoalSlug } from '../../../goals/picker/clickGoalPicker.model.js'
-import { goalSlug, goalUsage } from './goals.model.js'
+import { goalSlug, goalUsage, goalUsageRows, visibleGoalUsage } from './goals.model.js'
 import type { Goal, GoalUsageTest } from './goals.model.js'
 import { GoalResponseError, goalPages, goalResponse } from './data.js'
 import { SURFACE_COPY } from '../../copy/surface.js'
@@ -36,6 +36,8 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
   const base = surface.apiRoute.replace(/\/$/, '')
   const [draft, setDraft] = useState<Draft>(empty)
   const [goal, setGoal] = useState<Goal>()
+  const [usageTests, setUsageTests] = useState<GoalUsageTest[]>([])
+  const [showAllUsage, setShowAllUsage] = useState(false)
   const [usedBy, setUsedBy] = useState(0)
   const [ready, setReady] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -64,7 +66,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
           if (controller.signal.aborted) return
           const defaultCap = sourceFor(loaded.source, surface.metricSources)?.kind === 'revenue'
             && loaded.capping?.type == null && loaded.capping?.value == null
-          setGoal(loaded); setUsedBy(goalUsage(tests).get(loaded.id) ?? 0)
+          setGoal(loaded); setUsageTests(tests); setShowAllUsage(false); setUsedBy(goalUsage(tests).get(loaded.id) ?? 0)
           setDraft({ ...empty(), ...loaded, capType: loaded.capping?.type ?? (defaultCap ? 'percentile' : ''), capValue: loaded.capping?.value == null ? defaultCap ? '0.99' : '' : String(loaded.capping.value),
             warningPercent: String(Number(((loaded.guardrailThreshold ?? 0.05) * 100).toPrecision(12))) })
           setSlugEdited(true)
@@ -122,6 +124,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
       router.push(listUrl)
     } catch (cause) { setError(cause instanceof Error ? cause.message : C.deleteError); inFlight.current = false; setPending(null) }
   }
+  const usage = goal ? goalUsageRows(usageTests, goal.id) : []
   const title = goal?.name ?? (id === undefined ? C.newGoal : C.goal)
   return <SurfaceShell adminRoute={surface.adminRoute} title={title}
     crumbs={[{ label: SURFACE_COPY.title, href: surfaceUrls.home(surface.adminRoute) },
@@ -130,6 +133,16 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
     <div className="xp-goals">
       {loadError ? <Banner tone="error" action={<Button size="sm" onClick={() => setAttempt(n => n + 1)}>{C.retry}</Button>}>{loadError}</Banner>
         : !ready ? <p role="status">{C.loading}</p> : <form className="xp-goal-form" onSubmit={event => { event.preventDefault(); void submit() }}>
+          {usage.length ? <Card className="xp-goal-usage" id="xp-goal-usage">
+            <h2>{C.usedBy}</h2>
+            <ul>{visibleGoalUsage(usage, showAllUsage).map(test => <li key={test.id}>
+              {test.canOpen ? <a href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(test.id))}` })}>{test.name}</a> : <span>{test.name}</span>}
+              <span>{test.roles.join(' · ')}{test.status ? ` · ${test.status}` : ''}</span>
+            </li>)}</ul>
+            {usage.length > 5 ? <Button type="button" variant="link" aria-expanded={showAllUsage} aria-controls="xp-goal-usage" onClick={() => setShowAllUsage(value => !value)}>
+              {showAllUsage ? C.showLess : goalShowAll(usage.length)}
+            </Button> : null}
+          </Card> : null}
           {error ? <Banner tone="error">{error}</Banner> : null}
           <Card className="xp-goal-card">
             <h2>{C.fields}</h2>
@@ -182,7 +195,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
               {id === undefined ? null : <Button variant="danger" disabled={pending !== null || usedBy > 0 || !surface.canManage} aria-describedby={usedBy ? 'xp-goal-used' : undefined}
                 onClick={() => setConfirmDelete(true)}>{pending === 'delete' ? C.deleting : C.remove}</Button>}
             </div>
-            {id !== undefined && usedBy ? <p className="xp-ui-help" id="xp-goal-used">{goalDeleteLocked(usedBy)}</p> : null}
+            {id !== undefined && usedBy ? <p className="xp-ui-help" id="xp-goal-used">{goalDeleteLocked(usedBy)}{usage.length ? <> <a href="#xp-goal-usage">{C.usedBy}</a></> : null}</p> : null}
           </Card>
         </form>}
       <Dialog open={confirmDelete} initialFocus="cancel" title={C.deleteTitle} onClose={() => setConfirmDelete(false)}>

@@ -46,7 +46,7 @@ test('writes real Shell and Goals pages in six states, each light and dark', asy
   for (const state of ['list', 'empty', 'return', 'new', 'used', 'threshold-error'] as const) {
     const form = state === 'new' || state === 'used' || state === 'threshold-error'
     const fetch = vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('/xp-experiments?')
-      ? { docs: [{ id: 'test-1', metrics: { primary: 'donation', secondary: ['donation'], guardrails: ['donation'] } }] }
+      ? { docs: [{ id: 'test-1', name: 'A clearer donation request', status: 'running', metrics: { primary: 'donation', secondary: ['donation'], guardrails: ['donation'] } }] }
       : url.includes('/xp-metrics?') ? { docs: state === 'empty' ? [] : goals } : goals[0])))
     vi.stubGlobal('fetch', fetch)
     const view = render(<ConfigProvider config={config}>{form
@@ -67,6 +67,8 @@ test('writes real Shell and Goals pages in six states, each light and dark', asy
       expect((view.getByLabelText('Short name') as HTMLInputElement).readOnly).toBe(true)
       expect((view.getByRole('button', { name: 'Delete goal' }) as HTMLButtonElement).disabled).toBe(true)
       expect(view.getByText('In use by 1 test')).toBeTruthy()
+      expect(view.getByRole('link', { name: 'A clearer donation request' }).getAttribute('href')).toBe('/admin/experiments/test-1')
+      expect(view.getByText('Goal · Must not get worse · Also keep an eye on · Running')).toBeTruthy()
     }
     if (!form && state !== 'empty') expect(view.container.querySelectorAll('article')).toHaveLength(4)
     if (state === 'empty') expect(view.getByText('No goals yet. A goal is what a test tries to improve.')).toBeTruthy()
