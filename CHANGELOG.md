@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: page saves and deletes cannot remove a running block test's last placement. The guard uses Start's published-and-draft placement scan, applies to both editors and API writes, and returns a public sentence naming the test. Draft saves keep counting the published block; unpublishing with the block intact keeps a draft placement.
+  Migration impact: none.
+
 - Added: Configure test in the Puck canvas and sidebar opens shared setup and results in a right drawer with zero host wiring. The private, uncached `/xp/editor-surface` endpoint returns the requesting user's admin surface configuration. Version labels summarize canvas versions; shares remain editable. Saves and transitions refresh bound blocks without reloading the page.
   Migration impact: none.
 - Fixed: test block headers can initiate dragging, non-interactive chrome selects once, controls stay isolated, and running-test detach checks fresh placements before offering and confirming removal.

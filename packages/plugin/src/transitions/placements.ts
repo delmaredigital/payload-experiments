@@ -16,18 +16,42 @@ export interface BlockPlacement extends PreviewPlacement {
 export type FlagPlacement = Awaited<ReturnType<NonNullable<FlagPoint['placements']>>>[number]
 const slots = ['control', 'variantA', 'variantB', 'variantC'] as const
 
+/** Internal page-guard overlay: simulate the pending write using the same scan as Start.
+ * Draft-only writes retain the published view. Publish/unpublish replace both views.
+ */
+export interface PlacementChange {
+  collection: string; id: DocId; draftOnly?: boolean; doc?: Record<string, unknown>
+}
+interface ScanOptions {
+  puckCollections: NonNullable<ResolvedOptions['puck']>['collections']
+  blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']
+  compareVersions?: boolean
+  /** Hook reads must see every placement and must never invoke nested access checks (CORE-21). */
+  pageGuard?: true
+  change?: PlacementChange
+}
+async function placementDocuments(req: PayloadRequest, query: Parameters<PayloadRequest['payload']['find']>[0], guard?: true) {
+  // §7.8 page guard: the hook must see test placements regardless of the editor's access.
+  if (guard) return req.payload.find({ ...query, req, overrideAccess: true })
+  return req.payload.find({ ...query, req, overrideAccess: false })
+}
+function changedDocuments(docs: Array<Record<string, unknown> & { id: DocId }>, change: PlacementChange | undefined,
+  collection: string, draft: boolean, page: number, draftsEnabled: boolean): Array<Record<string, unknown> & { id: DocId }> {
+  if (!change || change.collection !== collection || change.draftOnly && !draft) return docs
+  const kept = docs.filter(doc => String(doc.id) !== String(change.id))
+  const doc = change.doc
+  if (page === 1 && doc && (draft ? change.draftOnly || doc._status === 'draft' : !draftsEnabled || doc._status === 'published')) {
+    kept.push({ ...doc, id: change.id, ...(change.draftOnly ? { _status: 'draft' } : {}) })
+  }
+  return kept
+}
+
 /** Each matching ExperimentSlot is checked separately, including multiple slots
  * in one document: content elsewhere in the document cannot hide an empty slot.
  */
-export function scanBlockPlacements(req: PayloadRequest, args: {
-  slug: string; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']; compareVersions?: boolean
-}): Promise<BlockPlacement[]>
-export function scanBlockPlacements(req: PayloadRequest, args: {
-  slugs: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']; compareVersions?: boolean
-}): Promise<Map<string, BlockPlacement[]>>
-export async function scanBlockPlacements(req: PayloadRequest, args: {
-  slug?: string; slugs?: ReadonlySet<string>; puckCollections: NonNullable<ResolvedOptions['puck']>['collections']; blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']; compareVersions?: boolean
-}): Promise<BlockPlacement[] | Map<string, BlockPlacement[]>> {
+export function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { slug: string }): Promise<BlockPlacement[]>
+export function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { slugs: ReadonlySet<string> }): Promise<Map<string, BlockPlacement[]>>
+export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { slug?: string; slugs?: ReadonlySet<string> }): Promise<BlockPlacement[] | Map<string, BlockPlacement[]>> {
   const { puckCollections } = args
   const slugs = args.slugs ?? new Set([args.slug!])
   const placements = new Map([...slugs].map(slug => [slug, [] as BlockPlacement[]]))
@@ -39,11 +63,11 @@ export async function scanBlockPlacements(req: PayloadRequest, args: {
     for (const draft of [false, true]) {
       let page = 1
       while (true) {
-        const result = await req.payload.find({
+        const result = await placementDocuments(req, {
           collection, req, overrideAccess: false, limit: 100, page, depth: 0, draft, includeLockStatus: true,
           ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}),
-        })
-        for (const doc of result.docs) {
+        }, args.pageGuard)
+        for (const doc of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {
           if (!draft && doc._status === 'draft') continue
           if (draft && doc._status !== 'draft' && publishedIds.has(String(doc.id))) continue
           if (!draft) {
@@ -106,9 +130,9 @@ export async function scanBlockPlacements(req: PayloadRequest, args: {
     for (const draft of [false, true]) {
       let page = 1
       while (true) {
-        const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0, limit: 100, page, draft, includeLockStatus: true,
-          ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}) })
-        for (const doc of result.docs) {
+        const result = await placementDocuments(req, { collection, req, overrideAccess: false, depth: 0, limit: 100, page, draft, includeLockStatus: true,
+          ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}) }, args.pageGuard)
+        for (const doc of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {
           if (!draft && doc._status === 'draft') continue
           if (!draft) published.set(String(doc.id), doc)
           else if (doc._status !== 'draft' && published.has(String(doc.id))) continue

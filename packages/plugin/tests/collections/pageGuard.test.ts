@@ -184,3 +184,99 @@ test('an arm stored with a trailing slash protects the page the runtime routes t
   await expect(f.remove()).rejects.toMatchObject({ status: 409 })
 })
 
+
+function blockSetup(status = 'running', drafts = true, editor: 'puck' | 'blocks' = 'puck') {
+  const f = setup(status, '/unrelated', false, drafts)
+  const options = f.payload.config.custom.xp as ReturnType<typeof sampleOptions>
+  options.puck = { enabled: true, collections: ['pages'] }
+  options.blocks = { collections: editor === 'blocks' ? [{ slug: 'pages', field: 'layout' }] : [] }
+  const block = editor === 'puck' ? { type: 'ExperimentSlot', props: { experiment: { id: 2, slug: 'hero' }, control: [{}], variantA: [{}] } }
+    : { blockType: 'xpExperiment', experiment: 'hero', slots: [] }
+  const field = editor === 'puck' ? 'puckData' : 'layout'
+  const content = (blocks: unknown[]) => editor === 'puck' ? { content: blocks } : blocks
+  Object.assign(f.published, { [field]: content([block]) })
+  f.payload.documents.pages = [f.published]
+  Object.assign(f.payload.documents['xp-experiments']![0]!, { kind: 'block', slug: 'hero', name: 'Better hero' })
+  f.payload.config.collections = [f.collection as unknown as import('payload').SanitizedCollectionConfig]
+  f.req.transactionID = f.executor.withSession({ payload: f.payload }).transactionID
+  const empty = { [field]: content([]) }
+  return { ...f, empty, field, content, block, options }
+}
+const lastPlacementMessage = '“Better hero” is running and this is the only place it appears. Stop the test, or keep its block on this page.'
+
+test.each(['puck', 'blocks'] as const)('%s publish refuses removing the only running placement with a public sentence', async editor => {
+  const f = blockSetup('running', true, editor)
+  await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toMatchObject({
+    code: 'locked-placement', status: 409, isPublic: true, message: lastPlacementMessage,
+  })
+  for (const call of f.payload.calls) expect(call.args).toMatchObject({ overrideAccess: true, req: f.req })
+  const locks = f.executor.calls.filter(call => call.text.includes("hashtext('xp:experiment')"))
+  expect(locks.map(call => call.params)).toContainEqual(['2'])
+})
+test.each(['draft', 'stopped', 'decided', 'archived'])('removing a %s block is allowed', async status => {
+  const f = blockSetup(status)
+  await expect(f.save({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+})
+test('keeping the block, including another occurrence on this page, is allowed', async () => {
+  const f = blockSetup()
+  await expect(f.save({ title: 'Edited', _status: 'published' })).resolves.toBeDefined()
+  f.payload.documents.pages![0]!.puckData = f.content([f.block, f.block])
+  await expect(f.save({ puckData: f.content([f.block]), _status: 'published' })).resolves.toBeDefined()
+})
+test.each(['published', 'draft'])('another document with a %s placement allows removal', async _status => {
+  const f = blockSetup()
+  f.payload.documents.pages!.push({ ...f.published, id: 9, _status })
+  await expect(f.save({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+})
+test('another registered collection also counts', async () => {
+  const f = blockSetup()
+  f.options.puck!.collections.push('templates')
+  f.payload.documents.templates = [{ ...f.published, id: 10 }]
+  await expect(f.save({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+})
+test.each(['draft save', 'autosave', 'draft restore'])('%s preserves the published placement', async operation => {
+  const f = blockSetup()
+  await f.begin(true, operation === 'draft restore' ? 'restoreVersion' : 'update')
+  await expect(f.change({ ...f.empty, _status: 'draft' })).resolves.toBeDefined()
+})
+test('a draft-only placement is protected too, without refusing a draft edit that keeps it', async () => {
+  const f = blockSetup()
+  f.payload.documents.pages = [{ ...f.published, _status: 'draft' }]
+  await expect(f.save({ title: 'Edited', _status: 'draft' }, true)).resolves.toBeDefined()
+  await expect(f.save({ ...f.empty, _status: 'draft' }, true)).rejects.toMatchObject({ message: lastPlacementMessage })
+})
+test('unpublishing while keeping the block leaves a draft placement; removing both is refused', async () => {
+  const f = blockSetup()
+  await expect(f.save({ _status: 'draft' })).resolves.toBeDefined()
+  await expect(f.save({ ...f.empty, _status: 'draft' })).rejects.toMatchObject({ message: lastPlacementMessage })
+})
+test.each(['delete', 'trash', 'publish restore', 'draft=true publish', 'no drafts save'])('%s cannot remove the last placement', async operation => {
+  const f = blockSetup('running', operation !== 'no drafts save')
+  const result = operation === 'delete' ? f.remove() : operation === 'trash' ? f.save({ deletedAt: '2026-11-12', _status: 'published' })
+    : operation === 'publish restore' ? f.begin(false, 'restoreVersion').then(() => f.change({ ...f.empty, _status: 'published' }))
+    : f.save({ ...f.empty, ...(operation === 'no drafts save' ? {} : { _status: 'published' }) }, operation === 'draft=true publish')
+  await expect(result).rejects.toMatchObject({ message: lastPlacementMessage })
+})
+test('delete also covers block collections without pages registration and draft-only documents', async () => {
+  const f = blockSetup()
+  f.options.pages = undefined
+  f.payload.documents.pages = [{ ...f.published, _status: 'draft' }]
+  f.read.mockResolvedValue(undefined as unknown as typeof f.published)
+  await expect(f.remove()).rejects.toMatchObject({ message: lastPlacementMessage })
+})
+test('delete with another placement is allowed', async () => {
+  const f = blockSetup()
+  f.payload.documents.pages!.push({ ...f.published, id: 9 })
+  await expect(f.remove()).resolves.toBeUndefined()
+})
+test('a removal without a transaction fails closed', async () => {
+  const f = blockSetup()
+  delete f.req.transactionID
+  await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toMatchObject({ name: 'XpNoTransactionError' })
+  await expect(f.remove()).rejects.toMatchObject({ name: 'XpNoTransactionError' })
+})
+test('placement read errors propagate without continuing after a nested transaction failure', async () => {
+  const f = blockSetup(), cause = new Error('placement read failed')
+  f.payload.find = vi.fn(async () => { delete f.req.transactionID; throw cause })
+  await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toBe(cause)
+})

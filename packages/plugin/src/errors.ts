@@ -16,6 +16,8 @@ export class XpNoTransactionError extends Error {
 }
 export class XpRefusal extends Error {
   override name = 'XpRefusal'
+  // Payload-compatible marker used by Puck's public-error response mapper.
+  readonly isOperational = true
   readonly isPublic = true
   constructor(public readonly code: RefusalCode, message: string, public readonly detail: unknown | undefined, public readonly status: 409 | 413 | 422 | 500 | 404, options?: ErrorOptions) { super(message, options) }
 }

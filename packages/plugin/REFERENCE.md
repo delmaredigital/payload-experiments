@@ -483,6 +483,17 @@ resolve to your site URL.
 | --- | --- |
 | `pages.collections` | Optional array of `{ slug, pathOf, findByPath }`. `pathOf(doc)` derives a public path from the slug (used to protect live test paths); `findByPath(path, req)` resolves a published page to `{ id, published: true }`, or returns `null`. Start and readiness check every non-holdout version, including the Original. Registered collections must exist when this plugin runs. Localized publication status and field-level `beforeChange` hooks that rewrite paths after the collection guard are unsupported; derive paths from fields finalized before collection hooks. Without this option, readiness warns that pages are unchecked and Start keeps its existing behaviour. |
 
+The page guard refuses a save, publish, restore, trash or delete that would remove
+all placements of a running block test, with the public message:
+`“<test name>” is running and this is the only place it appears. Stop the test, or keep its block on this page.`
+This applies to both block editors, REST and Local API writes, regardless of test
+access. Placements use the same scan as Start: published content **and** latest
+drafts, across all registered block and Puck collections. A draft save or autosave
+can remove a block while its published placement remains. Unpublishing with the
+block intact leaves a draft placement and is allowed by this rule. A remaining
+placement on this or any other document also permits removal. Draft, stopped,
+decided and archived block tests are unaffected. Transactions must be enabled.
+
 Do not swallow errors from nested updates of guarded page collections inside host hooks: a swallowed error leaves the guard's operation frame in place for the rest of the request because Payload's Local API does not call `afterError`.
 
 For a collection with drafts enabled, use a published-only slug lookup with the
