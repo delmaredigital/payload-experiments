@@ -1,7 +1,8 @@
 import { REST_DELETE, REST_PATCH } from '@payloadcms/next/routes'
 import { commitTransaction, createLocalReq, getPayload, initTransaction, killTransaction, restoreVersionOperation, type PayloadRequest } from 'payload'
-import { afterAll, beforeAll, expect, test } from 'vitest'
+import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { createIntegrationHarness } from './harness.js'
+import { pageGuardOperationScope } from '../src/hooks/pageGuard.js'
 import { start } from '../src/transitions/start.js'
 import { txExecutor } from '../src/db/executor.js'
 import { removableBlockTests } from '../src/db/placements.js'
@@ -12,14 +13,20 @@ import type { DocId, ResolvedOptions } from '../src/types/contracts.js'
 let harness: Awaited<ReturnType<typeof createIntegrationHarness>>
 let restoreCache: (() => void) | undefined
 let sequence = 0
+let observeSelection = false
+const selectionSizes: number[] = []
+function observeBulkSelection() {
+  if (observeSelection) selectionSizes.push(pageGuardOperationScope.getStore()?.bulk?.documents.size ?? 0)
+}
 let manager: NonNullable<PayloadRequest['user']>
 beforeAll(async () => {
   harness = await createIntegrationHarness({
     puckCollections: ['removal-pages'],
-    collections: [{ slug: 'removal-pages', versions: { drafts: { autosave: true } },
-      access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true },
+    collections: [{ slug: 'removal-pages', trash: true, versions: { drafts: { autosave: true } },
+      access: { create: () => true, read: () => true, update: ({ req }) => req.context.round8DenyBulk !== true, delete: () => true, readVersions: () => true, unlock: () => true },
       fields: [{ name: 'title', type: 'text' }, { name: 'puckData', type: 'json' }],
-      hooks: { beforeChange: [async ({ req, data, collection }) => {
+      hooks: { beforeDelete: [() => { observeBulkSelection() }], beforeChange: [async ({ req, data, collection }) => {
+        observeBulkSelection()
         const version = req.context.round7RestoreVersion
         if (version != null && !req.context.round7InsideRestore) {
           req.context.round7InsideRestore = true
@@ -226,3 +233,67 @@ test('a real restore nested inside a draft save cannot unpublish the last runnin
   expect(page._status).toBe('published')
   expect(page.puckData.content).toHaveLength(1)
 }, 30_000)
+
+
+// Every real bulk path proves selection capture directly; passing outcomes alone
+// could otherwise conceal a fallback to order-dependent per-page claims.
+test.each(['REST update', 'REST delete', 'Local update', 'Local delete', 'draft publish', 'trash'] as const)('%s recognizes the real selection for refused, allowed and mixed bulks', async mode => {
+  for (const scenario of ['refused', 'allowed', 'mixed refused', 'mixed allowed']) {
+    const mixed = scenario.startsWith('mixed'), allowed = scenario.endsWith('allowed')
+    const f = await fixture(allowed ? 3 : 2), { payload } = harness
+    if (mixed) await payload.update({ collection: 'removal-pages', id: f.pages[1]!.id, req: await request(), overrideAccess: false,
+      data: { puckData: empty, _status: 'published' } })
+    await start(await request(), { experimentId: f.experiment.id, options: options() })
+    const selected = f.pages.slice(0, 2), ids = selected.map(doc => doc.id)
+    const data = mode === 'trash' ? { deletedAt: new Date().toISOString() } : { puckData: empty, _status: 'published' as const }
+    const queryDrafts = vi.spyOn(payload.db, 'queryDrafts')
+    selectionSizes.length = 0
+    observeSelection = true
+    let result: { docs: Array<{ id: DocId }>; errors: Array<{ id: DocId; message: string }> }
+    try {
+      if (mode.startsWith('REST')) {
+        const query = new URLSearchParams()
+        ids.forEach((id, index) => query.set(`where[id][in][${index}]`, String(id)))
+        const response = await rest(mode === 'REST delete' ? 'DELETE' : 'PATCH', 'removal-pages', `?${query}`, mode === 'REST update' ? data : undefined)
+        result = await response.json() as typeof result
+      } else {
+        const req = await request()
+        result = mode === 'Local delete'
+          ? await payload.delete({ collection: 'removal-pages', req, overrideAccess: false, where: { id: { in: ids } } })
+          : await payload.update({ collection: 'removal-pages', req, overrideAccess: false, where: { id: { in: ids } },
+            draft: mode === 'draft publish', data })
+      }
+      expect(selectionSizes.length).toBeGreaterThanOrEqual(2)
+      expect(selectionSizes.every(size => size === 2)).toBe(true)
+      if (mode === 'draft publish' || mode === 'trash') expect(queryDrafts).toHaveBeenCalled()
+    } finally { observeSelection = false; queryDrafts.mockRestore() }
+    const expectedPass = allowed ? ids : mixed ? [ids[1]!] : []
+    expect(result!.docs.map(doc => String(doc.id)).sort()).toEqual(expectedPass.map(String).sort())
+    expect(result!.errors.map(doc => String(doc.id)).sort()).toEqual(ids.filter(id => !expectedPass.includes(id)).map(String).sort())
+    if (!allowed) expect(result!.errors.every(error => error.message.includes('only published place'))).toBe(true)
+    const remaining = await payload.find({ collection: 'removal-pages', overrideAccess: true, draft: false, where: { id: { in: f.pages.map(page => page.id) } } })
+    expect(remaining.docs.filter(doc => doc._status === 'published' && doc.puckData.content.length > 0)).toHaveLength(allowed ? 1 : mixed ? 1 : 2)
+  }
+}, 60_000) // Four real bulk operations per case, estimate <4 s; >3x CI margin.
+
+test('a denied Local bulk cleans up before a single write reuses the same request', async () => {
+  const f = await fixture(2), req = await request(), { payload } = harness
+  await start(await request(), { experimentId: f.experiment.id, options: options() })
+  req.context.round8DenyBulk = true
+  await expect(payload.update({ collection: 'removal-pages', req, overrideAccess: false,
+    where: { id: { in: f.pages.map(page => page.id) } }, data: { puckData: empty, _status: 'published' } })).rejects.toMatchObject({ status: 403 })
+  expect((req.context.xpPageGuardOperations as Map<string, unknown[]>).size).toBe(0)
+  req.context.round8DenyBulk = false
+  await expect(remove(req, f.pages[0]!.id)).resolves.toMatchObject({ id: f.pages[0]!.id })
+  const remaining = await payload.findByID({ collection: 'removal-pages', id: f.pages[1]!.id, overrideAccess: true, draft: false })
+  expect(remaining.puckData.content).toHaveLength(1)
+}, 30_000)
+
+test('init refuses experimental localized publication status on registered placements', async () => {
+  await expect(createIntegrationHarness({
+    localization: { defaultLocale: 'en', locales: ['en', 'fr'] }, experimental: { localizeStatus: true },
+    puckCollections: ['localized-status-pages'],
+    collections: [{ slug: 'localized-status-pages', versions: { drafts: { localizeStatus: true } },
+      fields: [{ name: 'puckData', type: 'json', localized: true }] }],
+  })).rejects.toThrow('Experiments collection localized-status-pages does not support versions.drafts.localizeStatus. Use a shared publication status.')
+}, 60_000)

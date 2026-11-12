@@ -1,3 +1,5 @@
+import { puckCollections } from './options.js'
+import { pageGuardEnterOperation } from './hooks/pageGuard.js'
 import { findRegisteredBlocksField } from './blocks/formState.js'
 import { EXPERIMENT_BLOCK_SLUG } from './blocks/model.js'
 import { contentBlocks } from './transitions/contentFields.js'
@@ -19,6 +21,18 @@ function registeredPaths(fields: readonly Field[], name: string, parent: string[
 
 export function createOnInit<TUser extends { id: string | number }>(options: ResolvedOptions<TUser>): NonNullable<Config['onInit']> {
   return async payload => {
+    const guarded = new Set([...(options.puck?.enabled ? puckCollections(options).map(c => c.slug) : []), ...(options.blocks?.collections ?? []).map(c => c.slug), ...(options.pages?.collections ?? []).map(c => c.slug)])
+    for (const collection of payload.config.collections ?? []) {
+      if (!guarded.has(collection.slug)) continue
+      if (collection.versions && collection.versions.drafts && collection.versions.drafts.localizeStatus) {
+        throw new Error(`Experiments collection ${collection.slug} does not support versions.drafts.localizeStatus. Use a shared publication status.`)
+      }
+      if (collection.hooks) {
+        const hooks = collection.hooks.beforeOperation ?? []
+        collection.hooks.beforeOperation = [pageGuardEnterOperation, ...hooks.filter(hook => hook !== pageGuardEnterOperation)]
+      }
+    }
+
     for (const registration of options.blocks?.collections ?? []) {
       const config = payload.config.collections.find(c => c.slug === registration.slug)
       const found = findRegisteredBlocksField(config?.fields ?? [], registration.field)

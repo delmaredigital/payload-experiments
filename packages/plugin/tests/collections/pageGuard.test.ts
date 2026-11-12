@@ -1,3 +1,4 @@
+import { killTransaction } from 'payload'
 import type { CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook } from 'payload'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { pageGuardAfterChange, pageGuardAfterOperation, pageGuardEnterOperation, pageGuardOperationScope, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from '../../src/hooks/pageGuard.js'
@@ -681,6 +682,7 @@ test.each(['find', 'queryDrafts'] as const)('bulk selection observes only the ac
   const read = vi.fn(async () => ({ docs: [f.published] })) // access or limit leaves B outside the change
   Object.assign(f.payload.db, { [method]: read })
   const args = { req: f.req, collection: { config: f.collection }, where, data: { ...f.empty, _status: 'published' }, limit: 1 }
+  pageGuardEnterOperation({ args, operation: 'update' } as never)
   const result = await pageGuardBeforeOperation({ args, operation: 'update' } as never) as unknown as typeof args
   const req = result.req
   const selectedWhere = method === 'find' ? { and: [where, { id: { equals: 1 } }] }
@@ -696,6 +698,7 @@ test('draft=true bulk publishing still excludes all pages that remove the block'
   const where = { id: { in: [1, 9] } }
   Object.assign(f.payload.db, { find: vi.fn(async () => ({ docs: [f.published, other] })) })
   const args = { req: f.req, draft: true, collection: { config: f.collection }, where, data: { ...f.empty, _status: 'published' } }
+  pageGuardEnterOperation({ args, operation: 'update' } as never)
   const result = await pageGuardBeforeOperation({ args, operation: 'update' } as never) as unknown as typeof args
   const req = result.req
   await req.payload.db.find({ req, collection: 'pages', where: { and: [where] } } as never)
@@ -719,11 +722,11 @@ test.each(['update', 'delete'] as const)('bulk %s scope survives a concurrent si
     await Promise.resolve() // Payload awaits initTransaction before beforeOperation.
     const args = { req, draft: true, collection: { config: f.collection } }
     pageGuardEnterOperation({ args, operation: 'update' } as never)
-    await pageGuardBeforeOperation({ args, operation: 'update' } as never)
+    const nested = await pageGuardBeforeOperation({ args, operation: 'update' } as never) as typeof args
     ready()
     await held
-    await expect(pageGuardBeforeChange({ req, collection: f.collection, originalDoc: f.published, operation: 'update', data: { _status: 'draft' } } as never)).resolves.toBeDefined()
-    await pageGuardAfterOperation({ req, collection: f.collection, operation: 'updateByID', result: {} } as never)
+    await expect(pageGuardBeforeChange({ req: nested.req, collection: f.collection, originalDoc: f.published, operation: 'update', data: { _status: 'draft' } } as never)).resolves.toBeDefined()
+    await pageGuardAfterOperation({ req: nested.req, collection: f.collection, operation: 'updateByID', result: {} } as never)
   })()
   await waiting
   try {
@@ -746,6 +749,7 @@ test('an empty bulk filter does not capture a different empty query from an acce
   const find = vi.fn().mockResolvedValueOnce({ docs: [f.published, other] }).mockResolvedValueOnce({ docs: [f.published] })
   Object.assign(f.payload.db, { find })
   const args = { req: f.req, collection: { config: f.collection }, where, data: { ...f.empty, _status: 'published' }, limit: 1 }
+  pageGuardEnterOperation({ args, operation: 'update' } as never)
   const result = await pageGuardBeforeOperation({ args, operation: 'update' } as never) as unknown as typeof args
   const req = result.req
   await req.payload.db.find({ req, collection: 'pages', where: { and: [{}] } } as never) // unrelated access read
@@ -771,4 +775,114 @@ test.each([false, true])("a nested restore using Payload's original req preserve
     await pageGuardAfterOperation({ req: f.req, collection: f.collection, operation: 'restoreVersion', result: {} } as never)
   })()
   await expect(f.change({ ...f.empty, _status: 'draft' })).resolves.toBeDefined()
+})
+
+
+test.each(['delete', 'update'] as const)('bulk %s permits two removals with a third published copy outside the change', async operation => {
+  const f = blockSetup(), docs = [f.published, { ...f.published, id: 9 }]
+  f.payload.documents.pages = [...docs, { ...f.published, id: 10 }]
+  f.read.mockImplementation(async args => docs.find(doc => doc.id === (args as { where: { id: { equals: number } } }).where.id.equals)!)
+  const req = await beginBulk(f, docs, operation)
+  for (const doc of docs) {
+    const work = operation === 'delete' ? pageGuardBeforeDelete({ req, collection: f.collection, id: doc.id } as never)
+      : pageGuardBeforeChange({ req, collection: f.collection, originalDoc: doc, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)
+    await work
+  }
+})
+
+test.each(['delete', 'update'] as const)('bulk %s ignores selected pages without the block and protects selected placements', async operation => {
+  for (const retained of [false, true]) {
+    const f = blockSetup(), blank = { ...f.published, ...f.empty, id: 9 }
+    const docs = [f.published, blank]
+    f.payload.documents.pages = retained ? [...docs, { ...f.published, id: 10 }] : docs
+    f.read.mockImplementation(async args => docs.find(doc => doc.id === (args as { where: { id: { equals: number } } }).where.id.equals)!)
+    const req = await beginBulk(f, docs, operation)
+    for (const doc of docs) {
+      const work = operation === 'delete' ? pageGuardBeforeDelete({ req, collection: f.collection, id: doc.id } as never)
+        : pageGuardBeforeChange({ req, collection: f.collection, originalDoc: doc, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)
+      if (doc === f.published && !retained) await expect(work).rejects.toMatchObject({ code: 'locked-placement' })
+      else await work
+    }
+  }
+})
+
+test('a failed bulk clears its operation on rollback and an unrelated single write uses its own identity', async () => {
+  const f = blockSetup(), other = { ...f.published, id: 9 }
+  f.payload.documents.pages!.push(other)
+  const req = await beginBulk(f, [f.published, other], 'update')
+  await killTransaction(req) // Payload's operation-level catch, e.g. access denied
+  expect((f.req.context.xpPageGuardOperations as Map<string, unknown[]>).size).toBe(0)
+  f.req.transactionID = f.executor.withSession({ payload: f.payload }).transactionID
+  // No entry hook / execution scope available: must never adopt a stale stack.
+  pageGuardOperationScope.disable()
+  await expect(f.change({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+})
+
+test('an unrelated single write cannot adopt an unmatched stale bulk entry', async () => {
+  const f = blockSetup(), other = { ...f.published, id: 9 }
+  f.payload.documents.pages!.push(other)
+  await beginBulk(f, [f.published, other], 'update')
+  pageGuardOperationScope.disable()
+  await expect(f.change({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+})
+
+test('a preceding beforeOperation hook disables bulk prediction and uses per-page claims', async () => {
+  const f = blockSetup(), other = { ...f.published, id: 9 }
+  f.payload.documents.pages!.push(other)
+  Object.assign(f.collection, { hooks: { beforeOperation: [vi.fn(), pageGuardEnterOperation, pageGuardBeforeOperation] } })
+  const req = await beginBulk(f, [f.published, other], 'update')
+  await expect(pageGuardBeforeChange({ req, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)).resolves.toBeDefined()
+  f.read.mockResolvedValue(other)
+  await expect(pageGuardBeforeChange({ req, collection: f.collection, originalDoc: other, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)).rejects.toMatchObject({ code: 'locked-placement' })
+})
+
+test('a host rewrite contrary to the bulk prediction still cannot remove the last published placement', async () => {
+  const f = blockSetup(), other = { ...f.published, id: 9 }
+  f.payload.documents.pages!.push(other)
+  const req = await beginBulk(f, [f.published, other], 'update')
+  // Incoming data keeps the binding, but the host rewrites it away per document.
+  pageGuardOperationScope.getStore()!.bulk!.change!.data = { _status: 'published' }
+  await pageGuardBeforeChange({ req, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)
+  f.read.mockResolvedValue(other)
+  await expect(pageGuardBeforeChange({ req, collection: f.collection, originalDoc: other, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)).rejects.toMatchObject({ code: 'locked-placement' })
+})
+
+
+test.each(['outer draft', 'outer bulk'])('awaited hooks ahead of entry cannot pass %s policy to an unrelated nested write', async parent => {
+  const f = blockSetup()
+  let req = f.req as import('payload').PayloadRequest
+  if (parent === 'outer bulk') {
+    const other = { ...f.published, id: 9 }
+    f.payload.documents.pages!.push(other)
+    req = await beginBulk(f, [f.published, other], 'update')
+  } else await f.begin(true)
+  const hooks = [async () => { await Promise.resolve() }, pageGuardEnterOperation, pageGuardBeforeOperation]
+  Object.assign(f.collection, { hooks: { beforeOperation: hooks } })
+  let args = { req, collection: { config: f.collection }, draft: false }
+  // Payload buildBeforeOperation awaits every hook, including the one ahead of
+  // entry; the operation's continuation therefore retains its parent's ALS.
+  for (const hook of hooks) {
+    const changed = await hook({ args, operation: 'update' } as never)
+    if (changed) args = changed as typeof args
+  }
+  const work = pageGuardBeforeChange({ req: args.req, collection: f.collection, originalDoc: f.published, operation: 'update',
+    data: parent === 'outer draft' ? { _status: 'draft' } : { ...f.empty, _status: 'published' } } as never)
+  if (parent === 'outer draft') await expect(work).rejects.toMatchObject({ message: removePageMessage })
+  else await expect(work).resolves.toBeDefined()
+})
+
+
+test('an awaited hook ahead of entry cannot give a publishing restore its outer draft policy', async () => {
+  const f = blockSetup()
+  await f.begin(true)
+  const hooks = [async () => { await Promise.resolve() }, pageGuardEnterOperation, pageGuardBeforeOperation]
+  Object.assign(f.collection, { hooks: { beforeOperation: hooks } })
+  let args = { req: f.req, collection: { config: f.collection }, draft: false }
+  for (const hook of hooks) {
+    const changed = await hook({ args, operation: 'restoreVersion' } as never)
+    if (changed) args = changed as typeof args
+  }
+  // restoreVersion cached this original request before the beforeOperation loop.
+  await expect(pageGuardBeforeChange({ req: f.req, collection: f.collection, originalDoc: f.published, operation: 'update',
+    data: { ...f.empty, _status: 'draft' } } as never)).rejects.toMatchObject({ message: removePageMessage })
 })

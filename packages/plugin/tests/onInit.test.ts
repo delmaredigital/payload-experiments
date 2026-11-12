@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { pageGuardEnterOperation, pageGuardBeforeOperation } from '../src/hooks/pageGuard.js'
 import { createOnInit } from '../src/onInit.js'
 import { resolveOptions } from '../src/options.js'
 import { defineExperimentsServerRuntime } from '../src/server/serverRuntime.js'
@@ -96,4 +97,38 @@ test('onInit reserves metric source ids starting with click:', async () => {
   const options = sampleOptions()
   options.metricSources![0]!.id = 'click:join'
   await expect(createOnInit(options)(fakePayload())).rejects.toThrow('click:')
+})
+
+
+test.each(['puck', 'blocks', 'pages'] as const)('refuses localized publication status for %s registrations at init', async kind => {
+  const options = resolveOptions(sampleOptions())
+  if (kind === 'puck') options.puck = { enabled: true, collections: ['pages'] }
+  if (kind === 'blocks') options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
+  if (kind === 'pages') options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => null }] }
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', versions: { drafts: { localizeStatus: true } } }] } })
+  await expect(createOnInit(options)(payload)).rejects.toThrow('Experiments collection pages does not support versions.drafts.localizeStatus. Use a shared publication status.')
+  expect(payload.dbCalls).toEqual([])
+})
+
+test('init puts the entry hook before hooks prepended by a later plugin', async () => {
+  const options = resolveOptions(sampleOptions())
+  options.puck = { enabled: true, collections: ['pages'] }
+  const host = () => undefined
+  const collection = { slug: 'pages', hooks: { beforeOperation: [host, pageGuardEnterOperation, pageGuardBeforeOperation] } }
+  const payload = fakePayload({ config: { collections: [collection] } })
+  Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
+  await createOnInit(options)(payload)
+  expect(collection.hooks.beforeOperation).toEqual([pageGuardEnterOperation, host, pageGuardBeforeOperation])
+})
+
+
+test('disabled Puck registrations keep their host hooks and localized status', async () => {
+  const options = resolveOptions(sampleOptions())
+  options.puck = { enabled: false, collections: ['pages'] }
+  const host = () => undefined
+  const collection = { slug: 'pages', versions: { drafts: { localizeStatus: true } }, hooks: { beforeOperation: [host] } }
+  const payload = fakePayload({ config: { collections: [collection] } })
+  Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
+  await createOnInit(options)(payload)
+  expect(collection.hooks.beforeOperation).toEqual([host])
 })

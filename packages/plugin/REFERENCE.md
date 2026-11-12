@@ -517,8 +517,8 @@ remains, even on the same document; removing the last copy in every language is
 refused. Localized registered block/Puck fields are flattened from adapter locale
 maps for comparison; collections without localized registered content behave the
 same with localization on or off. The published search reads all locale data in
-one pass per collection and stops at the first retained copy. Start supports
-localized placements; only **Make it the content** is unsupported on localized
+one pass per collection and stops at the first retained copy. Collections registered for experiments with `versions.drafts.localizeStatus` are refused at init: placement checks require a shared publication status. Start supports
+localized content placements; only **Make it the content** is unsupported on localized
 collections (see the support table).
 
 Claims use canonical language/fallback views. They are made after existing
@@ -544,12 +544,14 @@ while another remains, and refuses the final removal. `afterOperation` releases
 failed documents' claims and ends the bulk selection scope; successful claims
 remain until transaction completion or an observed restoration. Payload's Local
 API bulk catches do not call `afterError`, which also lacks a document identity,
-so cleanup uses the bulk result. By-id failures roll back their transaction.
+so cleanup uses the bulk result. Operation-level failures clear their frame when Payload rolls back the operation request; later writes match their own operation identity. By-id failures roll back their transaction.
 Lock keys are not ordered across documents within a bulk operation; concurrent
 bulk operations can deadlock, which Postgres detects as `40P01` and the existing
 busy refusal handles safely.
 
-Do not swallow errors from nested updates of guarded page collections inside host hooks: a swallowed error leaves the guard's operation frame in place for the rest of the request because Payload's Local API does not call `afterError`.
+The plugin puts its operation entry hook first again at init; if another plugin later puts a hook ahead of it, writes are checked conservatively with per-page claims.
+
+Bulk predictions use incoming data, so host hooks that rewrite content before the removal guard can make refusals depend on page order; removal claims still protect the last published copy.
 
 For a collection with drafts enabled, use a published-only slug lookup with the
 manager's request and `overrideAccess: false`:

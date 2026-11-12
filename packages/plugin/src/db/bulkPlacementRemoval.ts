@@ -11,8 +11,12 @@ export interface BulkPlacementRemoval {
 /** A distinct operation identity without copying the transaction/context. Native
  * Request accessors and methods must use the original receiver.
  */
-function placementOperationRequest(req: PayloadRequest, fields: Map<PropertyKey, unknown>): PayloadRequest {
-  return new Proxy(req, { get(target, key) {
+export function placementOperationRequest(req: PayloadRequest, fields: Map<PropertyKey, unknown>, failed?: () => void): PayloadRequest {
+  return new Proxy(req, { deleteProperty(target, key) {
+    // Payload killTransaction.js:12 deletes this property on operation failure.
+    if (key === 'transactionID') failed?.()
+    return Reflect.deleteProperty(target, key)
+  }, get(target, key) {
     if (fields.has(key)) return fields.get(key)
     const value = Reflect.get(target, key, target)
     return typeof Object.getOwnPropertyDescriptor(Request.prototype, key)?.value === 'function' ? value.bind(target) : value
