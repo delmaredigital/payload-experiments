@@ -882,8 +882,11 @@ colour is refused with its ratio. Status chips retain Payload semantic colours.
 ## Click goals
 
 Click goals use a goal's short name as their key (`click:<short-name>`). Add
-`xpGoalField()` from the root entry to a host block or array row. Its manager
-picker includes inline creation with "+ New click goal"; run
+`xpGoalField()` from the root entry to a host block or array row. People who
+manage goals get one dropdown with "No click goal" and a "+ New click goal"
+button for inline creation. A goal that no longer exists appears with "(missing)".
+Everyone else sees the current goal as read-only text, or "No click goal" when
+none is selected. Run
 `payload generate:importmap` to register the picker. For Puck's `xpGoal` prop,
 use `xpGoalPuckEditorField()` from `/puck/editor` in your editor config and
 `xpGoalPuckField()` from `/puck` in your render config. Run the
@@ -891,11 +894,10 @@ host's `payload migrate:create`: each table using the Payload field (and its
 version table) gains a nullable text column. Render the value on the actual
 interactive element as `data-xp-goal={xpGoal}`; code can also set
 `data-xp-goal="join"` directly. Define a click goal with that short name first.
-For managers, an undefined key blocks the save through the Payload field's
-server validation, refreshing a cached miss immediately.
+For managers, a missing click goal blocks the save through the Payload field's
+server validation, which checks again immediately if the goal was missing from its cache.
 Draft saves are also refused when the collection validates drafts
-(`versions.drafts.validate`). Editors without goal-management access see a
-plain text input. Goals in
+(`versions.drafts.validate`). Goals in
 related documents and keys placed only in code are invisible to the content
 fairness check.
 

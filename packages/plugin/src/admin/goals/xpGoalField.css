@@ -23,9 +23,8 @@
   padding: var(--xp-space-4);
 }
 
-.xp-goal-field > p,
-.xp-goal-field__panel > h3,
-.xp-goal-field__panel > p {
+.xp-goal-field p,
+.xp-goal-field__panel > h3 {
   margin: 0;
 }
 

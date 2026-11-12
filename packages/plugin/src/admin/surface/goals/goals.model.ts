@@ -1,5 +1,4 @@
 import { TEST_PAGE } from '../../copy/testPage.js'
-import { GOALS_COPY } from '../../copy/goals.js'
 import { statusLabel } from '../../labels.js'
 import type { DocId, Status } from '../../../types/contracts.js'
 
@@ -17,7 +16,7 @@ export interface Goal {
 type Reference = DocId | { id: DocId } | null
 export interface GoalUsageTest {
   id: DocId
-  name?: string | null
+  name: string
   status?: Status | null
   metrics?: { primary?: Reference; secondary?: Reference[] | null; guardrails?: Reference[] | null } | null
 }
@@ -43,13 +42,13 @@ export { goalSlug } from '../../../goals/picker/clickGoalPicker.model.js'
 const referenceId = (reference: Reference | undefined) => reference && typeof reference === 'object' ? reference.id : reference
 const usageLabels = {
   primary: TEST_PAGE.goal,
-  guardrails: TEST_PAGE.guardrails.replace(' (optional)', ''),
-  secondary: TEST_PAGE.secondary.replace(' (optional)', ''),
+  guardrails: TEST_PAGE.guardrailsShort,
+  secondary: TEST_PAGE.secondaryShort,
 }
 
-/** One row per test, retaining every role without exposing unreadable names or links. */
+/** One row per readable test returned by the API, retaining every role. */
 export function goalUsageRows(tests: readonly GoalUsageTest[], goalId: DocId) {
-  const rows = new Map<DocId, { id: DocId; name: string; canOpen: boolean; roles: string[]; status?: string }>()
+  const rows = new Map<DocId, { id: DocId; name: string; roles: string[]; status?: string }>()
   for (const test of tests) {
     const roles = [
       ...(referenceId(test.metrics?.primary) === goalId ? [usageLabels.primary] : []),
@@ -58,8 +57,7 @@ export function goalUsageRows(tests: readonly GoalUsageTest[], goalId: DocId) {
     ]
     if (!roles.length) continue
     const previous = rows.get(test.id)
-    const canOpen = Boolean(test.name?.trim())
-    rows.set(test.id, { id: test.id, name: canOpen ? test.name! : GOALS_COPY.unreadableTest, canOpen,
+    rows.set(test.id, { id: test.id, name: test.name,
       roles: [...new Set([...(previous?.roles ?? []), ...roles])], status: test.status ? statusLabel(test.status) : undefined })
   }
   return [...rows.values()]

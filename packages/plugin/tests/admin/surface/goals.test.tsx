@@ -173,13 +173,13 @@ test('existing goal keeps a linked Goals crumb and a generic Goal title while lo
   expect(screen.queryByText('New goal')).toBeNull()
 })
 test('a used goal locks its short name and disables Delete with its usage count', async () => {
-  const fetch = await loadForm([{ id: 1, metrics: { secondary: [7], primary: 7 } }, { id: 2, metrics: { guardrails: [7] } }])
+  const fetch = await loadForm([{ id: 1, name: 'First', metrics: { secondary: [7], primary: 7 } }, { id: 2, name: 'Second', metrics: { guardrails: [7] } }])
   expect((screen.getByLabelText('Short name') as HTMLInputElement).readOnly).toBe(true)
   // The server refuses a source change on a used goal (CORE-29), so the form never offers one.
   expect((screen.getByLabelText('Measured by') as HTMLSelectElement).disabled).toBe(true)
   expect(screen.getByText('What this goal measures stays the same once a test uses it.')).toBeTruthy()
   expect((screen.getByRole('button', { name: 'Delete goal' }) as HTMLButtonElement).disabled).toBe(true)
-  expect(screen.getByText('Used by 2 tests. Remove it from those tests first.')).toBeTruthy()
+  expect(document.getElementById('xp-goal-used')!.textContent).toBe('Used by 2 tests. Remove it from those tests first.')
   expect(within(shellHeader()).getByText('In use by 2 tests')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Delete goal' }).getAttribute('aria-describedby')).toBe('xp-goal-used')
   fireEvent.click(screen.getByRole('button', { name: 'Delete goal' }))
@@ -188,10 +188,10 @@ test('a used goal locks its short name and disables Delete with its usage count'
 })
 test('usage on later pages also locks the short name', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response(!url.includes('/xp-experiments?') ? goal : url.endsWith('page=1')
-    ? { docs: [{ id: 2, metrics: {} }], hasNextPage: true } : { docs: [{ id: 1, metrics: { primary: 7 } }] })))
+    ? { docs: [{ id: 2, name: 'Unused', metrics: {} }], hasNextPage: true } : { docs: [{ id: 1, name: 'Later page', metrics: { primary: 7 } }] })))
   render(<GoalForm surface={surface} id="7" />)
   expect((await screen.findByLabelText('Short name') as HTMLInputElement).readOnly).toBe(true)
-  expect(screen.getByText('Used by 1 test. Remove it from those tests first.')).toBeTruthy()
+  expect(document.getElementById('xp-goal-used')!.textContent).toBe('Used by 1 test. Remove it from those tests first.')
 })
 test('an unused goal can be edited and deleted through REST', async () => {
   const fetch = await loadForm()
@@ -497,7 +497,7 @@ test('a goal lists the tests that use it with routes, role labels and status', a
   await loadForm([
     { id: 'test/one', name: 'A clearer button', status: 'running', metrics: { primary: 7, secondary: [7], guardrails: [7] } },
     { id: 'second', name: 'A shorter form', status: 'stopped', metrics: { secondary: [7] } },
-    { id: 'hidden', status: 'draft', metrics: { guardrails: [7] } },
+    { id: 'third', name: 'A shorter heading', status: 'draft', metrics: { guardrails: [7] } },
     { id: 'other', name: 'Not related', status: 'draft', metrics: { primary: 8 } },
   ])
   const list = document.getElementById('xp-goal-usage')!
@@ -505,11 +505,14 @@ test('a goal lists the tests that use it with routes, role labels and status', a
   expect(within(list).getByRole('link', { name: 'A clearer button' }).getAttribute('href')).toBe('/control/experiments/test%2Fone')
   expect(within(list).getByText('Goal · Must not get worse · Also keep an eye on · Running')).toBeTruthy()
   expect(within(list).getByText('Also keep an eye on · Stopped')).toBeTruthy()
-  expect(within(list).getByText("A test you can't open").tagName).toBe('SPAN')
-  expect(list.querySelector('a[href*=hidden]')).toBeNull()
+  expect(within(list).getByRole('link', { name: 'A shorter heading' }).getAttribute('href')).toBe('/control/experiments/third')
+  expect(within(list).getAllByRole('link')).toHaveLength(3)
   expect(screen.queryByText('Not related')).toBeNull()
   expect(screen.getByText('In use by 3 tests')).toBeTruthy()
-  expect(within(document.getElementById('xp-goal-used')!).getByRole('link', { name: 'Used by' }).getAttribute('href')).toBe('#xp-goal-usage')
+  const help = document.getElementById('xp-goal-used')!
+  expect(help.textContent).toBe('Used by 3 tests. Remove it from those tests first.')
+  expect(within(help).getByRole('link', { name: 'those tests' }).getAttribute('href')).toBe('#xp-goal-usage')
+  expect(within(help).getAllByRole('link')).toHaveLength(1)
 })
 test('more than five using tests can be expanded and collapsed', async () => {
   await loadForm(Array.from({ length: 7 }, (_, id) => ({ id, name: `Test ${id}`, status: 'draft', metrics: { primary: 7 } })))

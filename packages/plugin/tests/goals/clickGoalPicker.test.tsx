@@ -43,6 +43,7 @@ test('Payload picker passes a unique path, matched value, options and single-opt
   const props = () => pickerSelect.mock.lastCall![0]
   expect(props()).toMatchObject({ path: 'buttons.0.xpGoal', value: 'missing',
     label: C.label, isClearable: false, options: [{ label: C.none, value: '' }, { label: 'Join us', value: 'join' }, { label: 'missing (missing)', value: 'missing' }] })
+  expect(props()).not.toHaveProperty('name')
   act(() => { props().onChange(null); props().onChange([{ value: 'join' }]) })
   expect(select).not.toHaveBeenCalled()
   act(() => props().onChange({ value: 'join', label: 'Join us' }))
@@ -50,6 +51,20 @@ test('Payload picker passes a unique path, matched value, options and single-opt
   act(() => setField({ value: 'join', setValue: select }, 'buttons.1.xpGoal'))
   rerender(<Payload path="buttons.1.xpGoal" />)
   expect(props()).toMatchObject({ path: 'buttons.1.xpGoal', value: 'join' })
+})
+
+test.each(['locked', 'not-manager', 'refused'] as const)('Payload read-only value is named by non-label text (%s)', async mode => {
+  if (mode === 'not-manager') setAuth({ permissions: { collections: {} } })
+  if (mode === 'refused') fetcher.mockResolvedValueOnce(json({}, 403))
+  render(<Payload readOnly={mode === 'locked'} />)
+  const value = await screen.findByText('missing', { selector: 'p' })
+  const label = screen.getByText(C.label)
+  expect(label.tagName).toBe('SPAN')
+  expect(label.classList.contains('field-label')).toBe(true)
+  expect(label.hasAttribute('for')).toBe(false)
+  expect(label.id).not.toBe('')
+  expect(value.getAttribute('aria-labelledby')).toBe(label.id)
+  expect(document.querySelector('label')).toBeNull()
 })
 
 test.each([{ host: 'Payload', Host: Payload, row: 'xp-goal-field__row', panel: 'xp-goal-field__panel', actions: 'xp-goal-field__actions' },

@@ -1,3 +1,6 @@
+const guardrailsShort = 'Must not get worse'
+const secondaryShort = 'Also keep an eye on'
+
 export const TEST_PAGE = {
   clickPageGroup: "On this test's page",
   clickGoalsNote: "Goals inside linked documents aren't shown. Goals added in code (data-xp-goal) work but aren't listed here.",
@@ -21,8 +24,8 @@ export const TEST_PAGE = {
   holdoutPrefix: 'Holdout: ',
   allocation: 'How many people take part', traffic: 'How people are split',
   goal: 'Goal', goalHelp: 'The goal decides whether a version wins. Pick the one thing you want more of.',
-  guardrails: 'Must not get worse (optional)', guardrailHelp: "If a version makes one of these worse, you'll be warned.",
-  secondary: 'Also keep an eye on (optional)', manageGoals: 'Manage goals', searchGoals: 'Search goals', chooseGoal: 'Choose a goal',
+  guardrailsShort, guardrails: `${guardrailsShort} (optional)`, guardrailHelp: "If a version makes one of these worse, you'll be warned.",
+  secondaryShort, secondary: `${secondaryShort} (optional)`, manageGoals: 'Manage goals', searchGoals: 'Search goals', chooseGoal: 'Choose a goal',
   goalsError: "Couldn't load goals. Try again.", noGoal: 'None selected', missingGoal: 'A goal that no longer exists', goalUnavailable: 'Goal details unavailable',
   everyone: 'Everyone on the pages where this appears.', rulesSummary: 'Only people matching these rules.', addRule: 'Add a rule', removeRule: 'Remove rule',
   blockPathRule: 'This rule no longer applies to page block tests; remove it.',

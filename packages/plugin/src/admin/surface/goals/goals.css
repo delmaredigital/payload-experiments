@@ -15,5 +15,5 @@
 .xp-goal-usage > h2, .xp-goal-usage > ul { margin: 0; }
 .xp-goal-usage > h2 { font: var(--xp-text-title); }
 .xp-goal-usage > ul { display: grid; gap: var(--xp-space-3); padding-inline-start: var(--xp-space-5); }
-.xp-goal-usage li > span:last-child { display: block; color: var(--xp-text-2); font: var(--xp-text-small); }
+.xp-goal-usage li > span { display: block; color: var(--xp-text-2); font: var(--xp-text-small); }
 .xp-goal-usage > .xp-ui-button { justify-self: start; }

@@ -1,12 +1,15 @@
 'use client'
 import { Button, FieldDescription, FieldError, FieldLabel, SelectInput, useAuth, useConfig, useField } from '@payloadcms/ui'
 import type { TextFieldClientProps } from 'payload'
-import { useId, type ComponentProps, type KeyboardEvent } from 'react'
+import { useId, type ComponentProps, type ComponentType, type KeyboardEvent } from 'react'
 import { useClickGoalPicker } from '../../goals/picker/useClickGoalPicker.js'
 import { clickGoalOptions } from '../../goals/picker/clickGoalPicker.model.js'
 import { CLICK_GOAL_COPY as C } from '../../goals/picker/copy.js'
 import '../theme.css'
 import './xpGoalField.css'
+
+// Payload 3's declaration requires `name`, though SelectInput only consumes `path`.
+const GoalSelectInput = SelectInput as ComponentType<Omit<ComponentProps<typeof SelectInput>, 'name'>>
 
 export function XpGoalField({ path, field, readOnly }: TextFieldClientProps) {
   const { value, setValue, showError } = useField<string>({ path })
@@ -20,9 +23,9 @@ export function XpGoalField({ path, field, readOnly }: TextFieldClientProps) {
   const id = useId(), namePath = `${id}-name`, slugPath = `${id}-slug`
   const stopEnter = (event: KeyboardEvent<HTMLInputElement>) => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation() } }
   return <div className="field-type xp-goal-field">
-    {readonly ? <div><FieldLabel path={path} label={C.label} required={field.required} />
-      <p>{value || C.none}</p></div> : <div className="xp-goal-field__row">
-      <SelectInput name={path} path={path} className="xp-goal-field__select"
+    {readonly ? <div><span className="field-label" id={`${id}-label`}>{C.label}{field.required ? <span className="required">*</span> : null}</span>
+      <p aria-labelledby={`${id}-label`}>{value || C.none}</p></div> : <div className="xp-goal-field__row">
+      <GoalSelectInput path={path} className="xp-goal-field__select"
         value={value ?? ''} options={options} label={C.label} required={field.required}
         readOnly={picker.status !== 'ready'} isClearable={false} placeholder={C.none} showError={showError}
         onChange={option => { if (picker.status === 'ready' && option && !Array.isArray(option)) setValue(String(option.value)) }} />
@@ -32,7 +35,7 @@ export function XpGoalField({ path, field, readOnly }: TextFieldClientProps) {
     <FieldDescription path={path} description={field.admin?.description as ComponentProps<typeof FieldDescription>['description']} />
     {!readonly && picker.status === 'error' ? <div><p>{C.loadError}</p>
       <Button type="button" margin={false} buttonStyle="secondary" onClick={picker.retry}>{C.retry}</Button></div> : null}
-    {missing && !readonly ? <p role="status">{C.undefinedKey}</p> : null}
+    {missing && !readonly && !showError ? <p role="status">{C.undefinedKey}</p> : null}
     {picker.canManage && !locked ? <>
       {picker.panel.open ? <section className="xp-goal-field__panel" aria-labelledby={`${id}-title`}>
         <h3 id={`${id}-title`}>{C.title}</h3>

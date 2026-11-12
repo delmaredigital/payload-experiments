@@ -37,6 +37,27 @@ test('real SelectInput selects the second goal into Payload Form data', async ()
   expect(screen.getByText(C.none)).toBeTruthy()
 })
 
+test('Payload shows the missing-goal sentence once when server validation is visible', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ docs: [], hasNextPage: false }))))
+  const path = 'buttons.0.xpGoal'
+  render(<ConfigProvider config={config}><ServerFunctionsProvider serverFunction={async () => ({}) as any}><UploadHandlersProvider>
+    <Form initialState={{ [path]: { value: 'missing', initialValue: 'missing', valid: true } }}><Probe />
+      <XpGoalField {...{ path, field: { name: 'xpGoal', type: 'text', label: C.label } } as any} />
+    </Form>
+  </UploadHandlersProvider></ServerFunctionsProvider></ConfigProvider>)
+  expect((await screen.findByText(C.undefinedKey)).getAttribute('role')).toBe('status')
+  await act(async () => {
+    form.dispatchFields({ type: 'UPDATE', path, valid: false, errorMessage: C.undefinedKey })
+    form.setSubmitted(true)
+  })
+  expect(screen.getAllByText(C.undefinedKey)).toHaveLength(1)
+  expect(screen.getByText(C.undefinedKey).getAttribute('role')).not.toBe('status')
+  expect(document.querySelector('.xp-goal-field > [role="status"]')).toBeNull()
+  await act(async () => { form.setSubmitted(false) })
+  expect(screen.getAllByText(C.undefinedKey)).toHaveLength(1)
+  expect(screen.getByText(C.undefinedKey).getAttribute('role')).toBe('status')
+})
+
 test('inline panel never joins real Payload Form state or serialized outer form data', async () => {
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ docs: [{ id: 'join', name: 'Join', slug: 'join', source: 'click:join' }], hasNextPage: false })))
   vi.stubGlobal('fetch', fetcher)

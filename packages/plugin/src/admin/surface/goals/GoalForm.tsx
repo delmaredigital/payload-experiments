@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation.js'
 import { formatAdminURL } from 'payload/shared'
 import type { SurfaceProps } from '../contracts.js'
-import { GOALS_COPY as C, goalDeleteLocked, goalInUse, goalShowAll } from '../../copy/goals.js'
+import { GOALS_COPY as C, goalDeleteLockedStart, goalInUse, goalShowAll } from '../../copy/goals.js'
 import { metricSourceHint, metricSourceOptions, sourceFor } from '../../metricSource.model.js'
 import { validateCappingType, validateCappingValue } from '../../../collections/metricValidation.js'
 import { CLICK_KEY } from '../../../goals/key.js'
@@ -136,7 +136,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
           {usage.length ? <Card className="xp-goal-usage" id="xp-goal-usage">
             <h2>{C.usedBy}</h2>
             <ul>{visibleGoalUsage(usage, showAllUsage).map(test => <li key={test.id}>
-              {test.canOpen ? <a href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(test.id))}` })}>{test.name}</a> : <span>{test.name}</span>}
+              <a href={formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(test.id))}` })}>{test.name}</a>
               <span>{test.roles.join(' · ')}{test.status ? ` · ${test.status}` : ''}</span>
             </li>)}</ul>
             {usage.length > 5 ? <Button type="button" variant="link" aria-expanded={showAllUsage} aria-controls="xp-goal-usage" onClick={() => setShowAllUsage(value => !value)}>
@@ -195,7 +195,7 @@ export function GoalForm({ surface, id, returnToTest }: { surface: SurfaceProps;
               {id === undefined ? null : <Button variant="danger" disabled={pending !== null || usedBy > 0 || !surface.canManage} aria-describedby={usedBy ? 'xp-goal-used' : undefined}
                 onClick={() => setConfirmDelete(true)}>{pending === 'delete' ? C.deleting : C.remove}</Button>}
             </div>
-            {id !== undefined && usedBy ? <p className="xp-ui-help" id="xp-goal-used">{goalDeleteLocked(usedBy)}{usage.length ? <> <a href="#xp-goal-usage">{C.usedBy}</a></> : null}</p> : null}
+            {id !== undefined && usedBy ? <p className="xp-ui-help" id="xp-goal-used">{goalDeleteLockedStart(usedBy)}<a href="#xp-goal-usage">{C.thoseTests}</a>{C.deleteLockedEnd}</p> : null}
           </Card>
         </form>}
       <Dialog open={confirmDelete} initialFocus="cancel" title={C.deleteTitle} onClose={() => setConfirmDelete(false)}>
