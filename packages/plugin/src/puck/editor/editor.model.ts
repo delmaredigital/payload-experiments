@@ -1,6 +1,7 @@
 import type { Arm, DocId, Status, UnitType } from '../../types/contracts.js'
 import type { ArmSlot } from '../../types/puck.js'
 import type { PreflightResult } from '../../types/endpoints.js'
+import { placementPages } from '../../lib/placementPages.js'
 import { splitEvenly } from '../../arms/model.js'
 import { editorCopy } from './copy.js'
 
@@ -40,18 +41,22 @@ export function armsFromBlock(experiment: Pick<EditorExperiment, 'arms'>, conten
   }))
 }
 
-/** Like the test page's placement count, draft and published copies count only once. */
-export function isSharedTest(placements: PreflightResult['placements']): boolean {
-  const pages = new Map<string, Map<string | undefined, number>>()
-  for (const placement of placements) {
-    const key = JSON.stringify([placement.collection, String(placement.id)])
-    const versions = pages.get(key) ?? new Map<string | undefined, number>()
-    const count = (versions.get(placement.detail) ?? 0) + 1
-    versions.set(placement.detail, count)
-    pages.set(key, versions)
-    if (pages.size > 1 || count > 1) return true
-  }
-  return false
+/** The host's Payload Puck editor route identifies the saved document, including in an iframe. */
+export function currentPuckDocument(pathname: string, admin: string, placements: PreflightResult['placements'] = []): { collection: string; id: string } | undefined {
+  const linked = placements.find(page => {
+    try { return page.editorUrl && new URL(page.editorUrl, 'https://puck.local').pathname === pathname } catch { return false }
+  })
+  if (linked) return { collection: linked.collection, id: String(linked.id) }
+  if (!pathname.startsWith(`${admin}/`)) return
+  let parts: string[]
+  try { parts = pathname.slice(admin.length + 1).split('/').map(decodeURIComponent) } catch { return }
+  if (!['puck', 'puck-editor', 'collections'].includes(parts[0] ?? '') || !parts[1] || !parts[2] || parts[2] === 'create') return
+  return { collection: parts[1], id: parts[2] }
+}
+
+/** Saved placements elsewhere are shared; current-page multiplicity comes from live Puck data. */
+export function isSharedTest(placements: PreflightResult['placements'], current?: { collection: string; id: DocId }): boolean {
+  return placementPages(placements).some(page => page.collection !== current?.collection || String(page.id) !== String(current.id))
 }
 
 export function slugify(name: string): string {

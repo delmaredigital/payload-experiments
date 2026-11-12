@@ -119,3 +119,13 @@ test('reference generation is pinned independently to Payload UI 3.90.2 and know
   expect(hex(light['--xp-bg']!)).toBe('#f5f5f5')
   expect(hex(dark['--xp-bg']!)).toBe('#141414')
 })
+
+test('only the labelled header offers selection focus and pointer affordance', () => {
+  const rules = generatedRules()
+  expect(properties(rules.get('.xp-slot-header')!).cursor).toBe('pointer')
+  expect(properties(rules.get('.xp-slot-chrome')!).cursor).toBeUndefined()
+  expect(properties(rules.get('.xp-slot-header:focus-visible')!).outline).toBe('2px solid var(--xp-focus)')
+  const selected = [...rules.entries()].find(([selector]) => selector.includes('.xp-slot-chrome[data-selected='))![1]
+  expect(properties(selected)['border-color']).toBe('var(--xp-focus)')
+  expect(properties(selected)['box-shadow']).toBe('inset 0 0 0 2px var(--xp-focus)')
+})

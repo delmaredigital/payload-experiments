@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { armsFromBlock, isSharedTest, bannerFor, isSlugCollision, newTestBody, slugify, tabsFor, uniqueSlug } from '../../../src/puck/editor/editor.model.js'
+import { armsFromBlock, currentPuckDocument, isSharedTest, bannerFor, isSlugCollision, newTestBody, slugify, tabsFor, uniqueSlug } from '../../../src/puck/editor/editor.model.js'
 import { defaultArms } from '../../../src/collections/experiments/armInvariants.js'
 import type { Arm } from '../../../src/types/contracts.js'
 
@@ -122,9 +122,23 @@ test.each([1, 2, 3, 4])('mirroring %s versions always includes Original and spli
 test('shared placements count separate blocks or pages, excluding duplicate draft/published versions', () => {
   const page = { collection: 'pages', id: 1, title: 'Page', ok: true, detail: 'Published' }
   expect(isSharedTest([])).toBe(false)
-  expect(isSharedTest([page])).toBe(false)
-  expect(isSharedTest([page, { ...page, id: '1', detail: 'Draft' }])).toBe(false)
-  expect(isSharedTest([page, page])).toBe(true)
+  expect(isSharedTest([page])).toBe(true)
+  const current = { collection: 'pages', id: '1' }
+  expect(isSharedTest([page], current)).toBe(false)
+  expect(isSharedTest([page, { ...page, id: '1', detail: 'Draft' }], current)).toBe(false)
+  expect(isSharedTest([page, page], current)).toBe(false)
   expect(isSharedTest([page, { ...page, id: 2 }])).toBe(true)
   expect(isSharedTest([page, { ...page, collection: 'articles' }])).toBe(true)
+})
+
+
+test('current document can match either saved version’s custom editor pathname', () => {
+  const page = { collection: 'pages', id: 1, title: 'Page', ok: true, detail: 'Published', editorUrl: '/content/published/one' }
+  const placements = [page, { ...page, detail: 'Draft', editorUrl: '/content/drafts/one?mode=edit' }]
+  const current = currentPuckDocument('/content/drafts/one', '/admin', placements)
+  expect(current).toEqual({ collection: 'pages', id: '1' })
+  expect(isSharedTest(placements, current)).toBe(false)
+  expect(currentPuckDocument('/manage/puck/pages/id%2Fone/edit', '/manage')).toEqual({ collection: 'pages', id: 'id/one' })
+  expect(currentPuckDocument('/admin/puck-editor/pages/create', '/admin')).toBeUndefined()
+  expect(currentPuckDocument('/admin/puck-editor/pages/%', '/admin')).toBeUndefined()
 })

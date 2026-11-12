@@ -22,7 +22,7 @@ vi.mock('@puckeditor/core', async importOriginal => {
   return {
   ...await importOriginal<typeof import('@puckeditor/core')>(),
   createUsePuck: () => (selector: (state: unknown) => unknown) => {
-    const result = selector({ selectedItem: selectedItem(), getItemById: (id: string) => id === puck.item.props.id ? puck.item : undefined, appState: { data: { root: { props: { title: puck.title } } } } })
+    const result = selector({ selectedItem: selectedItem(), getItemById: (id: string) => id === puck.item.props.id ? puck.item : undefined, config: { components: {} }, appState: { data: { root: { props: { title: puck.title } }, content: [] } } })
     puck.selectors.push(result)
     return result
   },
@@ -40,6 +40,7 @@ const doc: EditorExperiment = {
 }
 
 function props(overrides: Partial<RenderProps> = {}): RenderProps {
+  if ('experiment' in overrides) puck.item.props.experiment = overrides.experiment as never
   return { id: 'slot-1', experiment: { id: 1, slug: 'example' },
     control: vi.fn(() => <p>Original content</p>), variantA: vi.fn(() => <p>Variant content</p>),
     variantB: vi.fn(() => <p>B content</p>), variantC: vi.fn(() => <p>C content</p>),
@@ -51,6 +52,7 @@ function props(overrides: Partial<RenderProps> = {}): RenderProps {
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  puck.item.props.experiment = { id: 1, slug: 'example' }
   puck.dispatch.mockReset()
   puck.getSelectorForId.mockReset().mockReturnValue({ index: 2, zone: 'parent:content' })
   puck.selectors.length = 0
@@ -66,7 +68,7 @@ test.each([false, 'other'] as const)('clicking non-interactive chrome selects th
   const title = await screen.findByRole('heading', { name: 'Example' })
   const chrome = title.closest<HTMLElement>('.xp-slot-chrome')!
   expect(chrome.dataset.selected).toBe('false')
-  for (const target of [title.closest('header')!, title, screen.getByText('Running'), screen.getByRole('status'), screen.getByText(/This test is running, so its versions/), chrome]) {
+  for (const target of [title.closest('header')!, title, screen.getByText('Running')]) {
     puck.dispatch.mockClear()
     fireEvent.click(target)
     expect(puck.getSelectorForId).toHaveBeenLastCalledWith('slot-1')
@@ -84,7 +86,7 @@ test.each(['Enter', ' '])('focused chrome selects this block with %j and ignores
   puck.selected = false
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props({ experiment: null })} />)
-  const chrome = screen.getByRole('group', { name: 'Experiment block' })
+  const chrome = screen.getByRole('button', { name: 'Select this test block' })
   chrome.focus()
   expect(document.activeElement).toBe(chrome)
   expect(fireEvent.keyDown(chrome, { key })).toBe(false)
@@ -200,7 +202,7 @@ test.each([false, 'other'] as const)('unbound create binds this block with selec
   fireEvent.click(screen.getByRole('button', { name: 'Test this block' }))
   expect(screen.getAllByRole('dialog')).toHaveLength(1)
   expect(puck.dispatch).not.toHaveBeenCalled()
-  expect(screen.getByLabelText('Name').closest('[data-puck-overlay-portal]')).toBeTruthy()
+  expect(screen.getByLabelText('Name').closest('[data-puck-preview]')).toBeNull()
   expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Welcome page')
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New test' } })
   fireEvent.keyDown(screen.getByLabelText('Name'), { key: ' ' })
@@ -396,7 +398,7 @@ test('custom API route reaches both drawer requests', async () => {
   ])
 })
 
-test('the drawer opens in the chrome iframe document and focuses its name field', () => {
+test('the drawer opens in the chrome iframe document and focuses its name field', async () => {
   puck.selected = false
   const iframe = document.createElement('iframe')
   document.body.append(iframe)
@@ -423,7 +425,7 @@ test('the drawer opens in the chrome iframe document and focuses its name field'
     expect(document.querySelector('dialog')).toBeNull()
     expect(doc.activeElement).toBe(frame.getByLabelText('Name'))
     fireEvent.click(frame.getByRole('button', { name: 'Cancel' }))
-    expect(frame.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(frame.queryByRole('dialog')).toBeNull())
     expect(doc.activeElement).toBe(trigger)
   } finally { view.unmount(); iframe.remove() }
 })
@@ -443,7 +445,10 @@ test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('%s o
   puck.selected = false
   view.rerender(<Editor {...props()} />)
   expect((screen.getByRole('button', { name: create.textContent! }) as HTMLButtonElement).disabled).toBe(false)
-  expect((screen.getByRole('button', { name: 'Remove the test from this block' }) as HTMLButtonElement).disabled).toBe(false)
+  if (status === 'running') {
+    expect(screen.queryByRole('button', { name: 'Remove the test from this block' })).toBeNull()
+    expect(screen.getByText('Stop the test to remove it from this block.')).toBeTruthy()
+  } else expect((screen.getByRole('button', { name: 'Remove the test from this block' }) as HTMLButtonElement).disabled).toBe(false)
 })
 
 test.each([false, 'other'] as const)('creating from a bound block mirrors versions and rebinds only this block with selection %s', async selection => {
@@ -513,15 +518,16 @@ test.each([0, 1, 2])('shared notice uses existing placement read: %s placements'
   render(<Editor {...props()} />)
   await screen.findByRole('tab', { name: 'New headline' })
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/content-api/xp/experiments/1/preflight', expect.objectContaining({ credentials: 'include', cache: 'no-store' })))
-  if (count > 1) {
-    const notice = await screen.findByText('This test also runs on another page. Changes here affect that test.')
+  if (count > 0) {
+    const notice = await screen.findByText('This test is also used in another place. Changes here affect that test.')
     expect(notice.closest('.xp-ui-banner')?.classList.contains('xp-ui-banner--info')).toBe(true)
     expect(within(notice.closest('.xp-ui-banner') as HTMLElement).getByRole('button', { name: 'Start a new test from this block' })).toBeTruthy()
-  } else expect(screen.queryByText('This test also runs on another page. Changes here affect that test.')).toBeNull()
+  } else expect(screen.queryByText('This test is also used in another place. Changes here affect that test.')).toBeNull()
   expect(screen.getAllByRole('button', { name: 'Start a new test from this block' })).toHaveLength(1)
 })
 
 test.each([false, 'other'] as const)('removal asks first and clears only this binding with selection %s', async selection => {
+  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status: 'draft' }) } as Response)
   puck.selected = selection
   const Editor = ExperimentSlotEditor.render
   const view = render(<Editor {...props()} />)

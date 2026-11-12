@@ -19,7 +19,7 @@ vi.mock('@puckeditor/core', async importOriginal => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   return { ...await importOriginal<typeof import('@puckeditor/core')>(),
     createUsePuck: () => (selector: (state: unknown) => unknown) => selector({ selectedItem: selectedItem(), getItemById: () => puck.item,
-      appState: { data: { root: { props: {} } } } }),
+      config: { components: {} }, appState: { data: { root: { props: {} }, content: [] } } }),
     useGetPuck: () => () => ({ selectedItem: selectedItem(), getItemById: () => puck.missingItem ? undefined : puck.item, dispatch: puck.dispatch,
       getSelectorForId: () => puck.missingSelector ? undefined : ({ index: 1, zone: 'root:default-zone' }) }),
   }
@@ -466,4 +466,24 @@ test('holdout people follow compared versions with the not compared note', async
   expect([...document.querySelectorAll('.xp-slot-people span')].map(node => node.textContent)).toEqual([
     'Original: 1,234 people', 'Variant A: 1,456 people', 'Holdout: 100 people (not compared)',
   ])
+})
+
+test('a successful in-flight arm write clears a document-refetch error', async () => {
+  await mount()
+  let complete!: (response: Response) => void
+  let refetch = false
+  vi.mocked(fetch).mockImplementation(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'PATCH') return new Promise(resolve => { complete = resolve })
+    if (refetch) throw new Error('offline')
+    return response(doc)
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Add variant' }))
+  await waitFor(() => expect(complete).toBeTypeOf('function'))
+  refetch = true
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  fireEvent(document, new Event('visibilitychange'))
+  await screen.findByText(C.loadError)
+  await act(async () => { complete(response({ doc: { ...doc, arms: [...doc.arms, { key: 'variantB', kind: 'variant', label: 'Variant B', slot: 'variantB', weight: 0 }] } })) })
+  await screen.findByRole('tab', { name: 'Variant B' })
+  expect(screen.queryByText(C.loadError)).toBeNull()
 })

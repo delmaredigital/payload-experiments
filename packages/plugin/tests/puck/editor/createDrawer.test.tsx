@@ -13,7 +13,7 @@ const collision = { errors: [{ message: 'That slug is already in use.', data: { 
 function setup(body: unknown = { doc: { id: 42, slug: 'new-test' } }, status = 200) {
   const fetch = vi.fn().mockResolvedValueOnce(response({ docs: [] })).mockResolvedValueOnce(response(body, status))
   vi.stubGlobal('fetch', fetch)
-  const onCreate = vi.fn(), onClose = vi.fn()
+  const onCreate = vi.fn().mockReturnValue(true), onClose = vi.fn()
   render(<CreateExperimentDrawer initialName="Page title" onCreate={onCreate} onClose={onClose} />)
   expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Page title')
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New test' } })
