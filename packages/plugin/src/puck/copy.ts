@@ -14,6 +14,9 @@ export const pickerCopy = {
   loading: 'Loading tests…',
   error: "Couldn't load tests.",
   forbidden: "You don't have access to this test. You can still edit its content.",
+  forbiddenUnbound: "You don't have access to tests.",
+  unavailable: "This test isn't available to you. You can still edit its content.",
+  resultsOnly: "You can view this test's results.",
   statuses: {
     draft: 'Draft',
     running: 'Running',

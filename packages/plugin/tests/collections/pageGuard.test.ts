@@ -399,3 +399,37 @@ test('republishing a removed binding clears its claim before another placement i
   f.read.mockResolvedValue(other)
   await expect(f.change({ ...f.empty, _status: 'published' }, other)).resolves.toBeDefined()
 })
+
+
+test.each(['delete', 'publish'])('%s locks a test found only by the indexed removal lookup', async operation => {
+  const f = blockSetup('draft')
+  f.options.pages = undefined
+  const query = f.executor.query.bind(f.executor)
+  let discoveries = 0
+  f.executor.query = async <R>(text: string, params: unknown[] = []) => {
+    if (text.includes('LEFT JOIN LATERAL') && ++discoveries === 1) {
+      f.executor.calls.push({ text, params })
+      return { rows: [], rowCount: 0 } // broad discovery predates the test's commit
+    }
+    if (text.includes("hashtext('xp:experiment')")) f.payload.documents['xp-experiments']![0]!.status = 'running'
+    return query<R>(text, params)
+  }
+  const write = operation === 'delete' ? f.remove() : f.save({ ...f.empty, _status: 'published' })
+  await expect(write).rejects.toMatchObject({ message: operation === 'delete' ? removePageMessage : lastPlacementMessage })
+  expect(experimentLocks(f).map(c => c.params)).toEqual([['2']])
+})
+
+
+test('delete outside page registration locks only removal candidates and never performs broad discovery', async () => {
+  const f = blockSetup()
+  f.options.pages = undefined
+  f.payload.documents['xp-experiments']!.push({ id: 99, slug: 'irrelevant', kind: 'block', status: 'decided' })
+  Object.assign(f.published, { unrelatedTag: { experiment: '99', arm: 'control' } })
+  f.payload.documents.pages!.push({ ...f.published, id: 9 })
+  await expect(f.remove()).resolves.toBeUndefined()
+  expect(f.read).toHaveBeenCalledTimes(1)
+  expect(discoveries(f)).toHaveLength(2) // discovery and authoritative under-E status recheck
+  expect(f.executor.calls.some(c => c.text.includes('LEFT JOIN LATERAL'))).toBe(false)
+  expect(experimentLocks(f).map(c => c.params)).toEqual([['2']])
+  expect(f.payload.calls).toHaveLength(1)
+})

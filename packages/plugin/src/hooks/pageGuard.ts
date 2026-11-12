@@ -65,11 +65,14 @@ function taggedIds(value: unknown, ids = new Set<string>()): Set<string> {
   }
   return ids
 }
-export function guardExperimentIds(tests: readonly PlacementTest[], slugs: readonly string[], collection: string, paths: readonly string[], held: unknown, tags = new Set<string>()): string[] {
+export function guardExperimentIds(tests: readonly PlacementTest[], slugs: readonly string[], collection: string, paths: readonly string[], held: unknown, tags = new Set<string>(), discovered: readonly DocId[] = []): string[] {
   const excluded = new Set(Array.isArray(held) ? held.map(String) : [])
-  return sortLockKeys(tests.filter(test => slugs.includes(test.slug) || tags.has(String(test.id)) || test.kind === 'page'
+  const ids = tests.filter(test => slugs.includes(test.slug) || tags.has(String(test.id)) || test.kind === 'page'
     && (!test.pageCollection || test.pageCollection === collection) && test.arms.some(a => typeof a.pageTarget === 'string' && paths.includes(normalisePath(a.pageTarget))))
-    .map(test => String(test.id)).filter(id => !excluded.has(id)))
+    .map(test => String(test.id))
+  // A candidate may have committed after the broad audit discovery. Its indexed
+  // removal lookup must still contribute E, including when it is not running yet.
+  return sortLockKeys([...ids, ...discovered.map(String)].filter(id => !excluded.has(id)))
 }
 function protect(tests: readonly PlacementTest[], path: string): void {
   for (const test of tests) {
@@ -123,7 +126,7 @@ async function claimRemovedBlocks(req: PayloadRequest, affected: Awaited<ReturnT
   }
   return claims
 }
-async function refuseRemovedBlocks(req: PayloadRequest, tests: readonly PlacementTest[], affected: Awaited<ReturnType<typeof removedBlockTests>>, claims: RemovalClaims | undefined, removingPage: boolean): Promise<void> {
+async function refuseRemovedBlocks(req: PayloadRequest, tests: readonly Pick<PlacementTest, 'id' | 'kind' | 'status'>[], affected: Awaited<ReturnType<typeof removedBlockTests>>, claims: RemovalClaims | undefined, removingPage: boolean): Promise<void> {
   if (!claims) return
   for (const test of affected) {
     // A draft/stopped test may have started while waiting for E. The existing
@@ -148,10 +151,18 @@ export const pageGuardBeforeDelete: CollectionBeforeDeleteHook = async ({ req, i
     const exec = await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
     const affected = await removedBlockTests(req, placementSlugs(optionsOf(req), collection.slug, published), [])
     const claims = await claimRemovedBlocks(req, affected, collection.slug, id)
-    if (!registration(req, collection.slug) && !affected.length) return
+    if (!registration(req, collection.slug)) {
+      if (!affected.length) return
+      // There is no pre-existing path/audit guard for delete on this collection.
+      // Lock only removal candidates and recheck only their indexed slugs.
+      await lockPlacementScope(exec, guardExperimentIds([], [], collection.slug, [], req.context.xpHeldExperiments, new Set(), affected.map(test => test.id)), [])
+      const current = await removableBlockTests(exec, affected.map(test => test.slug))
+      await refuseRemovedBlocks(req, current.map(test => ({ ...test, kind: 'block' })), affected, claims, true)
+      return
+    }
     let tests = await placementTests(exec)
     if (await req.transactionID != null) {
-      await lockPlacementScope(exec, guardExperimentIds(tests, [...placementSlugs(optionsOf(req), collection.slug, published), ...affected.map(test => test.slug)], collection.slug, paths, req.context.xpHeldExperiments, taggedIds(published)), paths)
+      await lockPlacementScope(exec, guardExperimentIds(tests, [...placementSlugs(optionsOf(req), collection.slug, published), ...affected.map(test => test.slug)], collection.slug, paths, req.context.xpHeldExperiments, taggedIds(published), affected.map(test => test.id)), paths)
       tests = await placementTests(exec)
     }
     await refuseRemovedBlocks(req, tests, affected, claims, true)
@@ -180,7 +191,7 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
     const publishes = !drafts || after._status === 'published'
     if (await req.transactionID != null) {
       try {
-        await lockPlacementScope(exec, guardExperimentIds(tests, [...beforeSlugs, ...afterSlugs, ...affected.map(test => test.slug)], collection.slug, paths, req.context.xpHeldExperiments, taggedIds([before, after])), paths)
+        await lockPlacementScope(exec, guardExperimentIds(tests, [...beforeSlugs, ...afterSlugs, ...affected.map(test => test.slug)], collection.slug, paths, req.context.xpHeldExperiments, taggedIds([before, after]), affected.map(test => test.id)), paths)
         tests = await placementTests(exec)
       } catch (error) {
         if (!(error instanceof XpNoTransactionError) || affected.length) throw error

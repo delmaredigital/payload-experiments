@@ -11,7 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-- Fixed: page editors without test access see a calm access line, page-owned version tabs and removal confirmation, with a read-only Test field. Results-only readers can open Configure as a results reader; management actions are hidden. Detach permits denied or missing status reads and leaves the final placement check to the page save; network/server failures remain retryable.
+- Fixed: page editors without test access see a calm access line, page-owned version tabs and removal confirmation, with a read-only Test field. Permission-dependent actions stay hidden until access is known, and the sidebar waits quietly for its list read. Unbound blocks name access to tests generally; bound 404 reads preserve page-owned tabs with a calm unavailable sentence. Results-only readers see a results-access sentence and can open Configure as a results reader; management actions are hidden. Detach permits denied or missing status reads and leaves the final placement check to the page save; network/server failures remain retryable.
   Migration impact: none.
 
 - Fixed: publish, publishing version restore, unpublish, trash and delete cannot remove a running block test's last published placement. Draft-only copies do not count; draft saves and autosaves are untouched. The removal rule only queries removed bindings, searches published rows once per collection, and shares removal claims across concurrent writes in one transaction. Removal shares the experiment lock with Start and rechecks status; already-trashed rows never count as published placements. Public refusals name the test.

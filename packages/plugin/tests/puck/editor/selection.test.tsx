@@ -5,6 +5,12 @@ vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserv
 import { Puck, registerOverlayPortal, useGetPuck, type Config } from '@puckeditor/core'
 import { EditorControls } from '../../../src/puck/editor/EditorControls.js'
 import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
+// These rendering/selection scenarios use a known manager. Access loading and
+// denial use the real hook in permissions.test.tsx.
+vi.mock('../../../src/puck/editor/editorSurface.js', async importOriginal => ({
+  ...await importOriginal<typeof import('../../../src/puck/editor/editorSurface.js')>(),
+  useEditorSurface: () => ({ surface: { canManage: true, canReadResults: true } }),
+}))
 
 const config: Config = { components: {
   ExperimentSlot: ExperimentSlotEditor,

@@ -494,8 +494,10 @@ permits removal; unpublished drafts do not count. Draft saves, autosaves and
 draft-only restores are untouched: the guard performs no reads, scans or
 experiment locks on those operations. The removal rule adds no queries or locks
 to a publish that keeps its bindings or has no test blocks. Only removed bindings
-get one indexed lookup for running or startable block tests; only running tests trigger a
-published-placement search, stopping at the first hit. Collections registered
+get one indexed discovery lookup for running or startable block tests; only running
+tests trigger a published-placement search, stopping at the first hit. For delete
+outside page registration, the under-lock status recheck is also indexed; no broad
+test discovery or unrelated experiment locks are added. Collections registered
 under both editors are searched once. Existing page-path and content-audit lock
 rules still apply to publishing operations. Draft, stopped, decided and archived
 block tests do not trigger a placement search. Removed draft/stopped bindings also
@@ -751,11 +753,18 @@ it does not save or publish the page. A Start refusal uses the server's sentence
 Escape, Close and the backdrop dismiss the drawer and return focus to its button.
 Links that leave the surface open in a new tab.
 
+Permission-dependent actions stay hidden until access is known; the sidebar Test
+field shows a quiet loading line while its list read is pending. An unbound block
+without test access says "You don't have access to tests." A bound test returning
+404 says "This test isn't available to you. You can still edit its content." and
+keeps the page-owned version tabs, including when the test was deleted.
+
 Page editors without manage or results access see "You don't have access to this
 test. You can still edit its content." Populated versions remain available from
 the page's own slot data with default version labels; their content stays editable
 on the canvas. The sidebar Test field becomes a read-only sentence. Configure and
-new-test actions are hidden. Results-only readers can open Configure to read results,
+new-test actions are hidden. Results-only readers see "You can view this test's
+results." and can open Configure to read results,
 without management controls or new-test actions. Both can remove the binding after
 confirmation; all version content is retained. A refused (401/403) or missing (404)
 status read permits confirmation, and the page guard checks placements on save.

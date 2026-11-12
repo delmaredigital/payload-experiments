@@ -54,8 +54,11 @@ export function ExperimentPicker({ value, onChange }: {
   const query = search.trim().toLocaleLowerCase('en-US')
   const visible = experiments.filter(doc => String(doc.id) === selected ||
     doc.name.toLocaleLowerCase('en-US').includes(query) || doc.slug.toLocaleLowerCase('en-US').includes(query))
+  if (state === 'loading') return <div className="xp-ui-field">
+    <span>{pickerCopy.label}</span><p role="status">{pickerCopy.loading}</p>
+  </div>
   if (state === 'forbidden') return <div className="xp-ui-field">
-    <span>{pickerCopy.label}</span><p>{pickerCopy.forbidden}</p>
+    <span>{pickerCopy.label}</span><p>{value ? pickerCopy.forbidden : pickerCopy.forbiddenUnbound}</p>
   </div>
   return <div className="xp-ui-field">
     {experiments.length > 8 ? <div className="xp-ui-field">
@@ -64,7 +67,7 @@ export function ExperimentPicker({ value, onChange }: {
         onChange={event => setSearch(event.currentTarget.value)} />
     </div> : null}
     <label htmlFor={id}>{pickerCopy.label}</label>
-    <select id={id} className="xp-ui-input xp-ui-select" value={selected} disabled={state === 'loading'} /* stays enabled on error so a saved experiment can still be unbound */ onChange={event => {
+    <select id={id} className="xp-ui-input xp-ui-select" value={selected} /* stays enabled on error so a saved experiment can still be unbound */ onChange={event => {
       const experiment = experiments.find(doc => String(doc.id) === event.currentTarget.value)
       onChange(experiment ? { id: experiment.id, slug: experiment.slug } : null)
     }}>
@@ -72,7 +75,6 @@ export function ExperimentPicker({ value, onChange }: {
       {value && !experiments.some(doc => String(doc.id) === selected) ? <option value={selected}>{value.slug}</option> : null}
       {visible.map(doc => <option key={doc.id} value={String(doc.id)}>{doc.name} · {pickerCopy.statuses[doc.status]}</option>)}
     </select>
-    {state === 'loading' ? <div className="xp-ui-banner" role="status"><p>{pickerCopy.loading}</p></div> : null}
     {state === 'error' ? <div className="xp-ui-banner xp-ui-banner--error" role="alert"><p>{pickerCopy[state]}</p></div> : null}
   </div>
 }

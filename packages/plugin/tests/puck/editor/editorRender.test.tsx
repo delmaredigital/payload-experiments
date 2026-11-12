@@ -2,6 +2,12 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ExperimentSlotEditor, createExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
+// These rendering/selection scenarios use a known manager. Access loading and
+// denial use the real hook in permissions.test.tsx.
+vi.mock('../../../src/puck/editor/editorSurface.js', async importOriginal => ({
+  ...await importOriginal<typeof import('../../../src/puck/editor/editorSurface.js')>(),
+  useEditorSurface: () => ({ surface: { canManage: true, canReadResults: true } }),
+}))
 import type { EditorExperiment } from '../../../src/puck/editor/editor.model.js'
 
 const puck = vi.hoisted(() => ({ item: {
@@ -195,12 +201,11 @@ test('never creates an observer or sends an exposure, even with xpExpose', async
 
 test.each([false, 'other'] as const)('unbound create binds this block with selection %s without swallowing or double-firing the button', async selection => {
   puck.selected = selection
-  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ canManage: true, canReadResults: true }))).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] }))).mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'created', slug: 'new-test' } })))
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] }))).mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'created', slug: 'new-test' } })))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props({ experiment: null })} />)
   expect(screen.getByRole('status').textContent).toBe('Choose or create a test to show different versions.')
   expect(screen.getAllByRole('tab')).toHaveLength(1)
-  expect(fetch).toHaveBeenCalledWith('/api/xp/editor-surface', expect.objectContaining({ credentials: 'include' }))
   fireEvent.click(screen.getByRole('button', { name: 'Test this block' }))
   expect(screen.getAllByRole('dialog')).toHaveLength(1)
   expect(puck.dispatch).not.toHaveBeenCalled()
@@ -378,7 +383,7 @@ test.each(['draft', 'running'] as const)('custom routes reach the bound %s fetch
 })
 
 test('custom API route reaches both drawer requests', async () => {
-  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ canManage: true, canReadResults: true }))).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] })))
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] })))
     .mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'new', slug: 'welcome-page' } })))
   const Editor = createExperimentSlotEditor({ routes: { api: '/content-api/' } }).render
   render(<Editor {...props({ experiment: null })} />)

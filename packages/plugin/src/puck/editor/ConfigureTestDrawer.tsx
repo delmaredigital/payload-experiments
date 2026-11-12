@@ -72,6 +72,6 @@ export function ConfigureTestButton({ id, routes }: { id: DocId; routes: ReturnT
   const drawer = useRef<ReturnType<typeof openConfigureTestDrawer>>(undefined)
   useEffect(() => () => drawer.current?.close(), [id, routes.api])
   const access = useEditorSurface(routes.api)
-  if (access.error === 'forbidden' || access.surface && !access.surface.canManage && !access.surface.canReadResults) return null
+  if (!access.surface || !access.surface.canManage && !access.surface.canReadResults) return null
   return <Button variant="primary" onClick={event => { drawer.current?.close(); drawer.current = openConfigureTestDrawer(event.currentTarget, routes, id) }}>{C.configure}</Button>
 }

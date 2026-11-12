@@ -120,7 +120,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         if (current && revision === request) {
           const forbidden = cause instanceof TestReadError && (cause.status === 401 || cause.status === 403)
           const missing = cause instanceof TestReadError && cause.status === 404
-          setLoaded(value => ({ id: experimentId, forbidden, missing, error: !forbidden, shared: value?.id === experimentId ? value?.shared : undefined }))
+          setLoaded(value => ({ id: experimentId, forbidden, missing, error: !forbidden && !missing, shared: value?.id === experimentId ? value?.shared : undefined }))
         }
       }
     }
@@ -131,7 +131,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     return () => { current = false; controller.abort(); releaseArms(); document.removeEventListener('visibilitychange', onVisible) }
   }, [experimentId, api])
 
-  const cachedExperiment = loaded?.id === experimentId && !loaded?.forbidden ? knownArms?.doc : undefined
+  const cachedExperiment = loaded?.id === experimentId && !loaded?.forbidden && !loaded?.missing ? knownArms?.doc : undefined
   const status = cachedExperiment?.status ?? (loaded?.id === experimentId ? loaded?.doc?.status : undefined)
   useEffect(() => {
     if (experimentId === undefined || !status) return
@@ -148,7 +148,9 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const shared = locallyShared || result?.shared === true
   const experiment = cachedExperiment ?? result?.doc
   const noAccess = access.error === 'forbidden' || !!access.surface && !access.surface.canManage && !access.surface.canReadResults
-  const canManage = !noAccess && !result?.forbidden && (access.surface?.canManage ?? true)
+  const resultsOnly = access.surface?.canReadResults === true && !access.surface.canManage
+  const unavailable = result?.forbidden || result?.missing
+  const canManage = access.surface?.canManage === true && !unavailable
   const editable = canManage && (experiment?.status === 'draft' || experiment?.status === 'stopped')
   const [removed, setRemoved] = useState<{ key: string; revision: number } | null>(null)
   useEffect(() => {
@@ -168,7 +170,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const observedSlots = useRef({ key: bindingKey, slots: new Set<string>() })
   if (observedSlots.current.key !== bindingKey) observedSlots.current = { key: bindingKey, slots: new Set() }
   for (const slot of pageSlots.split(',')) observedSlots.current.slots.add(slot)
-  const tabs = result?.forbidden ? [...observedSlots.current.slots].sort((a, b) => a.localeCompare(b)).map(slot => ({ slot: slot as ArmSlot, label: slotLabels[slot as ArmSlot] })) : tabsFor(experiment)
+  const tabs = unavailable ? [...observedSlots.current.slots].sort((a, b) => a.localeCompare(b)).map(slot => ({ slot: slot as ArmSlot, label: slotLabels[slot as ArmSlot] })) : tabsFor(experiment)
   const activeSlot = active && active.id === experimentId ? active.slot : undefined
   const slot = tabs.find(tab => tab.slot === activeSlot)?.slot ?? tabs[0]?.slot ?? 'control'
   const slotEmpty = usePuckSelector(state => {
@@ -295,14 +297,15 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         <h3 className="xp-slot-title">{experiment?.name ?? experimentSlotLabel}</h3>
         {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
       </header>
-      {experimentId !== undefined && (noAccess || result?.forbidden) ? <p className="xp-ui-help">{pickerCopy.forbidden}</p> : <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
+      {!access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
+        : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : result?.missing ? pickerCopy.unavailable : pickerCopy.forbidden}</p> : <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
         {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
       </Banner>}
       {orphanSlots.map(slot => <Banner key={slot} tone="warning">{editorCopy.orphan(slotLabels[slot])}</Banner>)}
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       <div className="xp-ui-button-group">
         {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
-        {experimentId !== undefined && !noAccess ? <ConfigureTestButton id={experimentId} routes={{ admin, api }} /> : null}
+        {experimentId !== undefined && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestButton id={experimentId} routes={{ admin, api }} /> : null}
         {!shared ? newTestButton : null}
         {experimentId !== undefined && canDetach ? <Button disabled={checkingDetach} onClick={() => void requestDetach()}>{editorCopy.detach}</Button> : null}
         {experiment && editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}

@@ -24,7 +24,7 @@ test('loads block experiments with editor credentials and shows names, status la
   const fetch = mockFetch()
   render(<ExperimentPicker value={null} onChange={vi.fn()} />)
   expect(screen.getByRole('status').textContent).toBe('Loading tests…')
-  expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(true)
+  expect(screen.queryByRole('combobox')).toBeNull()
   await screen.findByRole('option', { name: 'First example · Draft' })
   expect(fetch).toHaveBeenCalledWith('/api/xp-experiments?where%5Bkind%5D%5Bequals%5D=block&depth=0&sort=id&limit=100&page=1', {
     credentials: 'include', signal: expect.any(AbortSignal),
@@ -181,4 +181,25 @@ test('sidebar field wraps the picker in its own root', async () => {
   const root = view.container.querySelector('.xp-puck-field > .xp-ui-field')
   expect(root).toBeTruthy()
   expect(screen.getByRole('combobox').closest('.xp-ui-field')).toBe(root)
+})
+
+
+test.each([401, 403])('an unbound block with HTTP %s has the general tests-access sentence', async status => {
+  mockFetch({}, status)
+  render(<ExperimentPicker value={null} onChange={vi.fn()} />)
+  await screen.findByText("You don't have access to tests.")
+  expect(screen.queryByRole('combobox')).toBeNull()
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.queryByText("You don't have access to this test. You can still edit its content.")).toBeNull()
+})
+test('a pending list read shows only a quiet loading line, then becomes read-only on 403', async () => {
+  let resolve!: (response: Response) => void
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(done => { resolve = done })))
+  render(<ExperimentPicker value={{ id: 42, slug: 'bound' }} onChange={vi.fn()} />)
+  expect(screen.getByRole('status').textContent).toBe('Loading tests…')
+  expect(screen.queryByRole('combobox')).toBeNull()
+  resolve(new Response('{}', { status: 403 }))
+  await screen.findByText("You don't have access to this test. You can still edit its content.")
+  expect(screen.queryByRole('combobox')).toBeNull()
+  expect(screen.queryByRole('status')).toBeNull()
 })

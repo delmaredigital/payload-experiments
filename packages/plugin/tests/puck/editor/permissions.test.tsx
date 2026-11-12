@@ -19,11 +19,11 @@ const block = { type: 'ExperimentSlot', props: { id: 'permission-slot', experime
   variantA: [{ type: 'Text', props: { id: 'variant-text', text: 'Variant content' } }], variantB: [], variantC: [] } }
 let read!: ReturnType<typeof useGetPuck>
 let statusCode: number | 'network'
-function setup(role: 'none' | 'results' | 'manager' = 'none', initialCode = role === 'manager' ? 200 : 403) {
+function setup(role: 'none' | 'results' | 'manager' = 'none', initialCode = role === 'manager' ? 200 : 403, pending?: Promise<Response>, unbound = false) {
   statusCode = initialCode
   const snapshot = fixture('T7')
   const fetcher = vi.fn(async (url: string) => {
-    if (url.endsWith('/xp/editor-surface')) return role === 'none' ? response({}, 403) : response({ ...surface, canManage: role === 'manager' })
+    if (url.endsWith('/xp/editor-surface')) return pending ?? (role === 'none' ? response({}, 403) : response({ ...surface, canManage: role === 'manager' }))
     if (url.includes('/xp-experiments?')) return role === 'manager' ? response({ docs: [{ id: 'permission-test', slug: 'hero', ...doc }] }) : response({}, 403)
     if (url.includes('/xp-experiments/')) {
       if (statusCode === 'network') throw new Error('offline')
@@ -38,7 +38,7 @@ function setup(role: 'none' | 'results' | 'manager' = 'none', initialCode = role
     Text: { fields: { text: { type: 'text', label: 'Content text' } }, render: ({ text }) => <p>{text}</p> },
   } }
   function Probe() { read = useGetPuck(); return null }
-  render(<Puck config={config} data={{ root: { props: {} }, content: [block] }} iframe={{ enabled: false }}>
+  render(<Puck config={config} data={{ root: { props: {} }, content: [unbound ? { ...block, props: { ...block.props, experiment: null } } : block] }} iframe={{ enabled: false }}>
     <Puck.Preview /><div data-testid="fields"><Puck.Fields /></div><Probe />
   </Puck>)
   return fetcher
@@ -112,7 +112,8 @@ test.each([500, 'network'] as const)('status %s refuses detach with the existing
 
 test('results-only: Configure opens the reader, creation and version management stay hidden, removal works', async () => {
   const fetcher = setup('results')
-  await screen.findByText(noAccess)
+  await screen.findByText("You can view this test's results.")
+  expect(screen.queryByText(noAccess)).toBeNull()
   expect(screen.queryByRole('button', { name: 'Start a new test from this block' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Add variant' })).toBeNull()
   fireEvent.click(await screen.findByRole('button', { name: 'Configure test' }))
@@ -157,4 +158,36 @@ test('a page-owned variant tab survives clearing its last child, so content can 
   })
   expect(await screen.findByText('Replacement content')).toBeTruthy()
   expect(screen.queryByText('Original content')).toBeNull()
+})
+
+
+test.each([false, true])('pending permissions keep management actions absent from first paint (unbound %s)', async unbound => {
+  let resolve!: (response: Response) => void
+  const pending = new Promise<Response>(done => { resolve = done })
+  setup('manager', 200, pending, unbound)
+  expect(screen.getByRole('status').textContent).toContain('Loading')
+  for (const name of ['Test this block', 'Start a new test from this block', 'Configure test', 'Add variant']) {
+    expect(screen.queryByRole('button', { name })).toBeNull()
+  }
+  await act(async () => { resolve(response(surface)) })
+  expect(await screen.findByRole('button', { name: unbound ? 'Test this block' : 'Start a new test from this block' })).toBeTruthy()
+})
+test('an unbound block without access names tests generally and offers no actions', async () => {
+  setup('none', 403, undefined, true)
+  await screen.findByText("You don't have access to tests.")
+  expect(screen.queryByText(noAccess)).toBeNull()
+  expect(document.querySelector('.xp-slot-chrome .xp-ui-button-group')?.textContent).toBe('')
+})
+test('a bound 404 is calm, retains page-owned version tabs and permits removal', async () => {
+  setup('manager', 404)
+  await screen.findByText("This test isn't available to you. You can still edit its content.")
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Configure test' })).toBeNull()
+  expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'Variant A'])
+  fireEvent.click(screen.getByRole('tab', { name: 'Variant A' }))
+  expect(screen.getByText('Variant content')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: detach }))
+  const dialog = await screen.findByRole('dialog')
+  fireEvent.click(within(dialog).getByRole('button', { name: detach }))
+  await waitFor(() => expect(read().getItemById('permission-slot')?.props.experiment).toBeNull())
 })
