@@ -5,7 +5,7 @@ import type { Endpoint, PayloadRequest } from 'payload'
 import { XP_MANIFEST_KEY_HEADER } from '../constants.js'
 import { XpNotImplemented, XpRefusal } from '../errors.js'
 import { readUnitCookie } from '../runtime/cookie.js'
-import type { ResolvedOptions } from '../types/contracts.js'
+import type { ExperimentsAccess, ResolvedOptions } from '../types/contracts.js'
 import type { AccessKind, EndpointContext, ErrorEnvelope, RefusalCode } from '../types/endpoints.js'
 import { handleManifest } from './manifest.js'
 import { handleEvents } from './events.js'
@@ -63,8 +63,12 @@ export function buildEndpoints<TUser extends { id: string | number } = { id: str
         if (await access({ req }) !== true) return error(403, 'forbidden', 'Access denied')
       } else if (route.access === 'surface') {
         if (!req.user) return error(401, 'unauthenticated', 'Authentication required')
-        const manage = await options.access.manage({ req }) === true
-        const read = options.access.readResults ? await options.access.readResults({ req }) === true : manage
+        // Match the admin surface: a failed host access check denies that permission.
+        const permits = async (access: ExperimentsAccess) => {
+          try { return await access({ req }) === true } catch { return false }
+        }
+        const manage = await permits(options.access.manage)
+        const read = options.access.readResults ? await permits(options.access.readResults) : manage
         if (!manage && !read) return error(403, 'forbidden', 'Access denied')
       } else if (route.access === 'manifestKey') {
         const secret = options.runtime.proxyRuntime.secrets[0]

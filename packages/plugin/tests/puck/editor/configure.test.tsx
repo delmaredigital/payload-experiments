@@ -120,6 +120,7 @@ test('results-only permissions use the admin reader surface with no management r
   const { drawer } = await open()
   await within(drawer).findByRole('table', { name: 'Registrations' })
   expect(within(drawer).queryByLabelText('Test name')).toBeNull()
+  expect(within(drawer).getByRole('link', { name: 'Open in a new tab' }).getAttribute('href')).toBe(`/manage/experiments/${base.id}/results`)
   for (const action of ['Start', 'Stop', 'Decide', 'Recompute']) expect(within(drawer).queryByRole('button', { name: action })).toBeNull()
   expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH' || init?.method === 'POST')).toEqual([])
 })
@@ -251,6 +252,7 @@ test.each([401, 403, 500])('surface failure %s explains access or offers setup r
   const { drawer } = await open()
   expect(await within(drawer).findByText(status === 500 ? "Setup isn't available right now." : "You don't have access to this test.")).toBeTruthy()
   expect(within(drawer).queryByLabelText('Test name')).toBeNull()
+  expect(within(drawer).getByRole('link', { name: 'Open in a new tab' }).getAttribute('href')).toBe(`/manage/experiments/${base.id}`)
   if (status === 500) {
     expect(within(drawer).getByRole('link', { name: 'Open in a new tab' }).className).toContain('xp-ui-button--primary')
     fetcher.mockImplementation(original)

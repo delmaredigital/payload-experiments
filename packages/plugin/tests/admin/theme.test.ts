@@ -64,8 +64,9 @@ test('Puck editor chrome uses scoped classes, tokens, and explicit reset-resista
   // The only inline chrome style is the explicitly validated host accent.
   expect(readFileSync(join(src, 'puck/editor/ExperimentSlotEditor.tsx'), 'utf8')).toContain('style={props.accent ? accentVariables(props.accent[mode])')
   const drawer = readFileSync(join(src, 'puck/editor/CreateExperimentDrawer.tsx'), 'utf8')
-  expect(drawer.match(/style=/g)).toHaveLength(1)
-  expect(drawer).toContain('style={Object.fromEntries(Array.from(source.style).map(key => [key, source.style.getPropertyValue(key)]))}')
+  expect(drawer).not.toContain('style=')
+  expect(drawer).toContain("tokenRoot.className = 'xp-slot-root xp-slot-editor'")
+  expect(drawer).toContain('tokenRoot.style.cssText = source.style.cssText')
 })
 
 test('Puck iframe styles define every used token as a literal on the light and dark roots', () => {

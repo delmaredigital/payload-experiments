@@ -57,7 +57,8 @@ export function invalidatePlacements(api: string, id: DocId) {
 
 export function acquirePlacements(api: string, id: DocId, notify: (placements: Placements | undefined) => void, fresh = false): () => void {
   const key = keyFor(api, id)
-  const listeners = consumers.get(key) ?? new Set()
+  let listeners = new Set<(placements: Placements | undefined) => void>()
+  listeners = consumers.get(key) ?? listeners
   consumers.set(key, listeners)
   listeners.add(notify)
   const entry = read(api, id, fresh)

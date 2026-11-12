@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react'
 import { Button } from './Button.js'
 import { Dialog } from './Dialog.js'
+import './ui.css'
 
 /** Native modal drawer: focus trap/restoration and Escape come from Dialog. */
 export function Drawer({ title, closeLabel, onClose, children, actions }: {

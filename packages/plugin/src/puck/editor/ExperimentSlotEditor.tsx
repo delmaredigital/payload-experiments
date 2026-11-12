@@ -240,15 +240,15 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     setCheckingDetach(true)
     setClearError(null)
     try {
-      const [response, placements] = await Promise.all([
-        fetch(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}?depth=0`, { credentials: 'include', cache: 'no-store' }),
-        refreshPlacements(api, experimentId),
-      ])
+      const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}?depth=0`, { credentials: 'include', cache: 'no-store' })
       const current: unknown = response.ok ? await response.json() : null
       if (!isCurrentBinding()) return
-      if (!isExperiment(current) || !placements) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null); return }
-      publishExperiment(experimentId, current)
-      if (current.status === 'running') {
+      if (response.status !== 404 && !isExperiment(current)) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null); return }
+      if (isExperiment(current)) publishExperiment(experimentId, current)
+      if (isExperiment(current) && current.status === 'running') {
+        const placements = await refreshPlacements(api, experimentId)
+        if (!isCurrentBinding()) return
+        if (!placements) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null); return }
         const local = getPuck()
         const anotherLocal = (localPlacements(local.appState.data, local.config).get(String(experimentId))?.size ?? 0) > 1
         if (!anotherLocal && !isSharedTest(placements, currentPuckDocument(window.location.pathname, admin, placements))) {

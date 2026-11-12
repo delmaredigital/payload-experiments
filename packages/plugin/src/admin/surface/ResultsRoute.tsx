@@ -8,6 +8,7 @@ import { ResultsHeader, ReaderResultsShell } from './results/ResultsHeader.js'
 import { ResultsBody } from '../../testSurface/surface/results/ResultsBody.js'
 import { TEST_PAGE as C } from '../../testSurface/copy/testPage.js'
 import { Button } from '../../ui/Button.js'
+import '../../testSurface/surface/test/testPage.css'
 
 export function ResultsRoute(props: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {
   // Results-only readers cannot load the manager-only experiment or preflight.

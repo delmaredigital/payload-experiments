@@ -62,3 +62,21 @@ test('one endpoint does not retain permissions between users', async () => {
   req.user = { id: 'other', collection: 'users' }
   expect((await endpoint.handler(req)).status).toBe(403)
 })
+
+test('a throwing manage check still allows a results reader, as in the admin surface', async () => {
+  const { req, endpoint, options, findGlobal } = setup(false, true)
+  vi.mocked(options.access.manage).mockRejectedValue(new Error('not a manager'))
+  const response = await endpoint.handler(req)
+  expect(response.status).toBe(200)
+  expect(await response.json()).toMatchObject({ canManage: false, canReadResults: true })
+  expect(findGlobal).not.toHaveBeenCalled()
+})
+
+test.each([false, true])('a throwing results check denies that permission (manager: %s)', async manage => {
+  const { req, endpoint, options } = setup(manage, false)
+  vi.mocked(options.access.readResults!).mockRejectedValue(new Error('not a reader'))
+  const response = await endpoint.handler(req)
+  expect(response.status).toBe(manage ? 200 : 403)
+  expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+  if (manage) expect(await response.json()).toMatchObject({ canManage: true, canReadResults: false })
+})

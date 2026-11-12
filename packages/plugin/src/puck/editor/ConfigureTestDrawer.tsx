@@ -48,8 +48,11 @@ export function ConfigureTestDrawer({ id, routes, onClose }: {
     })
     return () => { active = false }
   }, [routes.api, routes.admin, attempt])
+  // Unknown permissions use the test page's authoritative admin access check.
+  const testUrl = `${routes.admin}/experiments/${encodeURIComponent(id)}`
+  const openUrl = state.surface && !state.surface.canManage && state.surface.canReadResults ? `${testUrl}/results` : testUrl
   return <Drawer title={title} closeLabel={C.closeConfigure} onClose={onClose}
-    actions={<Button variant={state.error === 'unavailable' ? 'primary' : 'link'} size="sm" href={`${routes.admin}/experiments/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer">{C.openInTab}</Button>}>
+    actions={<Button variant={state.error === 'unavailable' ? 'primary' : 'link'} size="sm" href={openUrl} target="_blank" rel="noopener noreferrer">{C.openInTab}</Button>}>
     <div className="xp-configure-panel xp-test-surface" onClickCapture={event => {
       // Internal section jumps stay in the drawer; navigation never replaces the editor.
       const link = (event.target as Element).closest<HTMLAnchorElement>('a[href]')

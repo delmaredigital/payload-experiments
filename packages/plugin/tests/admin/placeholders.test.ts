@@ -65,6 +65,6 @@ test('one import-map constant for every admin component', () => {
   for (const [constant, name] of admin) expect(paths[constant]).toBe(`@delmaredigital/payload-experiments/admin/client#${name}`)
 })
 
-test.each(retiredFiles)('%s is retired', file => {
+test.each(retiredFiles.flatMap(file => [file, file.replace(/^admin\//, 'testSurface/')]))('%s is retired', file => {
   expect(existsSync(new URL(`../../src/${file}`, import.meta.url))).toBe(false)
 })

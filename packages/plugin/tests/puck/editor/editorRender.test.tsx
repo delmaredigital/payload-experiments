@@ -543,7 +543,12 @@ test.each([false, 'other'] as const)('removal asks first and clears only this bi
   view.rerender(<Editor {...props({ experiment: null })} />)
   expect(screen.getByRole('button', { name: 'Test this block' })).toBeTruthy()
   expect(screen.queryByRole('dialog')).toBeNull()
-  expect(vi.mocked(fetch).mock.calls).toHaveLength(calls + 7)
+  const detachReads = vi.mocked(fetch).mock.calls.slice(calls)
+  // Offer, offer after Cancel, and confirmation each recheck the status.
+  expect(detachReads.filter(([url]) => String(url).includes('/xp-experiments/'))).toHaveLength(3)
+  // Only the successful removal invalidates sharing; drafts need no preflight gate.
+  expect(detachReads.filter(([url]) => String(url).endsWith('/preflight'))).toHaveLength(1)
+  expect(detachReads).toHaveLength(4)
   expect(vi.mocked(fetch).mock.calls.at(-1)?.[0]).toContain('/preflight')
 })
 

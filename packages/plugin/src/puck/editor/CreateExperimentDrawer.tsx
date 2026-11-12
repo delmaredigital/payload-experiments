@@ -69,10 +69,13 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '', ar
 export function openCreateExperimentDrawer(source: HTMLElement, routes: ReturnType<typeof resolvePuckRoutes>, props: Omit<Parameters<typeof CreateExperimentDrawer>[0], 'onClose' | 'onPendingChange'>) {
   const container = source.ownerDocument.createElement('div')
   container.className = 'xp-slot-dialog-host'
-  container.style.cssText = source.style.cssText
+  const tokenRoot = source.ownerDocument.createElement('div')
+  tokenRoot.className = 'xp-slot-root xp-slot-editor'
+  tokenRoot.style.cssText = source.style.cssText
+  container.append(tokenRoot)
   if (source.closest('[data-theme="dark"], .dark')) container.dataset.theme = 'dark'
   source.ownerDocument.body.append(container)
-  const root = createRoot(container)
+  const root = createRoot(tokenRoot)
   let pending = false, closed = false
   const close = () => {
     if (closed) return
@@ -80,7 +83,7 @@ export function openCreateExperimentDrawer(source: HTMLElement, routes: ReturnTy
     // Cleanup can originate from the creator's unmount commit.
     queueMicrotask(() => { root.unmount(); container.remove() })
   }
-  root.render(<PuckHostProvider routes={routes}><div className="xp-slot-root xp-slot-editor" style={Object.fromEntries(Array.from(source.style).map(key => [key, source.style.getPropertyValue(key)]))} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+  root.render(<PuckHostProvider routes={routes}><div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
     <CreateExperimentDrawer {...props} onPendingChange={value => { pending = value }} onClose={close} />
   </div></PuckHostProvider>)
   return { closeIfIdle: () => { if (!pending) close() } }

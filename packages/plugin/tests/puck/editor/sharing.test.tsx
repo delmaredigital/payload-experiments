@@ -201,3 +201,63 @@ test.each(['offer', 'confirm'] as const)('stale DRAFT cache reads current RUNNIN
   const reads = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/xp-experiments/'))
   expect(reads).toHaveLength(stage === 'confirm' ? 3 : 2)
 })
+
+test.each(['draft', 'stopped', 'decided', 'archived'] as const)('a page editor can detach a %s test without placement permission', async status => {
+  const placementsRead = vi.fn(async () => new Response('{}', { status: 403 }))
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? placementsRead() : Response.json({ ...doc, status })))
+  let read!: ReturnType<typeof useGetPuck>
+  function Probe() { read = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block('only')] }} iframe={{ enabled: false }}><Puck.Preview /><Probe /></Puck>)
+  const button = await screen.findByRole('button', { name: 'Remove the test from this block' })
+  await waitFor(() => expect(placementsRead).toHaveBeenCalledOnce())
+  fireEvent.click(button)
+  const dialog = await screen.findByRole('dialog')
+  expect(placementsRead).toHaveBeenCalledOnce()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Remove the test from this block' }))
+  await waitFor(() => expect(read().getItemById('only')?.props.experiment).toBeNull())
+  expect(screen.queryByRole('alert')).toBeNull()
+  // Successful binding removal invalidates sharing for other mounted blocks.
+  expect(placementsRead).toHaveBeenCalledTimes(2)
+})
+
+test.each(['offer', 'confirm'] as const)('a test deleted before detach %s can still be removed from its block', async stage => {
+  let deleted = false
+  const placementsRead = vi.fn(async () => Response.json({ placements: [placement] }))
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? placementsRead()
+    : deleted ? new Response('{}', { status: 404 }) : Response.json(doc)))
+  let read!: ReturnType<typeof useGetPuck>
+  function Probe() { read = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block('only')] }} iframe={{ enabled: false }}><Puck.Preview /><Probe /></Puck>)
+  const button = await screen.findByRole('button', { name: 'Remove the test from this block' })
+  if (stage === 'offer') deleted = true
+  fireEvent.click(button)
+  const dialog = await screen.findByRole('dialog')
+  deleted = true
+  const before = placementsRead.mock.calls.length
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Remove the test from this block' }))
+  await waitFor(() => expect(read().getItemById('only')?.props.experiment).toBeNull())
+  expect(screen.queryByRole('alert')).toBeNull()
+  // Only the post-detach cache invalidation refreshes placements.
+  expect(placementsRead).toHaveBeenCalledTimes(before + 1)
+})
+
+test.each(['403', 'network'] as const)('RUNNING refuses detach when fresh placements fail with %s, even with another local block', async failure => {
+  let fail = false
+  const placementsRead = vi.fn(async () => {
+    if (!fail) return Response.json({ placements: [] })
+    if (failure === 'network') throw new Error('offline')
+    return new Response('{}', { status: 403 })
+  })
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? placementsRead() : Response.json(doc)))
+  let read!: ReturnType<typeof useGetPuck>
+  function Probe() { read = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block('one'), block('two')] }} iframe={{ enabled: false }}><Puck.Preview /><Probe /></Puck>)
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Remove the test from this block' })).toHaveLength(2))
+  const before = placementsRead.mock.calls.length
+  fail = true
+  fireEvent.click(screen.getAllByRole('button', { name: 'Remove the test from this block' })[0]!)
+  await screen.findByText("Couldn't check where this test is used. Try again.")
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(read().getItemById('one')?.props.experiment).toEqual(block('one').props.experiment)
+  expect(placementsRead).toHaveBeenCalledTimes(before + 1)
+})

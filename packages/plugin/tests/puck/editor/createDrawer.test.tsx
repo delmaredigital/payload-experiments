@@ -107,8 +107,9 @@ test('a refusal without an inner field message uses generic copy', async () => {
   expect(onCreate).not.toHaveBeenCalled()
 })
 
-test('creation dialog keeps the host accent on its own token root', async () => {
+test.each([false, true])('creation dialog keeps its host accent and theme (dark: %s)', async dark => {
   const source = document.createElement('div')
+  if (dark) source.dataset.theme = 'dark'
   source.style.setProperty('--xp-accent', '#1f3a68')
   source.style.setProperty('--xp-accent-fg', '#ffffff')
   document.body.append(source)
@@ -117,6 +118,7 @@ test('creation dialog keeps the host accent on its own token root', async () => 
   const root = screen.getByRole('dialog').closest<HTMLElement>('.xp-slot-root')!
   expect(root.style.getPropertyValue('--xp-accent')).toBe('#1f3a68')
   expect(root.style.getPropertyValue('--xp-accent-fg')).toBe('#ffffff')
+  expect(root.matches("[data-theme='dark'] .xp-slot-root")).toBe(dark)
   await act(async () => drawer.closeIfIdle())
   source.remove()
 })
