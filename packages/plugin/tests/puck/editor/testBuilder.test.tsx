@@ -12,13 +12,15 @@ import type { Arm, Status } from '../../../src/types/contracts.js'
 
 const puck = vi.hoisted(() => ({ dispatch: vi.fn(), item: { type: 'ExperimentSlot', props: {
   id: 'builder', control: [{ type: 'Text', props: { id: 'original' } }], variantA: [{ type: 'Text', props: { id: 'variant' } }], variantB: [], variantC: [],
-} }, missingItem: false, missingSelector: false }))
+} }, missingItem: false, missingSelector: false, selection: 'other' as 'other' | 'none' }))
+
+const selectedItem = () => puck.selection === 'other' ? { type: 'Text', props: { id: 'other-block' } } : null
 vi.mock('@puckeditor/core', async importOriginal => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   return { ...await importOriginal<typeof import('@puckeditor/core')>(),
-    createUsePuck: () => (selector: (state: unknown) => unknown) => selector({ selectedItem: puck.item, getItemById: () => puck.item,
+    createUsePuck: () => (selector: (state: unknown) => unknown) => selector({ selectedItem: selectedItem(), getItemById: () => puck.item,
       appState: { data: { root: { props: {} } } } }),
-    useGetPuck: () => () => ({ selectedItem: puck.item, getItemById: () => puck.missingItem ? undefined : puck.item, dispatch: puck.dispatch,
+    useGetPuck: () => () => ({ selectedItem: selectedItem(), getItemById: () => puck.missingItem ? undefined : puck.item, dispatch: puck.dispatch,
       getSelectorForId: () => puck.missingSelector ? undefined : ({ index: 1, zone: 'root:default-zone' }) }),
   }
 })
@@ -55,6 +57,7 @@ beforeEach(() => {
   summary = { 'builder-test': { verdict: { headline: 'Variant A is ahead' } } }
   snapshot = { exposures: { perArm: { control: 1234, variantA: 1456 } } }
   puck.missingItem = false; puck.missingSelector = false
+  puck.selection = 'other'
   puck.dispatch.mockReset()
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith('/preflight')) return response({ placements: [] })
@@ -126,7 +129,8 @@ test('Original can change label while keeping its control identity and has no Re
   expect(doc.arms[0]).toMatchObject({ key: 'control', kind: 'control', slot: 'control' })
 })
 
-test('Remove focuses Cancel; Escape closes; confirmation posts once, clears only that slot, and asks to save the page', async () => {
+test.each(['other', 'none'] as const)('Remove focuses Cancel, confirms once and clears this slot with selection %s', async selection => {
+  puck.selection = selection
   const focus = HTMLElement.prototype.focus
   vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
     // Model native showModal's inert outside content; jsdom's dialog shim does not.

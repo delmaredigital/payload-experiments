@@ -73,7 +73,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   // Keep a failed removal open even if the recovery read no longer contains that version.
   const [removing, setRemoving] = useState<{ key: string; arm: EditorExperiment['arms'][number] } | null>(null)
   const pageTitle = usePuckSelector(state => typeof state.appState.data.root.props?.title === 'string' ? state.appState.data.root.props.title : '')
-  const selected = usePuckSelector(state => state.selectedItem?.props.id === props.id)
+  // Selection only changes the chrome's appearance; actions always resolve this block by id.
+  const isSelected = usePuckSelector(state => state.selectedItem?.props.id === props.id)
   const originalEmpty = usePuckSelector(state => {
     const content: unknown = state.getItemById(props.id)?.props.control
     return !Array.isArray(content) || content.length === 0
@@ -156,17 +157,24 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const winnerKey = experiment?.decision?.winnerArm
   const winner = tabs.find(tab => tab.slot === winnerKey)?.label
 
+  function selectBlock() {
+    const { dispatch, getSelectorForId } = getPuck()
+    const itemSelector = getSelectorForId(props.id)
+    if (itemSelector) dispatch({ type: 'setUi', ui: { itemSelector } })
+  }
+
   function requestCopy(variant: ArmSlot) {
-    const { selectedItem: item } = getPuck()
-    const target = item?.props.id === props.id ? item.props[variant] : undefined
+    const item = getPuck().getItemById(props.id)
+    const target = item?.props[variant]
     if (Array.isArray(target) && target.length) setConfirming(variant)
     else copyTo(variant)
   }
 
   function copyTo(variant: ArmSlot) {
     setConfirming(null)
-    const { selectedItem: item, dispatch, getSelectorForId } = getPuck()
-    if (!item || item.props.id !== props.id || !Array.isArray(item.props.control) || !item.props.control.length) return
+    const { getItemById, dispatch, getSelectorForId } = getPuck()
+    const item = getItemById(props.id)
+    if (!item || !Array.isArray(item.props.control) || !item.props.control.length) return
     const selector = getSelectorForId(props.id)
     if (!selector) return
     dispatch({ type: 'replace', destinationIndex: selector.index, destinationZone: selector.zone,
@@ -197,13 +205,6 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     })
   }
 
-  function startNewTest() {
-    const { selectedItem, getItemById } = getPuck()
-    const item = getItemById(props.id)
-    if (!selected || selectedItem?.props.id !== props.id || !item || !experiment) return
-    setCreating({ key: bindingKey })
-  }
-
   async function newTestArms(): Promise<Arm[]> {
     if (!isCurrentBinding()) throw new Error('binding')
     // Another placement can rename or add a version while this dialog is open.
@@ -215,10 +216,22 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     return armsFromBlock(doc, item.props)
   }
 
-  const newTestButton = experimentId !== undefined ? <Button disabled={!selected || !experiment} onClick={startNewTest}>{editorCopy.newTest}</Button> : null
+  const newTestButton = experimentId !== undefined ? <Button disabled={!experiment} onClick={() => setCreating({ key: bindingKey })}>{editorCopy.newTest}</Button> : null
 
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
-    <div className="xp-slot-chrome" ref={registerControls}>
+    <div className="xp-slot-chrome" ref={registerControls} data-selected={isSelected} role="group" aria-label={experimentSlotLabel} tabIndex={0}
+      onClick={event => {
+        // Use DOM methods on the event target: the canvas can live in another window.
+        const target = event.target as Element
+        if (target.closest('button, a, input, select, textarea, label, summary, [role="button"], [role="link"], [role="tab"], [role="menu"], [role="menuitem"], [contenteditable]:not([contenteditable="false"])')) return
+        selectBlock()
+      }}
+      onKeyDown={event => {
+        if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault()
+          selectBlock()
+        }
+      }}>
       <header className="xp-slot-header">
         <h3 className="xp-slot-title">{experiment?.name ?? experimentSlotLabel}</h3>
         {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
@@ -229,11 +242,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {orphanSlots.map(slot => <Banner key={slot} tone="warning">{editorCopy.orphan(slotLabels[slot])}</Banner>)}
       {result?.shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       <div className="xp-ui-button-group">
-        {experimentId === undefined ? <Button variant="primary" disabled={!selected} onClick={() => setCreating({ key: bindingKey })}>{editorCopy.createLabel}</Button> : null}
+        {experimentId === undefined ? <Button variant="primary" onClick={() => setCreating({ key: bindingKey })}>{editorCopy.createLabel}</Button> : null}
         {experiment ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`} target="_blank" rel="noopener noreferrer">{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</Button> : null}
         {experimentId !== undefined && experiment?.status !== 'draft' ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}`} target="_blank" rel="noopener noreferrer">{editorCopy.openTest}</Button> : null}
         {!result?.shared ? newTestButton : null}
-        {experimentId !== undefined ? <Button disabled={!selected} onClick={() => setDetaching(bindingKey)}>{editorCopy.detach}</Button> : null}
+        {experimentId !== undefined ? <Button onClick={() => setDetaching(bindingKey)}>{editorCopy.detach}</Button> : null}
         {experiment && editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}
       </div>
       {experiment && !editable ? <p className="xp-ui-help">{editorCopy.locked[experiment.status as keyof typeof editorCopy.locked]}</p> : null}
@@ -260,7 +273,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     <Tabs label={editorCopy.tabs} value={slot} tabListRef={registerControls} onChange={value => { setOpenMenu(null); setActive({ id: experimentId, slot: value as ArmSlot }) }}
       items={tabs.map(tab => ({ id: tab.slot, label: tab.label, actions: experiment ? <VersionActions
         key={`${experimentId}-${tab.slot}`} arm={experiment.arms.find(arm => arm.key === tab.slot)!} writes={writes} editable={editable} open={openMenu === tab.slot} onOpenChange={open => setOpenMenu(open ? tab.slot : null)}
-        canCopy={selected && !originalEmpty} onCopy={requestCopy} onRequestRemove={() => setRemoving({ key: bindingKey, arm: experiment.arms.find(arm => arm.key === tab.slot)! })} /> : undefined, content: tab.slot === slot ?
+        canCopy={!originalEmpty} onCopy={requestCopy} onRequestRemove={() => setRemoving({ key: bindingKey, arm: experiment.arms.find(arm => arm.key === tab.slot)! })} /> : undefined, content: tab.slot === slot ?
         <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'}>
           <Slot className="xp-slot-drop-target" />
           {slotEmpty ? <span className="xp-slot-drop-label">{editorCopy.dropZone(slot)}</span> : null}
