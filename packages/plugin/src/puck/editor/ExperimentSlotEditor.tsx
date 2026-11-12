@@ -3,17 +3,20 @@
 import { createUsePuck, registerOverlayPortal, useGetPuck, type ComponentConfig } from '@puckeditor/core'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { ArmSlot, ExperimentRef, ExperimentSlotProps } from '../../types/puck.js'
+import type { Arm } from '../../types/contracts.js'
+import type { PreflightResult } from '../../types/endpoints.js'
 import { Button } from '../../ui/Button.js'
 import { StatusChip } from '../../ui/StatusChip.js'
 import { Banner } from '../../ui/Banner.js'
 import { Tabs } from '../../ui/Tabs.js'
+import { Dialog } from '../../ui/Dialog.js'
 import { accentVariables, deriveAccent, validateAccent } from '../../ui/accent.js'
 import { createExperimentSlotField } from '../experimentSlotField.js'
 import { resolvePuckRoutes, type PuckRoutes } from '../routes.js'
 import { PuckHostProvider, usePuckRoutes } from '../hostContext.js'
 import { pickerCopy, slotLabels } from '../copy.js'
 import { experimentSlotDefaultProps, experimentSlotFields, experimentSlotLabel } from '../slotConfig.js'
-import { bannerFor, tabsFor, type EditorExperiment } from './editor.model.js'
+import { armsFromBlock, bannerFor, isSharedTest, tabsFor, type EditorExperiment } from './editor.model.js'
 import { cloneSlot } from './cloneSlot.js'
 import { CreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
@@ -59,11 +62,12 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   useEffect(() => { binding.current.live = true; return () => { binding.current.live = false } }, [])
   const isCurrentBinding = () => binding.current.live && binding.current.key === bindingKey
   const knownArms = useArms(experimentId)
-  const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean }>()
+  const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean; shared?: boolean }>()
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
   const [openMenu, setOpenMenu] = useState<ArmSlot | null>(null)
   const [clearError, setClearError] = useState<{ key: string; message: string } | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [creating, setCreating] = useState<{ key: string } | null>(null)
+  const [detaching, setDetaching] = useState<string | null>(null)
   // A non-empty variant is only overwritten after an explicit second confirmation.
   const [confirming, setConfirming] = useState<ArmSlot | null>(null)
   // Keep a failed removal open even if the recovery read no longer contains that version.
@@ -103,6 +107,19 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         if (current && revision === request) {
           setLoaded({ id: experimentId, doc })
         }
+        // Reuse the same access-checked placement read as the test page. A failed check
+        // leaves placement sharing unknown and does not hide the block's other actions.
+        if (!current || revision !== request) return
+        try {
+          const response = await fetch(`${api}/xp/experiments/${encodeURIComponent(experimentId!)}/preflight`, {
+            credentials: 'include', cache: 'no-store', signal: controller.signal,
+          })
+          if (!response.ok) return
+          const data = await response.json() as PreflightResult
+          if (current && revision === request && Array.isArray(data.placements)) {
+            setLoaded(value => value && value.id === experimentId ? { ...value, shared: isSharedTest(data.placements) } : value)
+          }
+        } catch { /* Placement sharing is optional; the document read above remains usable. */ }
       } catch {
         if (current && revision === request) {
           setLoaded({ id: experimentId, error: true })
@@ -126,7 +143,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   }, [removed, bindingKey])
   const writes = useArmWrites(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, doc => {
     setArms(experimentId!, doc.arms.map(arm => arm.key))
-    if (isCurrentBinding()) setLoaded({ id: experimentId, doc })
+    if (isCurrentBinding()) setLoaded(value => ({ ...value, id: experimentId, doc }))
   }, isCurrentBinding, () => setClearError(null))
   const tabs = tabsFor(experiment)
   const activeSlot = active && active.id === experimentId ? active.slot : undefined
@@ -170,7 +187,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     setActive({ id: experimentId, slot: 'control' })
   }
 
-  function bind(experiment: ExperimentRef) {
+  function bind(experiment: ExperimentRef | null) {
+    if (!isCurrentBinding()) return
     const { getItemById, dispatch, getSelectorForId } = getPuck()
     const item = getItemById(props.id), selector = getSelectorForId(props.id)
     if (!item || !selector) return
@@ -178,6 +196,26 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       data: { ...item, props: { ...item.props, experiment } },
     })
   }
+
+  function startNewTest() {
+    const { selectedItem, getItemById } = getPuck()
+    const item = getItemById(props.id)
+    if (!selected || selectedItem?.props.id !== props.id || !item || !experiment) return
+    setCreating({ key: bindingKey })
+  }
+
+  async function newTestArms(): Promise<Arm[]> {
+    if (!isCurrentBinding()) throw new Error('binding')
+    // Another placement can rename or add a version while this dialog is open.
+    const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}?depth=0`, { credentials: 'include', cache: 'no-store' })
+    if (!response.ok) throw new Error('load')
+    const doc: unknown = await response.json()
+    const item = getPuck().getItemById(props.id)
+    if (!isCurrentBinding() || !isExperiment(doc) || !item) throw new Error('binding')
+    return armsFromBlock(doc, item.props)
+  }
+
+  const newTestButton = experimentId !== undefined ? <Button disabled={!selected || !experiment} onClick={startNewTest}>{editorCopy.newTest}</Button> : null
 
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
     <div className="xp-slot-chrome" ref={registerControls}>
@@ -189,9 +227,13 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
       </Banner>
       {orphanSlots.map(slot => <Banner key={slot} tone="warning">{editorCopy.orphan(slotLabels[slot])}</Banner>)}
+      {result?.shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       <div className="xp-ui-button-group">
-        {experimentId === undefined ? <Button variant="primary" disabled={!selected} onClick={() => setCreating(true)}>{editorCopy.createLabel}</Button> : null}
+        {experimentId === undefined ? <Button variant="primary" disabled={!selected} onClick={() => setCreating({ key: bindingKey })}>{editorCopy.createLabel}</Button> : null}
         {experiment ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`} target="_blank" rel="noopener noreferrer">{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</Button> : null}
+        {experimentId !== undefined && experiment?.status !== 'draft' ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}`} target="_blank" rel="noopener noreferrer">{editorCopy.openTest}</Button> : null}
+        {!result?.shared ? newTestButton : null}
+        {experimentId !== undefined ? <Button disabled={!selected} onClick={() => setDetaching(bindingKey)}>{editorCopy.detach}</Button> : null}
         {experiment && editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}
       </div>
       {experiment && !editable ? <p className="xp-ui-help">{editorCopy.locked[experiment.status as keyof typeof editorCopy.locked]}</p> : null}
@@ -201,7 +243,14 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {removed?.key === bindingKey ? <p className="xp-ui-help">{editorCopy.removed}</p> : null}
       {experiment && experiment.status !== 'draft' ? <ResultsReadout key={`results-${experimentId}`} id={experimentId!} api={api} experiment={experiment} /> : null}
       {removing?.key === bindingKey ? <RemoveVersion arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null}
-      {creating ? <CreateExperimentDrawer initialName={pageTitle} onCreate={bind} onClose={() => setCreating(false)} /> : null}
+      {creating?.key === bindingKey ? <CreateExperimentDrawer initialName={pageTitle} arms={experimentId === undefined ? undefined : newTestArms}
+        label={experimentId === undefined ? editorCopy.createLabel : editorCopy.newTest} onCreate={bind} onClose={() => setCreating(null)} /> : null}
+      {detaching === bindingKey ? <Dialog open title={editorCopy.detachTitle} initialFocus="cancel" onClose={() => setDetaching(null)}>
+        <div className="xp-slot-drawer"><p>{editorCopy.detachHelp}</p><div className="xp-ui-button-group">
+          <Button data-dialog-cancel onClick={() => setDetaching(null)}>{editorCopy.cancel}</Button>
+          <Button onClick={() => { bind(null); setDetaching(null) }}>{editorCopy.detach}</Button>
+        </div></div>
+      </Dialog> : null}
       {confirming ? <div className="xp-slot-confirm" role="alert"><p>{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming)}</p>
         <div className="xp-ui-button-group">
           <Button variant="primary" onClick={() => copyTo(confirming)}>{editorCopy.replace}</Button>

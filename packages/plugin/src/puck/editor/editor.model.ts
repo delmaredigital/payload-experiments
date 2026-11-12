@@ -1,5 +1,7 @@
 import type { Arm, DocId, Status, UnitType } from '../../types/contracts.js'
 import type { ArmSlot } from '../../types/puck.js'
+import type { PreflightResult } from '../../types/endpoints.js'
+import { splitEvenly } from '../../arms/model.js'
 import { editorCopy } from './copy.js'
 
 export type EditorExperiment = {
@@ -27,6 +29,31 @@ export function bannerFor(status?: Status | null, winner: string = editorCopy.la
   }
 }
 
+/** Preserve the block's populated slots and the current test's versions, without carrying test settings. */
+export function armsFromBlock(experiment: Pick<EditorExperiment, 'arms'>, content: Partial<Record<ArmSlot, unknown>>): Arm[] {
+  const slots = ['control', 'variantA', 'variantB', 'variantC'] as const
+  return splitEvenly(slots.flatMap(slot => {
+    const arm = experiment.arms.find(arm => arm.key === slot && arm.kind !== 'holdout')
+    if (slot !== 'control' && !arm && !(Array.isArray(content[slot]) && content[slot].length > 0)) return []
+    return [{ key: slot, slot, kind: slot === 'control' ? 'control' as const : 'variant' as const,
+      label: arm?.label.trim() || editorCopy.labels[slot], weight: 0 }]
+  }))
+}
+
+/** Like the test page's placement count, draft and published copies count only once. */
+export function isSharedTest(placements: PreflightResult['placements']): boolean {
+  const pages = new Map<string, Map<string | undefined, number>>()
+  for (const placement of placements) {
+    const key = JSON.stringify([placement.collection, String(placement.id)])
+    const versions = pages.get(key) ?? new Map<string | undefined, number>()
+    const count = (versions.get(placement.detail) ?? 0) + 1
+    versions.set(placement.detail, count)
+    pages.set(key, versions)
+    if (pages.size > 1 || count > 1) return true
+  }
+  return false
+}
+
 export function slugify(name: string): string {
   return name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64).replace(/-+$/g, '')
@@ -36,9 +63,10 @@ export function slugify(name: string): string {
 export function newTestBody(input: {
   kind: 'block' | 'flag' | 'page'; name: string; slug: string; unitType: UnitType
   pageCollection?: string; flagPoint?: string; layer?: DocId; hypothesis?: string
+  arms?: Arm[]
 }) {
   const { kind, name, slug, unitType, flagPoint, layer, hypothesis, pageCollection } = input
-  const arms: Arm[] = [
+  const arms: Arm[] = input.arms?.map(arm => ({ ...arm })) ?? [
     { key: 'control', kind: 'control', label: 'Original', weight: 50, ...(kind === 'block' ? { slot: 'control' as const } : {}) },
     { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 50, ...(kind === 'block' ? { slot: 'variantA' as const } : {}) },
   ]

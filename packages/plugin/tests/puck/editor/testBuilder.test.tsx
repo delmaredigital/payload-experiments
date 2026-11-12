@@ -57,6 +57,7 @@ beforeEach(() => {
   puck.missingItem = false; puck.missingSelector = false
   puck.dispatch.mockReset()
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/preflight')) return response({ placements: [] })
     if (url.includes('/summary?')) { order.push('summary'); return response(summary, resultsStatus) }
     if (url.endsWith('/results')) { order.push('results'); return response({ snapshot }, resultsStatus) }
     if (init?.method === 'PATCH') {

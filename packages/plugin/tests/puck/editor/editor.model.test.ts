@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { bannerFor, isSlugCollision, newTestBody, slugify, tabsFor, uniqueSlug } from '../../../src/puck/editor/editor.model.js'
+import { armsFromBlock, isSharedTest, bannerFor, isSlugCollision, newTestBody, slugify, tabsFor, uniqueSlug } from '../../../src/puck/editor/editor.model.js'
 import { defaultArms } from '../../../src/collections/experiments/armInvariants.js'
 import type { Arm } from '../../../src/types/contracts.js'
 
@@ -86,4 +86,45 @@ test('Original comes first even when stored later; labels are trimmed with neutr
     { slot: 'variantB', label: 'Variant B' },
     { slot: 'variantA', label: 'Short headline' },
   ])
+})
+
+
+test('new block arms union existing versions and populated slots in order, without holdout or old settings', () => {
+  const current = { arms: [
+    { ...arms[3]!, label: 'Last idea', weight: 5, params: { old: true } },
+    { ...arms[0]!, label: 'Current page', weight: 80 },
+    { key: 'holdout' as const, kind: 'holdout' as const, label: 'Holdout', weight: 15 },
+  ] }
+  const before = structuredClone(current)
+  const mirrored = armsFromBlock(current, { variantB: [{ type: 'Text' }], variantA: [] })
+  expect(mirrored).toEqual([
+    { key: 'control', kind: 'control', slot: 'control', label: 'Current page', weight: 34 },
+    { key: 'variantB', kind: 'variant', slot: 'variantB', label: 'Variant B', weight: 33 },
+    { key: 'variantC', kind: 'variant', slot: 'variantC', label: 'Last idea', weight: 33 },
+  ])
+  expect(current).toEqual(before)
+  const body = newTestBody({ name: 'Copy', slug: 'copy', kind: 'block', unitType: 'visitor', arms: mirrored })
+  expect(body.arms).toEqual(mirrored)
+  expect(body.arms).not.toBe(mirrored)
+  expect(body).not.toHaveProperty('decision')
+  expect(body).not.toHaveProperty('metrics')
+  expect(body).not.toHaveProperty('targeting')
+  expect(body).not.toHaveProperty('startedAt')
+})
+
+test.each([1, 2, 3, 4])('mirroring %s versions always includes Original and splits 100 with whole weights', count => {
+  const mirrored = armsFromBlock({ arms: arms.slice(1, count) }, {})
+  expect(mirrored.map(arm => arm.key)).toEqual(arms.slice(0, count).map(arm => arm.key))
+  expect(mirrored.reduce((sum, arm) => sum + arm.weight, 0)).toBe(100)
+  expect(Math.max(...mirrored.map(arm => arm.weight)) - Math.min(...mirrored.map(arm => arm.weight))).toBeLessThanOrEqual(1)
+})
+
+test('shared placements count separate blocks or pages, excluding duplicate draft/published versions', () => {
+  const page = { collection: 'pages', id: 1, title: 'Page', ok: true, detail: 'Published' }
+  expect(isSharedTest([])).toBe(false)
+  expect(isSharedTest([page])).toBe(false)
+  expect(isSharedTest([page, { ...page, id: '1', detail: 'Draft' }])).toBe(false)
+  expect(isSharedTest([page, page])).toBe(true)
+  expect(isSharedTest([page, { ...page, id: 2 }])).toBe(true)
+  expect(isSharedTest([page, { ...page, collection: 'articles' }])).toBe(true)
 })

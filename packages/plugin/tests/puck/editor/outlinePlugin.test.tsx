@@ -15,6 +15,8 @@ const doc = { name: 'Outline test', status: 'draft', arms: [
   { key: 'control', kind: 'control', label: 'Original' },
   { key: 'variantA', kind: 'variant', label: 'Variant A' },
 ] }
+// Keep the shared document-read assertions independent of the optional placement read.
+const experimentFetch = vi.fn<typeof fetch>()
 const config: Config = { components: {
   ExperimentSlot: ExperimentSlotEditor,
   Text: { fields: { text: { type: 'text' } }, render: ({ text }) => <p>{text}</p> },
@@ -34,7 +36,9 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} })
   // jsdom lacks CSS.escape; use the CSSOM escape form for punctuation in these ids.
   vi.stubGlobal('CSS', { escape: vi.fn((value: string) => value.replace(/[^a-zA-Z0-9_-]/g, char => `\\${char.codePointAt(0)!.toString(16)} `)) })
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => doc }))
+  experimentFetch.mockReset().mockResolvedValue({ ok: true, json: async () => doc } as Response)
+  vi.stubGlobal('fetch', vi.fn((...args: Parameters<typeof fetch>) => String(args[0]).endsWith('/preflight')
+    ? Promise.resolve(new Response(JSON.stringify({ placements: [] }))) : experimentFetch(...args)))
   for (const id of ['test', 'unknown', 'failed']) setArms(id, undefined)
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -111,14 +115,14 @@ test('editor fetch fills cache, tab-return refetch updates it, warning uses stat
   fireEvent.click(screen.getByRole('button', { name: 'Save page' }))
   expect(saved).toEqual(before)
   expect(data).toEqual(before)
-  vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => ({ ...doc, arms: [doc.arms[0],
+  experimentFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ...doc, arms: [doc.arms[0],
     { key: 'variantB', kind: 'variant', label: 'New B' }, { key: 'variantC', kind: 'variant', label: 'Custom name' },
   ] }) } as Response)
   returnToTab()
   // A becoming hidden proves the refetch response has repopulated the cache.
   await waitFor(() => expect(visibility('orphan')).toEqual([true, false, true, true]))
   expect(screen.queryByText(/Variant C has content/)).toBeNull()
-  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(experimentFetch).toHaveBeenCalledTimes(2)
   fireEvent.click(screen.getByRole('button', { name: 'Save page' }))
   expect(saved).toEqual(before)
   expect(changed).not.toHaveBeenCalled()
@@ -130,7 +134,7 @@ test('editor fetch fills cache, tab-return refetch updates it, warning uses stat
 test('bound loading and failed fetch keep every zone visible, even with a previously cached document', async () => {
   setArms('failed', ['control', 'variantA'])
   let fail!: (reason: Error) => void
-  vi.mocked(fetch).mockReturnValue(new Promise((_, reject) => { fail = reject }))
+  experimentFetch.mockReturnValue(new Promise((_, reject) => { fail = reject }))
   mount({ root: { props: {} }, content: [block('pending', 'failed')] }, true)
   expect(visibility('pending')).toEqual([true, true, true, true])
   await act(async () => { fail(new Error('offline')) })
@@ -146,27 +150,27 @@ function returnToTab() {
 test('visibility return refetches once for two blocks on the same test; focus and hidden do not refetch; unmount removes listeners', async () => {
   const view = mount({ root: { props: {} }, content: [block('two-arm'), block('orphan')] }, true)
   await waitFor(() => expect(visibility('two-arm')).toEqual([true, true, false, false]))
-  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(experimentFetch).toHaveBeenCalledTimes(1)
   fireEvent(window, new Event('focus'))
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
   fireEvent(document, new Event('visibilitychange'))
-  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(experimentFetch).toHaveBeenCalledTimes(1)
   returnToTab()
-  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+  await waitFor(() => expect(experimentFetch).toHaveBeenCalledTimes(2))
   await act(async () => {})
   expect(visibility('orphan')).toEqual([true, true, false, false])
   view.unmount()
   returnToTab()
-  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(experimentFetch).toHaveBeenCalledTimes(2)
 })
 
 test('during a refetch hidden rows stay hidden without flicker and the orphan warning stays visible', async () => {
   mount({ root: { props: {} }, content: [block('orphan', 'test', true)] }, true)
   await screen.findByText(/Variant C has content/)
   let finish!: (response: Response) => void
-  vi.mocked(fetch).mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+  experimentFetch.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
   returnToTab()
-  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(experimentFetch).toHaveBeenCalledTimes(2)
   expect(visibility('orphan')).toEqual([true, true, false, true])
   expect(screen.getByText(/Variant C has content/)).toBeTruthy()
   await act(async () => { finish({ ok: true, json: async () => doc } as Response) })
@@ -187,31 +191,31 @@ test.each([false, true])('a second block joins known arms and the pending fetch;
   </Puck>)
   const knownVisibility = [true, true, false, orphan]
   await waitFor(() => expect(visibility('two-arm')).toEqual(knownVisibility))
-  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(experimentFetch).toHaveBeenCalledTimes(1)
   let finish!: (response: Response) => void
-  vi.mocked(fetch).mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+  experimentFetch.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
   returnToTab()
-  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(experimentFetch).toHaveBeenCalledTimes(2)
   fireEvent.click(screen.getByRole('button', { name: 'Add block' }))
   await waitFor(() => expect(document.querySelectorAll('.xp-slot-editor')).toHaveLength(2))
   expect(visibility('two-arm')).toEqual(knownVisibility)
   expect(visibility('orphan')).toEqual([true, true, false, false])
   expect(Boolean(screen.queryByText(/Variant C has content/))).toBe(orphan)
-  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(experimentFetch).toHaveBeenCalledTimes(2)
   await act(async () => { finish({ ok: true, json: async () => doc } as Response) })
   view.unmount()
 
   // No mounted consumer remains: a fresh editor must not trust the old document.
-  vi.mocked(fetch).mockReturnValueOnce(new Promise(() => {}))
+  experimentFetch.mockReturnValueOnce(new Promise(() => {}))
   mount({ root: { props: {} }, content: [block('two-arm')] }, true)
   expect(visibility('two-arm')).toEqual([true, true, true, true])
-  expect(fetch).toHaveBeenCalledTimes(3)
+  expect(experimentFetch).toHaveBeenCalledTimes(3)
 })
 
 test('a failed refetch clears known arms to unknown', async () => {
   mount({ root: { props: {} }, content: [block('two-arm')] }, true)
   await waitFor(() => expect(visibility('two-arm')).toEqual([true, true, false, false]))
-  vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'))
+  experimentFetch.mockRejectedValueOnce(new Error('offline'))
   returnToTab()
   await screen.findByText("Couldn't load this test. Try selecting it again.")
   expect(visibility('two-arm')).toEqual([true, true, true, true])

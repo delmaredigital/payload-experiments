@@ -355,3 +355,118 @@ test('the drawer opens in the chrome iframe document and focuses its name field'
     expect(doc.activeElement).toBe(trigger)
   } finally { view.unmount(); iframe.remove() }
 })
+
+test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('%s offers the test page, a new test, and removal; selection gates block changes', async status => {
+  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
+  const Editor = createExperimentSlotEditor({ routes: { admin: '/manage' } }).render
+  const view = render(<Editor {...props()} />)
+  const link = await screen.findByRole('link', { name: status === 'draft' ? 'Set up the test' : 'Open the test' })
+  expect(link.getAttribute('href')).toBe('/manage/experiments/1')
+  expect(link.getAttribute('target')).toBe('_blank')
+  expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+  if (status !== 'draft') expect(screen.getByRole('link', { name: 'View results' }).getAttribute('href')).toBe('/manage/experiments/1/results')
+  const create = screen.getByRole('button', { name: 'Start a new test from this block' }) as HTMLButtonElement
+  expect(create.disabled).toBe(false)
+  expect(create.classList.contains('xp-ui-button--secondary')).toBe(true)
+  puck.selected = false
+  view.rerender(<Editor {...props()} />)
+  expect((screen.getByRole('button', { name: create.textContent! }) as HTMLButtonElement).disabled).toBe(true)
+  expect((screen.getByRole('button', { name: 'Remove the test from this block' }) as HTMLButtonElement).disabled).toBe(true)
+})
+
+test('creating from a bound block posts only mirrored versions, rebinds once, and keeps every content reference', async () => {
+  const oldB = puck.item.props.variantB
+  puck.item.props.variantB = [{ type: 'Text', props: { id: 'b-content', text: 'Keep B' } }] as never
+  const oldDoc = { ...doc, metrics: { primary: 9 }, targeting: [{ attribute: 'staff', op: 'eq', value: false }],
+    decision: { winnerArm: 'variantA' }, arms: [...doc.arms] }
+  let created: Record<string, unknown> | undefined
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') { created = JSON.parse(String(init.body)); return new Response(JSON.stringify({ doc: { id: 2, slug: 'welcome-page' } })) }
+    if (url.includes('where[slug]')) return new Response(JSON.stringify({ docs: [] }))
+    if (url.endsWith('/preflight')) return new Response(JSON.stringify({ placements: [] }))
+    return new Response(JSON.stringify(url.includes('/xp-experiments/2?') ? { ...created, status: 'draft' } : oldDoc))
+  }))
+  try {
+    const Editor = ExperimentSlotEditor.render
+    const view = render(<Editor {...props()} />)
+    await screen.findByRole('tab', { name: 'New headline' })
+    fireEvent.click(screen.getByRole('button', { name: 'Start a new test from this block' }))
+    // Another placement changes the test after this dialog opens.
+    oldDoc.arms = oldDoc.arms.map(arm => arm.key === 'variantA' ? { ...arm, label: 'Latest headline' } : arm)
+    oldDoc.arms.push({ key: 'variantC', kind: 'variant', label: 'Last idea' })
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByRole('heading').textContent).toBe('Start a new test from this block')
+    expect((dialog.getByLabelText('Name') as HTMLInputElement).value).toBe('Welcome page')
+    fireEvent.click(dialog.getByRole('button', { name: 'Start a new test from this block' }))
+    await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
+    expect(created).toEqual({ name: 'Welcome page', slug: 'welcome-page', kind: 'block', unitType: 'visitor', exposurePolicy: 'render',
+      allocation: 100, analysis: { plannedDurationDays: 28 }, arms: [
+        { key: 'control', kind: 'control', slot: 'control', label: 'Original', weight: 25 },
+        { key: 'variantA', kind: 'variant', slot: 'variantA', label: 'Latest headline', weight: 25 },
+        { key: 'variantB', kind: 'variant', slot: 'variantB', label: 'Variant B', weight: 25 },
+        { key: 'variantC', kind: 'variant', slot: 'variantC', label: 'Last idea', weight: 25 },
+      ] })
+    const action = puck.dispatch.mock.calls[0]![0]
+    expect(action).toMatchObject({ type: 'replace', destinationIndex: 2, destinationZone: 'parent:content',
+      data: { ...puck.item, props: { ...puck.item.props, experiment: { id: 2, slug: 'welcome-page' } } } })
+    for (const slot of ['control', 'variantA', 'variantB', 'variantC'] as const) expect(action.data.props[slot]).toBe(puck.item.props[slot])
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method && init.method !== 'GET')).toHaveLength(1)
+    expect(oldDoc.arms).toHaveLength(4)
+    view.rerender(<Editor {...props({ experiment: { id: 2, slug: 'welcome-page' } })} />)
+    await screen.findByRole('tab', { name: 'Variant B' })
+    expect(screen.queryByText(/has content but isn't part/)).toBeNull()
+  } finally { puck.item.props.variantB = oldB }
+})
+
+test('a refused mirrored test stays in the dialog and leaves the binding and content untouched', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') return new Response(JSON.stringify({ errors: [{ data: { errors: [{ message: 'Choose valid versions.' }] } }] }), { status: 400 })
+    if (url.includes('where[slug]')) return new Response(JSON.stringify({ docs: [] }))
+    return new Response(JSON.stringify(doc))
+  }))
+  const Editor = ExperimentSlotEditor.render
+  render(<Editor {...props()} />)
+  await screen.findByRole('tab', { name: 'New headline' })
+  fireEvent.click(screen.getByRole('button', { name: 'Start a new test from this block' }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start a new test from this block' }))
+  expect((await within(screen.getByRole('dialog')).findByRole('alert')).textContent).toBe('Choose valid versions.')
+  expect(puck.dispatch).not.toHaveBeenCalled()
+})
+
+test.each([0, 1, 2])('shared notice uses existing placement read: %s placements', async count => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight')
+    ? { placements: Array.from({ length: count }, (_, id) => ({ collection: 'pages', id, detail: 'Published' })) } : doc))))
+  const Editor = createExperimentSlotEditor({ routes: { api: '/content-api' } }).render
+  render(<Editor {...props()} />)
+  await screen.findByRole('tab', { name: 'New headline' })
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/content-api/xp/experiments/1/preflight', expect.objectContaining({ credentials: 'include', cache: 'no-store' })))
+  if (count > 1) {
+    const notice = await screen.findByText('This test also runs on another page. Changes here affect that test.')
+    expect(notice.closest('.xp-ui-banner')?.classList.contains('xp-ui-banner--info')).toBe(true)
+    expect(within(notice.closest('.xp-ui-banner') as HTMLElement).getByRole('button', { name: 'Start a new test from this block' })).toBeTruthy()
+  } else expect(screen.queryByText('This test also runs on another page. Changes here affect that test.')).toBeNull()
+  expect(screen.getAllByRole('button', { name: 'Start a new test from this block' })).toHaveLength(1)
+})
+
+test('removal asks first, clears only the binding, and shows the unbound create action', async () => {
+  const Editor = ExperimentSlotEditor.render
+  const view = render(<Editor {...props()} />)
+  await screen.findByRole('tab', { name: 'New headline' })
+  const calls = vi.mocked(fetch).mock.calls.length
+  const remove = () => fireEvent.click(screen.getByRole('button', { name: 'Remove the test from this block' }))
+  remove()
+  expect(document.activeElement).toBe(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+  expect(puck.dispatch).not.toHaveBeenCalled()
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+  expect(puck.dispatch).not.toHaveBeenCalled()
+  remove()
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove the test from this block' }))
+  expect(puck.dispatch).toHaveBeenCalledOnce()
+  const action = puck.dispatch.mock.calls[0]![0]
+  expect(action.data.props).toEqual({ ...puck.item.props, experiment: null })
+  for (const slot of ['control', 'variantA', 'variantB', 'variantC'] as const) expect(action.data.props[slot]).toBe(puck.item.props[slot])
+  view.rerender(<Editor {...props({ experiment: null })} />)
+  expect(screen.getByRole('button', { name: 'Test this block' })).toBeTruthy()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(calls)
+})
