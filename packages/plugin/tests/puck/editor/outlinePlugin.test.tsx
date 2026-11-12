@@ -37,7 +37,8 @@ beforeEach(() => {
   // jsdom lacks CSS.escape; use the CSSOM escape form for punctuation in these ids.
   vi.stubGlobal('CSS', { escape: vi.fn((value: string) => value.replace(/[^a-zA-Z0-9_-]/g, char => `\\${char.codePointAt(0)!.toString(16)} `)) })
   experimentFetch.mockReset().mockResolvedValue({ ok: true, json: async () => doc } as Response)
-  vi.stubGlobal('fetch', vi.fn((...args: Parameters<typeof fetch>) => String(args[0]).endsWith('/preflight')
+  vi.stubGlobal('fetch', vi.fn((...args: Parameters<typeof fetch>) => String(args[0]).endsWith('/xp/editor-surface')
+    ? Promise.resolve(new Response(JSON.stringify({ canManage: true, canReadResults: true }))) : String(args[0]).endsWith('/preflight')
     ? Promise.resolve(new Response(JSON.stringify({ placements: [] }))) : experimentFetch(...args)))
   for (const id of ['test', 'unknown', 'failed']) setArms(id, undefined)
 })

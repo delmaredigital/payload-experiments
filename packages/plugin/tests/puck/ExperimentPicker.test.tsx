@@ -52,7 +52,6 @@ test('selection stores only id and slug, preserves id types, and clears to null'
 })
 
 test.each([
-  [403, "You can't see tests. Ask an admin."],
   [500, "Couldn't load tests."],
 ])('HTTP %s shows the error copy', async (status, message) => {
   mockFetch({}, status)
@@ -60,6 +59,14 @@ test.each([
   expect((await screen.findByRole('alert')).textContent).toBe(message)
   // Enabled on error so an editor can still choose "No test" to unbind.
   expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(false)
+})
+
+test.each([401, 403])('HTTP %s shows a calm read-only line instead of an empty picker', async status => {
+  mockFetch({}, status)
+  render(<ExperimentPicker value={{ id: 'saved-id', slug: 'saved' }} onChange={vi.fn()} />)
+  await screen.findByText("You don't have access to this test. You can still edit its content.")
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.queryByRole('combobox')).toBeNull()
 })
 
 test('network failure never throws and displays the load error', async () => {

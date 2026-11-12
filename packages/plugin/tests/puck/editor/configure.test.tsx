@@ -242,7 +242,8 @@ test('an empty draft loads full manager setup with zero host wiring and no resul
   expect(await within(drawer).findByLabelText('Test name')).toBeTruthy()
   expect(within(drawer).getByRole('button', { name: 'Start' })).toBeTruthy()
   expect(fetcher.mock.calls.some(([url]) => url.includes('/results'))).toBe(false)
-  expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/xp/editor-surface'))).toHaveLength(1)
+  // Canvas/sidebar check permissions; each new drawer session rechecks them.
+  expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/xp/editor-surface'))).toHaveLength(3)
 })
 
 test.each([401, 403, 500])('surface failure %s explains access or offers setup recovery and Retry', async status => {

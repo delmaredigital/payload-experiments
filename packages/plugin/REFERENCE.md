@@ -739,6 +739,18 @@ it does not save or publish the page. A Start refusal uses the server's sentence
 Escape, Close and the backdrop dismiss the drawer and return focus to its button.
 Links that leave the surface open in a new tab.
 
+Page editors without manage or results access see "You don't have access to this
+test. You can still edit its content." Populated versions remain available from
+the page's own slot data with default version labels; their content stays editable
+on the canvas. The sidebar Test field becomes a read-only sentence. Configure and
+new-test actions are hidden. Results-only readers can open Configure to read results,
+without management controls or new-test actions. Both can remove the binding after
+confirmation; all version content is retained. A refused (401/403) or missing (404)
+status read permits confirmation, and the page guard checks placements on save.
+A successful running-status read still requires readable placements and another
+place to run; network and server failures show the retry sentence.
+
+
 The drawer loads `GET <config.routes.api>/xp/editor-surface` when it opens;
 no host provider or server wiring is needed. The endpoint requires a logged-in
 user with `options.access.manage({ req }) === true` or results access (defaulting

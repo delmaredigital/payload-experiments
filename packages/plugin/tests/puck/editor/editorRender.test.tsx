@@ -195,12 +195,12 @@ test('never creates an observer or sends an exposure, even with xpExpose', async
 
 test.each([false, 'other'] as const)('unbound create binds this block with selection %s without swallowing or double-firing the button', async selection => {
   puck.selected = selection
-  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] }))).mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'created', slug: 'new-test' } })))
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ canManage: true, canReadResults: true }))).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] }))).mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'created', slug: 'new-test' } })))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props({ experiment: null })} />)
   expect(screen.getByRole('status').textContent).toBe('Choose or create a test to show different versions.')
   expect(screen.getAllByRole('tab')).toHaveLength(1)
-  expect(fetch).not.toHaveBeenCalled()
+  expect(fetch).toHaveBeenCalledWith('/api/xp/editor-surface', expect.objectContaining({ credentials: 'include' }))
   fireEvent.click(screen.getByRole('button', { name: 'Test this block' }))
   expect(screen.getAllByRole('dialog')).toHaveLength(1)
   expect(puck.dispatch).not.toHaveBeenCalled()
@@ -378,7 +378,7 @@ test.each(['draft', 'running'] as const)('custom routes reach the bound %s fetch
 })
 
 test('custom API route reaches both drawer requests', async () => {
-  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] })))
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ canManage: true, canReadResults: true }))).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] })))
     .mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'new', slug: 'welcome-page' } })))
   const Editor = createExperimentSlotEditor({ routes: { api: '/content-api/' } }).render
   render(<Editor {...props({ experiment: null })} />)
@@ -386,7 +386,7 @@ test('custom API route reaches both drawer requests', async () => {
   expect(document.activeElement).toBe(screen.getByLabelText('Name'))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Test this block' }))
   await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
-  expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual([
+  expect(vi.mocked(fetch).mock.calls.map(([url]) => url).filter(url => !String(url).endsWith('/xp/editor-surface'))).toEqual([
     expect.stringMatching(/^\/content-api\/xp-experiments\?where\[slug\]\[in\]=welcome-page%2C/), '/content-api/xp-experiments',
   ])
 })

@@ -37,7 +37,7 @@ export function ExperimentPicker({ value, onChange }: {
         })
         if (!active) return
         if (!response.ok) {
-          setState(response.status === 403 ? 'forbidden' : 'error')
+          setState(response.status === 401 || response.status === 403 ? 'forbidden' : 'error')
           return
         }
         setExperiments(response.docs.filter(isExperimentOption).sort((a, b) => (Date.parse(b.updatedAt ?? '') || 0) - (Date.parse(a.updatedAt ?? '') || 0)))
@@ -54,6 +54,9 @@ export function ExperimentPicker({ value, onChange }: {
   const query = search.trim().toLocaleLowerCase('en-US')
   const visible = experiments.filter(doc => String(doc.id) === selected ||
     doc.name.toLocaleLowerCase('en-US').includes(query) || doc.slug.toLocaleLowerCase('en-US').includes(query))
+  if (state === 'forbidden') return <div className="xp-ui-field">
+    <span>{pickerCopy.label}</span><p>{pickerCopy.forbidden}</p>
+  </div>
   return <div className="xp-ui-field">
     {experiments.length > 8 ? <div className="xp-ui-field">
       <label htmlFor={`${id}-search`}>{pickerCopy.search}</label>
@@ -70,6 +73,6 @@ export function ExperimentPicker({ value, onChange }: {
       {visible.map(doc => <option key={doc.id} value={String(doc.id)}>{doc.name} · {pickerCopy.statuses[doc.status]}</option>)}
     </select>
     {state === 'loading' ? <div className="xp-ui-banner" role="status"><p>{pickerCopy.loading}</p></div> : null}
-    {state === 'error' || state === 'forbidden' ? <div className="xp-ui-banner xp-ui-banner--error" role="alert"><p>{pickerCopy[state]}</p></div> : null}
+    {state === 'error' ? <div className="xp-ui-banner xp-ui-banner--error" role="alert"><p>{pickerCopy[state]}</p></div> : null}
   </div>
 }

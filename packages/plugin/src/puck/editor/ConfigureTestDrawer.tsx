@@ -3,36 +3,16 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { registerOverlayPortal } from '@puckeditor/core'
 import type { DocId } from '../../types/contracts.js'
-import type { SurfaceProps } from '../../testSurface/surface/contracts.js'
 import { TestSurface } from '../../testSurface/surface/test/TestSurface.js'
 import { Drawer } from '../../ui/Drawer.js'
 import { Button } from '../../ui/Button.js'
 import { TEST_PAGE } from '../../testSurface/copy/testPage.js'
+import { readSurface, useEditorSurface, type SurfaceState } from './editorSurface.js'
 import { editorCopy as C } from './copy.js'
 import { publishExperiment } from './armsCache.js'
 import { publishPlacements } from './placementsCache.js'
 import type { resolvePuckRoutes } from '../routes.js'
 import './editor.css'
-
-// Only pending requests are shared. Settled permissions never survive a drawer session.
-type SurfaceState = { surface?: SurfaceProps; error?: 'forbidden' | 'unavailable' }
-const pending = new Map<string, Promise<SurfaceState>>()
-function readSurface(api: string): Promise<SurfaceState> {
-  let request = pending.get(api)
-  if (!request) {
-    request = fetch(`${api}/xp/editor-surface`, { credentials: 'include', cache: 'no-store' }).then(async response => {
-      if (response.status === 401 || response.status === 403) return { error: 'forbidden' as const }
-      if (!response.ok) throw new Error('surface')
-      const surface = await response.json() as SurfaceProps
-      if (!surface || typeof surface.canManage !== 'boolean' || typeof surface.canReadResults !== 'boolean') throw new Error('surface')
-      return { surface }
-    }).catch(() => ({ error: 'unavailable' as const }))
-    pending.set(api, request)
-    const release = () => { if (pending.get(api) === request) pending.delete(api) }
-    void request.then(release, release)
-  }
-  return request
-}
 
 export function ConfigureTestDrawer({ id, routes, onClose }: {
   id: DocId; routes: ReturnType<typeof resolvePuckRoutes>; onClose: () => void
@@ -91,5 +71,7 @@ export function openConfigureTestDrawer(source: HTMLElement, routes: ReturnType<
 export function ConfigureTestButton({ id, routes }: { id: DocId; routes: ReturnType<typeof resolvePuckRoutes> }) {
   const drawer = useRef<ReturnType<typeof openConfigureTestDrawer>>(undefined)
   useEffect(() => () => drawer.current?.close(), [id, routes.api])
+  const access = useEditorSurface(routes.api)
+  if (access.error === 'forbidden' || access.surface && !access.surface.canManage && !access.surface.canReadResults) return null
   return <Button variant="primary" onClick={event => { drawer.current?.close(); drawer.current = openConfigureTestDrawer(event.currentTarget, routes, id) }}>{C.configure}</Button>
 }

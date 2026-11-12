@@ -25,11 +25,16 @@ import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
 import { acquirePlacements, invalidatePlacements, refreshPlacements } from './placementsCache.js'
 import { localPlacements } from './localPlacements.js'
+import { useEditorSurface } from './editorSurface.js'
 import { ConfigureTestButton } from './ConfigureTestDrawer.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
 type RenderProps = Parameters<ComponentConfig<ExperimentSlotProps>['render']>[0]
+
+class TestReadError extends Error {
+  constructor(readonly status: number) { super('load') }
+}
 
 function isExperiment(value: unknown): value is EditorExperiment {
   if (!value || typeof value !== 'object') return false
@@ -43,6 +48,7 @@ function isExperiment(value: unknown): value is EditorExperiment {
 function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAccent> }) {
   const getPuck = useGetPuck()
   const { admin, api } = usePuckRoutes()
+  const access = useEditorSurface(api)
   const root = useRef<HTMLElement>(null)
   const [mode, setMode] = useState<'light' | 'dark'>('light')
   useEffect(() => {
@@ -63,7 +69,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   useEffect(() => { binding.current.live = true; return () => { binding.current.live = false } }, [])
   const isCurrentBinding = () => binding.current.live && binding.current.key === bindingKey
   const knownArms = useArms(experimentId)
-  const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean; shared?: boolean }>()
+  const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean; forbidden?: boolean; missing?: boolean; shared?: boolean }>()
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
   const [openMenu, setOpenMenu] = useState<ArmSlot | null>(null)
   const [clearError, setClearError] = useState<{ key: string; message: string } | null>(null)
@@ -102,7 +108,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(experimentId!)}?depth=0`, {
             credentials: 'include', signal,
           })
-          if (!response.ok) throw new Error('load')
+          if (!response.ok) throw new TestReadError(response.status)
           const doc: unknown = await response.json()
           if (!isExperiment(doc)) throw new Error('document')
           return doc
@@ -110,9 +116,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         if (current && revision === request) {
           setLoaded(value => ({ id: experimentId, doc, shared: value?.id === experimentId ? value?.shared : undefined }))
         }
-      } catch {
+      } catch (cause) {
         if (current && revision === request) {
-          setLoaded(value => ({ id: experimentId, error: true, shared: value?.id === experimentId ? value?.shared : undefined }))
+          const forbidden = cause instanceof TestReadError && (cause.status === 401 || cause.status === 403)
+          const missing = cause instanceof TestReadError && cause.status === 404
+          setLoaded(value => ({ id: experimentId, forbidden, missing, error: !forbidden, shared: value?.id === experimentId ? value?.shared : undefined }))
         }
       }
     }
@@ -123,7 +131,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     return () => { current = false; controller.abort(); releaseArms(); document.removeEventListener('visibilitychange', onVisible) }
   }, [experimentId, api])
 
-  const cachedExperiment = loaded?.id === experimentId ? knownArms?.doc : undefined
+  const cachedExperiment = loaded?.id === experimentId && !loaded?.forbidden ? knownArms?.doc : undefined
   const status = cachedExperiment?.status ?? (loaded?.id === experimentId ? loaded?.doc?.status : undefined)
   useEffect(() => {
     if (experimentId === undefined || !status) return
@@ -139,7 +147,9 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const result = experimentId === undefined || loaded?.id !== experimentId ? undefined : loaded
   const shared = locallyShared || result?.shared === true
   const experiment = cachedExperiment ?? result?.doc
-  const editable = experiment?.status === 'draft' || experiment?.status === 'stopped'
+  const noAccess = access.error === 'forbidden' || !!access.surface && !access.surface.canManage && !access.surface.canReadResults
+  const canManage = !noAccess && !result?.forbidden && (access.surface?.canManage ?? true)
+  const editable = canManage && (experiment?.status === 'draft' || experiment?.status === 'stopped')
   const [removed, setRemoved] = useState<{ key: string; revision: number } | null>(null)
   useEffect(() => {
     // Dialog cleanup must close the native modal before an outside tab can receive focus.
@@ -149,7 +159,16 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     publishExperiment(experimentId!, doc)
     if (isCurrentBinding()) setLoaded(value => ({ id: experimentId, doc, shared: value?.id === experimentId ? value?.shared : undefined }))
   }, isCurrentBinding, () => setClearError(null))
-  const tabs = tabsFor(experiment)
+  // The slot arrays belong to the page; reading the test is unnecessary to edit them.
+  const pageSlots = usePuckSelector(state => (['control', 'variantA', 'variantB', 'variantC'] as const).filter(slot => {
+    const content: unknown = state.getItemById(props.id)?.props[slot]
+    return slot === 'control' || Array.isArray(content) && content.length > 0
+  }).join(','))
+  // Keep a page-observed version reachable while its last child is replaced.
+  const observedSlots = useRef({ key: bindingKey, slots: new Set<string>() })
+  if (observedSlots.current.key !== bindingKey) observedSlots.current = { key: bindingKey, slots: new Set() }
+  for (const slot of pageSlots.split(',')) observedSlots.current.slots.add(slot)
+  const tabs = result?.forbidden ? [...observedSlots.current.slots].sort((a, b) => a.localeCompare(b)).map(slot => ({ slot: slot as ArmSlot, label: slotLabels[slot as ArmSlot] })) : tabsFor(experiment)
   const activeSlot = active && active.id === experimentId ? active.slot : undefined
   const slot = tabs.find(tab => tab.slot === activeSlot)?.slot ?? tabs[0]?.slot ?? 'control'
   const slotEmpty = usePuckSelector(state => {
@@ -231,11 +250,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       onCreate: bind,
     })
   }
-  const canDetach = !!experiment && (experiment.status !== 'running' || result?.shared !== undefined && shared)
+  const canDetach = !!result?.forbidden || !!result?.missing || !!experiment && (experiment.status !== 'running' || result?.shared !== undefined && shared)
   const [checkingDetach, setCheckingDetach] = useState(false)
   const detachBusy = useRef(false)
   async function requestDetach(confirm = false) {
-    if (detachBusy.current || !experiment || experimentId === undefined) return
+    if (detachBusy.current || experimentId === undefined) return
     detachBusy.current = true
     setCheckingDetach(true)
     setClearError(null)
@@ -243,7 +262,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}?depth=0`, { credentials: 'include', cache: 'no-store' })
       const current: unknown = response.ok ? await response.json() : null
       if (!isCurrentBinding()) return
-      if (response.status !== 404 && !isExperiment(current)) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null); return }
+      if (![401, 403, 404].includes(response.status) && !isExperiment(current)) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null); return }
       if (isExperiment(current)) publishExperiment(experimentId, current)
       if (isExperiment(current) && current.status === 'running') {
         const placements = await refreshPlacements(api, experimentId)
@@ -262,7 +281,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       if (isCurrentBinding()) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null) }
     } finally { detachBusy.current = false; setCheckingDetach(false) }
   }
-  const newTestButton = experimentId !== undefined ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
+  const newTestButton = experimentId !== undefined && canManage ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
 
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
     <EditorControls className="xp-slot-chrome" selected={isSelected} onSelect={selectBlock}>
@@ -276,14 +295,14 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         <h3 className="xp-slot-title">{experiment?.name ?? experimentSlotLabel}</h3>
         {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
       </header>
-      <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
+      {experimentId !== undefined && (noAccess || result?.forbidden) ? <p className="xp-ui-help">{pickerCopy.forbidden}</p> : <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
         {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
-      </Banner>
+      </Banner>}
       {orphanSlots.map(slot => <Banner key={slot} tone="warning">{editorCopy.orphan(slotLabels[slot])}</Banner>)}
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       <div className="xp-ui-button-group">
-        {experimentId === undefined ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
-        {experimentId !== undefined ? <ConfigureTestButton id={experimentId} routes={{ admin, api }} /> : null}
+        {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
+        {experimentId !== undefined && !noAccess ? <ConfigureTestButton id={experimentId} routes={{ admin, api }} /> : null}
         {!shared ? newTestButton : null}
         {experimentId !== undefined && canDetach ? <Button disabled={checkingDetach} onClick={() => void requestDetach()}>{editorCopy.detach}</Button> : null}
         {experiment && editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}

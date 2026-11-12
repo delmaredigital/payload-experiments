@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: page editors without test access see a calm access line, page-owned version tabs and removal confirmation, with a read-only Test field. Results-only readers can open Configure as a results reader; management actions are hidden. Detach permits denied or missing status reads and leaves the final placement check to the page save; network/server failures remain retryable.
+  Migration impact: none.
+
 - Fixed: page saves and deletes cannot remove a running block test's last placement. The guard uses Start's published-and-draft placement scan, applies to both editors and API writes, and returns a public sentence naming the test. Draft saves keep counting the published block; unpublishing with the block intact keeps a draft placement.
   Migration impact: none.
 

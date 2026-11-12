@@ -13,7 +13,7 @@ export const pickerCopy = {
   search: 'Search tests',
   loading: 'Loading tests…',
   error: "Couldn't load tests.",
-  forbidden: "You can't see tests. Ask an admin.",
+  forbidden: "You don't have access to this test. You can still edit its content.",
   statuses: {
     draft: 'Draft',
     running: 'Running',
