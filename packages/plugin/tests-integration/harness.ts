@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { postgresAdapter } from '@payloadcms/db-postgres'
-import { BasePayload, buildConfig, type CollectionConfig } from 'payload'
+import { BasePayload, buildConfig, type CollectionConfig, type Config } from 'payload'
 import pg, { Pool, type PoolClient, type PoolConfig } from 'pg'
 import { createExperimentsPlugin } from '../src/plugin.js'
 import { sampleOptions } from '../tests/collections/fixtures.js'
@@ -37,7 +37,7 @@ export async function publicTables(pool: Pool): Promise<string[]> {
 }
 
 /** One harness per test file. Forced push also supports a second boot. Train-only. */
-export async function createIntegrationHarness({ collections = [], puckCollections = [], manage, pages, blocks, attributeKeys }: { collections?: CollectionConfig[]; puckCollections?: Array<string | { slug: string; field?: string }>; manage?: ExperimentsAccess; pages?: ExperimentsPluginOptions['pages']; blocks?: ExperimentsPluginOptions['blocks']; attributeKeys?: ExperimentsPluginOptions['attributeKeys'] } = {}) {
+export async function createIntegrationHarness({ collections = [], puckCollections = [], manage, pages, blocks, attributeKeys, localization }: { localization?: Config['localization']; collections?: CollectionConfig[]; puckCollections?: Array<string | { slug: string; field?: string }>; manage?: ExperimentsAccess; pages?: ExperimentsPluginOptions['pages']; blocks?: ExperimentsPluginOptions['blocks']; attributeKeys?: ExperimentsPluginOptions['attributeKeys'] } = {}) {
   const connectionString = integrationConnectionString()
   const pool = new Pool({ connectionString, max: 6 })
   const schemaName = `xp_it_${randomBytes(12).toString('hex')}`
@@ -82,6 +82,7 @@ export async function createIntegrationHarness({ collections = [], puckCollectio
     if (puckCollections.length) options.puck = { enabled: true, collections: puckCollections }
     const config = buildConfig({
       secret: 'integration-only-secret-never-use-in-production',
+      ...(localization ? { localization } : {}),
       db: postgresAdapter({
         pool: { connectionString, max: 6 }, schemaName, push: true,
         pg: { ...pg, Pool: AdapterPool },

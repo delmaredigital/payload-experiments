@@ -4,14 +4,15 @@ import { lockPlacementScope, sortLockKeys } from '../db/locks.js'
 import { txExecutor, pooledExecutor } from '../db/executor.js'
 import { normalisePath } from '../runtime/normalisePath.js'
 import { XpNoTransactionError, XpRefusal } from '../errors.js'
-import { placementGuardCopy, pageGuardCopy, lastBlockPlacementCopy, READINESS_COPY } from '../testSurface/copy/readiness.js'
+import { placementGuardCopy, pageGuardCopy, READINESS_COPY } from '../testSurface/copy/readiness.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 
 import { placementSlugs } from '../blocks/bindings.js'
 import { isObject } from '../blocks/model.js'
 import { placementTests, removableBlockTests, appendPlacementDoc, type PlacementTest } from '../db/placements.js'
-import { hasOtherPublishedBlockPlacement } from '../transitions/placements.js'
 import { isPageBusy } from '../db/pageBusy.js'
+import { blockRemovalRule, releaseRemovalClaim, observeUnpublishedRemoval, releaseRestoredRemovalClaims, type RemovalClaims } from './blockRemovalRule.js'
+import { removedPlacementViews } from '../blocks/placementLocale.js'
 
 // beforeChange has no draft argument. Each operation owns a frame, including
 // nested same-collection updates and restores on a reused Local API request.
@@ -38,6 +39,10 @@ export const pageGuardAfterOperation: CollectionAfterOperationHook = ({ req, col
     const stack = collections?.get(collection.slug)
     stack?.pop()
     if (!stack?.length) collections?.delete(collection.slug)
+  }
+  // Bulk Local API errors are returned per document, without invoking afterError.
+  if (result && typeof result === 'object' && 'errors' in result && Array.isArray(result.errors)) {
+    for (const error of result.errors) if (error && error.id != null) releaseRemovalClaim(req, collection.slug, error.id)
   }
   return result
 }
@@ -96,77 +101,33 @@ function refuseInteraction(tests: readonly PlacementTest[], beforeSlugs: string[
     throw new XpRefusal('interacting-tests', placementGuardCopy(page, block, preExisting), { experimentId: page.id, blockId: block.id }, 409)
   }
 }
-// Shared mutable state survives createLocalReq's shallow context copies. A transaction
-// change resets the claims, so a reused Local API request cannot retain old removals.
-type RemovalClaims = { transaction: unknown; tests: Map<string, Set<string>> }
-const documentKey = (collection: string, id: DocId) => JSON.stringify([collection, String(id)])
-async function removedBlockTests(req: PayloadRequest, beforeSlugs: string[], afterSlugs: string[]) {
-  const removed = beforeSlugs.filter(slug => !afterSlugs.includes(slug))
-  if (!removed.length) return []
-  const exec = await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
-  return removableBlockTests(exec, removed)
-}
-async function claimRemovedBlocks(req: PayloadRequest, affected: Awaited<ReturnType<typeof removedBlockTests>>, collection: string, id: DocId): Promise<RemovalClaims | undefined> {
-  if (!affected.length) return undefined
-  const transaction = await req.transactionID
-  if (transaction == null) throw new XpNoTransactionError('Save this page with transactions on.')
-  let claims = req.context.xpPlacementRemovals as RemovalClaims | undefined
-  if (!claims) req.context.xpPlacementRemovals = claims = { transaction, tests: new Map() }
-  if (claims.transaction !== transaction) {
-    claims.transaction = transaction
-    claims.tests.clear()
-  }
-  // Claim every affected test before the first await of the search (including
-  // the lock). Re-entrant advisory locks alone cannot serialize bulk siblings.
-  for (const test of affected) {
-    const key = String(test.id)
-    const documents = claims.tests.get(key) ?? new Set<string>()
-    documents.add(documentKey(collection, id))
-    claims.tests.set(key, documents)
-  }
-  return claims
-}
-async function refuseRemovedBlocks(req: PayloadRequest, tests: readonly Pick<PlacementTest, 'id' | 'kind' | 'status'>[], affected: Awaited<ReturnType<typeof removedBlockTests>>, claims: RemovalClaims | undefined, removingPage: boolean): Promise<void> {
-  if (!claims) return
-  for (const test of affected) {
-    // A draft/stopped test may have started while waiting for E. The existing
-    // under-lock read is authoritative; Start rescans placements under the same E.
-    if (!tests.some(current => String(current.id) === String(test.id) && current.status === 'running' && current.kind === 'block')) continue
-    if (!await hasOtherPublishedBlockPlacement(req, optionsOf(req), test.slug,
-      (collection, id) => claims.tests.get(String(test.id))!.has(documentKey(collection, id)))) {
-      throw new XpRefusal('locked-placement', lastBlockPlacementCopy(test.name, removingPage), { experimentId: test.id }, 409)
-    }
-  }
-}
 function mapBusy(error: unknown): never {
   if (isPageBusy(error)) throw new XpRefusal('page-busy', 'This page is being updated by a test right now. Try again in a moment.', undefined, 409, { cause: error })
   throw error
 }
 export const pageGuardBeforeDelete: CollectionBeforeDeleteHook = async ({ req, id, collection }) => {
   try {
-    // beforeDelete supplies no doc. One by-id discovery read also sees trashed rows.
-    const published = await storedContent(req, collection.slug, id)
-    if (!published || published._status === 'draft' || collection.trash && published.deletedAt != null) return
+    const page = registration(req, collection.slug)
+    // Keep the earlier page guard's baseline read and every refusal intact.
+    const published = page ? await previousPublishedContent(req, collection.slug, id) : await storedContent(req, collection.slug, id)
+    if (!published || published._status === 'draft') return
     const paths = pathsOf(req, collection.slug, [published])
     const exec = await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
-    const affected = await removedBlockTests(req, placementSlugs(optionsOf(req), collection.slug, published), [])
-    const claims = await claimRemovedBlocks(req, affected, collection.slug, id)
-    if (!registration(req, collection.slug)) {
+    let tests = page ? await placementTests(exec) : undefined
+    const views = removedPlacementViews(req, collection.slug, collection.trash && published.deletedAt != null ? undefined : published, {}, true)
+    const affected = views.size ? await blockRemovalRule.discover(exec, [...views.keys()], tests) : []
+    if (!page) {
       if (!affected.length) return
-      // There is no pre-existing path/audit guard for delete on this collection.
-      // Lock only removal candidates and recheck only their indexed slugs.
-      await lockPlacementScope(exec, guardExperimentIds([], [], collection.slug, [], req.context.xpHeldExperiments, new Set(), affected.map(test => test.id)), [])
-      const current = await removableBlockTests(exec, affected.map(test => test.slug))
-      await refuseRemovedBlocks(req, current.map(test => ({ ...test, kind: 'block' })), affected, claims, true)
-      return
-    }
-    let tests = await placementTests(exec)
-    if (await req.transactionID != null) {
-      await lockPlacementScope(exec, guardExperimentIds(tests, [...placementSlugs(optionsOf(req), collection.slug, published), ...affected.map(test => test.slug)], collection.slug, paths, req.context.xpHeldExperiments, taggedIds(published), affected.map(test => test.id)), paths)
+      if (await req.transactionID != null) {
+        await lockPlacementScope(exec, guardExperimentIds([], [], collection.slug, [], req.context.xpHeldExperiments, new Set(), affected.map(test => test.id)), [])
+        tests = (await removableBlockTests(exec, affected.map(test => test.slug))).map(test => ({ ...test, kind: 'block' } as PlacementTest))
+      } else tests = affected
+    } else if (await req.transactionID != null) {
+      await lockPlacementScope(exec, guardExperimentIds(tests!, placementSlugs(optionsOf(req), collection.slug, published), collection.slug, paths, req.context.xpHeldExperiments, taggedIds(published), affected.map(test => test.id)), paths)
       tests = await placementTests(exec)
     }
-    await refuseRemovedBlocks(req, tests, affected, claims, true)
-    for (const path of paths) protect(tests.filter(t => !t.pageCollection || t.pageCollection === collection.slug), path)
+    for (const path of paths) protect(tests!.filter(t => !t.pageCollection || t.pageCollection === collection.slug), path)
+    if (affected.length) await blockRemovalRule.check(req, tests!, affected, collection.slug, id, true, views)
   } catch (error) { mapBusy(error) }
 }
 
@@ -178,7 +139,7 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
   const options = optionsOf(req)
   try {
     const published = operation === 'create' ? undefined : await previousPublishedContent(req, collection.slug, originalDoc.id as DocId)
-    const before = published?._status === 'draft' || collection.trash && published?.deletedAt != null ? undefined : published
+    const before = published?._status === 'draft' ? undefined : published
     const beforeSlugs = placementSlugs(options, collection.slug, before)
     const afterSlugs = placementSlugs(options, collection.slug, after)
     const beforePaths = pathsOf(req, collection.slug, [before]), afterPaths = pathsOf(req, collection.slug, [after])
@@ -186,21 +147,25 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
     const exec = await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
     let tests = await placementTests(exec)
     const trashing = Boolean(collection.trash && after.deletedAt != null)
-    const affected = await removedBlockTests(req, beforeSlugs, trashing || drafts && after._status !== 'published' ? [] : afterSlugs)
-    const claims = await claimRemovedBlocks(req, affected, collection.slug, originalDoc?.id as DocId)
+    const views = removedPlacementViews(req, collection.slug, collection.trash && before?.deletedAt != null ? undefined : before, after, trashing || drafts && after._status !== 'published')
+    const affected = views.size ? await blockRemovalRule.discover(exec, [...views.keys()], tests) : []
     const publishes = !drafts || after._status === 'published'
-    if (await req.transactionID != null) {
+    const noTransaction = () => {
+      if (publishes && tests.some(t => t.kind === 'block' && active(t) && afterSlugs.includes(t.slug))) throw new XpNoTransactionError('Save this page with transactions on.')
+    }
+    if (await req.transactionID == null) noTransaction()
+    else {
       try {
-        await lockPlacementScope(exec, guardExperimentIds(tests, [...beforeSlugs, ...afterSlugs, ...affected.map(test => test.slug)], collection.slug, paths, req.context.xpHeldExperiments, taggedIds([before, after]), affected.map(test => test.id)), paths)
+        await lockPlacementScope(exec, guardExperimentIds(tests, [...beforeSlugs, ...afterSlugs], collection.slug, paths, req.context.xpHeldExperiments, taggedIds([before, after]), affected.map(test => test.id)), paths)
         tests = await placementTests(exec)
       } catch (error) {
-        if (!(error instanceof XpNoTransactionError) || affected.length) throw error
+        if (!(error instanceof XpNoTransactionError)) throw error
         // Only a session lost after discovery reaches this fallback. The first discovery
         // read and delete have no fallback: a dead session fails those operations closed.
         tests = await placementTests(pooledExecutor(req.payload))
+        noTransaction()
       }
     }
-    await refuseRemovedBlocks(req, tests, affected, claims, trashing || drafts && after._status !== 'published')
     if (operation === 'update' && before) {
       const page = registration(req, collection.slug)
       const old = page?.pathOf(before)
@@ -209,6 +174,7 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
       if (old != null && (unpublishing || trashing || page!.pathOf(after) !== old)) protect(tests.filter(t => !t.pageCollection || t.pageCollection === collection.slug), normalisePath(old))
     }
     if (publishes) refuseInteraction(tests, beforeSlugs, afterSlugs, beforePaths, afterPaths, collection.slug)
+    if (affected.length) await blockRemovalRule.check(req, tests, affected, collection.slug, originalDoc.id as DocId, trashing || drafts && after._status !== 'published', views)
     return data
   } catch (error) { mapBusy(error) }
 }
@@ -217,6 +183,7 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
 export const pageGuardAfterChange: CollectionAfterChangeHook = async ({ req, collection, doc }) => {
   const call = operations(req)?.get(collection.slug)?.at(-1)
   const drafts = Boolean(collection.versions && collection.versions.drafts)
+  if (!call?.draft && (drafts && doc._status !== 'published' || collection.trash && doc.deletedAt != null)) observeUnpublishedRemoval(req, collection.slug, doc.id)
   if (drafts && (doc._status !== 'published' || call?.draft && call.restore)) return doc
   if (await req.transactionID == null) return doc
   try {
@@ -228,11 +195,9 @@ export const pageGuardAfterChange: CollectionAfterChangeHook = async ({ req, col
     const claims = req.context.xpPlacementRemovals as RemovalClaims | undefined
     const exec = txExecutor(req)
     for (const test of await placementTests(exec)) {
-      if (test.kind === 'block' && slugs.includes(test.slug)) {
-        if (claims && claims.transaction === await req.transactionID && stored._status !== 'draft' && stored.deletedAt == null) {
-          claims.tests.get(String(test.id))?.delete(documentKey(collection.slug, doc.id))
-        }
-        if (active(test)) await appendPlacementDoc(exec, test.id, test.phase, { collection: collection.slug, id: doc.id })
+      if (test.kind === 'block' && active(test) && slugs.includes(test.slug)) await appendPlacementDoc(exec, test.id, test.phase, { collection: collection.slug, id: doc.id })
+      if (test.kind === 'block' && claims && claims.transaction === await req.transactionID && stored._status !== 'draft' && stored.deletedAt == null) {
+        releaseRestoredRemovalClaims(req, collection.slug, stored as Record<string, unknown> & { id: DocId }, test)
       }
     }
     return doc

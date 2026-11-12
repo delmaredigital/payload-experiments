@@ -1,13 +1,18 @@
 import type { CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook } from 'payload'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { pageGuardAfterChange, pageGuardAfterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from '../../src/hooks/pageGuard.js'
-import { pageGuardCopy } from '../../src/testSurface/copy/readiness.js'
+import { blockRemovalRule } from '../../src/hooks/blockRemovalRule.js'
+import * as placements from '../../src/transitions/placements.js'
+import { pendingBlockRemovalCopy, pageGuardCopy } from '../../src/testSurface/copy/readiness.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
 import { createFakeExecutor } from '../_fakes/executor.js'
 import { sampleOptions } from './fixtures.js'
 
+afterEach(() => vi.restoreAllMocks())
+
 function setup(status = 'running', path = '/original', discarded = false, drafts = true) {
+  const trace: unknown[] = []
   const options = sampleOptions()
   const findByPath = vi.fn()
   options.pages = { collections: [{ slug: 'pages', pathOf: doc => typeof doc.slug === 'string' ? `/${doc.slug}` : null, findByPath }] }
@@ -21,6 +26,7 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
   }] } })
   executor.query = async <R>(text: string, params: unknown[] = []) => {
     executor.calls.push({ text, params })
+    trace.push({ text, params })
     const rows = text.includes('LEFT JOIN LATERAL') ? payload.documents['xp-experiments']!.map(test => {
       const phase = payload.documents['xp-phases']!.find(p => p.experiment === test.id)
       return { ...test, ...(test.decision as object ?? {}), pageCollection: null, arms: phase?.arms ?? [], phase: 1, placementDocs: null }
@@ -28,7 +34,7 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
     return { rows: rows as R[], rowCount: 1 }
   }
   const published = { id: 1, slug: path.slice(1), ...(drafts ? { _status: 'published' } : {}) }
-  const read = vi.fn(async (_args?: unknown) => published)
+  const read = vi.fn(async (args?: unknown) => { trace.push({ read: (args as { where: unknown }).where }); return published })
   Object.assign(payload.db, { findOne: read })
   const req = fakeReq({ payload })
   const collection = { trash: true, slug: 'pages', versions: drafts ? { drafts: {} } : false }
@@ -40,7 +46,7 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
     await begin(draft)
     try { return await change(data) } finally { await end() }
   }
-  return { executor, payload, req, published, read, remove, save, findByPath, collection, begin, end, change }
+  return { trace, executor, payload, req, published, read, remove, save, findByPath, collection, begin, end, change }
 
 }
 
@@ -207,29 +213,12 @@ const removePageMessage = '“Better hero” is running and this page is the onl
 const discoveries = (f: ReturnType<typeof blockSetup>) => f.executor.calls.filter(c => c.text.includes('ANY($1::text[])'))
 const experimentLocks = (f: ReturnType<typeof blockSetup>) => f.executor.calls.filter(c => c.text.includes("hashtext('xp:experiment')"))
 
-// 890e25a beforeChange/beforeDelete: one published-row read; two placementTests
-// reads surrounding lockPlacementScope's timeout/E/path/restore calls. The draft
-// branch returns before all of those. Compare the full pre-existing call sequence.
-function expectBaselineCalls(f: ReturnType<typeof blockSetup>, experiment: boolean, addedLookups = 0, draft = false) {
-  const calls = f.executor.calls
-  expect(discoveries(f)).toHaveLength(addedLookups)
-  expect(calls.filter(c => !c.text.includes('ANY($1::text[])')).map(c =>
-    c.text.includes('LEFT JOIN LATERAL') ? 'tests' : c.text.includes('current_setting') ? 'timeout'
-      : c.text.includes("hashtext('xp:experiment')") ? 'experiment'
-        : c.text.includes("hashtext('xp:pagepath')") ? 'path'
-          : c.text.includes("'5s'") ? 'set timeout' : 'restore timeout'))
-    .toEqual(draft ? [] : ['tests', 'timeout', 'set timeout', ...(experiment ? ['experiment'] : []), 'path', 'restore timeout', 'tests'])
-  expect(f.read).toHaveBeenCalledTimes(draft ? 0 : 1)
-  expect(f.payload.calls).toEqual([])
-}
-
 test.each(['puck', 'blocks'] as const)('%s publish refuses removing the only running published placement', async editor => {
   const f = blockSetup('running', true, editor)
   await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toMatchObject({
     code: 'locked-placement', status: 409, isPublic: true, message: lastPlacementMessage,
   })
-  expect(discoveries(f)).toHaveLength(1)
-  expect(discoveries(f)[0]!.params).toEqual([['hero']])
+  expect(discoveries(f)).toHaveLength(0)
   expect(f.payload.calls).toHaveLength(1) // published only, collection registered under both editors once
   expect(f.payload.calls[0]!.args).toMatchObject({ overrideAccess: true, req: f.req, draft: false })
   expect(experimentLocks(f).map(c => c.params)).toEqual([['2']])
@@ -237,9 +226,9 @@ test.each(['puck', 'blocks'] as const)('%s publish refuses removing the only run
 test.each(['draft', 'stopped', 'decided', 'archived'])('removing a %s block preserves baseline locks and never scans placements', async status => {
   const f = blockSetup(status)
   await expect(f.save({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
-  expect(discoveries(f)).toHaveLength(1)
+  expect(discoveries(f)).toHaveLength(0)
   expect(experimentLocks(f).map(c => c.params)).toEqual([['2']]) // existing audit lock at 890e25a
-  expectBaselineCalls(f, true, 1)
+  expect(f.executor.calls.filter(c => c.text.includes('LEFT JOIN LATERAL'))).toHaveLength(2)
   expect(f.payload.calls).toEqual([])
 })
 test.each(['empty page', 'keeps block', 'keeps another occurrence'])('%s publish adds zero discovery queries or find calls', async operation => {
@@ -247,7 +236,8 @@ test.each(['empty page', 'keeps block', 'keeps another occurrence'])('%s publish
   if (operation === 'empty page') Object.assign(f.published, f.empty)
   if (operation === 'keeps another occurrence') Object.assign(f.published, { [f.field]: f.content([f.block, f.block]) })
   await expect(f.save({ ...(operation === 'keeps another occurrence' ? { [f.field]: f.content([f.block]) } : {}), _status: 'published' })).resolves.toBeDefined()
-  expectBaselineCalls(f, operation !== 'empty page')
+  expect(discoveries(f)).toEqual([])
+  expect(f.payload.calls).toEqual([])
 })
 test.each(['published', 'draft'])('another %s placement counts only if published', async _status => {
   const f = blockSetup()
@@ -267,7 +257,7 @@ test.each(['draft save', 'autosave', 'draft restore'])('%s of any page preserves
   const f = blockSetup()
   await f.begin(true, operation === 'draft restore' ? 'restoreVersion' : 'update')
   await expect(f.change({ ...f.empty, _status: operation === 'draft restore' ? 'published' : 'draft' })).resolves.toBeDefined()
-  expectBaselineCalls(f, false, 0, true)
+  expect(f.trace).toEqual([])
 })
 test.each(['unpublish', 'trash', 'delete'])('%s refuses the last published placement and permits another published placement', async operation => {
   const f = blockSetup()
@@ -296,10 +286,10 @@ test('delete of an unpublished document is allowed, even without a page registra
   expect(discoveries(f)).toEqual([])
   expect(f.payload.calls).toEqual([])
 })
-test('a removal without a transaction fails closed, a save keeping its block does not', async () => {
+test('without a transaction the earlier live publish guard and the new last-removal guard both fail closed', async () => {
   const f = blockSetup()
   delete f.req.transactionID
-  await expect(f.save({ _status: 'published' })).resolves.toBeDefined()
+  await expect(f.save({ _status: 'published' })).rejects.toMatchObject({ name: 'XpNoTransactionError' })
   expect(discoveries(f)).toEqual([])
   expect(f.payload.calls).toEqual([])
   await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toMatchObject({ name: 'XpNoTransactionError' })
@@ -329,7 +319,8 @@ test.each(['delete', 'update'])('bulk %s of both last placements refuses both in
     : pageGuardBeforeChange({ req, context: req.context, collection: f.collection, originalDoc, operation: 'update', data: { ...f.empty, _status: 'published' } } as unknown as Parameters<CollectionBeforeChangeHook>[0])
   const results = await Promise.allSettled([remove(f.req, f.published), remove(secondReq, other)])
   expect(results.map(r => r.status)).toEqual(['rejected', 'rejected'])
-  for (const result of results) if (result.status === 'rejected') expect(result.reason).toMatchObject({ message: operation === 'delete' ? removePageMessage : lastPlacementMessage })
+  for (const result of results) if (result.status === 'rejected') expect(result.reason).toMatchObject({ code: 'locked-placement' })
+  for (const result of results) if (result.status === 'rejected') expect(result.reason.message).toBe(pendingBlockRemovalCopy('Better hero'))
   f.req.transactionID = f.executor.withSession({ payload: f.payload, transactionID: 'next-transaction' }).transactionID
   if (operation === 'delete') await expect(remove(f.req, f.published)).resolves.toBeUndefined()
   else await expect(remove(f.req, f.published)).resolves.toBeDefined()
@@ -393,30 +384,12 @@ test('republishing a removed binding clears its claim before another placement i
   f.payload.documents.pages!.push(other)
   await f.save({ ...f.empty, _status: 'published' })
   Object.assign(f.published, f.empty) // first host write
+  await pageGuardAfterChange({ req: f.req, collection: f.collection, doc: f.published } as never)
   await f.save({ [f.field]: f.content([f.block]), _status: 'published' })
   Object.assign(f.published, { [f.field]: f.content([f.block]) }) // re-publish host write
   await pageGuardAfterChange({ req: f.req, collection: f.collection, doc: f.published } as never)
   f.read.mockResolvedValue(other)
   await expect(f.change({ ...f.empty, _status: 'published' }, other)).resolves.toBeDefined()
-})
-
-
-test.each(['delete', 'publish'])('%s locks a test found only by the indexed removal lookup', async operation => {
-  const f = blockSetup('draft')
-  f.options.pages = undefined
-  const query = f.executor.query.bind(f.executor)
-  let discoveries = 0
-  f.executor.query = async <R>(text: string, params: unknown[] = []) => {
-    if (text.includes('LEFT JOIN LATERAL') && ++discoveries === 1) {
-      f.executor.calls.push({ text, params })
-      return { rows: [], rowCount: 0 } // broad discovery predates the test's commit
-    }
-    if (text.includes("hashtext('xp:experiment')")) f.payload.documents['xp-experiments']![0]!.status = 'running'
-    return query<R>(text, params)
-  }
-  const write = operation === 'delete' ? f.remove() : f.save({ ...f.empty, _status: 'published' })
-  await expect(write).rejects.toMatchObject({ message: operation === 'delete' ? removePageMessage : lastPlacementMessage })
-  expect(experimentLocks(f).map(c => c.params)).toEqual([['2']])
 })
 
 
@@ -432,4 +405,177 @@ test('delete outside page registration locks only removal candidates and never p
   expect(f.executor.calls.some(c => c.text.includes('LEFT JOIN LATERAL'))).toBe(false)
   expect(experimentLocks(f).map(c => c.params)).toEqual([['2']])
   expect(f.payload.calls).toHaveLength(1)
+})
+
+
+test.each(['draft save', 'autosave', 'create', 'duplicate', 'publish keeping block'])('%s has exactly the same DB/lock sequence with the removal entry point disabled', async operation => {
+  const discover = vi.spyOn(blockRemovalRule, 'discover')
+  const check = vi.spyOn(blockRemovalRule, 'check')
+  const claim = vi.spyOn(blockRemovalRule, 'claim')
+  const search = vi.spyOn(placements, 'hasOtherPublishedBlockPlacement')
+  const run = async () => {
+    const f = blockSetup()
+    if (operation === 'create' || operation === 'duplicate') {
+      await pageGuardBeforeChange({ req: f.req, collection: f.collection, operation: 'create', data: f.published } as never)
+    } else await f.save({ _status: operation === 'publish keeping block' ? 'published' : 'draft' }, operation !== 'publish keeping block')
+    return { trace: f.trace, localAPI: f.payload.calls }
+  }
+  const enabled = await run()
+  expect(discover).not.toHaveBeenCalled()
+  expect(check).not.toHaveBeenCalled()
+  expect(claim).not.toHaveBeenCalled()
+  expect(search).not.toHaveBeenCalled()
+  discover.mockResolvedValue([]) // rule entry point off; all earlier guards still run
+  const disabled = await run()
+  expect(enabled).toEqual(disabled)
+})
+
+test.each(['draft', 'stopped', 'running'])('without transactions %s removal preserves its earlier refusals only', async status => {
+  for (const registered of [true, false]) for (const operation of ['publish', 'unpublish', 'trash', 'delete']) {
+    const f = blockSetup(status)
+    if (!registered) f.options.pages = undefined
+    delete f.req.transactionID
+    const work = operation === 'delete' ? f.remove() : f.save(operation === 'publish' ? { ...f.empty, _status: 'published' }
+      : operation === 'unpublish' ? { _status: 'draft' } : { ...f.empty, deletedAt: '2026-11-12' })
+    if (status === 'running') await expect(work).rejects.toMatchObject({ name: 'XpNoTransactionError', message: 'Save this page with transactions on.' })
+    else if (operation === 'delete') await expect(work).resolves.toBeUndefined()
+    else await expect(work).resolves.toBeDefined()
+  }
+})
+
+test('without transactions a running removal with another published placement is allowed', async () => {
+  const f = blockSetup()
+  delete f.req.transactionID
+  f.payload.documents.pages!.push({ ...f.published, id: 9 })
+  await expect(f.save({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+  await expect(f.remove()).resolves.toBeUndefined()
+})
+
+test('a non-draft restore of a draft version unpublishes the main row and protects its last placement', async () => {
+  const f = blockSetup()
+  await f.begin(false, 'restoreVersion')
+  await expect(f.change({ ...f.empty, _status: 'draft' })).rejects.toMatchObject({ message: removePageMessage })
+})
+
+test('an earlier path refusal makes no removal claim; a sibling can still use the published row', async () => {
+  const f = blockSetup()
+  const other = { ...f.published, id: 9, slug: 'other' }
+  f.payload.documents.pages!.push(other)
+  f.payload.documents['xp-experiments']!.push({ id: 8, name: 'Page test', kind: 'page', status: 'running' })
+  f.payload.documents['xp-phases']!.push({ id: 99, experiment: 8, arms: [{ key: 'control', pageTarget: '/unrelated' }] })
+  const claim = vi.spyOn(blockRemovalRule, 'claim')
+  await expect(f.save({ ...f.empty, _status: 'draft' })).rejects.toMatchObject({ message: expect.stringContaining('Page test') })
+  expect(claim).not.toHaveBeenCalled()
+  f.read.mockResolvedValue(other)
+  await expect(f.change({ ...f.empty, _status: 'published' }, other)).resolves.toBeDefined()
+})
+
+test('a later validation failure is conservative until bulk afterOperation clears failed claims; retry succeeds in the same transaction', async () => {
+  const f = blockSetup()
+  const other = { ...f.published, id: 9 }
+  f.payload.documents.pages!.push(other)
+  await f.begin()
+  await f.change({ ...f.empty, _status: 'published' }) // beforeChange passed; later validation fails, so A stays published
+  f.read.mockResolvedValue(other)
+  await expect(f.change({ ...f.empty, _status: 'published' }, other)).rejects.toMatchObject({ message: pendingBlockRemovalCopy('Better hero') })
+  await pageGuardAfterOperation({ req: f.req, collection: f.collection, operation: 'update', result: { docs: [], errors: [{ id: 1 }, { id: 9 }] } } as never)
+  await expect(f.change({ ...f.empty, _status: 'published' }, other)).resolves.toBeDefined()
+})
+
+test('a failed placement scan releases its claim before a sibling retries', async () => {
+  const f = blockSetup()
+  f.payload.documents.pages!.push({ ...f.published, id: 9 })
+  const find = f.payload.find.bind(f.payload)
+  f.payload.find = vi.fn().mockRejectedValueOnce(new Error('scan failed')).mockImplementation(find)
+  await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toThrow('scan failed')
+  const claims = f.req.context.xpPlacementRemovals as { tests: Map<string, Set<string>> }
+  expect([...claims.tests.values()].flatMap(documents => [...documents])).toEqual([])
+  await expect(f.save({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+})
+
+
+test.each(['puck', 'blocks'] as const)('localized %s removal discovers the same request locale as Start, including fallback', async editor => {
+  for (const locale of ['en', 'fr']) for (const fallback of ['null', 'fr']) {
+    const f = blockSetup('running', true, editor)
+    Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true } })
+    f.payload.config.collections[0]!.fields = [{ name: f.field, type: 'json', localized: true }]
+    f.req.locale = locale
+    f.req.fallbackLocale = fallback
+    Object.assign(f.published, { [f.field]: { en: null, fr: f.content([f.block]) } })
+    const work = f.save({ ...f.empty, _status: 'published' })
+    if (locale === 'fr') await expect(work).rejects.toMatchObject({ message: expect.stringContaining('only published place it appears in this language (') })
+    else await expect(work).resolves.toBeDefined()
+    expect(discoveries(f)).toEqual([])
+  }
+})
+
+
+test.each(['delete', 'trash', 'unpublish'])('localized %s through the default language still protects the only French placement', async operation => {
+  const f = blockSetup()
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true } })
+  f.payload.config.collections[0]!.fields = [{ name: f.field, type: 'json', localized: true }]
+  f.req.locale = 'en'
+  f.req.fallbackLocale = 'null'
+  Object.assign(f.published, { [f.field]: { en: f.content([]), fr: f.content([f.block]) } })
+  const work = operation === 'delete' ? f.remove() : f.save(operation === 'trash' ? { deletedAt: '2026-11-12' } : { _status: 'draft' })
+  await expect(work).rejects.toMatchObject({ code: 'locked-placement', message: expect.stringContaining('in this language (fr)') })
+})
+
+test('publishing a retained English binding does not clear the French removal claim', async () => {
+  const f = blockSetup()
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true } })
+  f.payload.config.collections[0]!.fields = [{ name: f.field, type: 'json', localized: true }]
+  f.req.locale = 'fr'; f.req.fallbackLocale = 'null'
+  Object.assign(f.published, { [f.field]: { en: f.content([f.block]), fr: f.content([f.block]) } })
+  f.payload.documents.pages!.push({ ...f.published, id: 9, [f.field]: f.content([f.block]) })
+  await f.save({ ...f.empty, _status: 'published' })
+  Object.assign(f.published, { [f.field]: { en: f.content([f.block]), fr: f.content([]) } })
+  await pageGuardAfterChange({ req: f.req, collection: f.collection, doc: f.published } as never)
+  const claims = f.req.context.xpPlacementRemovals as { tests: Map<string, Set<string>> }
+  expect([...claims.tests.get('2')!].map(key => JSON.parse(key)[2].locale)).toEqual(['fr'])
+})
+
+
+test('an edit with fallback disabled still protects another language inheriting that content by default', async () => {
+  const f = blockSetup()
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true } })
+  f.payload.config.collections[0]!.fields = [{ name: f.field, type: 'json', localized: true }]
+  f.req.locale = 'en'; f.req.fallbackLocale = 'null'
+  Object.assign(f.published, { [f.field]: { en: f.content([f.block]), fr: null } })
+  const other = { ...f.published, id: 9, [f.field]: { en: f.content([f.block]), fr: f.content([]) } }
+  f.payload.find = vi.fn(async (args: Parameters<typeof f.payload.find>[0]) => ({ docs: [{ ...other, [f.field]: (args.req as { locale?: string })?.locale === 'fr' ? f.content([]) : f.content([f.block]) }], hasNextPage: false }) as never)
+  await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toMatchObject({ message: expect.stringContaining('in this language (fr)') })
+})
+
+test('same-transaction whole-row removals with different fallback policies see each other', async () => {
+  const f = blockSetup()
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true } })
+  f.payload.config.collections[0]!.fields = [{ name: f.field, type: 'json', localized: true }]
+  f.req.locale = 'en'; f.req.fallbackLocale = 'null'
+  Object.assign(f.published, { [f.field]: { en: f.content([f.block]), fr: f.content([f.block]) } })
+  const other = { ...f.published, id: 9 }
+  await f.begin()
+  f.read.mockImplementation(async args => (args as { where: { id: { equals: number } } }).where.id.equals === 9 ? other : f.published)
+  f.payload.find = vi.fn(async (args: Parameters<typeof f.payload.find>[0]) => ({ docs: [f.published, other].map(doc => ({ ...doc, [f.field]: f.content([f.block]) })), hasNextPage: false }) as never)
+  const req = { ...f.req, context: { ...f.req.context }, fallbackLocale: 'en' }
+  const results = await Promise.allSettled([f.remove(), pageGuardBeforeDelete({ req, collection: f.collection, id: 9 } as never)])
+  expect(results.every(result => result.status === 'rejected')).toBe(true)
+  for (const result of results) if (result.status === 'rejected') expect(result.reason).toMatchObject({ message: pendingBlockRemovalCopy('Better hero') })
+})
+
+
+test('a retained language cannot clear another language removal before that write reaches afterChange', async () => {
+  const f = blockSetup()
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true } })
+  f.payload.config.collections[0]!.fields = [{ name: f.field, type: 'json', localized: true }]
+  Object.assign(f.published, { [f.field]: { en: f.content([f.block]), fr: f.content([f.block]) } })
+  f.payload.find = vi.fn(async () => ({ docs: [{ ...f.published, id: 9, [f.field]: f.content([f.block]) }], hasNextPage: false }) as never)
+  f.req.locale = 'en'
+  await f.save({ ...f.empty, _status: 'published' }) // pending en removal, before its main-row write
+  const frenchReq = { ...f.req, context: { ...f.req.context }, locale: 'fr' }
+  await pageGuardBeforeChange({ req: frenchReq, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)
+  Object.assign(f.published, { [f.field]: { en: f.content([f.block]), fr: f.content([]) } })
+  await pageGuardAfterChange({ req: frenchReq, collection: f.collection, doc: f.published } as never)
+  const claims = f.req.context.xpPlacementRemovals as { tests: Map<string, Set<string>> }
+  expect([...claims.tests.get('2')!].map(key => JSON.parse(key)[2].locale).sort()).toEqual(['en', 'fr'])
 })

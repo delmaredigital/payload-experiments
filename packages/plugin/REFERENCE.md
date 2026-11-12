@@ -494,16 +494,53 @@ permits removal; unpublished drafts do not count. Draft saves, autosaves and
 draft-only restores are untouched: the guard performs no reads, scans or
 experiment locks on those operations. The removal rule adds no queries or locks
 to a publish that keeps its bindings or has no test blocks. Only removed bindings
-get one indexed discovery lookup for running or startable block tests; only running
-tests trigger a published-placement search, stopping at the first hit. For delete
-outside page registration, the under-lock status recheck is also indexed; no broad
-test discovery or unrelated experiment locks are added. Collections registered
-under both editors are searched once. Existing page-path and content-audit lock
-rules still apply to publishing operations. Draft, stopped, decided and archived
-block tests do not trigger a placement search. Removed draft/stopped bindings also
-share the experiment lock with Start, then recheck status, so a concurrent Start
-cannot lose its published placement. These removals need a transaction;
-transaction-scoped claims also protect concurrent bulk removals.
+are filtered from the existing test discovery read, with no extra query on saves
+or deletes in page registrations. Only deletes outside a page registration use an
+indexed slug lookup (and indexed under-lock status recheck). Only running tests
+trigger a published-placement search, stopping at the first hit. Collections
+registered under both editors are searched once per affected language/fallback view. Existing page-path, live-publish
+transaction and content-audit guards remain in force, including the refusal to
+publish a running or decided block without a transaction even when keeping it.
+Draft, stopped, decided and archived block tests do not trigger a placement search.
+With transactions, removed draft/stopped bindings share the experiment lock with
+Start and recheck status. Without transactions the plugin cannot serialize a
+removal with a concurrent Start: draft/stopped removals retain their previous
+behaviour; removal of a running test's last published placement fails with
+`Save this page with transactions on.` Another published placement permits the
+removal, subject to all earlier guards.
+
+Removal discovery compares Start's `scanBlockPlacements` view for every configured
+language, with its configured fallback. Start supplies no `fallbackLocale` option
+to its Local API reads, so Payload's `createLocalReq.js:65–77` resets fallback to
+the configured policy, even if the incoming request disabled it. Localized edits also check languages
+that fall back to the edited content; delete, trash and unpublish check all affected
+language views. Localized registered block/Puck fields are flattened
+from adapter locale maps before comparing bindings; an empty array is present
+content and does not fall back. Searches use the same Local API locale view as
+Start. Start supports these placements and marks them `localized`; only **Make it
+the content** is unsupported on localized collections (see the support table).
+Other published placements count in the affected language/fallback view, exactly
+as they do for Start. A last-placement refusal identifies the language when
+localization is enabled.
+
+Claims use those canonical language/fallback views across requests. Claims are made after the existing path/interaction refusals pass, before the
+published-placement scan; a failure in that scan or this rule releases the claim.
+A successful removal retains its claim until the transaction ends or a later
+published write restores that binding in the claimed language/fallback view, after
+its absence was observed in `afterChange`. Overlapping writes to the same
+document/view retain their claims conservatively until a new transaction. Failed bulk rows are released from
+`afterOperation`'s per-document errors. A later validation/hook failure can leave a
+claim until that bulk operation finishes: a sibling is conservatively refused,
+never allowed to remove the last placement. When multiple claims prevent proof,
+the sentence is `“<test name>” is running. Another removal in this transaction
+prevents confirming a published placement. Retry this save, or stop the test first.`
+Retry after bulk completion succeeds if the failed sibling remains published;
+a new transaction also resets all claims. Payload 3.90.2's `afterError` does not
+identify the document/operation (`payload/dist/config/types.d.ts:583–599`) and is
+invoked from `utilities/routeError.js:58`, not Local API bulk catches
+(`collections/operations/update.js:287–299`, `delete.js:217–229`), so it cannot
+reliably clean up individual failed writes. By-id failures roll back their
+transaction; retry with a fresh operation.
 
 Do not swallow errors from nested updates of guarded page collections inside host hooks: a swallowed error leaves the guard's operation frame in place for the rest of the request because Payload's Local API does not call `afterError`.
 

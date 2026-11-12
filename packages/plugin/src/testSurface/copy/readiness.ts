@@ -67,6 +67,8 @@ export const lastBlockPlacementCopy = (name: string, removingPage = false) => re
   ? `“${name}” is running and this page is the only published place it appears. Stop the test first.`
   : `“${name}” is running and this is the only published place it appears. Stop the test, or keep its block on this page.`
 
+export const pendingBlockRemovalCopy = (name: string) => `“${name}” is running. Another removal in this transaction prevents confirming a published placement. Retry this save, or stop the test first.`
+
 /** After archive the guard protects the winner and the Original; only the winner page is "the winner". */
 export const pageGuardCopy = (name: string, status: 'running' | 'decided' | 'archived', role: 'winner' | 'original' = 'winner') => status === 'archived'
   ? role === 'original'
