@@ -41,9 +41,10 @@ test('save and create refuse interacting tests under E-before-path locks; pre-ex
   await expect(f.save({ ...f.content, _status: 'published' })).rejects.toMatchObject({ message: placementGuardCopy(tests[1]!, tests[0]!, true) })
   await expect(f.save({ ...f.content, path: '/page', _status: 'published' }, true)).rejects.toMatchObject({ code: 'interacting-tests' })
 })
-test('no transaction fails a live placement publish closed; stopped blocks and ordinary pages save', async () => {
-  const f = fixture(); delete f.req.transactionID
-  await expect(f.save({ ...f.content, _status: 'published' })).rejects.toMatchObject({ name: 'XpNoTransactionError', message: 'Save this page with transactions on.' })
+test('no transaction permits saves without removals; stopped blocks and ordinary pages save', async () => {
+  const f = fixture([tests[0]!]); delete f.req.transactionID
+  Object.assign(f.original, f.content)
+  await expect(f.save({ ...f.content, _status: 'published' })).resolves.toBeDefined()
   await expect(f.save({ title: 'Plain', _status: 'published' })).resolves.toBeDefined()
   const stopped = fixture(tests.map(t => ({ ...t, status: 'stopped' }))); delete stopped.req.transactionID
   await expect(stopped.save({ ...stopped.content, _status: 'published' })).resolves.toBeDefined()

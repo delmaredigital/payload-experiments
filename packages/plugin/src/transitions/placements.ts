@@ -7,6 +7,7 @@ import { hasLocalizedFields } from './contentFields.js'
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, FlagPoint, PreviewPlacement, ResolvedOptions } from '../types/contracts.js'
 import type { ArmSlot } from '../types/puck.js'
+import { placementSlugs } from '../blocks/bindings.js'
 import { documentEditor, puckCollections as normalisePuckCollections } from '../options.js'
 
 export interface BlockPlacement extends PreviewPlacement {
@@ -44,6 +45,29 @@ function changedDocuments(docs: Array<Record<string, unknown> & { id: DocId }>, 
     kept.push({ ...doc, id: change.id, ...(change.draftOnly ? { _status: 'draft' } : {}) })
   }
   return kept
+}
+
+/** Published rows only, one pass per collection across both editor registrations.
+ * The exclusion predicate reads live transaction claims after each awaited page.
+ */
+export async function hasOtherPublishedBlockPlacement(req: PayloadRequest, options: ResolvedOptions, slug: string,
+  excluded: (collection: string, id: DocId) => boolean): Promise<boolean> {
+  const collections = new Set([...normalisePuckCollections(options).map(entry => entry.slug),
+    ...(options.blocks?.collections ?? []).map(entry => entry.slug)])
+  for (const collection of collections) {
+    const drafts = req.payload.config.collections?.some(c => c.slug === collection && c.versions && c.versions.drafts)
+    let page = 1
+    while (true) {
+      const result = await placementDocuments(req, { collection, overrideAccess: false, limit: 100, page, depth: 0, draft: false,
+        ...(drafts ? { where: { _status: { equals: 'published' } } } : {}),
+      }, true)
+      if (result.docs.some(doc => doc._status !== 'draft' && doc.deletedAt == null && !excluded(collection, doc.id)
+        && placementSlugs(options, collection, doc).includes(slug))) return true
+      if (!result.hasNextPage) break
+      page++
+    }
+  }
+  return false
 }
 
 /** Each matching ExperimentSlot is checked separately, including multiple slots

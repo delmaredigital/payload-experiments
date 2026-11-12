@@ -14,7 +14,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed: page editors without test access see a calm access line, page-owned version tabs and removal confirmation, with a read-only Test field. Results-only readers can open Configure as a results reader; management actions are hidden. Detach permits denied or missing status reads and leaves the final placement check to the page save; network/server failures remain retryable.
   Migration impact: none.
 
-- Fixed: page saves and deletes cannot remove a running block test's last placement. The guard uses Start's published-and-draft placement scan, applies to both editors and API writes, and returns a public sentence naming the test. Draft saves keep counting the published block; unpublishing with the block intact keeps a draft placement.
+- Fixed: publish, publishing version restore, unpublish, trash and delete cannot remove a running block test's last published placement. Draft-only copies do not count; draft saves and autosaves are untouched. The removal rule only queries removed bindings, searches published rows once per collection, and shares removal claims across concurrent writes in one transaction. Removal shares the experiment lock with Start and rechecks status; already-trashed rows never count as published placements. Public refusals name the test.
   Migration impact: none.
 
 - Added: Configure test in the Puck canvas and sidebar opens shared setup and results in a right drawer with zero host wiring. The private, uncached `/xp/editor-surface` endpoint returns the requesting user's admin surface configuration. Version labels summarize canvas versions; shares remain editable. Saves and transitions refresh bound blocks without reloading the page.

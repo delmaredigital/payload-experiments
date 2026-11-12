@@ -21,6 +21,14 @@ export async function placementTests(exec: Executor): Promise<PlacementTest[]> {
   return rows.map(row => ({ ...row, arms: Array.isArray(row.arms) ? row.arms : [], placementDocs: row.placementDocs ?? null }))
 }
 
+/** Indexed slug lookup for the removal guard; startable tests share E with Start before status is rechecked. */
+export async function removableBlockTests(exec: Executor, slugs: readonly string[]): Promise<Array<Pick<PlacementTest, 'id' | 'slug' | 'name' | 'status'>>> {
+  const e = COLUMNS.experiments
+  const { rows } = await exec.query<Pick<PlacementTest, 'id' | 'slug' | 'name' | 'status'>>(`SELECT ${q(e.id)} AS id, ${q(e.slug)} AS slug, ${q(e.name)} AS name, ${q(e.status)} AS status
+    FROM ${qualifiedTable(exec, TABLES.experiments)} WHERE ${q(e.slug)} = ANY($1::text[]) AND ${q(e.kind)} = 'block' AND ${q(e.status)} IN ('draft', 'stopped', 'running')`, [slugs])
+  return rows
+}
+
 /** §7.8: interacting-tests computes placement paths from published rows. */
 export async function placementPathContent(req: PayloadRequest, collection: string, id: DocId) {
   return req.payload.db.findOne<Record<string, unknown> & { id: DocId }>({ collection, req, where: { id: { equals: id } },

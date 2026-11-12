@@ -663,3 +663,42 @@ test.each([false, true])('removed stopped block refuses preflight and Start (rem
   expect(f.executor.calls.some(call => call.text.includes('RETURNING "revision"'))).toBe(false)
   if (afterPreflight) expect(f.payload.dbCalls.some(call => call.method === 'rollbackTransaction')).toBe(true)
 }, 5_000) // Measured max 0.411 ms locally; cap exceeds 3×.
+
+test('Start rescans after a removal that wins E, so its pre-lock placement cannot start the test', async () => {
+  const { pageGuardBeforeChange } = await import('../../src/hooks/pageGuard.js')
+  const f = fixture()
+  Object.assign(f.experiment, { kind: 'block', exposurePolicy: 'render', arms: defaultArms('block') })
+  f.options.puck = { enabled: true, collections: ['pages'] }
+  const collection = { slug: 'pages', versions: { drafts: true }, fields: [] }
+  f.payload.config.collections = [collection as unknown as import('payload').SanitizedCollectionConfig]
+  const published = { id: 5, _status: 'published', puckData: { content: [{ type: 'ExperimentSlot', props: {
+    experiment: { id: 1, slug: 'hero' }, control: [{}], variantA: [{}],
+  } }] } }
+  f.payload.documents.pages = [published]
+  Object.assign(f.payload.db, { findOne: vi.fn(async () => published) })
+  const removalReq = f.executor.withSession({ payload: f.payload, transactionID: 'removal-transaction' })
+  const query = f.executor.query.bind(f.executor)
+  let removalCommitted = false
+  const order: string[] = []
+  f.executor.query = async <R>(text: string, params: unknown[] = []) => {
+    if (text.includes("hashtext('xp:experiment')") && !removalCommitted) {
+      // Start already did its preflight. Mock removal winning the shared E
+      // before Start's lock is granted, and holding it through the page commit.
+      removalCommitted = true
+      await pageGuardBeforeChange({ req: removalReq, collection, originalDoc: published, operation: 'update', data: { puckData: { content: [] }, _status: 'published' } } as never)
+      published.puckData.content = []
+      order.push('removal committed')
+    }
+    if (text.includes("hashtext('xp:experiment')")) order.push('E')
+    if (text.includes('current_setting')) return { rows: [{ timeout: '0' }] as R[], rowCount: 1 }
+    if (text.includes('ANY($1::text[])') || text.includes('LEFT JOIN LATERAL')) {
+      f.executor.calls.push({ text, params })
+      return { rows: [{ ...f.experiment, arms: f.experiment.arms, placementDocs: null }] as R[], rowCount: 1 }
+    }
+    return query<R>(text, params)
+  }
+  await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'no-placements' })
+  expect(order).toEqual(['E', 'removal committed', 'E'])
+  expect(f.experiment.status).toBe('draft')
+  expect(f.payload.documents['xp-phases']).toEqual([])
+})

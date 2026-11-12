@@ -63,7 +63,9 @@ export const runningCopy = (date: string | null, people: number | null, days: nu
   days === null ? null : `about ${days} days to go`,
 ].filter(Boolean).join(' · ')
 
-export const lastBlockPlacementCopy = (name: string) => `“${name}” is running and this is the only place it appears. Stop the test, or keep its block on this page.`
+export const lastBlockPlacementCopy = (name: string, removingPage = false) => removingPage
+  ? `“${name}” is running and this page is the only published place it appears. Stop the test first.`
+  : `“${name}” is running and this is the only published place it appears. Stop the test, or keep its block on this page.`
 
 /** After archive the guard protects the winner and the Original; only the winner page is "the winner". */
 export const pageGuardCopy = (name: string, status: 'running' | 'decided' | 'archived', role: 'winner' | 'original' = 'winner') => status === 'archived'

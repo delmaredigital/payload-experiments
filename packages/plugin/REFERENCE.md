@@ -483,16 +483,25 @@ resolve to your site URL.
 | --- | --- |
 | `pages.collections` | Optional array of `{ slug, pathOf, findByPath }`. `pathOf(doc)` derives a public path from the slug (used to protect live test paths); `findByPath(path, req)` resolves a published page to `{ id, published: true }`, or returns `null`. Start and readiness check every non-holdout version, including the Original. Registered collections must exist when this plugin runs. Localized publication status and field-level `beforeChange` hooks that rewrite paths after the collection guard are unsupported; derive paths from fields finalized before collection hooks. Without this option, readiness warns that pages are unchecked and Start keeps its existing behaviour. |
 
-The page guard refuses a save, publish, restore, trash or delete that would remove
-all placements of a running block test, with the public message:
-`“<test name>” is running and this is the only place it appears. Stop the test, or keep its block on this page.`
+The page guard refuses a publish or publishing version restore that drops a
+running block test's last **published** placement:
+`“<test name>” is running and this is the only published place it appears. Stop the test, or keep its block on this page.`
+Unpublish, trash and delete of its only published placement are also refused:
+`“<test name>” is running and this page is the only published place it appears. Stop the test first.`
 This applies to both block editors, REST and Local API writes, regardless of test
-access. Placements use the same scan as Start: published content **and** latest
-drafts, across all registered block and Puck collections. A draft save or autosave
-can remove a block while its published placement remains. Unpublishing with the
-block intact leaves a draft placement and is allowed by this rule. A remaining
-placement on this or any other document also permits removal. Draft, stopped,
-decided and archived block tests are unaffected. Transactions must be enabled.
+access. Another published placement in any registered block or Puck collection
+permits removal; unpublished drafts do not count. Draft saves, autosaves and
+draft-only restores are untouched: the guard performs no reads, scans or
+experiment locks on those operations. The removal rule adds no queries or locks
+to a publish that keeps its bindings or has no test blocks. Only removed bindings
+get one indexed lookup for running or startable block tests; only running tests trigger a
+published-placement search, stopping at the first hit. Collections registered
+under both editors are searched once. Existing page-path and content-audit lock
+rules still apply to publishing operations. Draft, stopped, decided and archived
+block tests do not trigger a placement search. Removed draft/stopped bindings also
+share the experiment lock with Start, then recheck status, so a concurrent Start
+cannot lose its published placement. These removals need a transaction;
+transaction-scoped claims also protect concurrent bulk removals.
 
 Do not swallow errors from nested updates of guarded page collections inside host hooks: a swallowed error leaves the guard's operation frame in place for the rest of the request because Payload's Local API does not call `afterError`.
 
@@ -588,6 +597,9 @@ verification. Signing prevents a browser from choosing a trusted identity,
 assigned arm, request context or preview group by editing a value. The manifest
 is private. Store no PII beyond opaque unit ids: keep names, emails and other
 identifying values out of attributes, params and event data.
+
+Placement refusals deliberately name the running test even when the page editor
+cannot read tests, so they can tell a colleague which test to stop.
 
 Every collection/global access operation is explicit: create, read, update,
 delete, readVersions and unlock. Managers operate experiments, layers and

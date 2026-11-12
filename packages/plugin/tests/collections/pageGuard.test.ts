@@ -1,6 +1,6 @@
 import type { CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook } from 'payload'
 import { describe, expect, test, vi } from 'vitest'
-import { pageGuardAfterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from '../../src/hooks/pageGuard.js'
+import { pageGuardAfterChange, pageGuardAfterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from '../../src/hooks/pageGuard.js'
 import { pageGuardCopy } from '../../src/testSurface/copy/readiness.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
@@ -24,18 +24,18 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
     const rows = text.includes('LEFT JOIN LATERAL') ? payload.documents['xp-experiments']!.map(test => {
       const phase = payload.documents['xp-phases']!.find(p => p.experiment === test.id)
       return { ...test, ...(test.decision as object ?? {}), pageCollection: null, arms: phase?.arms ?? [], phase: 1, placementDocs: null }
-    }) : text.includes('current_setting') ? [{ timeout: '0' }] : []
+    }) : text.includes('ANY($1::text[])') ? payload.documents['xp-experiments']!.filter(test => test.kind === 'block' && ['draft', 'stopped', 'running'].includes(String(test.status)) && (params[0] as string[]).includes(String(test.slug))) : text.includes('current_setting') ? [{ timeout: '0' }] : []
     return { rows: rows as R[], rowCount: 1 }
   }
   const published = { id: 1, slug: path.slice(1), ...(drafts ? { _status: 'published' } : {}) }
-  const read = vi.fn(async () => published)
+  const read = vi.fn(async (_args?: unknown) => published)
   Object.assign(payload.db, { findOne: read })
   const req = fakeReq({ payload })
   const collection = { trash: true, slug: 'pages', versions: drafts ? { drafts: {} } : false }
   const remove = () => pageGuardBeforeDelete({ req, collection, id: 1 } as Parameters<CollectionBeforeDeleteHook>[0])
   const begin = async (draft = false, operation: 'update' | 'restoreVersion' = 'update') => pageGuardBeforeOperation({ args: { req, draft, collection: { config: collection } }, operation } as Parameters<CollectionBeforeOperationHook>[0])
   const end = async (operation: 'update' | 'updateByID' | 'restoreVersion' = 'updateByID') => pageGuardAfterOperation({ req, collection, operation, result: {} } as Parameters<CollectionAfterOperationHook>[0])
-  const change = (data: Record<string, unknown>, originalDoc: Record<string, unknown> = published) => pageGuardBeforeChange({ req, collection, originalDoc, operation: 'update', data } as Parameters<CollectionBeforeChangeHook>[0])
+  const change = (data: Record<string, unknown>, originalDoc: Record<string, unknown> = published) => pageGuardBeforeChange({ req, collection, originalDoc, operation: 'update', data } as unknown as Parameters<CollectionBeforeChangeHook>[0])
   const save = async (data: Record<string, unknown>, draft = false) => {
     await begin(draft)
     try { return await change(data) } finally { await end() }
@@ -202,81 +202,200 @@ function blockSetup(status = 'running', drafts = true, editor: 'puck' | 'blocks'
   const empty = { [field]: content([]) }
   return { ...f, empty, field, content, block, options }
 }
-const lastPlacementMessage = '“Better hero” is running and this is the only place it appears. Stop the test, or keep its block on this page.'
+const lastPlacementMessage = '“Better hero” is running and this is the only published place it appears. Stop the test, or keep its block on this page.'
+const removePageMessage = '“Better hero” is running and this page is the only published place it appears. Stop the test first.'
+const discoveries = (f: ReturnType<typeof blockSetup>) => f.executor.calls.filter(c => c.text.includes('ANY($1::text[])'))
+const experimentLocks = (f: ReturnType<typeof blockSetup>) => f.executor.calls.filter(c => c.text.includes("hashtext('xp:experiment')"))
 
-test.each(['puck', 'blocks'] as const)('%s publish refuses removing the only running placement with a public sentence', async editor => {
+// 890e25a beforeChange/beforeDelete: one published-row read; two placementTests
+// reads surrounding lockPlacementScope's timeout/E/path/restore calls. The draft
+// branch returns before all of those. Compare the full pre-existing call sequence.
+function expectBaselineCalls(f: ReturnType<typeof blockSetup>, experiment: boolean, addedLookups = 0, draft = false) {
+  const calls = f.executor.calls
+  expect(discoveries(f)).toHaveLength(addedLookups)
+  expect(calls.filter(c => !c.text.includes('ANY($1::text[])')).map(c =>
+    c.text.includes('LEFT JOIN LATERAL') ? 'tests' : c.text.includes('current_setting') ? 'timeout'
+      : c.text.includes("hashtext('xp:experiment')") ? 'experiment'
+        : c.text.includes("hashtext('xp:pagepath')") ? 'path'
+          : c.text.includes("'5s'") ? 'set timeout' : 'restore timeout'))
+    .toEqual(draft ? [] : ['tests', 'timeout', 'set timeout', ...(experiment ? ['experiment'] : []), 'path', 'restore timeout', 'tests'])
+  expect(f.read).toHaveBeenCalledTimes(draft ? 0 : 1)
+  expect(f.payload.calls).toEqual([])
+}
+
+test.each(['puck', 'blocks'] as const)('%s publish refuses removing the only running published placement', async editor => {
   const f = blockSetup('running', true, editor)
   await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toMatchObject({
     code: 'locked-placement', status: 409, isPublic: true, message: lastPlacementMessage,
   })
-  for (const call of f.payload.calls) expect(call.args).toMatchObject({ overrideAccess: true, req: f.req })
-  const locks = f.executor.calls.filter(call => call.text.includes("hashtext('xp:experiment')"))
-  expect(locks.map(call => call.params)).toContainEqual(['2'])
+  expect(discoveries(f)).toHaveLength(1)
+  expect(discoveries(f)[0]!.params).toEqual([['hero']])
+  expect(f.payload.calls).toHaveLength(1) // published only, collection registered under both editors once
+  expect(f.payload.calls[0]!.args).toMatchObject({ overrideAccess: true, req: f.req, draft: false })
+  expect(experimentLocks(f).map(c => c.params)).toEqual([['2']])
 })
-test.each(['draft', 'stopped', 'decided', 'archived'])('removing a %s block is allowed', async status => {
+test.each(['draft', 'stopped', 'decided', 'archived'])('removing a %s block preserves baseline locks and never scans placements', async status => {
   const f = blockSetup(status)
   await expect(f.save({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+  expect(discoveries(f)).toHaveLength(1)
+  expect(experimentLocks(f).map(c => c.params)).toEqual([['2']]) // existing audit lock at 890e25a
+  expectBaselineCalls(f, true, 1)
+  expect(f.payload.calls).toEqual([])
 })
-test('keeping the block, including another occurrence on this page, is allowed', async () => {
+test.each(['empty page', 'keeps block', 'keeps another occurrence'])('%s publish adds zero discovery queries or find calls', async operation => {
   const f = blockSetup()
-  await expect(f.save({ title: 'Edited', _status: 'published' })).resolves.toBeDefined()
-  f.payload.documents.pages![0]!.puckData = f.content([f.block, f.block])
-  await expect(f.save({ puckData: f.content([f.block]), _status: 'published' })).resolves.toBeDefined()
+  if (operation === 'empty page') Object.assign(f.published, f.empty)
+  if (operation === 'keeps another occurrence') Object.assign(f.published, { [f.field]: f.content([f.block, f.block]) })
+  await expect(f.save({ ...(operation === 'keeps another occurrence' ? { [f.field]: f.content([f.block]) } : {}), _status: 'published' })).resolves.toBeDefined()
+  expectBaselineCalls(f, operation !== 'empty page')
 })
-test.each(['published', 'draft'])('another document with a %s placement allows removal', async _status => {
+test.each(['published', 'draft'])('another %s placement counts only if published', async _status => {
   const f = blockSetup()
   f.payload.documents.pages!.push({ ...f.published, id: 9, _status })
-  await expect(f.save({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+  const save = f.save({ ...f.empty, _status: 'published' })
+  if (_status === 'published') await expect(save).resolves.toBeDefined()
+  else await expect(save).rejects.toMatchObject({ message: lastPlacementMessage })
 })
-test('another registered collection also counts', async () => {
+test('another registered collection counts and search stops at its first hit', async () => {
   const f = blockSetup()
-  f.options.puck!.collections.push('templates')
+  f.options.puck!.collections.push('templates', 'unused')
   f.payload.documents.templates = [{ ...f.published, id: 10 }]
   await expect(f.save({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+  expect(f.payload.calls.map(c => c.args.collection)).toEqual(['pages', 'templates'])
 })
-test.each(['draft save', 'autosave', 'draft restore'])('%s preserves the published placement', async operation => {
+test.each(['draft save', 'autosave', 'draft restore'])('%s of any page preserves the pre-existing draft-only calls', async operation => {
   const f = blockSetup()
   await f.begin(true, operation === 'draft restore' ? 'restoreVersion' : 'update')
-  await expect(f.change({ ...f.empty, _status: 'draft' })).resolves.toBeDefined()
+  await expect(f.change({ ...f.empty, _status: operation === 'draft restore' ? 'published' : 'draft' })).resolves.toBeDefined()
+  expectBaselineCalls(f, false, 0, true)
 })
-test('a draft-only placement is protected too, without refusing a draft edit that keeps it', async () => {
+test.each(['unpublish', 'trash', 'delete'])('%s refuses the last published placement and permits another published placement', async operation => {
   const f = blockSetup()
-  f.payload.documents.pages = [{ ...f.published, _status: 'draft' }]
-  await expect(f.save({ title: 'Edited', _status: 'draft' }, true)).resolves.toBeDefined()
-  await expect(f.save({ ...f.empty, _status: 'draft' }, true)).rejects.toMatchObject({ message: lastPlacementMessage })
+  const write = () => operation === 'delete' ? f.remove() : f.save(operation === 'trash' ? { deletedAt: '2026-11-12' } : { _status: 'draft' })
+  await expect(write()).rejects.toMatchObject({ message: removePageMessage })
+  f.payload.documents.pages!.push({ ...f.published, id: 9 })
+  if (operation === 'delete') await expect(write()).resolves.toBeUndefined()
+  else await expect(write()).resolves.toBeDefined()
 })
-test('unpublishing while keeping the block leaves a draft placement; removing both is refused', async () => {
-  const f = blockSetup()
-  await expect(f.save({ _status: 'draft' })).resolves.toBeDefined()
-  await expect(f.save({ ...f.empty, _status: 'draft' })).rejects.toMatchObject({ message: lastPlacementMessage })
-})
-test.each(['delete', 'trash', 'publish restore', 'draft=true publish', 'no drafts save'])('%s cannot remove the last placement', async operation => {
+test.each(['publish restore', 'draft=true publish', 'no drafts save'])('%s cannot drop the last published block', async operation => {
   const f = blockSetup('running', operation !== 'no drafts save')
-  const result = operation === 'delete' ? f.remove() : operation === 'trash' ? f.save({ deletedAt: '2026-11-12', _status: 'published' })
-    : operation === 'publish restore' ? f.begin(false, 'restoreVersion').then(() => f.change({ ...f.empty, _status: 'published' }))
+  const result = operation === 'publish restore' ? f.begin(false, 'restoreVersion').then(() => f.change({ ...f.empty, _status: 'published' }))
     : f.save({ ...f.empty, ...(operation === 'no drafts save' ? {} : { _status: 'published' }) }, operation === 'draft=true publish')
   await expect(result).rejects.toMatchObject({ message: lastPlacementMessage })
 })
-test('delete also covers block collections without pages registration and draft-only documents', async () => {
+test('changing the binding protects the old running test', async () => {
+  const f = blockSetup()
+  await expect(f.save({ puckData: f.content([{ ...f.block, props: { experiment: { id: 8, slug: 'other' } } }]), _status: 'published' })).rejects.toMatchObject({ message: lastPlacementMessage })
+})
+test('delete of an unpublished document is allowed, even without a page registration', async () => {
   const f = blockSetup()
   f.options.pages = undefined
-  f.payload.documents.pages = [{ ...f.published, _status: 'draft' }]
-  f.read.mockResolvedValue(undefined as unknown as typeof f.published)
-  await expect(f.remove()).rejects.toMatchObject({ message: lastPlacementMessage })
-})
-test('delete with another placement is allowed', async () => {
-  const f = blockSetup()
-  f.payload.documents.pages!.push({ ...f.published, id: 9 })
+  f.read.mockResolvedValue({ ...f.published, _status: 'draft' } as typeof f.published)
+  Object.assign(f.payload.db, { findVersions: vi.fn(async () => ({ docs: [] })) })
   await expect(f.remove()).resolves.toBeUndefined()
+  expect(discoveries(f)).toEqual([])
+  expect(f.payload.calls).toEqual([])
 })
-test('a removal without a transaction fails closed', async () => {
+test('a removal without a transaction fails closed, a save keeping its block does not', async () => {
   const f = blockSetup()
   delete f.req.transactionID
+  await expect(f.save({ _status: 'published' })).resolves.toBeDefined()
+  expect(discoveries(f)).toEqual([])
+  expect(f.payload.calls).toEqual([])
   await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toMatchObject({ name: 'XpNoTransactionError' })
   await expect(f.remove()).rejects.toMatchObject({ name: 'XpNoTransactionError' })
+})
+test.each(['create', 'duplicate'])('%s is never refused by the removal rule', async () => {
+  const f = blockSetup()
+  await expect(pageGuardBeforeChange({ req: f.req, context: f.req.context, collection: f.collection, operation: 'create', data: f.published } as unknown as Parameters<CollectionBeforeChangeHook>[0])).resolves.toBeDefined()
+  expect(discoveries(f)).toEqual([])
+  expect(f.payload.calls).toEqual([])
+})
+test('search finds a published placement past the first hundred rows', async () => {
+  const f = blockSetup()
+  f.payload.documents.pages = [...Array.from({ length: 101 }, (_, i) => ({ id: i + 10, _status: 'published', ...f.empty })), { ...f.published, id: 999 }]
+  await expect(f.save({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
+  expect(f.payload.calls.map(c => c.args.page)).toEqual([1, 2])
+})
+test.each(['delete', 'update'])('bulk %s of both last placements refuses both in one transaction; one removal is allowed', async operation => {
+  const f = blockSetup()
+  const other = { ...f.published, id: 9 }
+  f.payload.documents.pages!.push(other)
+  f.read.mockImplementation(async args => ((args as unknown as { where: { id: { equals: number } } }).where.id.equals === 9 ? other : f.published))
+  await f.begin()
+  const secondReq = { ...f.req, context: { ...f.req.context } }
+  const remove = (req: typeof f.req, originalDoc: typeof other) => operation === 'delete'
+    ? pageGuardBeforeDelete({ req, collection: f.collection, id: originalDoc.id } as Parameters<CollectionBeforeDeleteHook>[0])
+    : pageGuardBeforeChange({ req, context: req.context, collection: f.collection, originalDoc, operation: 'update', data: { ...f.empty, _status: 'published' } } as unknown as Parameters<CollectionBeforeChangeHook>[0])
+  const results = await Promise.allSettled([remove(f.req, f.published), remove(secondReq, other)])
+  expect(results.map(r => r.status)).toEqual(['rejected', 'rejected'])
+  for (const result of results) if (result.status === 'rejected') expect(result.reason).toMatchObject({ message: operation === 'delete' ? removePageMessage : lastPlacementMessage })
+  f.req.transactionID = f.executor.withSession({ payload: f.payload, transactionID: 'next-transaction' }).transactionID
+  if (operation === 'delete') await expect(remove(f.req, f.published)).resolves.toBeUndefined()
+  else await expect(remove(f.req, f.published)).resolves.toBeDefined()
 })
 test('placement read errors propagate without continuing after a nested transaction failure', async () => {
   const f = blockSetup(), cause = new Error('placement read failed')
   f.payload.find = vi.fn(async () => { delete f.req.transactionID; throw cause })
   await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toBe(cause)
+})
+
+test.each(['delete', 'trash', 'publish'])('an already trashed row is not a published placement during %s', async operation => {
+  const f = blockSetup()
+  Object.assign(f.published, { deletedAt: '2026-11-10' })
+  const write = operation === 'delete' ? f.remove() : f.save(operation === 'trash' ? { deletedAt: '2026-11-12' } : { ...f.empty, _status: 'published' })
+  if (operation === 'delete') await expect(write).resolves.toBeUndefined()
+  else await expect(write).resolves.toBeDefined()
+  expect(discoveries(f)).toEqual([])
+  expect(f.payload.calls).toEqual([])
+})
+test('trashing a never-published draft adds no removal lookup, lock or scan', async () => {
+  const f = blockSetup()
+  Object.assign(f.published, { _status: 'draft' })
+  Object.assign(f.payload.db, { findVersions: vi.fn(async () => ({ docs: [] })) })
+  await expect(f.save({ deletedAt: '2026-11-12' })).resolves.toBeDefined()
+  expect(discoveries(f)).toEqual([])
+  expect(experimentLocks(f).map(c => c.params)).toEqual([['2']]) // baseline audit superset includes incoming tags
+  expect(f.payload.calls).toEqual([])
+})
+test.each(['no block', 'archived', 'decided'])('delete outside page registration stops after discovery for %s', async state => {
+  const f = blockSetup(state === 'no block' ? 'running' : state)
+  f.options.pages = undefined
+  if (state === 'no block') Object.assign(f.published, f.empty)
+  await expect(f.remove()).resolves.toBeUndefined()
+  expect(f.read).toHaveBeenCalledTimes(1)
+  expect(discoveries(f)).toHaveLength(state === 'no block' ? 0 : 1)
+  expect(f.executor.calls.filter(c => !c.text.includes('ANY($1::text[])'))).toEqual([])
+  expect(f.payload.calls).toEqual([])
+})
+test.each(['draft', 'stopped'])('removal rechecks a %s test after waiting for Start on E', async status => {
+  const f = blockSetup(status)
+  f.options.pages = undefined // no pre-existing page locks: serialization is still required
+  const query = f.executor.query.bind(f.executor)
+  f.executor.query = async <R>(text: string, params: unknown[] = []) => {
+    if (text.includes("hashtext('xp:experiment')")) {
+      // Mock Start owning E when removal arrives, then committing running before
+      // the waiting removal gets E. The discovery result must not decide refusal.
+      f.payload.documents['xp-experiments']![0]!.status = 'running'
+    }
+    return query<R>(text, params)
+  }
+  await expect(f.save({ ...f.empty, _status: 'published' })).rejects.toMatchObject({ message: lastPlacementMessage })
+  expect(experimentLocks(f).map(c => c.params)).toEqual([['2']])
+  expect(f.executor.calls.filter(c => c.text.includes('LEFT JOIN LATERAL'))).toHaveLength(2)
+  expect(f.payload.calls).toHaveLength(1)
+})
+
+
+test('republishing a removed binding clears its claim before another placement is removed in the same transaction', async () => {
+  const f = blockSetup()
+  const other = { ...f.published, id: 9 }
+  f.payload.documents.pages!.push(other)
+  await f.save({ ...f.empty, _status: 'published' })
+  Object.assign(f.published, f.empty) // first host write
+  await f.save({ [f.field]: f.content([f.block]), _status: 'published' })
+  Object.assign(f.published, { [f.field]: f.content([f.block]) }) // re-publish host write
+  await pageGuardAfterChange({ req: f.req, collection: f.collection, doc: f.published } as never)
+  f.read.mockResolvedValue(other)
+  await expect(f.change({ ...f.empty, _status: 'published' }, other)).resolves.toBeDefined()
 })
