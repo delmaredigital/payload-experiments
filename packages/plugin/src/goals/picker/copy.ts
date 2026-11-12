@@ -1,7 +1,9 @@
 /** Shared by Payload's field and the Puck sidebar, without either UI dependency. */
 export const CLICK_GOAL_COPY = {
   label: 'Click goal',
-  choose: 'Choose a click goal',
+  none: 'No click goal',
+  loadError: "Couldn't load goals. Try again.",
+  retry: 'Try again',
   newGoal: '+ New click goal',
   title: 'New click goal',
   name: 'Name',
@@ -9,7 +11,7 @@ export const CLICK_GOAL_COPY = {
   advanced: 'Advanced',
   createGoal: 'Create goal',
   cancel: 'Cancel',
-  undefinedKey: 'No click goal has this name yet. Create it with "+ New click goal".',
+  undefinedKey: 'This click goal is missing. Choose another goal or “No click goal”.',
   invalidKey: 'Use a click goal short name.',
   slugRule: 'Use 1–64 lowercase letters, numbers, underscores or hyphens, starting with a letter or number.',
   duplicateSlug: 'Another goal already uses this short name. Change it under Advanced.',

@@ -31,6 +31,10 @@ test('real SelectInput selects the second goal into Payload Form data', async ()
   fireEvent.click(await screen.findByRole('option', { name: 'Donate' }))
   await waitFor(() => expect(form.getData()).toEqual({ buttons: [{ xpGoal: 'donate' }] }))
   expect(Object.keys(form.getFields())).toEqual(['buttons.0.xpGoal'])
+  fireEvent.keyDown(screen.getByRole('combobox'), { key: 'ArrowDown', code: 'ArrowDown' })
+  fireEvent.click(await screen.findByRole('option', { name: C.none }))
+  await waitFor(() => expect(form.getData()).toEqual({ buttons: [{ xpGoal: '' }] }))
+  expect(screen.getByText(C.none)).toBeTruthy()
 })
 
 test('inline panel never joins real Payload Form state or serialized outer form data', async () => {

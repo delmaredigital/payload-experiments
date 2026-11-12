@@ -2,6 +2,7 @@
 import { useId, type KeyboardEvent } from 'react'
 import type { CustomField } from '@puckeditor/core'
 import { useClickGoalPicker } from '../../goals/picker/useClickGoalPicker.js'
+import { clickGoalOptions } from '../../goals/picker/clickGoalPicker.model.js'
 import { CLICK_GOAL_COPY as C } from '../../goals/picker/copy.js'
 import { TextInput, Select } from '../../ui/Inputs.js'
 import { Button } from '../../ui/Button.js'
@@ -9,20 +10,22 @@ import { resolvePuckRoutes, type PuckRoutes } from '../routes.js'
 import './editor.css'
 
 function XpGoalPuckEditor({ value, onChange, api, readOnly }: { value: string; onChange: (value: string) => void; api: string; readOnly?: boolean }) {
-  const picker = useClickGoalPicker(api, { onSelect: onChange })
+  const picker = useClickGoalPicker(api, { enabled: !readOnly, onSelect: onChange })
+  const { options, missing } = clickGoalOptions(picker.status, picker.goals, value ?? '')
+  const readonly = readOnly || picker.status === 'not-manager'
   const id = useId()
   const stopEnter = (event: KeyboardEvent<HTMLInputElement>) => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation() } }
   return <div className="xp-slot-root xp-puck-field">
-    <TextInput id={`${id}-value`} label={C.label} value={value ?? ''} readOnly={readOnly} onChange={event => onChange(event.currentTarget.value)} />
+    {readonly ? <div className="xp-ui-field"><span>{C.label}</span><p>{value || C.none}</p></div> : <div className="xp-ui-inline-row">
+      <Select id={`${id}-picker`} label={C.label} value={value ?? ''} disabled={picker.status !== 'ready'}
+        onChange={event => onChange(event.currentTarget.value)}>
+        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </Select>
+      {picker.canManage && !picker.panel.open ? <Button type="button" onClick={picker.open}>{C.newGoal}</Button> : null}
+    </div>}
+    {!readonly && picker.status === 'error' ? <div><p className="xp-ui-help">{C.loadError}</p><Button type="button" onClick={picker.retry}>{C.retry}</Button></div> : null}
+    {missing && !readonly ? <p className="xp-ui-help" role="status">{C.undefinedKey}</p> : null}
     {picker.canManage && !readOnly ? <>
-      <div className="xp-ui-inline-row">
-        <Select id={`${id}-picker`} label={C.choose} value={picker.goals.some(goal => goal.slug === value) ? value : ''}
-          onChange={event => { if (event.currentTarget.value) onChange(event.currentTarget.value) }}>
-          <option value="">{C.choose}</option>{picker.goals.map(goal => <option key={goal.id} value={goal.slug}>{goal.name}</option>)}
-        </Select>
-        {!picker.panel.open ? <Button type="button" onClick={picker.open}>{C.newGoal}</Button> : null}
-      </div>
-      {picker.undefinedKey(value ?? '') ? <p className="xp-ui-help" role="status">{C.undefinedKey}</p> : null}
       {picker.panel.open ? <section className="xp-ui-subpanel" aria-labelledby={`${id}-title`}>
         <h3 id={`${id}-title`}>{C.title}</h3>
         <TextInput id={`${id}-name`} label={C.name} value={picker.panel.name} disabled={picker.panel.pending} onKeyDown={stopEnter}

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchAllDocs } from '../../lib/fetchAllDocs.js'
 import { CLICK_KEY } from '../key.js'
-import { clickGoalBody, clickGoalCreateError, clickGoalSlug, definedClickGoals, undefinedClickKey, type ClickGoal, type PickerStatus } from './clickGoalPicker.model.js'
+import { clickGoalBody, clickGoalCreateError, clickGoalSlug, definedClickGoals, type ClickGoal, type PickerStatus } from './clickGoalPicker.model.js'
 
 type GoalListState = { api: string; status: PickerStatus; goals: ClickGoal[] }
 type GoalList = { state: GoalListState; listeners: Array<(state: GoalListState) => void> }
@@ -85,7 +85,7 @@ export function useClickGoalPicker(apiRoute: string, { enabled = true, onSelect 
     } catch { if (current()) setPanel(value => ({ ...value, pending: false, errors: clickGoalCreateError(panel.slug) })) }
     finally { flight.current = false }
   }
-  return { status, goals, canManage, undefinedKey: (value: string) => undefinedClickKey(status, goals, value), panel,
+  return { status, goals, canManage, retry: () => { loadGoals(api) }, panel,
     open: () => { if (canManage) setPanel({ ...emptyPanel(), open: true }) },
     cancel: () => { if (!flight.current) setPanel(emptyPanel()) },
     setName: (name: string) => setPanel(value => {

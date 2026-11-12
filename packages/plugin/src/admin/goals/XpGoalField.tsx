@@ -1,8 +1,9 @@
 'use client'
-import { Button, FieldError, FieldLabel, SelectInput, TextInput, useAuth, useConfig, useField } from '@payloadcms/ui'
+import { Button, FieldDescription, FieldError, FieldLabel, SelectInput, useAuth, useConfig, useField } from '@payloadcms/ui'
 import type { TextFieldClientProps } from 'payload'
-import { useId, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useId, type ComponentProps, type KeyboardEvent } from 'react'
 import { useClickGoalPicker } from '../../goals/picker/useClickGoalPicker.js'
+import { clickGoalOptions } from '../../goals/picker/clickGoalPicker.model.js'
 import { CLICK_GOAL_COPY as C } from '../../goals/picker/copy.js'
 import '../theme.css'
 import './xpGoalField.css'
@@ -13,24 +14,26 @@ export function XpGoalField({ path, field, readOnly }: TextFieldClientProps) {
   const { config } = useConfig()
   const access: { update?: boolean } | undefined = permissions?.collections?.['xp-experiments']
   const locked = Boolean(readOnly || field.admin?.readOnly)
-  const picker = useClickGoalPicker(config.routes.api, { enabled: access?.update === true, onSelect: setValue })
+  const picker = useClickGoalPicker(config.routes.api, { enabled: access?.update === true && !locked, onSelect: setValue })
+  const { options, missing } = clickGoalOptions(picker.status, picker.goals, value ?? '')
+  const readonly = locked || picker.status === 'not-manager'
   const id = useId(), namePath = `${id}-name`, slugPath = `${id}-slug`
   const stopEnter = (event: KeyboardEvent<HTMLInputElement>) => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation() } }
   return <div className="field-type xp-goal-field">
-    <TextInput path={path} label={field.label ?? C.label} description={field.admin?.description}
-      required={field.required} readOnly={locked} value={value ?? ''} showError={showError}
-      Error={<FieldError path={path} showError={showError} />}
-      onChange={(event: ChangeEvent<HTMLInputElement>) => { if (!locked) setValue(event.currentTarget.value) }} />
+    {readonly ? <div><FieldLabel path={path} label={C.label} required={field.required} />
+      <p>{value || C.none}</p></div> : <div className="xp-goal-field__row">
+      <SelectInput name={path} path={path} className="xp-goal-field__select"
+        value={value ?? ''} options={options} label={C.label} required={field.required}
+        readOnly={picker.status !== 'ready'} isClearable={false} placeholder={C.none} showError={showError}
+        onChange={option => { if (picker.status === 'ready' && option && !Array.isArray(option)) setValue(String(option.value)) }} />
+      {picker.canManage && !picker.panel.open ? <Button type="button" margin={false} buttonStyle="secondary" onClick={picker.open}>{C.newGoal}</Button> : null}
+    </div>}
+    {readonly ? <FieldError path={path} showError={showError} /> : null}
+    <FieldDescription path={path} description={field.admin?.description as ComponentProps<typeof FieldDescription>['description']} />
+    {!readonly && picker.status === 'error' ? <div><p>{C.loadError}</p>
+      <Button type="button" margin={false} buttonStyle="secondary" onClick={picker.retry}>{C.retry}</Button></div> : null}
+    {missing && !readonly ? <p role="status">{C.undefinedKey}</p> : null}
     {picker.canManage && !locked ? <>
-      <div className="xp-goal-field__row">
-        <SelectInput name={`${path}__xpGoalPicker`} path={`${path}__xpGoalPicker`} className="xp-goal-field__select"
-          value={picker.goals.some(goal => goal.slug === value) ? value : undefined}
-          options={picker.goals.map(goal => ({ value: goal.slug, label: goal.name }))}
-          placeholder={C.choose} isClearable={false} label={C.choose}
-          onChange={option => { if (option && !Array.isArray(option)) setValue(String(option.value)) }} />
-        {!picker.panel.open ? <Button type="button" margin={false} buttonStyle="secondary" onClick={picker.open}>{C.newGoal}</Button> : null}
-      </div>
-      {picker.undefinedKey(value ?? '') ? <p role="status">{C.undefinedKey}</p> : null}
       {picker.panel.open ? <section className="xp-goal-field__panel" aria-labelledby={`${id}-title`}>
         <h3 id={`${id}-title`}>{C.title}</h3>
         <div className="field-type text"><FieldLabel path={namePath} label={C.name} />

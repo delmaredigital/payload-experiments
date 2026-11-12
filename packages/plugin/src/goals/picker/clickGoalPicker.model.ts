@@ -9,8 +9,12 @@ export function goalSlug(name: string): string {
 }
 export function clickGoalSlug(name: string): string { return goalSlug(name).slice(0, 64).replace(/[-_]+$/, '') }
 export function definedClickGoals(rows: readonly ClickGoal[]): ClickGoal[] { return rows.filter(row => isClickSource(row.source)) }
-export function undefinedClickKey(status: PickerStatus, goals: readonly ClickGoal[], value: string): boolean {
-  return status === 'ready' && Boolean(value) && !goals.some(goal => goal.slug === value)
+/** Keep legacy values visible without changing stored data during a read. */
+export function clickGoalOptions(status: PickerStatus, goals: readonly ClickGoal[], value: string) {
+  const missing = status === 'ready' && Boolean(value) && !goals.some(goal => goal.slug === value)
+  const options = [{ value: '', label: C.none }, ...goals.map(goal => ({ value: goal.slug, label: goal.name }))]
+  if (value && !goals.some(goal => goal.slug === value)) options.push({ value, label: missing ? `${value} (missing)` : value })
+  return { options, missing }
 }
 export function clickGoalBody(name: string, slug: string) {
   return { name: name.trim(), slug, source: `click:${slug}`, direction: 'increase',

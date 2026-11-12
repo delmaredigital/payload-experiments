@@ -30,26 +30,26 @@ beforeEach(() => {
   fetcher = vi.fn(async () => json({ docs: rows, hasNextPage: false })); vi.stubGlobal('fetch', fetcher)
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
-function Payload({ path = 'buttons.0.xpGoal' }: { path?: string }) { return <XpGoalField {...{ path, field: { name: 'xpGoal', type: 'text', label: C.label, admin: { description: 'Host help' } } } as any} /> }
-function Puck() {
-  const [value, setValue] = useState('missing')
+function Payload({ path = 'buttons.0.xpGoal', readOnly = false }: { path?: string; readOnly?: boolean }) { return <XpGoalField {...{ path, readOnly, field: { name: 'xpGoal', type: 'text', label: C.label, admin: { description: 'Host help' } } } as any} /> }
+function Puck({ readOnly = false, initialValue = 'missing' }: { readOnly?: boolean; initialValue?: string }) {
+  const [value, setValue] = useState(initialValue)
   const puckField = useMemo(() => xpGoalPuckEditorField({ routes: { api: apiRoute } }), [apiRoute])
-  return createElement(puckField.render, { value, onChange: (next: string) => { select(next); setValue(next) } } as any)
+  return createElement(puckField.render, { value, readOnly, onChange: (next: string) => { select(next); setValue(next) } } as any)
 }
 
 test('Payload picker passes a unique path, matched value, options and single-option changes to SelectInput', async () => {
   const { rerender } = render(<Payload />)
   await screen.findByRole('option', { name: 'Join us' })
   const props = () => pickerSelect.mock.lastCall![0]
-  expect(props()).toMatchObject({ path: 'buttons.0.xpGoal__xpGoalPicker', value: undefined,
-    label: C.choose, placeholder: C.choose, isClearable: false, options: [{ label: 'Join us', value: 'join' }] })
+  expect(props()).toMatchObject({ path: 'buttons.0.xpGoal', value: 'missing',
+    label: C.label, isClearable: false, options: [{ label: C.none, value: '' }, { label: 'Join us', value: 'join' }, { label: 'missing (missing)', value: 'missing' }] })
   act(() => { props().onChange(null); props().onChange([{ value: 'join' }]) })
   expect(select).not.toHaveBeenCalled()
   act(() => props().onChange({ value: 'join', label: 'Join us' }))
   expect(select).toHaveBeenCalledWith('join')
   act(() => setField({ value: 'join', setValue: select }, 'buttons.1.xpGoal'))
   rerender(<Payload path="buttons.1.xpGoal" />)
-  expect(props()).toMatchObject({ path: 'buttons.1.xpGoal__xpGoalPicker', value: 'join' })
+  expect(props()).toMatchObject({ path: 'buttons.1.xpGoal', value: 'join' })
 })
 
 test.each([{ host: 'Payload', Host: Payload, row: 'xp-goal-field__row', panel: 'xp-goal-field__panel', actions: 'xp-goal-field__actions' },
@@ -71,24 +71,56 @@ describe.each([{ host: 'Payload', Host: Payload }, { host: 'Puck', Host: Puck }]
     fetcher.mockImplementationOnce(() => new Promise<Response>(done => { resolve = done }))
     render(<Host />)
     expect(screen.queryByText(C.undefinedKey)).toBeNull()
+    expect(screen.getByRole('combobox')).toHaveProperty('disabled', true)
+    expect(screen.getByRole('combobox')).toHaveProperty('value', 'missing')
     await act(async () => resolve(json({ docs: [...rows, { id: 2, name: 'Fake', slug: 'fake', source: 'events:click:fake' }], hasNextPage: false })))
     expect(await screen.findByText(C.undefinedKey)).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'missing (missing)' })).toHaveProperty('selected', true)
+    expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByRole('option', { name: 'Fake' })).toBeNull()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'join' } })
     expect(select).toHaveBeenCalledWith('join')
     expect(String(fetcher.mock.calls[0]![0])).toContain('where%5Bsource%5D%5Blike%5D=click%3A')
     expect(fetcher.mock.calls[0]![1]).toMatchObject({ credentials: 'include' })
   })
-  test('403 silently becomes only the plain input', async () => {
+  test('403 shows read-only text without controls', async () => {
     fetcher.mockResolvedValue(json({ errors: [{ message: 'secret' }] }, 403))
     render(<Host />)
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
     await act(async () => {})
-    expect(screen.getByLabelText(C.label)).toBeTruthy()
+    expect(screen.getByText(C.label)).toBeTruthy()
+    expect(screen.getByText('missing')).toBeTruthy()
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(select).not.toHaveBeenCalled()
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.queryByText(C.newGoal)).toBeNull()
     expect(screen.queryByText(C.undefinedKey)).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+  test('No click goal clears the stored value', async () => {
+    render(<Host />)
+    await screen.findByRole('option', { name: 'Join us' })
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } })
+    expect(select).toHaveBeenCalledWith('')
+  })
+  test('read errors keep the value and allow retry', async () => {
+    fetcher.mockRejectedValueOnce(new Error('offline'))
+    render(<Host />)
+    expect(await screen.findByText(C.loadError)).toBeTruthy()
+    expect(screen.getByRole('combobox')).toHaveProperty('value', 'missing')
+    expect(select).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: C.retry }))
+    expect(await screen.findByRole('option', { name: 'Join us' })).toBeTruthy()
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+  test('readOnly shows only the stored text and never reads or changes it', () => {
+    render(<Host readOnly />)
+    expect(screen.getByText('missing')).toBeTruthy()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(select).not.toHaveBeenCalled()
   })
   test('Enter never submits or creates, Cancel sends nothing, inputs have no names', async () => {
     const submit = vi.fn(event => event.preventDefault())
@@ -144,12 +176,14 @@ test('Payload respects array path, field help, server error, read-only and manag
   setAuth({ permissions: { collections: {} } })
   setField({ value: 'join', setValue: select, showError: true }, 'buttons.0.xpGoal')
   const { rerender } = render(<Payload />)
-  expect(screen.getByLabelText(C.label)).toHaveProperty('value', 'join')
+  expect(screen.getByText('join')).toBeTruthy()
+  expect(screen.getByText('Host help')).toBeTruthy()
   expect(screen.getByText('Server validation error')).toBeTruthy()
   expect(fetcher).not.toHaveBeenCalled()
   expect(screen.queryByText(C.newGoal)).toBeNull()
   rerender(<XpGoalField {...{ path: 'buttons.0.xpGoal', readOnly: true, field: { name: 'xpGoal', type: 'text', label: C.label } } as any} />)
-  expect(screen.getByLabelText(C.label)).toHaveProperty('readOnly', true)
+  expect(screen.queryByRole('textbox')).toBeNull()
+  expect(select).not.toHaveBeenCalled()
 })
 
 test('a deferred create uses the current array-row setter after a reorder', async () => {
@@ -222,7 +256,8 @@ test.each([403, 500, 'offline'] as const)('a failed shared load is retried by th
   else fetcher.mockResolvedValueOnce(json({}, failure))
   render(<Payload />)
   await act(async () => {})
-  expect(screen.queryByRole('combobox')).toBeNull()
+  if (failure === 403) expect(screen.queryByRole('combobox')).toBeNull()
+  else expect(screen.getByRole('combobox')).toHaveProperty('disabled', true)
   render(<Payload path="buttons.1.xpGoal" />)
   await waitFor(() => expect(screen.getAllByRole('option', { name: 'Join us' })).toHaveLength(2))
   expect(fetcher).toHaveBeenCalledTimes(2)
@@ -233,4 +268,20 @@ test('different API bases have separate shared lists', async () => {
   await waitFor(() => expect(screen.getAllByRole('option', { name: 'Join us' })).toHaveLength(2))
   expect(fetcher).toHaveBeenCalledTimes(2)
   expect(fetcher.mock.calls.map(([url]) => new URL(url, 'https://host').pathname)).toEqual([`${apiRoute}/xp-metrics`, '/other-api/xp-metrics'])
+})
+
+test.each(['Payload', 'Puck'])('%s keeps malformed stored text selected as missing', async host => {
+  setField({ value: 'BAD ? goal', setValue: select }, 'buttons.0.xpGoal')
+  render(host === 'Payload' ? <Payload /> : <Puck initialValue="BAD ? goal" />)
+  expect(await screen.findByRole('option', { name: 'BAD ? goal (missing)' })).toHaveProperty('selected', true)
+  expect(select).not.toHaveBeenCalled()
+})
+test('a non-manager with an empty Payload value sees No click goal as text', () => {
+  setAuth({ permissions: { collections: {} } })
+  setField({ value: '', setValue: select }, 'buttons.0.xpGoal')
+  render(<Payload />)
+  expect(screen.getByText(C.none)).toBeTruthy()
+  expect(screen.queryByRole('combobox')).toBeNull()
+  expect(screen.queryByRole('textbox')).toBeNull()
+  expect(select).not.toHaveBeenCalled()
 })
