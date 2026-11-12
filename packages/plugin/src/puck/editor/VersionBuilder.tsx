@@ -63,9 +63,9 @@ export function VersionActions({ arm, writes, editable, open, onOpenChange, canC
     // Focus leaving the canvas iframe (Puck's own panels) or the window fires window blur, not a document pointerdown.
     const leave = () => onOpenChange(false)
     const view = doc?.defaultView
-    doc?.addEventListener('pointerdown', outside)
+    doc?.addEventListener('pointerdown', outside, true)
     view?.addEventListener('blur', leave)
-    return () => { doc?.removeEventListener('pointerdown', outside); view?.removeEventListener('blur', leave) }
+    return () => { doc?.removeEventListener('pointerdown', outside, true); view?.removeEventListener('blur', leave) }
   }, [open, onOpenChange])
   const closeMenu = () => { onOpenChange(false); focusTrigger() }
   const slot = arm.key as ArmSlot

@@ -42,7 +42,7 @@ test.each([false, true])('one placement on this saved page is not shared (custom
   fetchPlacements([{ ...placement, editorUrl: custom ? '/manage-content/page/saved?draft=true' : undefined }])
   mount({ root: { props: {} }, content: [block('only')] })
   await screen.findByRole('heading', { name: 'Shared test' })
-  await act(async () => {})
+  await screen.findByText('Stop the test to remove it from this block.')
   expect(screen.queryByText(notice)).toBeNull()
   expect(screen.queryByRole('button', { name: 'Remove the test from this block' })).toBeNull()
   expect(screen.getByText('Stop the test to remove it from this block.')).toBeTruthy()
@@ -64,7 +64,7 @@ test.each(['403', 'network'].flatMap(failure => [1, 2].map(count => ({ failure, 
   expect(screen.queryByRole('alert')).toBeNull()
   expect(read).toHaveBeenCalledOnce()
 })
-test('all blocks share one pending placement read, late blocks use the cache, and visibility return never refetches it', async () => {
+test('blocks share pending placement reads, a late RUNNING block refreshes settled knowledge, and visibility return does not refetch', async () => {
   let complete!: (response: Response) => void
   const reads = vi.fn(() => new Promise<Response>(resolve => { complete = resolve }))
   vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? reads() : new Response(JSON.stringify(doc))))
@@ -74,14 +74,16 @@ test('all blocks share one pending placement read, late blocks use the cache, an
     dispatch({ type: 'setData', data: { ...appState.data, content: [...appState.data.content, block('three')] } })
   }}>Add</button> }
   render(<Puck config={config} data={{ root: { props: {} }, content: [block('one'), block('two')] }} iframe={{ enabled: false }}><Puck.Preview /><Probe /></Puck>)
-  expect(reads).toHaveBeenCalledOnce()
+  await waitFor(() => expect(reads).toHaveBeenCalledOnce())
   await act(async () => { complete(new Response(JSON.stringify({ placements: [placement] }))) })
   fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+  await waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
+  await act(async () => { complete(new Response(JSON.stringify({ placements: [placement] }))) })
   await waitFor(() => expect(screen.getAllByText(notice)).toHaveLength(3))
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
   fireEvent(document, new Event('visibilitychange'))
   await act(async () => {})
-  expect(reads).toHaveBeenCalledOnce()
+  expect(reads).toHaveBeenCalledTimes(2)
   // Server sharing remains after local sharing goes away, including across a document refetch.
   act(() => getPuck().dispatch({ type: 'setData', data: { root: { props: {} }, content: [block('one')] } }))
   await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Shared test' })).toHaveLength(1))
@@ -139,4 +141,41 @@ test('a status refresh closes an ineligible detach confirmation before it can ch
   fireEvent(document, new Event('visibilitychange'))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(screen.getByText('Stop the test to remove it from this block.')).toBeTruthy()
+})
+
+
+test('RUNNING shows no detach action or stop sentence until placements settle', async () => {
+  let complete!: (response: Response) => void
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? new Promise<Response>(resolve => { complete = resolve }) : new Response(JSON.stringify(doc))))
+  mount({ root: { props: {} }, content: [block('only')] })
+  await screen.findByRole('heading', { name: 'Shared test' })
+  expect(screen.queryByText('Stop the test to remove it from this block.')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Remove the test from this block' })).toBeNull()
+  await act(async () => complete(new Response(JSON.stringify({ placements: [] }))))
+  await screen.findByText('Stop the test to remove it from this block.')
+})
+
+test.each(['offer', 'confirm', 'failure'] as const)('RUNNING rechecks stale shared placements before detach: %s', async stage => {
+  window.history.replaceState({}, '', '/admin/puck-editor/pages/saved')
+  let reads = 0
+  const placementsRead = vi.fn(async () => {
+    reads++
+    if (reads === 1 || stage === 'confirm' && reads === 2) return new Response(JSON.stringify({ placements: [placement, { ...placement, id: 'elsewhere' }] }))
+    if (stage === 'failure') throw new Error('offline')
+    return new Response(JSON.stringify({ placements: [placement] }))
+  })
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? placementsRead() : new Response(JSON.stringify(doc))))
+  let read!: ReturnType<typeof useGetPuck>
+  function Probe() { read = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block('only')] }} iframe={{ enabled: false }}><Puck.Preview /><Probe /></Puck>)
+  const detach = await screen.findByRole('button', { name: 'Remove the test from this block' })
+  fireEvent.click(detach)
+  if (stage === 'confirm') {
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove the test from this block' }))
+  }
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  await screen.findByText(stage === 'failure' ? "Couldn't check where this test is used. Try again." : 'Stop the test to remove it from this block.', { selector: '[role="alert"], [role="alert"] *' })
+  expect(read().getItemById('only')?.props.experiment).toEqual(block('only').props.experiment)
+  expect(placementsRead).toHaveBeenCalledTimes(stage === 'confirm' ? 3 : 2)
 })

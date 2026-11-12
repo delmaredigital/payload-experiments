@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ExperimentSlotEditor, createExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
 import type { EditorExperiment } from '../../../src/puck/editor/editor.model.js'
@@ -68,7 +68,7 @@ test.each([false, 'other'] as const)('clicking non-interactive chrome selects th
   const title = await screen.findByRole('heading', { name: 'Example' })
   const chrome = title.closest<HTMLElement>('.xp-slot-chrome')!
   expect(chrome.dataset.selected).toBe('false')
-  for (const target of [title.closest('header')!, title, screen.getByText('Running')]) {
+  for (const target of [title.closest('header')!, title, screen.getByText('Running'), chrome, screen.getByText('Changing this content mid-test mixes two versions in one result')]) {
     puck.dispatch.mockClear()
     fireEvent.click(target)
     expect(puck.getSelectorForId).toHaveBeenLastCalledWith('slot-1')
@@ -86,7 +86,7 @@ test.each(['Enter', ' '])('focused chrome selects this block with %j and ignores
   puck.selected = false
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props({ experiment: null })} />)
-  const chrome = screen.getByRole('button', { name: 'Select this test block' })
+  const chrome = screen.getByLabelText('Select this test block')
   chrome.focus()
   expect(document.activeElement).toBe(chrome)
   expect(fireEvent.keyDown(chrome, { key })).toBe(false)
@@ -447,7 +447,8 @@ test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('%s o
   expect((screen.getByRole('button', { name: create.textContent! }) as HTMLButtonElement).disabled).toBe(false)
   if (status === 'running') {
     expect(screen.queryByRole('button', { name: 'Remove the test from this block' })).toBeNull()
-    expect(screen.getByText('Stop the test to remove it from this block.')).toBeTruthy()
+    // A failed optional placement read never guesses that this is the last placement.
+    expect(screen.queryByText('Stop the test to remove it from this block.')).toBeNull()
   } else expect((screen.getByRole('button', { name: 'Remove the test from this block' }) as HTMLButtonElement).disabled).toBe(false)
 })
 
@@ -532,6 +533,7 @@ test.each([false, 'other'] as const)('removal asks first and clears only this bi
   const Editor = ExperimentSlotEditor.render
   const view = render(<Editor {...props()} />)
   await screen.findByRole('tab', { name: 'New headline' })
+  await act(async () => {})
   const calls = vi.mocked(fetch).mock.calls.length
   const remove = () => fireEvent.click(screen.getByRole('button', { name: 'Remove the test from this block' }))
   remove()
@@ -548,5 +550,6 @@ test.each([false, 'other'] as const)('removal asks first and clears only this bi
   view.rerender(<Editor {...props({ experiment: null })} />)
   expect(screen.getByRole('button', { name: 'Test this block' })).toBeTruthy()
   expect(screen.queryByRole('dialog')).toBeNull()
-  expect(vi.mocked(fetch).mock.calls).toHaveLength(calls)
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(calls + 1)
+  expect(vi.mocked(fetch).mock.calls.at(-1)?.[0]).toContain('/preflight')
 })

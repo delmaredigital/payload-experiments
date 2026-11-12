@@ -45,7 +45,7 @@ test('accent observes only theme ancestors and disconnects on unmount', async ()
   const root = view.container.querySelector<HTMLElement>('.xp-slot-root')!
   const ancestors: HTMLElement[] = []
   for (let ancestor = root.parentElement; ancestor; ancestor = ancestor.parentElement) ancestors.push(ancestor)
-  expect(observe.mock.calls).toEqual(ancestors.map(ancestor => [ancestor, { attributes: true, attributeFilter: ['class', 'data-theme'] }]))
+  expect(observe.mock.calls.filter(([, options]) => options?.attributes)).toEqual(ancestors.map(ancestor => [ancestor, { attributes: true, attributeFilter: ['class', 'data-theme'] }]))
   view.container.classList.add('dark')
   await waitFor(() => expect(root.style.getPropertyValue('--xp-accent')).toBe(deriveAccent('#1f3a68').dark.accent))
   view.unmount()

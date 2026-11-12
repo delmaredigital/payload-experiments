@@ -12,6 +12,7 @@ import type { ExperimentRef } from '../../types/puck.js'
 import type { Arm } from '../../types/contracts.js'
 import { CreateRefused, createTest } from './createTest.js'
 import { editorCopy } from './copy.js'
+import { invalidatePlacements } from './placementsCache.js'
 import './editor.css'
 
 export function CreateExperimentDrawer({ onCreate, onClose, initialName = '', arms, label = editorCopy.createLabel, onPendingChange }: {
@@ -39,6 +40,7 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '', ar
     try {
       const versions = typeof arms === 'function' ? await arms() : arms
       const experiment = await createTest(api, { name, kind: 'block', unitType: 'visitor', arms: versions })
+      invalidatePlacements(api, experiment.id)
       if (onCreate(experiment)) onClose()
       else setUnbound(experiment)
     } catch (cause) {

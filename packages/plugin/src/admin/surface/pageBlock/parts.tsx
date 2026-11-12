@@ -1,14 +1,14 @@
 'use client'
 import type { KindParts, SectionProps } from '../contracts.js'
 import { Button } from '../../../ui/Button.js'
-import { previewPages } from '../../previewLinks.model.js'
+import { placementPages } from '../../../lib/placementPages.js'
 import { TEST_PAGE as C, placementCount } from '../../copy/testPage.js'
 import { placementLine, slotReady } from './pageBlock.model.js'
 
 function Binding({ test }: SectionProps) {
   const placements = test.preflight?.placements ?? []
   return <div className="xp-page-binding">{placements.length ? <>
-    {previewPages(placements).map(placement => <p className="xp-ui-button-group" key={placement.key}>{placementLine(placement)}{placement.slotCount > 1 ? placementCount(placement.slotCount) : null}{' '}
+    {placementPages(placements).map(placement => <p className="xp-ui-button-group" key={placement.key}>{placementLine(placement)}{placement.slotCount > 1 ? placementCount(placement.slotCount) : null}{' '}
       {placement.editorUrl ? <Button variant="link" size="sm" href={placement.editorUrl}>{C.openPage}</Button> : null}</p>)}<p>{C.editedOnPage}</p>
   </> : <p>{C.notPlaced}</p>}</div>
 }
@@ -17,7 +17,7 @@ function VersionContent({ test, armIndex }: SectionProps & { armIndex: number })
   if (!arm) return null
   if (arm.kind === 'holdout') return <span className="xp-content-chip">{C.holdoutContent}</span>
   const placements = test.preflight?.placements ?? []
-  const pages = previewPages(placements)
+  const pages = placementPages(placements)
   const ready = placements.length > 0 && placements.every(placement => slotReady(placement, arm))
   return <div className="xp-version-content"><span className={`xp-content-chip ${ready ? 'xp-content-ready' : 'xp-content-empty'}`}>{ready ? C.ready : C.empty}</span>
     <div className="xp-ui-button-group">{pages.filter(page => page.editorUrl).map(page => <Button key={page.key} variant="link" size="sm" href={page.editorUrl!}

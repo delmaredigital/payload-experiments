@@ -1,6 +1,6 @@
 'use client'
 
-import { createUsePuck, walkTree, useGetPuck, type ComponentConfig } from '@puckeditor/core'
+import { createUsePuck, useGetPuck, type ComponentConfig } from '@puckeditor/core'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { ArmSlot, ExperimentRef, ExperimentSlotProps } from '../../types/puck.js'
 import type { Arm } from '../../types/contracts.js'
@@ -23,7 +23,8 @@ import { acquireArms, loadArms, setArms, useArms } from './armsCache.js'
 import { AddVariant, RemoveVersion, VersionActions, VersionWeights, useArmWrites } from './VersionBuilder.js'
 import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
-import { acquirePlacements } from './placementsCache.js'
+import { acquirePlacements, invalidatePlacements, refreshPlacements } from './placementsCache.js'
+import { localPlacements } from './localPlacements.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
@@ -121,28 +122,17 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     return () => { current = false; controller.abort(); releaseArms(); document.removeEventListener('visibilitychange', onVisible) }
   }, [experimentId, api])
 
+  const status = loaded?.id === experimentId ? loaded?.doc?.status : undefined
   useEffect(() => {
-    if (experimentId === undefined) return
-    let current = true
-    const placements = acquirePlacements(api, experimentId)
-    void placements.promise.then(placements => {
-      if (!current) return
+    if (experimentId === undefined || !status) return
+    return acquirePlacements(api, experimentId, placements => {
       const shared = placements === undefined ? undefined : isSharedTest(placements, currentPuckDocument(window.location.pathname, admin, placements))
       setLoaded(value => ({ ...(value?.id === experimentId ? value : {}), id: experimentId, shared }))
-    })
-    return () => { current = false; placements.release() }
-  }, [api, admin, experimentId])
+    }, status === 'running')
+  }, [api, admin, experimentId, status])
 
-  const locallyShared = usePuckSelector(state => {
-    if (experimentId === undefined) return false
-    const ids = new Set<string>()
-    const collect = (content: import('@puckeditor/core').ComponentData[]) => {
-      for (const item of content) if (item.type === 'ExperimentSlot' && String(item.props.experiment?.id) === String(experimentId)) ids.add(item.props.id)
-    }
-    walkTree(state.appState.data, state.config, content => { collect(content) })
-    for (const content of Object.values(state.appState.data.zones ?? {})) collect(content)
-    return ids.size > 1
-  })
+  const locallyShared = usePuckSelector(state => experimentId !== undefined &&
+    (localPlacements(state.appState.data, state.config).get(String(experimentId))?.size ?? 0) > 1)
 
   const result = experimentId === undefined || loaded?.id !== experimentId ? undefined : loaded
   const shared = locallyShared || result?.shared === true
@@ -211,6 +201,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     const { getItemById, dispatch, getSelectorForId } = getPuck()
     const item = getItemById(props.id), selector = getSelectorForId(props.id)
     if (!item || !selector || String(item.props.experiment?.id) !== String(experimentId)) return false
+    if (experimentId !== undefined) invalidatePlacements(api, experimentId)
+    if (experiment) invalidatePlacements(api, experiment.id)
     dispatch({ type: 'replace', destinationIndex: selector.index, destinationZone: selector.zone,
       data: { ...item, props: { ...item.props, experiment } },
     })
@@ -237,13 +229,35 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       onCreate: bind,
     })
   }
-  const canDetach = !!experiment && (experiment.status !== 'running' || shared)
+  const canDetach = !!experiment && (experiment.status !== 'running' || result?.shared !== undefined && shared)
+  const [checkingDetach, setCheckingDetach] = useState(false)
+  const detachBusy = useRef(false)
+  async function requestDetach(confirm = false) {
+    if (detachBusy.current || !experiment || experimentId === undefined) return
+    detachBusy.current = true
+    setCheckingDetach(true)
+    setClearError(null)
+    try {
+      if (experiment.status === 'running') {
+        const placements = await refreshPlacements(api, experimentId)
+        if (!isCurrentBinding()) return
+        if (!placements) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null); return }
+        const local = getPuck()
+        const anotherLocal = (localPlacements(local.appState.data, local.config).get(String(experimentId))?.size ?? 0) > 1
+        if (!anotherLocal && !isSharedTest(placements, currentPuckDocument(window.location.pathname, admin, placements))) {
+          setClearError({ key: bindingKey, message: editorCopy.stopToDetach }); setDetaching(null); return
+        }
+      }
+      if (!isCurrentBinding()) return
+      if (confirm) { bind(null); setDetaching(null) }
+      else setDetaching(bindingKey)
+    } finally { detachBusy.current = false; setCheckingDetach(false) }
+  }
   const newTestButton = experimentId !== undefined ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
 
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
-    <EditorControls className="xp-slot-chrome" selected={isSelected}>
-      <header className="xp-slot-header" role="button" tabIndex={0} aria-label="Select this test block"
-        onClick={selectBlock}
+    <EditorControls className="xp-slot-chrome" selected={isSelected} onSelect={selectBlock}>
+      <header className="xp-slot-header" tabIndex={0} aria-label={editorCopy.selectBlock}
         onKeyDown={event => {
           if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
             event.preventDefault()
@@ -263,10 +277,10 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {experiment ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}${experiment.status === 'draft' ? '' : '/results'}`} target="_blank" rel="noopener noreferrer">{experiment.status === 'draft' ? editorCopy.setup : editorCopy.viewResults}</Button> : null}
         {experimentId !== undefined && experiment?.status !== 'draft' ? <Button href={`${admin}/experiments/${encodeURIComponent(String(experimentId))}`} target="_blank" rel="noopener noreferrer">{editorCopy.openTest}</Button> : null}
         {!shared ? newTestButton : null}
-        {experimentId !== undefined && canDetach ? <Button onClick={() => setDetaching(bindingKey)}>{editorCopy.detach}</Button> : null}
+        {experimentId !== undefined && canDetach ? <Button disabled={checkingDetach} onClick={() => void requestDetach()}>{editorCopy.detach}</Button> : null}
         {experiment && editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}
       </div>
-      {experiment?.status === 'running' && !shared ? <p className="xp-ui-help">{editorCopy.stopToDetach}</p> : null}
+      {experiment?.status === 'running' && result?.shared !== undefined && !shared ? <p className="xp-ui-help">{editorCopy.stopToDetach}</p> : null}
       {experiment && !editable ? <p className="xp-ui-help">{editorCopy.locked[experiment.status as keyof typeof editorCopy.locked]}</p> : null}
       {experiment && editable ? <VersionWeights key={`weights-${experimentId}`} experiment={experiment} writes={writes} /> : null}
       {writes.error ? <p role="alert" className="xp-ui-error">{writes.error}</p> : null}
@@ -277,7 +291,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {detaching === bindingKey && canDetach ? <Dialog open title={editorCopy.detachTitle} initialFocus="cancel" onClose={() => setDetaching(null)}>
         <div className="xp-slot-drawer"><p>{experiment?.status === 'running' && shared ? editorCopy.detachRunningHelp : editorCopy.detachHelp}</p><div className="xp-ui-button-group">
           <Button data-dialog-cancel onClick={() => setDetaching(null)}>{editorCopy.cancel}</Button>
-          <Button onClick={() => { if (canDetach) bind(null); setDetaching(null) }}>{editorCopy.detach}</Button>
+          <Button disabled={checkingDetach} onClick={() => void requestDetach(true)}>{editorCopy.detach}</Button>
         </div></div>
       </Dialog> : null}
       {confirming ? <div className="xp-slot-confirm" role="alert"><p>{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming)}</p>

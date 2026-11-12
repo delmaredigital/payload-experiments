@@ -102,9 +102,9 @@ test.each(['draft', 'stopped', 'decided', 'archived', 'running'] as const)('%s d
   expect(screen.getAllByText('This test is also used in another place. Changes here affect that test.')).toHaveLength(2)
   const chrome = document.querySelectorAll<HTMLElement>('.xp-slot-chrome')[1]!
   const first = read().getItemById('test-block')
-  fireEvent.click(within(chrome).getByRole('button', { name: 'Select this test block' }))
+  fireEvent.click(within(chrome).getByLabelText('Select this test block'))
   fireEvent.click(within(chrome).getByRole('button', { name: 'Remove the test from this block' }))
-  const dialog = screen.getByRole('dialog')
+  const dialog = await screen.findByRole('dialog')
   expect(dialog.textContent).toContain(status === 'running' ? 'The test keeps running in its other place.' : 'The test and its results are kept.')
   fireEvent.click(within(dialog).getByRole('heading'))
   expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('other'))
@@ -112,6 +112,7 @@ test.each(['draft', 'stopped', 'decided', 'archived', 'running'] as const)('%s d
   await waitFor(() => expect(read().getItemById('other')?.props.experiment).toBeNull())
   expect(read().getItemById('test-block')).toEqual(first)
   expect(screen.queryByText('This test is also used in another place. Changes here affect that test.')).toBeNull()
+  if (status === 'running') await screen.findByText('Stop the test to remove it from this block.')
 })
 
 test.each(['removed', 'rebound'] as const)('creation in flight keeps its recovery dialog when the real block is %s', async race => {
@@ -146,3 +147,32 @@ test.each(['removed', 'rebound'] as const)('creation in flight keeps its recover
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 })
 
+
+test('header allows Puck pointer events, controls block them, and non-interactive chrome selects once', async () => {
+  const actions: unknown[] = []
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block] }} iframe={{ enabled: false }}
+    onAction={action => { if (action.type === 'setUi' && 'itemSelector' in action.ui) actions.push(action.ui.itemSelector) }}><Puck.Preview /></Puck>)
+  const heading = await screen.findByRole('heading', { name: 'Selection test' })
+  const chrome = heading.closest<HTMLElement>('.xp-slot-chrome')!
+  const pointer = vi.fn()
+  chrome.parentElement!.addEventListener('pointerdown', pointer)
+  fireEvent.pointerDown(heading)
+  expect(pointer).toHaveBeenCalledOnce()
+  pointer.mockClear()
+  for (const control of [within(chrome).getByRole('link', { name: 'Set up the test' }), within(chrome).getByLabelText('Original traffic (%)'), within(chrome).getByText('Original traffic (%)'), screen.getByRole('tab', { name: 'Original' })]) fireEvent.pointerDown(control)
+  expect(pointer).not.toHaveBeenCalled()
+  for (const target of [heading, chrome, within(chrome).getByText('This block shows the Original to everyone until the test starts.')]) {
+    actions.length = 0
+    fireEvent.click(target)
+    expect(actions).toHaveLength(1)
+  }
+})
+
+test.each(['header', 'tab'] as const)('pressing the %s closes the version menu', async target => {
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block] }} iframe={{ enabled: false }}><Puck.Preview /></Puck>)
+  const heading = await screen.findByRole('heading', { name: 'Selection test' })
+  fireEvent.click(screen.getByRole('button', { name: 'Options for Original' }))
+  expect(screen.getByRole('button', { name: 'Rename' })).toBeTruthy()
+  fireEvent.pointerDown(target === 'header' ? heading : screen.getByRole('tab', { name: 'Variant A' }))
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull())
+})

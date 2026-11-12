@@ -2,37 +2,62 @@ import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 
 type Placements = PreflightResult['placements']
-type Entry = { consumers: number; controller: AbortController; promise: Promise<Placements | undefined> }
+type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean }
 const cache = new Map<string, Entry>()
+const consumers = new Map<string, Set<(placements: Placements | undefined) => void>>()
+const keyFor = (api: string, id: DocId) => JSON.stringify([api, String(id)])
 
-/** One optional placement read per test while its blocks are mounted; never refreshed on tab return. */
-export function acquirePlacements(api: string, id: DocId): { promise: Entry['promise']; release: () => void } {
-  const key = JSON.stringify([api, String(id)])
-  let entry = cache.get(key)
-  if (!entry) {
-    const controller = new AbortController()
-    const promise = (async () => {
-      try {
-        const response = await fetch(`${api}/xp/experiments/${encodeURIComponent(id)}/preflight`, {
-          credentials: 'include', cache: 'no-store', signal: controller.signal,
-        })
-        if (!response.ok) return
-        const data = await response.json() as PreflightResult
-        return Array.isArray(data.placements) ? data.placements : undefined
-      } catch { return undefined }
-    })()
-    entry = { consumers: 0, controller, promise }
-    cache.set(key, entry)
-  }
-  const current = entry
-  current.consumers++
-  let released = false
-  return { promise: current.promise, release: () => {
-    if (released) return
-    released = true
-    if (--current.consumers === 0) {
-      current.controller.abort()
-      if (cache.get(key) === current) cache.delete(key)
+function read(api: string, id: DocId, fresh: boolean): Entry {
+  const key = keyFor(api, id)
+  const cached = cache.get(key)
+  if (cached && (!fresh || cached.pending)) return cached
+  const controller = new AbortController()
+  const entry: Entry = { controller, pending: true, promise: undefined! }
+  cache.set(key, entry)
+  for (const notify of consumers.get(key) ?? []) notify(undefined)
+  entry.promise = (async () => {
+    try {
+      const response = await fetch(`${api}/xp/experiments/${encodeURIComponent(id)}/preflight`, {
+        credentials: 'include', cache: 'no-store', signal: controller.signal,
+      })
+      if (!response.ok) return
+      const data = await response.json() as PreflightResult
+      return Array.isArray(data.placements) ? data.placements : undefined
+    } catch { return undefined }
+  })().then(placements => {
+    entry.pending = false
+    if (cache.get(key) === entry) for (const notify of consumers.get(key) ?? []) notify(placements)
+    return placements
+  })
+  return entry
+}
+
+/** Share mounted reads, but destructive actions always bypass settled cached knowledge. */
+export function refreshPlacements(api: string, id: DocId) { return read(api, id, true).promise }
+
+export function invalidatePlacements(api: string, id: DocId) {
+  const key = keyFor(api, id)
+  cache.get(key)?.controller.abort()
+  cache.delete(key)
+  for (const notify of consumers.get(key) ?? []) notify(undefined)
+  if (consumers.get(key)?.size) void read(api, id, true).promise
+}
+
+export function acquirePlacements(api: string, id: DocId, notify: (placements: Placements | undefined) => void, fresh = false): () => void {
+  const key = keyFor(api, id)
+  const listeners = consumers.get(key) ?? new Set()
+  consumers.set(key, listeners)
+  listeners.add(notify)
+  const entry = read(api, id, fresh)
+  let active = true
+  void entry.promise.then(value => { if (active && cache.get(key) === entry) notify(value) })
+  return () => {
+    active = false
+    listeners.delete(notify)
+    if (!listeners.size) {
+      consumers.delete(key)
+      cache.get(key)?.controller.abort()
+      cache.delete(key)
     }
-  } }
+  }
 }

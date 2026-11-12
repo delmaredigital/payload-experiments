@@ -2,6 +2,8 @@ import { ARM_LABELS } from '../../labels/arms.js'
 
 export const editorCopy = {
   labels: ARM_LABELS,
+  selectBlock: 'Select this test block',
+  placementsError: "Couldn't check where this test is used. Try again.",
   notSetUp: 'Not set up',
   unbound: 'Choose or create a test to show different versions.',
   draft: 'This block shows the Original to everyone until the test starts.',
