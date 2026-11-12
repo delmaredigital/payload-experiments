@@ -3,7 +3,7 @@ import { flattenTopLevelFields } from 'payload/shared'
 import { puckCollections } from '../options.js'
 import { placementSlugs } from './bindings.js'
 import { isObject } from './model.js'
-import type { ResolvedOptions } from '../types/contracts.js'
+import type { DocId, ResolvedOptions } from '../types/contracts.js'
 
 /** Adapter rows retain locale maps; Start's Local API scan flattens these fields
  * to req.locale (and req.fallbackLocale). Registrations name top-level fields.
@@ -36,11 +36,25 @@ export function placementLocaleContent(req: PayloadRequest, collection: string, 
 }
 
 export interface PlacementLocaleView { locale: string; fallbackLocale: import('payload').TypedFallbackLocale }
+export const placementDocumentKey = (collection: string, id: DocId, view: PlacementLocaleView) => JSON.stringify([collection, String(id), view])
 export type RemovedPlacementViews = Map<string, PlacementLocaleView[]>
 export function localeRequest(req: PayloadRequest, view: PlacementLocaleView): PayloadRequest {
   return { ...req, ...view }
 }
-/** Compare every Start locale view: a localized edit can also change fallback
+/** Canonical views of registered content, without multiplying nonlocalized rows. */
+export function placementLocaleViews(req: PayloadRequest, collection: string): PlacementLocaleView[] {
+  const localization = req.payload.config.localization
+  const config = req.payload.config.collections?.find(entry => entry.slug === collection)
+  const options = req.payload.config.custom!.xp as ResolvedOptions
+  const names = new Set([...puckCollections(options).filter(entry => entry.slug === collection).map(entry => entry.field),
+    ...(options.blocks?.collections ?? []).filter(entry => entry.slug === collection).map(entry => entry.field)])
+  const localized = config && flattenTopLevelFields(config.fields).some(field => 'name' in field && names.has(field.name!) && 'localized' in field && field.localized)
+  return localization && localized
+    ? localization.localeCodes.map(locale => ({ locale, fallbackLocale: sanitizeFallbackLocale({ fallbackLocale: null, locale, localization }) }))
+    : [{ locale: '', fallbackLocale: false }]
+}
+
+/** Compare every locale view: a localized edit can also change fallback
  * content in another locale. Whole-row removals replace every view with absence.
  * The incoming hook document is already flattened to the writing locale.
  */
@@ -61,19 +75,11 @@ export function removedPlacementViews(req: PayloadRequest, collection: string, b
     const previousValue = before[field.name]
     rawAfter[field.name] = { ...(isObject(previousValue) ? previousValue : {}), [req.locale || localization.defaultLocale]: after[field.name] }
   }
-  const locales = localization ? localization.localeCodes : [req.locale || '']
-  for (const locale of locales) {
-    // Start passes no fallbackLocale option to payload.find. createLocalReq
-    // resets it to the configured policy (Payload 3.90.2:65-77), even if the
-    // incoming request disabled fallback. Use that same canonical view.
-    const policies = [localization ? sanitizeFallbackLocale({ fallbackLocale: null, locale, localization }) : false as const]
-    for (const fallbackLocale of policies) {
-      const view = { locale, fallbackLocale }
-      const viewReq = localeRequest(req, view)
-      const previous = placementSlugs(options, collection, placementLocaleContent(viewReq, collection, before))
-      const next = removingPage ? [] : placementSlugs(options, collection, placementLocaleContent(viewReq, collection, rawAfter))
-      for (const slug of previous.filter(slug => !next.includes(slug))) result.set(slug, [...(result.get(slug) ?? []), view])
-    }
+  for (const view of placementLocaleViews(req, collection)) {
+    const viewReq = localeRequest(req, view)
+    const previous = placementSlugs(options, collection, placementLocaleContent(viewReq, collection, before))
+    const next = removingPage ? [] : placementSlugs(options, collection, placementLocaleContent(viewReq, collection, rawAfter))
+    for (const slug of previous.filter(slug => !next.includes(slug))) result.set(slug, [...(result.get(slug) ?? []), view])
   }
   return result
 }

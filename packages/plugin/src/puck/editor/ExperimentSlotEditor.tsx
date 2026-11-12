@@ -298,7 +298,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
       </header>
       {result?.missing ? <p className="xp-ui-help">{pickerCopy.unavailable}</p>
-        : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : experimentId !== undefined && access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>
+        : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>
         : experimentId === undefined && resultsOnly ? <p className="xp-ui-help">{editorCopy.setupForbidden}</p>
         : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
         : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>

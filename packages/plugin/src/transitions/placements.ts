@@ -7,6 +7,7 @@ import { hasLocalizedFields } from './contentFields.js'
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, FlagPoint, PreviewPlacement, ResolvedOptions } from '../types/contracts.js'
 import type { ArmSlot } from '../types/puck.js'
+import { localeRequest, placementLocaleContent, placementLocaleViews, type PlacementLocaleView } from '../blocks/placementLocale.js'
 import { placementSlugs } from '../blocks/bindings.js'
 import { documentEditor, puckCollections as normalisePuckCollections } from '../options.js'
 
@@ -51,18 +52,20 @@ function changedDocuments(docs: Array<Record<string, unknown> & { id: DocId }>, 
  * The exclusion predicate reads live transaction claims after each awaited page.
  */
 export async function hasOtherPublishedBlockPlacement(req: PayloadRequest, options: ResolvedOptions, slug: string,
-  excluded: (collection: string, id: DocId) => boolean): Promise<boolean> {
+  excluded: (collection: string, id: DocId, view: PlacementLocaleView, doc: Record<string, unknown> & { id: DocId }) => boolean): Promise<boolean> {
+  const scanReq = req.payload.config.localization ? { ...req, locale: 'all' } : req
   const collections = new Set([...normalisePuckCollections(options).map(entry => entry.slug),
     ...(options.blocks?.collections ?? []).map(entry => entry.slug)])
   for (const collection of collections) {
     const drafts = req.payload.config.collections?.some(c => c.slug === collection && c.versions && c.versions.drafts)
     let page = 1
     while (true) {
-      const result = await placementDocuments(req, { collection, overrideAccess: false, limit: 100, page, depth: 0, draft: false,
+      const result = await placementDocuments(scanReq, { collection, overrideAccess: false, limit: 100, page, depth: 0, draft: false,
+        ...(req.payload.config.localization ? { locale: 'all' as const, fallbackLocale: false as const } : {}),
         ...(drafts ? { where: { _status: { equals: 'published' } } } : {}),
       }, true)
-      if (result.docs.some(doc => doc._status !== 'draft' && doc.deletedAt == null && !excluded(collection, doc.id)
-        && placementSlugs(options, collection, doc).includes(slug))) return true
+      if (result.docs.some(doc => doc._status !== 'draft' && doc.deletedAt == null && placementLocaleViews(req, collection).some(view => placementSlugs(options, collection, placementLocaleContent(localeRequest(req, view), collection, doc)).includes(slug)
+          && !excluded(collection, doc.id, view, doc)))) return true
       if (!result.hasNextPage) break
       page++
     }

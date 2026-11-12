@@ -1,7 +1,7 @@
 import type { Config } from 'payload'
 import { expect, test } from 'vitest'
 import { createExperimentsPlugin } from '../../src/plugin.js'
-import { pageGuardAfterChange, pageGuardBeforeChange, pageGuardBeforeOperation, pageGuardAfterOperation, pageGuardBeforeDelete } from '../../src/hooks/pageGuard.js'
+import { pageGuardAfterChange, pageGuardBeforeChange, pageGuardEnterOperation, pageGuardBeforeOperation, pageGuardAfterOperation, pageGuardBeforeDelete } from '../../src/hooks/pageGuard.js'
 import { contentChangesBeforeHook, contentChangesHook } from '../../src/hooks/contentChanges.js'
 import { sampleOptions } from '../collections/fixtures.js'
 
@@ -28,5 +28,5 @@ test.each(['puck', 'blocks'] as const)('%s-only receives guard and audit hooks w
   const config = await createExperimentsPlugin(options)({ collections: [{ slug: 'pages', fields: [] }] } as unknown as Config)
   const collection = config.collections![2]!
   expect(collection.fields).toEqual([])
-  expect(collection.hooks).toEqual({ beforeChange: [pageGuardBeforeChange, contentChangesBeforeHook, ...(kind === 'puck' ? [expect.any(Function)] : [])], afterChange: [pageGuardAfterChange, contentChangesHook], beforeOperation: [pageGuardBeforeOperation], afterOperation: [pageGuardAfterOperation], beforeDelete: [pageGuardBeforeDelete] })
+  expect(collection.hooks).toEqual({ beforeChange: [pageGuardBeforeChange, contentChangesBeforeHook, ...(kind === 'puck' ? [expect.any(Function)] : [])], afterChange: [pageGuardAfterChange, contentChangesHook], beforeOperation: [pageGuardEnterOperation, pageGuardBeforeOperation], afterOperation: [pageGuardAfterOperation], beforeDelete: [pageGuardBeforeDelete] })
 })

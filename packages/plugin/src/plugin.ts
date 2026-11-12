@@ -4,7 +4,7 @@ import { buildCollections } from './collections/index.js'
 import { buildEndpoints } from './endpoints/index.js'
 import { contentChangesBeforeHook, contentChangesHook } from './hooks/contentChanges.js'
 import { puckGoalsBeforeChange } from './hooks/puckGoals.js'
-import { pageGuardAfterChange, pageGuardAfterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from './hooks/pageGuard.js'
+import { pageGuardAfterChange, pageGuardAfterOperation, pageGuardEnterOperation, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from './hooks/pageGuard.js'
 import { createOnInit } from './onInit.js'
 import { puckCollections, resolveOptions } from './options.js'
 import { injectTestBlock } from './admin/blocks/inject.js'
@@ -45,7 +45,7 @@ export function createExperimentsPlugin<TUser extends { id: string | number } = 
           if (!puck && !page && !blocks) return collection
           return { ...collection, fields: [...(page ? [{ name: 'xpPlacementStatus', type: 'ui' as const, admin: { position: 'sidebar' as const, components: { Field: paths.XP_PLACEMENT_STATUS } } }] : []), ...(blocks ? injectTestBlock(collection.fields, blocks) : collection.fields)], hooks: { ...collection.hooks,
             beforeChange: [...(collection.hooks?.beforeChange ?? []), pageGuardBeforeChange, contentChangesBeforeHook, ...(puck ? [puckGoalsBeforeChange(puck.field)] : [])],
-            beforeOperation: [...(collection.hooks?.beforeOperation ?? []), pageGuardBeforeOperation],
+            beforeOperation: [pageGuardEnterOperation, ...(collection.hooks?.beforeOperation ?? []), pageGuardBeforeOperation],
             beforeDelete: [...(collection.hooks?.beforeDelete ?? []), pageGuardBeforeDelete],
             afterOperation: [pageGuardAfterOperation, ...(collection.hooks?.afterOperation ?? [])],
             afterChange: [...(collection.hooks?.afterChange ?? []), pageGuardAfterChange, contentChangesHook],

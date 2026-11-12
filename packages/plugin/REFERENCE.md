@@ -498,7 +498,7 @@ are filtered from the existing test discovery read, with no extra query on saves
 or deletes in page registrations. Only deletes outside a page registration use an
 indexed slug lookup (and indexed under-lock status recheck). Only running tests
 trigger a published-placement search, stopping at the first hit. Collections
-registered under both editors are searched once per affected language/fallback view. Existing page-path, live-publish
+registered under both editors are searched once, reading all languages together with `locale: 'all'` when localization is enabled. Existing page-path, live-publish
 transaction and content-audit guards remain in force, including the refusal to
 publish a running or decided block without a transaction even when keeping it.
 Draft, stopped, decided and archived block tests do not trigger a placement search.
@@ -509,38 +509,45 @@ behaviour; removal of a running test's last published placement fails with
 `Save this page with transactions on.` Another published placement permits the
 removal, subject to all earlier guards.
 
-Removal discovery compares Start's `scanBlockPlacements` view for every configured
-language, with its configured fallback. Start supplies no `fallbackLocale` option
-to its Local API reads, so Payload's `createLocalReq.js:65–77` resets fallback to
-the configured policy, even if the incoming request disabled it. Localized edits also check languages
-that fall back to the edited content; delete, trash and unpublish check all affected
-language views. Localized registered block/Puck fields are flattened
-from adapter locale maps before comparing bindings; an empty array is present
-content and does not fall back. Searches use the same Local API locale view as
-Start. Start supports these placements and marks them `localized`; only **Make it
-the content** is unsupported on localized collections (see the support table).
-Other published placements count in the affected language/fallback view, exactly
-as they do for Start. A last-placement refusal identifies the language when
-localization is enabled.
+Removal protects against a running test having nowhere published to appear: a
+published copy in **any language of any document** permits the write. Start is
+different: it requires a placement in the starting request's language (with the
+configured fallback). Removing only the French copy is allowed if an English copy
+remains, even on the same document; removing the last copy in every language is
+refused. Localized registered block/Puck fields are flattened from adapter locale
+maps for comparison; collections without localized registered content behave the
+same with localization on or off. The published search reads all locale data in
+one pass per collection and stops at the first retained copy. Start supports
+localized placements; only **Make it the content** is unsupported on localized
+collections (see the support table).
 
-Claims use those canonical language/fallback views across requests. Claims are made after the existing path/interaction refusals pass, before the
-published-placement scan; a failure in that scan or this rule releases the claim.
-A successful removal retains its claim until the transaction ends or a later
-published write restores that binding in the claimed language/fallback view, after
-its absence was observed in `afterChange`. Overlapping writes to the same
-document/view retain their claims conservatively until a new transaction. Failed bulk rows are released from
-`afterOperation`'s per-document errors. A later validation/hook failure can leave a
-claim until that bulk operation finishes: a sibling is conservatively refused,
-never allowed to remove the last placement. When multiple claims prevent proof,
-the sentence is `“<test name>” is running. Another removal in this transaction
-prevents confirming a published placement. Retry this save, or stop the test first.`
-Retry after bulk completion succeeds if the failed sibling remains published;
-a new transaction also resets all claims. Payload 3.90.2's `afterError` does not
-identify the document/operation (`payload/dist/config/types.d.ts:583–599`) and is
-invoked from `utilities/routeError.js:58`, not Local API bulk catches
-(`collections/operations/update.js:287–299`, `delete.js:217–229`), so it cannot
-reliably clean up individual failed writes. By-id failures roll back their
-transaction; retry with a fresh operation.
+Claims use canonical language/fallback views. They are made after existing
+path/interaction refusals pass; a failure in the scan or removal rule releases
+that write's claim. Successful removals retain claims until the transaction ends
+or a later published write restores the claimed content after its absence was
+observed in `afterChange`. Overlapping writes retain claims conservatively.
+
+For a bulk update or delete, a request-scoped adapter wrapper observes Payload's
+actual access-filtered, limited selection before any document hooks run, adding
+no query or global adapter mutation. An async operation context keeps
+that selection and the draft/restore policy stable while another page awaits a
+nested save, including restores that retain Payload's original request. Every document's check treats all selected
+documents that would remove the test as removed, using the published content seen
+under the experiment lock. If the change removes every published copy, every
+removing document is refused, independent of evaluation order:
+`“<test name>” is running and the pages in this change are the only published places it appears. Stop the test first.`
+If a published copy remains outside the change, all removing documents pass this
+rule. If a page fails for another reason, the bulk result conservatively says:
+`“<test name>” is running and the pages in this change are the only published places it appears. Stop the test first, or change these pages one at a time.`
+There is no retry promise: changing pages one at a time permits removing a copy
+while another remains, and refuses the final removal. `afterOperation` releases
+failed documents' claims and ends the bulk selection scope; successful claims
+remain until transaction completion or an observed restoration. Payload's Local
+API bulk catches do not call `afterError`, which also lacks a document identity,
+so cleanup uses the bulk result. By-id failures roll back their transaction.
+Lock keys are not ordered across documents within a bulk operation; concurrent
+bulk operations can deadlock, which Postgres detects as `40P01` and the existing
+busy refusal handles safely.
 
 Do not swallow errors from nested updates of guarded page collections inside host hooks: a swallowed error leaves the guard's operation frame in place for the rest of the request because Payload's Local API does not call `afterError`.
 

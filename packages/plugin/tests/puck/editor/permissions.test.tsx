@@ -210,11 +210,12 @@ test('an unbound results-only reader sees the setup-access line without a create
   expect(within(chrome).queryByRole('button')).toBeNull()
 })
 
+describe.each([true, false])('controls read with bound=%s', bound => {
 test.each([500, 'network', 'malformed'] as const)('a failed controls read (%s) is quiet and Retry loads the bound controls', async failure => {
   let finish!: (response: Response) => void
   let reject!: (cause: Error) => void
   const pending = new Promise<Response>((resolve, fail) => { finish = resolve; reject = fail })
-  const fetcher = setup('manager', 200, pending)
+  const fetcher = setup('manager', 200, pending, !bound)
   const original = fetcher.getMockImplementation()!
   fetcher.mockImplementation((url: string) => {
     if (url.endsWith('/xp/editor-surface')) {
@@ -234,6 +235,8 @@ test.each([500, 'network', 'malformed'] as const)('a failed controls read (%s) i
   expect(within(chrome).queryByRole('button', { name: 'Configure test' })).toBeNull()
   fetcher.mockImplementation((url: string) => url.endsWith('/xp/editor-surface') ? Promise.resolve(response(surface)) : original(url))
   fireEvent.click(within(chrome).getByRole('button', { name: 'Retry' }))
-  expect(await within(chrome).findByRole('button', { name: 'Configure test' })).toBeTruthy()
+  expect(await within(chrome).findByRole('button', { name: bound ? 'Configure test' : 'Test this block' })).toBeTruthy()
   expect(within(chrome).queryByText("Test controls couldn't load.")).toBeNull()
+})
+
 })

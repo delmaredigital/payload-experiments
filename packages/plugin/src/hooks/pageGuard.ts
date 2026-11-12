@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type { CollectionAfterChangeHook, CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook, PayloadRequest } from 'payload'
 import { previousPublishedContent, storedContent } from '../db/appends.js'
 import { lockPlacementScope, sortLockKeys } from '../db/locks.js'
@@ -12,37 +13,72 @@ import { isObject } from '../blocks/model.js'
 import { placementTests, removableBlockTests, appendPlacementDoc, type PlacementTest } from '../db/placements.js'
 import { isPageBusy } from '../db/pageBusy.js'
 import { blockRemovalRule, releaseRemovalClaim, observeUnpublishedRemoval, releaseRestoredRemovalClaims, type RemovalClaims } from './blockRemovalRule.js'
-import { removedPlacementViews } from '../blocks/placementLocale.js'
+import { bulkPlacementRequest, type BulkPlacementRemoval } from '../db/bulkPlacementRemoval.js'
 
 // beforeChange has no draft argument. Each operation owns a frame, including
 // nested same-collection updates and restores on a reused Local API request.
-type Operations = Map<string, Array<{ draft: boolean; restore: boolean }>>
-// createLocalReq replaces context with a shallow copy on nested calls. Keep
-// the shared stack in that context so both the outer req and its proxies see it.
+type OperationFrame = { collection: string; draft: boolean; restore: boolean; pending?: boolean; complete?: boolean; parent?: OperationFrame; bulk?: BulkPlacementRemoval }
+type Operations = Map<string, OperationFrame[]>
+// Execution-local identity survives both concurrent bulk siblings and Payload's
+// restoreVersion operation, which caches req before beforeOperation runs.
+export const pageGuardOperationScope = new AsyncLocalStorage<OperationFrame | undefined>()
 const operations = (req: PayloadRequest) => req.context.xpPageGuardOperations as Operations | undefined
+const operationFrame = (req: PayloadRequest, slug: string): OperationFrame | undefined => {
+  let frame = pageGuardOperationScope.getStore()
+  while (frame?.complete) frame = frame.parent
+  return frame?.collection === slug ? frame : operations(req)?.get(slug)?.at(-1)
+}
+/** Must be first: buildBeforeOperation invokes its first hook synchronously,
+ * before the operation registers its await continuation. Later host hooks may
+ * await nested operations; those keep separate async contexts. No IO here.
+ */
+export const pageGuardEnterOperation: CollectionBeforeOperationHook = ({ args, operation }) => {
+  if (operation !== 'create' && operation !== 'update' && operation !== 'restoreVersion' && operation !== 'delete') return
+  const call = args as { draft?: boolean; collection: { config: { slug: string } } }
+  pageGuardOperationScope.enterWith({ collection: call.collection.config.slug, draft: call.draft === true,
+    restore: operation === 'restoreVersion', pending: true, parent: pageGuardOperationScope.getStore() })
+}
 export const pageGuardBeforeOperation: CollectionBeforeOperationHook = ({ args, operation }) => {
   const req = args.req as PayloadRequest
   req.context.xpPlacementRemovals ??= { transaction: undefined, tests: new Map() }
-  if (operation !== 'create' && operation !== 'update' && operation !== 'restoreVersion') return
-  const call = args as { req: PayloadRequest; draft?: boolean; collection: { config: { slug: string } } }
+  if (operation !== 'create' && operation !== 'update' && operation !== 'restoreVersion' && operation !== 'delete') return
+  const call = args as { req: PayloadRequest; draft?: boolean; where?: import('payload').Where; data?: Record<string, unknown>; collection: { config: { slug: string } } }
   let collections = operations(call.req)
   if (!collections) call.req.context.xpPageGuardOperations = collections = new Map()
   const slug = call.collection.config.slug
   const stack = collections.get(slug) ?? []
-  stack.push({ draft: call.draft === true, restore: operation === 'restoreVersion' })
+  const bulk: BulkPlacementRemoval | undefined = call.where && (operation === 'update' || operation === 'delete') ? { documents: new Set(), refusals: new Map() } : undefined
+  const entered = pageGuardOperationScope.getStore()
+  const frame: OperationFrame = entered?.pending && entered.collection === slug ? entered : { collection: slug, draft: false, restore: false }
+  Object.assign(frame, { draft: call.draft === true, restore: operation === 'restoreVersion', bulk, pending: false })
+  stack.push(frame)
   collections.set(slug, stack)
+  if (bulk) return { ...args, req: bulkPlacementRequest(req, slug, call.where!, call.data, call.draft === true, operation === 'delete', bulk) }
 }
 export const pageGuardAfterOperation: CollectionAfterOperationHook = ({ req, collection, operation, result }) => {
+  const frame = operationFrame(req, collection.slug)
+  const bulk = frame?.bulk
   // beforeOperation reports by-id updates as 'update'; afterOperation reports 'updateByID'.
-  if (operation === 'create' || operation === 'update' || operation === 'updateByID' || operation === 'restoreVersion') {
+  const mutates = operation === 'create' || operation === 'update' || operation === 'updateByID' || operation === 'restoreVersion' || operation === 'delete' || operation === 'deleteByID'
+  if (mutates) {
     const collections = operations(req)
     const stack = collections?.get(collection.slug)
-    stack?.pop()
+    const index = frame ? stack?.lastIndexOf(frame) : undefined
+    if (index != null && index >= 0) stack!.splice(index, 1)
     if (!stack?.length) collections?.delete(collection.slug)
   }
   // Bulk Local API errors are returned per document, without invoking afterError.
   if (result && typeof result === 'object' && 'errors' in result && Array.isArray(result.errors)) {
+    const failed = result.errors.some(error => error && !bulk?.refusals.has(error.message))
+    if (failed && bulk) for (const error of result.errors) {
+      const conservative = bulk.refusals.get(error?.message)
+      if (conservative) error.message = conservative
+    }
     for (const error of result.errors) if (error && error.id != null) releaseRemovalClaim(req, collection.slug, error.id)
+  }
+  if (mutates && frame) {
+    frame.complete = true
+    if (pageGuardOperationScope.getStore() === frame) pageGuardOperationScope.enterWith(frame.parent)
   }
   return result
 }
@@ -114,8 +150,7 @@ export const pageGuardBeforeDelete: CollectionBeforeDeleteHook = async ({ req, i
     const paths = pathsOf(req, collection.slug, [published])
     const exec = await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
     let tests = page ? await placementTests(exec) : undefined
-    const views = removedPlacementViews(req, collection.slug, collection.trash && published.deletedAt != null ? undefined : published, {}, true)
-    const affected = views.size ? await blockRemovalRule.discover(exec, [...views.keys()], tests) : []
+    const { views, affected } = await blockRemovalRule.prepare(req, collection.slug, collection.trash && published.deletedAt != null ? undefined : published, {}, true, exec, tests)
     if (!page) {
       if (!affected.length) return
       if (await req.transactionID != null) {
@@ -127,14 +162,17 @@ export const pageGuardBeforeDelete: CollectionBeforeDeleteHook = async ({ req, i
       tests = await placementTests(exec)
     }
     for (const path of paths) protect(tests!.filter(t => !t.pageCollection || t.pageCollection === collection.slug), path)
-    if (affected.length) await blockRemovalRule.check(req, tests!, affected, collection.slug, id, true, views)
+    if (affected.length) await blockRemovalRule.check(req, tests!, affected, collection.slug, id, true, views, operationFrame(req, collection.slug)?.bulk)
   } catch (error) { mapBusy(error) }
 }
 
 export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, collection, originalDoc, operation, data }) => {
   const drafts = Boolean(collection.versions && collection.versions.drafts)
-  const call = operations(req)?.get(collection.slug)?.at(-1)
-  if (drafts && call?.draft && (call.restore || data._status !== 'published')) return data
+  const call = operationFrame(req, collection.slug)
+  if (drafts && call?.draft && (call.restore || data._status !== 'published')) {
+    await blockRemovalRule.prepare(req, collection.slug, undefined, data, false)
+    return data
+  }
   const after = operation === 'create' ? data : { ...originalDoc, ...data }
   const options = optionsOf(req)
   try {
@@ -147,8 +185,7 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
     const exec = await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
     let tests = await placementTests(exec)
     const trashing = Boolean(collection.trash && after.deletedAt != null)
-    const views = removedPlacementViews(req, collection.slug, collection.trash && before?.deletedAt != null ? undefined : before, after, trashing || drafts && after._status !== 'published')
-    const affected = views.size ? await blockRemovalRule.discover(exec, [...views.keys()], tests) : []
+    const { views, affected } = await blockRemovalRule.prepare(req, collection.slug, collection.trash && before?.deletedAt != null ? undefined : before, after, trashing || drafts && after._status !== 'published', exec, tests)
     const publishes = !drafts || after._status === 'published'
     const noTransaction = () => {
       if (publishes && tests.some(t => t.kind === 'block' && active(t) && afterSlugs.includes(t.slug))) throw new XpNoTransactionError('Save this page with transactions on.')
@@ -174,14 +211,14 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
       if (old != null && (unpublishing || trashing || page!.pathOf(after) !== old)) protect(tests.filter(t => !t.pageCollection || t.pageCollection === collection.slug), normalisePath(old))
     }
     if (publishes) refuseInteraction(tests, beforeSlugs, afterSlugs, beforePaths, afterPaths, collection.slug)
-    if (affected.length) await blockRemovalRule.check(req, tests, affected, collection.slug, originalDoc.id as DocId, trashing || drafts && after._status !== 'published', views)
+    if (affected.length) await blockRemovalRule.check(req, tests, affected, collection.slug, originalDoc.id as DocId, trashing || drafts && after._status !== 'published', views, call?.bulk)
     return data
   } catch (error) { mapBusy(error) }
 }
 
 /** Unwrapped: these writes must fail the publish closed, unlike the best-effort audit. */
 export const pageGuardAfterChange: CollectionAfterChangeHook = async ({ req, collection, doc }) => {
-  const call = operations(req)?.get(collection.slug)?.at(-1)
+  const call = operationFrame(req, collection.slug)
   const drafts = Boolean(collection.versions && collection.versions.drafts)
   if (!call?.draft && (drafts && doc._status !== 'published' || collection.trash && doc.deletedAt != null)) observeUnpublishedRemoval(req, collection.slug, doc.id)
   if (drafts && (doc._status !== 'published' || call?.draft && call.restore)) return doc

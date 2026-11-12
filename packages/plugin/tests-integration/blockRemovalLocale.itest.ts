@@ -25,7 +25,7 @@ afterAll(async () => { await harness?.teardown() }, 60_000)
 const request = (locale: string) => createLocalReq({ locale, fallbackLocale: 'null' }, harness.payload)
 const options = () => harness.payload.config.custom!.xp as ResolvedOptions
 
-test.each(['puck', 'blocks'] as const)('localized %s removal counts precisely the locale view scanned by Start', async editor => {
+test.each(['puck', 'blocks'] as const)('localized %s removal requires a published copy somewhere, while Start checks its own language', async editor => {
   const suffix = ++sequence, { payload } = harness, collection = `locale-${editor}`
   const req = await request('fr')
   const metric = await payload.create({ collection: 'xp-metrics', req, overrideAccess: true,
@@ -53,8 +53,27 @@ test.each(['puck', 'blocks'] as const)('localized %s removal counts precisely th
   for (const operation of ['delete', 'unpublish', 'trash']) {
     const work = operation === 'delete' ? payload.delete({ collection, id: page.id, req: await request('en'), overrideAccess: false })
       : payload.update({ collection, id: page.id, req: await request('en'), overrideAccess: false, data: operation === 'unpublish' ? { _status: 'draft' } : { deletedAt: new Date().toISOString() } })
-    await expect(work).rejects.toMatchObject({ code: 'locked-placement', message: expect.stringContaining('in this language (fr)') })
+    await expect(work).rejects.toMatchObject({ code: 'locked-placement', message: '“Localized placement” is running and this page is the only published place it appears. Stop the test first.' })
   }
   await expect(payload.update({ collection, id: page.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
     data: { ...empty, _status: 'published' } })).rejects.toMatchObject({ code: 'locked-placement', message: expect.stringContaining('only published place') })
+  // X is French-only; Y is English-only. Removing X is allowed even though
+  // the remaining stored copy is in a different language.
+  const other = await payload.create({ collection, req: await request('en'), locale: 'en', overrideAccess: false,
+    data: { ...content, _status: 'published' } })
+  await payload.update({ collection, id: other.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
+    data: { ...empty, _status: 'published' } })
+  await payload.delete({ collection, id: page.id, req: await request('en'), overrideAccess: false })
+  expect((await scan('fr')).every(placement => placement.id !== page.id)).toBe(true)
+  expect(await scan('en')).toEqual([expect.objectContaining({ id: other.id, published: true })])
+  await payload.update({ collection, id: other.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
+    data: { ...content, _status: 'published' } })
+  // Removing only French from a bilingual page keeps the English copy.
+  await payload.update({ collection, id: other.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
+    data: { ...empty, _status: 'published' } })
+  expect(await scan('en')).toEqual([expect.objectContaining({ id: other.id, published: true })])
+  await expect(payload.update({ collection, id: other.id, req: await request('en'), locale: 'en', overrideAccess: false,
+    data: { ...empty, _status: 'published' } })).rejects.toMatchObject({ code: 'locked-placement',
+    message: '“Localized placement” is running and this is the only published place it appears. Stop the test, or keep its block on this page.' })
+
 }, 30_000) // Estimate <1.5 s each; no measured claim until coordinator runs it.

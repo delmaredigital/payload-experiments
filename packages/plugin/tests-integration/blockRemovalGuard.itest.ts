@@ -1,5 +1,5 @@
 import { REST_DELETE, REST_PATCH } from '@payloadcms/next/routes'
-import { commitTransaction, createLocalReq, getPayload, initTransaction, killTransaction, type PayloadRequest } from 'payload'
+import { commitTransaction, createLocalReq, getPayload, initTransaction, killTransaction, restoreVersionOperation, type PayloadRequest } from 'payload'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { createIntegrationHarness } from './harness.js'
 import { start } from '../src/transitions/start.js'
@@ -19,6 +19,14 @@ beforeAll(async () => {
     collections: [{ slug: 'removal-pages', versions: { drafts: { autosave: true } },
       access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true },
       fields: [{ name: 'title', type: 'text' }, { name: 'puckData', type: 'json' }],
+      hooks: { beforeChange: [async ({ req, data, collection }) => {
+        const version = req.context.round7RestoreVersion
+        if (version != null && !req.context.round7InsideRestore) {
+          req.context.round7InsideRestore = true
+          await restoreVersionOperation({ req, collection: req.payload.collections[collection.slug]!, id: version as DocId, overrideAccess: false, draft: false })
+        }
+        return data
+      }] },
     }],
   })
   const user = await harness.payload.create({ collection: 'users', overrideAccess: true,
@@ -123,24 +131,30 @@ async function rest(method: 'PATCH' | 'DELETE', path: string, query = '', data?:
     method, headers: { 'Content-Type': 'application/json' }, ...(data === undefined ? {} : { body: JSON.stringify(data) }),
   }), { params: Promise.resolve({ slug: path.split('/') }) })
 }
-test.each(['PATCH', 'DELETE'] as const)('bulk REST %s of the last two placements commits at most one sibling, refuses the rest, and leaves a published placement', async method => {
+test.each(['PATCH', 'DELETE'] as const)('bulk REST %s refuses every page when removing both last places, and allows removing one of two', async method => {
   const f = await fixture(2)
   await start(await request(), { experimentId: f.experiment.id, options: options() })
   const query = new URLSearchParams()
   f.pages.forEach((page, index) => query.set(`where[id][in][${index}]`, String(page.id)))
   const response = await rest(method, 'removal-pages', `?${query}`, method === 'PATCH' ? { puckData: empty, _status: 'published' } : undefined)
   const body = await response.json() as { docs: Array<{ id: DocId }>; errors: Array<{ id: DocId; message: string }> }
-  expect(body.errors.length).toBeGreaterThanOrEqual(1)
-  expect(body.docs.length + body.errors.length).toBe(2)
-  expect(body.docs.length).toBeLessThanOrEqual(1)
-  // Concurrent claims may conservatively refuse both; returned ids identify
-  // exactly which sibling committed, without relying on scheduling order.
-  expect([...body.docs, ...body.errors].map(row => String(row.id)).sort()).toEqual(f.pages.map(page => String(page.id)).sort())
-  expect(body.errors.every(error => /running/.test(error.message))).toBe(true) // no page-busy/deadlock
+  const message = '“Placement race” is running and the pages in this change are the only published places it appears. Stop the test first.'
+  expect(body.docs).toEqual([])
+  expect(body.errors).toHaveLength(2)
+  expect(body.errors.map(row => String(row.id)).sort()).toEqual(f.pages.map(page => String(page.id)).sort())
+  expect(body.errors.map(error => error.message)).toEqual([message, message])
   const remaining = await harness.payload.find({ collection: 'removal-pages', overrideAccess: true, draft: false,
     where: { id: { in: f.pages.map(page => page.id) } } })
-  expect(remaining.docs.filter(doc => doc._status === 'published' && doc.puckData.content.length > 0).map(doc => String(doc.id)).sort())
-    .toEqual(body.errors.map(row => String(row.id)).sort())
+  expect(remaining.docs.filter(doc => doc._status === 'published' && doc.puckData.content.length > 0)).toHaveLength(2)
+  const one = new URLSearchParams()
+  one.set('where[id][in][0]', String(f.pages[0]!.id))
+  const allowed = await rest(method, 'removal-pages', `?${one}`, method === 'PATCH' ? { puckData: empty, _status: 'published' } : undefined)
+  const changed = await allowed.json() as typeof body
+  expect(changed.errors).toEqual([])
+  expect(changed.docs.map(doc => doc.id)).toEqual([f.pages[0]!.id])
+  const after = await harness.payload.find({ collection: 'removal-pages', overrideAccess: true, draft: false,
+    where: { id: { in: f.pages.map(page => page.id) } } })
+  expect(after.docs.filter(doc => doc._status === 'published' && doc.puckData.content.length > 0).map(doc => doc.id)).toEqual([f.pages[1]!.id])
 }, 30_000) // Estimate <2 s; finite cap also catches a deadlock.
 
 test('the 5 s experiment lock timeout maps to page-busy while Start holds E', async () => {
@@ -193,3 +207,22 @@ test('EXPLAIN of the remaining production slug query uses its unique index', asy
     expect(indexes.rows.some(index => plan.includes(index.indexname))).toBe(true)
   } finally { await killTransaction(req) }
 }, 30_000) // Estimate <2 s; inserted planner rows are rolled back.
+
+
+test('a real restore nested inside a draft save cannot unpublish the last running copy', async () => {
+  const f = await fixture(), { payload } = harness
+  await payload.update({ collection: 'removal-pages', id: f.pages[0]!.id, req: await request(), overrideAccess: false,
+    draft: true, data: { puckData: empty, _status: 'draft' } })
+  const versions = await payload.findVersions({ collection: 'removal-pages', req: await request(), overrideAccess: false,
+    where: { and: [{ parent: { equals: f.pages[0]!.id } }, { 'version._status': { equals: 'draft' } }] }, limit: 1, sort: '-createdAt' })
+  expect(versions.docs).toHaveLength(1)
+  await start(await request(), { experimentId: f.experiment.id, options: options() })
+  const req = await request()
+  req.context.round7RestoreVersion = versions.docs[0]!.id
+  await expect(payload.update({ collection: 'removal-pages', id: f.pages[0]!.id, req, overrideAccess: false,
+    draft: true, data: { title: 'Outer draft', _status: 'draft' } })).rejects.toMatchObject({ code: 'locked-placement',
+    message: '“Placement race” is running and this page is the only published place it appears. Stop the test first.' })
+  const page = await payload.findByID({ collection: 'removal-pages', id: f.pages[0]!.id, overrideAccess: true, draft: false })
+  expect(page._status).toBe('published')
+  expect(page.puckData.content).toHaveLength(1)
+}, 30_000)
