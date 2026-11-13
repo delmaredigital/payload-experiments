@@ -250,14 +250,14 @@ async function withBrokenOrderRestore(work: (seen: { cached?: PayloadRequest; ch
   expect(beforeOperation[0]).toBe(pageGuardEnterOperation)
   expect(beforeChange).toContain(pageGuardBeforeChange)
   const seen: { cached?: PayloadRequest; changes: number } = { changes: 0 }
-  const host: CollectionBeforeOperationHook = async ({ args, operation }) => {
+  const host = (async ({ args, operation }: Parameters<CollectionBeforeOperationHook>[0]) => {
     await Promise.resolve()
     if (operation === 'restoreVersion') {
       seen.cached = args.req as PayloadRequest
       expect(seen.cached.context.isRestoringVersion).toBeUndefined()
       return { ...args, req: { ...args.req } }
     }
-  }
+  }) as CollectionBeforeOperationHook
   const observeGuard: CollectionBeforeChangeHook = args => {
     if (seen.cached) {
       // Assert inside beforeChange, immediately before calling the actual guard.
