@@ -24,7 +24,10 @@ export function createOnInit<TUser extends { id: string | number }>(options: Res
     const guarded = new Set([...(options.puck?.enabled ? puckCollections(options).map(c => c.slug) : []), ...(options.blocks?.collections ?? []).map(c => c.slug), ...(options.pages?.collections ?? []).map(c => c.slug)])
     for (const collection of payload.config.collections ?? []) {
       if (!guarded.has(collection.slug)) continue
-      if (collection.versions && collection.versions.drafts && collection.versions.drafts.localizeStatus) {
+      // Page-only guards also read the raw main row's scalar _status when
+      // protecting unpublishes and restores; localized status breaks those too.
+      if (payload.config.localization && payload.config.experimental?.localizeStatus
+        && collection.versions && collection.versions.drafts && collection.versions.drafts.localizeStatus) {
         throw new Error(`Experiments collection ${collection.slug} does not support versions.drafts.localizeStatus. Use a shared publication status.`)
       }
       if (collection.hooks) {

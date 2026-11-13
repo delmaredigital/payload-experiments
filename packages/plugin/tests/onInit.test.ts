@@ -105,7 +105,7 @@ test.each(['puck', 'blocks', 'pages'] as const)('refuses localized publication s
   if (kind === 'puck') options.puck = { enabled: true, collections: ['pages'] }
   if (kind === 'blocks') options.blocks = { collections: [{ slug: 'pages', field: 'layout' }] }
   if (kind === 'pages') options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => null }] }
-  const payload = fakePayload({ config: { collections: [{ slug: 'pages', versions: { drafts: { localizeStatus: true } } }] } })
+  const payload = fakePayload({ config: { localization: { locales: ['en', 'fr'], defaultLocale: 'en' }, experimental: { localizeStatus: true }, collections: [{ slug: 'pages', versions: { drafts: { localizeStatus: true } } }] } })
   await expect(createOnInit(options)(payload)).rejects.toThrow('Experiments collection pages does not support versions.drafts.localizeStatus. Use a shared publication status.')
   expect(payload.dbCalls).toEqual([])
 })
@@ -127,8 +127,26 @@ test('disabled Puck registrations keep their host hooks and localized status', a
   options.puck = { enabled: false, collections: ['pages'] }
   const host = () => undefined
   const collection = { slug: 'pages', versions: { drafts: { localizeStatus: true } }, hooks: { beforeOperation: [host] } }
-  const payload = fakePayload({ config: { collections: [collection] } })
+  const payload = fakePayload({ config: { localization: { locales: ['en', 'fr'], defaultLocale: 'en' }, experimental: { localizeStatus: true }, collections: [collection] } })
   Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
   await createOnInit(options)(payload)
   expect(collection.hooks.beforeOperation).toEqual([host])
+})
+
+
+test.each([
+  { localization: false, experimental: true, status: true, registered: true },
+  { localization: true, experimental: false, status: true, registered: true },
+  { localization: true, experimental: true, status: false, registered: true },
+  { localization: true, experimental: true, status: true, registered: false },
+])('init accepts ineffective or unregistered localized status: %j', async condition => {
+  const options = resolveOptions(sampleOptions())
+  if (condition.registered) options.puck = { enabled: true, collections: ['pages'] }
+  const payload = fakePayload({ config: {
+    localization: condition.localization ? { locales: ['en', 'fr'], defaultLocale: 'en' } : false,
+    experimental: { localizeStatus: condition.experimental },
+    collections: [{ slug: 'pages', versions: { drafts: { localizeStatus: condition.status } } }],
+  } })
+  Object.assign(payload.db, { packageName: '@payloadcms/db-postgres' })
+  await expect(createOnInit(options)(payload)).resolves.toBeUndefined()
 })

@@ -517,7 +517,7 @@ remains, even on the same document; removing the last copy in every language is
 refused. Localized registered block/Puck fields are flattened from adapter locale
 maps for comparison; collections without localized registered content behave the
 same with localization on or off. The published search reads all locale data in
-one pass per collection and stops at the first retained copy. Collections registered for experiments with `versions.drafts.localizeStatus` are refused at init: placement checks require a shared publication status. Start supports
+one pass per collection and stops at the first retained copy. Collections registered for experiments are refused at init only when localization, `experimental.localizeStatus` and `versions.drafts.localizeStatus` are all enabled: placement checks and page-test unpublish/restore guards require a shared publication status. Start supports
 localized content placements; only **Make it the content** is unsupported on localized
 collections (see the support table).
 
@@ -544,12 +544,14 @@ while another remains, and refuses the final removal. `afterOperation` releases
 failed documents' claims and ends the bulk selection scope; successful claims
 remain until transaction completion or an observed restoration. Payload's Local
 API bulk catches do not call `afterError`, which also lacks a document identity,
-so cleanup uses the bulk result. Operation-level failures clear their frame when Payload rolls back the operation request; later writes match their own operation identity. By-id failures roll back their transaction.
+so cleanup uses the bulk result. By-id failures end only their own operation frame when Payload rolls back the operation request; later writes match their own operation identity. With `db.bulkOperationsSingleTransaction`, per-document rollback and commit leave the bulk frame alive until `afterOperation` so every document retains the selection and conservative result guidance.
 Lock keys are not ordered across documents within a bulk operation; concurrent
 bulk operations can deadlock, which Postgres detects as `40P01` and the existing
 busy refusal handles safely.
 
-The plugin puts its operation entry hook first again at init; if another plugin later puts a hook ahead of it, writes are checked conservatively with per-page claims.
+The plugin puts its operation entry hook first again at init; if another plugin later puts a hook ahead of it, ordinary draft saves, autosaves and publishes retain their own request policy, while bulk-selection prediction degrades to conservative per-page claims. A version restore caches its original request, so its draft flag cannot be recovered reliably with broken entry order: it is checked as a main-row write and a draft restore can be refused. A restore using a parent's request cannot borrow that parent's draft policy.
+
+Host hooks must let nested Local API errors propagate: cleanup on the nested operation's own guarded request preserves the parent's frame, but Payload still rolls back the shared transaction and deletes its ID.
 
 Bulk predictions use incoming data, so host hooks that rewrite content before the removal guard can make refusals depend on page order; removal claims still protect the last published copy.
 

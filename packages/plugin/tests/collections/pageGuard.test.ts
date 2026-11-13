@@ -1,4 +1,4 @@
-import { killTransaction } from 'payload'
+import { commitTransaction, initTransaction, killTransaction } from 'payload'
 import type { CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook } from 'payload'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { pageGuardAfterChange, pageGuardAfterOperation, pageGuardEnterOperation, pageGuardOperationScope, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from '../../src/hooks/pageGuard.js'
@@ -826,14 +826,16 @@ test('an unrelated single write cannot adopt an unmatched stale bulk entry', asy
   await expect(f.change({ ...f.empty, _status: 'published' })).resolves.toBeDefined()
 })
 
-test('a preceding beforeOperation hook disables bulk prediction and uses per-page claims', async () => {
+test.each(['update', 'delete'] as const)('a preceding beforeOperation hook disables bulk %s prediction and uses per-page claims', async operation => {
   const f = blockSetup(), other = { ...f.published, id: 9 }
   f.payload.documents.pages!.push(other)
   Object.assign(f.collection, { hooks: { beforeOperation: [vi.fn(), pageGuardEnterOperation, pageGuardBeforeOperation] } })
-  const req = await beginBulk(f, [f.published, other], 'update')
-  await expect(pageGuardBeforeChange({ req, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)).resolves.toBeDefined()
+  const req = await beginBulk(f, [f.published, other], operation)
+  const remove = (doc: typeof f.published) => operation === 'delete' ? pageGuardBeforeDelete({ req, collection: f.collection, id: doc.id } as never)
+    : pageGuardBeforeChange({ req, collection: f.collection, originalDoc: doc, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)
+  await remove(f.published)
   f.read.mockResolvedValue(other)
-  await expect(pageGuardBeforeChange({ req, collection: f.collection, originalDoc: other, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)).rejects.toMatchObject({ code: 'locked-placement' })
+  await expect(remove(other)).rejects.toMatchObject({ code: 'locked-placement' })
 })
 
 test('a host rewrite contrary to the bulk prediction still cannot remove the last published placement', async () => {
@@ -885,4 +887,157 @@ test('an awaited hook ahead of entry cannot give a publishing restore its outer 
   // restoreVersion cached this original request before the beforeOperation loop.
   await expect(pageGuardBeforeChange({ req: f.req, collection: f.collection, originalDoc: f.published, operation: 'update',
     data: { ...f.empty, _status: 'draft' } } as never)).rejects.toMatchObject({ message: removePageMessage })
+})
+
+
+// Match buildBeforeOperation: the hook ahead of entry is awaited before entry
+// runs, so ALS cannot carry the new frame into the operation's continuation.
+async function beginWithBrokenOrder(f: ReturnType<typeof setup>, draft: boolean, autosave = false, req = f.req as import('payload').PayloadRequest, operation: 'update' | 'restoreVersion' = 'update', where?: import('payload').Where) {
+  const hooks = [async () => { await Promise.resolve() }, pageGuardEnterOperation, pageGuardBeforeOperation]
+  Object.assign(f.collection, { hooks: { beforeOperation: hooks } })
+  f.payload.config.collections = [f.collection as unknown as import('payload').SanitizedCollectionConfig]
+  let args = { req, draft, autosave, where, collection: { config: f.collection } }
+  for (const hook of hooks) {
+    const changed = await hook({ args, operation } as never)
+    if (changed) args = changed as typeof args
+  }
+  return args.req
+}
+
+test.each(['block', 'page'] as const)('broken entry order preserves %s draft save, autosave and publish policies', async kind => {
+  for (const action of ['draft save', 'autosave', 'publish'] as const) {
+    const f = kind === 'block' ? blockSetup() : setup()
+    const req = await beginWithBrokenOrder(f, action !== 'publish', action === 'autosave')
+    const data = action === 'publish' ? { title: 'Edited', _status: 'published' } : { slug: 'renamed', puckData: { content: [] }, _status: 'draft' }
+    await expect(pageGuardBeforeChange({ req, collection: f.collection, originalDoc: f.published, operation: 'update', data } as never)).resolves.toBeDefined()
+    if (action !== 'publish') expect(f.trace).toEqual([])
+    await pageGuardAfterOperation({ req, collection: f.collection, operation: 'updateByID', result: {} } as never)
+    expect((req.context.xpPageGuardOperations as Map<string, unknown[]>).size).toBe(0)
+  }
+})
+
+test('broken entry order still refuses removing the last published block', async () => {
+  const f = blockSetup()
+  const req = await beginWithBrokenOrder(f, true)
+  await expect(pageGuardBeforeChange({ req, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'published' } } as never))
+    .rejects.toMatchObject({ message: lastPlacementMessage })
+})
+
+test.each([false, true])('a broken-order restore cannot inherit its cached parent request draft flag (restore draft=%s)', async draft => {
+  const f = blockSetup()
+  const parent = await beginWithBrokenOrder(f, true)
+  const restore = await beginWithBrokenOrder(f, draft, false, parent, 'restoreVersion')
+  // Payload retains parent instead of the returned restore request, including
+  // through its locale proxy. No reliable restore draft policy is available.
+  await expect(pageGuardBeforeChange({ req: new Proxy(parent, {}), collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'draft' } } as never))
+    .rejects.toMatchObject({ message: removePageMessage })
+  await pageGuardAfterOperation({ req: restore, collection: f.collection, operation: 'restoreVersion', result: {} } as never)
+  await expect(pageGuardBeforeChange({ req: parent, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'draft' } } as never)).resolves.toBeDefined()
+})
+
+test.each(['draft', 'bulk'] as const)('a swallowed nested write failure ends only its own frame inside a parent %s', async parentKind => {
+  const f = blockSetup(), other = { ...f.published, id: 9 }
+  f.payload.documents.pages!.push(other)
+  const args = { req: f.req, draft: true, collection: { config: f.collection } }
+  let parent: import('payload').PayloadRequest
+  if (parentKind === 'bulk') parent = await beginBulk(f, [f.published, other], 'update')
+  else {
+    pageGuardEnterOperation({ args, operation: 'update' } as never)
+    parent = (await pageGuardBeforeOperation({ args, operation: 'update' } as never) as typeof args).req
+  }
+  await (async () => {
+    await Promise.resolve()
+    const nestedArgs = { req: parent, collection: { config: f.collection } }
+    pageGuardEnterOperation({ args: nestedArgs, operation: 'update' } as never)
+    const nested = await pageGuardBeforeOperation({ args: nestedArgs, operation: 'update' } as never) as typeof nestedArgs
+    try {
+      await killTransaction(nested.req) // Local API catches the failed write first.
+      throw new Error('nested write failed')
+    } catch { /* host swallows the Local API error */ }
+  })()
+  expect(parent.transactionID).toBeUndefined() // the shared transaction still rolls back
+  expect((parent.context.xpPageGuardOperations as Map<string, unknown[]>).get('pages')).toHaveLength(1)
+  if (parentKind === 'draft') {
+    await expect(pageGuardBeforeChange({ req: parent, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'draft' } } as never)).resolves.toBeDefined()
+  } else {
+    // A later document can start a fresh transaction; selection is operation-wide.
+    await initTransaction(parent)
+    await expect(pageGuardBeforeChange({ req: parent, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'published' } } as never))
+      .rejects.toMatchObject({ message: bulkBlockRemovalCopy('Better hero') })
+  }
+})
+
+test.each(['update', 'delete'] as const)('bulk %s per-document transactions retain every refusal and conservative rewrite', async operation => {
+  for (const unrelatedFailure of [false, true]) {
+    const f = blockSetup(), docs = [f.published, { ...f.published, id: 9 }, { ...f.published, id: 10 }]
+    f.payload.documents.pages = docs
+    Object.assign(f.payload.db, { bulkOperationsSingleTransaction: true })
+    f.read.mockImplementation(async args => docs.find(doc => doc.id === (args as { where: { id: { equals: number } } }).where.id.equals)!)
+    const req = await beginBulk(f, docs, operation)
+    const errors: Array<{ id: number; message: string }> = []
+    for (const doc of docs) {
+      await initTransaction(req)
+      try {
+        if (unrelatedFailure && doc.id === 1) throw new Error('Host validation failed')
+        const work = operation === 'delete' ? pageGuardBeforeDelete({ req, collection: f.collection, id: doc.id } as never)
+          : pageGuardBeforeChange({ req, collection: f.collection, originalDoc: doc, operation: 'update', data: { ...f.empty, _status: 'published' } } as never)
+        await expect(work).rejects.toMatchObject({ message: bulkBlockRemovalCopy('Better hero') })
+        throw new Error(bulkBlockRemovalCopy('Better hero'))
+      } catch (error) {
+        await killTransaction(req) // Payload's per-document catch
+        errors.push({ id: doc.id, message: (error as Error).message })
+      }
+    }
+    const result = { docs: [], errors }
+    await pageGuardAfterOperation({ req, collection: f.collection, operation, result } as never)
+    expect(result.errors.map((error: { message: string }) => error.message)).toEqual(docs.map(doc =>
+      unrelatedFailure && doc.id === 1 ? 'Host validation failed' : unrelatedFailure ? pendingBlockRemovalCopy('Better hero') : bulkBlockRemovalCopy('Better hero')))
+    expect((req.context.xpPageGuardOperations as Map<string, unknown[]>).size).toBe(0)
+  }
+})
+
+test('a successful per-document bulk commit also retains the bulk frame', async () => {
+  const f = blockSetup(), docs = [f.published, { ...f.published, id: 9 }]
+  Object.assign(f.payload.db, { bulkOperationsSingleTransaction: true })
+  const req = await beginBulk(f, docs, 'update')
+  await commitTransaction(req)
+  expect((req.context.xpPageGuardOperations as Map<string, unknown[]>).get('pages')).toHaveLength(1)
+  await pageGuardAfterOperation({ req, collection: f.collection, operation: 'update', result: { docs, errors: [] } } as never)
+  expect((req.context.xpPageGuardOperations as Map<string, unknown[]>).size).toBe(0)
+})
+
+
+test.each([false, true])('broken-order bulk draft saves retain policy across document commits (autosave=%s)', async autosave => {
+  const f = blockSetup(), docs = [f.published, { ...f.published, id: 9 }]
+  Object.assign(f.payload.db, { bulkOperationsSingleTransaction: true })
+  const req = await beginWithBrokenOrder(f, true, autosave, f.req, 'update', { id: { in: docs.map(doc => doc.id) } })
+  for (const doc of docs) {
+    await initTransaction(req)
+    await expect(pageGuardBeforeChange({ req, collection: f.collection, originalDoc: doc, operation: 'update', data: { ...f.empty, _status: 'draft' } } as never)).resolves.toBeDefined()
+    await commitTransaction(req)
+  }
+  expect(f.trace).toEqual([])
+  await pageGuardAfterOperation({ req, collection: f.collection, operation: 'update', result: { docs, errors: [] } } as never)
+  expect((req.context.xpPageGuardOperations as Map<string, unknown[]>).size).toBe(0)
+})
+
+
+test.each([false, true])('a swallowed restore failure on its cached request preserves the parent draft (broken order=%s)', async broken => {
+  const f = blockSetup()
+  const args = { req: f.req, draft: true, collection: { config: f.collection } }
+  pageGuardEnterOperation({ args, operation: 'update' } as never)
+  const parent = (await pageGuardBeforeOperation({ args, operation: 'update' } as never) as typeof args).req
+  await (async () => {
+    await Promise.resolve()
+    if (broken) await beginWithBrokenOrder(f, false, false, parent, 'restoreVersion')
+    else {
+      const restoreArgs = { req: parent, draft: false, collection: { config: f.collection } }
+      pageGuardEnterOperation({ args: restoreArgs, operation: 'restoreVersion' } as never)
+      await pageGuardBeforeOperation({ args: restoreArgs, operation: 'restoreVersion' } as never)
+    }
+    await killTransaction(parent) // restoreVersion catches using its cached req
+  })()
+  expect(parent.transactionID).toBeUndefined()
+  expect((parent.context.xpPageGuardOperations as Map<string, unknown[]>).get('pages')).toHaveLength(1)
+  await expect(pageGuardBeforeChange({ req: parent, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'draft' } } as never)).resolves.toBeDefined()
 })
