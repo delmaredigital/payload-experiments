@@ -1,4 +1,4 @@
-import { commitTransaction, initTransaction, killTransaction } from 'payload'
+import { commitTransaction, initTransaction, isolateObjectProperty, killTransaction } from 'payload'
 import type { CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook } from 'payload'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { pageGuardAfterChange, pageGuardAfterOperation, pageGuardEnterOperation, pageGuardOperationScope, pageGuardBeforeChange, pageGuardBeforeDelete, pageGuardBeforeOperation } from '../../src/hooks/pageGuard.js'
@@ -892,13 +892,16 @@ test('an awaited hook ahead of entry cannot give a publishing restore its outer 
 
 // Match buildBeforeOperation: the hook ahead of entry is awaited before entry
 // runs, so ALS cannot carry the new frame into the operation's continuation.
-async function beginWithBrokenOrder(f: ReturnType<typeof setup>, draft: boolean, autosave = false, req = f.req as import('payload').PayloadRequest, operation: 'update' | 'restoreVersion' = 'update', where?: import('payload').Where) {
-  const hooks = [async () => { await Promise.resolve() }, pageGuardEnterOperation, pageGuardBeforeOperation]
+async function beginWithBrokenOrder(f: ReturnType<typeof setup>, draft: boolean, autosave = false, req = f.req as import('payload').PayloadRequest, operation: 'update' | 'restoreVersion' | 'delete' = 'update', where?: import('payload').Where, replacement: 'none' | 'spread' | 'fresh' = 'none') {
+  const hooks = [async ({ args }: { args: { req: import('payload').PayloadRequest } }) => {
+    await Promise.resolve()
+    if (replacement !== 'none') return { ...args, req: replacement === 'spread' ? { ...args.req } : fakeReq({ payload: args.req.payload, transactionID: args.req.transactionID }) }
+  }, pageGuardEnterOperation, pageGuardBeforeOperation]
   Object.assign(f.collection, { hooks: { beforeOperation: hooks } })
   f.payload.config.collections = [f.collection as unknown as import('payload').SanitizedCollectionConfig]
   let args = { req, draft, autosave, where, collection: { config: f.collection } }
   for (const hook of hooks) {
-    const changed = await hook({ args, operation } as never)
+    const changed = await hook({ args, operation, req } as never)
     if (changed) args = changed as typeof args
   }
   return args.req
@@ -927,12 +930,13 @@ test.each([false, true])('a broken-order restore cannot inherit its cached paren
   const f = blockSetup()
   const parent = await beginWithBrokenOrder(f, true)
   const restore = await beginWithBrokenOrder(f, draft, false, parent, 'restoreVersion')
-  // Payload retains parent instead of the returned restore request, including
-  // through its locale proxy. No reliable restore draft policy is available.
+  // Payload retains parent and marks its context before the locale proxy.
+  parent.context.isRestoringVersion = true
   await expect(pageGuardBeforeChange({ req: new Proxy(parent, {}), collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'draft' } } as never))
     .rejects.toMatchObject({ message: removePageMessage })
   await pageGuardAfterOperation({ req: restore, collection: f.collection, operation: 'restoreVersion', result: {} } as never)
-  await expect(pageGuardBeforeChange({ req: parent, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'draft' } } as never)).resolves.toBeDefined()
+  // The marker is sticky: later ambiguity may refuse, but cannot skip the rule.
+  await expect(pageGuardBeforeChange({ req: parent, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'draft' } } as never)).rejects.toMatchObject({ message: removePageMessage })
 })
 
 test.each(['draft', 'bulk'] as const)('a swallowed nested write failure ends only its own frame inside a parent %s', async parentKind => {
@@ -996,12 +1000,12 @@ test.each(['update', 'delete'] as const)('bulk %s per-document transactions reta
   }
 })
 
-test('a successful per-document bulk commit also retains the bulk frame', async () => {
+test('a successful per-document bulk commit detaches tracking and retains request policy', async () => {
   const f = blockSetup(), docs = [f.published, { ...f.published, id: 9 }]
   Object.assign(f.payload.db, { bulkOperationsSingleTransaction: true })
   const req = await beginBulk(f, docs, 'update')
   await commitTransaction(req)
-  expect((req.context.xpPageGuardOperations as Map<string, unknown[]>).get('pages')).toHaveLength(1)
+  expect((req.context.xpPageGuardOperations as Map<string, unknown[]>).size).toBe(0)
   await pageGuardAfterOperation({ req, collection: f.collection, operation: 'update', result: { docs, errors: [] } } as never)
   expect((req.context.xpPageGuardOperations as Map<string, unknown[]>).size).toBe(0)
 })
@@ -1022,7 +1026,7 @@ test.each([false, true])('broken-order bulk draft saves retain policy across doc
 })
 
 
-test.each([false, true])('a swallowed restore failure on its cached request preserves the parent draft (broken order=%s)', async broken => {
+test.each([false, true])('a cached-request restore rollback uses scoped identity or conservatively retires the caller (broken order=%s)', async broken => {
   const f = blockSetup()
   const args = { req: f.req, draft: true, collection: { config: f.collection } }
   pageGuardEnterOperation({ args, operation: 'update' } as never)
@@ -1035,9 +1039,89 @@ test.each([false, true])('a swallowed restore failure on its cached request pres
       pageGuardEnterOperation({ args: restoreArgs, operation: 'restoreVersion' } as never)
       await pageGuardBeforeOperation({ args: restoreArgs, operation: 'restoreVersion' } as never)
     }
+    if (broken) parent.context.isRestoringVersion = true
     await killTransaction(parent) // restoreVersion catches using its cached req
   })()
   expect(parent.transactionID).toBeUndefined()
-  expect((parent.context.xpPageGuardOperations as Map<string, unknown[]>).get('pages')).toHaveLength(1)
-  await expect(pageGuardBeforeChange({ req: parent, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'draft' } } as never)).resolves.toBeDefined()
+  if (broken) await initTransaction(parent) // a later save can start a fresh transaction
+  const work = pageGuardBeforeChange({ req: parent, collection: f.collection, originalDoc: f.published, operation: 'update', data: { ...f.empty, _status: 'draft' } } as never)
+  if (broken) await expect(work).rejects.toMatchObject({ message: removePageMessage })
+  else {
+    expect((parent.context.xpPageGuardOperations as Map<string, unknown[]>).get('pages')).toHaveLength(1)
+    await expect(work).resolves.toBeDefined()
+  }
+})
+
+
+describe.each([false, true])('parent autosave=%s', autosave => {
+  for (const replacement of ['none', 'spread', 'fresh'] as const) {
+    test.each(['restore', 'unpublish', 'trash', 'delete'] as const)(`a broken-order nested %s with ${replacement} request replacement cannot borrow a parent draft`, async action => {
+      const f = blockSetup()
+      const parent = await beginWithBrokenOrder(f, true, autosave)
+      await (async () => {
+        await Promise.resolve() // host hook awaits this nested Local API operation
+        const operation = action === 'restore' ? 'restoreVersion' : action === 'delete' ? 'delete' : 'update'
+        const returned = await beginWithBrokenOrder(f, false, false, parent, operation, undefined, replacement)
+        // Only restore caches req before hooks. Ordinary operations use args.req.
+        if (action === 'restore') parent.context.isRestoringVersion = true
+        const req = action === 'restore' ? isolateObjectProperty(parent, ['locale', 'fallbackLocale']) : returned
+        const work = action === 'delete' ? pageGuardBeforeDelete({ req, collection: f.collection, id: 1 } as never)
+          : pageGuardBeforeChange({ req, collection: f.collection, originalDoc: f.published, operation: 'update', data: action === 'trash' ? { deletedAt: '2026-11-12', _status: 'draft' } : { ...f.empty, _status: 'draft' } } as never)
+        await expect(work).rejects.toMatchObject({ message: removePageMessage })
+        await killTransaction(req) // simulate the operation's catch
+      })()
+    })
+
+    test(`a successful broken-order replaced restore (${replacement}) ends its returned frame, never the parent`, async () => {
+      const f = blockSetup()
+      const parent = await beginWithBrokenOrder(f, true, autosave)
+      const returned = await beginWithBrokenOrder(f, false, false, parent, 'restoreVersion', undefined, replacement)
+      parent.context.isRestoringVersion = true
+      await pageGuardBeforeChange({ req: isolateObjectProperty(parent, ['locale', 'fallbackLocale']), collection: f.collection, originalDoc: f.published, operation: 'update', data: f.published } as never)
+      await pageGuardAfterOperation({ req: returned, collection: f.collection, operation: 'restoreVersion', result: f.published } as never)
+      const stacks = parent.context.xpPageGuardOperations as Map<string, Array<{ complete?: boolean }>>
+      expect(stacks.get('pages')).toHaveLength(1)
+      expect(stacks.get('pages')![0]!.complete).not.toBe(true)
+      if (replacement === 'fresh') expect((returned.context.xpPageGuardOperations as Map<string, unknown[]>).size).toBe(0)
+      await pageGuardAfterOperation({ req: parent, collection: f.collection, operation: 'updateByID', result: {} } as never)
+      expect(stacks.size).toBe(0)
+    })
+  }
+})
+
+test.each(['unpublish', 'trash'] as const)('a top-level broken-order %s runs the placement rule', async action => {
+  const f = blockSetup()
+  const req = await beginWithBrokenOrder(f, false)
+  await expect(pageGuardBeforeChange({ req, collection: f.collection, originalDoc: f.published, operation: 'update', data: action === 'trash' ? { deletedAt: '2026-11-12' } : { _status: 'draft' } } as never))
+    .rejects.toMatchObject({ message: removePageMessage })
+})
+
+test.each(['update', 'delete'] as const)('an operation-level bulk %s failure detaches tracking with per-document transactions enabled', async operation => {
+  const f = blockSetup()
+  Object.assign(f.payload.db, { bulkOperationsSingleTransaction: true })
+  const req = await beginBulk(f, [f.published], operation)
+  const frame = pageGuardOperationScope.getStore()!
+  // Access/selection can throw before dispatching documents; there is no afterOperation.
+  await killTransaction(req)
+  expect((req.context.xpPageGuardOperations as Map<string, unknown[]>).size).toBe(0)
+  expect(frame.detached).toBe(true)
+  // The caller continuation may retain the ALS object, but it is no longer evidence.
+  await initTransaction(f.req)
+  await expect(f.change({ ...f.empty, _status: 'draft' })).rejects.toMatchObject({ message: removePageMessage })
+})
+
+test('a stale no-transaction restore cannot consume the caller rollback cleanup', async () => {
+  const f = blockSetup()
+  delete f.req.transactionID
+  const parent = await beginWithBrokenOrder(f, true)
+  await beginWithBrokenOrder(f, false, false, parent, 'restoreVersion')
+  await killTransaction(parent) // no transactionID: Payload does nothing, leaving a stale restore
+  const stack = (parent.context.xpPageGuardOperations as Map<string, Array<{ restore: boolean; complete?: boolean }>>).get('pages')!
+  expect(stack).toHaveLength(2)
+  const [caller, staleRestore] = stack
+  await initTransaction(parent)
+  await killTransaction(parent) // the caller now fails, independently of that restore
+  expect(caller!.complete).toBe(true)
+  expect(staleRestore!.complete).not.toBe(true)
+  expect(stack).toEqual([staleRestore])
 })

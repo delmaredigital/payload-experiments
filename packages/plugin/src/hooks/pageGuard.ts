@@ -17,7 +17,7 @@ import { bulkPlacementRequest, placementOperationRequest, usesBulkDocumentTransa
 
 // beforeChange has no draft argument. Each operation owns a frame, including
 // nested same-collection updates and restores on a reused Local API request.
-type OperationFrame = { collection: string; request?: PayloadRequest; draft: boolean; restore: boolean; pending?: boolean; scoped?: boolean; complete?: boolean; parent?: OperationFrame; bulk?: BulkPlacementRemoval }
+type OperationFrame = { collection: string; request?: PayloadRequest; draft: boolean; restore: boolean; pending?: boolean; scoped?: boolean; complete?: boolean; detached?: boolean; parent?: OperationFrame; bulk?: BulkPlacementRemoval }
 type Operations = Map<string, OperationFrame[]>
 const operationIdentity = Symbol('xpPlacementOperation')
 // Execution-local identity survives both concurrent bulk siblings and Payload's
@@ -27,19 +27,16 @@ const entryIsFirst = (config: { hooks?: { beforeOperation?: CollectionBeforeOper
   !config?.hooks?.beforeOperation || config.hooks.beforeOperation[0] === pageGuardEnterOperation
 const operations = (req: PayloadRequest) => req.context.xpPageGuardOperations as Operations | undefined
 const requestFrame = (req: PayloadRequest) => (req as PayloadRequest & { [operationIdentity]?: OperationFrame })[operationIdentity]
-// A degraded restore retains its caller's request, including the caller's token.
-// That token cannot authorize draft-only policy while the restore is in flight.
-const unscopedRestore = (req: PayloadRequest, slug: string): OperationFrame | undefined =>
-  [...(operations(req)?.get(slug) ?? [])].reverse().find(frame => frame.restore && !frame.scoped && !frame.complete
-    && (frame.request === req || requestFrame(req) && frame.request && requestFrame(frame.request) === requestFrame(req)))
 const operationFrame = (req: PayloadRequest, slug: string): OperationFrame | undefined => {
   const ordered = entryIsFirst(req.payload.config.collections?.find(c => c.slug === slug))
   const own = requestFrame(req)
-  // Ordinary operations use their returned request even when entry is late.
-  // Restores cache the original request, so only ordered async entry is reliable.
-  if (!ordered) return !unscopedRestore(req, slug) && own?.collection === slug && !own.restore && !own.complete ? own : undefined
+  // With broken entry order, only this operation's returned token can prove a
+  // draft save. Restore bypasses that token on its cached request; Payload sets
+  // this sticky marker there before beforeChange (restoreVersion.js:162). Any
+  // ambiguity runs the rule: it may refuse, but must never borrow a draft save.
+  if (!ordered) return !req.context.isRestoringVersion && own?.collection === slug && !own.restore && !own.complete ? own : undefined
   let frame = pageGuardOperationScope.getStore()
-  while (frame?.complete) frame = frame.parent
+  while (frame && (frame.complete || frame.detached)) frame = frame.parent
   // The request token wins when a preceding hook breaks async entry propagation.
   // Restore alone caches the original request before beforeOperation; accept its
   // execution identity only when the request belongs to its ancestor operation.
@@ -77,38 +74,50 @@ export const pageGuardBeforeOperation: CollectionBeforeOperationHook = ({ args, 
   const frame: OperationFrame = entryIsFirst(call.collection.config) && entered?.pending && entered.collection === slug ? entered : { collection: slug, request: req, draft: false, restore: false }
   const isBulk = Boolean(call.where) && (operation === 'update' || operation === 'delete')
   const bulk: BulkPlacementRemoval | undefined = frame.scoped && isBulk ? { documents: new Set(), refusals: new Map() } : undefined
-  Object.assign(frame, { draft: call.draft === true, restore: operation === 'restoreVersion', bulk, pending: false })
+  Object.assign(frame, { request: req, draft: call.draft === true, restore: operation === 'restoreVersion', bulk, pending: false })
   stack.push(frame)
   collections.set(slug, stack)
   const scoped: PayloadRequest = placementOperationRequest(req, new Map([[operationIdentity, frame]]), () => {
-    // Restore failures delete transactionID on the cached caller request.
-    // Finish that restore rather than the caller whose proxy observed it.
-    const restore = unscopedRestore(scoped, slug) ?? operationFrame(scoped, slug)
-    if (restore?.restore && restore !== frame) { finishOperation(req, restore); return }
-    // With per-document transactions, rollback/commit deletes transactionID
-    // between bulk siblings. afterOperation alone ends that selection scope.
-    if (isBulk && usesBulkDocumentTransactions(req)) return
-    finishOperation(req, frame)
+    // Only ordered execution identity can attribute a cached-request rollback
+    // to a restore. An unscoped stack entry may be a stale failed restore.
+    const executing = pageGuardOperationScope.getStore()
+    if (executing?.scoped && executing.restore && !executing.complete && !executing.detached && executing.collection === slug) {
+      let parent = executing.parent
+      while (parent && parent !== frame) parent = parent.parent
+      if (parent === frame) { finishOperation(executing.request ?? req, executing); return }
+    }
+    // Payload uses the same request for per-document completion and its outer
+    // catch. Always detach shared tracking; the exact request token alone keeps
+    // bulk policy/selection for later siblings until afterOperation completes it.
+    if (isBulk && usesBulkDocumentTransactions(req)) detachOperation(req, frame)
+    else finishOperation(req, frame)
   })
   return { ...args, req: bulk ? bulkPlacementRequest(scoped, slug, call.where!, call.data, call.draft === true, operation === 'delete', bulk) : scoped }
 }
-function finishOperation(req: PayloadRequest, frame: OperationFrame): void {
+function detachOperation(req: PayloadRequest, frame: OperationFrame): void {
   const collections = operations(req), stack = collections?.get(frame.collection)
   const index = stack?.lastIndexOf(frame)
   if (index != null && index >= 0) stack!.splice(index, 1)
   if (!stack?.length) collections?.delete(frame.collection)
-  frame.complete = true
+  frame.detached = true
   if (pageGuardOperationScope.getStore() === frame) pageGuardOperationScope.enterWith(frame.parent)
+}
+function finishOperation(req: PayloadRequest, frame: OperationFrame): void {
+  frame.complete = true
+  detachOperation(req, frame)
 }
 // Collection afterError has no operation identity and is REST-only
 // (Payload 3.90.2 utilities/routeError.js:69-78). Local API failures call
 // killTransaction(args.req) (operations/update.js:362, delete.js:274), whose
 // transactionID deletion is observed by the operation's request proxy above.
-// Per-document bulk transactions keep their frame until afterOperation instead.
+// Bulk transaction deletion detaches tracking; its request token keeps policy.
 export const pageGuardAfterOperation: CollectionAfterOperationHook = ({ req, collection, operation, result }) => {
-  const own = operation === 'restoreVersion' ? requestFrame(req) : undefined
-  const frame = own?.restore && own.collection === collection.slug && !own.complete ? own
-    : operation === 'restoreVersion' ? unscopedRestore(req, collection.slug) ?? operationFrame(req, collection.slug) : operationFrame(req, collection.slug)
+  // buildAfterOperation passes args.req, including the restore's returned token
+  // (Payload 3.90.2 utilities/buildAfterOperation.js:11). Never finish a caller's
+  // token as a fallback for an unidentified restore.
+  const own = requestFrame(req)
+  const identified = own?.collection === collection.slug && !own.complete ? own : operationFrame(req, collection.slug)
+  const frame = operation === 'restoreVersion' && !identified?.restore ? undefined : identified
   const bulk = frame?.bulk
   // beforeOperation reports by-id updates as 'update'; afterOperation reports 'updateByID'.
   const mutates = operation === 'create' || operation === 'update' || operation === 'updateByID' || operation === 'restoreVersion' || operation === 'delete' || operation === 'deleteByID'
