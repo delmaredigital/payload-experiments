@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { commitTransaction, initTransaction, isolateObjectProperty, killTransaction } from 'payload'
 import type { CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook } from 'payload'
 import { afterEach, describe, expect, test, vi } from 'vitest'
@@ -12,6 +13,18 @@ import { createFakeExecutor } from '../_fakes/executor.js'
 import { sampleOptions } from './fixtures.js'
 
 afterEach(() => { vi.restoreAllMocks(); pageGuardOperationScope.disable() })
+
+test("Payload's installed restore source sets the context marker before collection beforeChange", () => {
+  // Installed-source resolution follows publicErrors.test.ts; literal source
+  // anchors follow the Payload UI pin in puck/editorCss.test.ts.
+  const source = readFileSync(new URL('collections/operations/restoreVersion.js', import.meta.resolve('payload')), 'utf8')
+  const marker = source.indexOf('req.context.isRestoringVersion = true;')
+  const hooks = source.indexOf('for (const hook of collectionConfig.hooks.beforeChange)')
+  expect(marker).toBeGreaterThanOrEqual(0)
+  expect(hooks).toBeGreaterThan(marker)
+  expect(source.slice(marker, hooks)).toContain('const reqWithValidationLocale = isolateObjectProperty(req, [')
+  expect(source.slice(hooks)).toMatch(/data = await hook\(\{\s*collection: collectionConfig,\s*context: req.context,[\s\S]*?req: reqWithValidationLocale\s*\}\)/)
+})
 
 function setup(status = 'running', path = '/original', discarded = false, drafts = true) {
   const trace: unknown[] = []
@@ -1055,7 +1068,11 @@ test.each([false, true])('a cached-request restore rollback uses scoped identity
 
 describe.each([false, true])('parent autosave=%s', autosave => {
   for (const replacement of ['none', 'spread', 'fresh'] as const) {
-    test.each(['restore', 'unpublish', 'trash', 'delete'] as const)(`a broken-order nested %s with ${replacement} request replacement cannot borrow a parent draft`, async action => {
+    // ad404a9's unscopedRestore already recognizes an unchanged cached request.
+    // Its spread/fresh restore cases lose that association; only those restore
+    // cases distinguish the marker fix from the pre-existing baseline.
+    const coverage = replacement === 'none' ? 'baseline: unchanged request' : `request replacement: ${replacement}`
+    test.each(['restore', 'unpublish', 'trash', 'delete'] as const)(`a broken-order nested %s refuses a last-placement removal (${coverage})`, async action => {
       const f = blockSetup()
       const parent = await beginWithBrokenOrder(f, true, autosave)
       await (async () => {
@@ -1072,7 +1089,8 @@ describe.each([false, true])('parent autosave=%s', autosave => {
       })()
     })
 
-    test(`a successful broken-order replaced restore (${replacement}) ends its returned frame, never the parent`, async () => {
+    // ad404a9's afterOperation already prioritizes the returned restore token.
+    test(`baseline: successful broken-order restore (${replacement}) cleans up its returned token and preserves the parent frame`, async () => {
       const f = blockSetup()
       const parent = await beginWithBrokenOrder(f, true, autosave)
       const returned = await beginWithBrokenOrder(f, false, false, parent, 'restoreVersion', undefined, replacement)
@@ -1096,7 +1114,7 @@ test.each(['unpublish', 'trash'] as const)('a top-level broken-order %s runs the
     .rejects.toMatchObject({ message: removePageMessage })
 })
 
-test.each(['update', 'delete'] as const)('an operation-level bulk %s failure detaches tracking with per-document transactions enabled', async operation => {
+test.each(['update', 'delete'] as const)('an operation-level bulk %s failure detaches tracking; a later non-draft removal retains baseline protection', async operation => {
   const f = blockSetup()
   Object.assign(f.payload.db, { bulkOperationsSingleTransaction: true })
   const req = await beginBulk(f, [f.published], operation)
@@ -1107,6 +1125,8 @@ test.each(['update', 'delete'] as const)('an operation-level bulk %s failure det
   expect(frame.detached).toBe(true)
   // The caller continuation may retain the ALS object, but it is no longer evidence.
   await initTransaction(f.req)
+  // beginBulk uses draft=false: ad404a9 also refuses this write even with its
+  // stale ALS frame. The size/detached assertions above prove the cleanup fix.
   await expect(f.change({ ...f.empty, _status: 'draft' })).rejects.toMatchObject({ message: removePageMessage })
 })
 

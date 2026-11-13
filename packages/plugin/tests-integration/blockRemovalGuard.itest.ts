@@ -1,8 +1,8 @@
 import { REST_DELETE, REST_PATCH } from '@payloadcms/next/routes'
-import { commitTransaction, createLocalReq, getPayload, initTransaction, killTransaction, restoreVersionOperation, type PayloadRequest } from 'payload'
+import { commitTransaction, createLocalReq, getPayload, initTransaction, killTransaction, restoreVersionOperation, type CollectionBeforeChangeHook, type CollectionBeforeOperationHook, type PayloadRequest } from 'payload'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { createIntegrationHarness } from './harness.js'
-import { pageGuardOperationScope } from '../src/hooks/pageGuard.js'
+import { pageGuardBeforeChange, pageGuardEnterOperation, pageGuardOperationScope } from '../src/hooks/pageGuard.js'
 import { start } from '../src/transitions/start.js'
 import { txExecutor } from '../src/db/executor.js'
 import { removableBlockTests } from '../src/db/placements.js'
@@ -27,6 +27,12 @@ beforeAll(async () => {
       fields: [{ name: 'title', type: 'text' }, { name: 'puckData', type: 'json' }],
       hooks: { beforeDelete: [() => { observeBulkSelection() }], beforeChange: [async ({ req, data, collection }) => {
         observeBulkSelection()
+        const localVersion = req.context.round11RestoreVersion
+        if (localVersion != null && !req.context.round11InsideRestore) {
+          req.context.round11InsideRestore = true
+          // Test host hook: use the real Local API wrapper and propagate its error.
+          await req.payload.restoreVersion({ collection: collection.slug, id: String(localVersion), req, overrideAccess: true, draft: false })
+        }
         const version = req.context.round7RestoreVersion
         if (version != null && !req.context.round7InsideRestore) {
           req.context.round7InsideRestore = true
@@ -233,6 +239,89 @@ test('a real restore nested inside a draft save cannot unpublish the last runnin
   expect(page._status).toBe('published')
   expect(page.puckData.content).toHaveLength(1)
 }, 30_000)
+
+
+// Patch only this harness's sanitized hooks after init, as a later host plugin
+// could. Restore keeps the pre-hook request; the spread loses its parent's token.
+async function withBrokenOrderRestore(work: (seen: { cached?: PayloadRequest; changes: number }) => Promise<void>) {
+  const collection = harness.payload.collections['removal-pages']!.config
+  const beforeOperation = collection.hooks.beforeOperation
+  const beforeChange = collection.hooks.beforeChange
+  expect(beforeOperation[0]).toBe(pageGuardEnterOperation)
+  expect(beforeChange).toContain(pageGuardBeforeChange)
+  const seen: { cached?: PayloadRequest; changes: number } = { changes: 0 }
+  const host: CollectionBeforeOperationHook = async ({ args, operation }) => {
+    await Promise.resolve()
+    if (operation === 'restoreVersion') {
+      seen.cached = args.req as PayloadRequest
+      expect(seen.cached.context.isRestoringVersion).toBeUndefined()
+      return { ...args, req: { ...args.req } }
+    }
+  }
+  const observeGuard: CollectionBeforeChangeHook = args => {
+    if (seen.cached) {
+      // Assert inside beforeChange, immediately before calling the actual guard.
+      // Payload's locale proxy must share the cached request's exact context.
+      expect(args.context).toBe(seen.cached.context)
+      expect(args.req.context).toBe(seen.cached.context)
+      expect(args.req.context.isRestoringVersion).toBe(true)
+      seen.changes++
+    }
+    return pageGuardBeforeChange(args)
+  }
+  collection.hooks.beforeOperation = [host, ...beforeOperation]
+  collection.hooks.beforeChange = beforeChange.map(hook => hook === pageGuardBeforeChange ? observeGuard : hook)
+  try { await work(seen) }
+  finally {
+    collection.hooks.beforeOperation = beforeOperation
+    collection.hooks.beforeChange = beforeChange
+  }
+}
+
+async function draftRemovalVersion() {
+  const f = await fixture(), { payload } = harness
+  await payload.update({ collection: 'removal-pages', id: f.pages[0]!.id, req: await request(), overrideAccess: false,
+    draft: true, data: { puckData: empty, _status: 'draft' } })
+  const versions = await payload.findVersions({ collection: 'removal-pages', req: await request(), overrideAccess: false,
+    where: { and: [{ parent: { equals: f.pages[0]!.id } }, { 'version._status': { equals: 'draft' } }] }, limit: 1, sort: '-createdAt' })
+  expect(versions.docs).toHaveLength(1)
+  return { ...f, version: versions.docs[0]! }
+}
+
+test("Payload's real Local API restore sets its marker on the exact context passed to the placement guard", async () => {
+  const f = await draftRemovalVersion(), { payload } = harness
+  await withBrokenOrderRestore(async seen => {
+    const req = await request()
+    const restored = await payload.restoreVersion({ collection: 'removal-pages', id: String(f.version.id), req, overrideAccess: false, draft: false })
+    expect(seen.cached).toBe(req)
+    expect(seen.changes).toBe(1)
+    expect(req.context.isRestoringVersion).toBe(true)
+    expect(restored._status).toBe('draft')
+  })
+}, 30_000) // Estimate <2 s; coordinator verifies both Postgres id modes.
+
+test('a real Local API restore with broken hook order cannot borrow its parent draft save and remove the last running placement', async () => {
+  const f = await draftRemovalVersion(), { payload } = harness
+  await start(await request(), { experimentId: f.experiment.id, options: options() })
+  await withBrokenOrderRestore(async seen => {
+    const req = await request()
+    req.context.round11RestoreVersion = f.version.id
+    await expect(payload.update({ collection: 'removal-pages', id: f.pages[0]!.id, req, overrideAccess: false,
+      draft: true, data: { title: 'Outer draft', _status: 'draft' } })).rejects.toMatchObject({ code: 'locked-placement', status: 409,
+      message: '“Placement race” is running and this page is the only published place it appears. Stop the test first.' })
+    expect(seen.cached).toBeDefined()
+    expect(seen.changes).toBe(1)
+  })
+  const page = await payload.findByID({ collection: 'removal-pages', id: f.pages[0]!.id, overrideAccess: true, draft: false })
+  const experiment = await payload.findByID({ collection: 'xp-experiments', id: f.experiment.id, overrideAccess: true })
+  expect(page._status).toBe('published')
+  expect(page.puckData).toEqual(f.pages[0]!.puckData)
+  expect(experiment.status).toBe('running')
+  const phases = await payload.find({ collection: 'xp-phases', overrideAccess: true, depth: 0,
+    where: { and: [{ experiment: { equals: experiment.id } }, { phase: { equals: experiment.phase } }] } })
+  expect(phases.docs).toHaveLength(1)
+  expect(phases.docs[0]!.placementDocs).toContainEqual({ collection: 'removal-pages', id: page.id })
+}, 30_000) // Estimate <2 s; no database work is run by this lane.
 
 
 // Every real bulk path proves selection capture directly; passing outcomes alone
