@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.4.0-rc.4] - 2026-11-13
+
+### plugin
+
 - Fixed: page editors without test access see a calm access line, page-owned version tabs and removal confirmation, with a read-only Test field. Permission-dependent actions stay hidden until access is known, and the sidebar waits quietly for its list read. Unbound blocks name access to tests generally; bound 404 reads preserve page-owned tabs with a calm unavailable sentence. Results-only readers see a results-access sentence and can open Configure as a results reader; a missing test always shows unavailable with no Configure. Unbound results-only readers see that they cannot set up tests. Failed editor-controls reads on bound and unbound blocks show a quiet recovery line and Retry. Management actions are hidden. Detach permits denied or missing status reads and leaves the final placement check to the page save; network/server failures remain retryable.
   Migration impact: none.
 
