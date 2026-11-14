@@ -167,7 +167,7 @@
 .xp-configure-panel .xp-version-content, .xp-configure-panel .xp-version-remove { grid-column: 1 / -1; }
 .xp-configure-panel .xp-version-grid-head > :nth-child(n+3) { display: none; }
 
-.xp-slot-editor .xp-ui-tab-with-actions { display: flex; align-items: center; flex-wrap: wrap; position: relative; }
+.xp-slot-editor .xp-ui-tabbar { flex: 1 1 auto; min-width: 0; }
 
 .xp-slot-weight-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xp-space-2); }
 .xp-slot-sidebar { display: grid; gap: var(--xp-space-4); }

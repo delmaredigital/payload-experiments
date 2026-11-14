@@ -369,6 +369,11 @@
 
 .xp-ui-section--blocked .xp-ui-section-complete { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--xp-error-border); border-radius: 50%; }
 
+/* Actions sit beside each tab visually and outside the tablist's owned roles. */
+.xp-ui-tabbar { display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px; border-bottom: 1px solid var(--xp-border); }
+.xp-ui-tabbar > .xp-ui-tablist { display: contents; }
+.xp-ui-tab-actions { display: flex; align-items: center; flex-wrap: wrap; position: relative; }
+
 /* Shared UI controls are assembled into editor.css for the isolated canvas. */
 .xp-slot-editor {
   min-width: 0;
@@ -538,7 +543,7 @@
 .xp-configure-panel .xp-version-content, .xp-configure-panel .xp-version-remove { grid-column: 1 / -1; }
 .xp-configure-panel .xp-version-grid-head > :nth-child(n+3) { display: none; }
 
-.xp-slot-editor .xp-ui-tab-with-actions { display: flex; align-items: center; flex-wrap: wrap; position: relative; }
+.xp-slot-editor .xp-ui-tabbar { flex: 1 1 auto; min-width: 0; }
 
 .xp-slot-weight-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xp-space-2); }
 .xp-slot-sidebar { display: grid; gap: var(--xp-space-4); }

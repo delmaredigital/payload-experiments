@@ -108,3 +108,8 @@
 .xp-ui-section--blocked h2:focus { outline-color: var(--xp-error); }
 
 .xp-ui-section--blocked .xp-ui-section-complete { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--xp-error-border); border-radius: 50%; }
+
+/* Actions sit beside each tab visually and outside the tablist's owned roles. */
+.xp-ui-tabbar { display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px; border-bottom: 1px solid var(--xp-border); }
+.xp-ui-tabbar > .xp-ui-tablist { display: contents; }
+.xp-ui-tab-actions { display: flex; align-items: center; flex-wrap: wrap; position: relative; }

@@ -113,7 +113,15 @@ test.each(['render', 'editor'] as const)('%s factory supplies custom sidebar rou
   const field = config.fields!.experiment
   if (field.type !== 'custom') throw new Error('Expected custom picker field')
   const fetch = mockFetch()
-  render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'test' }))
+  if (kind === 'editor') {
+    vi.stubGlobal('matchMedia', (media: string) => ({ matches: false, media, addEventListener() {}, removeEventListener() {} }))
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} })
+    fetch.mockImplementation(async (url: string) => ({ ok: true, status: 200, json: async () => url.endsWith('/editor-surface') ? { canManage: true, canReadResults: true } : { docs } }))
+    const { Puck } = await import('@puckeditor/core')
+    render(<Puck config={{ components: { ExperimentSlot: config } }} iframe={{ enabled: false }}
+      data={{ root: { props: {} }, content: [{ type: 'ExperimentSlot', props: { id: 'custom-route', experiment: null, control: [], variantA: [], variantB: [], variantC: [] } }] }}
+      ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}><Puck.Preview /><Puck.Fields /></Puck>)
+  } else render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'test' }))
   await screen.findByRole('option', { name: 'First example · Draft' })
   expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments?where%5Bkind%5D%5Bequals%5D=block&depth=0&sort=id&limit=100&page=1', expect.objectContaining({ credentials: 'include' }))
   expect(screen.getByRole('combobox').closest('.xp-puck-field')).toBeTruthy()

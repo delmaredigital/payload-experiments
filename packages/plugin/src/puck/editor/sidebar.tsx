@@ -40,7 +40,7 @@ export function TestSidebarField({ onChange }: { onChange: (value: ExperimentRef
       for (const notify of entry.listeners) notify()
     }
   }, [id, test, controls, getPuck])
-  return <div className="xp-slot-root xp-slot-editor xp-slot-sidebar" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+  return <div className="xp-slot-root xp-slot-editor xp-puck-field xp-slot-sidebar" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
     <div ref={setTest} />
     <div ref={setControls} />
   </div>
