@@ -4,7 +4,13 @@ export const PLACEMENT_FAILURE_COPY = {
   'not-found': "A page used by this test no longer exists. Choose another page.",
 } as const
 
+export const SAVE_PAGE = 'Save this page to put the test on it.'
+export const PUBLISH_PAGE = 'Publish this page to start the test.'
+export const RUNNING_PUBLISH_PAGE = "This test is running, but visitors won't see it here until this page is published."
+export const RUNNING_SAVE_PAGE = "This test is running, but visitors won't see it here until this page is saved and published."
+
 export const READINESS_COPY = {
+  beforeStart: 'Before you can start:',
   label: 'Readiness', addGoal: 'Add a goal',
   needsAttention: 'Needs attention',
   missingVersions: 'This test is missing its saved versions. Open the test and check its setup before changing this page.',
@@ -110,3 +116,5 @@ export function asymmetricGoalsCopy(detail: unknown): string {
   }).join('\n')
 }
 export const placementUncheckedCopy = (page: string) => `${page} couldn't be checked, so the test can't confirm every version shows the same goals. Check that you can open it.`
+
+export const moreBlockers = (count: number) => `and ${count} more`

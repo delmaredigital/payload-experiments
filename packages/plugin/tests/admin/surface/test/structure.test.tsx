@@ -201,3 +201,19 @@ test('stale pending edits ask for Reload instead of waiting for an impossible sa
   expect(screen.queryByText('Wait for your changes to save.')).toBeNull()
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Start' }).disabled).toBe(true)
 })
+
+test.each(['running', 'decided', 'archived'] as const)('%s keeps section and rail marks neutral or successful in admin and embedded mounts', status => {
+  for (const embedded of [false, true]) {
+    const p = props({ status }, { preflight: preflight([{ code: 'no-primary-metric', ok: false }]), errors: { 'metrics.primary': 'Choose a goal.' } })
+    const view = render(<div className={embedded ? 'xp-configure-panel' : 'xp-test-surface'}><Section test={p.test} surface={p.surface} sectionId="win">Goal</Section><Rail test={p.test} /></div>)
+    expect(view.container.querySelector('.xp-ui-section--blocked, .is-blocked, .xp-test-blocker, .xp-test-rail-mark--blocked')).toBeNull()
+    expect(view.container.textContent).not.toContain('Needs attention')
+    view.unmount()
+  }
+})
+
+test('Advanced renders its blocking sentence inside the disclosure', () => {
+  const p = props({}, { errors: { 'analysis.cuped': 'Check this setting.' } })
+  const view = render(<Section test={p.test} sectionId="advanced">Settings</Section>)
+  expect(view.container.querySelector('details .xp-test-blocker')?.textContent).toContain('Fix the highlighted fields in Advanced settings · for developers.')
+})

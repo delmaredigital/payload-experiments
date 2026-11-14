@@ -535,3 +535,22 @@ test('a pending Start shows visible progress and marks its action busy', async (
   expect(button('Start').getAttribute('aria-busy')).toBe('true')
   await act(async () => finish(response({ doc: { ...doc, status: 'running' }, revision: 1 })))
 })
+
+test('an open Start confirmation distinguishes checking, blockers and a failed read', async () => {
+  const { ConfirmAction } = await import('../../../../src/testSurface/surface/readiness/ActionDialogs.js')
+  const { availableActions } = await import('../../../../src/testSurface/actions/actions.model.js')
+  const p = props({ status: 'stopped' })
+  const action = availableActions({ status: 'stopped', kind: 'block', arms: p.test.doc!.arms, canManage: true }).find(action => action.id === 'start')!
+  const confirm = () => <ConfirmAction {...p} action={action} winnerLabel="Original" onClose={() => {}} />
+  p.test.preflightPending = true
+  const view = render(confirm())
+  expect(screen.getByText('Checking readiness…')).toBeTruthy()
+  expect(screen.queryByText("Couldn't check readiness. Try again.")).toBeNull()
+  p.test.preflightPending = false
+  p.test.preflight = preflight([{ code: 'no-primary-metric', ok: false }])
+  view.rerender(confirm())
+  expect(screen.getByText('Choose a goal.')).toBeTruthy()
+  p.test.preflightError = 'Offline'
+  view.rerender(confirm())
+  expect(screen.getByText("Couldn't check readiness. Try again.")).toBeTruthy()
+})

@@ -24,7 +24,8 @@ import type { TestDocument } from '../testDocument.model.js'
 import type { PreflightResult } from '../../../types/endpoints.js'
 import { usePlacementNotice } from '../../../puck/editor/usePlacementNotice.js'
 import { subscribePlacements, cachedPreflight, placementsPending } from '../../../puck/editor/placementsCache.js'
-import { editorPlacementMessage } from '../editorPlacement.js'
+import { currentPuckDocument } from '../../../puck/editor/editor.model.js'
+import { editorPlacementMessage, editorPlacementChecks } from '../editorPlacement.js'
 import './testPage.css'
 
 export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded = false, onDocument, onPreflight, requestPreflight }: {
@@ -36,7 +37,7 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   const documentState = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}), ...(requestPreflight ? { requestPreflight } : {}) })
   const [placementRead, setPlacementRead] = useState<{ key: string; preflight?: PreflightResult; pending: boolean }>()
   const placementKey = JSON.stringify([surface.apiRoute, String(id)])
-  const watching = embedded && !!surface.editorPage && surface.canManage && !!documentState.preflight
+  const watching = embedded && surface.canManage && !!documentState.preflight
   useEffect(() => {
     if (!watching) return
     return subscribePlacements(surface.apiRoute, id, () => setPlacementRead({ key: placementKey,
@@ -48,10 +49,13 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   const placementFailed = preflight?.checks.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
   const lastPlacements = useRef<{ key: string; value: PreflightResult['placements'] } | undefined>(undefined)
   if (preflight?.placements && !placementFailed) lastPlacements.current = { key: placementKey, value: preflight.placements }
-  const message = editorPlacementMessage(lastPlacements.current?.key === placementKey ? lastPlacements.current.value : undefined, surface.editorPage)
-  surface = { ...surface, editorPlacementMessage: message }
+  const placements = lastPlacements.current?.key === placementKey ? lastPlacements.current.value : undefined
+  const editorPage = embedded ? currentPuckDocument(window.location.pathname, surface.adminRoute, placements) ?? surface.editorPage : surface.editorPage
+  const message = editorPlacementMessage(placements, editorPage, documentState.doc?.status)
+  surface = { ...surface, editorPage, editorPlacementMessage: message }
   usePlacementNotice(surface.apiRoute, id, watching ? message : undefined)
-  const test = message && preflight ? { ...sharedDocument, preflight: { ...preflight, checks: [...preflight.checks.filter(check => !['no-placements', 'placement-removed', 'placement-unpublished'].includes(check.code)), { code: 'no-placements' as const, ok: false }] } } : sharedDocument
+  const setup = documentState.doc?.status === 'draft' || documentState.doc?.status === 'stopped'
+  const test = message && setup && preflight && editorPage ? { ...sharedDocument, preflight: { ...preflight, checks: [...editorPlacementChecks(preflight.checks, editorPage), { code: 'no-placements' as const, ok: false }] } } : sharedDocument
   useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
   const frame = (body: ReactNode) => {
     const children = <div className="xp-test-surface">{body}</div>

@@ -8,7 +8,7 @@ import type { ActionDecision, ActionId } from '../../actions/actions.model.js'
 import { actionGroupLabel, availableActions } from '../../actions/actions.model.js'
 import { createApi } from '../../api.js'
 import { TEST_PAGE } from '../../copy/testPage.js'
-import { READINESS_COPY as C, decidedCopy, fixFieldsNext, runningCopy, stoppedCopy } from '../../copy/readiness.js'
+import { READINESS_COPY as C, moreBlockers, decidedCopy, fixFieldsNext, runningCopy, stoppedCopy } from '../../copy/readiness.js'
 import { READINESS, daysRemaining, displayDate, blockingSteps, pageReadinessContext, errorSection } from './readiness.model.js'
 import { AddMetricAction, AllocateAction, ConfirmAction } from './ActionDialogs.js'
 import { preflightPlacementLabel } from '../../placements/placementLabels.js'
@@ -73,11 +73,11 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
     <div className="xp-readiness__state">
       {bar ? <><SaveStatus test={test} />{sentence && (saveStatusMessage(test) || test.preflightError) ? <span className="xp-readiness__separator" aria-hidden="true">·</span> : null}</> : null}
       {sentence ? <p role="status">{sentence}</p> : null}
-      {setup && blockers.length ? <div className="xp-readiness__blockers" role="status"><strong>Before you can start:</strong><ul>
+      {setup && blockers.length ? <div className="xp-readiness__blockers" role="status"><strong>{C.beforeStart}</strong><ul>
         {blockers.slice(0, 3).map((step, index) => <li key={`${step.code}-${index}`}><span aria-hidden="true">⊗ </span>{step.section === 'header' ? step.sentence : <a href={`#section-${step.section}`} onClick={event => {
           event.preventDefault(); if (step.section !== 'header') jumpToSection(step.section, step.arm)
         }}>{step.sentence}</a>}</li>)}
-        {blockers.length > 3 ? <li>and {blockers.length - 3} more</li> : null}
+        {blockers.length > 3 ? <li>{moreBlockers(blockers.length - 3)}</li> : null}
       </ul></div> : null}
     </div>
     <div className="xp-readiness__actions">

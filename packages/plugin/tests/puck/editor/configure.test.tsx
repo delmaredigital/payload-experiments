@@ -337,6 +337,8 @@ test('setup reads share the response body as well as the headers', async () => {
 })
 
 test('unsaved page guidance appears in chrome, section and footer, then refreshes after save and publish on focus', async () => {
+  let now = Date.now()
+  vi.spyOn(Date, 'now').mockImplementation(() => now)
   window.history.replaceState({}, '', '/manage/puck/pages/7')
   const fetcher = setup()
   const original = fetcher.getMockImplementation()!
@@ -349,18 +351,21 @@ test('unsaved page guidance appears in chrome, section and footer, then refreshe
     await waitFor(() => expect(screen.getAllByText(save).length).toBe(3))
     expect((within(drawer).getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true)
     placements = [{ collection: 'pages', id: 7, title: 'Page', ok: true, detail: 'Draft' }]
+    now += 10_001
     fireEvent.focus(window)
     const publish = 'Publish this page to start the test.'
     await waitFor(() => expect(screen.getAllByText(publish).length).toBe(3))
     placements = [{ ...placements[0]!, detail: 'Published' }]
     // Focus refreshes are debounced by the shared document reader.
     await new Promise(resolve => setTimeout(resolve, 110))
+    now += 10_001
     fireEvent.focus(window)
     await waitFor(() => expect(screen.queryAllByText(publish)).toHaveLength(0))
     await waitFor(() => expect((within(drawer).getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     placements = [{ ...placements[0]!, detail: 'Draft' }]
+    now += 10_001
     const reopened = await open()
     await within(reopened.drawer).findByLabelText('Test name')
     await waitFor(() => expect(screen.getAllByText(publish)).toHaveLength(3))

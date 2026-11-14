@@ -71,3 +71,48 @@ test('post-drawer-save readiness supersedes a poll that began before the PATCH',
   expect(fetcher).toHaveBeenCalledTimes(2)
   release()
 })
+
+test('revalidation retains settled values, deduplicates chrome/drawer and throttles focus', async () => {
+  const { refreshPlacements, focusPlacements } = await import('../../../src/puck/editor/placementsCache.js')
+  let now = 100_000
+  vi.spyOn(Date, 'now').mockImplementation(() => now)
+  const placements = [{ collection: 'pages', id: '1', detail: 'Draft' }]
+  let finish!: (response: Response) => void
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ placements, checks: [] }))
+    .mockImplementation(() => new Promise(resolve => { finish = resolve }))
+  vi.stubGlobal('fetch', fetcher)
+  const notify = vi.fn()
+  const release = acquirePlacements('/api', 'swr', notify)
+  await vi.waitFor(() => expect(notify).toHaveBeenCalledWith(placements))
+  notify.mockClear()
+  const secondNotify = vi.fn()
+  const releaseSecond = acquirePlacements('/api', 'swr', secondNotify)
+  expect(secondNotify).toHaveBeenCalledWith(placements)
+  await focusPlacements('/api', 'swr')
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  now += 10_001
+  const refresh = focusPlacements('/api', 'swr')
+  const drawer = readEditorPreflight('/api', 'swr', new AbortController().signal)
+  const duplicate = refreshPlacements('/api', 'swr')
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  expect(notify).not.toHaveBeenCalledWith(undefined)
+  expect(cachedPreflight('/api', 'swr')?.placements).toEqual(placements)
+  finish(Response.json({ placements, checks: [] }))
+  await Promise.all([refresh, drawer, duplicate])
+  await focusPlacements('/api', 'swr')
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  // A superseding post-write read also retains settled display knowledge.
+  notify.mockClear()
+  invalidatePlacements('/api', 'swr')
+  expect(notify).not.toHaveBeenCalledWith(undefined)
+  finish(Response.json({ placements, checks: [] }))
+  await vi.waitFor(() => expect(placementsPending('/api', 'swr')).toBe(false))
+  // A failed mandatory fresh removal check cannot borrow the retained display value.
+  fetcher.mockRejectedValueOnce(new Error('offline'))
+  expect(await refreshPlacements('/api', 'swr')).toBeUndefined()
+  await focusPlacements('/api', 'swr')
+  await readEditorPreflight('/api', 'swr', new AbortController().signal)
+  expect(fetcher).toHaveBeenCalledTimes(4)
+  expect(notify).not.toHaveBeenCalledWith(undefined)
+  releaseSecond(); release(); vi.restoreAllMocks()
+})

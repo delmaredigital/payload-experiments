@@ -18,7 +18,7 @@ let hidden: boolean
 const block = (id: string) => ({ type: 'ExperimentSlot', props: { id, experiment: { id: doc.id, slug: doc.slug }, control: [], variantA: [], variantB: [], variantC: [] } })
 const requests = () => vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/preflight')).length
 beforeEach(() => {
-  saved = false; published = false; hidden = false
+  saved = false; published = false; hidden = false; doc.status = 'draft'
   history.replaceState({}, '', '/admin/puck/pages/123')
   vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => hidden ? 'hidden' : 'visible')
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
@@ -26,7 +26,7 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} })
   vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.endsWith('/editor-surface')
     ? { canManage: true, canReadResults: true, flagPoints: [], pageCollections: [], attributeKeys: {}, metricSources: [] }
-    : url.endsWith('/preflight') ? { placements: saved ? [{ collection: 'pages', id: '123', detail: published ? 'Published' : 'Draft' }] : [], checks: [] }
+    : url.includes('/results') ? { phases: [], snapshot: null } : url.includes('/summary?') ? {} : url.endsWith('/preflight') ? { placements: saved ? [{ collection: 'pages', id: '123', editorUrl: '/custom/editor/123', detail: published ? 'Published' : 'Draft' }] : [], checks: [] }
       : url.includes('/xp-experiments?') ? { docs: [doc] } : doc)))
 })
 afterEach(async () => { cleanup(); await act(async () => {}); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); history.replaceState({}, '', '/') })
@@ -137,5 +137,37 @@ test('a delayed or failed poll keeps the notice and retries until placements res
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
   expect(screen.getByText(SAVE_PAGE)).toBeTruthy()
   await act(async () => { finish(Response.json({ placements: [{ collection: 'pages', id: '123', detail: 'Published' }], checks: [] })) })
+  expect(screen.queryByText(SAVE_PAGE)).toBeNull()
+})
+
+test.each(['draft', 'stopped', 'running', 'decided', 'archived'])('chrome, sidebar and drawer use status-aware guidance for %s', async status => {
+  doc.status = status
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  const expected = status === 'draft' || status === 'stopped' ? SAVE_PAGE : status === 'running' ? "This test is running, but visitors won't see it here until this page is saved and published." : undefined
+  const view = render(<Puck config={{ components: { ExperimentSlot: ExperimentSlotEditor } }} data={{ root: { props: {} }, content: [block('notice-0')] }} iframe={{ enabled: false }} ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}><Puck.Preview /><Puck.Fields /></Puck>)
+  await screen.findByRole('heading', { name: 'Notice test' })
+  await act(async () => {})
+  if (expected) expect(screen.getAllByText(expected)).toHaveLength(2)
+  else expect(screen.queryByText(SAVE_PAGE)).toBeNull()
+  view.unmount()
+  const drawer = render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
+  await screen.findByRole('heading', { name: 'Notice test' })
+  await act(async () => {})
+  if (expected) expect(screen.getAllByText(expected).length).toBeGreaterThan(0)
+  else expect(screen.queryByText(SAVE_PAGE)).toBeNull()
+  drawer.unmount()
+})
+
+test('custom editorUrl placements identify this page in both chrome and drawer', async () => {
+  saved = true
+  history.replaceState({}, '', '/custom/editor/123')
+  const view = editor()
+  expect(await screen.findByText(PUBLISH_PAGE)).toBeTruthy()
+  view.unmount()
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
+  expect((await screen.findAllByText(PUBLISH_PAGE)).length).toBeGreaterThan(0)
   expect(screen.queryByText(SAVE_PAGE)).toBeNull()
 })

@@ -174,6 +174,7 @@ test('pending focus refresh explains why Start is hidden even with prior readine
   const original = vi.mocked(fetch).getMockImplementation()!
   let finish!: (response: Response) => void
   vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? new Promise(resolve => { finish = resolve }) : original(url, init))
+  vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10_001)
   fireEvent(window, new Event('focus'))
   expect(fields().getByText('Before you can start: Checking readiness…')).toBeTruthy()
   expect(fields().queryByRole('button', { name: 'Start' })).toBeNull()

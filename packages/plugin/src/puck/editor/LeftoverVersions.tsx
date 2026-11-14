@@ -33,7 +33,7 @@ export function LeftoverVersions({ slots, experiment, writes, canManage, count, 
     </div>
   </div>
   return <>
-    {slots.length > 2 ? <details className="xp-ui-banner xp-ui-banner--warning xp-slot-leftovers"><summary>⚠ {C.leftovers(slots.map(slot => slotLabels[slot]).join(', '))}</summary>{slots.map(notice)}</details>
+    {slots.length > 2 ? <details className="xp-ui-banner xp-ui-banner--warning xp-slot-leftovers"><summary><span aria-hidden="true">⚠ </span>{C.leftovers(slots.map(slot => slotLabels[slot]).join(', '))}</summary>{slots.map(notice)}</details>
       : slots.map(slot => <div key={slot} className="xp-ui-banner xp-ui-banner--warning xp-slot-leftovers"><span aria-hidden="true">⚠</span>{notice(slot)}</div>)}
     {deleting ? <Dialog open title={C.deleteContentTitle(slotLabels[deleting])} initialFocus="cancel" onClose={() => setDeleting(null)}>
       <div className="xp-slot-drawer"><p>{C.deleteContentHelp(slotLabels[deleting], count(deleting))}</p><div className="xp-ui-button-group">

@@ -5,12 +5,14 @@ import type { SectionId, TestDocApi } from '../contracts.js'
 import { sectionBlocked } from '../readiness/readiness.model.js'
 import { readinessParts } from '../readiness/parts.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
+import { READINESS_COPY } from '../../copy/readiness.js'
 import { jumpToSection } from './jumpToSection.js'
 
 export function Rail({ test }: { test: TestDocApi }) {
   const [active, setActive] = useState<SectionId>('what')
   const ref = useRef<HTMLElement>(null)
   const done = readinessParts.sectionDone(test)
+  const blocked = (id: SectionId) => (test.doc?.status === 'draft' || test.doc?.status === 'stopped') && sectionBlocked(test, id)
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return
     const visible = new Map<SectionId, number>()
@@ -33,10 +35,10 @@ export function Rail({ test }: { test: TestDocApi }) {
   }, [active])
   return <nav ref={ref} className="xp-test-rail" aria-label={C.navigation}><ol className="xp-test-rail-list">
     {SECTION_ORDER.map(id => <li key={id}><a href={`#section-${id}`}
-      className={`xp-test-rail-item${sectionBlocked(test, id) ? ' is-blocked' : ''}${id === 'advanced' ? ' xp-test-rail-item--advanced' : ''}${active === id ? ' is-active' : ''}`}
+      className={`xp-test-rail-item${blocked(id) ? ' is-blocked' : ''}${id === 'advanced' ? ' xp-test-rail-item--advanced' : ''}${active === id ? ' is-active' : ''}`}
       aria-current={active === id ? 'location' : undefined} onClick={event => {
         event.preventDefault(); setActive(id); jumpToSection(id)
-      }}>{id !== 'advanced' ? <><span aria-hidden="true" className={sectionBlocked(test, id) ? 'xp-test-rail-mark xp-test-rail-mark--blocked' : done[id] ? 'xp-test-rail-mark xp-test-rail-mark--done' : 'xp-test-rail-mark'}>{sectionBlocked(test, id) ? '!' : done[id] ? C.completeMark : C.incompleteMark}</span>
-      <span className="xp-test-sr-only">{sectionBlocked(test, id) ? 'Needs attention: ' : done[id] ? C.completePrefix : C.incompletePrefix}</span></> : null}{C.sections[id]}</a></li>)}
+      }}>{id !== 'advanced' ? <><span aria-hidden="true" className={blocked(id) ? 'xp-test-rail-mark xp-test-rail-mark--blocked' : done[id] ? 'xp-test-rail-mark xp-test-rail-mark--done' : 'xp-test-rail-mark'}>{blocked(id) ? '!' : done[id] ? C.completeMark : C.incompleteMark}</span>
+      <span className="xp-test-sr-only">{blocked(id) ? `${READINESS_COPY.needsAttention}: ` : done[id] ? C.completePrefix : C.incompletePrefix}</span></> : null}{C.sections[id]}</a></li>)}
   </ol></nav>
 }

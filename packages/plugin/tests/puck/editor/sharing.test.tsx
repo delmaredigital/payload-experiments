@@ -70,7 +70,7 @@ test.each(['403', 'network'].flatMap(failure => [1, 2].map(count => ({ failure, 
   expect(screen.queryByRole('alert')).toBeNull()
   expect(read).toHaveBeenCalledOnce()
 })
-test('blocks share pending placement reads, a late RUNNING block refreshes settled knowledge, and visibility return does not refetch', async () => {
+test('blocks share pending placement reads, a late RUNNING block reuses settled knowledge, and visibility return does not refetch', async () => {
   let complete!: (response: Response) => void
   const reads = vi.fn(() => new Promise<Response>(resolve => { complete = resolve }))
   vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? reads() : new Response(JSON.stringify(doc))))
@@ -83,13 +83,13 @@ test('blocks share pending placement reads, a late RUNNING block refreshes settl
   await waitFor(() => expect(reads).toHaveBeenCalledOnce())
   await act(async () => { complete(new Response(JSON.stringify({ placements: [placement] }))) })
   fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-  await waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
-  await act(async () => { complete(new Response(JSON.stringify({ placements: [placement] }))) })
+  await act(async () => {})
+  expect(reads).toHaveBeenCalledOnce()
   await waitFor(() => expect(screen.getAllByText(notice)).toHaveLength(3))
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
   fireEvent(document, new Event('visibilitychange'))
   await act(async () => {})
-  expect(reads).toHaveBeenCalledTimes(2)
+  expect(reads).toHaveBeenCalledOnce()
   // Server sharing remains after local sharing goes away, including across a document refetch.
   act(() => getPuck().dispatch({ type: 'setData', data: { root: { props: {} }, content: [block('one')] } }))
   await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Shared test' })).toHaveLength(1))

@@ -33,7 +33,7 @@ import { acquireArms, loadArms, publishExperiment, useArms } from './armsCache.j
 import { AddVariant, RemoveVersion, VersionActions, VersionWeights, useArmWrites, type WeightEdits } from './VersionBuilder.js'
 import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
-import { acquirePlacements, cachedPreflight, placementsPending, invalidatePlacements, refreshPlacements } from './placementsCache.js'
+import { acquirePlacements, cachedPreflight, placementsPending, invalidatePlacements, refreshPlacements, focusPlacements } from './placementsCache.js'
 import { editorPlacementMessage } from '../../testSurface/surface/editorPlacement.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { localPlacements } from './localPlacements.js'
@@ -158,8 +158,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       setPreflight({ id: experimentId, value: cachedPreflight(api, experimentId), pending: placementsPending(api, experimentId) })
       const shared = placements === undefined ? undefined : isSharedTest(placements, currentPuckDocument(window.location.pathname, admin, placements))
       setLoaded(value => ({ ...(value?.id === experimentId ? value : {}), id: experimentId, shared: shared ?? (value?.id === experimentId ? value.shared : undefined) }))
-    }, true)
-    const focus = () => { void refreshPlacements(api, experimentId) }
+    })
+    const focus = () => { void focusPlacements(api, experimentId) }
     window.addEventListener('focus', focus)
     return () => { release(); window.removeEventListener('focus', focus) }
   }, [api, admin, experimentId, status, access.surface?.canManage])
@@ -196,7 +196,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const observedSlots = useRef({ key: bindingKey, slots: new Set<string>() })
   if (observedSlots.current.key !== bindingKey) observedSlots.current = { key: bindingKey, slots: new Set() }
   for (const slot of pageSlots.split(',')) observedSlots.current.slots.add(slot)
-  const tabs = unavailable ? [...observedSlots.current.slots].sort((a, b) => a.localeCompare(b)).map(slot => ({ slot: slot as ArmSlot, label: slotLabels[slot as ArmSlot] })) : [...tabsFor(experiment), ...orphanSlots.map(slot => ({ slot, label: `${slotLabels[slot]} · not in this test` }))]
+  const tabs = unavailable ? [...observedSlots.current.slots].sort((a, b) => a.localeCompare(b)).map(slot => ({ slot: slot as ArmSlot, label: slotLabels[slot as ArmSlot] })) : [...tabsFor(experiment), ...orphanSlots.map(slot => ({ slot, label: editorCopy.outsideTest(slotLabels[slot]) }))]
   const activeSlot = active && active.id === experimentId ? active.slot : undefined
   const slot = tabs.find(tab => tab.slot === activeSlot)?.slot ?? tabs[0]?.slot ?? 'control'
   const slotEmpty = usePuckSelector(state => {
@@ -312,7 +312,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       if (isCurrentBinding()) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null) }
     } finally { detachBusy.current = false; setCheckingDetach(false) }
   }
-  const placementMessage = editorPlacementMessage(placements && placements.id === experimentId ? placements.value : undefined, currentPuckDocument(window.location.pathname, admin))
+  const placementMessage = editorPlacementMessage(placements && placements.id === experimentId ? placements.value : undefined, currentPuckDocument(window.location.pathname, admin, placements && placements.id === experimentId ? placements.value : undefined), experiment?.status)
   usePlacementNotice(api, experimentId, canManage ? placementMessage : undefined)
   const newTestButton = experimentId !== undefined && canManage ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
 
@@ -357,7 +357,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {access.surface?.canManage ? <ExperimentPicker value={props.experiment ?? null} onChange={sidebar.onChange} /> : null}
         {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
         {accessNotice}
-        {canManage && (experiment?.status === 'draft' || experiment?.status === 'stopped') && blockingLine ? <p role="status">{placementMessage ?? <>Before you can start: {blockingLine}</>}</p> : null}
+        {canManage && (placementMessage || (experiment?.status === 'draft' || experiment?.status === 'stopped') && blockingLine) ? <p role="status">{placementMessage ?? <>{READINESS_COPY.beforeStart} {blockingLine}</>}</p> : null}
       </section></div>, sidebar.test)}
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         {experiment && canManage ? <section aria-label={editorCopy.versionsGroup}><h4>{editorCopy.versionsGroup}</h4>
@@ -390,7 +390,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {leftoverControls}
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       {placementMessage && canManage ? <p className="xp-ui-error" role="status">{placementMessage}</p> : null}
-      {experimentId !== undefined && canManage && !experiment ? <p className="xp-ui-help">{editorCopy.loadingBeforeNew}</p> : null}
+      {experimentId !== undefined && canManage && !experiment && !result?.error ? <p className="xp-ui-help">{editorCopy.loadingBeforeNew}</p> : null}
       {checkingDetach ? <p role="status" className="xp-ui-help">{editorCopy.checkingRemoval}</p> : null}
       <div className="xp-ui-button-group">
         {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}

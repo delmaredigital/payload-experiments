@@ -2,7 +2,7 @@ import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 
 type Placements = PreflightResult['placements']
-type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean; preflight?: PreflightResult; response?: Response }
+type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean; startedAt: number; value?: Placements; previousPreflight?: PreflightResult; preflight?: PreflightResult; response?: Response }
 const cache = new Map<string, Entry>()
 const latest = new Map<string, Entry>()
 const consumers = new Map<string, Set<(placements: Placements | undefined) => void>>()
@@ -13,10 +13,11 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
   const cached = cache.get(key)
   if (cached && (!fresh || cached.pending)) return cached
   const controller = new AbortController()
-  const entry: Entry = { controller, pending: true, promise: undefined! }
+  const previous = latest.get(key)
+  const entry: Entry = { controller, pending: true, startedAt: Date.now(), value: previous?.value, previousPreflight: previous?.preflight ?? previous?.previousPreflight, promise: undefined! }
   cache.set(key, entry)
   latest.set(key, entry)
-  for (const notify of consumers.get(key) ?? []) notify(undefined)
+  for (const notify of consumers.get(key) ?? []) notify(entry.value)
   entry.promise = (async () => {
     try {
       const response = await fetch(`${api}/xp/experiments/${encodeURIComponent(id)}/preflight`, {
@@ -30,9 +31,10 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
     } catch { return undefined }
   })().then(placements => {
     entry.pending = false
+    if (placements !== undefined) entry.value = placements
     if (cache.get(key) === entry) {
       if (placements === undefined) cache.delete(key)
-      for (const notify of consumers.get(key) ?? []) notify(placements)
+      for (const notify of consumers.get(key) ?? []) notify(entry.value)
     }
     return placements
   })
@@ -42,13 +44,19 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
 /** Share mounted reads, but destructive actions always bypass settled cached knowledge. */
 export function refreshPlacements(api: string, id: DocId) { return read(api, id, true).promise }
 
+/** Focus storms share the last attempt (including polling), at most once per ten seconds. */
+export function focusPlacements(api: string, id: DocId) {
+  const previous = latest.get(keyFor(api, id))
+  if (previous && Date.now() - previous.startedAt < 10_000) return previous.promise
+  return read(api, id, true).promise
+}
+
 export function invalidatePlacements(api: string, id: DocId) {
   const key = keyFor(api, id)
   cache.get(key)?.controller.abort()
   cache.delete(key)
-  latest.delete(key)
-  for (const notify of consumers.get(key) ?? []) notify(undefined)
   if (consumers.get(key)?.size) void read(api, id, true).promise
+  else latest.delete(key)
 }
 
 /** Listen without starting a request; the drawer already owns its initial preflight. */
@@ -74,8 +82,9 @@ export function acquirePlacements(api: string, id: DocId, notify: (placements: P
   const release = subscribePlacements(api, id, notify)
   const key = keyFor(api, id)
   const entry = read(api, id, fresh)
+  if (entry.value !== undefined) notify(entry.value)
   let active = true
-  void entry.promise.then(value => { if (active && cache.get(key) === entry) notify(value) })
+  void entry.promise.then(() => { if (active && cache.get(key) === entry) notify(entry.value) })
   return () => { active = false; release() }
 }
 
@@ -86,7 +95,8 @@ export async function readEditorPreflight(api: string, id: DocId, signal: AbortS
   signal.addEventListener('abort', release, { once: true })
   try {
     if (supersede) invalidatePlacements(api, id)
-    let entry = read(api, id, true)
+    const previous = latest.get(keyFor(api, id))
+    let entry = previous && Date.now() - previous.startedAt < 10_000 ? previous : read(api, id, true)
     while (!signal.aborted) {
       await entry.promise
       if (signal.aborted) return new Response(null, { status: 503 })
@@ -99,7 +109,10 @@ export async function readEditorPreflight(api: string, id: DocId, signal: AbortS
 }
 
 /** Current readiness shares the same request and lifetime as placements. */
-export function cachedPreflight(api: string, id: DocId) { return latest.get(keyFor(api, id))?.preflight }
+export function cachedPreflight(api: string, id: DocId) {
+  const entry = latest.get(keyFor(api, id))
+  return entry?.preflight ?? (entry?.pending ? entry.previousPreflight : undefined)
+}
 
 export function placementsPending(api: string, id: DocId) { return cache.get(keyFor(api, id))?.pending === true }
 

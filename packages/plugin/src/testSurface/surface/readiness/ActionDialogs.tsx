@@ -19,6 +19,7 @@ import { REVIEW_COPY as R } from '../../copy/review.js'
 import { READINESS_COPY as C } from '../../copy/readiness.js'
 import { API_MESSAGES, refusalMessage } from '../../copy/common.js'
 import { createApi } from '../../api.js'
+import { blockingSteps, pageReadinessContext } from './readiness.model.js'
 import { useTransition } from './useTransition.js'
 
 type Props = SectionProps & { onClose(): void }
@@ -65,7 +66,7 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
     </>}
     {transition.busy ? <p role="status">{C.changing}</p> : null}
     {transition.error ? <p role="alert">{transition.error}</p> : null}
-    {!content && (test.hasUnsaved || test.saving === 'saving') ? <p>{test.stale ? C.reloadFirst : C.saveFirst}</p> : !content && !ready ? <p>{C.checkError}</p> : null}
+    {!content && (test.hasUnsaved || test.saving === 'saving') ? <p>{test.stale ? C.reloadFirst : C.saveFirst}</p> : !content && !ready ? <p>{test.preflightPending ? C.checking : test.preflightError ? C.checkError : test.doc ? blockingSteps(test.preflight, pageReadinessContext(test.doc, test.preflight, surface))[0]?.sentence ?? C.checking : C.checking}</p> : null}
     {!content ? <Button busy={transition.busy} disabled={!enabled} onClick={() => { void submit() }}>{action.label}</Button> : null}
     <Button data-dialog-cancel disabled={transition.busy || reportBusy} onClick={close}>{content ? A.done : A.cancel}</Button>
   </Dialog>
