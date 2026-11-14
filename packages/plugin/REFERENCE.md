@@ -1032,3 +1032,5 @@ of them. Secondary asymmetry warns, and results health checks published rows
 again on every run.
 
 Setup sections use a red exclamation mark and border for blockers, a green check for completed steps, and neutral marks while unchecked. “Before you can start:” lists up to three blockers with section links and a count of any others. Links scroll to and focus the affected section. Outside click goals appear separately as named warnings and do not disable Start.
+
+Creating a test from a block carries its existing versions and populated content into the new test with an even split. Binding an existing test keeps leftover content visible in tabs marked “not in this test.” Managers can add it to a draft test; any page editor can delete its page content after confirming the version name and block count. Running, stopped, decided and archived tests offer deletion only. More than two leftover versions share a collapsed notice with individual actions. Save the page to keep content removal.

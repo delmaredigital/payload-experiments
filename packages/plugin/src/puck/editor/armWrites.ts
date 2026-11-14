@@ -24,9 +24,10 @@ export async function readExperiment(url: string, signal?: AbortSignal): Promise
 }
 
 /** Each intent is applied to a fresh document, guarded by the collection's compare-and-set header. */
-export async function writeArms(url: string, transform: (arms: Arm[]) => Arm[], publish: (doc: EditorExperiment) => void): Promise<Arm[]> {
+export async function writeArms(url: string, transform: (arms: Arm[]) => Arm[], publish: (doc: EditorExperiment) => void, { draftOnly = false }: { draftOnly?: boolean } = {}): Promise<Arm[]> {
   const fresh = await readExperiment(`${url}?depth=0`) as WritableExperiment
   publish(fresh)
+  if (draftOnly && fresh.status !== 'draft') throw new ArmWriteError(editorCopy.draftOnly)
   if (fresh.status !== 'draft' && fresh.status !== 'stopped') throw new ArmWriteError(editorCopy.locked[fresh.status])
   if (!fresh.updatedAt || !Array.isArray(fresh.arms)) throw new ArmWriteError(editorCopy.writeUnreadable)
   const arms = withSlotsFor(transform(fresh.arms), 'block')

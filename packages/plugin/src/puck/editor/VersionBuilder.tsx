@@ -16,12 +16,12 @@ export function useArmWrites(url: string, publish: (doc: EditorExperiment) => vo
   const guard = useRef(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  async function write(transform: (arms: Arm[]) => Arm[]): Promise<Arm[] | undefined> {
+  async function write(transform: (arms: Arm[]) => Arm[], options?: { draftOnly?: boolean }): Promise<Arm[] | undefined> {
     if (guard.current) return
     guard.current = true
     onWrite()
     setBusy(true); setError(null)
-    try { return await writeArms(url, transform, publish) }
+    try { return await writeArms(url, transform, publish, options) }
     catch (error) { if (isCurrent()) setError(error instanceof ArmWriteError ? error.message : C.writeNetwork) }
     finally { guard.current = false; setBusy(false) }
   }

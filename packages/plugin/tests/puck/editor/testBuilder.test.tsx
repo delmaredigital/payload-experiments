@@ -489,3 +489,58 @@ test('a successful in-flight arm write clears a document-refetch error', async (
   await screen.findByRole('tab', { name: 'Variant B' })
   expect(screen.queryByText(C.loadError)).toBeNull()
 })
+
+test('four populated page versions remain reachable when bound to a two-version test', async () => {
+  puck.item.props.variantB = [{ type: 'Text', props: { id: 'leftover-b' } }] as never[]
+  puck.item.props.variantC = [{ type: 'Text', props: { id: 'leftover-c' } }] as never[]
+  try {
+    await mount()
+    fireEvent.click(screen.getByRole('tab', { name: 'Variant B · not in this test' }))
+    expect(screen.getByText('B content')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Add to the test' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Delete its content' })).toHaveLength(2)
+  } finally { puck.item.props.variantB = []; puck.item.props.variantC = [] }
+})
+
+test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('leftover actions respect %s and delete confirms the page block count without changing the test', async status => {
+  doc.status = status
+  puck.item.props.variantB = [{ type: 'Text', props: { id: 'leftover-b' } }] as never[]
+  try {
+    await mount()
+    expect(screen.queryByRole('button', { name: 'Add to the test' }) !== null).toBe(status === 'draft')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete its content' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: 'Delete Variant B content?' })).toBeTruthy()
+    expect(within(dialog).getByText(/1 block in Variant B/)).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(puck.dispatch).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete its content' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete its content' }))
+    expect(patches()).toHaveLength(0)
+    expect(puck.dispatch).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: 'replace', data: expect.objectContaining({ props: expect.objectContaining({ variantB: [], variantA: puck.item.props.variantA }) }) }))
+  } finally { puck.item.props.variantB = [] }
+})
+test('Add to the test keeps content and adds the named leftover using a fresh guarded write', async () => {
+  puck.item.props.variantC = [{ type: 'Text', props: { id: 'leftover-c' } }] as never[]
+  try {
+    await mount()
+    fireEvent.click(screen.getByRole('button', { name: 'Add to the test' }))
+    await screen.findByRole('tab', { name: 'Variant C' })
+    expect(doc.arms.map(arm => arm.key)).toEqual(['control', 'variantA', 'variantC'])
+    expect(patches()).toHaveLength(1)
+    expect(puck.dispatch).not.toHaveBeenCalled()
+    expect(puck.item.props.variantC).toHaveLength(1)
+  } finally { puck.item.props.variantC = [] }
+})
+test('more than two leftover versions share one notice with per-version actions', async () => {
+  doc.arms = [{ ...doc.arms[0]!, weight: 100 }]
+  puck.item.props.variantB = [{ type: 'Text', props: { id: 'b' } }] as never[]
+  puck.item.props.variantC = [{ type: 'Text', props: { id: 'c' } }] as never[]
+  try {
+    await mount()
+    expect(document.querySelectorAll('.xp-slot-leftovers')).toHaveLength(1)
+    expect(document.querySelector('details.xp-slot-leftovers')?.hasAttribute('open')).toBe(false)
+    fireEvent.click(screen.getByText(/3 versions have content/))
+    expect(screen.getAllByRole('button', { name: 'Add to the test' })).toHaveLength(3)
+  } finally { puck.item.props.variantB = []; puck.item.props.variantC = [] }
+})

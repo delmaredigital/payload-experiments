@@ -3,6 +3,8 @@
 import { createUsePuck, useGetPuck, type ComponentConfig } from '@puckeditor/core'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { ArmSlot, ExperimentRef, ExperimentSlotProps } from '../../types/puck.js'
+import { defaultArms } from '../../arms/model.js'
+import { LeftoverVersions } from './LeftoverVersions.js'
 import type { Arm } from '../../types/contracts.js'
 import { Button } from '../../ui/Button.js'
 import { StatusChip } from '../../ui/StatusChip.js'
@@ -177,7 +179,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const observedSlots = useRef({ key: bindingKey, slots: new Set<string>() })
   if (observedSlots.current.key !== bindingKey) observedSlots.current = { key: bindingKey, slots: new Set() }
   for (const slot of pageSlots.split(',')) observedSlots.current.slots.add(slot)
-  const tabs = unavailable ? [...observedSlots.current.slots].sort((a, b) => a.localeCompare(b)).map(slot => ({ slot: slot as ArmSlot, label: slotLabels[slot as ArmSlot] })) : tabsFor(experiment)
+  const tabs = unavailable ? [...observedSlots.current.slots].sort((a, b) => a.localeCompare(b)).map(slot => ({ slot: slot as ArmSlot, label: slotLabels[slot as ArmSlot] })) : [...tabsFor(experiment), ...orphanSlots.map(slot => ({ slot, label: `${slotLabels[slot]} · not in this test` }))]
   const activeSlot = active && active.id === experimentId ? active.slot : undefined
   const slot = tabs.find(tab => tab.slot === activeSlot)?.slot ?? tabs[0]?.slot ?? 'control'
   const slotEmpty = usePuckSelector(state => {
@@ -241,20 +243,23 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
 
   async function newTestArms(): Promise<Arm[]> {
     if (!isCurrentBinding()) throw new Error('binding')
+    const item = getPuck().getItemById(props.id)
+    if (!item) throw new Error('binding')
+    if (experimentId === undefined) return armsFromBlock({ arms: defaultArms('block') }, item.props)
     // Another placement can rename or add a version while this dialog is open.
     const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}?depth=0`, { credentials: 'include', cache: 'no-store' })
     if (!response.ok) throw new Error('load')
     const doc: unknown = await response.json()
-    const item = getPuck().getItemById(props.id)
-    if (!isCurrentBinding() || !isExperiment(doc) || !item) throw new Error('binding')
-    return armsFromBlock(doc, item.props)
+    const latest = getPuck().getItemById(props.id)
+    if (!isCurrentBinding() || !isExperiment(doc) || !latest) throw new Error('binding')
+    return armsFromBlock(doc, latest.props)
   }
 
   function createFromBlock() {
     if (!root.current) return
     creation.current = openCreateExperimentDrawer(root.current, { admin, api }, {
       initialName: pageTitle,
-      arms: experimentId === undefined ? undefined : newTestArms,
+      arms: newTestArms,
       label: experimentId === undefined ? editorCopy.createLabel : editorCopy.newTest,
       onCreate: bind,
     })
@@ -312,7 +317,9 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
         {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
       </Banner>}
-      {orphanSlots.map(slot => <Banner key={slot} tone="warning">{editorCopy.orphan(slotLabels[slot])}</Banner>)}
+      {experiment && orphanSlots.length ? <LeftoverVersions key={bindingKey} slots={orphanSlots} experiment={experiment} writes={writes} canManage={canManage}
+        count={slot => { const content: unknown = getPuck().getItemById(props.id)?.props[slot]; return Array.isArray(content) ? content.length : 0 }}
+        onDelete={removeContent} onSelect={slot => setActive({ id: experimentId, slot })} /> : null}
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       {placementMessage && canManage ? <p className="xp-ui-error" role="status">{placementMessage}</p> : null}
       <div className="xp-ui-button-group">
@@ -343,7 +350,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         </div></div> : null}
     </EditorControls>
     <Tabs label={editorCopy.tabs} value={slot} renderHeader={children => <EditorControls className="xp-ui-tabs-header">{children}</EditorControls>} onChange={value => { setOpenMenu(null); setActive({ id: experimentId, slot: value as ArmSlot }) }}
-      items={tabs.map(tab => ({ id: tab.slot, label: tab.label, actions: experiment ? <VersionActions
+      items={tabs.map(tab => ({ id: tab.slot, label: tab.label, actions: experiment?.arms.some(arm => arm.key === tab.slot) ? <VersionActions
         key={`${experimentId}-${tab.slot}`} arm={experiment.arms.find(arm => arm.key === tab.slot)!} writes={writes} editable={editable} open={openMenu === tab.slot} onOpenChange={open => setOpenMenu(open ? tab.slot : null)}
         canCopy={!originalEmpty} onCopy={requestCopy} onRequestRemove={() => setRemoving({ key: bindingKey, arm: experiment.arms.find(arm => arm.key === tab.slot)! })} /> : undefined, content: tab.slot === slot ?
         <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'}>

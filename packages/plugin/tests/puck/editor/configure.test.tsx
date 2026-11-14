@@ -360,3 +360,34 @@ test('unsaved page guidance appears in chrome, section and footer, then refreshe
     await waitFor(() => expect((within(drawer).getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false))
   } finally { window.history.replaceState({}, '', '/') }
 })
+
+test('creating from an unbound four-version block carries every version with an even split', async () => {
+  const fetcher = setup()
+  await screen.findByRole('heading', { name: base.name })
+  const contents = ['control', 'variantA', 'variantB', 'variantC'] as const
+  await act(async () => {
+    const state = read()
+    const current = state.getItemById('test-block')!
+    state.dispatch({ type: 'replace', destinationIndex: 0, destinationZone: 'root:default-zone', data: { ...current,
+      props: { ...current.props, experiment: null, ...Object.fromEntries(contents.map(slot => [slot, []])) } } })
+  })
+  // A slot can contain nested data even if the preview config does not render that component.
+  await act(async () => {
+    const current = read().getItemById('test-block')!
+    read().dispatch({ type: 'replace', destinationIndex: 0, destinationZone: 'root:default-zone', data: { ...current,
+      props: { ...current.props, ...Object.fromEntries(contents.map(slot => [slot, [{ type: 'ExperimentSlot', props: block(`nested-${slot}`).props }]])) } } })
+  })
+  const original = fetcher.getMockImplementation()!
+  let posted: { arms: Array<{ key: string; label: string; weight: number }> } | undefined
+  fetcher.mockImplementation(async (url, init) => {
+    if (init?.method === 'POST') { posted = JSON.parse(String(init.body)); return response({ doc: { id: 'created', slug: 'created' } }) }
+    return original(url, init)
+  })
+  const chrome = document.querySelector('.xp-slot-chrome') as HTMLElement
+  fireEvent.click(within(chrome).getByRole('button', { name: 'Test this block' }))
+  const dialog = screen.getByRole('dialog')
+  fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'New test' } })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Test this block' }))
+  await waitFor(() => expect(posted?.arms.map(arm => arm.weight)).toEqual([25, 25, 25, 25]))
+  expect(posted?.arms.map(arm => arm.label)).toEqual(['Original', 'Variant A', 'Variant B', 'Variant C'])
+})

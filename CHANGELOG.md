@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: tests created from a block retain its populated versions and labels with an even split. Content outside an existing test remains in marked tabs, with draft-only Add to the test and confirmed Delete its content actions.
+  Migration impact: none.
+
 - Fixed: setup blockers have danger marks, card borders and error lines; completed steps have success checks. The footer lists what must change before Start, and outside click goals appear once as named warnings.
   Migration impact: none.
 
