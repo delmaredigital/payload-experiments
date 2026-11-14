@@ -3,12 +3,13 @@ import { useEffect, useState } from 'react'
 import { Button } from '../../../ui/Button.js'
 import { SaveStatus, saveStatusMessage } from './SaveStatus.js'
 import { jumpToSection } from '../test/jumpToSection.js'
-import type { SectionProps } from '../contracts.js'
+import type { SectionId, SectionProps } from '../contracts.js'
 import type { ActionDecision, ActionId } from '../../actions/actions.model.js'
 import { actionGroupLabel, availableActions } from '../../actions/actions.model.js'
 import { createApi } from '../../api.js'
-import { READINESS_COPY as C, decidedCopy, runningCopy, stoppedCopy } from '../../copy/readiness.js'
-import { READINESS, daysRemaining, displayDate, blockingSteps, pageReadinessContext } from './readiness.model.js'
+import { TEST_PAGE } from '../../copy/testPage.js'
+import { READINESS_COPY as C, decidedCopy, fixFieldsNext, runningCopy, stoppedCopy } from '../../copy/readiness.js'
+import { READINESS, daysRemaining, displayDate, blockingSteps, pageReadinessContext, errorSection } from './readiness.model.js'
 import { AddMetricAction, AllocateAction, ConfirmAction } from './ActionDialogs.js'
 import { preflightPlacementLabel } from '../../placements/placementLabels.js'
 import { placementUncheckedCopy } from '../../copy/readiness.js'
@@ -40,32 +41,27 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
   const decision = doc.decision as ActionDecision | undefined
   const winner = actionGroupLabel(decision?.winnerArm ?? 'control', doc.arms.find(item => item.key === decision?.winnerArm)?.label)
   const labelledPreflight = test.preflight ? { ...test.preflight, checks: test.preflight.checks.map(check => check.code === 'placement-unchecked' ? { ...check, detail: { ...check.detail as object, title: preflightPlacementLabel(check.detail, test.preflight!, surface.adminRoute).title } } : check) } : null
-  const blockers = blockingSteps(labelledPreflight, pageReadinessContext(doc, test.preflight, surface))
-  const next = blockers[0]
+  const readinessBlockers = blockingSteps(labelledPreflight, pageReadinessContext(doc, test.preflight, surface))
   const setup = doc.status === 'draft' || doc.status === 'stopped'
   const ready = Boolean(test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
   const unsaved = test.hasUnsaved || test.saving === 'saving'
-  const startReason = unsaved ? C.saveFirst : next?.sentence ?? (!ready ? test.preflightError ? C.checkError : C.checking : undefined)
+  const blockers: Array<{ section: SectionId | 'header'; sentence: string; code: string; arm?: string }> = [...readinessBlockers]
+  if (unsaved && !test.stale) blockers.unshift({ section: 'header', sentence: C.saveFirst, code: 'unsaved' })
+  else if (test.preflightError) blockers.unshift({ section: 'header', sentence: C.checkError, code: 'readiness-error' })
+  else if (test.preflightPending || !test.preflight) blockers.unshift({ section: 'header', sentence: C.checking, code: 'checking' })
+  const errorSections = [...new Set(Object.keys(test.errors).filter(path => path !== '_section').map(path => errorSection(path) ?? 'what'))]
+  for (const section of errorSections.reverse()) blockers.unshift({ section, sentence: test.stale ? C.reloadFirst : fixFieldsNext(TEST_PAGE.sections[section]), code: `validation:${section}` })
+  if (test.errors._section || test.stale) blockers.unshift({ section: 'what', sentence: test.stale ? C.reloadFirst : C.reloadAfterError, code: 'save-error' })
+  const startReason = blockers[0]?.sentence ?? (!ready ? C.checking : undefined)
   const actions = availableActions({ status: doc.status, kind: doc.kind, arms: doc.arms, decision, canManage: surface.canManage })
     .filter(action => setup ? action.id === 'start' : doc.status === 'running' ? RUNNING_ACTIONS.includes(action.id) : true)
     .sort((a, b) => doc.status === 'running' ? RUNNING_ACTIONS.indexOf(a.id) - RUNNING_ACTIONS.indexOf(b.id) : 0)
     .map(action => action.id === 'add-metric' ? { ...action, label: C.addGoal } : action.id === 'allocate' ? { ...action, label: C.allocate } : action)
   const action = actions.find(item => item.id === selected)
-  const sentence = setup ? bar && test.preflightError ? null : ready ? C.ready : next ? null : test.preflightError ? C.checkError : C.checking
+  const sentence = transition.busy ? C.changing : setup ? ready && !blockers.length ? C.ready : null
     : doc.status === 'running' ? runningCopy(displayDate(doc.startedAt), people, daysRemaining(doc, Date.now()))
       : doc.status === 'decided' ? decidedCopy(displayDate(doc.decidedAt), winner) : C.archived
-  return <div className={`xp-readiness xp-readiness--${setup && ready ? 'ready' : 'neutral'}${bar ? ' xp-readiness--bar xp-tests-container' : ''}`}>
-    <div className="xp-readiness__state">
-      {bar ? <><SaveStatus test={test} />{sentence && (saveStatusMessage(test) || test.preflightError) ? <span className="xp-readiness__separator" aria-hidden="true">·</span> : null}</> : null}
-      {sentence ? <p role="status">{sentence}</p> : null}
-      {setup && !ready && blockers.length ? <div className="xp-readiness__blockers" role="status"><strong>Before you can start:</strong><ul>
-        {blockers.slice(0, 3).map((step, index) => <li key={`${step.code}-${index}`}><span aria-hidden="true">⊗ </span>{step.section === 'header' ? step.sentence : <a href={`#section-${step.section}`} onClick={event => {
-          event.preventDefault(); if (step.section !== 'header') jumpToSection(step.section, step.arm)
-        }}>{step.sentence}</a>}</li>)}
-        {blockers.length > 3 ? <li>and {blockers.length - 3} more</li> : null}
-      </ul></div> : null}
-      {setup && unsaved ? <p className="xp-ui-error">{C.saveFirst}</p> : null}
-    </div>
+  return <div className={`xp-readiness xp-readiness--${setup && ready && !blockers.length && !transition.busy ? 'ready' : 'neutral'}${bar ? ' xp-readiness--bar xp-tests-container' : ''}`}>
     {setup && test.preflight?.checks.some(check => check.code === 'page-targets-unchecked' && check.warning) ? <p>{C.uncheckedPages}</p> : null}
     {test.preflight?.checks.filter(check => check.code === 'make-content-unsupported' && check.warning).map(check => <p key={check.code}>{READINESS[check.code].next(check.detail, doc)}</p>)}
     {test.preflight?.checks.filter(check => check.warning && ['goal-in-some-versions', 'placement-unchecked'].includes(check.code)).map((check, index) => {
@@ -74,12 +70,23 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
     })}
     {[...new Map(test.preflight?.goalNotes?.map(note => [String(note.metricId), note])).values()].map(note => <p className="xp-readiness__warning" key={note.metricId}><span aria-hidden="true">⚠ </span>{note.message}</p>)}
     {doc.status === 'stopped' ? <p>{stoppedCopy(displayDate(doc.stoppedAt))}</p> : null}
+    <div className="xp-readiness__state">
+      {bar ? <><SaveStatus test={test} />{sentence && (saveStatusMessage(test) || test.preflightError) ? <span className="xp-readiness__separator" aria-hidden="true">·</span> : null}</> : null}
+      {sentence ? <p role="status">{sentence}</p> : null}
+      {setup && blockers.length ? <div className="xp-readiness__blockers" role="status"><strong>Before you can start:</strong><ul>
+        {blockers.slice(0, 3).map((step, index) => <li key={`${step.code}-${index}`}><span aria-hidden="true">⊗ </span>{step.section === 'header' ? step.sentence : <a href={`#section-${step.section}`} onClick={event => {
+          event.preventDefault(); if (step.section !== 'header') jumpToSection(step.section, step.arm)
+        }}>{step.sentence}</a>}</li>)}
+        {blockers.length > 3 ? <li>and {blockers.length - 3} more</li> : null}
+      </ul></div> : null}
+    </div>
     <div className="xp-readiness__actions">
       {actions.map(item => {
-        const reason = item.id === 'start' ? startReason : unsaved ? C.saveFirst : item.id === 'allocate' && doc.allocation >= 100 ? C.everyone : undefined
+        const reason = item.id === 'start' ? startReason : test.stale ? C.reloadFirst : unsaved ? C.saveFirst : item.id === 'allocate' && doc.allocation >= 100 ? C.everyone : undefined
         const disabled = transition.busy || !!selected || !!reason
         return <span key={item.id} title={reason}>
-          <Button variant={item.tone === 'primary' || (bar && item.id === 'stop') ? 'primary' : 'secondary'} disabled={disabled} onClick={() => {
+          {reason && item.id !== 'start' ? <span className="xp-readiness-action-reason">{reason}</span> : null}
+          <Button busy={transition.busy} variant={item.tone === 'primary' || (bar && item.id === 'stop') ? 'primary' : 'secondary'} disabled={disabled} onClick={() => {
             if (disabled) return
             if (item.id === 'start' && doc.status === 'draft') void transition.run(() => createApi(surface.apiRoute).start(doc.id))
             else setSelected(item.id)

@@ -367,6 +367,8 @@
 .xp-ui-section--complete .xp-ui-section-number { color: var(--xp-success); border-color: var(--xp-success); }
 .xp-ui-section--blocked h2:focus { outline-color: var(--xp-error); }
 
+.xp-ui-section--blocked .xp-ui-section-complete { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--xp-error-border); border-radius: 50%; }
+
 /* Shared UI controls are assembled into editor.css for the isolated canvas. */
 .xp-slot-editor {
   min-width: 0;

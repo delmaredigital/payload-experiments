@@ -200,7 +200,7 @@ test.each([false, true])('outside goalNotes require a completely readable placem
   options.pages = { collections: [{ slug: 'pages', pathOf: () => '/', findByPath: async () => ({ id: 7, published: true }), contentOf: doc => doc.layout }] }
   if (unchecked) vi.spyOn(payload.db, 'findOne').mockRejectedValue(new Error('unreadable'))
   expect((await preflightData(req, { experimentId: 1, options }, { now }))!.goalNotes).toEqual(unchecked ? [] : [
-    { metricId: 2, message: "Heads up: the click goal “Outside” is outside this test's block, so every version shows the same button. The test can still start. To compare different buttons, move the goal inside each version." },
+    { metricId: 2, message: "Heads up: the click goal “Outside” isn't on any of this test's pages. The test can still start. Add the goal to every version's page to measure those clicks." },
   ])
 }, 5_000) // Measured 3 ms locally; cap exceeds 3×.
 

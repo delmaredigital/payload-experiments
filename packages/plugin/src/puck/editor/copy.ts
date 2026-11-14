@@ -17,7 +17,10 @@ export const editorCopy = {
   running: 'Changing this content mid-test mixes two versions in one result',
   decided: (winner: string) => `Decided: ${winner}. Use 'Make it the content' on the test to finish.`,
   archived: 'This test is archived; the winning content is shown to everyone.',
-  copy: 'Copy Original here',
+  copy: 'Copy Original here', copyEmpty: 'Add content to the Original before copying it.',
+  enterName: 'Enter a name to create the test.',
+  loadingBeforeNew: 'Wait for this test to load before starting a new one.',
+  checkingRemoval: 'Checking whether this test can be removed…',
   dropZone: (slot: 'control' | 'variantA' | 'variantB' | 'variantC') => slot === 'control'
     ? 'Drop the original content here'
     : `Drop ${editorCopy.labels[slot]} content here`,
@@ -38,8 +41,9 @@ export const editorCopy = {
   openTest: 'Open the test',
   nameExists: "This name is too close to an existing test. Choose a different name.",
   createError: "Couldn't create the test. Try again.",
+  savingVersions: 'Saving version changes…', refreshing: 'Refreshing results…',
   loading: 'Loading test…',
-  loadError: "Couldn't load this test. Try selecting it again.",
+  loadError: "Couldn't load this test. Try again.",
   orphan: (label: string, versions: string) => `${label} has content on this page, but the test only has ${versions}. Visitors never see it.`,
   addLeftover: 'Add to the test', deleteContent: 'Delete its content',
   deleteContentTitle: (label: string) => `Delete ${label} content?`,
@@ -72,7 +76,7 @@ export const editorCopy = {
   writeNetwork: "Couldn't reach the server. Check your connection and try again.",
   writeUnreadable: "Couldn't read the server's response. Reload and try again.",
   collecting: 'Collecting',
-  resultsUnavailable: "Results aren't available here.",
+  resultsUnavailable: "Results aren't available here. Try Refresh.",
   refresh: 'Refresh',
   people: (label: string, count: string) => `${label}: ${count} people`,
 } as const

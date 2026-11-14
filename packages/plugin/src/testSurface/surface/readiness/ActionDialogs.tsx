@@ -63,8 +63,10 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
         <TextInput id="xp-confirmation" label={A.confirmation} value={typed} readOnly={transition.busy} onChange={(event: ChangeEvent<HTMLInputElement>) => setTyped(event.target.value)} />
       </> : null}
     </>}
+    {transition.busy ? <p role="status">{C.changing}</p> : null}
     {transition.error ? <p role="alert">{transition.error}</p> : null}
-    {!content ? <Button disabled={!enabled} onClick={() => { void submit() }}>{action.label}</Button> : null}
+    {!content && (test.hasUnsaved || test.saving === 'saving') ? <p>{test.stale ? C.reloadFirst : C.saveFirst}</p> : !content && !ready ? <p>{C.checkError}</p> : null}
+    {!content ? <Button busy={transition.busy} disabled={!enabled} onClick={() => { void submit() }}>{action.label}</Button> : null}
     <Button data-dialog-cancel disabled={transition.busy || reportBusy} onClick={close}>{content ? A.done : A.cancel}</Button>
   </Dialog>
 }
@@ -81,9 +83,11 @@ export function AllocateAction({ test, surface, onClose }: Props) {
     <p>{R.allocationBody}</p>
     <label>{C.participation}<input type="number" min={current + 1} max={100} step={1} value={value} disabled={disabled}
       onChange={event => setValue(event.target.value)} /></label>
+    {test.hasUnsaved || test.saving === 'saving' ? <p>{test.stale ? C.reloadFirst : C.saveFirst}</p> : null}
     {!valid ? <p>{R.allocationInvalid}</p> : null}
+    {transition.busy ? <p role="status">{C.changing}</p> : null}
     {transition.error ? <p role="alert">{transition.error}</p> : null}
-    <Button disabled={disabled || !valid} onClick={() => {
+    <Button busy={transition.busy} disabled={disabled || !valid} onClick={() => {
       // Not-found can also mean the experiment is missing; use round copy for the missing phase record.
       if (valid && test.doc) void transition.run(() => createApi(surface.apiRoute).allocate(test.doc!.id, { allocation }, { notFound: API_MESSAGES.roundChanged }))
     }}>{C.allocate}</Button>
@@ -138,8 +142,10 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
         {available.map(item => <option key={item.id} value={String(item.id)}>{item.name}</option>)}
       </select></label>
       {!loading && !loadError && !available.length ? <p>{R.noMetrics}</p> : null}
+      {transition.busy ? <p role="status">{C.changing}</p> : null}
       {loadError || transition.error ? <p role="alert">{loadError ?? transition.error}</p> : null}
-      <Button disabled={disabled || loading || !!loadError || !selected} onClick={() => {
+      {test.hasUnsaved || test.saving === 'saving' ? <p>{test.stale ? C.reloadFirst : C.saveFirst}</p> : !loading && !loadError && available.length > 0 && !selected ? <p>{C.chooseGoalToAdd}</p> : null}
+      <Button busy={transition.busy} disabled={disabled || loading || !!loadError || !selected} onClick={() => {
         // Goal and phase lookups share not-found; prefer the more likely missing goal without reading server text.
         if (selected && test.doc) void transition.run(async () => {
           const result = await createApi(surface.apiRoute).addMetric(test.doc!.id, { metric: selected.id, role }, { notFound: API_MESSAGES.goalNotFound })

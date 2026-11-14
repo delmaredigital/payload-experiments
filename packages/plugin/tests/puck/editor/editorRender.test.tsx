@@ -237,8 +237,13 @@ test('load errors retain Original and show a readable message', async () => {
   vi.mocked(fetch).mockRejectedValue(new Error('offline'))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props()} />)
-  await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("Couldn't load this test. Try selecting it again."))
+  await screen.findByText("Couldn't load this test. Try again.")
+  expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Retry' })).toBeTruthy()
   expect(screen.getByText('Original content')).toBeTruthy()
+  vi.mocked(fetch).mockImplementation(async () => new Response(JSON.stringify(doc)))
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+  await screen.findByRole('heading', { name: 'Example' })
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
 })
 
 test('decided banner uses the stored winner label', async () => {

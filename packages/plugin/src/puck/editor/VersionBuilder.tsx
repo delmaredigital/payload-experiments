@@ -88,7 +88,7 @@ export function VersionActions({ arm, writes, editable, open, onOpenChange, canC
     {open ? <div id={`${id}-menu`} className="xp-slot-version-menu" role="group" tabIndex={-1} aria-label={C.menu(arm.label)}>
       {editable ? <Button variant="quiet" size="sm" onClick={() => { setName(arm.label); setInvalid(false); closeMenu() }}>{C.rename}</Button> : null}
       {arm.kind !== 'control' ? <>
-        <Button variant="quiet" size="sm" disabled={!canCopy} onClick={() => { closeMenu(); onCopy(slot) }}>{C.copy}</Button>
+        <Button variant="quiet" size="sm" disabled={!canCopy} onClick={() => { closeMenu(); onCopy(slot) }}>{C.copy}</Button>{!canCopy ? <p className="xp-ui-help">{C.copyEmpty}</p> : null}
         {editable ? <Button variant="quiet" size="sm" onClick={() => { closeMenu(); onRequestRemove() }}>{C.remove}</Button> : null}
       </> : null}
     </div> : null}

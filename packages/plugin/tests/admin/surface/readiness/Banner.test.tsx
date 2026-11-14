@@ -71,12 +71,12 @@ test('block path refusal shows its message and removal line in Who takes part an
 test.each([{ hasUnsaved: true }, { saving: 'saving' as const }])('Start disabled when changes are pending: %j', patch => {
   render(<Banner {...props({}, patch)} />)
   expect(button('Start').disabled).toBe(true)
-  expect(button('Start').closest('[title]')?.getAttribute('title')).toBe('Save your changes first.')
+  expect(button('Start').closest('[title]')?.getAttribute('title')).toBe('Wait for your changes to save.')
 })
 test('absent preflight never permits a start; a header refusal has no section link', () => {
   const view = render(<Banner {...props({}, { preflight: null })} />)
   expect(button('Start').disabled).toBe(true)
-  expect(screen.getByRole('status').textContent).toBe('Checking readiness…')
+  expect(screen.getByRole('status').textContent).toContain('Checking readiness…')
   view.rerender(<Banner {...props({}, { preflight: preflight([{ code: 'page-user-unit', ok: false }]) })} />)
   expect(screen.queryByRole('link')).toBeNull()
   expect(screen.getByRole('status').textContent).toContain('Whole-page tests count visitors. Create the test again counting visitors.')
@@ -311,13 +311,13 @@ test('retry cannot discard staged changes', () => {
   const p = props({}, { preflightError: 'network error', hasUnsaved: true })
   render(<SaveStatus test={p.test} />)
   expect(button('Try again').disabled).toBe(true)
-  expect(button('Try again').closest('[title]')?.getAttribute('title')).toBe('Save your changes first.')
+  expect(button('Try again').closest('[title]')?.getAttribute('title')).toBe('Wait for your changes to save.')
 })
 
 
 test('retained passing preflight never enables Start after a failed readiness refresh', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'no-primary-metric', ok: true }]), preflightError: 'network error' })} />)
-  expect(screen.getByRole('status').textContent).toBe("Couldn't check readiness. Try again.")
+  expect(screen.getByRole('status').textContent).toContain("Couldn't check readiness. Try again.")
   expect(button('Start').disabled).toBe(true)
   expect(button('Start').closest('[title]')?.getAttribute('title')).toBe("Couldn't check readiness. Try again.")
   expect(button('Start').closest('.xp-readiness--ready')).toBeNull()
@@ -334,7 +334,7 @@ test('an open restart confirmation follows a later readiness refusal or refresh 
 })
 test('Start stays disabled while the readiness check after a save is still running', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'no-primary-metric', ok: true }]), preflightPending: true })} />)
-  expect(screen.getByRole('status').textContent).toBe('Checking readiness…')
+  expect(screen.getByRole('status').textContent).toContain('Checking readiness…')
   expect(button('Start').disabled).toBe(true)
 })
 
@@ -523,4 +523,15 @@ test('an unknown failing readiness code links Review setup to the first section'
   render(<Banner {...p} />)
   expect(screen.getByRole('link', { name: 'Review setup' }).getAttribute('href')).toBe('#section-what')
   expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true)
+})
+
+test('a pending Start shows visible progress and marks its action busy', async () => {
+  let finish!: (value: Response) => void
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { finish = resolve })))
+  render(<Banner {...props()} />)
+  fireEvent.click(button('Start'))
+  expect(screen.getByText('Saving this change…')).toBeTruthy()
+  expect(screen.queryByText('Ready to start.')).toBeNull()
+  expect(button('Start').getAttribute('aria-busy')).toBe('true')
+  await act(async () => finish(response({ doc: { ...doc, status: 'running' }, revision: 1 })))
 })

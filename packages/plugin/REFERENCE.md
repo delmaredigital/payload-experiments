@@ -803,6 +803,14 @@ it does not save or publish the page. A Start refusal uses the server's sentence
 Escape, Close and the backdrop dismiss the drawer and return focus to its button.
 Links that leave the surface open in a new tab.
 
+Setup sections use a red exclamation mark and border for blockers, a green check for completed steps, and neutral marks while unchecked. “Before you can start:” lists up to three blockers with section links and a count of any others. Links scroll to and focus the affected section. Outside click goals appear separately as named warnings and do not disable Start.
+
+Creating a test from a block carries its existing versions and populated content into the new test with an even split. Binding an existing test keeps leftover content visible in tabs marked “not in this test.” Managers can add it to a draft test; any page editor can delete its page content after confirming the version name and block count. Running, stopped, decided and archived tests offer deletion only. More than two leftover versions share a collapsed notice with individual actions. Save the page to keep content removal.
+
+Puck 0.24.0 can collapse the Experiment component in the outline, but cannot collapse an individual version slot. Its zone rows have no expansion state or public row override (`@puckeditor/core/dist/chunk-DQXMVPVM.mjs`, `ZoneLabel` / `LayerTreeZone`, lines 8299–8347). Component rows render those zones directly (8126–8135); the public `outline` override wraps the complete tree (`actions-Dgllwd-W.d.ts:769`). The integration preserves the host outline and does not replace Puck's tree or manipulate its owned DOM. Per-version collapse needs an upstream Puck zone-expansion primitive keyed by `zoneCompound`, plus a public default/override; the experiments integration could then default inactive versions closed. payload-puck 0.10.3 uses this same Puck version.
+
+Disabled editor actions explain the next step nearby: add Original content before copying, enter a test name before creating, wait for a test read or write, and leave the optional audience section alone when no choices are configured. A failed test read offers Retry. Validation errors mark their section in red, including Advanced. A failed placement read keeps its failure message instead of asking you to save. A readiness failure or unsaved test settings has an explicit reason above Start. Whole-page tests use page-specific outside-goal warnings.
+
 Permission-dependent actions stay hidden until access is known; the sidebar Test
 field shows a quiet loading line while its list read is pending. An unbound block
 without test access says "You don't have access to tests." A bound test returning
@@ -1030,9 +1038,3 @@ New click goals are accepted within 30 seconds. A click goal may be primary;
 primary and guardrail goals must appear in every tested version or outside all
 of them. Secondary asymmetry warns, and results health checks published rows
 again on every run.
-
-Setup sections use a red exclamation mark and border for blockers, a green check for completed steps, and neutral marks while unchecked. “Before you can start:” lists up to three blockers with section links and a count of any others. Links scroll to and focus the affected section. Outside click goals appear separately as named warnings and do not disable Start.
-
-Creating a test from a block carries its existing versions and populated content into the new test with an even split. Binding an existing test keeps leftover content visible in tabs marked “not in this test.” Managers can add it to a draft test; any page editor can delete its page content after confirming the version name and block count. Running, stopped, decided and archived tests offer deletion only. More than two leftover versions share a collapsed notice with individual actions. Save the page to keep content removal.
-
-Puck 0.24.0 can collapse the Experiment component in the outline, but cannot collapse an individual version slot. Its zone rows have no expansion state or public row override (`@puckeditor/core/dist/chunk-DQXMVPVM.mjs`, `ZoneLabel` / `LayerTreeZone`, lines 8299–8347). Component rows render those zones directly (8126–8135); the public `outline` override wraps the complete tree (`actions-Dgllwd-W.d.ts:769`). The integration preserves the host outline and does not replace Puck's tree or manipulate its owned DOM. Per-version collapse needs an upstream Puck zone-expansion primitive keyed by `zoneCompound`, plus a public default/override; the experiments integration could then default inactive versions closed. payload-puck 0.10.3 uses this same Puck version.

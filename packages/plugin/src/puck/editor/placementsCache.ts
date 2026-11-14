@@ -22,6 +22,7 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
       })
       if (!response.ok) return
       const data = await response.json() as PreflightResult
+      if (data.checks?.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)) return
       return Array.isArray(data.placements) ? data.placements : undefined
     } catch { return undefined }
   })().then(placements => {

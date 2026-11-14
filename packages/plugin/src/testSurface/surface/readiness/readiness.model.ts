@@ -119,14 +119,23 @@ export function nextStep(preflight: PreflightResult | null, ctx: ReadinessContex
   const action = mapping && (typeof mapping.nextStep === 'function' ? mapping.nextStep(detail, ctx) : mapping.nextStep)
   return { ...next, ...(action ? { nextStep: action } : {}) }
 }
-export function sectionBlocked(test: { preflight: PreflightResult | null }, section: SectionId) {
+export function errorSection(path: string): SectionId | undefined {
+  if (['name', 'hypothesis', 'flagPoint'].some(field => path === field || path.startsWith(`${field}.`))) return 'what'
+  if (/^(arms|pageCollection|allocation)(\.|$)/.test(path)) return 'versions'
+  if (/^metrics(\.|$)/.test(path)) return 'win'
+  if (/^(targeting)(\.|$)/.test(path)) return 'who'
+  if (/^analysis\.(plannedDurationDays|reachPerDay)(\.|$)/.test(path)) return 'length'
+  if (/^(analysis|exposurePolicy|layer)(\.|$)/.test(path)) return 'advanced'
+}
+export function sectionBlocked(test: { preflight: PreflightResult | null; errors?: Record<string, string> }, section: SectionId) {
+  if (Object.keys(test.errors ?? {}).some(path => errorSection(path) === section)) return true
   return !!test.preflight?.checks.some(check => !check.ok && (Object.hasOwn(READINESS, check.code) ? READINESS[check.code].section : 'what') === section)
 }
 
-export function sectionDone(test: { preflight: PreflightResult | null }): Record<SectionId, boolean> {
+export function sectionDone(test: { preflight: PreflightResult | null; doc?: Pick<TestDocument, 'targeting'> | null }): Record<SectionId, boolean> {
   return Object.fromEntries(SECTION_ORDER.map(section => [section,
-    test.preflight ? !test.preflight.checks.some(check => !check.ok && (Object.hasOwn(READINESS, check.code) ? READINESS[check.code].section : SECTION_ORDER[0]) === section)
-      : section === 'who' || section === 'advanced',
+    section === 'who' && test.doc && !test.doc.targeting?.length ? false : test.preflight ? !test.preflight.checks.some(check => !check.ok && (Object.hasOwn(READINESS, check.code) ? READINESS[check.code].section : SECTION_ORDER[0]) === section)
+      : section === 'advanced',
   ])) as Record<SectionId, boolean>
 }
 

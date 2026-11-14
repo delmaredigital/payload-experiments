@@ -19,7 +19,7 @@ export function Section({ test, sectionId, children, surface }: { test: TestDocA
   const blocked = sectionBlocked(test, sectionId)
   const blockers = test.doc ? blockingSteps(test.preflight, surface ? pageReadinessContext(test.doc, test.preflight, surface) : test.doc).filter(step => step.section === sectionId) : []
   const done = readinessParts.sectionDone(test)[sectionId]
-  if (sectionId === 'advanced') return <details open={open} onToggle={event => setOpen(event.currentTarget.open)} className="xp-test-advanced" id="section-advanced">
+  if (sectionId === 'advanced') return <details open={open} onToggle={event => setOpen(event.currentTarget.open)} className={`xp-test-advanced${blocked ? ' xp-ui-section--blocked' : ''}`} id="section-advanced">
     <summary><h2 id="title-advanced" tabIndex={-1}>{C.sections.advanced}</h2></summary>
     <div className="xp-ui-section-body">{children}</div>
   </details>

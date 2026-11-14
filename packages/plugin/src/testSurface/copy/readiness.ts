@@ -8,7 +8,11 @@ export const READINESS_COPY = {
   label: 'Readiness', addGoal: 'Add a goal',
   needsAttention: 'Needs attention',
   missingVersions: 'This test is missing its saved versions. Open the test and check its setup before changing this page.',
-  ready: 'Ready to start.', saveFirst: 'Save your changes first.',
+  saveGeneralError: "Couldn't save. Reload to check the saved test.",
+  changing: 'Saving this change…', reloadAfterError: "Couldn't save the test. Reload to check its saved settings before starting.",
+  chooseGoalToAdd: 'Choose a goal to add it to this test.',
+  reloadFirst: 'Reload to see the latest test settings before starting.',
+  ready: 'Ready to start.', saveFirst: 'Wait for your changes to save.',
   saving: 'Saving…', saved: 'Saved', saveError: "Couldn't save — see the highlighted field",
   checkError: "Couldn't check readiness. Try again.", checking: 'Checking readiness…', retry: 'Try again',
   archived: 'Archived.', running: 'Running', stopped: 'Stopped', decided: 'Decided',
@@ -47,6 +51,7 @@ export const unpublishedPageCopy = (path: string, context?: { original: boolean;
 export const placementFailureCopy = (reason: unknown) => PLACEMENT_FAILURE_COPY[typeof reason === 'string' && Object.hasOwn(PLACEMENT_FAILURE_COPY, reason) ? reason as keyof typeof PLACEMENT_FAILURE_COPY : 'placements-failed']
 
 const withoutPeriod = (value: string) => value.trim().replace(/[.!?]+$/, '')
+export const fixFieldsNext = (name: string) => `Fix the highlighted fields in ${name}.`
 export const nextCopy = (sentence: string) => `Next: ${sentence}`
 export const versionsNext = (detail: string) => `Fix the versions: ${withoutPeriod(detail)}.`
 export const contentNext = (group: string) => `Add content for ${group} on the page.`

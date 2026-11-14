@@ -5,7 +5,7 @@ import type { TestDocApi } from '../contracts.js'
 import { READINESS_COPY as C } from '../../copy/readiness.js'
 
 export function saveStatusMessage(test: TestDocApi): string | null {
-  return test.saving === 'saving' ? C.saving : test.saving === 'saved' || test.saving === 'idle' ? C.saved : test.saving === 'error' && !test.stale ? C.saveError : null
+  return test.saving === 'saving' ? C.saving : test.saving === 'saved' || test.saving === 'idle' ? C.saved : test.saving === 'error' && !test.stale ? test.errors._section ? C.saveGeneralError : C.saveError : null
 }
 
 export function SaveStatus({ test }: { test: TestDocApi }) {
@@ -21,7 +21,8 @@ export function SaveStatus({ test }: { test: TestDocApi }) {
   return <div className="xp-save-status" aria-live="polite">
     {message ? <span role={test.saving === 'error' ? 'alert' : 'status'}>{message}</span> : null}
     {test.preflightError ? <div><span role="alert">{test.preflightError}</span>{' '}
-      <span title={test.hasUnsaved || test.saving === 'saving' ? C.saveFirst : undefined}>
+      {test.hasUnsaved || test.saving === 'saving' ? <p>{test.stale ? C.reloadFirst : C.saveFirst}</p> : test.preflightPending || retrying ? <p>{C.checking}</p> : null}
+      <span title={test.stale ? C.reloadFirst : test.hasUnsaved || test.saving === 'saving' ? C.saveFirst : undefined}>
         <Button disabled={retrying || test.preflightPending || test.hasUnsaved || test.saving === 'saving'} onClick={() => { void retry() }}>{C.retry}</Button>
       </span></div> : null}
   </div>

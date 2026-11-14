@@ -344,5 +344,5 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
         ...(placement.slug ? { slug: placement.slug } : {}), ...await placementUrls(options, placement, pendingPreviews, onPreviewFailure, previews) })
     }
   }
-  return { checks: checkStart(input), ...(input.goalContent ? { goalNotes: input.metrics.filter(m => m.source.startsWith('click:') && input.goalContent && !input.goalContent.skipped && !input.goalContent.unchecked.length && !input.goalContent.keys.some(k => `click:${k.key}` === m.source)).map(m => ({ metricId: m.id, message: OUTSIDE_GOAL(m.name) })) } : {}), placements, ...(e.kind === 'page' ? { pagePlacements } : {}), baseline, trafficPerDay, estimate: power }
+  return { checks: checkStart(input), ...(input.goalContent ? { goalNotes: input.metrics.filter(m => m.source.startsWith('click:') && input.goalContent && !input.goalContent.skipped && !input.goalContent.unchecked.length && !input.goalContent.keys.some(k => `click:${k.key}` === m.source)).map(m => ({ metricId: m.id, message: OUTSIDE_GOAL(m.name, e.kind) })) } : {}), placements, ...(e.kind === 'page' ? { pagePlacements } : {}), baseline, trafficPerDay, estimate: power }
 }

@@ -30,10 +30,11 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   onDocument?: (doc: TestDocument) => void; onPreflight?: (preflight: PreflightResult) => void
 }) {
   const [barHeight, setBarHeight] = useState<number>()
-  const document = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}) })
-  const message = editorPlacementMessage(document.preflight?.placements, surface.editorPage)
+  const documentState = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}) })
+  const placementFailed = documentState.preflight?.checks.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
+  const message = placementFailed ? undefined : editorPlacementMessage(documentState.preflight?.placements, surface.editorPage)
   surface = { ...surface, editorPlacementMessage: message }
-  const test = message && document.preflight ? { ...document, preflight: { ...document.preflight, checks: [...document.preflight.checks.filter(check => !['no-placements', 'placement-removed', 'placement-unpublished'].includes(check.code)), { code: 'no-placements' as const, ok: false }] } } : document
+  const test = message && documentState.preflight ? { ...documentState, preflight: { ...documentState.preflight, checks: [...documentState.preflight.checks.filter(check => !['no-placements', 'placement-removed', 'placement-unpublished'].includes(check.code)), { code: 'no-placements' as const, ok: false }] } } : documentState
   useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
   const frame = (body: ReactNode) => {
     const children = <div className="xp-test-surface">{body}</div>
@@ -50,7 +51,7 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   return frame(
     <div className="xp-test-page xp-test-page--setup" style={{ paddingBottom: embedded || barHeight === undefined ? undefined : `${barHeight}px` }}>
     <div className="xp-test-layout"><Rail test={test} /><div className="xp-test-content">
-    {test.errors._section ? <Banner tone="error" action={test.stale ? <Button onClick={() => void test.reload()}>{C.reload}</Button> : undefined}>{test.errors._section}</Banner> : null}
+    {test.errors._section ? <Banner tone="error" action={<Button onClick={() => void test.reload()}>{C.reload}</Button>}>{test.errors._section}</Banner> : null}
     <Section surface={surface} test={test} sectionId="what">
       <TestName {...props} /><parts.Binding {...props} /><Hypothesis {...props} />
     </Section>

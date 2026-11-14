@@ -4,7 +4,7 @@ import { registerOverlayPortal, useGetPuck } from '@puckeditor/core'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
-export const CONTROL_SELECTOR = 'button, a, label, input, select, textarea, [role="tab"], [role="menu"], [role="listbox"], dialog, [role="dialog"], [contenteditable="true"]'
+export const CONTROL_SELECTOR = 'button, a, summary, label, input, select, textarea, [role="tab"], [role="menu"], [role="listbox"], dialog, [role="dialog"], [contenteditable="true"]'
 
 /** Give React a delegation boundary before Puck's native component click listeners.
  * A normal React onClick runs too late: native child/parent selection already ran.

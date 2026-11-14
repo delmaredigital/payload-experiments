@@ -102,7 +102,7 @@ test('RUNNING single placement cannot detach while loading or after a failed sta
   mount({ root: { props: {} }, content: [block('only')] })
   expect(screen.queryByRole('button', { name: 'Remove the test from this block' })).toBeNull()
   await act(async () => reject(new Error('offline')))
-  await screen.findByText("Couldn't load this test. Try selecting it again.")
+  await screen.findByText("Couldn't load this test. Try again.")
   expect(screen.queryByRole('button', { name: 'Remove the test from this block' })).toBeNull()
 })
 
@@ -157,6 +157,7 @@ test('RUNNING shows no detach action or stop sentence until placements settle', 
   await screen.findByRole('heading', { name: 'Shared test' })
   expect(screen.queryByText('Stop the test to remove it from this block.')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Remove the test from this block' })).toBeNull()
+  await waitFor(() => expect(complete).toBeTypeOf('function'))
   await act(async () => complete(new Response(JSON.stringify({ placements: [] }))))
   await screen.findByText('Stop the test to remove it from this block.')
 })

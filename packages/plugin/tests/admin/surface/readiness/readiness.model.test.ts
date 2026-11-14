@@ -103,8 +103,8 @@ test('header first, then contract section order, rather than checkStart order', 
   expect(nextStep(preflight(checks), ctx)).toBeNull()
   expect(nextStep(preflight([{ code: 'invalid-status', ok: false }]), ctx)).toBeNull()
 })
-test('sectionDone uses failing checks only and defaults Who and Advanced to done', () => {
-  expect(sectionDone({ preflight: null })).toEqual({ what: false, versions: false, win: false, who: true, length: false, advanced: true })
+test('sectionDone uses failing checks only and keeps the unvisited audience neutral', () => {
+  expect(sectionDone({ preflight: null })).toEqual({ what: false, versions: false, win: false, who: false, length: false, advanced: true })
   expect(sectionDone({ preflight: preflight() })).toEqual(Object.fromEntries(SECTION_ORDER.map(section => [section, true])))
   expect(sectionDone({ preflight: preflight([{ code: 'empty-slot', ok: false }, { code: 'no-primary-metric', ok: true }, { code: 'undeclared-targeting-key', ok: false }]) }))
     .toEqual({ what: true, versions: false, win: true, who: false, length: true, advanced: true })

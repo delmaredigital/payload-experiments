@@ -42,6 +42,7 @@ export function ResultsReadout({ id, api, experiment }: { id: string | number; a
         ...experiment.arms.filter(arm => arm.kind !== 'holdout'), ...experiment.arms.filter(arm => arm.kind === 'holdout'),
       ].map(arm => <span key={arm.key}>{(arm.kind === 'holdout' ? C.holdoutPeople : C.people)(arm.label, formatCount(data.people![arm.key] ?? 0))}</span>)}</div> : null}
     </> : <p className="xp-ui-help">{C.loading}</p>}
+    {busy && data ? <p role="status" className="xp-ui-help">{C.refreshing}</p> : null}
     <Button variant="quiet" size="sm" disabled={busy} onClick={() => {
       if (pending.current) return
       pending.current = true

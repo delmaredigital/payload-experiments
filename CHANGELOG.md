@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: editor actions explain empty Original content, a missing test name, unavailable audience choices, in-progress version writes and placement checks, and loading/failed test reads. Retry now reloads a failed test read. Setup validation and readiness failures keep a visible reason above Start; failed placement discovery never masquerades as an unsaved page. Whole-page click-goal warnings name pages rather than a block.
+  Migration impact: none.
+
 - Documented: Puck 0.24.0 supports collapsing the Experiment outline row but has no supported per-version slot collapse control. No outline behavior changed.
   Migration impact: none.
 

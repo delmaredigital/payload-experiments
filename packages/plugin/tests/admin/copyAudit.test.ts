@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import { expect, test } from 'vitest'
+import { OUTSIDE_GOAL } from '../../src/goals/fairness.js'
+import { SAVE_PAGE, PUBLISH_PAGE } from '../../src/testSurface/surface/editorPlacement.js'
 import { ADVANCED_COPY } from '../../src/testSurface/copy/advanced.js'
 import { PAGE_COPY } from '../../src/testSurface/copy/pages.js'
 import { metricsCollection } from '../../src/collections/metrics.js'
@@ -242,4 +244,11 @@ test('page combobox copy retains only used keys and names unresolved pages', asy
   expect(pageNotFoundCopy('/example', 'Pages')).toBe("/example isn't in Pages. Choose a page.")
   expect(pageFieldCopy('Variant A')).toBe('Page for Variant A')
   for (const removed of ['search', 'change', 'close', 'noPage']) expect(PAGE_COPY).not.toHaveProperty(removed)
+})
+
+
+test('editor placement instructions and named goal warnings use editor language', () => {
+  expect(hits([SAVE_PAGE, PUBLISH_PAGE, OUTSIDE_GOAL('Sign up'), OUTSIDE_GOAL('Sign up', 'page')])).toEqual([])
+  expect(OUTSIDE_GOAL('Sign up')).toContain('click goal “Sign up”')
+  expect(OUTSIDE_GOAL('Sign up')).toContain('The test can still start.')
 })

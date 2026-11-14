@@ -541,6 +541,38 @@ test('more than two leftover versions share one notice with per-version actions'
     expect(document.querySelectorAll('.xp-slot-leftovers')).toHaveLength(1)
     expect(document.querySelector('details.xp-slot-leftovers')?.hasAttribute('open')).toBe(false)
     fireEvent.click(screen.getByText(/3 versions have content/))
+    expect(puck.dispatch).not.toHaveBeenCalled()
     expect(screen.getAllByRole('button', { name: 'Add to the test' })).toHaveLength(3)
   } finally { puck.item.props.variantB = []; puck.item.props.variantC = [] }
+})
+
+test('copying an empty Original has a visible reason next to the disabled action', async () => {
+  const content = puck.item.props.control
+  puck.item.props.control = []
+  try {
+    await mount(); menu()
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: C.copy }).disabled).toBe(true)
+    expect(screen.getByText(C.copyEmpty)).toBeTruthy()
+  } finally { puck.item.props.control = content }
+})
+test('leftover Add checks draft status again before writing', async () => {
+  puck.item.props.variantB = [{ type: 'Text', props: { id: 'b' } }] as never[]
+  try {
+    await mount(); doc.status = 'stopped'
+    fireEvent.click(screen.getByRole('button', { name: C.addLeftover }))
+    await screen.findByText(C.draftOnly)
+    expect(patches()).toHaveLength(0)
+  } finally { puck.item.props.variantB = [] }
+})
+
+test('page editors without test management can delete leftover content but cannot add a test version', async () => {
+  puck.item.props.variantB = [{ type: 'Text', props: { id: 'b' } }] as never[]
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation(async (url, init) => String(url).endsWith('/xp/editor-surface')
+    ? response({ canManage: false, canReadResults: true }) : original(url, init))
+  try {
+    await mount()
+    expect(screen.queryByRole('button', { name: C.addLeftover })).toBeNull()
+    expect(screen.getByRole('button', { name: C.deleteContent })).toBeTruthy()
+  } finally { puck.item.props.variantB = [] }
 })

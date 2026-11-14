@@ -110,7 +110,7 @@ test('editor fetch fills cache, tab-return refetch updates it, warning uses stat
     iframe={{ enabled: false }} ui={{ itemExpanded: { orphan: true } }}>
     <Puck.Outline /><Puck.Preview /><Save />
   </Puck>)
-  await screen.findByText("Variant C has content but isn't part of this test. Move or delete it; visitors never see it.")
+  await screen.findByText("Variant C has content on this page, but the test only has Original and Variant A. Visitors never see it.")
   expect(visibility('orphan')).toEqual([true, true, false, true])
   expect(screen.getByText(/Variant C has content/).closest('.xp-ui-banner--warning')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Save page' }))
@@ -139,7 +139,7 @@ test('bound loading and failed fetch keep every zone visible, even with a previo
   mount({ root: { props: {} }, content: [block('pending', 'failed')] }, true)
   expect(visibility('pending')).toEqual([true, true, true, true])
   await act(async () => { fail(new Error('offline')) })
-  await screen.findByText("Couldn't load this test. Try selecting it again.")
+  await screen.findByText("Couldn't load this test. Try again.")
   expect(visibility('pending')).toEqual([true, true, true, true])
 })
 
@@ -218,7 +218,7 @@ test('a failed refetch clears known arms to unknown', async () => {
   await waitFor(() => expect(visibility('two-arm')).toEqual([true, true, false, false]))
   experimentFetch.mockRejectedValueOnce(new Error('offline'))
   returnToTab()
-  await screen.findByText("Couldn't load this test. Try selecting it again.")
+  await screen.findByText("Couldn't load this test. Try again.")
   expect(visibility('two-arm')).toEqual([true, true, true, true])
 })
 

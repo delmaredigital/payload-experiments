@@ -2,6 +2,7 @@ const guardrailsShort = 'Must not get worse'
 const secondaryShort = 'Also keep an eye on'
 
 export const TEST_PAGE = {
+  noAudienceRules: 'No audience choices are available here. Everyone eligible takes part; leave this section as it is.',
   editVersionsOnCanvas: 'Edit version content on the canvas.',
   clickPageGroup: "On this test's page",
   clickGoalsNote: "Goals inside linked documents aren't shown. Goals added in code (data-xp-goal) work but aren't listed here.",

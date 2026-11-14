@@ -18,7 +18,7 @@ import { PuckHostProvider, usePuckRoutes } from '../hostContext.js'
 import { pickerCopy, slotLabels } from '../copy.js'
 import { experimentSlotDefaultProps, experimentSlotFields, experimentSlotLabel } from '../slotConfig.js'
 import { armsFromBlock, bannerFor, currentPuckDocument, isSharedTest, tabsFor, type EditorExperiment } from './editor.model.js'
-import { cloneSlot } from './cloneSlot.js'
+import { cloneSlot, countSlotBlocks } from './cloneSlot.js'
 import { openCreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
 import { acquireArms, loadArms, publishExperiment, useArms } from './armsCache.js'
@@ -54,6 +54,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const { admin, api } = usePuckRoutes()
   const access = useEditorSurface(api)
   const root = useRef<HTMLElement>(null)
+  const [readAttempt, setReadAttempt] = useState(0)
   const [mode, setMode] = useState<'light' | 'dark'>('light')
   useEffect(() => {
     const node = root.current
@@ -134,7 +135,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     const onVisible = () => { if (document.visibilityState === 'visible') void load() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { current = false; controller.abort(); releaseArms(); document.removeEventListener('visibilitychange', onVisible) }
-  }, [experimentId, api])
+  }, [experimentId, api, readAttempt])
 
   const cachedExperiment = loaded?.id === experimentId && !loaded?.forbidden && !loaded?.missing ? knownArms?.doc : undefined
   const status = cachedExperiment?.status ?? (loaded?.id === experimentId ? loaded?.doc?.status : undefined)
@@ -295,7 +296,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       if (isCurrentBinding()) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null) }
     } finally { detachBusy.current = false; setCheckingDetach(false) }
   }
-  const placementMessage = editorPlacementMessage(placements?.id === experimentId ? placements.value : undefined, currentPuckDocument(window.location.pathname, admin))
+  const placementMessage = editorPlacementMessage(placements && placements.id === experimentId ? placements.value : undefined, currentPuckDocument(window.location.pathname, admin))
   const newTestButton = experimentId !== undefined && canManage ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
 
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
@@ -314,14 +315,16 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>
         : experimentId === undefined && resultsOnly ? <p className="xp-ui-help">{editorCopy.setupForbidden}</p>
         : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
-        : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
+        : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner action={result?.error ? <Button onClick={() => setReadAttempt(value => value + 1)}>{editorCopy.retrySetup}</Button> : undefined} tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
         {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
       </Banner>}
       {experiment && orphanSlots.length ? <LeftoverVersions key={bindingKey} slots={orphanSlots} experiment={experiment} writes={writes} canManage={canManage}
-        count={slot => { const content: unknown = getPuck().getItemById(props.id)?.props[slot]; return Array.isArray(content) ? content.length : 0 }}
+        count={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])}
         onDelete={removeContent} onSelect={slot => setActive({ id: experimentId, slot })} /> : null}
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       {placementMessage && canManage ? <p className="xp-ui-error" role="status">{placementMessage}</p> : null}
+      {experimentId !== undefined && canManage && !experiment ? <p className="xp-ui-help">{editorCopy.loadingBeforeNew}</p> : null}
+      {checkingDetach ? <p role="status" className="xp-ui-help">{editorCopy.checkingRemoval}</p> : null}
       <div className="xp-ui-button-group">
         {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
         {experimentId !== undefined && access.surface && !result?.missing && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}
@@ -332,6 +335,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {experiment?.status === 'running' && result?.shared !== undefined && !shared ? <p className="xp-ui-help">{editorCopy.stopToDetach}</p> : null}
       {experiment && !editable ? <p className="xp-ui-help">{editorCopy.locked[experiment.status as keyof typeof editorCopy.locked]}</p> : null}
       {experiment && editable ? <VersionWeights key={`weights-${experimentId}`} experiment={experiment} writes={writes} /> : null}
+      {writes.busy ? <p role="status" className="xp-ui-help">{editorCopy.savingVersions}</p> : null}
       {writes.error ? <p role="alert" className="xp-ui-error">{writes.error}</p> : null}
       {clearError?.key === bindingKey ? <p role="alert" className="xp-ui-error">{clearError.message}</p> : null}
       {removed?.key === bindingKey ? <p className="xp-ui-help">{editorCopy.removed}</p> : null}

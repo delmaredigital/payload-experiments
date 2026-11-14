@@ -58,6 +58,7 @@ export function TargetingSection({ test, surface }: SectionProps) {
         {!reason ? <div className="xp-ui-button-group"><Button variant="link" size="sm" onClick={remove}>{C.removeRule}</Button></div> : null}
       </div>
     })}
+    {!reason && !keys.length ? <p className="xp-ui-help">{C.noAudienceRules}</p> : null}
     {!reason ? <div className="xp-ui-button-group"><Button disabled={!keys.length} onClick={() => {
       const attribute = keys[0]!
       const type = surface.attributeKeys[attribute]!.type

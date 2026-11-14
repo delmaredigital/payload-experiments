@@ -84,7 +84,7 @@ test('name field retains editing; save state lives in the bar', () => {
   view.rerender(bar(p))
   expect(screen.getByText('Saving…')).toBeTruthy()
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Start' }).disabled).toBe(true)
-  expect(screen.getByRole('button', { name: 'Start' }).closest('[title]')?.getAttribute('title')).toBe('Save your changes first.')
+  expect(screen.getByRole('button', { name: 'Start' }).closest('[title]')?.getAttribute('title')).toBe('Wait for your changes to save.')
 })
 test('bar measures wrapped height and releases its resize observer', () => {
   const observe = vi.fn(), disconnect = vi.fn(), height = vi.fn()
@@ -118,13 +118,13 @@ test.each([false, true])('Advanced has no mark or completion announcement in the
   expect(summary.querySelector('[aria-label]')).toBeNull()
 })
 
-test('bar shows the specific preflight error once in SaveStatus with Retry and no generic check message', () => {
+test('bar shows its specific read error once, Retry and a visible Start reason', () => {
   const message = 'The readiness service is temporarily unavailable.'
   const view = render(bar(props({}, { preflightError: message })))
   expect(screen.getAllByText(message)).toHaveLength(1)
   expect(screen.getAllByRole('alert')).toHaveLength(1)
   expect(view.container.querySelector('.xp-save-status')?.contains(screen.getByText(message))).toBe(true)
-  expect(screen.queryByText("Couldn't check readiness. Try again.")).toBeNull()
+  expect(screen.getByText("Couldn't check readiness. Try again.")).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Start' }).disabled).toBe(true)
 })
@@ -164,4 +164,40 @@ test('footer lists three blockers and counts the remainder, while warning notes 
   expect(screen.getAllByText(message)).toHaveLength(1)
   expect(screen.getByText(message).classList.contains('xp-readiness__warning')).toBe(true)
   expect(blockers.textContent).not.toContain(message)
+})
+
+test('field validation errors override completed marks, including Advanced', () => {
+  const p = props({}, { errors: { 'metrics.primary': 'Choose another goal.', 'analysis.cuped': 'Check this setting.' } })
+  render(<><Section test={p.test} sectionId="win">Goal</Section><Section test={p.test} sectionId="advanced">Settings</Section><Rail test={p.test} />{bar(p)}</>)
+  expect(document.getElementById('section-win')?.classList.contains('xp-ui-section--blocked')).toBe(true)
+  expect(document.getElementById('section-advanced')?.classList.contains('xp-ui-section--blocked')).toBe(true)
+  expect(screen.getByText('Fix the highlighted fields in What counts as a win.')).toBeTruthy()
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Start' }).disabled).toBe(true)
+})
+test('a disabled participation action explains its limit beside the button', () => {
+  render(bar(props({ status: 'running', allocation: 100 })))
+  expect(screen.getByText('Everyone already takes part.')).toBeTruthy()
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Let more people in' }).disabled).toBe(true)
+})
+
+
+test('an optional untouched audience section keeps its neutral mark', () => {
+  const p = props()
+  render(<Section test={p.test} sectionId="who">Audience</Section>)
+  expect(document.querySelector('.xp-ui-section--complete, .xp-ui-section--blocked')).toBeNull()
+  expect(screen.getByLabelText('Incomplete').textContent).toBe('○')
+})
+
+test('general save failures explain reload without pretending a field is invalid', () => {
+  render(bar(props({}, { saving: 'error', errors: { _section: 'Network unavailable.' } })))
+  expect(screen.getByText("Couldn't save the test. Reload to check its saved settings before starting.")).toBeTruthy()
+  expect(screen.queryByText(/Fix the highlighted fields/)).toBeNull()
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Start' }).disabled).toBe(true)
+})
+
+test('stale pending edits ask for Reload instead of waiting for an impossible save', () => {
+  render(bar(props({}, { stale: true, hasUnsaved: true, saving: 'error', errors: { _section: 'Someone else changed this test.' } })))
+  expect(screen.getByText('Reload to see the latest test settings before starting.')).toBeTruthy()
+  expect(screen.queryByText('Wait for your changes to save.')).toBeNull()
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Start' }).disabled).toBe(true)
 })

@@ -122,3 +122,10 @@ test.each([false, true])('creation dialog keeps its host accent and theme (dark:
   await act(async () => drawer.closeIfIdle())
   source.remove()
 })
+
+test('a blank name explains the disabled create button', () => {
+  vi.stubGlobal('fetch', vi.fn())
+  render(<CreateExperimentDrawer onCreate={() => true} onClose={() => {}} />)
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Test this block' }).disabled).toBe(true)
+  expect(screen.getByText('Enter a name to create the test.')).toBeTruthy()
+})

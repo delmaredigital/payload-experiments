@@ -11,3 +11,12 @@ test('publishing unknown placements does not leave a settled cache hit', async (
   expect(fetcher).toHaveBeenCalledOnce()
   release()
 })
+
+test('failed placement discovery is unknown rather than an empty successful placement list', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ placements: [], checks: [{ code: 'no-placements', ok: false, detail: 'forbidden' }] })))
+  const notify = vi.fn()
+  const release = acquirePlacements('/api', 'failed', notify)
+  await vi.waitFor(() => expect(notify).toHaveBeenCalledWith(undefined))
+  expect(notify).not.toHaveBeenCalledWith([])
+  release()
+})

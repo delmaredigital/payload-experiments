@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import { cloneSlot } from '../../../src/puck/editor/cloneSlot.js'
+import { cloneSlot, countSlotBlocks } from '../../../src/puck/editor/cloneSlot.js'
 import type { Slot } from '../../../src/types/puck.js'
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -45,4 +45,11 @@ test('empty slots and constant fallback randomness do not collide', () => {
   expect(cloneSlot([])).toEqual([])
   const ids = [...componentIds(cloneSlot(source)), ...componentIds(cloneSlot(source))]
   expect(new Set(ids).size).toBe(6)
+})
+
+
+test('delete confirmation counts nested blocks and ignores rich text nodes', () => {
+  expect(countSlotBlocks([{ type: 'Container', props: { id: 'container', children: [
+    { type: 'Text', props: { id: 'text', text: { type: 'paragraph', children: [{ type: 'text', text: 'Hello' }] } } },
+  ] } }])).toBe(2)
 })

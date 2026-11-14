@@ -358,6 +358,12 @@ test('unsaved page guidance appears in chrome, section and footer, then refreshe
     fireEvent.focus(window)
     await waitFor(() => expect(screen.queryAllByText(publish)).toHaveLength(0))
     await waitFor(() => expect((within(drawer).getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    placements = [{ ...placements[0]!, detail: 'Draft' }]
+    const reopened = await open()
+    await within(reopened.drawer).findByLabelText('Test name')
+    await waitFor(() => expect(screen.getAllByText(publish)).toHaveLength(3))
   } finally { window.history.replaceState({}, '', '/') }
 })
 
@@ -390,4 +396,32 @@ test('creating from an unbound four-version block carries every version with an 
   fireEvent.click(within(dialog).getByRole('button', { name: 'Test this block' }))
   await waitFor(() => expect(posted?.arms.map(arm => arm.weight)).toEqual([25, 25, 25, 25]))
   expect(posted?.arms.map(arm => arm.label)).toEqual(['Original', 'Variant A', 'Variant B', 'Variant C'])
+})
+
+test('failed placement discovery keeps its failure guidance and never pretends the page needs saving', async () => {
+  window.history.replaceState({}, '', '/manage/puck/pages/7')
+  const fetcher = setup()
+  const original = fetcher.getMockImplementation()!
+  fetcher.mockImplementation(async (url, init) => url.endsWith('/preflight')
+    ? response(preflight([{ code: 'no-placements', ok: false, detail: 'placements-failed' }])) : original(url, init))
+  try {
+    const { drawer } = await open()
+    await within(drawer).findByLabelText('Test name')
+    expect(screen.queryByText('Save this page to put the test on it.')).toBeNull()
+    expect(within(drawer).getAllByText("Couldn't check where this test is used. Try again.")).toHaveLength(2)
+    expect((within(drawer).getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true)
+  } finally { window.history.replaceState({}, '', '/') }
+})
+test('drawer uses danger marks for blockers and renders a named outside-goal warning only once', async () => {
+  const fetcher = setup()
+  const original = fetcher.getMockImplementation()!
+  const message = 'Heads up: the click goal “Sign up” is outside this test’s block, so every version shows the same button. The test can still start.'
+  fetcher.mockImplementation(async (url, init) => url.endsWith('/preflight')
+    ? response({ ...preflight([{ code: 'no-primary-metric', ok: false }]), goalNotes: [{ metricId: 1, message }, { metricId: 1, message }] }) : original(url, init))
+  const { drawer } = await open()
+  await within(drawer).findByLabelText('Test name')
+  expect(drawer.querySelector('#section-win')?.classList.contains('xp-ui-section--blocked')).toBe(true)
+  expect(drawer.querySelector('#section-what')?.classList.contains('xp-ui-section--complete')).toBe(true)
+  expect(within(drawer).getAllByText(message)).toHaveLength(1)
+  expect(drawer.querySelector('.xp-readiness__warning')?.textContent).toContain(message)
 })

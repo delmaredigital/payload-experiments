@@ -39,3 +39,12 @@ export function cloneSlot(slot: Slot): Slot {
   }
   return clone(slot) as Slot
 }
+
+/** Count the Puck blocks that will be removed, including nested version content. */
+export function countSlotBlocks(value: unknown): number {
+  if (!value || typeof value !== 'object') return 0
+  if (Array.isArray(value)) return value.reduce((total, item) => total + countSlotBlocks(item), 0)
+  const node = value as Record<string, unknown>
+  const own = typeof node.type === 'string' && node.props && typeof node.props === 'object' ? 1 : 0
+  return own + Object.values(node).reduce<number>((total, item) => total + countSlotBlocks(item), 0)
+}

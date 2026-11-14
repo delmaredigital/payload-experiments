@@ -96,3 +96,10 @@
 :where(.xp-test-surface) .xp-ui-section--blocked h2:focus, :where(.xp-test-surface) .xp-test-rail-item.is-blocked:focus-visible { outline-color: var(--xp-error); }
 :where(.xp-test-surface) .xp-readiness__warning { color: var(--xp-warning); border-inline-start: 3px solid var(--xp-warning-border); padding-inline-start: var(--xp-space-2); }
 :where(.xp-test-surface) .xp-readiness__blockers ul { margin: 0; padding-inline-start: var(--xp-space-4); }
+
+:where(.xp-test-surface) .xp-readiness--bar { grid-template-columns: minmax(0, 1fr); }
+:where(.xp-test-surface) .xp-readiness--bar > .xp-readiness__actions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+:where(.xp-test-surface) .xp-readiness-action-reason { display: block; }
+
+:where(.xp-test-surface) .xp-test-advanced.xp-ui-section--blocked { border-color: var(--xp-error-border); }
+:where(.xp-test-surface) .xp-test-rail-mark--blocked { display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--xp-error-border); border-radius: 50%; }
