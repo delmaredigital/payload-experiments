@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { ArmSlot, ExperimentRef, ExperimentSlotProps } from '../../types/puck.js'
 import { defaultArms } from '../../arms/model.js'
 import { readExperiment } from './armWrites.js'
+import { publishOutlineVersion } from './outlineVersion.js'
 import { LeftoverVersions } from './LeftoverVersions.js'
 import type { Arm } from '../../types/contracts.js'
 import { Button } from '../../ui/Button.js'
@@ -99,6 +100,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const [removing, setRemoving] = useState<{ key: string; arm: EditorExperiment['arms'][number] } | null>(null)
   const pageTitle = usePuckSelector(state => typeof state.appState.data.root.props?.title === 'string' ? state.appState.data.root.props.title : '')
   // Selection only changes the chrome's appearance; actions always resolve this block by id.
+  const dragging = usePuckSelector(state => state.appState.ui?.isDragging ?? false)
   const isSelected = usePuckSelector(state => state.selectedItem?.props.id === props.id)
   const originalEmpty = usePuckSelector(state => {
     const content: unknown = state.getItemById(props.id)?.props.control
@@ -203,6 +205,10 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     const content: unknown = state.getItemById(props.id)?.props[slot]
     return !Array.isArray(content) || content.length === 0
   })
+  useEffect(() => {
+    publishOutlineVersion(getPuck, props.id, slot)
+    return () => publishOutlineVersion(getPuck, props.id)
+  }, [getPuck, props.id, slot])
   const Slot = props[slot]
   const winnerKey = experiment?.decision?.winnerArm
   const winner = tabs.find(tab => tab.slot === winnerKey)?.label
@@ -420,7 +426,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           <Button onClick={() => setConfirming(null)}>{editorCopy.cancel}</Button>
         </div></div> : null}
     </EditorControls>
-    <Tabs label={editorCopy.tabs} value={slot} renderHeader={children => <EditorControls className="xp-ui-tabs-header">{children}</EditorControls>} onChange={value => { setOpenMenu(null); setActive({ id: experimentId, slot: value as ArmSlot }) }}
+    <Tabs disabled={dragging} label={editorCopy.tabs} value={slot} renderHeader={children => <EditorControls className="xp-ui-tabs-header">{children}</EditorControls>} onChange={value => { setOpenMenu(null); setActive({ id: experimentId, slot: value as ArmSlot }) }}
       items={tabs.map(tab => ({ id: tab.slot, label: tab.label, actions: experiment?.arms.some(arm => arm.key === tab.slot) ? <VersionActions
         key={`${experimentId}-${tab.slot}`} arm={experiment.arms.find(arm => arm.key === tab.slot)!} writes={writes} editable={editable} running={experiment.status === 'running'} open={openMenu === tab.slot} onOpenChange={open => setOpenMenu(open ? tab.slot : null)}
         canCopy={!originalEmpty} onCopy={requestCopy} onRequestRemove={() => setRemoving({ key: bindingKey, arm: experiment.arms.find(arm => arm.key === tab.slot)! })} /> : undefined, content: tab.slot === slot ?

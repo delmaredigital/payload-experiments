@@ -25,7 +25,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed: editor actions explain empty Original content, a missing test name, unavailable audience choices, in-progress version writes and placement checks, and loading/failed test reads. Retry now reloads a failed test read. Setup validation and readiness failures keep a visible reason above Start; failed placement discovery never masquerades as an unsaved page. Whole-page click-goal warnings name pages rather than a block.
   Migration impact: none.
 
-- Documented: active-version-only Outline filtering was checked against the existing wrapper. Puck 0.24.0 version-zone wrappers expose no stable version attribute, so the requested stable-attribute fallback applies: no Outline behavior or drop targets changed. Added a real-Puck contract probe for that limitation.
+- Fixed: the Puck Outline follows the version open in each Experiment block's tabs. Positional filtering checks the version-row count, labels and markup and reveals all versions on a mismatch; hidden rows have no pointer hit area. Real-Puck probes guard slot order and row structure. The per-row guidance line remains omitted because Puck exposes no plugin-owned row wrapper.
   Migration impact: none.
 
 - Fixed: tests created from a block retain its populated versions and labels with an even split. Content outside an existing test remains in marked tabs, with draft-only Add to the test and confirmed Delete its content actions.

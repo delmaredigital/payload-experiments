@@ -77,11 +77,13 @@ test('real outline hides only absent empty slots; orphan, unknown and Original r
   expect(visibility('pending')).toEqual([true, true, true, true])
   // A DropLine can precede the inner row while dragging; it must never shift zone indexes.
   const row = rows('two-arm')[0]!.parentElement!
-  row.prepend(document.createElement('div'))
+  const dropLine = document.createElement('div')
+  dropLine.className = '_DropLine_contract_1'
+  row.prepend(dropLine)
   expect(visibility('two-arm')).toEqual([true, true, false, false])
   for (const style of document.querySelectorAll('style[data-xp-outline]')) {
     const declarations = [...style.textContent!.matchAll(/\{([^}]+)\}/g)].map(match => match[1]!.trim())
-    expect(declarations.every(value => value === 'display: none;')).toBe(true)
+    expect(declarations.every(value => value === 'display: none; pointer-events: none;')).toBe(true)
     expect(style.textContent).not.toMatch(/#[\da-f]{3,8}\b|\b(?:rgb|hsl)a?\(|(?:color|background)\s*:/i)
   }
 })
@@ -111,7 +113,7 @@ test('editor fetch fills cache, tab-return refetch updates it, warning uses stat
     <Puck.Outline /><Puck.Preview /><Save />
   </Puck>)
   await screen.findByText("Variant C has content on this page, but the test only has Original and Variant A. Visitors never see it.")
-  expect(visibility('orphan')).toEqual([true, true, false, true])
+  expect(visibility('orphan')).toEqual([true, false, false, false])
   expect(screen.getByText(/Variant C has content/).closest('.xp-ui-banner--warning')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Save page' }))
   expect(saved).toEqual(before)
@@ -120,8 +122,8 @@ test('editor fetch fills cache, tab-return refetch updates it, warning uses stat
     { key: 'variantB', kind: 'variant', label: 'New B' }, { key: 'variantC', kind: 'variant', label: 'Custom name' },
   ] }) } as Response)
   returnToTab()
-  // A becoming hidden proves the refetch response has repopulated the cache.
-  await waitFor(() => expect(visibility('orphan')).toEqual([true, false, true, true]))
+  await screen.findByRole('tab', { name: 'New B' })
+  expect(visibility('orphan')).toEqual([true, false, false, false])
   expect(screen.queryByText(/Variant C has content/)).toBeNull()
   expect(experimentFetch).toHaveBeenCalledTimes(2)
   fireEvent.click(screen.getByRole('button', { name: 'Save page' }))
@@ -129,7 +131,7 @@ test('editor fetch fills cache, tab-return refetch updates it, warning uses stat
   expect(changed).not.toHaveBeenCalled()
   expect(data).toEqual(before)
   act(() => setArms('test', ['control']))
-  expect(visibility('orphan')).toEqual([true, false, false, true])
+  expect(visibility('orphan')).toEqual([true, false, false, false])
 })
 
 test('bound loading and failed fetch keep every zone visible, even with a previously cached document', async () => {
@@ -150,7 +152,7 @@ function returnToTab() {
 
 test('visibility return refetches once for two blocks on the same test; focus and hidden do not refetch; unmount removes listeners', async () => {
   const view = mount({ root: { props: {} }, content: [block('two-arm'), block('orphan')] }, true)
-  await waitFor(() => expect(visibility('two-arm')).toEqual([true, true, false, false]))
+  await waitFor(() => expect(visibility('two-arm')).toEqual([true, false, false, false]))
   expect(experimentFetch).toHaveBeenCalledTimes(1)
   fireEvent(window, new Event('focus'))
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
@@ -159,7 +161,7 @@ test('visibility return refetches once for two blocks on the same test; focus an
   returnToTab()
   await waitFor(() => expect(experimentFetch).toHaveBeenCalledTimes(2))
   await act(async () => {})
-  expect(visibility('orphan')).toEqual([true, true, false, false])
+  expect(visibility('orphan')).toEqual([true, false, false, false])
   view.unmount()
   returnToTab()
   expect(experimentFetch).toHaveBeenCalledTimes(2)
@@ -172,10 +174,10 @@ test('during a refetch hidden rows stay hidden without flicker and the orphan wa
   experimentFetch.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
   returnToTab()
   expect(experimentFetch).toHaveBeenCalledTimes(2)
-  expect(visibility('orphan')).toEqual([true, true, false, true])
+  expect(visibility('orphan')).toEqual([true, false, false, false])
   expect(screen.getByText(/Variant C has content/)).toBeTruthy()
   await act(async () => { finish({ ok: true, json: async () => doc } as Response) })
-  expect(visibility('orphan')).toEqual([true, true, false, true])
+  expect(visibility('orphan')).toEqual([true, false, false, false])
 })
 
 test.each([false, true])('a second block joins known arms and the pending fetch; the next editor clears stale arms (orphan: %s)', async orphan => {
@@ -190,7 +192,7 @@ test.each([false, true])('a second block joins known arms and the pending fetch;
     plugins={[experimentOutlinePlugin()]} iframe={{ enabled: false }} ui={{ itemExpanded: { 'two-arm': true, orphan: true } }}>
     <Puck.Outline /><Puck.Preview /><AddBlock />
   </Puck>)
-  const knownVisibility = [true, true, false, orphan]
+  const knownVisibility = [true, false, false, false]
   await waitFor(() => expect(visibility('two-arm')).toEqual(knownVisibility))
   expect(experimentFetch).toHaveBeenCalledTimes(1)
   let finish!: (response: Response) => void
@@ -200,7 +202,7 @@ test.each([false, true])('a second block joins known arms and the pending fetch;
   fireEvent.click(screen.getByRole('button', { name: 'Add block' }))
   await waitFor(() => expect(document.querySelectorAll('.xp-slot-editor')).toHaveLength(2))
   expect(visibility('two-arm')).toEqual(knownVisibility)
-  expect(visibility('orphan')).toEqual([true, true, false, false])
+  expect(visibility('orphan')).toEqual([true, false, false, false])
   expect(Boolean(screen.queryByText(/Variant C has content/))).toBe(orphan)
   expect(experimentFetch).toHaveBeenCalledTimes(2)
   await act(async () => { finish({ ok: true, json: async () => doc } as Response) })
@@ -215,7 +217,7 @@ test.each([false, true])('a second block joins known arms and the pending fetch;
 
 test('a failed refetch clears known arms to unknown', async () => {
   mount({ root: { props: {} }, content: [block('two-arm')] }, true)
-  await waitFor(() => expect(visibility('two-arm')).toEqual([true, true, false, false]))
+  await waitFor(() => expect(visibility('two-arm')).toEqual([true, false, false, false]))
   experimentFetch.mockRejectedValueOnce(new Error('offline'))
   returnToTab()
   await screen.findByText("Couldn't load this test. Try again.")
@@ -227,7 +229,7 @@ test('SSR of the real outline with an unbound block needs no CSS browser global'
   let html = ''
   expect(() => { html = renderToString(<Puck config={config} data={{ root: { props: {} }, content: [block('unbound', null)] }}
     plugins={[experimentOutlinePlugin()]} iframe={{ enabled: false }}><Puck.Outline /></Puck>) }).not.toThrow()
-  expect(html).not.toContain('data-xp-outline')
+  expect(html).not.toContain('pointer-events: none')
 })
 
 test('typing in an unrelated field does not regenerate rules and preserves the style without mutations', () => {
@@ -276,13 +278,115 @@ test('30 root items use real Puck virtualized Layer markup and hide absent empty
 })
 
 
-test('installed Puck zone wrappers have no stable version attribute for active-only outline filtering', () => {
+test('real Puck zone rows follow the plugin slot-field order with the required row structure', () => {
   setArms('test', ['control', 'variantA'])
   mount({ root: { props: {} }, content: [block('two-arm')] })
-  for (const zone of rows('two-arm')) {
+  const slotFields = Object.entries(ExperimentSlotEditor.fields!).filter(([, field]) => field.type === 'slot').reverse()
+  expect(slotFields.map(([key]) => key)).toEqual(['control', 'variantA', 'variantB', 'variantC'])
+  const zones = rows('two-arm')
+  expect(zones).toHaveLength(slotFields.length)
+  for (const [index, zone] of zones.entries()) {
+    expect(zone.firstElementChild?.matches('div[class*="LayerTree-zoneTitle"]')).toBe(true)
+    expect(zone.firstElementChild?.textContent?.trim()).toBe(slotFields[index]![1].label)
+    expect(zone.lastElementChild?.matches('ul[class*="LayerTree"]')).toBe(true)
+    expect(zone.children).toHaveLength(2)
     // React's childZone.zoneCompound is only a key; Puck does not render it.
     // Empty versions also have no child component id to use as an alternative.
     expect(zone.getAttributeNames()).toEqual(['class'])
     expect(zone.querySelector('[data-zone], [data-zone-compound], [data-puck-zone], [data-puck-dropzone]')).toBeNull()
   }
+})
+
+
+test('each real block outline follows its own active tab, including leftover content; hidden rows have no pointer targets', async () => {
+  mount({ root: { props: {} }, content: [block('two-arm'), block('orphan', 'test', true)] }, true)
+  await screen.findByText(/Variant C has content/)
+  expect(visibility('two-arm')).toEqual([true, false, false, false])
+  expect(visibility('orphan')).toEqual([true, false, false, false])
+  const editors = document.querySelectorAll('.xp-slot-editor')
+  fireEvent.click(within(editors[0] as HTMLElement).getByRole('tab', { name: 'Variant A' }))
+  expect(visibility('two-arm')).toEqual([false, true, false, false])
+  expect(visibility('orphan')).toEqual([true, false, false, false])
+  fireEvent.click(within(editors[1] as HTMLElement).getByRole('tab', { name: 'Variant C · not in this test' }))
+  expect(visibility('orphan')).toEqual([false, false, false, true])
+  for (const row of rows('orphan').slice(0, 3)) {
+    expect(getComputedStyle(row).display).toBe('none')
+    expect(getComputedStyle(row).pointerEvents).toBe('none')
+    expect(getComputedStyle(row.firstElementChild!).pointerEvents).toBe('none')
+  }
+})
+
+test('unknown markup, row count or row order reveals every version and recovers when the contract returns', async () => {
+  setArms('test', ['control', 'variantA'])
+  mount({ root: { props: {} }, content: [block('two-arm')] })
+  const zones = rows('two-arm')
+  const row = zones[0]!.parentElement!
+  const shown = () => [...row.children].filter(child => child.matches('div[class*="Layer-zones"]')).every(child => getComputedStyle(child).display !== 'none')
+  expect(visibility('two-arm')).toEqual([true, true, false, false])
+  await act(async () => { zones[3]!.remove() })
+  expect(shown()).toBe(true)
+  await act(async () => { row.append(zones[3]!) })
+  expect(visibility('two-arm')).toEqual([true, true, false, false])
+  const label = zones[1]!.firstElementChild!
+  const labelClass = label.className
+  await act(async () => { label.className = 'future-zone-title' })
+  expect(shown()).toBe(true)
+  await act(async () => { label.className = labelClass })
+  expect(visibility('two-arm')).toEqual([true, true, false, false])
+  await act(async () => { row.insertBefore(zones[2]!, zones[1]!) })
+  expect(shown()).toBe(true)
+  await act(async () => { row.insertBefore(zones[1]!, zones[2]!) })
+  expect(visibility('two-arm')).toEqual([true, true, false, false])
+})
+
+test('two editors with matching block ids keep tab state and outline styles isolated', async () => {
+  const first = mount({ root: { props: {} }, content: [block('two-arm')] }, true)
+  const second = mount({ root: { props: {} }, content: [block('two-arm')] }, true)
+  await waitFor(() => expect(screen.getAllByRole('tab', { name: 'Variant A' })).toHaveLength(2))
+  fireEvent.click(within(first.container).getByRole('tab', { name: 'Variant A' }))
+  const visible = (container: HTMLElement) => [...container.querySelectorAll('li[data-puck-layer-tree-id="two-arm"] > div[class*="Layer-zones"]')].map(row => getComputedStyle(row).display !== 'none')
+  expect(visible(first.container)).toEqual([false, true, false, false])
+  expect(visible(second.container)).toEqual([true, false, false, false])
+})
+
+
+test('a drag keeps its measured outline targets fixed and disables version switching until it ends', async () => {
+  let getPuck!: ReturnType<typeof useGetPuck>
+  function Probe() { getPuck = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block('two-arm')] }} plugins={[experimentOutlinePlugin()]}
+    iframe={{ enabled: false }} ui={{ itemExpanded: { 'two-arm': true } }}><Puck.Outline /><Puck.Preview /><Probe /></Puck>)
+  await screen.findByRole('tab', { name: 'Variant A' })
+  expect(visibility('two-arm')).toEqual([true, false, false, false])
+  act(() => getPuck().dispatch({ type: 'setUi', ui: { isDragging: true }, recordHistory: false }))
+  const variant = screen.getByRole<HTMLButtonElement>('tab', { name: 'Variant A', hidden: true })
+  expect(variant.disabled).toBe(true)
+  fireEvent.click(variant)
+  expect(visibility('two-arm')).toEqual([true, false, false, false])
+  act(() => setArms('test', ['control', 'variantB']))
+  expect(visibility('two-arm')).toEqual([true, false, false, false])
+  act(() => getPuck().dispatch({ type: 'setUi', ui: { isDragging: false }, recordHistory: false }))
+  fireEvent.click(screen.getByRole('tab', { name: 'Variant A' }))
+  expect(visibility('two-arm')).toEqual([false, true, false, false])
+})
+
+
+test('expanding or recovering from fallback during a drag never hides newly measured targets', async () => {
+  let getPuck!: ReturnType<typeof useGetPuck>
+  function Probe() { getPuck = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block('two-arm')] }} plugins={[experimentOutlinePlugin()]}
+    iframe={{ enabled: false }}><Puck.Outline /><Puck.Preview /><Probe /></Puck>)
+  await screen.findByRole('tab', { name: 'Variant A' })
+  await act(async () => { getPuck().dispatch({ type: 'setUi', ui: { isDragging: true, itemExpanded: { 'two-arm': true } }, recordHistory: false }) })
+  expect(visibility('two-arm')).toEqual([true, true, true, true])
+  act(() => getPuck().dispatch({ type: 'setUi', ui: { isDragging: false }, recordHistory: false }))
+  expect(visibility('two-arm')).toEqual([true, false, false, false])
+  act(() => getPuck().dispatch({ type: 'setUi', ui: { isDragging: true }, recordHistory: false }))
+  const label = rows('two-arm')[1]!.firstElementChild!
+  const labelClass = label.className
+  await act(async () => { label.className = 'future-zone-title' })
+  expect(visibility('two-arm')).toEqual([true, true, true, true])
+  await act(async () => { label.className = labelClass })
+  expect(visibility('two-arm')).toEqual([true, true, true, true])
+  act(() => getPuck().dispatch({ type: 'setUi', ui: { isDragging: false }, recordHistory: false }))
+  expect(visibility('two-arm')).toEqual([true, false, false, false])
 })

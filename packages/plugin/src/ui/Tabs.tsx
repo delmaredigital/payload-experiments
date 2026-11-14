@@ -3,16 +3,17 @@ import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import './ui.css'
 export interface Tab { id: string; label: string; content: ReactNode; actions?: ReactNode; disabled?: boolean }
-export function Tabs({ items, label, value, onChange, renderHeader }: { items: Tab[]; label: string; value?: string; onChange?: (id: string) => void; renderHeader?: (children: ReactNode) => ReactNode }) {
+export function Tabs({ items, label, value, onChange, renderHeader, disabled = false }: { items: Tab[]; label: string; disabled?: boolean; value?: string; onChange?: (id: string) => void; renderHeader?: (children: ReactNode) => ReactNode }) {
   const prefix = useId()
   const [local, setLocal] = useState(() => items.find(item => !item.disabled)?.id)
   const requested = value ?? local
   const selected = items.find(item => item.id === requested && !item.disabled)?.id ?? items.find(item => !item.disabled)?.id
-  function select(id: string) { setLocal(id); onChange?.(id) }
-  const header = <div className="xp-ui-tabbar"><div role="tablist" aria-label={label} className="xp-ui-tablist">
+  function select(id: string) { if (disabled) return; setLocal(id); onChange?.(id) }
+  const header = <div className="xp-ui-tabbar"><div role="tablist" aria-label={label} aria-disabled={disabled || undefined} className="xp-ui-tablist">
     {items.map((item, index) => <button key={item.id} style={{ order: index * 2 }} type="button" role="tab" id={`${prefix}-tab-${item.id}`} aria-controls={`${prefix}-panel-${item.id}`}
-      aria-selected={selected === item.id} tabIndex={selected === item.id ? 0 : -1} disabled={item.disabled}
+      aria-selected={selected === item.id} tabIndex={selected === item.id ? 0 : -1} disabled={disabled || item.disabled}
       className="xp-ui-tab" onClick={() => select(item.id)} onKeyDown={event => {
+        if (disabled) return
         const enabled = items.filter(tab => !tab.disabled)
         const index = enabled.findIndex(tab => tab.id === item.id)
         const next = event.key === 'ArrowRight' ? enabled[(index + 1) % enabled.length]
