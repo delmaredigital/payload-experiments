@@ -46,7 +46,7 @@ function SlotRules({ item: [id, testId, emptySlots], root, scope }: { item: Outl
       // A drag's collision shapes were measured before it began. Never hide a
       // previously visible target mid-drag; apply the new tab after it finishes.
       if (!valid || unknown) fixedHidden.current = []
-      else if (!dragging) fixedHidden.current = slots.filter((slot, index) => testId !== null && active ? slot !== active : slot !== 'control' && !known?.arms.includes(slot) && emptySlots[index])
+      else if (!dragging) fixedHidden.current = slots.filter((slot, index) => testId !== null && active ? slot !== active : slot !== active && slot !== 'control' && !known?.arms.includes(slot) && emptySlots[index])
       const rules = !valid || unknown ? '' : slots.flatMap((slot, index) => {
         // No canvas tab is mounted: retain the existing empty-unused-slot behavior.
         if (!fixedHidden.current.includes(slot)) return []

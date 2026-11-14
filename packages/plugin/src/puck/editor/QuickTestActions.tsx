@@ -16,12 +16,12 @@ export function QuickTestActions({ test, surface }: SectionProps) {
     doc.status === 'draft' ? item.id === 'start' : doc.status === 'running' && item.id === 'stop')
   if (!action) return null
   const ready = test.preflight && !test.preflightError && !test.preflightPending && test.preflight.checks?.every(check => check.ok) && !surface.editorPlacementMessage
-  if (action.id === 'start' && (!ready || test.hasUnsaved)) return null
+  const showAction = action.id !== 'start' || ready && !test.hasUnsaved
   return <>
-    <Button disabled={transition.busy || confirm || test.hasUnsaved} busy={transition.busy} onClick={() => {
+    {showAction ? <Button disabled={transition.busy || confirm || test.hasUnsaved} busy={transition.busy} onClick={() => {
       if (action.id === 'start') void transition.run(() => createApi(surface.apiRoute).start(doc.id))
       else setConfirm(true)
-    }}>{action.label}</Button>
+    }}>{action.label}</Button> : null}
     {transition.error ? <p role="alert">{transition.error}</p> : null}
     {confirm ? <ConfirmAction test={test} surface={surface} action={action} winnerLabel="" onClose={() => setConfirm(false)} /> : null}
   </>

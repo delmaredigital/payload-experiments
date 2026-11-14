@@ -1,3 +1,5 @@
+import { unpublishedPlacementCopy } from './readiness.js'
+
 export const API_MESSAGES = {
   testAlreadyDeleted: 'This test was already deleted. Reload the page.',
   testNoLongerDraft: 'This test is no longer a draft. Reload the page.',
@@ -33,5 +35,6 @@ export function refusalMessage(code: string | undefined, status: number, message
   if (code === 'commit-unverified') return API_MESSAGES.commitUnverified
   if (code === 'not-implemented' || status === 501) return API_MESSAGES.notImplemented
   if (code === 'forbidden' || status === 403) return options?.forbidden ?? API_MESSAGES.forbidden
+  if (code === 'placement-unpublished') return unpublishedPlacementCopy()
   return options?.fallback ?? (message || API_MESSAGES.failed)
 }

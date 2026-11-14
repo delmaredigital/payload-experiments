@@ -431,3 +431,32 @@ test.each(['detach', 'No test'])('%s preserves three populated versions in canva
     expect(getPuck().getItemById('unbound')?.props[slot!]).toEqual(data.props[slot as keyof typeof data.props])
   }
 })
+
+
+test.each([false, true])('the active empty version retains its Outline drop target (bound: %s)', async bound => {
+  let getPuck!: ReturnType<typeof useGetPuck>
+  function Probe() { getPuck = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block('unbound', bound ? 'test' : null, true)] }}
+    plugins={[experimentOutlinePlugin()]} iframe={{ enabled: false }} ui={{ itemExpanded: { unbound: true } }}>
+    <Puck.Outline /><Puck.Preview /><Probe />
+  </Puck>)
+  const tab = await screen.findByRole('tab', { name: bound ? 'Variant A' : 'Variant C' })
+  fireEvent.click(tab)
+  if (!bound) act(() => {
+    const { appState, dispatch } = getPuck()
+    dispatch({ type: 'setData', data: { ...appState.data, content: appState.data.content.map(item => ({ ...item, props: { ...item.props, variantC: [] } })) } })
+  })
+  await waitFor(() => expect(visibility('unbound')[bound ? 1 : 3]).toBe(true))
+  expect(visibility('unbound')[2]).toBe(false)
+  expect(screen.getByRole('tab', { name: bound ? 'Variant A' : 'Variant C' }).getAttribute('aria-selected')).toBe('true')
+})
+
+test.each(['unknown', 'empty'])('populated leftover tabs survive an empty shared arms cache (%s)', async state => {
+  mount({ root: { props: {} }, content: [block('orphan', 'test', true)] }, true)
+  const label = 'Variant C · not in this test'
+  await screen.findByRole('tab', { name: label })
+  act(() => setArms('test', state === 'empty' ? [] : undefined))
+  fireEvent.click(screen.getByRole('tab', { name: label }))
+  expect(screen.getByText('Orphan content')).toBeTruthy()
+  expect(screen.getByRole('tab', { name: 'Variant A' })).toBeTruthy()
+})

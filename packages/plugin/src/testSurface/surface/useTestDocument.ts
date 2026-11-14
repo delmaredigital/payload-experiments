@@ -74,7 +74,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
   const documentId = String(id)
   const key = JSON.stringify([base, documentId])
   const current = useRef<Session | null>(null)
-  const commitRef = useRef<{ session: Session; commit: () => Promise<void>; refreshPreflight: () => Promise<void> } | null>(null)
+  const commitRef = useRef<{ session: Session; commit: () => Promise<void>; refreshPreflight: (supersede?: boolean) => Promise<void> } | null>(null)
   const defaultAttempts = useRef(new Set<string>())
   const [state, setState] = useState<{ key: string; view: View }>(() => ({ key, view: initialView() }))
   const [reloadCount, setReloadCount] = useState(0)
@@ -134,7 +134,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
         if (initial) session.view.loadState = 'ready'
       } else {
         if (initial) {
-          session.view.loadState = status === 403 ? 'forbidden' : status === 404 ? 'missing' : 'error'
+          session.view.loadState = status === 401 || status === 403 ? 'forbidden' : status === 404 ? 'missing' : 'error'
           session.view.errors = { ...session.view.errors, _section: message }
         } else session.view.preflightError = message
       }
@@ -233,7 +233,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
       return session.tail
     }
     // Keep callbacks attached to the session, including during automatic default persistence.
-    commitRef.current = { session, commit, refreshPreflight: () => refreshPreflight() }
+    commitRef.current = { session, commit, refreshPreflight: supersede => refreshPreflight(false, supersede) }
     session.publish()
     void (async () => {
       try {
@@ -242,7 +242,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
         const response = await fetch(url, { method: 'GET', credentials: 'include', signal: controller.signal })
         if (controller.signal.aborted) return
         if (!response.ok) {
-          session.view.loadState = response.status === 403 ? 'forbidden' : response.status === 404 ? 'missing' : 'error'
+          session.view.loadState = response.status === 401 || response.status === 403 ? 'forbidden' : response.status === 404 ? 'missing' : 'error'
           session.publish()
           return
         }
@@ -294,10 +294,10 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
     await session.tail.catch(() => undefined)
     if (current.current === session && !session.controller.signal.aborted) setReloadCount(count => count + 1)
   }, [key])
-  const refreshPreflight = useCallback(() => {
+  const refreshPreflight = useCallback((supersede = false) => {
     const entry = commitRef.current
     return entry?.session.key === key && entry.session.view.loadState === 'ready' && !entry.session.reloading
-      ? entry.refreshPreflight() : Promise.resolve()
+      ? entry.refreshPreflight(supersede) : Promise.resolve()
   }, [key])
   useEffect(() => {
     if (!refetchPreflightOnFocus) return

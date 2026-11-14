@@ -14,6 +14,7 @@ export function useTransition(test: TestDocApi, onSuccess?: () => void) {
     inFlight.current = true
     setBusy(true)
     setError(null)
+    let refused = false
     try {
       const result = await request()
       if (result.ok) {
@@ -24,10 +25,16 @@ export function useTransition(test: TestDocApi, onSuccess?: () => void) {
           // Keep the successful action locked until the reloaded document replaces this view.
           return
         }
-      } else setError(result.message)
-    } catch { setError(API_MESSAGES.network) }
-    inFlight.current = false
-    setBusy(false)
+      } else {
+        refused = true
+        setError(result.message)
+      }
+    } catch {
+      refused = true
+      setError(API_MESSAGES.network)
+    }
+    try { if (refused) await test.refreshPreflight(true) }
+    finally { inFlight.current = false; setBusy(false) }
   }
   return { busy, error, run, clearError: () => setError(null) }
 }

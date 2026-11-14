@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, type ReactNode } from 'react'
 import type { DocId } from '../../../types/contracts.js'
 import type { SurfaceProps, TestDocApi } from '../contracts.js'
 import { useTestDocument } from '../useTestDocument.js'
-import { READINESS_COPY } from '../../copy/readiness.js'
+import { PLACEMENT_FAILURE_COPY, READINESS_COPY } from '../../copy/readiness.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
 import { pageBlockParts } from '../pageBlock/parts.js'
 import { settingParts } from '../setting/parts.js'
@@ -23,7 +23,7 @@ import { ResultsBody } from '../results/ResultsBody.js'
 import type { TestDocument } from '../testDocument.model.js'
 import type { PreflightResult } from '../../../types/endpoints.js'
 import { usePlacementNotice } from '../../../puck/editor/usePlacementNotice.js'
-import { subscribePlacements, cachedPreflight, placementsPending } from '../../../puck/editor/placementsCache.js'
+import { subscribePlacements, cachedPreflight, placementsPending, placementReadError } from '../../../puck/editor/placementsCache.js'
 import { currentPuckDocument } from '../../../puck/editor/editor.model.js'
 import { editorPlacementMessage, editorPlacementChecks } from '../editorPlacement.js'
 import './testPage.css'
@@ -35,17 +35,17 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
 }) {
   const [barHeight, setBarHeight] = useState<number>()
   const documentState = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}), ...(requestPreflight ? { requestPreflight } : {}) })
-  const [placementRead, setPlacementRead] = useState<{ key: string; preflight?: PreflightResult; pending: boolean }>()
+  const [placementRead, setPlacementRead] = useState<{ key: string; preflight?: PreflightResult; pending: boolean; error?: string }>()
   const placementKey = JSON.stringify([surface.apiRoute, String(id)])
   const watching = embedded && surface.canManage && !!documentState.preflight
   useEffect(() => {
     if (!watching) return
     return subscribePlacements(surface.apiRoute, id, () => setPlacementRead({ key: placementKey,
-      preflight: cachedPreflight(surface.apiRoute, id), pending: placementsPending(surface.apiRoute, id) }))
+      preflight: cachedPreflight(surface.apiRoute, id), pending: placementsPending(surface.apiRoute, id), error: placementReadError(surface.apiRoute, id) }))
   }, [surface.apiRoute, id, watching, placementKey])
   const currentRead = placementRead?.key === placementKey ? placementRead : undefined
   const preflight = currentRead ? currentRead.preflight ?? (currentRead.pending ? documentState.preflight : null) : documentState.preflight
-  const sharedDocument = currentRead ? { ...documentState, preflight, preflightPending: !preflight && (documentState.preflightPending || currentRead.pending), preflightError: !currentRead.pending && !preflight ? READINESS_COPY.checkError : null } : { ...documentState, preflightPending: !preflight && documentState.preflightPending }
+  const sharedDocument = currentRead ? { ...documentState, preflight, preflightPending: !preflight && (documentState.preflightPending || currentRead.pending), preflightError: currentRead.error ? currentRead.error === PLACEMENT_FAILURE_COPY.forbidden ? currentRead.error : READINESS_COPY.checkError : !currentRead.pending && !preflight ? READINESS_COPY.checkError : null } : { ...documentState, preflightPending: !preflight && documentState.preflightPending }
   const placementFailed = preflight?.checks.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
   const lastPlacements = useRef<{ key: string; value: PreflightResult['placements'] } | undefined>(undefined)
   if (preflight?.placements && !placementFailed) lastPlacements.current = { key: placementKey, value: preflight.placements }
@@ -53,7 +53,7 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   const editorPage = embedded ? currentPuckDocument(window.location.pathname, surface.adminRoute, placements) ?? surface.editorPage : surface.editorPage
   const message = editorPlacementMessage(placements, editorPage, documentState.doc?.status)
   surface = { ...surface, editorPage, editorPlacementMessage: message }
-  usePlacementNotice(surface.apiRoute, id, watching ? message : undefined)
+  usePlacementNotice(surface.apiRoute, id, watching ? sharedDocument.preflightError ?? (placementFailed ? placementReadError(surface.apiRoute, id) : message) : undefined)
   const setup = documentState.doc?.status === 'draft' || documentState.doc?.status === 'stopped'
   const test = message && setup && preflight && editorPage ? { ...sharedDocument, preflight: { ...preflight, checks: [...editorPlacementChecks(preflight.checks, editorPage), { code: 'no-placements' as const, ok: false }] } } : sharedDocument
   useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])

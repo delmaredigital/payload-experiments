@@ -14,7 +14,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed: editor placement notices and setup blockers respect test status, preserve blockers on other pages, and recognize custom editor URLs. Shared placement refreshes retain settled values, deduplicate reads and throttle focus refreshes. Confirmations distinguish pending checks, blockers and read failures; Advanced includes its blocking sentence. Running tests permit deleting leftover page content while retaining the last-placement removal guard.
   Migration impact: none.
 
-- Fixed: save/publish guidance clears after an in-place page save or publish without waiting for focus changes. Only visible save/publish notices refresh placements, about every four seconds through a shared editor timer and cache.
+- Fixed: unsaved-page guidance explains saving and publishing before Start, then clears after an in-place save or publish. Visible notices check placements about every four seconds through one shared editor timer. Temporary read failures recover automatically after 4, 8 and 16 seconds, then every 30 seconds while the tab is visible. Access refusals explain the missing permission without Retry. Checks stop when the notice clears, the tab is hidden or the notice unmounts.
   Migration impact: none.
 
 - Added: selecting an Experiment block shows Test, Versions and Actions in the sidebar, sharing the block controls and state. Draft Start and running Stop use the drawer transitions; Decide stays in the drawer. No host wiring or migration is needed.
@@ -22,19 +22,16 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed: every version tab has a visible Options menu. Remove version confirms how many blocks it deletes from this page and explains shared-test impact. Existing draft/stopped manager access is preserved.
   Migration impact: none.
 
-- Fixed: editor actions explain empty Original content, a missing test name, unavailable audience choices, in-progress version writes and placement checks, and loading/failed test reads. Retry now reloads a failed test read. Setup validation and readiness failures keep a visible reason above Start; failed placement discovery never masquerades as an unsaved page. Whole-page click-goal warnings name pages rather than a block.
+- Fixed: editor actions explain empty Original content, a missing test name, unavailable audience choices, in-progress version writes and placement checks, and loading/failed test reads. Retry now reloads a failed test read. Setup validation and readiness failures keep a visible reason above Start; refused transitions immediately check readiness again, and unpublished-page refusals explain that the page needs publishing; failed placement discovery never masquerades as an unsaved page. Whole-page click-goal warnings name pages rather than a block.
   Migration impact: none.
 
-- Fixed: the Puck Outline follows the version open in each Experiment block's tabs. Positional filtering checks the version-row count, labels and markup and reveals all versions on a mismatch; hidden rows have no pointer hit area. Real-Puck probes guard slot order and row structure. The per-row guidance line remains omitted because Puck exposes no plugin-owned row wrapper.
+- Fixed: the Puck Outline follows the open version in a bound Experiment block, including empty versions and leftover content. For blocks with no test, populated versions and the open empty version remain visible. Hidden rows cannot receive drops. Unexpected Outline markup reveals all versions so content stays reachable; version switches wait until a drag ends. Version guidance remains in the block and sidebar.
   Migration impact: none.
 
-- Fixed: tests created from a block retain its populated versions and labels with an even split. Content outside an existing test remains in marked tabs, with draft-only Add to the test and confirmed Delete its content actions.
+- Fixed: tests created from a block retain its populated versions and labels with an even split. Every version with page content keeps its tab, even while test version details are unavailable. Content outside an existing test has a marked tab, with draft-only Add to the test and confirmed Delete its content actions.
   Migration impact: none.
 
 - Fixed: setup blockers have danger marks, card borders and error lines; completed steps have success checks. The footer lists what must change before Start, and outside click goals appear once as named warnings.
-  Migration impact: none.
-
-- Fixed: configuring a block on an unsaved page explains that the page must be saved, then published before Start. Editor guidance refreshes on drawer open, window focus, and while a visible save/publish notice remains.
   Migration impact: none.
 
 ## [0.4.0-rc.4] - 2026-11-13

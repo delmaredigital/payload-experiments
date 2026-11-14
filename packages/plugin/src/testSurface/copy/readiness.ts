@@ -118,3 +118,5 @@ export function asymmetricGoalsCopy(detail: unknown): string {
 export const placementUncheckedCopy = (page: string) => `${page} couldn't be checked, so the test can't confirm every version shows the same goals. Check that you can open it.`
 
 export const moreBlockers = (count: number) => `and ${count} more`
+
+export const unpublishedPlacementCopy = (title = 'this page') => `The block you're testing is only on a draft of ${title}. Publish the page before you start.`

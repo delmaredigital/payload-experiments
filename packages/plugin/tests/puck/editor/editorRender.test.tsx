@@ -64,7 +64,7 @@ beforeEach(() => {
   puck.selectors.length = 0
   puck.dragging = false
   puck.selected = true
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => doc }))
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.endsWith('/preflight') ? { placements: [], checks: [] } : doc)))
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
@@ -151,7 +151,7 @@ test('renders only the selected group slot, switches tabs, and has primitive sel
 
 test.each(['running', 'draft'].flatMap(status => [false, 'other'].map(selection => ({ status, selection }))))('$status: copy replaces this block at its actual zone with selection $selection', async ({ status, selection }) => {
   puck.selected = selection as false | 'other'
-  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
+  vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status }))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props()} />)
   fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
@@ -172,7 +172,7 @@ test.each(['running', 'draft'].flatMap(status => [false, 'other'].map(selection 
 })
 
 test.each(['running', 'draft'] as const)('%s: copy is disabled for an empty Original', async status => {
-  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
+  vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status }))
   const original = puck.item.props.control
   puck.item.props.control = []
   try {
@@ -240,7 +240,7 @@ test('load errors retain Original and show a readable message', async () => {
   await screen.findByText("Couldn't load this test. Try again.")
   expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Retry' })).toBeTruthy()
   expect(screen.getByText('Original content')).toBeTruthy()
-  vi.mocked(fetch).mockImplementation(async () => new Response(JSON.stringify(doc)))
+  vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : doc))
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   await screen.findByRole('heading', { name: 'Example' })
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
@@ -255,7 +255,7 @@ test('decided banner uses the stored winner label', async () => {
 
 test.each(['running', 'draft'].flatMap(status => [false, 'other'].map(selection => ({ status, selection }))))('$status: copy confirms existing content with selection $selection', async ({ status, selection }) => {
   puck.selected = selection as false | 'other'
-  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
+  vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status }))
   const original = puck.item.props.variantA
   puck.item.props.variantA = [{ type: 'Text', props: { id: 'kept-id', text: 'Existing variant' } }] as never
   try {
@@ -335,7 +335,7 @@ test.each(['draft', 'stopped', 'running', 'decided', 'archived'] as const)('only
 })
 
 test.each(['running', 'draft'] as const)('%s: only the selected variant has a copy action', async status => {
-  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
+  vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status }))
   vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status, arms: [
     ...doc.arms, { key: 'variantB', label: 'Variant B', kind: 'variant' },
   ] })))
@@ -434,7 +434,10 @@ test('the drawer opens in the chrome iframe document and focuses its name field'
 })
 
 test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('%s offers the test page, a new test, and removal regardless of selection', async status => {
-  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status }) } as Response)
+  vi.mocked(fetch).mockImplementation(async url => {
+    if (String(url).endsWith('/preflight')) throw new Error('offline')
+    return Response.json({ ...doc, status })
+  })
   const Editor = createExperimentSlotEditor({ routes: { admin: '/manage' } }).render
   const view = render(<Editor {...props()} />)
   await screen.findByRole('heading', { name: 'Example' })

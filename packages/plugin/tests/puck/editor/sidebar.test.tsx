@@ -8,6 +8,7 @@ import { newTestBody } from '../../../src/puck/editor/editor.model.js'
 import { publishExperiment } from '../../../src/puck/editor/armsCache.js'
 import { editorCopy as C } from '../../../src/puck/editor/copy.js'
 import { watchPlacementNotice } from '../../../src/puck/editor/placementsCache.js'
+import { ConfigureTestDrawer } from '../../../src/puck/editor/ConfigureTestDrawer.js'
 import type { Status } from '../../../src/types/contracts.js'
 
 const base = { ...newTestBody({ kind: 'block', name: 'Hero test', slug: 'hero', unitType: 'visitor' }), id: 'sidebar-test', status: 'draft' as Status, updatedAt: 'one' }
@@ -15,7 +16,7 @@ let doc: typeof base
 let role: 'manager' | 'results' | 'none'
 let failed: boolean
 let testCode: number
-let checks: Array<{ code: string; ok: boolean }>
+let checks: Array<{ code: string; ok: boolean; detail?: unknown }>
 let refusal: boolean
 let read!: ReturnType<typeof useGetPuck>
 const block = { type: 'ExperimentSlot', props: { id: 'sidebar-block', experiment: { id: 'sidebar-test', slug: 'hero' }, control: [], variantA: [], variantB: [], variantC: [] } }
@@ -48,6 +49,7 @@ beforeEach(() => {
     if (url.endsWith('/editor-surface')) return role === 'none' ? reply({}, 403) : reply({ canManage: role === 'manager', canReadResults: true, flagPoints: [], pageCollections: [], attributeKeys: {}, metricSources: [] })
     if (url.includes('/xp-experiments?')) return role === 'manager' ? reply({ docs: [doc] }) : reply({}, 403)
     if (url.endsWith('/preflight')) return reply({ placements: [], checks })
+    if (url.includes('/xp-metrics?')) return reply({ docs: [] })
     if (url.includes('/summary?')) return reply({})
     if (url.endsWith('/results')) return reply({})
     if (url.endsWith('/start') || url.endsWith('/stop')) {
@@ -273,4 +275,29 @@ test('removing an empty variant does not ask for a page save afterward', async (
   expect(screen.queryByText(C.removed)).toBeNull()
   expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Original' }))
   expect(read().getItemById('sidebar-block')?.props.variantA).toEqual([])
+})
+
+
+test.each([false, true])('a refused Start refreshes readiness and names the publishing step (drawer: %s)', async drawer => {
+  if (drawer) render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
+  else await mount()
+  const scope = drawer ? within(await screen.findByRole('dialog')) : fields()
+  const start = await scope.findByRole('button', { name: 'Start' })
+  const readsBefore = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/preflight')).length
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => {
+    if (String(url).endsWith('/start')) {
+      checks = [{ code: 'placement-unpublished', ok: false, detail: [{ title: 'Landing' }] }]
+      return Promise.resolve(reply({ errors: [{ code: 'placement-unpublished', message: 'The experiment is not ready to start.' }] }, 422))
+    }
+    return original(url, init)
+  })
+  fireEvent.click(start)
+  const sentence = "The block you're testing is only on a draft of this page. Publish the page before you start."
+  expect((await scope.findByText(sentence)).getAttribute('role')).toBe('alert')
+  await scope.findAllByText(drawer ? "The block you're testing is only on a draft of Landing. Publish the page before you start." : "Before you can start: The block you're testing is only on a draft of Landing. Publish the page before you start.")
+  expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/preflight')).length).toBe(readsBefore + 1)
+  expect(scope.queryByText('Ready to start.')).toBeNull()
+  if (drawer) expect((scope.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true)
+  else expect(scope.queryByRole('button', { name: 'Start' })).toBeNull()
 })

@@ -8,7 +8,7 @@ import type { ActionDecision, ActionId } from '../../actions/actions.model.js'
 import { actionGroupLabel, availableActions } from '../../actions/actions.model.js'
 import { createApi } from '../../api.js'
 import { TEST_PAGE } from '../../copy/testPage.js'
-import { READINESS_COPY as C, moreBlockers, decidedCopy, fixFieldsNext, runningCopy, stoppedCopy } from '../../copy/readiness.js'
+import { PLACEMENT_FAILURE_COPY, READINESS_COPY as C, moreBlockers, decidedCopy, fixFieldsNext, runningCopy, stoppedCopy } from '../../copy/readiness.js'
 import { READINESS, daysRemaining, displayDate, blockingSteps, pageReadinessContext, errorSection } from './readiness.model.js'
 import { AddMetricAction, AllocateAction, ConfirmAction } from './ActionDialogs.js'
 import { preflightPlacementLabel } from '../../placements/placementLabels.js'
@@ -47,7 +47,7 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
   const unsaved = test.hasUnsaved || test.saving === 'saving'
   const blockers: Array<{ section: SectionId | 'header'; sentence: string; code: string; arm?: string }> = [...readinessBlockers]
   if (unsaved && !test.stale) blockers.unshift({ section: 'header', sentence: C.saveFirst, code: 'unsaved' })
-  else if (test.preflightError) blockers.unshift({ section: 'header', sentence: C.checkError, code: 'readiness-error' })
+  else if (test.preflightError) blockers.unshift({ section: 'header', sentence: test.preflightError === PLACEMENT_FAILURE_COPY.forbidden ? test.preflightError : C.checkError, code: 'readiness-error' })
   else if (test.preflightPending || !test.preflight) blockers.unshift({ section: 'header', sentence: C.checking, code: 'checking' })
   const errorSections = [...new Set(Object.keys(test.errors).filter(path => path !== '_section').map(path => errorSection(path) ?? 'what'))]
   for (const section of errorSections.reverse()) blockers.unshift({ section, sentence: test.stale ? C.reloadFirst : fixFieldsNext(TEST_PAGE.sections[section]), code: `validation:${section}` })

@@ -67,7 +67,8 @@ test.each(['403', 'network'].flatMap(failure => [1, 2].map(count => ({ failure, 
   await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Shared test' })).toHaveLength(count))
   if (count > 1) expect(screen.getAllByText(notice)).toHaveLength(count)
   else expect(screen.queryByText(notice)).toBeNull()
-  expect(await screen.findAllByText("Couldn't check where this test is used. Try again.")).toHaveLength(count)
+  expect(await screen.findAllByText(failure === '403' ? "You don't have permission to check where this test is used." : "Couldn't check where this test is used. Try again.")).toHaveLength(count)
+  if (failure === '403') expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   expect(screen.getAllByRole('alert')).toHaveLength(count)
   expect(read).toHaveBeenCalledOnce()
 })
@@ -264,7 +265,8 @@ test.each(['403', 'network'] as const)('RUNNING refuses detach when fresh placem
   const before = placementsRead.mock.calls.length
   fail = true
   fireEvent.click(screen.getAllByRole('button', { name: 'Remove the test from this block' })[0]!)
-  await screen.findAllByText("Couldn't check where this test is used. Try again.")
+  await screen.findAllByText(failure === '403' ? "You don't have permission to check where this test is used." : "Couldn't check where this test is used. Try again.")
+  if (failure === '403') expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(read().getItemById('one')?.props.experiment).toEqual(block('one').props.experiment)
   expect(placementsRead).toHaveBeenCalledTimes(before + 1)

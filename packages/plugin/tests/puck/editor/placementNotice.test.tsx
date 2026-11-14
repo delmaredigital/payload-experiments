@@ -26,7 +26,7 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} })
   vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.endsWith('/editor-surface')
     ? { canManage: true, canReadResults: true, flagPoints: [], pageCollections: [], attributeKeys: {}, metricSources: [] }
-    : url.includes('/results') ? { phases: [], snapshot: null } : url.includes('/summary?') ? {} : url.endsWith('/preflight') ? { placements: saved ? [{ collection: 'pages', id: '123', editorUrl: '/custom/editor/123', detail: published ? 'Published' : 'Draft' }] : [], checks: [] }
+    : url.includes('/xp-metrics?') ? { docs: [] } : url.includes('/results') ? { phases: [], snapshot: null } : url.includes('/summary?') ? {} : url.endsWith('/preflight') ? { placements: saved ? [{ collection: 'pages', id: '123', editorUrl: '/custom/editor/123', detail: published ? 'Published' : 'Draft' }] : [], checks: [] }
       : url.includes('/xp-experiments?') ? { docs: [doc] } : doc)))
 })
 afterEach(async () => { cleanup(); await act(async () => {}); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); history.replaceState({}, '', '/') })
@@ -68,10 +68,9 @@ function Notice({ id = 'shared', show = true }: { id?: string; show?: boolean })
 
 test('one shared timer and request for several mounted notices; resolves and stops', async () => {
   vi.useFakeTimers()
-  const interval = vi.spyOn(globalThis, 'setInterval')
   const view = render(<><Notice /><Notice /><Notice /></>)
   await act(async () => {})
-  expect(interval).toHaveBeenCalledTimes(1)
+  expect(vi.getTimerCount()).toBe(1)
   expect(requests()).toBe(1)
   saved = published = true
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
@@ -190,7 +189,15 @@ test.each([false, true])('a rejected placement read replaces retained guidance (
   vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? Promise.reject(new Error('offline')) : original(url, init))
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
   expect(screen.queryByText(SAVE_PAGE)).toBeNull()
-  expect(screen.getAllByText(drawer ? "Couldn't check readiness. Try again." : "Couldn't check where this test is used. Try again.").length).toBeGreaterThan(0)
+  const failure = drawer ? "Couldn't check readiness. Try again." : "Couldn't check where this test is used. Try again."
+  expect(screen.getAllByText(failure).length).toBeGreaterThan(0)
+  saved = published = true
+  vi.mocked(fetch).mockImplementation(original)
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+  expect(screen.queryByText(failure)).toBeNull()
+  const recovered = requests()
+  await act(async () => { await vi.advanceTimersByTimeAsync(20_000) })
+  expect(requests()).toBe(recovered)
 })
 
 
@@ -219,4 +226,88 @@ test('a successful shared retry clears the drawer focus error and restores curre
   expect(screen.queryByText('Checking readiness…')).toBeNull()
   expect(screen.getAllByText(SAVE_PAGE).length).toBeGreaterThan(0)
   await act(async () => { finish(Response.json({ placements: [], checks: [] })) })
+})
+
+
+test.each([false, true])('failed placement notices recover with visible-only backoff and stop on success (drawer: %s)', async drawer => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  vi.useFakeTimers()
+  const view = drawer ? render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />) : editor(2)
+  await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let failing = true
+  vi.mocked(fetch).mockImplementation((url, init) => failing && String(url).endsWith('/preflight') ? Promise.reject(new Error('offline')) : original(url, init))
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+  const failure = drawer ? "Couldn't check readiness. Try again." : "Couldn't check where this test is used. Try again."
+  expect(screen.getAllByText(failure).length).toBeGreaterThan(0)
+  let count = requests()
+  for (const delay of [4_000, 8_000, 16_000, 30_000, 30_000]) {
+    await act(async () => { await vi.advanceTimersByTimeAsync(delay - 1) })
+    expect(requests()).toBe(count)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    expect(requests()).toBe(++count)
+    expect(screen.getAllByText(failure).length).toBeGreaterThan(0)
+  }
+  hidden = true; fireEvent(document, new Event('visibilitychange'))
+  await act(async () => { await vi.advanceTimersByTimeAsync(90_000) })
+  expect(requests()).toBe(count)
+  failing = false; saved = published = true
+  await act(async () => { hidden = false; fireEvent(document, new Event('visibilitychange')) })
+  await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+  expect(requests()).toBe(count + 1)
+  expect(screen.queryByText(failure)).toBeNull()
+  await act(async () => { await vi.advanceTimersByTimeAsync(90_000) })
+  expect(requests()).toBe(count + 1)
+  view.unmount()
+})
+
+test.each([401, 403, 'forbidden'] as const)('access refusal %s has no retry or automatic polling in chrome, sidebar or drawer', async status => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  vi.useFakeTimers()
+  const view = render(<Puck config={{ components: { ExperimentSlot: ExperimentSlotEditor } }} data={{ root: { props: {} }, content: [block('notice-0')] }} iframe={{ enabled: false }} ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}><Puck.Preview /><Puck.Fields /></Puck>)
+  const drawer = render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
+  await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? Promise.resolve(status === 'forbidden'
+    ? Response.json({ placements: [], checks: [{ code: 'no-placements', ok: false, detail: 'forbidden' }] }) : Response.json({}, { status })) : original(url, init))
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+  expect(screen.getAllByText("You don't have permission to check where this test is used.").length).toBeGreaterThanOrEqual(3)
+  expect(screen.queryByRole('button', { name: /^(Retry|Try again)$/ })).toBeNull()
+  expect(screen.queryByText("Couldn't check where this test is used. Try again.")).toBeNull()
+  const count = requests()
+  await act(async () => { await vi.advanceTimersByTimeAsync(90_000) })
+  expect(requests()).toBe(count)
+  drawer.unmount(); view.unmount()
+})
+
+test('a new notice keeps its four-second schedule beside a backed-off or stalled test', async () => {
+  vi.useFakeTimers()
+  vi.mocked(fetch).mockImplementation(async url => {
+    if (String(url).includes('/slow/preflight')) {
+      const count = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/slow/preflight')).length
+      if (count >= 5) return new Promise<Response>(() => {})
+      throw new Error('offline')
+    }
+    return Response.json({ placements: [], checks: [] })
+  })
+  const calls = (id: string) => vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes(`/${id}/preflight`)).length
+  const view = render(<><Notice id="slow" /></>)
+  await act(async () => {})
+  await act(async () => { await vi.advanceTimersByTimeAsync(29_000) })
+  expect(calls('slow')).toBe(4)
+  view.rerender(<><Notice id="slow" /><Notice id="new" /></>)
+  await act(async () => {})
+  expect(calls('new')).toBe(1)
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+  expect(calls('new')).toBe(2)
+  expect(calls('slow')).toBe(4)
+  await act(async () => { await vi.advanceTimersByTimeAsync(25_000) })
+  expect(calls('slow')).toBe(5)
+  const before = calls('new')
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+  expect(calls('new')).toBe(before + 1)
+  view.unmount()
+  expect(vi.getTimerCount()).toBe(0)
 })

@@ -1,8 +1,9 @@
 import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
+import { PLACEMENT_FAILURE_COPY } from '../../testSurface/copy/readiness.js'
 
 type Placements = PreflightResult['placements']
-type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean; startedAt: number; value?: Placements; previousPreflight?: PreflightResult; preflight?: PreflightResult; response?: Response }
+type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean; startedAt: number; failures: number; value?: Placements; previousPreflight?: PreflightResult; preflight?: PreflightResult; response?: Response }
 const cache = new Map<string, Entry>()
 const latest = new Map<string, Entry>()
 type Consumer = (placements: Placements | undefined) => void
@@ -16,7 +17,7 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
   if (cached && (!fresh || cached.pending)) return cached
   const controller = new AbortController()
   const previous = latest.get(key)
-  const entry: Entry = { controller, pending: true, startedAt: Date.now(), value: previous?.value, previousPreflight: previous?.preflight ?? previous?.previousPreflight, promise: undefined! }
+  const entry: Entry = { controller, pending: true, startedAt: Date.now(), failures: previous?.failures ?? 0, value: previous?.failures ? undefined : previous?.value, previousPreflight: previous?.failures ? undefined : previous?.preflight ?? previous?.previousPreflight, promise: undefined! }
   cache.set(key, entry)
   latest.set(key, entry)
   for (const notify of consumers.get(key)?.listeners ?? []) notify(entry.value)
@@ -33,6 +34,7 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
     } catch { return undefined }
   })().then(placements => {
     entry.pending = false
+    entry.failures = placements === undefined ? entry.failures + 1 : 0
     if (placements !== undefined) entry.value = placements
     if (cache.get(key) === entry) {
       if (placements === undefined) cache.delete(key)
@@ -123,27 +125,57 @@ export function cachedPreflight(api: string, id: DocId) {
 
 export function placementsPending(api: string, id: DocId) { return cache.get(keyFor(api, id))?.pending === true }
 
+/** HTTP access refusals and placement-discovery access refusals share one calm state. */
+export function placementReadError(api: string, id: DocId): string | undefined {
+  const entry = latest.get(keyFor(api, id))
+  if (!entry) return
+  const check = entry.preflight?.checks?.find(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
+  if (entry.response?.status === 401 || entry.response?.status === 403 || check?.detail === 'forbidden') return PLACEMENT_FAILURE_COPY.forbidden
+  if (entry.failures) return PLACEMENT_FAILURE_COPY['placements-failed']
+}
+
 // One timer per editor document, shared by chrome, sidebar and detached drawers.
-// Watching is opt-in: only a rendered save/publish notice owns a subscription.
+// Save/publish notices poll every four seconds; failures back off until recovery.
+type NoticeRequest = { api: string; id: DocId; subscribers: number; nextAt: number; pending: boolean; release: () => void }
 type NoticeSession = {
-  requests: Map<string, { api: string; id: DocId; subscribers: number }>
+  requests: Map<string, NoticeRequest>
   removeRequest: (key: string) => void
-  timer?: ReturnType<typeof setInterval>
+  timer?: ReturnType<typeof setTimeout>
   visibility: () => void
+  schedule: () => void
 }
 const notices = new WeakMap<Document, NoticeSession>()
+const noticeDelay = (api: string, id: DocId) => {
+  const failures = latest.get(keyFor(api, id))?.failures ?? 0
+  return [4_000, 8_000, 16_000, 30_000][Math.min(Math.max(0, failures - 1), 3)]!
+}
 export function watchPlacementNotice(api: string, id: DocId, doc: Document): () => void {
   let session = notices.get(doc)
   if (!session) {
-    const requests = new Map<string, { api: string; id: DocId; subscribers: number }>()
-    const created: NoticeSession = { requests, removeRequest: key => { requests.delete(key) }, visibility: () => {} }
-    created.visibility = () => {
-      if (created.timer !== undefined) { clearInterval(created.timer); created.timer = undefined }
-      if (doc.visibilityState !== 'visible' || !created.requests.size) return
-      created.timer = setInterval(() => {
+    const requests = new Map<string, NoticeRequest>()
+    const created: NoticeSession = { requests, removeRequest: key => { requests.delete(key) }, visibility: () => {}, schedule: () => {} }
+    created.schedule = () => {
+      if (created.timer !== undefined) { clearTimeout(created.timer); created.timer = undefined }
+      const eligible = [...created.requests.values()].filter(request => !request.pending && placementReadError(request.api, request.id) !== PLACEMENT_FAILURE_COPY.forbidden)
+      if (doc.visibilityState !== 'visible' || !eligible.length) return
+      created.timer = setTimeout(() => {
+        created.timer = undefined
         if (doc.visibilityState !== 'visible') return
-        for (const request of [...created.requests.values()]) void refreshPlacements(request.api, request.id)
-      }, 4_000)
+        const due = eligible.filter(request => created.requests.get(keyFor(request.api, request.id)) === request && request.nextAt <= Date.now())
+        for (const request of due) {
+          request.pending = true
+          void refreshPlacements(request.api, request.id).then(() => {
+            request.pending = false
+            request.nextAt = Date.now() + noticeDelay(request.api, request.id)
+            if (notices.get(doc) === created) created.schedule()
+          })
+        }
+        created.schedule()
+      }, Math.max(0, Math.min(...eligible.map(request => request.nextAt)) - Date.now()))
+    }
+    created.visibility = () => {
+      for (const request of created.requests.values()) request.nextAt = Date.now() + noticeDelay(request.api, request.id)
+      created.schedule()
     }
     session = created
     notices.set(doc, session)
@@ -151,17 +183,24 @@ export function watchPlacementNotice(api: string, id: DocId, doc: Document): () 
   }
   const current = session
   const key = keyFor(api, id)
-  const request = current.requests.get(key) ?? { api, id, subscribers: 0 }
+  const existing = current.requests.get(key)
+  const request = existing ?? { api, id, subscribers: 0, nextAt: Date.now() + noticeDelay(api, id), pending: false, release: () => {} }
   request.subscribers++
   current.requests.set(key, request)
-  if (current.timer === undefined) current.visibility()
+  if (!existing) request.release = subscribePlacements(api, id, () => {
+    if (placementsPending(api, id)) return
+    // Manual/focus retries also reset the backoff after recovery.
+    request.nextAt = Date.now() + noticeDelay(api, id)
+    current.schedule()
+  })
+  if (!existing || current.timer === undefined) current.schedule()
   let active = true
   return () => {
     if (!active) return
     active = false
-    if (--request.subscribers === 0) current.removeRequest(key)
+    if (--request.subscribers === 0) { current.removeRequest(key); request.release() }
     if (!current.requests.size) {
-      if (current.timer !== undefined) clearInterval(current.timer)
+      if (current.timer !== undefined) clearTimeout(current.timer)
       doc.removeEventListener('visibilitychange', current.visibility)
       notices.delete(doc)
     }
