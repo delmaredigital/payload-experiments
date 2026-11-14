@@ -1,25 +1,33 @@
 import type { PreflightResult } from '../types/endpoints.js'
-import { API_MESSAGES, refusalMessage } from './copy/common.js'
+import { API_MESSAGES } from './copy/common.js'
 import { PLACEMENT_FAILURE_COPY, READINESS_COPY, placementFailureCopy } from './copy/readiness.js'
+import { TEST_PAGE } from './copy/testPage.js'
+import { editorCopy } from '../puck/editor/copy.js'
+import { pickerCopy } from '../puck/copy.js'
 import { isPreflightResult } from './readPreflight.js'
 
 export type ReadinessRead = ReturnType<typeof classifyReadinessRead>
 
 /** One read policy for every surface. Pending retains this settled value verbatim. */
-export function classifyReadinessRead(status: number, body?: unknown, failures = 1, placementNotice = false) {
-  const answer = status === 200 && isPreflightResult(body) ? body : undefined
+export function classifyReadinessRead(status: number, body?: unknown, failures = 1, context: { kind: 'document'; surface?: 'editor'; resultsOnly?: boolean } | { kind: 'readiness' | 'where-used'; placementNotice?: boolean } = { kind: 'readiness' }) {
+  const document = context.kind === 'document'
+  const answer = !document && status === 200 && isPreflightResult(body) ? body : undefined
   const detail = answer?.checks.find(check => !check.ok && (check.code === 'no-placements' && check.detail !== undefined || check.code === 'flag-placement-missing' && typeof check.detail === 'string'))?.detail
   const kind = status === 401 ? 'signed-out' : status === 404 || detail === 'not-found' ? 'not-found'
-    : status === 403 || detail === 'forbidden' ? 'no-access' : answer ? 'answered' : 'failed'
+    : status === 403 || detail === 'forbidden' ? 'no-access' : status === 400 || status === 501 ? 'permanent' : answer ? 'answered' : 'failed'
   const failed = kind === 'failed' || kind === 'answered' && detail !== undefined
   const retry = failed
-  const message = kind === 'signed-out' ? refusalMessage(undefined, 401)
-    : kind === 'not-found' ? answer ? PLACEMENT_FAILURE_COPY['not-found'] : API_MESSAGES.notFound
-      : kind === 'no-access' ? PLACEMENT_FAILURE_COPY.forbidden
-        : kind === 'failed' ? READINESS_COPY.checkError : detail !== undefined ? placementFailureCopy(detail) : undefined
+  const message = kind === 'signed-out' ? API_MESSAGES.unauthenticated
+    : kind === 'not-found' ? answer ? PLACEMENT_FAILURE_COPY['not-found'] : document && context.surface === 'editor' ? pickerCopy.unavailable : API_MESSAGES.notFound
+      : kind === 'no-access' ? document ? context.surface === 'editor' ? context.resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden : TEST_PAGE.forbidden : PLACEMENT_FAILURE_COPY.forbidden
+        : kind === 'permanent' ? status === 501 ? API_MESSAGES.notImplemented : "This request couldn't be checked. Reload the page."
+          : kind === 'failed' ? document ? context.surface === 'editor' ? editorCopy.loadError : TEST_PAGE.error : READINESS_COPY.checkError : detail !== undefined ? placementFailureCopy(detail) : undefined
+  // Subscribers determine whether save/publish guidance is displayed. Its polling
+  // eligibility is classified here, alongside permanent and temporary failures.
+  const placementNotice = !document && (context.placementNotice ?? context.kind === 'where-used')
   const pollDelay = retry ? [4_000, 8_000, 16_000, 30_000][Math.min(Math.max(0, failures - 1), 3)]!
     : kind === 'answered' && placementNotice ? 4_000 : null
-  const loadState: 'ready' | 'missing' | 'forbidden' | 'error' = kind === 'not-found' ? 'missing' : kind === 'signed-out' || kind === 'no-access' ? 'forbidden' : kind === 'failed' ? 'error' : 'ready'
+  const loadState: 'ready' | 'missing' | 'forbidden' | 'error' = kind === 'not-found' ? 'missing' : kind === 'signed-out' || kind === 'no-access' ? 'forbidden' : kind === 'failed' || kind === 'permanent' ? 'error' : 'ready'
   return { status, loadState, kind, answer, message, failed, retry, pollDelay }
 }
 

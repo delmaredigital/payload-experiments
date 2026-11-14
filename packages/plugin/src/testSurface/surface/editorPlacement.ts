@@ -1,7 +1,9 @@
 import type { PreflightResult } from '../../types/endpoints.js'
 import type { Status } from '../../types/contracts.js'
 import { SAVE_PAGE, PUBLISH_PAGE, RUNNING_PUBLISH_PAGE, RUNNING_SAVE_PAGE } from '../copy/readiness.js'
-import type { SurfaceProps } from './contracts.js'
+import { blockingSteps, pageReadinessContext } from './readiness/readiness.model.js'
+import { READINESS_COPY } from '../copy/readiness.js'
+import type { TestDocApi, SurfaceProps } from './contracts.js'
 export { SAVE_PAGE, PUBLISH_PAGE, RUNNING_PUBLISH_PAGE, RUNNING_SAVE_PAGE } from '../copy/readiness.js'
 
 /** Replace only the guidance represented by this page's local notice. */
@@ -24,4 +26,21 @@ export function editorPlacementMessage(placements: PreflightResult['placements']
   const here = placements.filter(p => p.collection === page.collection && String(p.id) === String(page.id))
   if (!here.length) return status === 'running' ? RUNNING_SAVE_PAGE : SAVE_PAGE
   if (!here.some(p => p.detail === 'Published')) return status === 'running' ? RUNNING_PUBLISH_PAGE : PUBLISH_PAGE
+}
+
+/** Replace this page's checks once, retaining every other page's blocker. */
+export function editorPreflight(answer: PreflightResult | null, surface: SurfaceProps, includeLocalBlocker = true) {
+  return answer && surface.editorPlacementMessage && surface.editorPage ? { ...answer, checks: [
+    ...editorPlacementChecks(answer.checks, surface.editorPage),
+    ...(includeLocalBlocker ? [{ code: 'no-placements' as const, ok: false }] : []),
+  ] } : answer
+}
+
+/** Shared sidebar policy; the bounded list renders these steps verbatim. */
+export function sidebarReadinessBlockers(test: TestDocApi, surface: SurfaceProps) {
+  const answer = editorPreflight(test.preflight, surface, false)
+  const blockers = test.doc ? blockingSteps(answer, pageReadinessContext(test.doc, test.preflight, surface)) : []
+  const notice = test.preflightRead?.message ?? surface.editorPlacementMessage
+  return test.hasUnsaved ? [{ sentence: READINESS_COPY.saveFirst }, ...blockers]
+    : !answer && !notice ? [{ sentence: READINESS_COPY.checking }] : blockers.filter(step => step.sentence !== notice)
 }

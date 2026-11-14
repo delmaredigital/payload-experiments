@@ -238,7 +238,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
         if (controller.signal.aborted) return
         if (!response.ok) {
           session.preflightLoading = false
-          session.view.preflightRead = classifyReadinessRead(response.status, undefined, session.preflightFailures + 1)
+          session.view.preflightRead = classifyReadinessRead(response.status, undefined, session.preflightFailures + 1, { kind: 'document' })
           session.preflightFailures = session.view.preflightRead.failed ? session.preflightFailures + 1 : 0
           session.view.loadState = session.view.preflightRead.loadState
           session.publish()
@@ -265,7 +265,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
       } catch {
         if (controller.signal.aborted) return
         session.preflightLoading = false
-        session.view.preflightRead = classifyReadinessRead(0, undefined, ++session.preflightFailures)
+        session.view.preflightRead = classifyReadinessRead(0, undefined, ++session.preflightFailures, { kind: 'document' })
         session.view.loadState = 'error'
         session.view.errors = { _section: API_MESSAGES.unreadable }
         session.publish()

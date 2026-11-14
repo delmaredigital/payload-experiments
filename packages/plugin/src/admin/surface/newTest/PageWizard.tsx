@@ -27,7 +27,7 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
   const [step, setStep] = useState(collections.length > 1 ? 'collection' : 'control')
   const test = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: step === 'review' })
   const testUrl = formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(id))}` })
-  const transition = useTransition(test, () => router.push(testUrl))
+  const transition = useTransition(test, () => router.push(testUrl), surface)
   useEffect(() => { if (step === 'review') void test.refreshPreflight() }, [step, test.refreshPreflight])
   const leave = () => router.push(testUrl)
   if (test.loadState === 'loading') return <p role="status">{TEST_PAGE.loading}</p>
@@ -64,7 +64,7 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
       })}</ul>
       {ready ? <p>{READINESS_COPY.ready}</p> : null}
       <button type="button" disabled={busy || test.preflightPending || !test.preflight || ready && (!canStartTest(test) || transition.checking)} onClick={() => {
-        if (ready) void transition.run(() => createApi(surface.apiRoute).start(id))
+        if (ready) void transition.run('start', () => createApi(surface.apiRoute).start(id))
         else if (next) jump(next.section, next.arm)
       }}>{ready ? C.start : C.finishSetup}</button>
       {transition.error ? <p role="alert">{transition.error}</p> : null}

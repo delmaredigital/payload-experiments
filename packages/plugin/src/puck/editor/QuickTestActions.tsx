@@ -12,7 +12,7 @@ import { createApi } from '../../testSurface/api.js'
 /** Same transition runner and confirmation as the drawer; Decide stays there. */
 export function QuickTestActions({ test, surface }: SectionProps) {
   const [confirm, setConfirm] = useState(false)
-  const transition = useTransition(test)
+  const transition = useTransition(test, undefined, surface)
   const doc = test.doc!
   const action = availableActions({ ...doc, canManage: surface.canManage }).find(item =>
     doc.status === 'draft' ? item.id === 'start' : doc.status === 'running' && item.id === 'stop')
@@ -22,7 +22,7 @@ export function QuickTestActions({ test, surface }: SectionProps) {
   return <>
     {showAction && action.id === 'start' ? <p role="status">{READINESS_COPY.ready}</p> : null}
     {showAction ? <Button disabled={transition.busy || confirm || test.hasUnsaved || action.id === 'start' && !ready} busy={transition.busy} onClick={() => {
-      if (action.id === 'start') void transition.run(() => createApi(surface.apiRoute).start(doc.id))
+      if (action.id === 'start') void transition.run('start', () => createApi(surface.apiRoute).start(doc.id))
       else setConfirm(true)
     }}>{action.label}</Button> : null}
     {transition.error ? <p role="alert">{transition.error}</p> : null}

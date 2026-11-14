@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, renderHook, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
+import { ReadinessBar } from '../../../../src/testSurface/surface/test/ReadinessBar.js'
 import { ReadinessContent } from '../../../../src/testSurface/surface/readiness/Banner.js'
 import { QuickTestActions } from '../../../../src/puck/editor/QuickTestActions.js'
 import { PlacementNotice } from '../../../../src/puck/editor/PlacementNotice.js'
@@ -8,7 +9,7 @@ import { StatusChip } from '../../../../src/ui/StatusChip.js'
 import { BlockerList } from '../../../../src/testSurface/surface/readiness/BlockerList.js'
 import { blockingSteps, pageReadinessContext } from '../../../../src/testSurface/surface/readiness/readiness.model.js'
 import { classifyReadinessRead } from '../../../../src/testSurface/readinessRead.js'
-import { editorPlacementChecks, editorPlacementMessage } from '../../../../src/testSurface/surface/editorPlacement.js'
+import { editorPreflight, sidebarReadinessBlockers, editorPlacementMessage } from '../../../../src/testSurface/surface/editorPlacement.js'
 import type { Status } from '../../../../src/types/contracts.js'
 import type { PreflightResult } from '../../../../src/types/endpoints.js'
 import { ResultsHeader } from '../../../../src/admin/surface/results/ResultsHeader.js'
@@ -41,6 +42,10 @@ const outcomes = [
   { name: 'forbidden detail', status: 200, message: denied, retry: false, detail: 'forbidden' },
   { name: 'network', status: 0, message: failed, retry: true, detail: undefined },
   { name: 'timeout', status: 0, message: failed, retry: true, detail: undefined },
+  { name: '400', status: 400, message: "This request couldn't be checked. Reload the page.", retry: false, detail: undefined },
+  { name: '501', status: 501, message: "This isn't available yet.", retry: false, detail: undefined },
+  { name: '409', status: 409, message: failed, retry: true, detail: undefined },
+  { name: '429', status: 429, message: failed, retry: true, detail: undefined },
   { name: '503', status: 503, message: failed, retry: true, detail: undefined },
   { name: 'unusable 200', status: 200, message: failed, retry: true, detail: undefined },
 ] as const
@@ -53,25 +58,26 @@ const flagOutcomes = [
 
 type Row = { surface: typeof surfaces[number]; status: Status; pageState: typeof pages[number]; outcome: typeof outcomes[number]; pending: boolean; history: typeof histories[number] }
 const rows: Row[] = []
-let pruned = 0
+let omitted = 0
 for (const surface of surfaces) for (const status of statuses) for (const pageState of pages) for (const outcome of outcomes) for (const pending of [false, true]) for (const history of histories) {
   // Chrome has no transition runner; sidebar offers draft Start and running Stop.
   // Archived tests have no transition; decided transitions live in drawer/admin.
-  // Immediate post-refusal states must agree with that read: a blocker is an
+  // Redundant rows are omitted to bound the product: a blocker is an
   // answered check; ready requires a published page; failed has no usable answer.
-  // "then answer" explicitly means a subsequent usable HTTP 200, including a
-  // terminal or failed-discovery detail. No combinations are silently skipped.
+  // "then answer" means any later settled read, including 401/403/404/5xx.
+  // Other omissions cover surfaces with no action and equivalent page states.
   const usable = outcome.status === 200 && outcome.name !== 'unusable 200'
-  const impossible = history !== 'none' && (surface === 'chrome' || status === 'archived' || surface === 'sidebar' && !['draft', 'running'].includes(status))
+  const redundantOrUnavailable = history !== 'none' && (surface === 'chrome' || status === 'archived' || surface === 'sidebar' && !['draft', 'running'].includes(status))
     || history === 'blocker' && (!usable || outcome.name === 'answered' && pageState === 'published')
-    || history === 'ready' && (outcome.name !== 'answered' || pageState !== 'published')
+    || history === 'ready' && pageState !== 'published'
     || history === 'failed' && usable
-    || history.includes('then answer') && !usable
-  if (impossible) pruned++
+
+  if (redundantOrUnavailable) omitted++
   else rows.push({ surface, status, pageState, outcome, pending, history })
 }
 
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
+const producerReleases: Array<() => void> = []
+afterEach(() => { cleanup(); producerReleases.splice(0).forEach(release => release()); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 function answerFor(pageState: Row['pageState']): PreflightResult {
   const here = { ...page, title: 'Landing', ok: true, detail: pageState === 'published' ? 'Published' : 'Draft' }
@@ -89,31 +95,39 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
   p.surface.editorPage = page
   let release!: () => void
   p.test.refreshPreflight = vi.fn(() => new Promise<void>(resolve => { release = resolve }))
-  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ errors: [{ code: 'future-refusal', message: refused }] }, { status: 422 })))
+  let responseStatus = 200
+  let responseBody: unknown = answerFor('published')
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? Response.json(responseBody, { status: responseStatus }) : Response.json({ errors: [{ code: 'future-refusal', message: refused }] }, { status: 422 })))
+  const releaseProducer = acquirePlacements('/matrix', doc.id, () => {})
+  producerReleases.push(releaseProducer)
+  await act(async () => {})
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
-  function apply(status: number, body: unknown, pending = false) {
+  async function apply(status: number, body: unknown, pending = false) {
     // checkStart reports invalid-status outside setup; it has no blocker sentence.
     if (!['draft', 'stopped'].includes(row.status) && body && typeof body === 'object' && 'checks' in body) {
       const answer = body as PreflightResult
       body = { ...answer, checks: [...answer.checks, { code: 'invalid-status', ok: false }] }
     }
-    const read = classifyReadinessRead(status, body)
+    responseStatus = status || 503
+    responseBody = body ?? {}
+    await act(async () => { await refreshPlacements('/matrix', doc.id) })
+    const read = cachedReadinessRead('/matrix', doc.id)!
     const local = read.answer && !read.message ? editorPlacementMessage(read.answer.placements, page, row.status) : undefined
     const setup = row.status === 'draft' || row.status === 'stopped'
     p.surface.editorPlacementMessage = row.surface === 'admin' ? undefined : local
     p.test.preflightRead = read
-    p.test.preflight = read.answer ? setup && local && row.surface !== 'admin' ? { ...read.answer, checks: [...editorPlacementChecks(read.answer.checks, page), { code: 'no-placements', ok: false }] } : read.answer : null
+    p.test.preflight = setup && row.surface === 'drawer' ? editorPreflight(read.answer ?? null, p.surface) : read.answer ?? null
     p.test.preflightError = read.answer ? null : read.message ?? null
     p.test.preflightPending = pending
   }
   function content() {
-    if (row.surface === 'drawer' || row.surface === 'admin') return <ReadinessContent {...p} bar />
-    const blockers = blockingSteps(p.test.preflight, pageReadinessContext(p.test.doc!, p.test.preflight, p.surface)).filter(step => step.sentence !== (p.test.preflightRead?.message ?? p.surface.editorPlacementMessage))
+    if (row.surface === 'drawer' || row.surface === 'admin') return <ReadinessBar {...p} onHeightChange={() => {}} />
+    const blockers = sidebarReadinessBlockers(p.test, p.surface)
     return <><StatusChip status={row.status} /><PlacementNotice read={p.test.preflightRead} message={p.surface.editorPlacementMessage} running={row.status === 'running'} onRetry={() => {}} />
       {row.surface === 'sidebar' ? <><BlockerList steps={['draft', 'stopped'].includes(row.status) ? blockers : []} /><QuickTestActions {...p} /></> : null}</>
   }
-  apply(200, answerFor('published'))
+  await apply(200, answerFor('published'))
   const view = render(content())
   const scope = () => within(view.container)
   if (row.history !== 'none') {
@@ -123,11 +137,11 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
     await act(async () => {})
     expect(scope().getByText(refused).getAttribute('role')).toBe('alert')
     const first = row.history.split(' ')[0]
-    if (first === 'failed') apply(503, undefined)
-    else apply(200, first === 'blocker' ? preflight([{ code: 'no-primary-metric', ok: false }]) : answerFor('published'))
+    if (first === 'failed') await apply(503, undefined)
+    else await apply(200, first === 'blocker' ? preflight([{ code: 'no-primary-metric', ok: false }]) : answerFor('published'))
     view.rerender(content())
     await act(async () => { release() })
-    expect(scope().queryByText(refused) !== null).toBe(first !== 'blocker')
+    expect(scope().queryByText(refused) !== null).toBe(!['draft', 'stopped'].includes(row.status) || first !== 'blocker')
   }
   const body = row.outcome.name === 'unusable 200' ? {} : row.outcome.detail
     ? preflight([{ code: 'no-placements', ok: false, detail: row.outcome.detail }]) : answerFor(row.pageState)
@@ -136,8 +150,8 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
   if (row.history === 'ready' || row.history === 'failed' || row.history === 'blocker') {
     // The first read above establishes lifetime. For ready/failed this next
     // failed read is not an answer; for blocker dismissal is already permanent.
-    if (row.history !== 'ready') apply(row.outcome.status, body, row.pending)
-  } else apply(row.outcome.status, body, row.pending)
+    if (row.history !== 'ready' || row.outcome.name !== 'answered') await apply(row.outcome.status, body, row.pending)
+  } else await apply(row.outcome.status, body, row.pending)
   view.rerender(content())
   await act(async () => {})
   p.test.preflightPending = row.pending
@@ -163,22 +177,24 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
   const offered = row.surface === 'chrome' ? false : row.surface === 'sidebar' ? row.status === 'draft' && ready : setup
   expect(!!start).toBe(offered)
   if (start) expect(start.disabled).toBe(!ready || row.pending)
-  const alertExpected = row.history === 'ready' || row.history === 'failed'
+  const alertExpected = row.history === 'ready' && row.outcome.name === 'answered' || row.history !== 'none' && (!setup || row.history !== 'blocker' && row.history !== 'blocker then answer' && !(row.outcome.status === 200 && row.outcome.name !== 'unusable 200'))
   expect(scope().queryByText(refused) !== null).toBe(alertExpected)
-  // Scheduler inputs are the same classification used by every renderer.
-  const expectedDelay = row.outcome.retry ? 4_000 : row.outcome.name === 'answered' && !!local ? 4_000 : null
-  expect(classifyReadinessRead(row.outcome.status, body, 1, !!local).pollDelay).toBe(expectedDelay)
+  // The producer supplies the delay. A surface subscribes only while a notice
+  // is displayed; actual timer/subscription behaviour is exercised below.
+  const expectedDelay = row.outcome.retry ? row.history.startsWith('failed') ? 8_000 : 4_000 : row.outcome.name === 'answered' ? 4_000 : null
+  expect(p.test.preflightRead?.pollDelay).toBe(expectedDelay)
+  releaseProducer()
 })
 
-test('matrix accounts for every combination, with explicit impossible-state pruning', () => {
-  expect(rows.length + pruned).toBe(4 * 5 * 11 * 4 * 2 * 7)
-  expect(rows.length).toBe(3_600)
-  expect(pruned).toBe(8_720)
+test('matrix accounts for available and explicitly redundant combinations', () => {
+  expect(rows.length + omitted).toBe(4 * 5 * outcomes.length * 4 * 2 * 7)
+  expect(rows.length).toBe(7_480)
+  expect(omitted).toBe(9_320)
 })
 
 // Observe the real shared timer too: the presentation product above must not
 // substitute calculated delays for scheduled requests.
-import { acquirePlacements, cachedReadinessRead, watchPlacementNotice } from '../../../../src/puck/editor/placementsCache.js'
+import { acquirePlacements, refreshPlacements, cachedReadinessRead, watchPlacementNotice } from '../../../../src/puck/editor/placementsCache.js'
 
 test.each([...outcomes, ...flagOutcomes])('actual visible polling / $name / 4,8,16,30 seconds and hidden stop', async outcome => {
   vi.useFakeTimers()
@@ -221,7 +237,7 @@ test.each(['sidebar', 'drawer', 'admin'] as const)('unpublished refusal → expl
   p.test.refreshPreflight = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
   const sentence = "The block you're testing is only on a draft of Landing. Publish the page before you start."
   vi.stubGlobal('fetch', vi.fn(async () => Response.json({ errors: [{ code: 'placement-unpublished', detail: [{ title: 'Landing' }] }] }, { status: 422 })))
-  const content = () => surface === 'sidebar' ? <><BlockerList steps={blockingSteps(p.test.preflight, p.test.doc!)} /><QuickTestActions {...p} /></> : <ReadinessContent {...p} bar />
+  const content = () => surface === 'sidebar' ? <><BlockerList steps={blockingSteps(p.test.preflight, p.test.doc!)} /><QuickTestActions {...p} /></> : <ReadinessContent {...p} />
   const view = render(content())
   fireEvent.click(within(view.container).getByRole('button', { name: 'Start' }))
   await act(async () => {})
@@ -243,7 +259,8 @@ test('two draft pages keep Checkout named under this page’s publishing notice;
   p.surface.editorPlacementMessage = 'Publish this page to start the test.'
   const placements = [{ ...page, title: 'Landing' }, { collection: 'pages', id: 'other', title: 'Checkout' }]
   const answer = preflight([{ code: 'placement-unpublished', ok: false, detail: placements }])
-  const steps = blockingSteps({ ...answer, checks: editorPlacementChecks(answer.checks, page) }, pageReadinessContext(p.test.doc!, answer, p.surface))
+  p.surface.editorPage = page
+  const steps = sidebarReadinessBlockers({ ...p.test, preflight: answer }, p.surface)
   const view = render(<><PlacementNotice message={p.surface.editorPlacementMessage} running={false} onRetry={() => {}} /><BlockerList steps={steps} /></>)
   expect(view.container.textContent).toContain('Publish this page to start the test.')
   expect(view.container.textContent).toContain(otherPage)
@@ -259,7 +276,7 @@ test.each(statuses.flatMap(status => flagOutcomes.flatMap(outcome => [false, tru
   p.test.preflight = answer
   p.test.preflightRead = classifyReadinessRead(200, answer)
   p.test.preflightPending = pending
-  const view = render(<ReadinessContent {...p} bar />)
+  const view = render(<ReadinessContent {...p} />)
   const scope = within(view.container)
   expect(view.container.textContent).toContain(outcome.message)
   expect(!!scope.queryByRole('button', { name: 'Try again' })).toBe(outcome.retry)
@@ -273,26 +290,26 @@ test.each(statuses.flatMap(status => flagOutcomes.flatMap(outcome => [false, tru
 test('a later answer beneath a new pending read clears a refusal permanently, even if the new read fails', async () => {
   const p = props()
   vi.stubGlobal('fetch', vi.fn(async () => Response.json({ errors: [{ code: 'future-refusal', message: refused }] }, { status: 422 })))
-  const view = render(<ReadinessContent {...p} bar />)
+  const view = render(<ReadinessContent {...p} />)
   fireEvent.click(within(view.container).getByRole('button', { name: 'Start' }))
   await act(async () => {}) // The immediate reread is ready, so the alert stays.
   expect(within(view.container).getByText(refused)).toBeTruthy()
   p.test.preflight = preflight()
   p.test.preflightRead = classifyReadinessRead(200, p.test.preflight)
   p.test.preflightPending = true // Answer B arrived; request C already began.
-  view.rerender(<ReadinessContent {...p} bar />)
+  view.rerender(<ReadinessContent {...p} />)
   expect(within(view.container).queryByText(refused)).toBeNull()
   p.test.preflight = null
   p.test.preflightRead = classifyReadinessRead(503)
   p.test.preflightError = failed
   p.test.preflightPending = false
-  view.rerender(<ReadinessContent {...p} bar />)
+  view.rerender(<ReadinessContent {...p} />)
   expect(within(view.container).queryByText(refused)).toBeNull()
   expect(view.container.textContent).toContain(failed)
 })
 
 import { useTestDocument } from '../../../../src/testSurface/surface/useTestDocument.js'
-test.each([401, 403, 404, 503, 'network', 'unusable'] as const)('initial admin test read / %s / actual retry schedule and recovery', async outcome => {
+test.each([400, 401, 403, 404, 409, 429, 501, 503, 'network', 'unusable'] as const)('initial admin test read / %s / actual retry schedule and recovery', async outcome => {
   vi.useFakeTimers()
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
   let failing = true
@@ -305,8 +322,8 @@ test.each([401, 403, 404, 503, 'network', 'unusable'] as const)('initial admin t
   vi.stubGlobal('fetch', fetcher)
   const hook = renderHook(() => useTestDocument(doc.id, { apiRoute: '/api' }))
   await act(async () => {})
-  const retry = outcome === 503 || typeof outcome === 'string'
-  expect(hook.result.current.preflightRead?.message).toBe(outcome === 401 ? signedOut : outcome === 403 ? denied : outcome === 404 ? missing : failed)
+  const retry = outcome === 409 || outcome === 429 || outcome === 503 || typeof outcome === 'string'
+  expect(hook.result.current.preflightRead?.message).toBe(outcome === 400 ? "This request couldn't be checked. Reload the page." : outcome === 501 ? "This isn't available yet." : outcome === 401 ? signedOut : outcome === 403 ? "You don't have access to this test." : outcome === 404 ? missing : "Couldn't load this test.")
   expect(hook.result.current.preflightRead?.retry).toBe(retry)
   let count = fetcher.mock.calls.length
   if (retry) {
@@ -334,16 +351,16 @@ test('an answer before a refusal cannot dismiss its alert when the mandatory rer
   let reread!: () => void
   vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { refuse = resolve })))
   p.test.refreshPreflight = vi.fn(() => new Promise<void>(resolve => { reread = resolve }))
-  const view = render(<ReadinessContent {...p} bar />)
+  const view = render(<ReadinessContent {...p} />)
   fireEvent.click(within(view.container).getByRole('button', { name: 'Start' }))
   p.test.preflight = preflight([{ code: 'no-primary-metric', ok: false }]) // Answer B, before refusal.
-  view.rerender(<ReadinessContent {...p} bar />)
+  view.rerender(<ReadinessContent {...p} />)
   await act(async () => { refuse(Response.json({ errors: [{ code: 'future-refusal', message: refused }] }, { status: 422 })) })
   expect(within(view.container).getByText(refused)).toBeTruthy()
   p.test.preflight = null
   p.test.preflightRead = classifyReadinessRead(503)
   p.test.preflightError = failed
-  view.rerender(<ReadinessContent {...p} bar />)
+  view.rerender(<ReadinessContent {...p} />)
   await act(async () => { reread() })
   expect(within(view.container).getByText(refused)).toBeTruthy()
   expect(view.container.textContent).toContain(failed)
@@ -399,12 +416,196 @@ test.each(wizardOutcomes.flatMap(outcome => [false, true].map(pending => ({ outc
 
 test.each(wizardOutcomes.filter(outcome => outcome.name !== 'answered'))('admin wizard initial / $name', outcome => {
   const p = props({ kind: 'page' })
-  p.test.preflightRead = classifyReadinessRead(outcome.status)
+  p.test.preflightRead = classifyReadinessRead(outcome.status, undefined, 1, { kind: 'document' })
   p.test.loadState = p.test.preflightRead.loadState
   p.test.doc = null
   vi.spyOn(documents, 'useTestDocument').mockReturnValue(p.test)
   const view = render(<PageWizard id={doc.id} surface={p.surface} />)
-  expect(view.container.textContent).toContain(outcome.message!)
+  expect(view.container.textContent).toContain(p.test.preflightRead.message!)
   expect(!!within(view.container).queryByRole('button', { name: 'Try again' })).toBe(outcome.retry)
   expect(within(view.container).queryByRole('button', { name: 'Start' })).toBeNull()
+})
+
+// These are fetch-to-render tests of the four real producers, rather than a
+// second copy of their classification or placement transformations.
+import { TestSurface } from '../../../../src/testSurface/surface/test/TestSurface.js'
+import { readEditorPreflight } from '../../../../src/puck/editor/placementsCache.js'
+import { Puck, type Config } from '@puckeditor/core'
+import { ExperimentSlotEditor } from '../../../../src/puck/editor/ExperimentSlotEditor.js'
+import { useTransition } from '../../../../src/testSurface/surface/readiness/useTransition.js'
+import type { TestDocApi } from '../../../../src/testSurface/surface/contracts.js'
+
+vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
+const producers = ['placementsCache', 'useTestDocument', 'TestSurface sharedDocument', 'EditorRender quickTest'] as const
+const producerRows = producers.flatMap(producer => outcomes.map(outcome => ({ producer, outcome })))
+test.each(producerRows)('fetch producer / $producer / $outcome.name', async ({ producer, outcome }) => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+  vi.stubGlobal('matchMedia', (media: string) => ({ matches: false, media, addEventListener() {}, removeEventListener() {} }))
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} })
+  history.replaceState({}, '', '/admin/puck/pages/here')
+  const id = `producer-${producer}-${outcome.name}`
+  const p = props({ id })
+  p.surface.apiRoute = '/producer'
+  p.surface.editorPage = page
+  let delivering = producer !== 'TestSurface sharedDocument'
+  const body = outcome.name === 'unusable 200' ? {} : outcome.detail
+    ? preflight([{ code: 'no-placements', ok: false, detail: outcome.detail }]) : answerFor('published')
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.endsWith('/editor-surface')) return Response.json(p.surface)
+    if (url.includes('xp-experiments?')) return Response.json({ docs: [p.test.doc] })
+    if (url.endsWith('/preflight')) {
+      if (!delivering) return Response.json(answerFor('published'))
+      if (outcome.name === 'network' || outcome.name === 'timeout') throw new DOMException('Aborted', 'AbortError')
+      return Response.json(body, { status: outcome.status })
+    }
+    return Response.json(p.test.doc)
+  }))
+  let release: (() => void) | undefined
+  let view: ReturnType<typeof render> | undefined
+  let observed: TestDocApi | undefined
+  if (producer === 'placementsCache') {
+    release = acquirePlacements('/producer', id, () => {})
+    await act(async () => {})
+    const read = cachedReadinessRead('/producer', id)!
+    view = render(<PlacementNotice read={read} running={false} onRetry={() => {}} />)
+    expect(read.message).toBe(outcome.message)
+  } else if (producer === 'useTestDocument') {
+    const hook = renderHook(() => useTestDocument(id, { apiRoute: '/producer' }))
+    await act(async () => {})
+    observed = hook.result.current
+    expect(observed.preflightRead?.message).toBe(outcome.message)
+    view = render(<ReadinessContent test={{ ...observed, doc: observed.doc ?? p.test.doc }} surface={p.surface} />)
+  } else if (producer === 'TestSurface sharedDocument') {
+    release = acquirePlacements('/producer', id, () => {})
+    await act(async () => {})
+    view = render(<TestSurface id={id} embedded surface={p.surface}
+      requestPreflight={signal => readEditorPreflight('/producer', id, signal)}
+      renderFrame={({ test }) => { observed = test; return <ReadinessContent test={test.doc ? test : p.test} surface={p.surface} /> }} />)
+    await act(async () => {})
+    delivering = true
+    await act(async () => { await refreshPlacements('/producer', id) })
+    expect(observed?.preflightRead?.message).toBe(outcome.message)
+  } else {
+    const config: Config = { components: { ExperimentSlot: ExperimentSlotEditor } }
+    view = render(<Puck config={config} data={{ root: { props: {} }, content: [{ type: 'ExperimentSlot', props: {
+      id: 'producer-block', experiment: { id, slug: 'headline' }, control: [], variantA: [], variantB: [], variantC: [],
+    } }] }} iframe={{ enabled: false }} ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}>
+      <Puck.Preview /><div data-testid="producer-sidebar"><Puck.Fields /></div>
+    </Puck>)
+    await act(async () => {})
+    const sidebar = within(view.getByTestId('producer-sidebar'))
+    if (outcome.message) expect(sidebar.getAllByText(outcome.message, { exact: false }).length).toBeGreaterThan(0)
+    expect(!!sidebar.queryByRole('button', { name: 'Retry' })).toBe(outcome.retry)
+    if (outcome.message) expect(view.container.querySelector('.xp-slot-chrome')?.textContent).toContain(outcome.message)
+  }
+  if (producer !== 'EditorRender quickTest') {
+    if (outcome.message) expect(view!.container.textContent).toContain(outcome.message)
+    expect(!!within(view!.container).queryByRole('button', { name: /^(Retry|Try again)$/ })).toBe(outcome.retry)
+  }
+  view!.unmount(); release?.()
+  history.replaceState({}, '', '/')
+})
+
+// Transition kind is an independent axis: every non-Start action keeps its
+// reason through blocker, ready, terminal and failed answers, pending or settled.
+const transitionKinds = ['start', 'restart', 'stop', 'decide', 'make-content', 'allocate', 'archive', 'release-holdout', 'add-metric', 'after-content', 'discard', 'hard-coded'] as const
+const transitionRows = transitionKinds.flatMap(kind => outcomes.flatMap(outcome => [false, true].map(pending => ({ kind, outcome, pending }))))
+test.each(transitionRows)('refusal lifetime / $kind / later $outcome.name / pending=$pending', async ({ kind, outcome, pending }) => {
+  const setup = kind === 'start' || kind === 'restart'
+  const p = props({ status: setup ? kind === 'restart' ? 'stopped' : 'draft' : 'running' })
+  const hook = renderHook(() => useTransition(p.test))
+  await act(async () => { await hook.result.current.run(kind, async () => ({ ok: false, status: 422, message: refused, retryable: false })) })
+  expect(hook.result.current.error).toBe(refused)
+  p.test.preflight = preflight([{ code: 'no-primary-metric', ok: false }])
+  hook.rerender()
+  expect(hook.result.current.error).toBe(setup ? null : refused)
+  p.test.preflight = preflight()
+  hook.rerender()
+  expect(hook.result.current.error).toBe(setup ? null : refused)
+  const status = outcome.status
+  const body = outcome.name === 'unusable 200' ? {} : outcome.detail ? preflight([{ code: 'no-placements', ok: false, detail: outcome.detail }]) : preflight()
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json(body, { status: status || 503 })))
+  const release = acquirePlacements('/lifetime', kind, () => {})
+  await act(async () => {})
+  const read = cachedReadinessRead('/lifetime', kind)!
+  p.test.preflightRead = read; p.test.preflight = read.answer ?? null; p.test.preflightError = read.answer ? null : read.message ?? null
+  p.test.preflightPending = pending
+  hook.rerender()
+  expect(hook.result.current.error).toBe(setup ? null : refused)
+  p.test.doc = { ...p.test.doc!, status: 'archived' }
+  hook.rerender()
+  expect(hook.result.current.error).toBeNull()
+  release()
+})
+
+test('mounted sidebar keeps an other-page blocker under this page’s notice', async () => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+  vi.stubGlobal('matchMedia', (media: string) => ({ matches: false, media, addEventListener() {}, removeEventListener() {} }))
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} })
+  history.replaceState({}, '', '/admin/puck/pages/here')
+  const p = props({ id: 'two-drafts' })
+  const placements = [{ ...page, title: 'Landing', detail: 'Draft' }, { collection: 'pages', id: 'other', title: 'Checkout', detail: 'Draft' }]
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.endsWith('/editor-surface') ? p.surface
+    : url.endsWith('/preflight') ? { ...preflight([{ code: 'placement-unpublished', ok: false, detail: placements }]), placements }
+      : url.includes('xp-experiments?') ? { docs: [p.test.doc] } : p.test.doc)))
+  const config: Config = { components: { ExperimentSlot: ExperimentSlotEditor } }
+  const view = render(<Puck config={config} data={{ root: { props: {} }, content: [{ type: 'ExperimentSlot', props: {
+    id: 'two-drafts-block', experiment: { id: 'two-drafts', slug: 'headline' }, control: [], variantA: [], variantB: [], variantC: [],
+  } }] }} iframe={{ enabled: false }} ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}>
+    <Puck.Preview /><div data-testid="two-drafts-sidebar"><Puck.Fields /></div>
+  </Puck>)
+  await act(async () => {})
+  const sidebar = within(view.getByTestId('two-drafts-sidebar'))
+  expect(sidebar.getByText('Publish this page to start the test.')).toBeTruthy()
+  expect(sidebar.getByText(otherPage, { exact: false })).toBeTruthy()
+  expect(sidebar.queryByRole('button', { name: 'Start' })).toBeNull()
+  history.replaceState({}, '', '/')
+})
+
+test('this page absent with another published page still polls its save notice', async () => {
+  vi.useFakeTimers()
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ ...preflight(), placements: [{ collection: 'pages', id: 'elsewhere', detail: 'Published' }] })))
+  const release = acquirePlacements('/notice', 'elsewhere-only', () => {})
+  await act(async () => {})
+  const read = cachedReadinessRead('/notice', 'elsewhere-only')!
+  expect(editorPlacementMessage(read.answer?.placements, page, 'draft')).toBe('Save this page to put the test on it.')
+  const stop = watchPlacementNotice('/notice', 'elsewhere-only', document)
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+  expect(fetch).toHaveBeenCalledTimes(2)
+  stop(); release()
+})
+
+import { DecideDialog } from '../../../../src/testSurface/actions/DecideDialog.js'
+import T7 from '../../../_fixtures/snapshots/T7.json'
+test.each(outcomes)('mounted Decide refusal survives readiness / $name', async outcome => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/results') ? Response.json({ phases: [], snapshot: T7 })
+    : Response.json({ errors: [{ code: 'future-refusal', message: refused }] }, { status: 422 })))
+  const p = props({ status: 'running' })
+  const close = vi.fn()
+  const content = () => <DecideDialog id={doc.id} arms={p.test.doc!.arms} checks={p.test.preflight?.checks} apiRoute="/api" onClose={close} />
+  const view = render(content())
+  await act(async () => {})
+  fireEvent.click(within(view.container).getByRole('button', { name: 'Decide' }))
+  await act(async () => {})
+  expect(within(view.container).getByRole('alert').textContent).toBe(refused)
+  p.test.preflight = preflight([{ code: 'no-primary-metric', ok: false }])
+  view.rerender(content())
+  expect(within(view.container).getByRole('alert').textContent).toBe(refused)
+  p.test.preflight = preflight()
+  view.rerender(content())
+  expect(within(view.container).getByRole('alert').textContent).toBe(refused)
+  // Deliver the later read through the same producer used by the results shell.
+  const body = outcome.name === 'unusable 200' ? {} : outcome.detail ? preflight([{ code: 'no-placements', ok: false, detail: outcome.detail }]) : preflight()
+  vi.mocked(fetch).mockImplementation(async () => Response.json(body, { status: outcome.status || 503 }))
+  const release = acquirePlacements('/decide', outcome.name, () => {})
+  await act(async () => {})
+  p.test.preflight = cachedReadinessRead('/decide', outcome.name)?.answer ?? null
+  view.rerender(content())
+  expect(within(view.container).getByRole('alert').textContent).toBe(refused)
+  fireEvent.click(within(view.container).getByRole('button', { name: 'Cancel' }))
+  expect(close).toHaveBeenCalledOnce()
+  view.unmount(); release()
 })

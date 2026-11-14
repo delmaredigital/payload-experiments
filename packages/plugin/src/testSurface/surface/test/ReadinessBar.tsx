@@ -18,6 +18,6 @@ export function ReadinessBar({ onHeightChange, ...props }: SectionProps & { onHe
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
   }, [onHeightChange])
   return <div ref={ref} className="xp-test-readiness-bar" role="region" aria-label={C.label}>
-    {props.test.doc ? <ReadinessContent key={`${props.test.doc.id}/${props.test.doc.status}`} {...props} bar /> : null}
+    {props.test.doc ? <ReadinessContent key={`${props.test.doc.id}/${props.test.doc.status}`} {...props} /> : null}
   </div>
 }

@@ -486,11 +486,11 @@ test('a successful in-flight arm write clears a document-refetch error', async (
   refetch = true
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
   fireEvent(document, new Event('visibilitychange'))
-  await screen.findByText("Couldn't check readiness. Try again.")
+  await screen.findByText("Couldn't load this test. Try selecting it again.")
   expect(screen.queryByText(C.loadingBeforeNew)).toBeNull()
   await act(async () => { complete(response({ doc: { ...doc, arms: [...doc.arms, { key: 'variantB', kind: 'variant', label: 'Variant B', slot: 'variantB', weight: 0 }] } })) })
   await screen.findByRole('tab', { name: 'Variant B' })
-  expect(screen.queryByText("Couldn't check readiness. Try again.")).toBeNull()
+  expect(screen.queryByText("Couldn't load this test. Try selecting it again.")).toBeNull()
 })
 
 test('four populated page versions remain reachable when bound to a two-version test', async () => {

@@ -120,12 +120,12 @@ test.each(['results', 'none', 'unavailable', 'failed', 'unbound'] as const)('sid
   await mount(state === 'unbound')
   expect(fields().queryByRole('region', { name: C.versionsGroup })).toBeNull()
   if (state === 'results') {
-    expect(fields().getByText("You don't have permission to check where this test is used.")).toBeTruthy()
+    expect(fields().getByText("You can view this test's results.")).toBeTruthy()
     expect(fields().getByRole('button', { name: C.configure })).toBeTruthy()
-  } else if (state === 'none') expect(fields().getAllByText("You don't have permission to check where this test is used.").length).toBeGreaterThan(0)
-  else if (state === 'unavailable') expect(fields().getByText('This test no longer exists.')).toBeTruthy()
+  } else if (state === 'none') expect(fields().getAllByText("You don't have access to this test. You can still edit its content.").length).toBeGreaterThan(0)
+  else if (state === 'unavailable') expect(fields().getByText("This test isn't available to you. You can still edit its content.")).toBeTruthy()
   else if (state === 'failed') {
-    expect(fields().getByText("Couldn't check readiness. Try again.")).toBeTruthy()
+    expect(fields().getByText("Couldn't load this test. Try selecting it again.")).toBeTruthy()
     failed = false; fireEvent.click(fields().getByRole('button', { name: C.retrySetup }))
     await fields().findByRole('region', { name: C.versionsGroup })
   } else {

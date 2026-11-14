@@ -25,7 +25,7 @@ import type { PreflightResult } from '../../../types/endpoints.js'
 import { usePlacementNotice } from '../../../puck/editor/usePlacementNotice.js'
 import { subscribePlacements, cachedPreflight, cachedReadinessRead, placementsPending, placementsBlocking, placementReadError } from '../../../puck/editor/placementsCache.js'
 import { currentPuckDocument } from '../../../puck/editor/editor.model.js'
-import { editorPlacementMessage, editorPlacementChecks } from '../editorPlacement.js'
+import { editorPlacementMessage, editorPreflight } from '../editorPlacement.js'
 import './testPage.css'
 
 export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded = false, onDocument, onPreflight, requestPreflight }: {
@@ -57,7 +57,7 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   surface = { ...surface, editorPage, editorPlacementMessage: message }
   usePlacementNotice(surface.apiRoute, id, watching ? sharedDocument.preflightError ?? (placementFailed ? placementReadError(surface.apiRoute, id) : message) : undefined)
   const setup = documentState.doc?.status === 'draft' || documentState.doc?.status === 'stopped'
-  const test = message && setup && preflight && editorPage ? { ...sharedDocument, preflight: { ...preflight, checks: [...editorPlacementChecks(preflight.checks, editorPage), { code: 'no-placements' as const, ok: false }] } } : sharedDocument
+  const test = setup ? { ...sharedDocument, preflight: editorPreflight(preflight, surface) } : sharedDocument
   useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
   const frame = (body: ReactNode) => {
     const children = <div className="xp-test-surface">{body}</div>
@@ -67,7 +67,7 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   if (!surface.canManage) return frame(<ResultsBody id={id} surface={surface} />)
   if (test.loadState !== 'ready' || !test.doc) return frame(<div className="xp-test-page" role={test.loadState === 'error' ? 'alert' : 'status'}>
     <p>{test.preflightRead?.message ?? (test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading)}</p>
-    {test.preflightRead?.retry ? <Button onClick={() => void test.reload()}>{C.retry}</Button> : null}
+    {(test.preflightRead?.retry ?? test.loadState === 'error') ? <Button onClick={() => void test.reload()}>{C.retry}</Button> : null}
   </div>)
   const parts = test.doc.kind === 'block' ? pageBlockParts : test.doc.kind === 'page' ? pageParts : settingParts
   const props = { test, surface }

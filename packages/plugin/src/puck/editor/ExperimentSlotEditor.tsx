@@ -25,8 +25,6 @@ import { QuickTestActions } from './QuickTestActions.js'
 import type { TestDocApi } from '../../testSurface/surface/contracts.js'
 import type { TestDocument } from '../../testSurface/surface/testDocument.model.js'
 import { BlockerList } from '../../testSurface/surface/readiness/BlockerList.js'
-import { blockingSteps, pageReadinessContext } from '../../testSurface/surface/readiness/readiness.model.js'
-import { READINESS_COPY } from '../../testSurface/copy/readiness.js'
 import { resolvePuckRoutes, type PuckRoutes } from '../routes.js'
 import { PuckHostProvider, usePuckRoutes } from '../hostContext.js'
 import { pickerCopy, slotLabels } from '../copy.js'
@@ -40,7 +38,7 @@ import { AddVariant, RemoveVersion, VersionActions, VersionWeights, useArmWrites
 import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
 import { acquirePlacements, subscribePlacements, cachedPreflight, cachedReadinessRead, placementsPending, placementsBlocking, placementReadError, invalidatePlacements, refreshPlacements, focusPlacements } from './placementsCache.js'
-import { editorPlacementChecks, editorPlacementMessage } from '../../testSurface/surface/editorPlacement.js'
+import { sidebarReadinessBlockers, editorPlacementMessage } from '../../testSurface/surface/editorPlacement.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { localPlacements } from './localPlacements.js'
 import { usePlacementNotice } from './usePlacementNotice.js'
@@ -149,7 +147,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         }
       } catch (cause) {
         if (current && revision === request) {
-          const read = classifyReadinessRead(cause instanceof TestReadError ? cause.status : 0, undefined, ++documentFailures.current.failures)
+          const read = classifyReadinessRead(cause instanceof TestReadError ? cause.status : 0, undefined, ++documentFailures.current.failures, { kind: 'document', surface: 'editor' })
           const forbidden = read.loadState === 'forbidden'
           const missing = read.loadState === 'missing'
           setLoaded(value => ({ id: experimentId, read, forbidden, missing, error: !forbidden && !missing, shared: value?.id === experimentId ? value?.shared : undefined }))
@@ -363,17 +361,16 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       if (doc && experimentId !== undefined) publishExperiment(experimentId, doc)
     },
   }
-  const blockers = quickTest.doc && surface ? blockingSteps(currentPreflight && placementMessage && editorPage ? { ...currentPreflight, checks: editorPlacementChecks(currentPreflight.checks, editorPage) } : currentPreflight, pageReadinessContext(quickTest.doc, currentPreflight, surface)) : []
   const placementNotice = quickTest.preflightRead?.message ?? placementMessage
   usePlacementNotice(api, experimentId, canManage ? placementNotice : undefined)
   const placementNoticeView = <PlacementNotice read={quickTest.preflightRead} message={placementMessage} running={experiment?.status === 'running'} onRetry={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId) }} />
-  const sidebarBlockers = quickTest.hasUnsaved ? [{ sentence: READINESS_COPY.saveFirst }, ...blockers]
-    : !currentPreflight && !placementNotice ? [{ sentence: READINESS_COPY.checking }] : blockers.filter(step => step.sentence !== placementNotice)
+  const sidebarBlockers = surface ? sidebarReadinessBlockers(quickTest, surface) : []
 
   const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} experiment={experiment} writes={writes} canManage={canManage}
     countBlocks={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null
 
-  const accessNotice = result?.read ? result.read.retry ? <Banner tone="error" action={<Button onClick={() => setReadAttempt(value => value + 1)}>{editorCopy.retrySetup}</Button>}>{result.read.message}</Banner> : <p className="xp-ui-help">{result.read.message}</p>
+  const documentRead = result?.read ? classifyReadinessRead(result.read.status, undefined, documentFailures.current.failures, { kind: 'document', surface: 'editor', resultsOnly }) : undefined
+  const accessNotice = documentRead ? documentRead.retry ? <Banner tone="error" action={<Button onClick={() => setReadAttempt(value => value + 1)}>{editorCopy.retrySetup}</Button>}>{documentRead.message}</Banner> : <p className="xp-ui-help">{documentRead.message}</p>
         : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>
         : experimentId === undefined && resultsOnly ? <p className="xp-ui-help">{editorCopy.setupForbidden}</p>
         : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>

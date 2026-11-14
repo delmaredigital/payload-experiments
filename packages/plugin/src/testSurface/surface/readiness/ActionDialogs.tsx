@@ -31,14 +31,14 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
   const [typed, setTyped] = useState('')
   const [content, setContent] = useState<ContentResult | null>(null)
   const [reportBusy, setReportBusy] = useState(false)
-  const transition = useTransition(test, onClose)
+  const transition = useTransition(test, onClose, surface)
   const phrase = action.confirm.phrase ? expectedConfirm(action.confirm.phrase.action, winnerLabel) : null
   const ready = action.id !== 'start' || (!transition.checking && canStartTest(test, surface.editorPlacementMessage))
   const enabled = ready && !transition.busy && !test.hasUnsaved && test.saving !== 'saving' && (!phrase || matchesConfirm(phrase, typed))
   async function submit(finish = false) {
     if (!enabled || !test.doc) return
     const id = test.doc.id
-    await transition.run(async () => {
+    await transition.run(finish ? 'archive' : action.id === 'start' && test.doc.status === 'stopped' ? 'restart' : action.id, async () => {
       if (finish) return api.archive(id, { mode: 'after-content' })
       if (action.archive) return api.archive(id, { ...action.archive, ...(phrase ? { confirmation: typed.trim() } : {}) })
       if (action.id === 'start') return api.start(id)
@@ -77,7 +77,7 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
 export function AllocateAction({ test, surface, onClose }: Props) {
   const current = test.doc?.allocation ?? 100
   const [value, setValue] = useState(String(Math.min(100, current + 1)))
-  const transition = useTransition(test, onClose)
+  const transition = useTransition(test, onClose, surface)
   const allocation = Number(value)
   const valid = value.trim() !== '' && Number.isInteger(allocation) && allocation > current && allocation <= 100
   const disabled = transition.busy || test.hasUnsaved || test.saving === 'saving'
@@ -91,7 +91,7 @@ export function AllocateAction({ test, surface, onClose }: Props) {
     {transition.error ? <p role="alert">{transition.error}</p> : null}
     <Button busy={transition.busy} disabled={disabled || !valid} onClick={() => {
       // Not-found can also mean the experiment is missing; use round copy for the missing phase record.
-      if (valid && test.doc) void transition.run(() => createApi(surface.apiRoute).allocate(test.doc!.id, { allocation }, { notFound: API_MESSAGES.roundChanged }))
+      if (valid && test.doc) void transition.run('allocate', () => createApi(surface.apiRoute).allocate(test.doc!.id, { allocation }, { notFound: API_MESSAGES.roundChanged }))
     }}>{C.allocate}</Button>
     <Button disabled={transition.busy} onClick={onClose}>{A.cancel}</Button>
   </Dialog>
@@ -106,7 +106,7 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
   const [warnings, setWarnings] = useState<AddMetricWarning[] | null>(null)
   const placementLabels = usePlacementLabels({ details: (warnings ?? []).filter(warning => warning.code === 'placement-unchecked').map(warning => warning.detail), preflight: test.preflight, ...surface })
   const [role, setRole] = useState<AddMetricBody['role']>('secondary')
-  const transition = useTransition(test, onClose)
+  const transition = useTransition(test, onClose, surface)
   useEffect(() => {
     const controller = new AbortController()
     void (async () => {
@@ -149,7 +149,7 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
       {test.hasUnsaved || test.saving === 'saving' ? <p>{test.stale ? C.reloadFirst : C.saveFirst}</p> : !loading && !loadError && available.length > 0 && !selected ? <p>{C.chooseGoalToAdd}</p> : null}
       <Button busy={transition.busy} disabled={disabled || loading || !!loadError || !selected} onClick={() => {
         // Goal and phase lookups share not-found; prefer the more likely missing goal without reading server text.
-        if (selected && test.doc) void transition.run(async () => {
+        if (selected && test.doc) void transition.run('add-metric', async () => {
           const result = await createApi(surface.apiRoute).addMetric(test.doc!.id, { metric: selected.id, role }, { notFound: API_MESSAGES.goalNotFound })
           if (result.ok) {
             if (result.data?.warnings?.length) setWarnings(result.data.warnings)

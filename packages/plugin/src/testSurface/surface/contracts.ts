@@ -42,8 +42,6 @@ export interface KindParts {
 
 /** Readiness pieces (ADM-23). */
 export interface ReadinessParts {
-  /** Sticky-header banner incl. Start / status sentence. */
-  Banner: ComponentType<SectionProps>
   /** "Saving…" / "Saved" / error indicator for the header. */
   SaveStatus: ComponentType<{ test: TestDocApi }>
   /** Check-circle state per section, from preflight. */

@@ -43,7 +43,7 @@ export const editorCopy = {
   createError: "Couldn't create the test. Try again.",
   savingVersions: 'Saving version changes…', refreshing: 'Refreshing results…',
   loading: 'Loading test…',
-  loadError: "Couldn't load this test. Try again.",
+  loadError: "Couldn't load this test. Try selecting it again.",
   orphan: (label: string, versions: string) => `${label} has content on this page, but the test only has ${versions}. Visitors never see it.`,
   addLeftover: 'Add to the test', deleteContent: 'Delete its content',
   deleteContentTitle: (label: string) => `Delete ${label} content?`,

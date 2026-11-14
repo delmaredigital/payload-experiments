@@ -20,14 +20,10 @@ import { BlockerList } from './BlockerList.js'
 
 const RUNNING_ACTIONS: readonly ActionId[] = ['stop', 'add-metric', 'allocate']
 
-export function Banner(props: SectionProps) {
-  return props.test.doc ? <ReadinessContent key={`${props.test.doc.id}/${props.test.doc.status}`} {...props} /> : null
-}
-
-export function ReadinessContent({ test, surface, resultsVersion, bar = false }: SectionProps & { bar?: boolean }) {
+export function ReadinessContent({ test, surface, resultsVersion }: SectionProps) {
   const [selected, setSelected] = useState<ActionId | null>(null)
   const [people, setPeople] = useState<number | null>(null)
-  const transition = useTransition(test)
+  const transition = useTransition(test, undefined, surface)
   const doc = test.doc!
   useEffect(() => {
     let active = true
@@ -51,7 +47,6 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
   const unsaved = test.hasUnsaved || test.saving === 'saving'
   const blockers: Array<{ section: SectionId | 'header'; sentence: string; code: string; arm?: string }> = [...readinessBlockers]
   if (unsaved && !test.stale) blockers.unshift({ section: 'header', sentence: C.saveFirst, code: 'unsaved' })
-  else if (test.preflightError && !bar) blockers.unshift({ section: 'header', sentence: test.preflightError, code: 'readiness-error' })
   else if (!test.preflight && !test.preflightError) blockers.unshift({ section: 'header', sentence: C.checking, code: 'checking' })
   const errorSections = [...new Set(Object.keys(test.errors).filter(path => path !== '_section').map(path => errorSection(path) ?? 'what'))]
   for (const section of errorSections.reverse()) blockers.unshift({ section, sentence: test.stale ? C.reloadFirst : fixFieldsNext(TEST_PAGE.sections[section]), code: `validation:${section}` })
@@ -65,7 +60,7 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
   const sentence = transition.busy ? C.changing : setup ? ready && !blockers.length ? C.ready : null
     : doc.status === 'running' ? runningCopy(displayDate(doc.startedAt), people, daysRemaining(doc, Date.now()))
       : doc.status === 'decided' ? decidedCopy(displayDate(doc.decidedAt), winner) : C.archived
-  return <div className={`xp-readiness xp-readiness--${setup && ready && !blockers.length && !transition.busy ? 'ready' : 'neutral'}${bar ? ' xp-readiness--bar xp-tests-container' : ''}`}>
+  return <div className={`xp-readiness xp-readiness--${setup && ready && !blockers.length && !transition.busy ? 'ready' : 'neutral'} xp-readiness--bar xp-tests-container`}>
     {setup && test.preflight?.checks.some(check => check.code === 'page-targets-unchecked' && check.warning) ? <p>{C.uncheckedPages}</p> : null}
     {test.preflight?.checks.filter(check => check.code === 'make-content-unsupported' && check.warning).map(check => <p key={check.code}>{READINESS[check.code].next(check.detail, doc)}</p>)}
     {test.preflight?.checks.filter(check => check.warning && ['goal-in-some-versions', 'placement-unchecked'].includes(check.code)).map((check, index) => {
@@ -75,7 +70,7 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
     {[...new Map(test.preflight?.goalNotes?.map(note => [String(note.metricId), note])).values()].map(note => <p className="xp-readiness__warning" key={note.metricId}><span aria-hidden="true">⚠ </span>{note.message}</p>)}
     {doc.status === 'stopped' ? <p>{stoppedCopy(displayDate(doc.stoppedAt))}</p> : null}
     <div className="xp-readiness__state">
-      {bar ? <><SaveStatus test={test} messageInBlockerList={setup && !!test.preflight && !test.preflightError} />{sentence && (saveStatusMessage(test) || test.preflightError) ? <span className="xp-readiness__separator" aria-hidden="true">·</span> : null}</> : null}
+      <SaveStatus test={test} messageInBlockerList={setup && !!test.preflight && !test.preflightError} />{sentence && (saveStatusMessage(test) || test.preflightError) ? <span className="xp-readiness__separator" aria-hidden="true">·</span> : null}
       {sentence ? <p role="status">{sentence}</p> : null}
       {setup ? <BlockerList steps={blockers} renderSentence={(_, index) => {
         const step = blockers[index]!
@@ -90,9 +85,9 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
         const disabled = transition.busy || !!selected || !!reason || item.id === 'start' && !startEnabled
         return <span key={item.id} title={reason}>
           {reason && item.id !== 'start' ? <span className="xp-readiness-action-reason">{reason}</span> : null}
-          <Button busy={transition.busy} variant={item.tone === 'primary' || (bar && item.id === 'stop') ? 'primary' : 'secondary'} disabled={disabled} onClick={() => {
+          <Button busy={transition.busy} variant={item.tone === 'primary' || item.id === 'stop' ? 'primary' : 'secondary'} disabled={disabled} onClick={() => {
             if (disabled) return
-            if (item.id === 'start' && doc.status === 'draft') void transition.run(() => createApi(surface.apiRoute).start(doc.id))
+            if (item.id === 'start' && doc.status === 'draft') void transition.run('start', () => createApi(surface.apiRoute).start(doc.id))
             else setSelected(item.id)
           }}>{item.label}</Button>
         </span>

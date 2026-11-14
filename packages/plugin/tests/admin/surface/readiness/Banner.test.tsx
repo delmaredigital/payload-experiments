@@ -3,7 +3,9 @@ import { ACTIONS_COPY } from '../../../../src/testSurface/copy/actions.js'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { useTestDocument } from '../../../../src/testSurface/surface/useTestDocument.js'
-import { Banner } from '../../../../src/testSurface/surface/readiness/Banner.js'
+import { ReadinessBar } from '../../../../src/testSurface/surface/test/ReadinessBar.js'
+import type { SectionProps } from '../../../../src/testSurface/surface/contracts.js'
+const Banner = (props: SectionProps) => <ReadinessBar {...props} onHeightChange={() => {}} />
 import * as adminApi from '../../../../src/testSurface/api.js'
 import { SaveStatus } from '../../../../src/testSurface/surface/readiness/SaveStatus.js'
 import { readinessParts } from '../../../../src/testSurface/surface/readiness/parts.js'
@@ -45,17 +47,16 @@ test.each([
 })
 
 test('exports the complete parts and a ready primary Start for a draft', () => {
-  expect(readinessParts.Banner).toBe(Banner)
   expect(readinessParts.SaveStatus).toBe(SaveStatus)
   render(<Banner {...props()} />)
-  expect(screen.getByRole('status').textContent).toBe('Ready to start.')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toBe('Ready to start.')
   expect(button('Start').disabled).toBe(false)
   expect(button('Start').closest('.xp-readiness--ready')).toBeTruthy()
 })
 test('missing items are linked in section order and disable Start with a visible reason', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'no-planned-duration', ok: false }, { code: 'no-primary-metric', ok: false }]) })} />)
   expect(screen.getAllByRole('link')[0]!.getAttribute('href')).toBe('#section-win')
-  expect(screen.getByRole('status').textContent).toContain('Before you can start:')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toContain('Before you can start:')
   expect(button('Start').disabled).toBe(true)
   expect(button('Start').closest('[title]')?.getAttribute('title')).toBe('Choose a goal.')
   expect(screen.getByText('Choose how long to run it.')).toBeTruthy()
@@ -63,7 +64,7 @@ test('missing items are linked in section order and disable Start with a visible
 test('block path refusal shows its message and removal line in Who takes part and disables Start', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'block-path-rule', ok: false, detail: { rules: [1] } }]) })} />)
   const message = 'Remove the page-path rule in Who takes part; page block tests run on their page.'
-  expect(screen.getByRole('status').textContent).toContain(message)
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toContain(message)
   expect(screen.getByText(message).closest('a')?.getAttribute('href')).toBe('#section-who')
   expect(button('Start').disabled).toBe(true)
   expect(button('Start').closest('[title]')?.getAttribute('title')).toBe(message)
@@ -76,10 +77,10 @@ test.each([{ hasUnsaved: true }, { saving: 'saving' as const }])('Start disabled
 test('absent preflight never permits a start; a header refusal has no section link', () => {
   const view = render(<Banner {...props({}, { preflight: null })} />)
   expect(button('Start').disabled).toBe(true)
-  expect(screen.getByRole('status').textContent).toContain('Checking readiness…')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toContain('Checking readiness…')
   view.rerender(<Banner {...props({}, { preflight: preflight([{ code: 'page-user-unit', ok: false }]) })} />)
   expect(screen.queryByRole('link')).toBeNull()
-  expect(screen.getByRole('status').textContent).toContain('Whole-page tests count visitors. Create the test again counting visitors.')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toContain('Whole-page tests count visitors. Create the test again counting visitors.')
 })
 test('draft start is direct, locks synchronously, posts once with credentials and reloads on success', async () => {
   let resolve!: (value: Response) => void
@@ -126,7 +127,7 @@ test('running sentence omits unknown parts and offers only the three status acti
   const fetcher = vi.fn()
   vi.stubGlobal('fetch', fetcher)
   render(<Banner {...props({ status: 'running', analysis: null })} />)
-  expect(screen.getByRole('status').textContent).toBe('Running')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toBe('Running')
   expect(screen.getAllByRole('button').map(item => item.textContent)).toEqual(['Stop', 'Add a goal', 'Let more people in'])
   expect(fetcher).not.toHaveBeenCalled()
 })
@@ -136,15 +137,15 @@ test('running people count comes from the summary with results access, once per 
   const p = props({ status: 'running', startedAt: '2026-11-01T12:00:00Z' })
   p.surface.canReadResults = true
   const view = render(<Banner {...p} />)
-  await waitFor(() => expect(screen.getByRole('status').textContent).toContain('1,200 people so far'))
-  expect(screen.getByRole('status').textContent).toMatch(/^Running since 1 Nov 2026 · 1,200 people so far · about \d+ days to go$/)
+  await waitFor(() => expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toContain('1,200 people so far'))
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toMatch(/^Running since 1 Nov 2026 · 1,200 people so far · about \d+ days to go$/)
   expect(fetcher).toHaveBeenCalledTimes(1)
   expect(fetcher).toHaveBeenCalledWith('/custom-api/xp/experiments/summary?ids=xp1', { method: 'GET', credentials: 'include' })
   view.rerender(<Banner {...p} test={{ ...p.test, doc: { ...p.test.doc!, name: 'New name' } }} />)
   expect(fetcher).toHaveBeenCalledTimes(1)
   view.rerender(<Banner {...p} test={{ ...p.test, doc: { ...p.test.doc!, status: 'stopped' } }} />)
   view.rerender(<Banner {...p} />)
-  await waitFor(() => expect(screen.getByRole('status').textContent).toContain('1,200 people so far'))
+  await waitFor(() => expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toContain('1,200 people so far'))
   expect(fetcher).toHaveBeenCalledTimes(2)
 })
 test.each(['forbidden', 'missing', 'missing count', 'no body'])('running omits unavailable summary people count: %s', async kind => {
@@ -155,7 +156,7 @@ test.each(['forbidden', 'missing', 'missing count', 'no body'])('running omits u
   p.surface.canReadResults = true
   await act(async () => { render(<Banner {...p} />) })
   expect(fetcher).toHaveBeenCalledTimes(1)
-  expect(screen.getByRole('status').textContent).toBe('Running')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toBe('Running')
   expect(screen.queryByRole('alert')).toBeNull()
 })
 test.each(['failed response', 'rejection'])('running keeps the successful count after a summary refresh %s', async failure => {
@@ -167,10 +168,10 @@ test.each(['failed response', 'rejection'])('running keeps the successful count 
   else summary.mockResolvedValueOnce({ ok: false, status: 503, message: 'Unavailable', retryable: true })
   vi.spyOn(adminApi, 'createApi').mockReturnValue({ ...api, summary })
   const view = render(<Banner {...p} resultsVersion={1} />)
-  await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Running · 1,200 people so far'))
+  await waitFor(() => expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toBe('Running · 1,200 people so far'))
   await act(async () => { view.rerender(<Banner {...p} resultsVersion={2} />) })
   expect(summary).toHaveBeenCalledTimes(2)
-  expect(screen.getByRole('status').textContent).toBe('Running · 1,200 people so far')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toBe('Running · 1,200 people so far')
 })
 test('a rejected summary on first load leaves the count unknown', async () => {
   const p = props({ status: 'running', analysis: null })
@@ -180,7 +181,7 @@ test('a rejected summary on first load leaves the count unknown', async () => {
   vi.spyOn(adminApi, 'createApi').mockReturnValue({ ...api, summary })
   await act(async () => { render(<Banner {...p} />) })
   expect(summary).toHaveBeenCalledTimes(1)
-  expect(screen.getByRole('status').textContent).toBe('Running')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toBe('Running')
 })
 test('running allocation at 100% is disabled with an explanation', () => {
   render(<Banner {...props({ status: 'running', allocation: 100 })} />)
@@ -205,7 +206,7 @@ test('decided uses saved winner label and model actions, including typed discard
   const fetcher = vi.fn().mockResolvedValue(success())
   vi.stubGlobal('fetch', fetcher)
   render(<Banner {...p} />)
-  expect(screen.getByRole('status').textContent).toBe('Decided 1 Nov 2026: Short headline.')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toBe('Decided 1 Nov 2026: Short headline.')
   for (const name of ['Make it the content', 'Release holdout', 'Discard winner', 'Finish archiving']) expect(button(name)).toBeTruthy()
   fireEvent.click(button('Discard winner'))
   expect(dialogButton('Discard winner').disabled).toBe(true)
@@ -248,7 +249,7 @@ test.each([true, false])('make-content shows its per-document report until Done,
 })
 test('archived has no actions; read-only users get status without mutation controls', () => {
   const view = render(<Banner {...props({ status: 'archived' })} />)
-  expect(screen.getByRole('status').textContent).toBe('Archived.')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toBe('Archived.')
   expect(screen.queryByRole('button')).toBeNull()
   const p = props({ status: 'running' })
   view.rerender(<Banner {...p} surface={{ ...p.surface, canManage: false }} />)
@@ -317,7 +318,7 @@ test('retry cannot discard staged changes', () => {
 
 test('retained passing preflight never enables Start after a failed readiness refresh', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'no-primary-metric', ok: true }]), preflightError: "Couldn't check readiness. Try again." })} />)
-  expect(screen.getByRole('status').textContent).toContain("Couldn't check readiness. Try again.")
+  expect(screen.getByRole('alert').textContent).toBe("Couldn't check readiness. Try again.")
   expect(button('Start').disabled).toBe(true)
   expect(button('Start').closest('[title]')?.getAttribute('title')).toBe("Couldn't check readiness. Try again.")
   expect(button('Start').closest('.xp-readiness--ready')).toBeNull()
@@ -334,7 +335,7 @@ test('an open restart confirmation follows a later readiness refusal or refresh 
 })
 test('Start stays disabled while the readiness check after a save is still running', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'no-primary-metric', ok: true }]), preflightPending: true })} />)
-  expect(screen.getByRole('status').textContent).toContain('Ready to start.')
+  expect(screen.getAllByRole('status').find(node => node.tagName !== 'SPAN')!.textContent).toContain('Ready to start.')
   expect(button('Start').disabled).toBe(true)
 })
 

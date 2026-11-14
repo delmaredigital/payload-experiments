@@ -27,7 +27,7 @@ function read(api: string, id: DocId, fresh: boolean, blocking = false): Entry {
       const { response, body: data } = await readPreflight(signal => fetch(`${api}/xp/experiments/${encodeURIComponent(id)}/preflight`, {
         credentials: 'include', cache: 'no-store', signal,
       }), controller.signal)
-      entry.read = classifyReadinessRead(response.status, data, entry.failures + 1)
+      entry.read = classifyReadinessRead(response.status, data, entry.failures + 1, { kind: 'where-used' })
       if (!response.ok) { entry.response = new Response(JSON.stringify(data), { status: response.status, headers: response.headers }); return }
       if (!isPreflightResult(data)) return
       entry.preflight = data
@@ -36,7 +36,7 @@ function read(api: string, id: DocId, fresh: boolean, blocking = false): Entry {
     } catch { return undefined }
   })().then(placements => {
     entry.pending = false
-    entry.read ??= classifyReadinessRead(0, undefined, entry.failures + 1)
+    entry.read ??= classifyReadinessRead(0, undefined, entry.failures + 1, { kind: 'where-used' })
     entry.failures = entry.read.failed ? entry.failures + 1 : 0
     entry.value = placements
     if (cache.get(key) === entry) {
@@ -154,11 +154,7 @@ type NoticeSession = {
   schedule: () => void
 }
 const notices = new WeakMap<Document, NoticeSession>()
-const noticeDelay = (api: string, id: DocId) => {
-  const failures = latest.get(keyFor(api, id))?.failures ?? 0
-  const read = cachedReadinessRead(api, id)
-  return classifyReadinessRead(read?.status ?? 0, read?.answer, failures, true).pollDelay
-}
+const noticeDelay = (api: string, id: DocId) => cachedReadinessRead(api, id)?.pollDelay ?? null
 export function watchPlacementNotice(api: string, id: DocId, doc: Document): () => void {
   let session = notices.get(doc)
   if (!session) {
