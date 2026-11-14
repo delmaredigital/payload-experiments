@@ -37,7 +37,7 @@ export function createApi(apiBase: string) {
       const error = Array.isArray(envelope?.errors) ? envelope.errors[0] : undefined
       const code = response.status === 501 ? 'not-implemented' : typeof error?.code === 'string' ? error.code : undefined
       return { ok: false, status: response.status, ...(code ? { code } : {}),
-        message: refusalMessage(code, response.status, typeof error?.message === 'string' ? error.message : undefined, options),
+        message: refusalMessage(code, response.status, typeof error?.message === 'string' ? error.message : undefined, options, error?.detail),
         retryable: code === 'page-busy' || code === 'commit-unverified' || (response.status >= 500 && response.status !== 501) }
     } catch {
       return { ok: false, status: 0, message: API_MESSAGES.network, retryable: true }

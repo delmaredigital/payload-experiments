@@ -229,7 +229,7 @@ test('a successful shared retry clears the drawer focus error and restores curre
 })
 
 
-test.each([false, true])('failed placement notices recover with visible-only backoff and stop on success (drawer: %s)', async drawer => {
+test.each([false, true].flatMap(drawer => ['network', 'abort', 'http', 'malformed'].map(transport => ({ drawer, transport }))))('failed placement notices recover with visible-only backoff and stop on success ($transport, drawer: $drawer)', async ({ drawer, transport }) => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
   vi.useFakeTimers()
@@ -237,7 +237,12 @@ test.each([false, true])('failed placement notices recover with visible-only bac
   await act(async () => { await vi.advanceTimersByTimeAsync(100) })
   const original = vi.mocked(fetch).getMockImplementation()!
   let failing = true
-  vi.mocked(fetch).mockImplementation((url, init) => failing && String(url).endsWith('/preflight') ? Promise.reject(new Error('offline')) : original(url, init))
+  vi.mocked(fetch).mockImplementation((url, init) => {
+    if (!failing || !String(url).endsWith('/preflight')) return original(url, init)
+    if (transport === 'http') return Promise.resolve(Response.json({}, { status: 500 }))
+    if (transport === 'malformed') return Promise.resolve(Response.json({ placements: [] }))
+    return Promise.reject(transport === 'abort' ? new DOMException('Aborted', 'AbortError') : new Error('offline'))
+  })
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
   const failure = drawer ? "Couldn't check readiness. Try again." : "Couldn't check where this test is used. Try again."
   expect(screen.getAllByText(failure).length).toBeGreaterThan(0)
@@ -262,7 +267,7 @@ test.each([false, true])('failed placement notices recover with visible-only bac
   view.unmount()
 })
 
-test.each([401, 403, 'forbidden'] as const)('access refusal %s has no retry or automatic polling in chrome, sidebar or drawer', async status => {
+test.each([401, 403, 'forbidden', 'not-found'] as const)('permanent refusal %s has no retry or automatic polling in chrome, sidebar or drawer', async status => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
   vi.useFakeTimers()
@@ -270,10 +275,10 @@ test.each([401, 403, 'forbidden'] as const)('access refusal %s has no retry or a
   const drawer = render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
   await act(async () => { await vi.advanceTimersByTimeAsync(100) })
   const original = vi.mocked(fetch).getMockImplementation()!
-  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? Promise.resolve(status === 'forbidden'
-    ? Response.json({ placements: [], checks: [{ code: 'no-placements', ok: false, detail: 'forbidden' }] }) : Response.json({}, { status })) : original(url, init))
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? Promise.resolve(typeof status === 'string'
+    ? Response.json({ placements: [], checks: [{ code: 'no-placements', ok: false, detail: status }] }) : Response.json({}, { status })) : original(url, init))
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
-  expect(screen.getAllByText("You don't have permission to check where this test is used.").length).toBeGreaterThanOrEqual(3)
+  expect(screen.getAllByText(status === 'not-found' ? "A page used by this test no longer exists. Choose another page." : "You don't have permission to check where this test is used.").length).toBeGreaterThanOrEqual(3)
   expect(screen.queryByRole('button', { name: /^(Retry|Try again)$/ })).toBeNull()
   expect(screen.queryByText("Couldn't check where this test is used. Try again.")).toBeNull()
   const count = requests()
@@ -309,5 +314,27 @@ test('a new notice keeps its four-second schedule beside a backed-off or stalled
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
   expect(calls('new')).toBe(before + 1)
   view.unmount()
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+
+test('a usable placements-failed answer keeps its own sentence in chrome, sidebar and drawer without transport backoff', async () => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  vi.useFakeTimers()
+  const view = render(<Puck config={{ components: { ExperimentSlot: ExperimentSlotEditor } }} data={{ root: { props: {} }, content: [block('notice-0')] }} iframe={{ enabled: false }} ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}><Puck.Preview /><Puck.Fields /></Puck>)
+  const drawer = render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
+  await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight')
+    ? Promise.resolve(Response.json({ placements: [], checks: [{ code: 'no-placements', ok: false, detail: 'placements-failed' }] })) : original(url, init))
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const before = requests()
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+    expect(requests()).toBe(before + 1)
+    expect(screen.getAllByText("Couldn't check where this test is used. Try again.").length).toBeGreaterThanOrEqual(3)
+    expect(screen.queryByText("Couldn't check readiness. Try again.")).toBeNull()
+  }
+  drawer.unmount(); view.unmount()
   expect(vi.getTimerCount()).toBe(0)
 })

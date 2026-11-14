@@ -1,4 +1,4 @@
-import { unpublishedPlacementCopy } from './readiness.js'
+import { unpublishedPlacementsCopy } from './readiness.js'
 
 export const API_MESSAGES = {
   testAlreadyDeleted: 'This test was already deleted. Reload the page.',
@@ -26,7 +26,7 @@ export const LOCKED_MESSAGES = {
   other: "Can't be changed in this state.",
 } as const
 
-export function refusalMessage(code: string | undefined, status: number, message?: string, options?: { notFound?: string; forbidden?: string; codes?: Readonly<Record<string, string>>; fallback?: string }): string {
+export function refusalMessage(code: string | undefined, status: number, message?: string, options?: { notFound?: string; forbidden?: string; codes?: Readonly<Record<string, string>>; fallback?: string }, detail?: unknown): string {
   // A per-call code wins over the status branches: entry-not-found is a 404 that is not "this test no longer exists".
   const mapped = code && options?.codes && Object.hasOwn(options.codes, code) ? options.codes[code] : undefined
   if (mapped !== undefined) return mapped
@@ -35,6 +35,6 @@ export function refusalMessage(code: string | undefined, status: number, message
   if (code === 'commit-unverified') return API_MESSAGES.commitUnverified
   if (code === 'not-implemented' || status === 501) return API_MESSAGES.notImplemented
   if (code === 'forbidden' || status === 403) return options?.forbidden ?? API_MESSAGES.forbidden
-  if (code === 'placement-unpublished') return unpublishedPlacementCopy()
+  if (code === 'placement-unpublished') return unpublishedPlacementsCopy(detail)
   return options?.fallback ?? (message || API_MESSAGES.failed)
 }

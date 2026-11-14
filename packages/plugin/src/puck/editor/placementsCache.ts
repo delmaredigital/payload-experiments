@@ -1,9 +1,10 @@
 import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
-import { PLACEMENT_FAILURE_COPY } from '../../testSurface/copy/readiness.js'
+import { isPreflightResult, readPreflight } from '../../testSurface/readPreflight.js'
+import { PLACEMENT_FAILURE_COPY, placementFailureCopy } from '../../testSurface/copy/readiness.js'
 
 type Placements = PreflightResult['placements']
-type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean; startedAt: number; failures: number; value?: Placements; previousPreflight?: PreflightResult; preflight?: PreflightResult; response?: Response }
+type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean; blocking: boolean; startedAt: number; failures: number; value?: Placements; previousPreflight?: PreflightResult; preflight?: PreflightResult; previousResponse?: Response; response?: Response }
 const cache = new Map<string, Entry>()
 const latest = new Map<string, Entry>()
 type Consumer = (placements: Placements | undefined) => void
@@ -11,33 +12,33 @@ type Consumers = { listeners: Set<Consumer>; removeListener: (notify: Consumer) 
 const consumers = new Map<string, Consumers>()
 const keyFor = (api: string, id: DocId) => JSON.stringify([api, String(id)])
 
-function read(api: string, id: DocId, fresh: boolean): Entry {
+function read(api: string, id: DocId, fresh: boolean, blocking = false): Entry {
   const key = keyFor(api, id)
   const cached = cache.get(key)
   if (cached && (!fresh || cached.pending)) return cached
   const controller = new AbortController()
   const previous = latest.get(key)
-  const entry: Entry = { controller, pending: true, startedAt: Date.now(), failures: previous?.failures ?? 0, value: previous?.failures ? undefined : previous?.value, previousPreflight: previous?.failures ? undefined : previous?.preflight ?? previous?.previousPreflight, promise: undefined! }
+  const entry: Entry = { controller, pending: true, blocking, startedAt: Date.now(), failures: previous?.failures ?? 0, value: previous?.value, previousPreflight: previous?.preflight ?? (previous?.pending ? previous.previousPreflight : undefined), previousResponse: previous?.response ?? (previous?.pending ? previous.previousResponse : undefined), promise: undefined! }
   cache.set(key, entry)
   latest.set(key, entry)
   for (const notify of consumers.get(key)?.listeners ?? []) notify(entry.value)
   entry.promise = (async () => {
     try {
-      const response = await fetch(`${api}/xp/experiments/${encodeURIComponent(id)}/preflight`, {
-        credentials: 'include', cache: 'no-store', signal: controller.signal,
-      })
-      if (!response.ok) { entry.response = response; return }
-      const data = await response.json() as PreflightResult
+      const { response, body: data } = await readPreflight(signal => fetch(`${api}/xp/experiments/${encodeURIComponent(id)}/preflight`, {
+        credentials: 'include', cache: 'no-store', signal,
+      }), controller.signal)
+      if (!response.ok) { entry.response = new Response(JSON.stringify(data), { status: response.status, headers: response.headers }); return }
+      if (!isPreflightResult(data)) return
       entry.preflight = data
       if (data.checks?.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)) return
       return Array.isArray(data.placements) ? data.placements : undefined
     } catch { return undefined }
   })().then(placements => {
     entry.pending = false
-    entry.failures = placements === undefined ? entry.failures + 1 : 0
-    if (placements !== undefined) entry.value = placements
+    entry.failures = entry.preflight ? 0 : entry.failures + 1
+    entry.value = placements
     if (cache.get(key) === entry) {
-      if (placements === undefined) cache.delete(key)
+      if (!entry.preflight) cache.delete(key)
       for (const notify of consumers.get(key)?.listeners ?? []) notify(placements)
     }
     return placements
@@ -59,7 +60,7 @@ export function invalidatePlacements(api: string, id: DocId) {
   const key = keyFor(api, id)
   cache.get(key)?.controller.abort()
   cache.delete(key)
-  if (consumers.get(key)?.listeners.size) void read(api, id, true).promise
+  if (consumers.get(key)?.listeners.size) void read(api, id, true, true).promise
   else latest.delete(key)
 }
 
@@ -123,14 +124,22 @@ export function cachedPreflight(api: string, id: DocId) {
   return entry?.preflight ?? (entry?.pending ? entry.previousPreflight : undefined)
 }
 
+/** Mandatory post-write/refusal reads guard Start in every shared consumer. */
+export function placementsBlocking(api: string, id: DocId) {
+  const entry = cache.get(keyFor(api, id))
+  return entry?.pending === true && entry.blocking
+}
+
 export function placementsPending(api: string, id: DocId) { return cache.get(keyFor(api, id))?.pending === true }
 
 /** HTTP access refusals and placement-discovery access refusals share one calm state. */
 export function placementReadError(api: string, id: DocId): string | undefined {
   const entry = latest.get(keyFor(api, id))
   if (!entry) return
-  const check = entry.preflight?.checks?.find(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
-  if (entry.response?.status === 401 || entry.response?.status === 403 || check?.detail === 'forbidden') return PLACEMENT_FAILURE_COPY.forbidden
+  const check = cachedPreflight(api, id)?.checks.find(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
+  const response = entry.pending ? entry.previousResponse : entry.response
+  if (response?.status === 401 || response?.status === 403) return PLACEMENT_FAILURE_COPY.forbidden
+  if (check) return placementFailureCopy(check.detail)
   if (entry.failures) return PLACEMENT_FAILURE_COPY['placements-failed']
 }
 
@@ -156,7 +165,7 @@ export function watchPlacementNotice(api: string, id: DocId, doc: Document): () 
     const created: NoticeSession = { requests, removeRequest: key => { requests.delete(key) }, visibility: () => {}, schedule: () => {} }
     created.schedule = () => {
       if (created.timer !== undefined) { clearTimeout(created.timer); created.timer = undefined }
-      const eligible = [...created.requests.values()].filter(request => !request.pending && placementReadError(request.api, request.id) !== PLACEMENT_FAILURE_COPY.forbidden)
+      const eligible = [...created.requests.values()].filter(request => !request.pending && ![PLACEMENT_FAILURE_COPY.forbidden, PLACEMENT_FAILURE_COPY['not-found']].some(message => message === placementReadError(request.api, request.id)))
       if (doc.visibilityState !== 'visible' || !eligible.length) return
       created.timer = setTimeout(() => {
         created.timer = undefined

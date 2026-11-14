@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Arm, DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { API_MESSAGES, refusalMessage } from '../copy/common.js'
+import { isPreflightResult, readPreflight } from '../readPreflight.js'
 import { XP_IF_UPDATED_AT_HEADER } from '../../constants.js'
+import { READINESS_COPY, PLACEMENT_FAILURE_COPY } from '../copy/readiness.js'
 import { TEST_PAGE } from '../copy/testPage.js'
 import { changedPatch, editablePatch, payloadFieldErrors } from './testDocument.model.js'
 import type { TestDocument, TestDocumentPatch } from './testDocument.model.js'
@@ -107,13 +109,12 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
       let status = 0
       let message: string = API_MESSAGES.network
       try {
-        const response = await (observers.current.requestPreflight?.(controller.signal, supersede || initial && reloadCount > 0) ?? fetch(`${base}/xp/experiments/${encodeURIComponent(documentId)}/preflight`, {
-          method: 'GET', credentials: 'include', cache: 'no-store', signal: controller.signal,
-        }))
+        const { response, body } = await readPreflight(signal => observers.current.requestPreflight?.(signal, supersede || initial && reloadCount > 0) ?? fetch(`${base}/xp/experiments/${encodeURIComponent(documentId)}/preflight`, {
+          method: 'GET', credentials: 'include', cache: 'no-store', signal,
+        }), controller.signal)
         status = response.status
-        const body: unknown = await response.json().catch(() => undefined)
         if (response.ok) {
-          data = body as PreflightResult | undefined
+          data = isPreflightResult(body) ? body : undefined
           message = API_MESSAGES.unreadable
         } else {
           const envelope = body as { errors?: Array<{ code?: string; message?: string }> } | undefined
@@ -136,7 +137,9 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
         if (initial) {
           session.view.loadState = status === 401 || status === 403 ? 'forbidden' : status === 404 ? 'missing' : 'error'
           session.view.errors = { ...session.view.errors, _section: message }
-        } else session.view.preflightError = message
+        } else {
+          session.view.preflightError = status === 401 || status === 403 ? PLACEMENT_FAILURE_COPY.forbidden : READINESS_COPY.checkError
+        }
       }
       session.publish()
     }

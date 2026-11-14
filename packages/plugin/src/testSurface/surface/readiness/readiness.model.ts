@@ -4,7 +4,7 @@ import type { SerializedFlagPoint } from '../../../types/admin.js'
 import type { TestDocument } from '../testDocument.model.js'
 import { formatDate } from '../../format/date.js'
 import { actionGroupLabel } from '../../actions/actions.model.js'
-import { unpublishedPlacementCopy, asymmetricGoalsCopy, placementUncheckedCopy, interactingTestsCopy, sameAddressCopy, identicalVersionCopy, unsupportedContentCopy, versionPageUnavailableCopy, versionPageUncheckedCopy, placementFailureCopy, pageInUseCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
+import { unpublishedPlacementsCopy, asymmetricGoalsCopy, placementUncheckedCopy, interactingTestsCopy, sameAddressCopy, identicalVersionCopy, unsupportedContentCopy, versionPageUnavailableCopy, versionPageUncheckedCopy, placementFailureCopy, pageInUseCopy, unpublishedPageCopy, READINESS_COPY as C, attributeNext, contentNext, goalPeopleNext, parameterNext, placementNext, ruleNext, versionsNext } from '../../copy/readiness.js'
 
 import { normalisePath } from '../../../runtime/normalisePath.js'
 import { testPageCollection } from '../pagePicker/pagePicker.model.js'
@@ -35,7 +35,7 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'invalid-status': row('header', () => null),
   'no-placements': row('what', (detail, ctx) => ctx.editorPlacementMessage ?? (detail === undefined ? C.noPlacements : placementFailureCopy(detail))),
   'placement-removed': row('what', () => C.placementRemoved),
-  'placement-unpublished': { ...row('versions', detail => (Array.isArray(detail) && detail.length ? detail : [detail]).map(placement => unpublishedPlacementCopy(text(object(placement).title, 'this page'))).join('\n')), nextStep: 'Publish the page' },
+  'placement-unpublished': { ...row('versions', unpublishedPlacementsCopy), nextStep: 'Publish the page' },
   'duplicate-version-row': { ...row('versions', detail => `The Experiment block on ${text(first(detail).title, 'this page')} has the same version twice. Remove one of them, then save.`), nextStep: detail => `Edit ${text(first(detail).title, 'this page')}` },
   'interacting-tests': { ...row('versions', detail => interactingTestsCopy(text(first(detail).path, 'this page'), text(first(detail).status, 'running'), text(first(detail).name, 'another test'), first(detail).version === true)), nextStep: detail => `Open ${text(first(detail).name, 'the test')}${first(detail).version === true ? `\nEdit ${text(first(detail).path, 'this page')}` : ''}` },
   'empty-slot': row('versions', (detail, ctx) => {

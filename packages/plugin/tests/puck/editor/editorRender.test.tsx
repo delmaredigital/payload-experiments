@@ -465,7 +465,7 @@ test.each([false, 'other'] as const)('creating from a bound block mirrors versio
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') { created = JSON.parse(String(init.body)); return new Response(JSON.stringify({ doc: { id: 2, slug: 'welcome-page' } })) }
     if (url.includes('where[slug]')) return new Response(JSON.stringify({ docs: [] }))
-    if (url.endsWith('/preflight')) return new Response(JSON.stringify({ placements: [] }))
+    if (url.endsWith('/preflight')) return new Response(JSON.stringify({ placements: [], checks: [] }))
     return new Response(JSON.stringify(url.includes('/xp-experiments/2?') ? { ...created, status: 'draft' } : oldDoc))
   }))
   try {
@@ -517,7 +517,7 @@ test('a refused mirrored test stays in the dialog and leaves the binding and con
 
 test.each([0, 1, 2])('shared notice uses existing placement read: %s placements', async count => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight')
-    ? { placements: Array.from({ length: count }, (_, id) => ({ collection: 'pages', id, detail: 'Published' })) } : doc))))
+    ? { checks: [], placements: Array.from({ length: count }, (_, id) => ({ collection: 'pages', id, detail: 'Published' })) } : doc))))
   const Editor = createExperimentSlotEditor({ routes: { api: '/content-api' } }).render
   render(<Editor {...props()} />)
   await screen.findByRole('tab', { name: 'New headline' })
@@ -532,7 +532,7 @@ test.each([0, 1, 2])('shared notice uses existing placement read: %s placements'
 
 test.each([false, 'other'] as const)('removal asks first and clears only this binding with selection %s', async selection => {
   vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status: 'draft' }) } as Response)
-  vi.mocked(fetch).mockImplementation(async (url: RequestInfo | URL) => new Response(JSON.stringify(String(url).endsWith('/preflight') ? { placements: [] } : { ...doc, status: 'draft' })))
+  vi.mocked(fetch).mockImplementation(async (url: RequestInfo | URL) => new Response(JSON.stringify(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status: 'draft' })))
   puck.selected = selection
   const Editor = ExperimentSlotEditor.render
   const view = render(<Editor {...props()} />)

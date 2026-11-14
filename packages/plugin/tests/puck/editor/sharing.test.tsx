@@ -32,7 +32,7 @@ afterEach(() => { cleanup(); window.history.replaceState({}, '', '/'); vi.unstub
 function mount(data: Data) { return render(<Puck config={config} data={data} iframe={{ enabled: false }}><Puck.Preview /></Puck>) }
 const notice = 'This test is also used in another place. Changes here affect that test.'
 function fetchPlacements(placements: unknown, status = 200) {
-  const placementsRead = vi.fn(async () => new Response(JSON.stringify({ placements }), { status }))
+  const placementsRead = vi.fn(async () => new Response(JSON.stringify({ placements, checks: [] }), { status }))
   vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? placementsRead() : new Response(JSON.stringify(doc))))
   return placementsRead
 }
@@ -83,7 +83,7 @@ test('blocks share pending placement reads, a late RUNNING block reuses settled 
   }}>Add</button> }
   render(<Puck config={config} data={{ root: { props: {} }, content: [block('one'), block('two')] }} iframe={{ enabled: false }}><Puck.Preview /><Probe /></Puck>)
   await waitFor(() => expect(reads).toHaveBeenCalledOnce())
-  await act(async () => { complete(new Response(JSON.stringify({ placements: [placement] }))) })
+  await act(async () => { complete(new Response(JSON.stringify({ checks: [], placements: [placement] }))) })
   fireEvent.click(screen.getByRole('button', { name: 'Add' }))
   await act(async () => {})
   expect(reads).toHaveBeenCalledOnce()
@@ -100,7 +100,7 @@ test('blocks share pending placement reads, a late RUNNING block reuses settled 
 })
 test('RUNNING single placement cannot detach while loading or after a failed status read', async () => {
   let reject!: (reason: Error) => void
-  vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith('/preflight') ? Promise.resolve(new Response(JSON.stringify({ placements: [] }))) : new Promise((_, fail) => { reject = fail })))
+  vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith('/preflight') ? Promise.resolve(new Response(JSON.stringify({ placements: [], checks: [] }))) : new Promise((_, fail) => { reject = fail })))
   mount({ root: { props: {} }, content: [block('only')] })
   expect(screen.queryByRole('button', { name: 'Remove the test from this block' })).toBeNull()
   await act(async () => reject(new Error('offline')))
@@ -117,7 +117,7 @@ test('the right block posts mirrored arms with holdout and content gaps and keep
   ] }
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') { posted = JSON.parse(String(init.body)); return new Response(JSON.stringify({ doc: { id: 'created', slug: 'page' } })) }
-    return new Response(JSON.stringify(url.includes('where[slug]') ? { docs: [] } : url.endsWith('/preflight') ? { placements: [] } : url.includes('/created?') ? { ...posted, status: 'draft' } : old))
+    return new Response(JSON.stringify(url.includes('where[slug]') ? { docs: [] } : url.endsWith('/preflight') ? { placements: [], checks: [] } : url.includes('/created?') ? { ...posted, status: 'draft' } : old))
   }))
   const right = { ...block('right'), props: { ...block('right').props, variantB: [{ type: 'Text', props: { id: 'b-content', text: 'Keep B' } }] } }
   let read!: ReturnType<typeof useGetPuck>
@@ -140,7 +140,7 @@ test('the right block posts mirrored arms with holdout and content gaps and keep
 
 test('a status refresh closes an ineligible detach confirmation before it can change a RUNNING sole placement', async () => {
   let status = 'draft'
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight') ? { placements: [] } : { ...doc, status }))))
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status }))))
   mount({ root: { props: {} }, content: [block('only')] })
   fireEvent.click(await screen.findByRole('button', { name: 'Remove the test from this block' }))
   expect(await screen.findByRole('dialog')).toBeTruthy()
@@ -160,7 +160,7 @@ test('RUNNING shows no detach action or stop sentence until placements settle', 
   expect(screen.queryByText('Stop the test to remove it from this block.')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Remove the test from this block' })).toBeNull()
   await waitFor(() => expect(complete).toBeTypeOf('function'))
-  await act(async () => complete(new Response(JSON.stringify({ placements: [] }))))
+  await act(async () => complete(new Response(JSON.stringify({ placements: [], checks: [] }))))
   await screen.findByText('Stop the test to remove it from this block.')
 })
 
@@ -169,9 +169,9 @@ test.each(['offer', 'confirm', 'failure'] as const)('RUNNING rechecks stale shar
   let reads = 0
   const placementsRead = vi.fn(async () => {
     reads++
-    if (reads === 1 || stage === 'confirm' && reads === 2) return new Response(JSON.stringify({ placements: [placement, { ...placement, id: 'elsewhere' }] }))
+    if (reads === 1 || stage === 'confirm' && reads === 2) return new Response(JSON.stringify({ checks: [], placements: [placement, { ...placement, id: 'elsewhere' }] }))
     if (stage === 'failure') throw new Error('offline')
-    return new Response(JSON.stringify({ placements: [placement] }))
+    return new Response(JSON.stringify({ checks: [], placements: [placement] }))
   })
   vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? placementsRead() : new Response(JSON.stringify(doc))))
   let read!: ReturnType<typeof useGetPuck>
@@ -192,7 +192,7 @@ test.each(['offer', 'confirm', 'failure'] as const)('RUNNING rechecks stale shar
 test.each(['offer', 'confirm'] as const)('stale DRAFT cache reads current RUNNING status before detach %s', async stage => {
   window.history.replaceState({}, '', '/admin/puck-editor/pages/saved')
   let status = 'draft'
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight') ? { placements: [placement] } : { ...doc, status }))))
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight') ? { placements: [placement], checks: [] } : { ...doc, status }))))
   let read!: ReturnType<typeof useGetPuck>
   function Probe() { read = useGetPuck(); return null }
   render(<Puck config={config} data={{ root: { props: {} }, content: [block('only')] }} iframe={{ enabled: false }}><Puck.Preview /><Probe /></Puck>)
@@ -231,7 +231,7 @@ test.each(['draft', 'stopped', 'decided', 'archived'] as const)('a page editor c
 
 test.each(['offer', 'confirm'] as const)('a test deleted before detach %s can still be removed from its block', async stage => {
   let deleted = false
-  const placementsRead = vi.fn(async () => Response.json({ placements: [placement] }))
+  const placementsRead = vi.fn(async () => Response.json({ placements: [placement], checks: [] }))
   vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? placementsRead()
     : deleted ? new Response('{}', { status: 404 }) : Response.json(doc)))
   let read!: ReturnType<typeof useGetPuck>
@@ -253,7 +253,7 @@ test.each(['offer', 'confirm'] as const)('a test deleted before detach %s can st
 test.each(['403', 'network'] as const)('RUNNING refuses detach when fresh placements fail with %s, even with another local block', async failure => {
   let fail = false
   const placementsRead = vi.fn(async () => {
-    if (!fail) return Response.json({ placements: [] })
+    if (!fail) return Response.json({ placements: [], checks: [] })
     if (failure === 'network') throw new Error('offline')
     return new Response('{}', { status: 403 })
   })

@@ -119,4 +119,8 @@ export const placementUncheckedCopy = (page: string) => `${page} couldn't be che
 
 export const moreBlockers = (count: number) => `and ${count} more`
 
+export const unpublishedPlacementsCopy = (detail?: unknown) => (Array.isArray(detail) && detail.length ? detail : [detail]).map(placement => {
+  const title = placement && typeof placement === 'object' && typeof placement.title === 'string' && placement.title.trim() ? placement.title.trim() : 'this page'
+  return unpublishedPlacementCopy(title)
+}).join('\n')
 export const unpublishedPlacementCopy = (title = 'this page') => `The block you're testing is only on a draft of ${title}. Publish the page before you start.`

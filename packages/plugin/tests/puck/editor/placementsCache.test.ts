@@ -1,8 +1,8 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import { acquirePlacements, subscribePlacements, readEditorPreflight, invalidatePlacements, cachedPreflight, placementsPending } from '../../../src/puck/editor/placementsCache.js'
-afterEach(() => vi.unstubAllGlobals())
+import { acquirePlacements, subscribePlacements, readEditorPreflight, invalidatePlacements, cachedPreflight, placementsPending, placementsBlocking, placementReadError, watchPlacementNotice, focusPlacements, refreshPlacements } from '../../../src/puck/editor/placementsCache.js'
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 test('a failed read does not leave a settled cache hit', async () => {
-  const fetcher = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(Response.json({ placements: [] }))
+  const fetcher = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(Response.json({ placements: [], checks: [] }))
   vi.stubGlobal('fetch', fetcher)
   const first = vi.fn()
   const releaseFirst = acquirePlacements('/api', 'unknown', first)
@@ -95,6 +95,7 @@ test('revalidation retains settled values, deduplicates chrome/drawer and thrott
   const drawer = readEditorPreflight('/api', 'swr', new AbortController().signal)
   const duplicate = refreshPlacements('/api', 'swr')
   expect(fetcher).toHaveBeenCalledTimes(2)
+  expect(placementsBlocking('/api', 'swr')).toBe(false)
   expect(notify).not.toHaveBeenCalledWith(undefined)
   expect(cachedPreflight('/api', 'swr')?.placements).toEqual(placements)
   finish(Response.json({ placements, checks: [] }))
@@ -104,6 +105,7 @@ test('revalidation retains settled values, deduplicates chrome/drawer and thrott
   // A superseding post-write read also retains settled display knowledge.
   notify.mockClear()
   invalidatePlacements('/api', 'swr')
+  expect(placementsBlocking('/api', 'swr')).toBe(true)
   expect(notify).not.toHaveBeenCalledWith(undefined)
   finish(Response.json({ placements, checks: [] }))
   await vi.waitFor(() => expect(placementsPending('/api', 'swr')).toBe(false))
@@ -115,4 +117,38 @@ test('revalidation retains settled values, deduplicates chrome/drawer and thrott
   expect(fetcher).toHaveBeenCalledTimes(4)
   expect(notify).toHaveBeenLastCalledWith(undefined)
   releaseSecond(); release(); vi.restoreAllMocks()
+})
+
+
+test.each([401, 403, 'forbidden', 'not-found'] as const)('pending focus and post-refusal refreshes retain the settled %s answer', async status => {
+  vi.useFakeTimers()
+  const id = `retain-${status}`
+  const answer = { placements: [], checks: [{ code: 'no-placements', ok: false, detail: status }] }
+  const fetcher = vi.fn().mockResolvedValueOnce(typeof status === 'number' ? Response.json({}, { status }) : Response.json(answer))
+  vi.stubGlobal('fetch', fetcher)
+  const release = acquirePlacements('/api', id, () => {})
+  await vi.advanceTimersByTimeAsync(0)
+  if (typeof status === 'number') expect((await readEditorPreflight('/api', id, new AbortController().signal)).status).toBe(status)
+  const error = placementReadError('/api', id)
+  expect(error).toBe(status === 'not-found' ? 'A page used by this test no longer exists. Choose another page.' : "You don't have permission to check where this test is used.")
+  for (const refresh of [() => focusPlacements('/api', id), () => { invalidatePlacements('/api', id); return refreshPlacements('/api', id) }]) {
+    let finish!: (response: Response) => void
+    fetcher.mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    await vi.advanceTimersByTimeAsync(10_001)
+    const pending = refresh()
+    expect(placementsPending('/api', id)).toBe(true)
+    expect(placementReadError('/api', id)).toBe(error)
+    expect(cachedPreflight('/api', id)).toEqual(typeof status === 'number' ? undefined : answer)
+    finish(typeof status === 'number' ? Response.json({}, { status }) : Response.json(answer))
+    await pending
+    expect(placementReadError('/api', id)).toBe(error)
+  }
+  const stopWatching = watchPlacementNotice('/api', id, {
+    visibilityState: 'visible', addEventListener() {}, removeEventListener() {},
+  } as unknown as Document)
+  expect(vi.getTimerCount()).toBe(0)
+  stopWatching()
+  release()
+  expect(vi.getTimerCount()).toBe(0)
+  vi.useRealTimers()
 })

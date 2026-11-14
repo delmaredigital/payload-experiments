@@ -23,7 +23,7 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} })
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight') ? { placements: [] } : {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight') ? { placements: [], checks: [] } : {
     name: 'Selection test', status: 'draft', arms: [{ key: 'control', kind: 'control', label: 'Original', weight: 50 }, { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 50 }],
   }))))
 })
@@ -98,7 +98,7 @@ test.each([false, true])('Puck selects then clears a portal click (nested: %s)',
 })
 
 test.each(['draft', 'stopped', 'decided', 'archived', 'running'] as const)('%s detach obeys the live sharing rule and leaves other blocks alone', async status => {
-  vi.mocked(fetch).mockImplementation(async (url: RequestInfo | URL) => new Response(JSON.stringify(String(url).endsWith('/preflight') ? { placements: [] } : {
+  vi.mocked(fetch).mockImplementation(async (url: RequestInfo | URL) => new Response(JSON.stringify(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : {
     name: 'Selection test', status, arms: [{ key: 'control', kind: 'control', label: 'Original', weight: 50 }, { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 50 }],
   })))
   let read!: ReturnType<typeof useGetPuck>
@@ -126,7 +126,7 @@ test.each(['removed', 'rebound'] as const)('creation in flight keeps its recover
   let complete!: (response: Response) => void
   vi.mocked(fetch).mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
     if (init?.method === 'POST') return new Promise(resolve => { complete = resolve })
-    return new Response(JSON.stringify(String(url).includes('where[slug]') ? { docs: [] } : String(url).endsWith('/preflight') ? { placements: [] } : {
+    return new Response(JSON.stringify(String(url).includes('where[slug]') ? { docs: [] } : String(url).endsWith('/preflight') ? { placements: [], checks: [] } : {
       name: 'Selection test', status: 'draft', arms: [{ key: 'control', kind: 'control', label: 'Original', weight: 50 }, { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 50 }],
     }))
   })

@@ -23,7 +23,7 @@ import { ResultsBody } from '../results/ResultsBody.js'
 import type { TestDocument } from '../testDocument.model.js'
 import type { PreflightResult } from '../../../types/endpoints.js'
 import { usePlacementNotice } from '../../../puck/editor/usePlacementNotice.js'
-import { subscribePlacements, cachedPreflight, placementsPending, placementReadError } from '../../../puck/editor/placementsCache.js'
+import { subscribePlacements, cachedPreflight, placementsPending, placementsBlocking, placementReadError } from '../../../puck/editor/placementsCache.js'
 import { currentPuckDocument } from '../../../puck/editor/editor.model.js'
 import { editorPlacementMessage, editorPlacementChecks } from '../editorPlacement.js'
 import './testPage.css'
@@ -35,17 +35,17 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
 }) {
   const [barHeight, setBarHeight] = useState<number>()
   const documentState = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}), ...(requestPreflight ? { requestPreflight } : {}) })
-  const [placementRead, setPlacementRead] = useState<{ key: string; preflight?: PreflightResult; pending: boolean; error?: string }>()
+  const [placementRead, setPlacementRead] = useState<{ key: string; preflight?: PreflightResult; pending: boolean; blocking: boolean; error?: string }>()
   const placementKey = JSON.stringify([surface.apiRoute, String(id)])
-  const watching = embedded && surface.canManage && !!documentState.preflight
+  const watching = embedded && surface.canManage && documentState.loadState === 'ready'
   useEffect(() => {
     if (!watching) return
     return subscribePlacements(surface.apiRoute, id, () => setPlacementRead({ key: placementKey,
-      preflight: cachedPreflight(surface.apiRoute, id), pending: placementsPending(surface.apiRoute, id), error: placementReadError(surface.apiRoute, id) }))
+      preflight: cachedPreflight(surface.apiRoute, id), pending: placementsPending(surface.apiRoute, id), blocking: placementsBlocking(surface.apiRoute, id), error: placementReadError(surface.apiRoute, id) }))
   }, [surface.apiRoute, id, watching, placementKey])
   const currentRead = placementRead?.key === placementKey ? placementRead : undefined
-  const preflight = currentRead ? currentRead.preflight ?? (currentRead.pending ? documentState.preflight : null) : documentState.preflight
-  const sharedDocument = currentRead ? { ...documentState, preflight, preflightPending: !preflight && (documentState.preflightPending || currentRead.pending), preflightError: currentRead.error ? currentRead.error === PLACEMENT_FAILURE_COPY.forbidden ? currentRead.error : READINESS_COPY.checkError : !currentRead.pending && !preflight ? READINESS_COPY.checkError : null } : { ...documentState, preflightPending: !preflight && documentState.preflightPending }
+  const preflight = currentRead ? currentRead.preflight ?? (currentRead.pending && !currentRead.error ? documentState.preflight : null) : documentState.preflight
+  const sharedDocument = currentRead ? { ...documentState, preflight, preflightPending: currentRead.blocking || !preflight && (documentState.preflightPending || currentRead.pending), preflightError: !preflight && (currentRead.error || !currentRead.pending) ? currentRead.error === PLACEMENT_FAILURE_COPY.forbidden ? currentRead.error : READINESS_COPY.checkError : null } : { ...documentState, preflightPending: !preflight && documentState.preflightPending }
   const placementFailed = preflight?.checks.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
   const lastPlacements = useRef<{ key: string; value: PreflightResult['placements'] } | undefined>(undefined)
   if (preflight?.placements && !placementFailed) lastPlacements.current = { key: placementKey, value: preflight.placements }

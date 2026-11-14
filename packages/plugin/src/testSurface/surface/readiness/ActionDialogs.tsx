@@ -20,7 +20,7 @@ import { READINESS_COPY as C } from '../../copy/readiness.js'
 import { API_MESSAGES, refusalMessage } from '../../copy/common.js'
 import { createApi } from '../../api.js'
 import { blockingSteps, pageReadinessContext } from './readiness.model.js'
-import { useTransition } from './useTransition.js'
+import { useTransition, transitionAlert } from './useTransition.js'
 
 type Props = SectionProps & { onClose(): void }
 
@@ -32,7 +32,7 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
   const [reportBusy, setReportBusy] = useState(false)
   const transition = useTransition(test, onClose)
   const phrase = action.confirm.phrase ? expectedConfirm(action.confirm.phrase.action, winnerLabel) : null
-  const ready = action.id !== 'start' || Boolean(test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
+  const ready = action.id !== 'start' || Boolean(!transition.checking && test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
   const enabled = ready && !transition.busy && !test.hasUnsaved && test.saving !== 'saving' && (!phrase || matchesConfirm(phrase, typed))
   async function submit(finish = false) {
     if (!enabled || !test.doc) return
@@ -65,8 +65,8 @@ export function ConfirmAction({ test, surface, action, winnerLabel, onClose }: P
       </> : null}
     </>}
     {transition.busy ? <p role="status">{C.changing}</p> : null}
-    {transition.error ? <p role="alert">{transition.error}</p> : null}
-    {!content && (test.hasUnsaved || test.saving === 'saving') ? <p>{test.stale ? C.reloadFirst : C.saveFirst}</p> : !content && !ready ? <p>{test.preflightPending ? C.checking : test.preflightError ? C.checkError : test.doc ? blockingSteps(test.preflight, pageReadinessContext(test.doc, test.preflight, surface))[0]?.sentence ?? C.checking : C.checking}</p> : null}
+    {transitionAlert(transition.error, test) ? <p role="alert">{transition.error}</p> : null}
+    {!content && (test.hasUnsaved || test.saving === 'saving') ? <p>{test.stale ? C.reloadFirst : C.saveFirst}</p> : !content && !ready ? <p>{transition.checking || test.preflightPending ? C.checking : test.preflightError ? C.checkError : test.doc ? blockingSteps(test.preflight, pageReadinessContext(test.doc, test.preflight, surface))[0]?.sentence ?? C.checking : C.checking}</p> : null}
     {!content ? <Button busy={transition.busy} disabled={!enabled} onClick={() => { void submit() }}>{action.label}</Button> : null}
     <Button data-dialog-cancel disabled={transition.busy || reportBusy} onClick={close}>{content ? A.done : A.cancel}</Button>
   </Dialog>
@@ -87,7 +87,7 @@ export function AllocateAction({ test, surface, onClose }: Props) {
     {test.hasUnsaved || test.saving === 'saving' ? <p>{test.stale ? C.reloadFirst : C.saveFirst}</p> : null}
     {!valid ? <p>{R.allocationInvalid}</p> : null}
     {transition.busy ? <p role="status">{C.changing}</p> : null}
-    {transition.error ? <p role="alert">{transition.error}</p> : null}
+    {transitionAlert(transition.error, test) ? <p role="alert">{transition.error}</p> : null}
     <Button busy={transition.busy} disabled={disabled || !valid} onClick={() => {
       // Not-found can also mean the experiment is missing; use round copy for the missing phase record.
       if (valid && test.doc) void transition.run(() => createApi(surface.apiRoute).allocate(test.doc!.id, { allocation }, { notFound: API_MESSAGES.roundChanged }))

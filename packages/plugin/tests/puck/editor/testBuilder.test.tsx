@@ -61,7 +61,7 @@ beforeEach(() => {
   puck.dispatch.mockReset()
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith('/xp/editor-surface')) return response({ canManage: true, canReadResults: true })
-    if (url.endsWith('/preflight')) return response({ placements: [] })
+    if (url.endsWith('/preflight')) return response({ placements: [], checks: [] })
     if (url.includes('/summary?')) { order.push('summary'); return response(summary, resultsStatus) }
     if (url.endsWith('/results')) { order.push('results'); return response({ snapshot }, resultsStatus) }
     if (init?.method === 'PATCH') {

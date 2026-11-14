@@ -13,7 +13,7 @@ import { READINESS, daysRemaining, displayDate, blockingSteps, pageReadinessCont
 import { AddMetricAction, AllocateAction, ConfirmAction } from './ActionDialogs.js'
 import { preflightPlacementLabel } from '../../placements/placementLabels.js'
 import { placementUncheckedCopy } from '../../copy/readiness.js'
-import { useTransition } from './useTransition.js'
+import { useTransition, transitionAlert } from './useTransition.js'
 
 const RUNNING_ACTIONS: readonly ActionId[] = ['stop', 'add-metric', 'allocate']
 
@@ -43,12 +43,12 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
   const labelledPreflight = test.preflight ? { ...test.preflight, checks: test.preflight.checks.map(check => check.code === 'placement-unchecked' ? { ...check, detail: { ...check.detail as object, title: preflightPlacementLabel(check.detail, test.preflight!, surface.adminRoute).title } } : check) } : null
   const readinessBlockers = blockingSteps(labelledPreflight, pageReadinessContext(doc, test.preflight, surface))
   const setup = doc.status === 'draft' || doc.status === 'stopped'
-  const ready = Boolean(test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
+  const ready = Boolean(test.preflight && !transition.checking && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
   const unsaved = test.hasUnsaved || test.saving === 'saving'
   const blockers: Array<{ section: SectionId | 'header'; sentence: string; code: string; arm?: string }> = [...readinessBlockers]
   if (unsaved && !test.stale) blockers.unshift({ section: 'header', sentence: C.saveFirst, code: 'unsaved' })
   else if (test.preflightError) blockers.unshift({ section: 'header', sentence: test.preflightError === PLACEMENT_FAILURE_COPY.forbidden ? test.preflightError : C.checkError, code: 'readiness-error' })
-  else if (test.preflightPending || !test.preflight) blockers.unshift({ section: 'header', sentence: C.checking, code: 'checking' })
+  else if (transition.checking || test.preflightPending || !test.preflight) blockers.unshift({ section: 'header', sentence: C.checking, code: 'checking' })
   const errorSections = [...new Set(Object.keys(test.errors).filter(path => path !== '_section').map(path => errorSection(path) ?? 'what'))]
   for (const section of errorSections.reverse()) blockers.unshift({ section, sentence: test.stale ? C.reloadFirst : fixFieldsNext(TEST_PAGE.sections[section]), code: `validation:${section}` })
   if (test.errors._section || test.stale) blockers.unshift({ section: 'what', sentence: test.stale ? C.reloadFirst : C.reloadAfterError, code: 'save-error' })
@@ -94,7 +94,7 @@ export function ReadinessContent({ test, surface, resultsVersion, bar = false }:
         </span>
       })}
     </div>
-    {transition.error ? <p role="alert">{transition.error}</p> : null}
+    {transitionAlert(transition.error, test) ? <p role="alert">{transition.error}</p> : null}
     {action?.id === 'allocate' ? <AllocateAction test={test} surface={surface} onClose={() => setSelected(null)} />
       : action?.id === 'add-metric' ? <AddMetricAction test={test} surface={surface} onClose={() => setSelected(null)} />
         : action ? <ConfirmAction test={test} surface={surface} action={action} winnerLabel={winner} onClose={() => setSelected(null)} /> : null}
