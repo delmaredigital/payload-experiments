@@ -12,6 +12,9 @@ export type TestDocApi = ReturnType<typeof useTestDocument>
 
 /** Serialisable props the server root view passes to the surface (ADM-20). */
 export interface SurfaceProps {
+  /** Present only when configuring a block from its page editor. */
+  editorPage?: { collection: string; id: string }
+  editorPlacementMessage?: string
   adminRoute: string
   apiRoute: string
   collectionTitles?: Record<string, string>

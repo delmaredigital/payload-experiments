@@ -24,6 +24,8 @@ import { AddVariant, RemoveVersion, VersionActions, VersionWeights, useArmWrites
 import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
 import { acquirePlacements, invalidatePlacements, refreshPlacements } from './placementsCache.js'
+import { editorPlacementMessage } from '../../testSurface/surface/editorPlacement.js'
+import type { PreflightResult } from '../../types/endpoints.js'
 import { localPlacements } from './localPlacements.js'
 import { useEditorSurface } from './editorSurface.js'
 import { ConfigureTestButton, ConfigureTestControl } from './ConfigureTestDrawer.js'
@@ -69,6 +71,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   useEffect(() => { binding.current.live = true; return () => { binding.current.live = false } }, [])
   const isCurrentBinding = () => binding.current.live && binding.current.key === bindingKey
   const knownArms = useArms(experimentId)
+  const [placements, setPlacements] = useState<{ id: typeof experimentId; value: PreflightResult['placements'] | undefined }>()
   const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean; forbidden?: boolean; missing?: boolean; shared?: boolean }>()
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
   const [openMenu, setOpenMenu] = useState<ArmSlot | null>(null)
@@ -135,10 +138,14 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const status = cachedExperiment?.status ?? (loaded?.id === experimentId ? loaded?.doc?.status : undefined)
   useEffect(() => {
     if (experimentId === undefined || !status) return
-    return acquirePlacements(api, experimentId, placements => {
+    const release = acquirePlacements(api, experimentId, placements => {
+      setPlacements({ id: experimentId, value: placements })
       const shared = placements === undefined ? undefined : isSharedTest(placements, currentPuckDocument(window.location.pathname, admin, placements))
       setLoaded(value => ({ ...(value?.id === experimentId ? value : {}), id: experimentId, shared }))
-    }, status === 'running')
+    }, true)
+    const focus = () => { void refreshPlacements(api, experimentId) }
+    window.addEventListener('focus', focus)
+    return () => { release(); window.removeEventListener('focus', focus) }
   }, [api, admin, experimentId, status])
 
   const locallyShared = usePuckSelector(state => experimentId !== undefined &&
@@ -283,6 +290,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       if (isCurrentBinding()) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null) }
     } finally { detachBusy.current = false; setCheckingDetach(false) }
   }
+  const placementMessage = editorPlacementMessage(placements?.id === experimentId ? placements.value : undefined, currentPuckDocument(window.location.pathname, admin))
   const newTestButton = experimentId !== undefined && canManage ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
 
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
@@ -306,6 +314,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       </Banner>}
       {orphanSlots.map(slot => <Banner key={slot} tone="warning">{editorCopy.orphan(slotLabels[slot])}</Banner>)}
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
+      {placementMessage && canManage ? <p className="xp-ui-error" role="status">{placementMessage}</p> : null}
       <div className="xp-ui-button-group">
         {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
         {experimentId !== undefined && access.surface && !result?.missing && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}

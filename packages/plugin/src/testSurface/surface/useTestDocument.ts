@@ -108,7 +108,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
       let message: string = API_MESSAGES.network
       try {
         const response = await fetch(`${base}/xp/experiments/${encodeURIComponent(documentId)}/preflight`, {
-          method: 'GET', credentials: 'include', signal: controller.signal,
+          method: 'GET', credentials: 'include', cache: 'no-store', signal: controller.signal,
         })
         status = response.status
         const body: unknown = await response.json().catch(() => undefined)

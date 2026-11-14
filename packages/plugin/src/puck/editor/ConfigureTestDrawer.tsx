@@ -10,6 +10,7 @@ import { TEST_PAGE } from '../../testSurface/copy/testPage.js'
 import { readSurface, useEditorSurface, type SurfaceState } from './editorSurface.js'
 import { editorCopy as C } from './copy.js'
 import { publishExperiment } from './armsCache.js'
+import { currentPuckDocument } from './editor.model.js'
 import { publishPlacements } from './placementsCache.js'
 import type { resolvePuckRoutes } from '../routes.js'
 import './editor.css'
@@ -38,7 +39,7 @@ export function ConfigureTestDrawer({ id, routes, onClose }: {
       const link = (event.target as Element).closest<HTMLAnchorElement>('a[href]')
       if (link && !link.getAttribute('href')?.startsWith('#')) { link.target = '_blank'; link.rel = 'noopener noreferrer' }
     }}>
-      {state.surface ? <TestSurface id={id} surface={state.surface} embedded onTitleChange={setTitle}
+      {state.surface ? <TestSurface id={id} surface={{ ...state.surface, editorPage: currentPuckDocument(window.location.pathname, routes.admin) }} embedded onTitleChange={setTitle}
         onDocument={doc => publishExperiment(id, doc)} onPreflight={preflight => publishPlacements(routes.api, id, preflight.placements)} /> : <div role={state.error ? 'alert' : 'status'}><p>{state.error === 'forbidden' ? TEST_PAGE.forbidden : state.error ? C.setupUnavailable : TEST_PAGE.loading}</p>{state.error === 'unavailable' ? <Button onClick={() => setAttempt(value => value + 1)}>{C.retrySetup}</Button> : null}</div>}
     </div>
   </Drawer>

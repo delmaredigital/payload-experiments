@@ -335,3 +335,28 @@ test('setup reads share the response body as well as the headers', async () => {
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
   await act(async () => finish({}))
 })
+
+test('unsaved page guidance appears in chrome, section and footer, then refreshes after save and publish on focus', async () => {
+  window.history.replaceState({}, '', '/manage/puck/pages/7')
+  const fetcher = setup()
+  const original = fetcher.getMockImplementation()!
+  let placements: ReturnType<typeof preflight>['placements'] = []
+  fetcher.mockImplementation(async (url, init) => url.endsWith('/preflight')
+    ? response({ ...preflight([{ code: 'no-placements', ok: placements.length > 0 }]), placements }) : original(url, init))
+  try {
+    const { drawer } = await open()
+    const save = 'Save this page to put the test on it.'
+    await waitFor(() => expect(screen.getAllByText(save).length).toBe(3))
+    expect((within(drawer).getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true)
+    placements = [{ collection: 'pages', id: 7, title: 'Page', ok: true, detail: 'Draft' }]
+    fireEvent.focus(window)
+    const publish = 'Publish this page to start the test.'
+    await waitFor(() => expect(screen.getAllByText(publish).length).toBe(3))
+    placements = [{ ...placements[0]!, detail: 'Published' }]
+    // Focus refreshes are debounced by the shared document reader.
+    await new Promise(resolve => setTimeout(resolve, 110))
+    fireEvent.focus(window)
+    await waitFor(() => expect(screen.queryAllByText(publish)).toHaveLength(0))
+    await waitFor(() => expect((within(drawer).getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false))
+  } finally { window.history.replaceState({}, '', '/') }
+})

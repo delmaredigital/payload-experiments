@@ -21,6 +21,7 @@ import { ReadinessBar } from './ReadinessBar.js'
 import { ResultsBody } from '../results/ResultsBody.js'
 import type { TestDocument } from '../testDocument.model.js'
 import type { PreflightResult } from '../../../types/endpoints.js'
+import { editorPlacementMessage } from '../editorPlacement.js'
 import './testPage.css'
 
 export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded = false, onDocument, onPreflight }: {
@@ -29,7 +30,10 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   onDocument?: (doc: TestDocument) => void; onPreflight?: (preflight: PreflightResult) => void
 }) {
   const [barHeight, setBarHeight] = useState<number>()
-  const test = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}) })
+  const document = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}) })
+  const message = editorPlacementMessage(document.preflight?.placements, surface.editorPage)
+  surface = { ...surface, editorPlacementMessage: message }
+  const test = message && document.preflight ? { ...document, preflight: { ...document.preflight, checks: [...document.preflight.checks.filter(check => !['no-placements', 'placement-removed', 'placement-unpublished'].includes(check.code)), { code: 'no-placements' as const, ok: false }] } } : document
   useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
   const frame = (body: ReactNode) => {
     const children = <div className="xp-test-surface">{body}</div>

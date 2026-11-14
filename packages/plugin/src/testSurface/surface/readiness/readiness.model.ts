@@ -11,6 +11,7 @@ import { testPageCollection } from '../pagePicker/pagePicker.model.js'
 import type { SurfaceProps } from '../contracts.js'
 import { SECTION_ORDER, type SectionId } from '../contracts.js'
 export type ReadinessContext = Pick<TestDocument, 'arms' | 'unitType' | 'flagPoint'> & {
+  editorPlacementMessage?: string
   collectionLabel?: string
   pagePlacements?: PreflightResult['pagePlacements']
   flagPoints?: readonly Pick<SerializedFlagPoint, 'id' | 'params'>[]
@@ -32,7 +33,7 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'goal-in-some-versions': { ...row('win', detail => asymmetricGoalsCopy(detail)), nextStep: 'Edit the versions' },
   'placement-unchecked': { ...row('versions', detail => placementUncheckedCopy(text(object(detail).title ?? object(detail).path, 'This page'))), nextStep: detail => `Open ${text(object(detail).title ?? object(detail).path, 'the page')}` },
   'invalid-status': row('header', () => null),
-  'no-placements': row('what', detail => detail === undefined ? C.noPlacements : placementFailureCopy(detail)),
+  'no-placements': row('what', (detail, ctx) => ctx.editorPlacementMessage ?? (detail === undefined ? C.noPlacements : placementFailureCopy(detail))),
   'placement-removed': row('what', () => C.placementRemoved),
   'placement-unpublished': { ...row('versions', detail => (Array.isArray(detail) && detail.length ? detail : [detail]).map(placement => `The block you're testing is only on a draft of ${text(object(placement).title, 'this page')}. Publish the page before you start.`).join('\n')), nextStep: 'Publish the page' },
   'duplicate-version-row': { ...row('versions', detail => `The Experiment block on ${text(first(detail).title, 'this page')} has the same version twice. Remove one of them, then save.`), nextStep: detail => `Edit ${text(first(detail).title, 'this page')}` },
@@ -141,7 +142,7 @@ function pageArm(path: string, ctx: ReadinessContext) {
   return ctx.arms.find(arm => arm.pageTarget && normalisePath(arm.pageTarget) === normalisePath(path))
 }
 export function pageReadinessContext(doc: TestDocument, preflight: PreflightResult | null, surface: SurfaceProps): ReadinessContext {
-  return { ...doc, flagPoints: surface.flagPoints, pagePlacements: preflight?.pagePlacements,
+  return { ...doc, editorPlacementMessage: surface.editorPlacementMessage, flagPoints: surface.flagPoints, pagePlacements: preflight?.pagePlacements,
     collectionLabel: testPageCollection(surface.pageCollections, doc, preflight?.pagePlacements)?.label }
 }
 /** First affected row in arm order; shared by the wizard and the test-page jump. */

@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: configuring a block on an unsaved page explains that the page must be saved, then published before Start. Editor guidance refreshes on drawer open and window focus.
+  Migration impact: none.
+
 ## [0.4.0-rc.4] - 2026-11-13
 
 ### plugin

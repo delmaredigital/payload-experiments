@@ -5,9 +5,9 @@ import { placementPages } from '../../../lib/placementPages.js'
 import { TEST_PAGE as C, placementCount } from '../../copy/testPage.js'
 import { placementLine, slotReady } from './pageBlock.model.js'
 
-function Binding({ test }: SectionProps) {
+function Binding({ test, surface }: SectionProps) {
   const placements = test.preflight?.placements ?? []
-  return <div className="xp-page-binding">{placements.length ? <>
+  return <div className="xp-page-binding">{surface.editorPlacementMessage ? <p>{surface.editorPlacementMessage}</p> : placements.length ? <>
     {placementPages(placements).map(placement => <p className="xp-ui-button-group" key={placement.key}>{placementLine(placement)}{placement.slotCount > 1 ? placementCount(placement.slotCount) : null}{' '}
       {placement.editorUrl ? <Button variant="link" size="sm" href={placement.editorUrl}>{C.openPage}</Button> : null}</p>)}<p>{C.editedOnPage}</p>
   </> : <p>{C.notPlaced}</p>}</div>
