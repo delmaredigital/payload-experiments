@@ -7,6 +7,7 @@ import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEdi
 import { newTestBody } from '../../../src/puck/editor/editor.model.js'
 import { publishExperiment } from '../../../src/puck/editor/armsCache.js'
 import { editorCopy as C } from '../../../src/puck/editor/copy.js'
+import { watchPlacementNotice } from '../../../src/puck/editor/placementsCache.js'
 import type { Status } from '../../../src/types/contracts.js'
 
 const base = { ...newTestBody({ kind: 'block', name: 'Hero test', slug: 'hero', unitType: 'visitor' }), id: 'sidebar-test', status: 'draft' as Status, updatedAt: 'one' }
@@ -58,7 +59,7 @@ beforeEach(() => {
     return failed ? reply({}, 500) : reply(doc, testCode)
   }))
 })
-afterEach(async () => { cleanup(); await act(async () => {}); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(async () => { cleanup(); await act(async () => {}); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 test.each(['draft', 'running', 'stopped', 'decided'] as const)('%s sidebar has ordered Test, Versions and Actions with the matching controls', async status => {
   doc.status = status
@@ -168,18 +169,23 @@ test('cross-surface Split evenly clears shared invalid weight edits in both plac
 })
 
 
-test('pending focus refresh explains why Start is hidden even with prior readiness', async () => {
+test('settled Start stays mounted across a delayed poll and focus refresh without checking flashes', async () => {
   await mount()
-  await fields().findByRole('button', { name: 'Start' })
+  const start = await fields().findByRole('button', { name: 'Start' })
+  vi.useFakeTimers()
+  const releaseNotice = watchPlacementNotice('/api', doc.id, document)
   const original = vi.mocked(fetch).getMockImplementation()!
   let finish!: (response: Response) => void
   vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? new Promise(resolve => { finish = resolve }) : original(url, init))
   vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10_001)
   fireEvent(window, new Event('focus'))
-  expect(fields().getByText('Before you can start: Checking readiness…')).toBeTruthy()
-  expect(fields().queryByRole('button', { name: 'Start' })).toBeNull()
+  expect(fields().queryByText('Before you can start: Checking readiness…')).toBeNull()
+  expect(fields().getByRole('button', { name: 'Start' })).toBe(start)
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+  expect(fields().getByRole('button', { name: 'Start' })).toBe(start)
   await act(async () => { finish(reply({ checks: [], placements: [] })) })
-  await fields().findByRole('button', { name: 'Start' })
+  expect(fields().getByRole('button', { name: 'Start' })).toBe(start)
+  releaseNotice()
 })
 
 
@@ -239,4 +245,32 @@ test('pending initial placements still explains conditional impact on other page
   expect(within(dialog).getByText(C.removeScopeUnknown)).toBeTruthy()
   await act(async () => { finish(reply({ placements: [{ collection: 'pages', id: 'other', detail: 'Published' }], checks: [] })) })
   expect(within(dialog).getByText(C.removeShared)).toBeTruthy()
+})
+
+
+test('zero-content holdout removal uses only test wording and local sharing counts', async () => {
+  doc.arms.push({ key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 0 })
+  await mount()
+  act(() => read().dispatch({ type: 'setData', data: { ...read().appState.data, content: [
+    ...read().appState.data.content, { ...block, props: { ...block.props, id: 'second-block' } },
+  ] } }))
+  const versions = fields().getByRole('region', { name: C.versionsGroup })
+  fireEvent.click(within(versions).getAllByRole('button', { name: C.remove }).at(-1)!)
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByText('This removes the version from the test.')).toBeTruthy()
+  expect(within(dialog).queryByText(/blocks|Save the page/)).toBeNull()
+  expect(within(dialog).getByText(C.removeShared)).toBeTruthy()
+})
+
+
+test('removing an empty variant does not ask for a page save afterward', async () => {
+  await mount()
+  fireEvent.click(fields().getByRole('button', { name: C.remove }))
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByText('This removes the version from the test.')).toBeTruthy()
+  fireEvent.click(within(dialog).getByRole('button', { name: C.remove }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(screen.queryByText(C.removed)).toBeNull()
+  expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Original' }))
+  expect(read().getItemById('sidebar-block')?.props.variantA).toEqual([])
 })

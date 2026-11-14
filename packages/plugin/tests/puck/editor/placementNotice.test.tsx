@@ -5,9 +5,9 @@ vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserv
 import { Puck, type Config } from '@puckeditor/core'
 import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
 import { newTestBody } from '../../../src/puck/editor/editor.model.js'
-import { SAVE_PAGE, PUBLISH_PAGE } from '../../../src/testSurface/surface/editorPlacement.js'
+import { SAVE_PAGE, PUBLISH_PAGE, RUNNING_SAVE_PAGE, RUNNING_PUBLISH_PAGE } from '../../../src/testSurface/surface/editorPlacement.js'
 import { usePlacementNotice } from '../../../src/puck/editor/usePlacementNotice.js'
-import { acquirePlacements } from '../../../src/puck/editor/placementsCache.js'
+import { acquirePlacements, refreshPlacements } from '../../../src/puck/editor/placementsCache.js'
 import { ConfigureTestDrawer } from '../../../src/puck/editor/ConfigureTestDrawer.js'
 import { useEffect, useState } from 'react'
 
@@ -35,18 +35,21 @@ function editor(count = 1) {
   return render(<Puck config={config} data={{ root: { props: {} }, content: Array.from({ length: count }, (_, index) => block(`notice-${index}`)) }} iframe={{ enabled: false }}><Puck.Preview /></Puck>)
 }
 
-test('save then publish clears chrome guidance without a focus change and stops its timer', async () => {
+test.each(['draft', 'running'])('save then publish clears %s chrome guidance without a focus change and stops its timer', async status => {
+  doc.status = status
+  const saveMessage = status === 'running' ? RUNNING_SAVE_PAGE : SAVE_PAGE
+  const publishMessage = status === 'running' ? RUNNING_PUBLISH_PAGE : PUBLISH_PAGE
   vi.useFakeTimers()
   editor()
   await act(async () => { await vi.advanceTimersByTimeAsync(100) })
-  expect(screen.getByText(SAVE_PAGE)).toBeTruthy()
+  expect(screen.getByText(saveMessage)).toBeTruthy()
   saved = true
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
-  expect(screen.queryByText(SAVE_PAGE)).toBeNull()
-  expect(screen.getByText(PUBLISH_PAGE)).toBeTruthy()
+  expect(screen.queryByText(saveMessage)).toBeNull()
+  expect(screen.getByText(publishMessage)).toBeTruthy()
   published = true
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
-  expect(screen.queryByText(PUBLISH_PAGE)).toBeNull()
+  expect(screen.queryByText(publishMessage)).toBeNull()
   const after = requests()
   await act(async () => { await vi.advanceTimersByTimeAsync(20_000) })
   expect(requests()).toBe(after)
@@ -118,26 +121,23 @@ test('an open drawer clears the save notice through the same cache without focus
 })
 
 
-test('a delayed or failed poll keeps the notice and retries until placements resolve', async () => {
+test.each([false, true])('a failed refresh replaces retained guidance with its failure (drawer: %s)', async drawer => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
   vi.useFakeTimers()
-  editor()
+  if (drawer) render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
+  else editor()
   await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+  expect(screen.getAllByText(SAVE_PAGE).length).toBeGreaterThan(0)
   const original = vi.mocked(fetch).getMockImplementation()!
   let finish!: (response: Response) => void
-  let polling = 0
-  vi.mocked(fetch).mockImplementation((url, init) => {
-    if (String(url).endsWith('/preflight')) {
-      if (polling++ === 0) return Promise.reject(new Error('offline'))
-      if (polling === 2) return new Promise(resolve => { finish = resolve })
-    }
-    return original(url, init)
-  })
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? new Promise(resolve => { finish = resolve }) : original(url, init))
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
-  expect(screen.getByText(SAVE_PAGE)).toBeTruthy()
-  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
-  expect(screen.getByText(SAVE_PAGE)).toBeTruthy()
-  await act(async () => { finish(Response.json({ placements: [{ collection: 'pages', id: '123', detail: 'Published' }], checks: [] })) })
+  expect(screen.getAllByText(SAVE_PAGE).length).toBeGreaterThan(0)
+  expect(screen.queryByText('Checking readiness…')).toBeNull()
+  await act(async () => { finish(Response.json({ placements: [], checks: [{ code: 'no-placements', ok: false, detail: 'placements-failed' }] })) })
   expect(screen.queryByText(SAVE_PAGE)).toBeNull()
+  expect(screen.getAllByText("Couldn't check where this test is used. Try again.").length).toBeGreaterThan(0)
 })
 
 test.each(['draft', 'stopped', 'running', 'decided', 'archived'])('chrome, sidebar and drawer use status-aware guidance for %s', async status => {
@@ -148,13 +148,19 @@ test.each(['draft', 'stopped', 'running', 'decided', 'archived'])('chrome, sideb
   const view = render(<Puck config={{ components: { ExperimentSlot: ExperimentSlotEditor } }} data={{ root: { props: {} }, content: [block('notice-0')] }} iframe={{ enabled: false }} ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}><Puck.Preview /><Puck.Fields /></Puck>)
   await screen.findByRole('heading', { name: 'Notice test' })
   await act(async () => {})
-  if (expected) expect(screen.getAllByText(expected)).toHaveLength(2)
+  if (expected) {
+    expect(screen.getAllByText(expected)).toHaveLength(2)
+    for (const notice of screen.getAllByText(expected)) expect(notice.closest(status === 'running' ? '.xp-ui-banner--warning' : '.xp-ui-banner--error')).toBeTruthy()
+  }
   else expect(screen.queryByText(SAVE_PAGE)).toBeNull()
   view.unmount()
   const drawer = render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
   await screen.findByRole('heading', { name: 'Notice test' })
   await act(async () => {})
-  if (expected) expect(screen.getAllByText(expected).length).toBeGreaterThan(0)
+  if (expected) {
+    expect(screen.getAllByText(expected).length).toBeGreaterThan(0)
+    if (status === 'running') expect(screen.getByText(expected).closest('.xp-ui-banner--warning')).toBeTruthy()
+  }
   else expect(screen.queryByText(SAVE_PAGE)).toBeNull()
   drawer.unmount()
 })
@@ -170,4 +176,47 @@ test('custom editorUrl placements identify this page in both chrome and drawer',
   render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
   expect((await screen.findAllByText(PUBLISH_PAGE)).length).toBeGreaterThan(0)
   expect(screen.queryByText(SAVE_PAGE)).toBeNull()
+})
+
+test.each([false, true])('a rejected placement read replaces retained guidance (drawer: %s)', async drawer => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  vi.useFakeTimers()
+  if (drawer) render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
+  else editor()
+  await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+  expect(screen.getAllByText(SAVE_PAGE).length).toBeGreaterThan(0)
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? Promise.reject(new Error('offline')) : original(url, init))
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+  expect(screen.queryByText(SAVE_PAGE)).toBeNull()
+  expect(screen.getAllByText(drawer ? "Couldn't check readiness. Try again." : "Couldn't check where this test is used. Try again.").length).toBeGreaterThan(0)
+})
+
+
+test('a successful shared retry clears the drawer focus error and restores current guidance', async () => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  vi.useFakeTimers()
+  render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
+  await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let failing = true
+  vi.mocked(fetch).mockImplementation((url, init) => failing && String(url).endsWith('/preflight') ? Promise.reject(new Error('offline')) : original(url, init))
+  await act(async () => { await vi.advanceTimersByTimeAsync(10_001) })
+  fireEvent(window, new Event('focus'))
+  await act(async () => {})
+  expect(screen.queryByText(SAVE_PAGE)).toBeNull()
+  expect(screen.getAllByText("Couldn't check readiness. Try again.").length).toBeGreaterThan(0)
+  failing = false
+  await act(async () => { await refreshPlacements('/api', doc.id) })
+  expect(screen.queryByText("Couldn't check readiness. Try again.")).toBeNull()
+  expect(screen.getAllByText(SAVE_PAGE).length).toBeGreaterThan(0)
+  let finish!: (response: Response) => void
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? new Promise(resolve => { finish = resolve }) : original(url, init))
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+  expect(screen.queryByText("Couldn't check readiness. Try again.")).toBeNull()
+  expect(screen.queryByText('Checking readiness…')).toBeNull()
+  expect(screen.getAllByText(SAVE_PAGE).length).toBeGreaterThan(0)
+  await act(async () => { finish(Response.json({ placements: [], checks: [] })) })
 })

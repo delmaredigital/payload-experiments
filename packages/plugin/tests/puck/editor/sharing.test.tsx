@@ -67,7 +67,8 @@ test.each(['403', 'network'].flatMap(failure => [1, 2].map(count => ({ failure, 
   await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Shared test' })).toHaveLength(count))
   if (count > 1) expect(screen.getAllByText(notice)).toHaveLength(count)
   else expect(screen.queryByText(notice)).toBeNull()
-  expect(screen.queryByRole('alert')).toBeNull()
+  expect(await screen.findAllByText("Couldn't check where this test is used. Try again.")).toHaveLength(count)
+  expect(screen.getAllByRole('alert')).toHaveLength(count)
   expect(read).toHaveBeenCalledOnce()
 })
 test('blocks share pending placement reads, a late RUNNING block reuses settled knowledge, and visibility return does not refetch', async () => {
@@ -263,7 +264,7 @@ test.each(['403', 'network'] as const)('RUNNING refuses detach when fresh placem
   const before = placementsRead.mock.calls.length
   fail = true
   fireEvent.click(screen.getAllByRole('button', { name: 'Remove the test from this block' })[0]!)
-  await screen.findByText("Couldn't check where this test is used. Try again.")
+  await screen.findAllByText("Couldn't check where this test is used. Try again.")
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(read().getItemById('one')?.props.experiment).toEqual(block('one').props.experiment)
   expect(placementsRead).toHaveBeenCalledTimes(before + 1)

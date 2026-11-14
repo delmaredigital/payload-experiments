@@ -39,6 +39,6 @@ export function Rail({ test }: { test: TestDocApi }) {
       aria-current={active === id ? 'location' : undefined} onClick={event => {
         event.preventDefault(); setActive(id); jumpToSection(id)
       }}>{id !== 'advanced' ? <><span aria-hidden="true" className={blocked(id) ? 'xp-test-rail-mark xp-test-rail-mark--blocked' : done[id] ? 'xp-test-rail-mark xp-test-rail-mark--done' : 'xp-test-rail-mark'}>{blocked(id) ? '!' : done[id] ? C.completeMark : C.incompleteMark}</span>
-      <span className="xp-test-sr-only">{blocked(id) ? `${READINESS_COPY.needsAttention}: ` : done[id] ? C.completePrefix : C.incompletePrefix}</span></> : null}{C.sections[id]}</a></li>)}
+      <span className="xp-test-sr-only">{blocked(id) ? READINESS_COPY.needsAttentionPrefix : done[id] ? C.completePrefix : C.incompletePrefix}</span></> : null}{C.sections[id]}</a></li>)}
   </ol></nav>
 }

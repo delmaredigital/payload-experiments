@@ -11,7 +11,7 @@ import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEdi
 import { experimentOutlinePlugin } from '../../../src/puck/editor/experimentOutlinePlugin.js'
 import { setArms } from '../../../src/puck/editor/armsCache.js'
 
-const doc = { name: 'Outline test', status: 'draft', arms: [
+const doc = { id: 'test', slug: 'test', name: 'Outline test', status: 'draft', arms: [
   { key: 'control', kind: 'control', label: 'Original' },
   { key: 'variantA', kind: 'variant', label: 'Variant A' },
 ] }
@@ -38,7 +38,7 @@ beforeEach(() => {
   vi.stubGlobal('CSS', { escape: vi.fn((value: string) => value.replace(/[^a-zA-Z0-9_-]/g, char => `\\${char.codePointAt(0)!.toString(16)} `)) })
   experimentFetch.mockReset().mockResolvedValue({ ok: true, json: async () => doc } as Response)
   vi.stubGlobal('fetch', vi.fn((...args: Parameters<typeof fetch>) => String(args[0]).endsWith('/xp/editor-surface')
-    ? Promise.resolve(new Response(JSON.stringify({ canManage: true, canReadResults: true }))) : String(args[0]).endsWith('/preflight')
+    ? Promise.resolve(new Response(JSON.stringify({ canManage: true, canReadResults: true }))) : String(args[0]).includes('/xp-experiments?') ? Promise.resolve(Response.json({ docs: [doc] })) : String(args[0]).endsWith('/preflight')
     ? Promise.resolve(new Response(JSON.stringify({ placements: [] }))) : experimentFetch(...args)))
   for (const id of ['test', 'unknown', 'failed']) setArms(id, undefined)
 })
@@ -389,4 +389,45 @@ test('expanding or recovering from fallback during a drag never hides newly meas
   expect(visibility('two-arm')).toEqual([true, true, true, true])
   act(() => getPuck().dispatch({ type: 'setUi', ui: { isDragging: false }, recordHistory: false }))
   expect(visibility('two-arm')).toEqual([true, false, false, false])
+})
+
+test('unbound populated versions keep default tabs and outline rows; Original-only keeps one tab', async () => {
+  const view = mount({ root: { props: {} }, content: [block('unbound', null, true)] }, true)
+  expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'Variant C'])
+  expect(visibility('unbound')).toEqual([true, false, false, true])
+  fireEvent.click(screen.getByRole('tab', { name: 'Variant C' }))
+  expect(screen.getByText('Orphan content')).toBeTruthy()
+  expect(visibility('unbound')).toEqual([true, false, false, true])
+  view.unmount()
+  mount({ root: { props: {} }, content: [block('unbound', null)] }, true)
+  expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original'])
+})
+
+test.each(['detach', 'No test'])('%s preserves three populated versions in canvas and outline', async method => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  const three = { ...doc, arms: [...doc.arms, { key: 'variantB', kind: 'variant', label: 'Custom B' }] }
+  experimentFetch.mockResolvedValue({ ok: true, json: async () => three } as Response)
+  const item = block('unbound')
+  const data = { ...item, props: { ...item.props, ...Object.fromEntries(['control', 'variantA', 'variantB'].map(slot => [slot, [{ type: 'Text', props: { id: `content-${slot}`, text: `Content ${slot}` } }]])) } }
+  let getPuck!: ReturnType<typeof useGetPuck>
+  function Probe() { getPuck = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [data] }} plugins={[experimentOutlinePlugin()]} iframe={{ enabled: false }}
+    ui={{ itemExpanded: { unbound: true }, itemSelector: { index: 0, zone: 'root:default-zone' } }}>
+    <Puck.Outline /><Puck.Preview /><Puck.Fields /><Probe />
+  </Puck>)
+  await screen.findByRole('tab', { name: 'Custom B' })
+  if (method === 'detach') {
+    fireEvent.click(screen.getByRole('button', { name: 'Remove the test from this block' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove the test from this block' }))
+  } else fireEvent.change(await screen.findByRole('combobox'), { target: { value: '' } })
+  await waitFor(() => expect(getPuck().getItemById('unbound')?.props.experiment).toBeNull())
+  expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'Variant A', 'Variant B'])
+  expect(visibility('unbound')).toEqual([true, true, true, false])
+  for (const [label, slot] of [['Original', 'control'], ['Variant A', 'variantA'], ['Variant B', 'variantB']]) {
+    fireEvent.click(screen.getByRole('tab', { name: label }))
+    expect(screen.getByText(`Content ${slot}`)).toBeTruthy()
+    expect(getPuck().getItemById('unbound')?.props[slot!]).toEqual(data.props[slot as keyof typeof data.props])
+  }
 })

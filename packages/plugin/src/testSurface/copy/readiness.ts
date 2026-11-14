@@ -12,7 +12,7 @@ export const RUNNING_SAVE_PAGE = "This test is running, but visitors won't see i
 export const READINESS_COPY = {
   beforeStart: 'Before you can start:',
   label: 'Readiness', addGoal: 'Add a goal',
-  needsAttention: 'Needs attention',
+  needsAttention: 'Needs attention', needsAttentionPrefix: 'Needs attention: ',
   missingVersions: 'This test is missing its saved versions. Open the test and check its setup before changing this page.',
   saveGeneralError: "Couldn't save. Reload to check the saved test.",
   changing: 'Saving this change…', reloadAfterError: "Couldn't save the test. Reload to check its saved settings before starting.",

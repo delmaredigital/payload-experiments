@@ -113,6 +113,6 @@ test('revalidation retains settled values, deduplicates chrome/drawer and thrott
   await focusPlacements('/api', 'swr')
   await readEditorPreflight('/api', 'swr', new AbortController().signal)
   expect(fetcher).toHaveBeenCalledTimes(4)
-  expect(notify).not.toHaveBeenCalledWith(undefined)
+  expect(notify).toHaveBeenLastCalledWith(undefined)
   releaseSecond(); release(); vi.restoreAllMocks()
 })

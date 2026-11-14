@@ -155,8 +155,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   useEffect(() => {
     if (experimentId === undefined || !status || !access.surface?.canManage) return
     const release = acquirePlacements(api, experimentId, placements => {
-      // Pending/failed refreshes do not resolve a previously shown save/publish notice.
-      setPlacements(current => placements === undefined && current?.id === experimentId ? current : { id: experimentId, value: placements })
+      // Retain guidance only while revalidating; failures must show their own message.
+      setPlacements(current => placements === undefined && placementsPending(api, experimentId) && current?.id === experimentId ? current : { id: experimentId, value: placements })
       setPreflight({ id: experimentId, value: cachedPreflight(api, experimentId), pending: placementsPending(api, experimentId) })
       const shared = placements === undefined ? undefined : isSharedTest(placements, currentPuckDocument(window.location.pathname, admin, placements))
       setLoaded(value => ({ ...(value?.id === experimentId ? value : {}), id: experimentId, shared: shared ?? (value?.id === experimentId ? value.shared : undefined) }))
@@ -177,7 +177,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const unavailable = result?.forbidden || result?.missing
   const canManage = access.surface?.canManage === true && !unavailable
   const editable = canManage && (experiment?.status === 'draft' || experiment?.status === 'stopped')
-  const [removed, setRemoved] = useState<{ key: string; revision: number } | null>(null)
+  const [removed, setRemoved] = useState<{ key: string; revision: number; contentRemoved: boolean } | null>(null)
   useEffect(() => {
     // Dialog cleanup must close the native modal before an outside tab can receive focus.
     if (removed?.key === bindingKey) root.current?.querySelector<HTMLButtonElement>('[role="tab"]')?.focus()
@@ -198,7 +198,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const observedSlots = useRef({ key: bindingKey, slots: new Set<string>() })
   if (observedSlots.current.key !== bindingKey) observedSlots.current = { key: bindingKey, slots: new Set() }
   for (const slot of pageSlots.split(',')) observedSlots.current.slots.add(slot)
-  const tabs = unavailable ? [...observedSlots.current.slots].sort((a, b) => a.localeCompare(b)).map(slot => ({ slot: slot as ArmSlot, label: slotLabels[slot as ArmSlot] })) : [...tabsFor(experiment), ...orphanSlots.map(slot => ({ slot, label: editorCopy.outsideTest(slotLabels[slot]) }))]
+  const tabs = unavailable || !experiment ? [...observedSlots.current.slots].sort((a, b) => a.localeCompare(b)).map(slot => ({ slot: slot as ArmSlot, label: slotLabels[slot as ArmSlot] })) : [...tabsFor(experiment), ...orphanSlots.map(slot => ({ slot, label: editorCopy.outsideTest(slotLabels[slot]) }))]
   const activeSlot = active && active.id === experimentId ? active.slot : undefined
   const slot = tabs.find(tab => tab.slot === activeSlot)?.slot ?? tabs[0]?.slot ?? 'control'
   const slotEmpty = usePuckSelector(state => {
@@ -244,10 +244,15 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     const item = getItemById(props.id), selector = getSelectorForId(props.id)
     if (!item || !selector) { setClearError({ key: bindingKey, message: editorCopy.removeUncleared }); return }
     setClearError(null)
+    if (countSlotBlocks(item.props[slot]) === 0) {
+      setRemoved(current => ({ key: bindingKey, revision: (current?.revision ?? 0) + 1, contentRemoved: false }))
+      setActive({ id: experimentId, slot: 'control' })
+      return
+    }
     dispatch({ type: 'replace', destinationIndex: selector.index, destinationZone: selector.zone,
       data: { ...item, props: { ...item.props, [slot]: [] } },
     })
-    setRemoved(current => ({ key: bindingKey, revision: (current?.revision ?? 0) + 1 }))
+    setRemoved(current => ({ key: bindingKey, revision: (current?.revision ?? 0) + 1, contentRemoved: true }))
     setActive({ id: experimentId, slot: 'control' })
   }
 
@@ -326,7 +331,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const surface = access.surface ? { ...access.surface, apiRoute: api, adminRoute: admin, editorPlacementMessage: placementMessage } : undefined
   const quickTest: TestDocApi = {
     doc: experiment ? { ...experiment, id: experimentId!, kind: 'block' } as TestDocument : null,
-    preflight: currentPreflight, preflightError: preflight && preflight.id === experimentId && !preflight.pending && !currentPreflight ? READINESS_COPY.checkError : null, preflightPending: !preflight || preflight.id !== experimentId || preflight.pending,
+    preflight: currentPreflight, preflightError: preflight && preflight.id === experimentId && !preflight.pending && !currentPreflight ? READINESS_COPY.checkError : null, preflightPending: !preflight || preflight.id !== experimentId || preflight.pending && !currentPreflight,
     hasUnsaved: writes.busy || Object.keys(weightEdits).length > 0, saving: writes.busy ? 'saving' : 'idle', stale: false, errors: {},
     chosenPages: {}, loadState: 'ready', stage: () => {}, commit: async () => {}, choosePage: async () => {},
     refreshPreflight: async () => { if (experimentId !== undefined) await refreshPlacements(api, experimentId) },
@@ -343,6 +348,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     },
   }
   const blockers = quickTest.doc && surface ? blockingSteps(currentPreflight?.checks ? currentPreflight : null, pageReadinessContext(quickTest.doc, currentPreflight, surface)) : []
+  const placementFailure = preflight && preflight.id === experimentId && !preflight.pending && (!preflight.value || preflight.value.checks?.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined))
+  const placementNotice = placementFailure ? editorCopy.placementsError : placementMessage
+  const placementNoticeView = placementNotice ? <Banner tone={experiment?.status === 'running' && !placementFailure ? 'warning' : 'error'} action={placementFailure ? <Button onClick={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId) }}>{editorCopy.retrySetup}</Button> : undefined}>
+    {experiment?.status === 'running' && !placementFailure ? <span aria-hidden="true">⚠ </span> : null}{placementNotice}
+  </Banner> : null
   const blockingLine = placementMessage ?? (quickTest.hasUnsaved ? READINESS_COPY.saveFirst : quickTest.preflightError ? READINESS_COPY.checkError : quickTest.preflightPending || !currentPreflight ? READINESS_COPY.checking : blockers.map(step => step.sentence).slice(0, 3).join(' '))
   const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} experiment={experiment} writes={writes} canManage={canManage}
     count={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null
@@ -355,7 +365,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
       </Banner>
 
-  const removeDialog = removing?.key === bindingKey ? <RemoveVersion count={countSlotBlocks(getPuck().getItemById(props.id)?.props[removing.arm.key])} shared={result?.shared} arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null
+  const removeDialog = removing?.key === bindingKey ? <RemoveVersion count={countSlotBlocks(getPuck().getItemById(props.id)?.props[removing.arm.key])} shared={locallyShared ? true : result?.shared} arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null
 
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
     {sidebar ? <>
@@ -363,7 +373,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {access.surface?.canManage ? <ExperimentPicker value={props.experiment ?? null} onChange={sidebar.onChange} /> : null}
         {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
         {accessNotice}
-        {canManage && (placementMessage || (experiment?.status === 'draft' || experiment?.status === 'stopped') && blockingLine) ? <p role="status">{placementMessage ?? <>{READINESS_COPY.beforeStart} {blockingLine}</>}</p> : null}
+        {canManage ? placementNoticeView ?? ((experiment?.status === 'draft' || experiment?.status === 'stopped') && blockingLine ? <p role="status">{READINESS_COPY.beforeStart} {blockingLine}</p> : null) : null}
       </section></div>, sidebar.test)}
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         {experiment && canManage ? <section aria-label={editorCopy.versionsGroup}><h4>{editorCopy.versionsGroup}</h4>
@@ -395,7 +405,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {accessNotice}
       {leftoverControls}
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
-      {placementMessage && canManage ? <p className="xp-ui-error" role="status">{placementMessage}</p> : null}
+      {canManage ? placementNoticeView : null}
       {experimentId !== undefined && canManage && !experiment && !result?.error ? <p className="xp-ui-help">{editorCopy.loadingBeforeNew}</p> : null}
       {checkingDetach ? <p role="status" className="xp-ui-help">{editorCopy.checkingRemoval}</p> : null}
       <div className="xp-ui-button-group">
@@ -410,8 +420,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {experiment && editable ? <VersionWeights key={`weights-${experimentId}`} edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} /> : null}
       {writes.busy ? <p role="status" className="xp-ui-help">{editorCopy.savingVersions}</p> : null}
       {writes.error ? <p role="alert" className="xp-ui-error">{writes.error}</p> : null}
-      {clearError?.key === bindingKey ? <p role="alert" className="xp-ui-error">{clearError.message}</p> : null}
-      {removed?.key === bindingKey ? <p className="xp-ui-help">{editorCopy.removed}</p> : null}
+      {clearError?.key === bindingKey && !(placementFailure && clearError.message === editorCopy.placementsError) ? <p role="alert" className="xp-ui-error">{clearError.message}</p> : null}
+      {removed?.key === bindingKey && removed.contentRemoved ? <p className="xp-ui-help">{editorCopy.removed}</p> : null}
       {experiment && experiment.status !== 'draft' ? <ResultsReadout key={`results-${experimentId}`} id={experimentId!} api={api} experiment={experiment} /> : null}
       {!sidebar ? removeDialog : null}
       {detaching === bindingKey && canDetach ? <Dialog open title={editorCopy.detachTitle} initialFocus="cancel" onClose={() => setDetaching(null)}>

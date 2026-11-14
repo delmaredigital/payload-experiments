@@ -34,7 +34,7 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
     if (placements !== undefined) entry.value = placements
     if (cache.get(key) === entry) {
       if (placements === undefined) cache.delete(key)
-      for (const notify of consumers.get(key) ?? []) notify(entry.value)
+      for (const notify of consumers.get(key) ?? []) notify(placements)
     }
     return placements
   })

@@ -44,12 +44,12 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
       preflight: cachedPreflight(surface.apiRoute, id), pending: placementsPending(surface.apiRoute, id) }))
   }, [surface.apiRoute, id, watching, placementKey])
   const currentRead = placementRead?.key === placementKey ? placementRead : undefined
-  const preflight = currentRead ? currentRead.preflight ?? null : documentState.preflight
-  const sharedDocument = currentRead ? { ...documentState, preflight, preflightPending: documentState.preflightPending || currentRead.pending, preflightError: !currentRead.pending && !preflight ? READINESS_COPY.checkError : documentState.preflightError } : documentState
+  const preflight = currentRead ? currentRead.preflight ?? (currentRead.pending ? documentState.preflight : null) : documentState.preflight
+  const sharedDocument = currentRead ? { ...documentState, preflight, preflightPending: !preflight && (documentState.preflightPending || currentRead.pending), preflightError: !currentRead.pending && !preflight ? READINESS_COPY.checkError : null } : { ...documentState, preflightPending: !preflight && documentState.preflightPending }
   const placementFailed = preflight?.checks.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
   const lastPlacements = useRef<{ key: string; value: PreflightResult['placements'] } | undefined>(undefined)
   if (preflight?.placements && !placementFailed) lastPlacements.current = { key: placementKey, value: preflight.placements }
-  const placements = lastPlacements.current?.key === placementKey ? lastPlacements.current.value : undefined
+  const placements = !placementFailed && !sharedDocument.preflightError && lastPlacements.current?.key === placementKey ? lastPlacements.current.value : undefined
   const editorPage = embedded ? currentPuckDocument(window.location.pathname, surface.adminRoute, placements) ?? surface.editorPage : surface.editorPage
   const message = editorPlacementMessage(placements, editorPage, documentState.doc?.status)
   surface = { ...surface, editorPage, editorPlacementMessage: message }
