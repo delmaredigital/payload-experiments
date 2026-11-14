@@ -175,3 +175,5 @@
 .xp-slot-sidebar h4 { margin: 0; font: inherit; font-weight: 600; }
 .xp-slot-sidebar .xp-slot-weight-inputs { display: grid; }
 .xp-slot-sidebar .xp-slot-weight-inputs .xp-ui-field { max-width: none; flex: 1 1 100%; }
+
+.xp-slot-sidebar .xp-slot-version-menu { inset-inline-start: 0; inset-inline-end: auto; }

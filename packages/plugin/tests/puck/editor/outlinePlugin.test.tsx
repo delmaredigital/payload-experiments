@@ -274,3 +274,15 @@ test('30 root items use real Puck virtualized Layer markup and hide absent empty
   await waitFor(() => expect(document.querySelector('li[data-puck-layer-tree-id="two-arm"][data-index="0"]')).toBeTruthy())
   expect(visibility('two-arm')).toEqual([true, true, false, false])
 })
+
+
+test('installed Puck zone wrappers have no stable version attribute for active-only outline filtering', () => {
+  setArms('test', ['control', 'variantA'])
+  mount({ root: { props: {} }, content: [block('two-arm')] })
+  for (const zone of rows('two-arm')) {
+    // React's childZone.zoneCompound is only a key; Puck does not render it.
+    // Empty versions also have no child component id to use as an alternative.
+    expect(zone.getAttributeNames()).toEqual(['class'])
+    expect(zone.querySelector('[data-zone], [data-zone-compound], [data-puck-zone], [data-puck-dropzone]')).toBeNull()
+  }
+})

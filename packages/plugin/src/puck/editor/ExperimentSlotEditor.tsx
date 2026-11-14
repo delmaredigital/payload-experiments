@@ -182,11 +182,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   }, [removed, bindingKey])
   const splitIntent = useRef(false)
   const [weightEdits, setWeightEdits] = useState<WeightEdits>({})
-  useEffect(() => { setWeightEdits({}) }, [bindingKey])
+  useEffect(() => { setWeightEdits({}); splitIntent.current = false }, [bindingKey, status])
   const writes = useArmWrites(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, doc => {
     publishExperiment(experimentId!, doc)
     if (isCurrentBinding()) setLoaded(value => ({ id: experimentId, doc, shared: value?.id === experimentId ? value?.shared : undefined }))
-  }, isCurrentBinding, () => setClearError(null), () => { setWeightEdits({}); invalidatePlacements(api, experimentId!) })
+  }, isCurrentBinding, () => setClearError(null), () => { if (isCurrentBinding()) setWeightEdits({}); invalidatePlacements(api, experimentId!) })
   // The slot arrays belong to the page; reading the test is unnecessary to edit them.
   const pageSlots = usePuckSelector(state => (['control', 'variantA', 'variantB', 'variantC'] as const).filter(slot => {
     const content: unknown = state.getItemById(props.id)?.props[slot]
@@ -316,7 +316,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   usePlacementNotice(api, experimentId, canManage ? placementMessage : undefined)
   const newTestButton = experimentId !== undefined && canManage ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
 
-  const currentPreflight = preflight && preflight.id === experimentId ? preflight.value ?? null : null
+  const currentPreflight = preflight && preflight.id === experimentId && Array.isArray(preflight.value?.checks) ? preflight.value : null
   const surface = access.surface ? { ...access.surface, apiRoute: api, adminRoute: admin, editorPlacementMessage: placementMessage } : undefined
   const quickTest: TestDocApi = {
     doc: experiment ? { ...experiment, id: experimentId!, kind: 'block' } as TestDocument : null,
@@ -339,7 +339,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const blockers = quickTest.doc && surface ? blockingSteps(currentPreflight?.checks ? currentPreflight : null, pageReadinessContext(quickTest.doc, currentPreflight, surface)) : []
   const blockingLine = placementMessage ?? (quickTest.hasUnsaved ? READINESS_COPY.saveFirst : quickTest.preflightError ? READINESS_COPY.checkError : quickTest.preflightPending || !currentPreflight ? READINESS_COPY.checking : blockers.map(step => step.sentence).slice(0, 3).join(' '))
   const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} experiment={experiment} writes={writes} canManage={canManage}
-    count={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => setActive({ id: experimentId, slot })} /> : null
+    count={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null
 
   const accessNotice = result?.missing ? <p className="xp-ui-help">{pickerCopy.unavailable}</p>
         : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>
@@ -349,19 +349,21 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
       </Banner>
 
+  const removeDialog = removing?.key === bindingKey ? <RemoveVersion count={countSlotBlocks(getPuck().getItemById(props.id)?.props[removing.arm.key])} shared={result?.shared} arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null
+
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
     {sidebar ? <>
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><section aria-label={editorCopy.testGroup}><h4>{editorCopy.testGroup}</h4>
         {access.surface?.canManage ? <ExperimentPicker value={props.experiment ?? null} onChange={sidebar.onChange} /> : null}
-        {experiment ? <StatusChip status={experiment.status} /> : null}
+        {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
         {accessNotice}
         {canManage && (experiment?.status === 'draft' || experiment?.status === 'stopped') && blockingLine ? <p role="status">{placementMessage ?? <>Before you can start: {blockingLine}</>}</p> : null}
       </section></div>, sidebar.test)}
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         {experiment && canManage ? <section aria-label={editorCopy.versionsGroup}><h4>{editorCopy.versionsGroup}</h4>
-          <VersionWeights edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable} beforeSplit={<>{leftoverControls}{editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => setActive({ id: experimentId, slot })} /> : null}</>} actions={arm => <>
+          <VersionWeights edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable} beforeSplit={<>{leftoverControls}{editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}</>} actions={arm => <>
             <VersionActions arm={arm} writes={writes} editable={editable} running={experiment.status === 'running'} open={openMenu === `sidebar-${arm.key}`} onOpenChange={open => setOpenMenu(open ? `sidebar-${arm.key}` : null)} canCopy={!originalEmpty} onCopy={requestCopy} onRequestRemove={() => setRemoving({ key: bindingKey, arm })} />
-            {editable && arm.kind !== 'control' ? <Button onClick={() => setRemoving({ key: bindingKey, arm })}>{editorCopy.remove}</Button> : null}
+            {editable && arm.kind !== 'control' ? <Button disabled={writes.busy} onClick={() => setRemoving({ key: bindingKey, arm })}>{editorCopy.remove}</Button> : null}
           </>} />
         </section> : null}
         <section aria-label={editorCopy.actionsGroup}><h4>{editorCopy.actionsGroup}</h4>
@@ -370,6 +372,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
           {writes.error ? <p role="alert">{writes.error}</p> : null}
         </section>
+        {removeDialog}
       </div>, sidebar.controls)}
     </> : null}
     <EditorControls className="xp-slot-chrome" selected={isSelected} onSelect={selectBlock}>
@@ -404,7 +407,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {clearError?.key === bindingKey ? <p role="alert" className="xp-ui-error">{clearError.message}</p> : null}
       {removed?.key === bindingKey ? <p className="xp-ui-help">{editorCopy.removed}</p> : null}
       {experiment && experiment.status !== 'draft' ? <ResultsReadout key={`results-${experimentId}`} id={experimentId!} api={api} experiment={experiment} /> : null}
-      {removing?.key === bindingKey ? <RemoveVersion count={countSlotBlocks(getPuck().getItemById(props.id)?.props[removing.arm.key])} shared={result?.shared === true} arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null}
+      {!sidebar ? removeDialog : null}
       {detaching === bindingKey && canDetach ? <Dialog open title={editorCopy.detachTitle} initialFocus="cancel" onClose={() => setDetaching(null)}>
         <div className="xp-slot-drawer"><p>{experiment?.status === 'running' && shared ? editorCopy.detachRunningHelp : editorCopy.detachHelp}</p><div className="xp-ui-button-group">
           <Button data-dialog-cancel onClick={() => setDetaching(null)}>{editorCopy.cancel}</Button>

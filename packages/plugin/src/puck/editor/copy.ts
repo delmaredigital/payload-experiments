@@ -64,6 +64,7 @@ export const editorCopy = {
   removeTitle: (label: string) => `Remove ${label}?`,
   removeHelp: (count: number) => `This removes the version from the test and deletes its ${count} ${count === 1 ? 'block' : 'blocks'} from this page. Save the page to keep this change.`,
   removeShared: 'This test is used on other pages. The version is removed from the test there too.',
+  removeScopeUnknown: 'If this test is used on other pages, the version is removed from the test there too.',
   removed: "Save the page to finish removing this version's content.",
   removeUncleared: "The version was removed from the test, but its content couldn't be cleared here. Delete it from the outline, then save the page.",
   lockedGeneric: "This test's versions can't change. View the test page for details.",

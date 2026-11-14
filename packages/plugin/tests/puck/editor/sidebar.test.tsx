@@ -5,6 +5,7 @@ vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserv
 import { Puck, useGetPuck, type Config } from '@puckeditor/core'
 import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
 import { newTestBody } from '../../../src/puck/editor/editor.model.js'
+import { publishExperiment } from '../../../src/puck/editor/armsCache.js'
 import { editorCopy as C } from '../../../src/puck/editor/copy.js'
 import type { Status } from '../../../src/types/contracts.js'
 
@@ -31,6 +32,7 @@ async function mount(unbound = false, leftover = false) {
   await waitFor(() => expect(chrome().queryByText('Loading test…')).toBeNull())
   act(() => read().dispatch({ type: 'setUi', ui: { itemSelector: read().getSelectorForId('sidebar-block')! } }))
   await fields().findByRole('region', { name: 'Actions' })
+  if (role === 'manager') await fields().findByRole('combobox')
   actions.length = 0
   return actions
 }
@@ -68,6 +70,7 @@ test.each(['draft', 'running', 'stopped', 'decided'] as const)('%s sidebar has o
   expect((within(versions).getByLabelText(C.weight('Original')) as HTMLInputElement).disabled).toBe(status === 'running' || status === 'decided')
   expect(!!fields().queryByRole('button', { name: C.add })).toBe(status === 'draft' || status === 'stopped')
   expect(!!fields().queryByRole('button', { name: C.remove })).toBe(status === 'draft' || status === 'stopped')
+  if (status === 'draft') await fields().findByRole('button', { name: 'Start' })
   expect(!!fields().queryByRole('button', { name: 'Start' })).toBe(status === 'draft')
   expect(!!fields().queryByRole('button', { name: 'Stop' })).toBe(status === 'running')
   expect(fields().queryByRole('button', { name: /Decide/ })).toBeNull()
@@ -81,19 +84,22 @@ test('sidebar edits and transitions update chrome without reload or Puck selecti
   await screen.findByRole('tab', { name: 'Variant B' })
   expect(fields().getAllByRole('spinbutton')).toHaveLength(3)
   const input = fields().getByLabelText(C.weight('Original'))
+  await waitFor(() => expect((input as HTMLInputElement).disabled).toBe(false))
   fireEvent.change(input, { target: { value: '60' } }); fireEvent.blur(input)
   await waitFor(() => expect((chrome().getByLabelText(C.weight('Original')) as HTMLInputElement).value).toBe('60'))
+  await waitFor(() => expect((fields().getByRole('button', { name: C.menu('Variant A') }) as HTMLButtonElement).disabled).toBe(false))
   fireEvent.click(fields().getByRole('button', { name: C.menu('Variant A') }))
   fireEvent.click(fields().getByRole('button', { name: C.rename }))
   const name = fields().getByLabelText(C.renameLabel)
   fireEvent.change(name, { target: { value: 'New headline' } }); fireEvent.keyDown(name, { key: 'Enter' })
   await screen.findByRole('tab', { name: 'New headline' })
+  await waitFor(() => expect((fields().getAllByRole('button', { name: C.remove })[0] as HTMLButtonElement).disabled).toBe(false))
   fireEvent.click(fields().getAllByRole('button', { name: C.remove })[0]!)
   const dialog = await screen.findByRole('dialog')
   expect(within(dialog).getByText(C.removeHelp(0))).toBeTruthy()
   fireEvent.click(within(dialog).getByRole('button', { name: C.remove }))
   await waitFor(() => expect(screen.queryByRole('tab', { name: 'New headline' })).toBeNull())
-  fireEvent.click(fields().getByRole('button', { name: 'Start' }))
+  fireEvent.click(await fields().findByRole('button', { name: 'Start' }))
   await fields().findByRole('button', { name: 'Stop' })
   expect(chrome().getByText('Running')).toBeTruthy()
   fireEvent.click(fields().getByRole('button', { name: 'Stop' }))
@@ -192,4 +198,44 @@ test('a completed version write supersedes readiness requested before the PATCH'
   expect(fields().getByRole('button', { name: 'Start' })).toBeTruthy()
   expect(fields().queryByText('Before you can start: Choose a goal.')).toBeNull()
   expect(reads).toBe(2)
+})
+
+
+test('sidebar removal mounts its shared modal in the sidebar document and Cancel restores focus', async () => {
+  const actions = await mount()
+  const trigger = fields().getByRole('button', { name: C.remove })
+  trigger.focus()
+  fireEvent.click(trigger)
+  const dialog = await screen.findByRole('dialog')
+  expect(screen.getByTestId('sidebar').contains(dialog)).toBe(true)
+  expect(dialog.ownerDocument).toBe(trigger.ownerDocument)
+  expect(chrome().queryByRole('dialog')).toBeNull()
+  fireEvent.click(within(dialog).getByRole('button', { name: C.cancel }))
+  await waitFor(() => expect(document.activeElement).toBe(trigger))
+  expect(actions).toEqual([])
+})
+
+
+test('a drawer status transition clears staged draft shares so Stop stays available', async () => {
+  await mount()
+  fireEvent.change(fields().getByLabelText(C.weight('Original')), { target: { value: '101' } })
+  doc = { ...doc, status: 'running', updatedAt: 'newer' }
+  act(() => publishExperiment(doc.id, doc))
+  const stop = await fields().findByRole('button', { name: 'Stop' })
+  await waitFor(() => expect((stop as HTMLButtonElement).disabled).toBe(false))
+  expect((fields().getByLabelText(C.weight('Original')) as HTMLInputElement).value).toBe('50')
+  expect(fields().queryByText(C.invalidShare)).toBeNull()
+})
+
+
+test('pending initial placements still explains conditional impact on other pages', async () => {
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let finish!: (response: Response) => void
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? new Promise(resolve => { finish = resolve }) : original(url, init))
+  await mount()
+  fireEvent.click(fields().getByRole('button', { name: C.remove }))
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByText(C.removeScopeUnknown)).toBeTruthy()
+  await act(async () => { finish(reply({ placements: [{ collection: 'pages', id: 'other', detail: 'Published' }], checks: [] })) })
+  expect(within(dialog).getByText(C.removeShared)).toBeTruthy()
 })

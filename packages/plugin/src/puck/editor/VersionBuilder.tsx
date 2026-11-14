@@ -102,12 +102,12 @@ export function VersionActions({ arm, writes, editable, running = false, open, o
 }
 
 export function RemoveVersion({ arm, writes, count, shared, onRemove, onClose }: {
-  arm: EditorExperiment['arms'][number]; writes: ArmWrites; count: number; shared: boolean; onRemove: (slot: ArmSlot) => void; onClose: () => void
+  arm: EditorExperiment['arms'][number]; writes: ArmWrites; count: number; shared: boolean | undefined; onRemove: (slot: ArmSlot) => void; onClose: () => void
 }) {
   const slot = arm.key === 'holdout' ? undefined : arm.key as ArmSlot
   const [tried, setTried] = useState(false)
   return <Dialog open title={C.removeTitle(arm.label)} initialFocus="cancel" dismissible={!writes.busy} onClose={() => onClose()}>
-      <div className="xp-slot-drawer"><p>{C.removeHelp(count)}</p>{shared ? <p>{C.removeShared}</p> : null}
+      <div className="xp-slot-drawer"><p>{C.removeHelp(count)}</p>{shared === undefined ? <p>{C.removeScopeUnknown}</p> : shared ? <p>{C.removeShared}</p> : null}
       {tried && writes.error ? <p role="alert" className="xp-ui-error">{writes.error}</p> : null}
       <div className="xp-ui-button-group">
         <Button data-dialog-cancel disabled={writes.busy} onClick={() => onClose()}>{C.cancel}</Button>
@@ -133,8 +133,7 @@ export function VersionWeights({ experiment, writes, edits, setEdits, groupId, s
   const issues = checkArms(live, 'block')
   async function commit() {
     if (!Object.keys(edits).length || invalidKeys.size || issues.length) return
-    const saved = await writes.write(apply)
-    if (saved) setEdits({})
+    await writes.write(apply)
   }
   return <div className="xp-slot-weights">
     <div className="xp-slot-weight-inputs">{experiment.arms.map(arm => <div className="xp-slot-weight-row" key={arm.key}><NumberInput id={`${id}-${arm.key}`} label={C.weight(arm.label)}
@@ -148,6 +147,6 @@ export function VersionWeights({ experiment, writes, edits, setEdits, groupId, s
       // Pointer intent reaches the destination before the source iframe loses focus.
       splitIntent.current = true
       setTimeout(() => { splitIntent.current = false }, 0)
-    }}><Button variant="quiet" size="sm" disabled={writes.busy} onClick={async () => { if (await writes.write(splitEvenly)) setEdits({}) }}>{C.split}</Button></div> : null}
+    }}><Button variant="quiet" size="sm" disabled={writes.busy} onClick={() => void writes.write(splitEvenly)}>{C.split}</Button></div> : null}
   </div>
 }

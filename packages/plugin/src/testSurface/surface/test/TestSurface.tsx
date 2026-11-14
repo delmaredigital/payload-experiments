@@ -23,23 +23,23 @@ import { ResultsBody } from '../results/ResultsBody.js'
 import type { TestDocument } from '../testDocument.model.js'
 import type { PreflightResult } from '../../../types/endpoints.js'
 import { usePlacementNotice } from '../../../puck/editor/usePlacementNotice.js'
-import { acquirePlacements, cachedPreflight, placementsPending } from '../../../puck/editor/placementsCache.js'
+import { subscribePlacements, cachedPreflight, placementsPending } from '../../../puck/editor/placementsCache.js'
 import { editorPlacementMessage } from '../editorPlacement.js'
 import './testPage.css'
 
-export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded = false, onDocument, onPreflight }: {
+export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded = false, onDocument, onPreflight, requestPreflight }: {
   id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void; embedded?: boolean
   renderFrame?: (content: { test: TestDocApi; children: ReactNode }) => ReactNode
-  onDocument?: (doc: TestDocument) => void; onPreflight?: (preflight: PreflightResult) => void
+  onDocument?: (doc: TestDocument) => void; onPreflight?: (preflight: PreflightResult) => void; requestPreflight?: (signal: AbortSignal, supersede?: boolean) => Promise<Response>
 }) {
   const [barHeight, setBarHeight] = useState<number>()
-  const documentState = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}) })
+  const documentState = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}), ...(requestPreflight ? { requestPreflight } : {}) })
   const [placementRead, setPlacementRead] = useState<{ key: string; preflight?: PreflightResult; pending: boolean }>()
   const placementKey = JSON.stringify([surface.apiRoute, String(id)])
   const watching = embedded && !!surface.editorPage && surface.canManage && !!documentState.preflight
   useEffect(() => {
     if (!watching) return
-    return acquirePlacements(surface.apiRoute, id, () => setPlacementRead({ key: placementKey,
+    return subscribePlacements(surface.apiRoute, id, () => setPlacementRead({ key: placementKey,
       preflight: cachedPreflight(surface.apiRoute, id), pending: placementsPending(surface.apiRoute, id) }))
   }, [surface.apiRoute, id, watching, placementKey])
   const currentRead = placementRead?.key === placementKey ? placementRead : undefined

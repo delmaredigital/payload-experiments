@@ -129,3 +129,10 @@ test('only the labelled header offers selection focus and pointer affordance', (
   expect(properties(selected)['border-color']).toBe('var(--xp-focus)')
   expect(properties(selected)['box-shadow']).toBe('inset 0 0 0 2px var(--xp-focus)')
 })
+
+test('sidebar version menus open into the panel instead of past its left edge', () => {
+  const rules = generatedRules()
+  expect(properties(rules.get('.xp-slot-sidebar .xp-slot-version-menu')!)).toMatchObject({
+    'inset-inline-start': '0', 'inset-inline-end': 'auto',
+  })
+})

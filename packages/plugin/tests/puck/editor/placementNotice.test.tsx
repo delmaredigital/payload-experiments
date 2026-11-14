@@ -38,7 +38,7 @@ function editor(count = 1) {
 test('save then publish clears chrome guidance without a focus change and stops its timer', async () => {
   vi.useFakeTimers()
   editor()
-  await act(async () => {})
+  await act(async () => { await vi.advanceTimersByTimeAsync(100) })
   expect(screen.getByText(SAVE_PAGE)).toBeTruthy()
   saved = true
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
@@ -107,10 +107,10 @@ test('an open drawer clears the save notice through the same cache without focus
   const view = render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
   await act(async () => {})
   const drawer = screen.getByRole('dialog')
-  expect(within(drawer).getByText(SAVE_PAGE)).toBeTruthy()
+  expect(within(drawer).getAllByText(SAVE_PAGE)).toHaveLength(2)
   saved = published = true
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
-  expect(within(drawer).queryByText(SAVE_PAGE)).toBeNull()
+  expect(within(drawer).queryAllByText(SAVE_PAGE)).toHaveLength(0)
   const after = requests()
   await act(async () => { await vi.advanceTimersByTimeAsync(12_000) })
   expect(requests()).toBe(after)
@@ -121,7 +121,7 @@ test('an open drawer clears the save notice through the same cache without focus
 test('a delayed or failed poll keeps the notice and retries until placements resolve', async () => {
   vi.useFakeTimers()
   editor()
-  await act(async () => {})
+  await act(async () => { await vi.advanceTimersByTimeAsync(100) })
   const original = vi.mocked(fetch).getMockImplementation()!
   let finish!: (response: Response) => void
   let polling = 0

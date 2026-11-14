@@ -67,9 +67,9 @@ function stage(session: Session, partial: TestDocumentPatch) {
 }
 
 /** Section data only: staging never saves. Call commit on blur or a section action. */
-export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus = false, enabled = true, onDocument, onPreflight }: { apiRoute: string; refetchPreflightOnFocus?: boolean; enabled?: boolean; onDocument?: (doc: TestDocument) => void; onPreflight?: (preflight: PreflightResult) => void }) {
-  const observers = useRef({ onDocument, onPreflight })
-  observers.current = { onDocument, onPreflight }
+export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus = false, enabled = true, onDocument, onPreflight, requestPreflight }: { apiRoute: string; refetchPreflightOnFocus?: boolean; enabled?: boolean; onDocument?: (doc: TestDocument) => void; onPreflight?: (preflight: PreflightResult) => void; requestPreflight?: (signal: AbortSignal, supersede?: boolean) => Promise<Response> }) {
+  const observers = useRef({ onDocument, onPreflight, requestPreflight })
+  observers.current = { onDocument, onPreflight, requestPreflight }
   const base = apiRoute.replace(/\/$/, '')
   const documentId = String(id)
   const key = JSON.stringify([base, documentId])
@@ -97,7 +97,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
     const url = `${base}/xp-experiments/${encodeURIComponent(documentId)}?depth=0`
 
     let preflightRevision = 0
-    async function refreshPreflight(initial = false) {
+    async function refreshPreflight(initial = false, supersede = false) {
       if (controller.signal.aborted) return
       const revision = ++preflightRevision
       session.preflightLoading = true
@@ -107,9 +107,9 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
       let status = 0
       let message: string = API_MESSAGES.network
       try {
-        const response = await fetch(`${base}/xp/experiments/${encodeURIComponent(documentId)}/preflight`, {
+        const response = await (observers.current.requestPreflight?.(controller.signal, supersede || initial && reloadCount > 0) ?? fetch(`${base}/xp/experiments/${encodeURIComponent(documentId)}/preflight`, {
           method: 'GET', credentials: 'include', cache: 'no-store', signal: controller.signal,
-        })
+        }))
         status = response.status
         const body: unknown = await response.json().catch(() => undefined)
         if (response.ok) {
@@ -221,7 +221,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
         if (saved) {
           // Recovery is complete; readiness now belongs to the latest preflight read.
           session.preflightReads--
-          await refreshPreflight()
+          await refreshPreflight(false, true)
         }
       }
       // Recover both the preceding tail and this step: unexpected throws must not strand later saves.

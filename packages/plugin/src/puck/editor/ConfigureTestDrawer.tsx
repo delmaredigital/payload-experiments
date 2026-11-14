@@ -11,7 +11,7 @@ import { readSurface, useEditorSurface, type SurfaceState } from './editorSurfac
 import { editorCopy as C } from './copy.js'
 import { publishExperiment } from './armsCache.js'
 import { currentPuckDocument } from './editor.model.js'
-import { publishPlacements } from './placementsCache.js'
+import { readEditorPreflight } from './placementsCache.js'
 import type { resolvePuckRoutes } from '../routes.js'
 import './editor.css'
 
@@ -40,7 +40,7 @@ export function ConfigureTestDrawer({ id, routes, onClose }: {
       if (link && !link.getAttribute('href')?.startsWith('#')) { link.target = '_blank'; link.rel = 'noopener noreferrer' }
     }}>
       {state.surface ? <TestSurface id={id} surface={{ ...state.surface, editorPage: currentPuckDocument(window.location.pathname, routes.admin) }} embedded onTitleChange={setTitle}
-        onDocument={doc => publishExperiment(id, doc)} onPreflight={preflight => publishPlacements(routes.api, id, preflight.checks.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined) ? undefined : preflight.placements, preflight)} /> : <div role={state.error ? 'alert' : 'status'}><p>{state.error === 'forbidden' ? TEST_PAGE.forbidden : state.error ? C.setupUnavailable : TEST_PAGE.loading}</p>{state.error === 'unavailable' ? <Button onClick={() => setAttempt(value => value + 1)}>{C.retrySetup}</Button> : null}</div>}
+        onDocument={doc => publishExperiment(id, doc)} requestPreflight={(signal, supersede) => readEditorPreflight(routes.api, id, signal, supersede)} /> : <div role={state.error ? 'alert' : 'status'}><p>{state.error === 'forbidden' ? TEST_PAGE.forbidden : state.error ? C.setupUnavailable : TEST_PAGE.loading}</p>{state.error === 'unavailable' ? <Button onClick={() => setAttempt(value => value + 1)}>{C.retrySetup}</Button> : null}</div>}
     </div>
   </Drawer>
 }
