@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Documented: Puck 0.24.0 supports collapsing the Experiment outline row but has no supported per-version slot collapse control. No outline behavior changed.
+  Migration impact: none.
+
 - Fixed: tests created from a block retain its populated versions and labels with an even split. Content outside an existing test remains in marked tabs, with draft-only Add to the test and confirmed Delete its content actions.
   Migration impact: none.
 
