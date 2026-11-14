@@ -166,3 +166,5 @@
 .xp-configure-panel .xp-version-rows { grid-template-columns: minmax(0, 1fr) var(--xp-version-share-width-mobile); }
 .xp-configure-panel .xp-version-content, .xp-configure-panel .xp-version-remove { grid-column: 1 / -1; }
 .xp-configure-panel .xp-version-grid-head > :nth-child(n+3) { display: none; }
+
+.xp-slot-editor .xp-ui-tab-with-actions { display: flex; align-items: center; flex-wrap: wrap; position: relative; }

@@ -340,7 +340,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {clearError?.key === bindingKey ? <p role="alert" className="xp-ui-error">{clearError.message}</p> : null}
       {removed?.key === bindingKey ? <p className="xp-ui-help">{editorCopy.removed}</p> : null}
       {experiment && experiment.status !== 'draft' ? <ResultsReadout key={`results-${experimentId}`} id={experimentId!} api={api} experiment={experiment} /> : null}
-      {removing?.key === bindingKey ? <RemoveVersion arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null}
+      {removing?.key === bindingKey ? <RemoveVersion count={countSlotBlocks(getPuck().getItemById(props.id)?.props[removing.arm.key])} shared={shared} arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null}
       {detaching === bindingKey && canDetach ? <Dialog open title={editorCopy.detachTitle} initialFocus="cancel" onClose={() => setDetaching(null)}>
         <div className="xp-slot-drawer"><p>{experiment?.status === 'running' && shared ? editorCopy.detachRunningHelp : editorCopy.detachHelp}</p><div className="xp-ui-button-group">
           <Button data-dialog-cancel onClick={() => setDetaching(null)}>{editorCopy.cancel}</Button>
@@ -355,7 +355,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     </EditorControls>
     <Tabs label={editorCopy.tabs} value={slot} renderHeader={children => <EditorControls className="xp-ui-tabs-header">{children}</EditorControls>} onChange={value => { setOpenMenu(null); setActive({ id: experimentId, slot: value as ArmSlot }) }}
       items={tabs.map(tab => ({ id: tab.slot, label: tab.label, actions: experiment?.arms.some(arm => arm.key === tab.slot) ? <VersionActions
-        key={`${experimentId}-${tab.slot}`} arm={experiment.arms.find(arm => arm.key === tab.slot)!} writes={writes} editable={editable} open={openMenu === tab.slot} onOpenChange={open => setOpenMenu(open ? tab.slot : null)}
+        key={`${experimentId}-${tab.slot}`} arm={experiment.arms.find(arm => arm.key === tab.slot)!} writes={writes} editable={editable} running={experiment.status === 'running'} open={openMenu === tab.slot} onOpenChange={open => setOpenMenu(open ? tab.slot : null)}
         canCopy={!originalEmpty} onCopy={requestCopy} onRequestRemove={() => setRemoving({ key: bindingKey, arm: experiment.arms.find(arm => arm.key === tab.slot)! })} /> : undefined, content: tab.slot === slot ?
         <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'}>
           <Slot className="xp-slot-drop-target" />

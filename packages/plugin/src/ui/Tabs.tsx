@@ -10,7 +10,7 @@ export function Tabs({ items, label, value, onChange, renderHeader }: { items: T
   const selected = items.find(item => item.id === requested && !item.disabled)?.id ?? items.find(item => !item.disabled)?.id
   function select(id: string) { setLocal(id); onChange?.(id) }
   const header = <><div role="tablist" aria-label={label} className="xp-ui-tablist">
-    {items.map(item => <button type="button" role="tab" key={item.id} id={`${prefix}-tab-${item.id}`} aria-controls={`${prefix}-panel-${item.id}`}
+    {items.map(item => <div role="presentation" className="xp-ui-tab-with-actions" key={item.id}><button type="button" role="tab" id={`${prefix}-tab-${item.id}`} aria-controls={`${prefix}-panel-${item.id}`}
       aria-selected={selected === item.id} tabIndex={selected === item.id ? 0 : -1} disabled={item.disabled}
       className="xp-ui-tab" onClick={() => select(item.id)} onKeyDown={event => {
         const enabled = items.filter(tab => !tab.disabled)
@@ -21,8 +21,8 @@ export function Tabs({ items, label, value, onChange, renderHeader }: { items: T
         if (!next) return
         event.preventDefault(); select(next.id)
         event.currentTarget.ownerDocument.getElementById(`${prefix}-tab-${next.id}`)?.focus()
-      }}>{item.label}</button>)}
-  </div>{items.find(item => item.id === selected)?.actions}</>
+      }}>{item.label}</button>{item.actions}</div>)}
+  </div></>
   return <div className="xp-ui-tabs">{renderHeader ? renderHeader(header) : <div className="xp-ui-tabs-header">{header}</div>}{items.map(item => <div role="tabpanel" id={`${prefix}-panel-${item.id}`} aria-labelledby={`${prefix}-tab-${item.id}`}
     hidden={selected !== item.id} tabIndex={0} key={item.id} className="xp-ui-tabpanel">{item.content}</div>)}</div>
 }

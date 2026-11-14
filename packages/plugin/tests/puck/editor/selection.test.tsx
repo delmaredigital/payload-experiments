@@ -72,7 +72,7 @@ test.each([false, true].flatMap(nested => [false, true].map(fullScreen => ({ nes
   fireEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
   await waitFor(() => expect(canvas.queryByRole('dialog')).toBeNull())
   fireEvent.click(canvas.getByRole('button', { name: 'Options for Variant A' }))
-  fireEvent.click(canvas.getByRole('button', { name: 'Remove' }))
+  fireEvent.click(canvas.getByRole('button', { name: 'Remove version' }))
   fireEvent.click(canvas.getByRole('heading', { name: 'Remove Variant A?' }))
   expect(actions).toHaveLength(0)
   expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('test-block'))

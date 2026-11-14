@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: every version tab has a visible Options menu. Remove version confirms how many blocks it deletes from this page and explains shared-test impact. Existing draft/stopped manager access is preserved.
+  Migration impact: none.
+
 - Fixed: editor actions explain empty Original content, a missing test name, unavailable audience choices, in-progress version writes and placement checks, and loading/failed test reads. Retry now reloads a failed test read. Setup validation and readiness failures keep a visible reason above Start; failed placement discovery never masquerades as an unsaved page. Whole-page click-goal warnings name pages rather than a block.
   Migration impact: none.
 

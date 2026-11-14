@@ -16,6 +16,7 @@ test('the neutral click-goal picker copy participates in the shared copy audit',
   expect(copyPaths).toContain(new URL('../../src/goals/picker/copy.ts', import.meta.url).pathname)
 })
 const samples: Record<string, unknown[][]> = {
+  removeHelp: [[0], [1], [3]],
   pageInUseCopy: [['/example'], ['/example', true]],
   unpublishedPageCopy: [['/example'], ['/example', { original: true, found: true, collection: 'Pages' }], ['/example', { original: false, found: true, collection: 'Pages' }], ['/example', { original: false, found: false, collection: 'Pages' }]],
   sameAddressCopy: [['Variant A', 'Original', '/example'], ['Variant A', 'Original', '/example', 'Pages']],

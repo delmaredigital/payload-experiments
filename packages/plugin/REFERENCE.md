@@ -1038,3 +1038,5 @@ New click goals are accepted within 30 seconds. A click goal may be primary;
 primary and guardrail goals must appear in every tested version or outside all
 of them. Secondary asymmetry warns, and results health checks published rows
 again on every run.
+
+Every version tab has a visible **Options** menu beside its label. Managers can rename versions (including Original) and remove non-Original versions in draft or stopped tests. **Remove version** confirms the block count deleted from this page, asks you to save the page, and explains when the test also changes on other pages. Running menus explain that versions cannot change.

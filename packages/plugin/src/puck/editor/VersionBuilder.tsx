@@ -42,8 +42,8 @@ export function AddVariant({ experiment, writes, onSelect }: { experiment: Edito
   }}>{C.add}</Button>
 }
 
-export function VersionActions({ arm, writes, editable, open, onOpenChange, canCopy, onCopy, onRequestRemove }: {
-  arm: EditorExperiment['arms'][number]; writes: ArmWrites; editable: boolean; open: boolean; onOpenChange: (open: boolean) => void; canCopy: boolean
+export function VersionActions({ arm, writes, editable, running = false, open, onOpenChange, canCopy, onCopy, onRequestRemove }: {
+  arm: EditorExperiment['arms'][number]; writes: ArmWrites; editable: boolean; running?: boolean; open: boolean; onOpenChange: (open: boolean) => void; canCopy: boolean
   onCopy: (slot: ArmSlot) => void; onRequestRemove: () => void
 }) {
   const id = useId()
@@ -84,13 +84,14 @@ export function VersionActions({ arm, writes, editable, open, onOpenChange, canC
   }}>
     <div className="xp-slot-version-anchor">
     {editable || arm.kind !== 'control' ? <Button size="sm" variant="quiet" aria-label={C.menu(arm.label)} aria-expanded={open} aria-controls={`${id}-menu`}
-      disabled={writes.busy} onClick={() => onOpenChange(!open)}>⋯</Button> : null}
+      disabled={writes.busy} onClick={() => onOpenChange(!open)}>{C.options} ▾</Button> : null}
     {open ? <div id={`${id}-menu`} className="xp-slot-version-menu" role="group" tabIndex={-1} aria-label={C.menu(arm.label)}>
       {editable ? <Button variant="quiet" size="sm" onClick={() => { setName(arm.label); setInvalid(false); closeMenu() }}>{C.rename}</Button> : null}
       {arm.kind !== 'control' ? <>
         <Button variant="quiet" size="sm" disabled={!canCopy} onClick={() => { closeMenu(); onCopy(slot) }}>{C.copy}</Button>{!canCopy ? <p className="xp-ui-help">{C.copyEmpty}</p> : null}
-        {editable ? <Button variant="quiet" size="sm" onClick={() => { closeMenu(); onRequestRemove() }}>{C.remove}</Button> : null}
+        {editable ? <Button variant="quiet" size="sm" onClick={() => { closeMenu(); onRequestRemove() }}>{C.removeVersion}</Button> : null}
       </> : null}
+      {running ? <p className="xp-ui-help">{C.runningVersions}</p> : null}
     </div> : null}
     </div>
     {name !== null ? <div className="xp-slot-version-rename"><TextInput id={`${id}-name`} label={C.renameLabel} autoFocus value={name} disabled={writes.busy}
@@ -100,13 +101,13 @@ export function VersionActions({ arm, writes, editable, open, onOpenChange, canC
   </div>
 }
 
-export function RemoveVersion({ arm, writes, onRemove, onClose }: {
-  arm: EditorExperiment['arms'][number]; writes: ArmWrites; onRemove: (slot: ArmSlot) => void; onClose: () => void
+export function RemoveVersion({ arm, writes, count, shared, onRemove, onClose }: {
+  arm: EditorExperiment['arms'][number]; writes: ArmWrites; count: number; shared: boolean; onRemove: (slot: ArmSlot) => void; onClose: () => void
 }) {
   const slot = arm.key as ArmSlot
   const [tried, setTried] = useState(false)
   return <Dialog open title={C.removeTitle(arm.label)} initialFocus="cancel" dismissible={!writes.busy} onClose={() => onClose()}>
-      <div className="xp-slot-drawer"><p>{C.removeHelp}</p>
+      <div className="xp-slot-drawer"><p>{C.removeHelp(count)}</p>{shared ? <p>{C.removeShared}</p> : null}
       {tried && writes.error ? <p role="alert" className="xp-ui-error">{writes.error}</p> : null}
       <div className="xp-ui-button-group">
         <Button data-dialog-cancel disabled={writes.busy} onClick={() => onClose()}>{C.cancel}</Button>

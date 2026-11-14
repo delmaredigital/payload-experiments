@@ -122,7 +122,7 @@ test('Rename Enter saves once on fresh arms; Escape cancels and an empty name is
 
 test('Original can change label while keeping its control identity and has no Remove', async () => {
   await mount(); menu('Original')
-  expect(screen.queryByRole('button', { name: C.remove })).toBeNull()
+  expect(screen.queryByRole('button', { name: C.removeVersion })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: C.rename }))
   const input = screen.getByLabelText(C.renameLabel)
   fireEvent.change(input, { target: { value: 'Current appeal' } }); fireEvent.keyDown(input, { key: 'Enter' })
@@ -138,13 +138,13 @@ test.each(['other', 'none'] as const)('Remove focuses Cancel, confirms once and 
     const modal = document.querySelector('dialog[open]')
     if (!modal || modal.contains(this)) focus.call(this)
   })
-  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   let dialog = screen.getByRole('dialog')
   expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: C.cancel }))
   fireEvent.keyDown(dialog, { key: 'Escape' })
   expect(screen.queryByRole('dialog')).toBeNull(); expect(patches()).toHaveLength(0)
   expect(document.activeElement).toBe(screen.getByRole('button', { name: C.menu('Variant A') }))
-  menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   dialog = screen.getByRole('dialog')
   const remove = within(dialog).getByRole('button', { name: C.remove })
   fireEvent.click(remove); fireEvent.click(remove)
@@ -160,7 +160,7 @@ test.each(['other', 'none'] as const)('Remove focuses Cancel, confirms once and 
   fireEvent.click(screen.getByRole('button', { name: C.add }))
   await screen.findByRole('tab', { name: 'Variant A' })
   await waitFor(() => expect((screen.getByRole('button', { name: C.menu('Variant A') }) as HTMLButtonElement).disabled).toBe(false))
-  menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
   await waitFor(() => expect(screen.queryByRole('tab', { name: 'Variant A' })).toBeNull())
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Original' })))
@@ -202,7 +202,7 @@ test('a fresh Remove dialog hides a failed Add error until its own attempt', asy
   await mount(); refuse = { status: 403, code: 'forbidden' }
   fireEvent.click(screen.getByRole('button', { name: C.add }))
   await screen.findByText("You don't have permission to do this.")
-  menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   const dialog = screen.getByRole('dialog')
   expect(within(dialog).queryByRole('alert')).toBeNull()
   expect(patches()).toHaveLength(1)
@@ -232,8 +232,9 @@ test.each(['running', 'decided', 'archived'] as const)('%s keeps Copy as its onl
   menu()
   const options = screen.getByLabelText(C.menu('Variant A'), { selector: '.xp-slot-version-menu' })
   expect(within(options).getAllByRole('button').map(button => button.textContent)).toEqual([C.copy])
+  if (status === 'running') expect(within(options).getByText(C.runningVersions)).toBeTruthy()
   expect(screen.queryByRole('button', { name: C.rename })).toBeNull()
-  expect(screen.queryByRole('button', { name: C.remove })).toBeNull()
+  expect(screen.queryByRole('button', { name: C.removeVersion })).toBeNull()
   expect(screen.queryByRole('spinbutton')).toBeNull()
   expect(screen.queryByRole('button', { name: C.split })).toBeNull()
 })
@@ -313,7 +314,7 @@ test('a delayed removal for a previous binding never overwrites the new document
     }
     return fetcher(url, init)
   })
-  menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
   await waitFor(() => expect(order).toEqual(['GET', 'GET', 'PATCH']))
   doc = { ...doc, name: 'Second test' }
@@ -327,7 +328,7 @@ test('a delayed removal for a previous binding never overwrites the new document
 
 
 test.each([false, true])('Remove 409 announces mapped stale copy inside the still-open dialog (already removed: %s)', async alreadyRemoved => {
-  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   refuse = { status: 409, code: 'stale-edit' }
   if (alreadyRemoved) {
     const fetcher = vi.mocked(fetch).getMockImplementation()!
@@ -426,7 +427,7 @@ test.each(['non-JSON', 'invalid shape', 'invalid arm', 'unknown status'] as cons
 })
 
 test.each(['missingItem', 'missingSelector'] as const)('successful Remove explains when content cannot be cleared: %s', async missing => {
-  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   puck[missing] = true
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
   expect((await screen.findByRole('alert')).textContent).toBe(C.removeUncleared)
@@ -435,7 +436,7 @@ test.each(['missingItem', 'missingSelector'] as const)('successful Remove explai
 })
 
 test('rebinding hides an uncleared-content error from the previous binding', async () => {
-  const view = await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  const view = await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   puck.missingSelector = true
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
   await screen.findByText(C.removeUncleared)
@@ -446,7 +447,7 @@ test('rebinding hides an uncleared-content error from the previous binding', asy
 })
 
 test('the next successful write clears an uncleared-content error on the same binding', async () => {
-  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.remove }))
+  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   puck.missingSelector = true
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
   await screen.findByText(C.removeUncleared)
@@ -575,4 +576,17 @@ test('page editors without test management can delete leftover content but canno
     expect(screen.queryByRole('button', { name: C.addLeftover })).toBeNull()
     expect(screen.getByRole('button', { name: C.deleteContent })).toBeTruthy()
   } finally { puck.item.props.variantB = [] }
+})
+
+
+test('every tab has a labelled visible menu before selection or hover; removal names content and shared impact', async () => {
+  await mount()
+  expect(screen.getByRole('tab', { name: 'Original' }).getAttribute('aria-selected')).toBe('true')
+  const trigger = screen.getByRole('button', { name: C.menu('Variant A') })
+  expect(trigger.textContent).toBe('Options ▾')
+  expect(trigger.closest('.xp-ui-tab-with-actions')?.querySelector('[role="tab"]')?.textContent).toBe('Variant A')
+  fireEvent.click(trigger)
+  expect(screen.getByRole('tab', { name: 'Original' }).getAttribute('aria-selected')).toBe('true')
+  fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  expect(within(screen.getByRole('dialog')).getByText(C.removeHelp(1))).toBeTruthy()
 })
