@@ -159,8 +159,8 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
   // Immediate states are the post-refusal read itself; later-answer histories
   // deliberately publish a new answer identity after the post-refusal read.
   if (row.history === 'ready' || row.history === 'failed' || row.history === 'blocker') {
-    // The first read above establishes lifetime. For ready/failed this next
-    // failed read is not an answer; for blocker dismissal is already permanent.
+    // The first read above establishes lifetime. A later non-failed answer with
+    // a displayed blocker can dismiss; blocker dismissal is already permanent.
     if (row.history !== 'ready' || row.outcome.name !== 'answered') await apply(row.outcome.status, body, row.pending)
   } else await apply(row.outcome.status, body, row.pending)
   view.rerender(content())
@@ -188,7 +188,7 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
   const offered = row.surface === 'chrome' ? false : row.surface === 'sidebar' ? row.status === 'draft' && ready : setup
   expect(!!start).toBe(offered)
   if (start) expect(start.disabled).toBe(!ready || row.pending)
-  const displayedBlocker = row.outcome.status === 200 && row.outcome.name !== 'unusable 200' && (row.outcome.name !== 'answered' || row.pageState !== 'published')
+  const displayedBlocker = row.outcome.status === 200 && row.outcome.name !== 'unusable 200' && row.outcome.name !== 'placements-failed' && (row.outcome.name !== 'answered' || row.pageState !== 'published')
   const alertExpected = row.history !== 'none' && (!setup || !row.history.startsWith('blocker') && !displayedBlocker)
   expect(scope().queryByText(refused) !== null).toBe(alertExpected)
   // The producer supplies the delay. A surface subscribes only while a notice
@@ -264,6 +264,51 @@ test.each(['sidebar', 'drawer', 'admin'] as const)('unpublished refusal → expl
   expect(within(view.container).queryByRole('alert')).toBeNull()
   expect(view.container.textContent).toContain('Ready to start.')
   expect((within(view.container).getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false)
+})
+
+test.each([
+  { surface: 'sidebar', status: 'draft' },
+  { surface: 'drawer', status: 'draft' }, { surface: 'drawer', status: 'stopped' },
+  { surface: 'admin', status: 'draft' }, { surface: 'admin', status: 'stopped' },
+] as const)('refusal → placements-failed → automatic retry ready retains alert and permits Start ($surface / $status)', async ({ surface, status }) => {
+  vi.useFakeTimers()
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  const p = props({ status })
+  let finish!: () => void
+  p.test.refreshPreflight = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+  let body = preflight([{ code: 'no-placements', ok: false, detail: 'placements-failed' }])
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/preflight') ? Response.json(body)
+    : Response.json({ errors: [{ code: 'future-refusal', message: refused }] }, { status: 422 })))
+  const content = () => surface === 'sidebar' ? <><BlockerList steps={blockingSteps(p.test.preflight, p.test.doc!)} /><QuickTestActions {...p} /></> : <ReadinessContent {...p} />
+  const view = render(content())
+  const scope = () => within(view.container)
+  const label = status === 'stopped' ? 'Start a new round' : 'Start'
+  fireEvent.click(scope().getByRole('button', { name: label }))
+  if (status === 'stopped') fireEvent.click(scope().getAllByRole('button', { name: label })[1]!)
+  await act(async () => {})
+  expect(scope().getByRole('alert').textContent).toBe(refused)
+  const id = `failed-refusal-${surface}-${status}`
+  const release = acquirePlacements('/retry', id, () => {})
+  await act(async () => {})
+  function applyRead() {
+    p.test.preflightRead = cachedReadinessRead('/retry', id)!
+    p.test.preflight = p.test.preflightRead.answer ?? null
+    view.rerender(content())
+  }
+  applyRead()
+  await act(async () => { finish() })
+  expect(view.container.textContent).toContain(discoveryFailed)
+  expect(scope().getByRole('alert').textContent).toBe(refused)
+  const stop = watchPlacementNotice('/retry', id, document)
+  body = preflight()
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+  applyRead()
+  expect(view.container.textContent).toContain('Ready to start.')
+  expect(scope().getByRole('alert').textContent).toBe(refused)
+  expect((scope().getAllByRole('button', { name: label }).at(-1) as HTMLButtonElement).disabled).toBe(false)
+  stop(); release()
 })
 
 test('two draft pages keep Checkout named under this page’s publishing notice; lists cap at three', () => {
