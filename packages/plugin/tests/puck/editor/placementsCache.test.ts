@@ -130,7 +130,7 @@ test.each([401, 403, 'forbidden', 'not-found'] as const)('pending focus and post
   await vi.advanceTimersByTimeAsync(0)
   if (typeof status === 'number') expect((await readEditorPreflight('/api', id, new AbortController().signal)).status).toBe(status)
   const error = placementReadError('/api', id)
-  expect(error).toBe(status === 'not-found' ? 'A page used by this test no longer exists. Choose another page.' : "You don't have permission to check where this test is used.")
+  expect(error).toBe(status === 401 ? 'Your session has expired. Sign in again.' : status === 'not-found' ? 'A page used by this test no longer exists. Choose another page.' : "You don't have permission to check where this test is used.")
   for (const refresh of [() => focusPlacements('/api', id), () => { invalidatePlacements('/api', id); return refreshPlacements('/api', id) }]) {
     let finish!: (response: Response) => void
     fetcher.mockImplementation(() => new Promise(resolve => { finish = resolve }))

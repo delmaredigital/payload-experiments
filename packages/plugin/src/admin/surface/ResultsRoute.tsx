@@ -26,10 +26,8 @@ function ManagedResults({ id, surface, onTitleChange }: { id: DocId; surface: Su
     onRecomputed={() => setResultsVersion(value => value + 1)} onPagesReleased={() => { void test.reload() }}
     renderPage={parts => <ResultsHeader key={`${test.doc!.id}/${test.doc!.status}`} test={test} surface={surface} resultsVersion={resultsVersion} {...parts} />} />
   return <ReaderResultsShell surface={surface}><div className="xp-test-page">
-    <p role="status">{test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading}</p>
-    {test.loadState === 'error' ? <Button onClick={() => void test.reload()}>{C.retry}</Button> : null}
-    {test.errors._section ? <p role="alert">{test.errors._section}</p> : null}
-    {test.preflightError ? <p role="alert">{test.preflightError}</p> : null}
+    <p role="status">{test.preflightRead?.message ?? (test.loadState === 'loading' ? C.loading : C.error)}</p>
+    {test.preflightRead?.retry ? <Button onClick={() => void test.reload()}>{C.retry}</Button> : null}
     {/* Wait for the header document so the body mounts once with its final key. */}
     {test.loadState !== 'loading' && test.loadState !== 'missing' && test.loadState !== 'forbidden' ? <ResultsBody key={bodyKey} id={id} surface={surface} onRecomputed={() => setResultsVersion(value => value + 1)} onPagesReleased={() => { void test.reload() }} /> : null}
   </div></ReaderResultsShell>

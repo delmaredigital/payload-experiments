@@ -119,7 +119,7 @@ test.each([false, true])('Advanced has no mark or completion announcement in the
 })
 
 test('bar shows its specific read error once, Retry and a visible Start reason', () => {
-  const message = 'The readiness service is temporarily unavailable.'
+  const message = "Couldn't check readiness. Try again."
   const view = render(bar(props({}, { preflightError: message })))
   expect(screen.getAllByText(message)).toHaveLength(1)
   expect(screen.getAllByRole('alert')).toHaveLength(1)

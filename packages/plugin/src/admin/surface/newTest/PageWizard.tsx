@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation.js'
 import { formatAdminURL } from 'payload/shared'
 import type { DocId } from '../../../types/contracts.js'
 import type { SurfaceProps } from '../../../testSurface/surface/contracts.js'
+import { canStartTest, readyToStart } from '../../../testSurface/readinessRead.js'
 import { useTestDocument } from '../../../testSurface/surface/useTestDocument.js'
 import { CopyRoute } from '../../../testSurface/surface/pagePicker/CopyRoute.js'
 import { PageCombobox } from '../../../testSurface/surface/pagePicker/PageCombobox.js'
@@ -30,7 +31,7 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
   useEffect(() => { if (step === 'review') void test.refreshPreflight() }, [step, test.refreshPreflight])
   const leave = () => router.push(testUrl)
   if (test.loadState === 'loading') return <p role="status">{TEST_PAGE.loading}</p>
-  if (!test.doc || test.loadState !== 'ready') return <div><p role="alert">{test.loadState === 'forbidden' ? TEST_PAGE.forbidden : test.loadState === 'missing' ? TEST_PAGE.missing : TEST_PAGE.error}</p><button type="button" onClick={() => void test.reload()}>{TEST_PAGE.retry}</button><button type="button" onClick={leave}>{C.backToTest}</button></div>
+  if (!test.doc || test.loadState !== 'ready') return <div><p role="alert">{test.preflightRead?.message ?? TEST_PAGE.error}</p>{test.preflightRead?.retry ? <button type="button" onClick={() => void test.reload()}>{TEST_PAGE.retry}</button> : null}<button type="button" onClick={leave}>{C.backToTest}</button></div>
   const doc = test.doc
   const collection = testPageCollection(collections, doc, test.preflight?.pagePlacements)
   const arms = controlFirst(doc.arms).filter(arm => arm.kind !== 'holdout')
@@ -38,7 +39,7 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
   const arm = arms.find(item => item.key === step)
   const ctx = pageReadinessContext(doc, test.preflight, surface)
   const next = nextStep(test.preflight, ctx)
-  const ready = Boolean(test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
+  const ready = readyToStart(test)
   const busy = test.hasUnsaved || test.saving === 'saving' || transition.busy
   const jump = (section: string, key?: string) => {
     if (section === 'versions') setStep(key ?? arms.find(item => !item.pageTarget)?.key ?? 'control')
@@ -47,14 +48,13 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
   const picker = arm && collection ? <PageCombobox key={`${collection.slug}/${arm.key}`} collection={collection} test={test} armKey={arm.key} apiRoute={surface.apiRoute} /> : null
   return <div className="xp-new-test xp-page-wizard">
     <h2>{step === 'collection' ? C.collection : step === 'review' ? C.review : arm?.kind === 'control' ? C.original : pageStepCopy(arm?.label ?? '')}</h2>
-    <SaveStatus test={test} />
+    <SaveStatus test={test} messageInBlockerList={step === 'review' && !!test.preflight && !test.preflightError} />
     {test.errors._section ? <p role="alert">{test.errors._section}</p> : null}
     {step === 'collection' ? <fieldset><legend>{C.collection}</legend>{collections.map(entry => <label key={entry.slug}>
       <input type="radio" name="page-collection" checked={doc.pageCollection === entry.slug} disabled={busy} onChange={() => {
         test.stage({ pageCollection: entry.slug }); void test.commit()
       }} />{entry.label}
     </label>)}</fieldset> : step === 'review' ? <>
-      {test.preflightError ? <p role="alert">{test.preflightError}</p> : null}
       <ul>{test.preflight?.checks.map((check, index) => {
         if (!Object.hasOwn(READINESS, check.code)) return check.ok ? null : <li key={`${check.code}/${index}`}>{SURFACE_COPY.next}</li>
         const row = READINESS[check.code]
@@ -63,7 +63,7 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
         return sentence && !check.ok ? <li key={`${check.code}/${index}`}>{sentence}{label ? <button type="button" onClick={() => jump(row.section, readinessArm(check.code, check.detail, ctx))}>{label}</button> : null}</li> : null
       })}</ul>
       {ready ? <p>{READINESS_COPY.ready}</p> : null}
-      <button type="button" disabled={busy || test.preflightPending || !test.preflight} onClick={() => {
+      <button type="button" disabled={busy || test.preflightPending || !test.preflight || ready && (!canStartTest(test) || transition.checking)} onClick={() => {
         if (ready) void transition.run(() => createApi(surface.apiRoute).start(id))
         else if (next) jump(next.section, next.arm)
       }}>{ready ? C.start : C.finishSetup}</button>

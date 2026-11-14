@@ -1,4 +1,7 @@
 'use client'
+import { canStartTest, readyToStart } from '../../../testSurface/readinessRead.js'
+import { BlockerList } from '../../../testSurface/surface/readiness/BlockerList.js'
+import { ReadinessReadStatus } from '../../../testSurface/surface/readiness/SaveStatus.js'
 import { surfaceUrls } from '../../../testSurface/surfaceUrls.js'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -12,7 +15,7 @@ import { createApi } from '../../../testSurface/api.js'
 import { availableActions, actionGroupLabel } from '../../../testSurface/actions/actions.model.js'
 import type { ActionDecision, ActionId } from '../../../testSurface/actions/actions.model.js'
 import { AllocateAction, ConfirmAction } from '../../../testSurface/surface/readiness/ActionDialogs.js'
-import { READINESS, daysRemaining, displayDate, nextStep, pageReadinessContext } from '../../../testSurface/surface/readiness/readiness.model.js'
+import { READINESS, daysRemaining, displayDate, blockingSteps, pageReadinessContext } from '../../../testSurface/surface/readiness/readiness.model.js'
 import { READINESS_COPY as R, runningCopy, stoppedCopy, decidedCopy } from '../../../testSurface/copy/readiness.js'
 import { RESULTS_COPY as C } from '../../../testSurface/copy/results.js'
 import { TEST_PAGE } from '../../../testSurface/copy/testPage.js'
@@ -37,9 +40,10 @@ export function ResultsHeader({ test, surface, resultsVersion, children, actions
   const available = availableActions({ status: doc.status, kind: doc.kind, arms: doc.arms, decision, canManage: surface.canManage })
     .filter(action => doc.status === 'running' ? ['allocate', 'stop'].includes(action.id) : action.id !== 'decide')
     .sort((a, b) => doc.status === 'running' ? ['allocate', 'stop'].indexOf(a.id) - ['allocate', 'stop'].indexOf(b.id) : 0)
-  const next = nextStep(test.preflight, pageReadinessContext(doc, test.preflight, surface))
-  const ready = Boolean(test.preflight && !test.preflightPending && !test.preflightError && test.preflight.checks.every(check => check.ok))
-  const startReason = next?.sentence ?? (!ready ? test.preflightError ? R.checkError : R.checking : undefined)
+  const setup = doc.status === 'draft' || doc.status === 'stopped'
+  const blockers = blockingSteps(test.preflight, pageReadinessContext(doc, test.preflight, surface))
+  const ready = readyToStart(test)
+  const startReason = test.preflightError ?? blockers[0]?.sentence ?? (!ready ? R.checking : undefined)
   const action = available.find(item => item.id === selected)
   const sentence = doc.status === 'running' ? runningCopy(displayDate(doc.startedAt), people, daysRemaining(doc, Date.now()))
     : doc.status === 'stopped' ? stoppedCopy(displayDate(doc.stoppedAt))
@@ -53,11 +57,12 @@ export function ResultsHeader({ test, surface, resultsVersion, children, actions
         <Banner key={`${check.code}/${index}`} tone="warning">{READINESS[check.code].next(check.detail, doc)}</Banner>) : null}</>}
     actions={<div className="xp-ui-button-group"><Button variant="quiet" href={testURL}>{C.backToSetup}</Button>
       {available.map(item => <Button key={item.id} variant={item.tone === 'danger' ? 'danger' : 'secondary'}
-        disabled={(item.id === 'start' && !!startReason) || !!selected || test.hasUnsaved || test.saving === 'saving' || (item.id === 'allocate' && doc.allocation >= 100)}
+        disabled={(item.id === 'start' && !canStartTest(test)) || !!selected || test.hasUnsaved || test.saving === 'saving' || (item.id === 'allocate' && doc.allocation >= 100)}
         title={item.id === 'start' ? startReason : item.id === 'allocate' && doc.allocation >= 100 ? R.everyone : undefined}
         onClick={() => setSelected(item.id)}>{item.id === 'allocate' ? R.allocate : item.label}</Button>)}{actions}</div>}>
     {test.errors._section ? <Banner tone="error">{test.errors._section}</Banner> : null}
-    {test.preflightError ? <Banner tone="error">{test.preflightError}</Banner> : null}
+    <ReadinessReadStatus test={test} messageInBlockerList={setup && !!test.preflight && !test.preflightError} />
+    {setup ? <BlockerList steps={blockers} /> : null}
     {children}
     {action?.id === 'allocate' ? <AllocateAction test={test} surface={surface} onClose={() => setSelected(null)} />
       : action ? <ConfirmAction test={test} surface={surface} action={action} winnerLabel={winner} onClose={() => setSelected(null)} /> : null}

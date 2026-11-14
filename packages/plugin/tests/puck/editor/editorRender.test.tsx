@@ -237,7 +237,7 @@ test('load errors retain Original and show a readable message', async () => {
   vi.mocked(fetch).mockRejectedValue(new Error('offline'))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props()} />)
-  await screen.findByText("Couldn't load this test. Try again.")
+  await screen.findByText("Couldn't check readiness. Try again.")
   expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Retry' })).toBeTruthy()
   expect(screen.getByText('Original content')).toBeTruthy()
   vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : doc))

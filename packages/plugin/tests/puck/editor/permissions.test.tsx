@@ -6,7 +6,7 @@ import { Puck, useGetPuck, type Config } from '@puckeditor/core'
 import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
 import { fixture, phaseFor } from '../../admin/results/fixtures.js'
 
-const noAccess = "You don't have access to this test. You can still edit its content."
+const noAccess = "You don't have permission to check where this test is used."
 const detach = 'Remove the test from this block'
 const doc = { name: 'Hero test', status: 'draft', arms: [
   { key: 'control', kind: 'control', label: 'Original', weight: 50 },
@@ -112,8 +112,8 @@ test.each([500, 'network'] as const)('status %s refuses detach with the existing
 
 test('results-only: Configure opens the reader, creation and version management stay hidden, removal works', async () => {
   const fetcher = setup('results')
-  await screen.findByText("You can view this test's results.")
-  expect(screen.queryByText(noAccess)).toBeNull()
+  await screen.findByText("You don't have permission to check where this test is used.")
+  expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Start a new test from this block' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Add variant' })).toBeNull()
   fireEvent.click(await screen.findByRole('button', { name: 'Configure test' }))
@@ -175,12 +175,12 @@ test.each([false, true])('pending permissions keep management actions absent fro
 test('an unbound block without access names tests generally and offers no actions', async () => {
   setup('none', 403, undefined, true)
   await screen.findByText("You don't have access to tests.")
-  expect(screen.queryByText(noAccess)).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   expect(document.querySelector('.xp-slot-chrome .xp-ui-button-group')?.textContent).toBe('')
 })
 test('a bound 404 is calm, retains page-owned version tabs and permits removal', async () => {
   setup('manager', 404)
-  await screen.findByText("This test isn't available to you. You can still edit its content.")
+  await screen.findByText('This test no longer exists.')
   expect(screen.queryByRole('alert')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Configure test' })).toBeNull()
   expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'Variant A'])
@@ -196,7 +196,7 @@ test('a bound 404 is calm, retains page-owned version tabs and permits removal',
 test.each(['none', 'results', 'manager'] as const)('a deleted bound test takes priority for a %s reader and never offers Configure', async role => {
   setup(role, 404)
   const chrome = document.querySelector<HTMLElement>('.xp-slot-chrome')!
-  await within(chrome).findByText("This test isn't available to you. You can still edit its content.")
+  await within(chrome).findByText('This test no longer exists.')
   expect(within(chrome).queryByText("You can view this test's results.")).toBeNull()
   expect(within(chrome).queryByRole('button', { name: 'Configure test' })).toBeNull()
   expect(within(chrome).queryByRole('alert')).toBeNull()

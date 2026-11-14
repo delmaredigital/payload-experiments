@@ -300,15 +300,15 @@ test.each([['idle', 'Saved'], ['saving', 'Saving…'], ['saved', 'Saved'], ['err
   else expect(screen.queryByRole('status')).toBeNull()
 })
 test('preflight error has a guarded retry that refreshes only the readiness check', async () => {
-  const p = props({}, { preflightError: 'network error' })
+  const p = props({}, { preflightError: "Couldn't check readiness. Try again." })
   render(<SaveStatus test={p.test} />)
-  expect(screen.getByRole('alert').textContent).toBe('network error')
+  expect(screen.getByRole('alert').textContent).toBe("Couldn't check readiness. Try again.")
   act(() => { button('Try again').click(); button('Try again').click() })
   await waitFor(() => expect(p.test.refreshPreflight).toHaveBeenCalledTimes(1))
   expect(p.test.reload).not.toHaveBeenCalled()
 })
 test('retry cannot discard staged changes', () => {
-  const p = props({}, { preflightError: 'network error', hasUnsaved: true })
+  const p = props({}, { preflightError: "Couldn't check readiness. Try again.", hasUnsaved: true })
   render(<SaveStatus test={p.test} />)
   expect(button('Try again').disabled).toBe(true)
   expect(button('Try again').closest('[title]')?.getAttribute('title')).toBe('Wait for your changes to save.')
@@ -316,7 +316,7 @@ test('retry cannot discard staged changes', () => {
 
 
 test('retained passing preflight never enables Start after a failed readiness refresh', () => {
-  render(<Banner {...props({}, { preflight: preflight([{ code: 'no-primary-metric', ok: true }]), preflightError: 'network error' })} />)
+  render(<Banner {...props({}, { preflight: preflight([{ code: 'no-primary-metric', ok: true }]), preflightError: "Couldn't check readiness. Try again." })} />)
   expect(screen.getByRole('status').textContent).toContain("Couldn't check readiness. Try again.")
   expect(button('Start').disabled).toBe(true)
   expect(button('Start').closest('[title]')?.getAttribute('title')).toBe("Couldn't check readiness. Try again.")
@@ -327,14 +327,14 @@ test('an open restart confirmation follows a later readiness refusal or refresh 
   const view = render(<Banner {...p} />)
   fireEvent.click(button('Start a new round'))
   expect(dialogButton('Start a new round').disabled).toBe(false)
-  view.rerender(<Banner {...p} test={{ ...p.test, preflightError: 'network error' }} />)
+  view.rerender(<Banner {...p} test={{ ...p.test, preflightError: "Couldn't check readiness. Try again." }} />)
   expect(dialogButton('Start a new round').disabled).toBe(true)
   view.rerender(<Banner {...p} test={{ ...p.test, preflight: preflight([{ code: 'no-primary-metric', ok: false }]) }} />)
   expect(dialogButton('Start a new round').disabled).toBe(true)
 })
 test('Start stays disabled while the readiness check after a save is still running', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'no-primary-metric', ok: true }]), preflightPending: true })} />)
-  expect(screen.getByRole('status').textContent).toContain('Checking readiness…')
+  expect(screen.getByRole('status').textContent).toContain('Ready to start.')
   expect(button('Start').disabled).toBe(true)
 })
 
@@ -544,13 +544,14 @@ test('an open Start confirmation distinguishes checking, blockers and a failed r
   const confirm = () => <ConfirmAction {...p} action={action} winnerLabel="Original" onClose={() => {}} />
   p.test.preflightPending = true
   const view = render(confirm())
-  expect(screen.getByText('Checking readiness…')).toBeTruthy()
+  expect(screen.queryByText('Checking readiness…')).toBeNull()
+  expect((screen.getByRole('button', { name: 'Start a new round' }) as HTMLButtonElement).disabled).toBe(true)
   expect(screen.queryByText("Couldn't check readiness. Try again.")).toBeNull()
   p.test.preflightPending = false
   p.test.preflight = preflight([{ code: 'no-primary-metric', ok: false }])
   view.rerender(confirm())
   expect(screen.getByText('Choose a goal.')).toBeTruthy()
-  p.test.preflightError = 'Offline'
+  p.test.preflightError = "Couldn't check readiness. Try again."
   view.rerender(confirm())
   expect(screen.getByText("Couldn't check readiness. Try again.")).toBeTruthy()
 })

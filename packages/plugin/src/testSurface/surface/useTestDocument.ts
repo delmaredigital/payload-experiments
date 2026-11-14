@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Arm, DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
-import { API_MESSAGES, refusalMessage } from '../copy/common.js'
-import { isPreflightResult, readPreflight } from '../readPreflight.js'
+import { API_MESSAGES } from '../copy/common.js'
+import { readPreflight } from '../readPreflight.js'
 import { XP_IF_UPDATED_AT_HEADER } from '../../constants.js'
-import { READINESS_COPY, PLACEMENT_FAILURE_COPY } from '../copy/readiness.js'
+import { useReadinessPolling } from '../useReadinessPolling.js'
+import { classifyReadinessRead, type ReadinessRead } from '../readinessRead.js'
 import { TEST_PAGE } from '../copy/testPage.js'
 import { changedPatch, editablePatch, payloadFieldErrors } from './testDocument.model.js'
 import type { TestDocument, TestDocumentPatch } from './testDocument.model.js'
@@ -15,6 +16,7 @@ type View = {
   chosenPages: Partial<Record<Arm['key'], { id: DocId; path: string; title?: string; published?: boolean }>>
   doc: TestDocument | null
   preflight: PreflightResult | null
+  preflightRead?: ReadinessRead
   preflightError: string | null
   preflightPending: boolean
   /** Includes staged edits and all queued or in-flight PATCHes. */
@@ -35,6 +37,7 @@ type Session = {
   publish: () => void
   preflightReads: number
   preflightLoading: boolean
+  preflightFailures: number
 }
 
 async function waitForDrain(draining: Promise<void> | undefined, signal: AbortSignal) {
@@ -85,8 +88,8 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
     if (!enabled) return
     const controller = new AbortController()
     const session: Session = {
-      key, saved: null, pending: {}, queue: [], tail: Promise.resolve(), view: initialView(),
-      controller, reloading: false, preflightReads: 0, preflightLoading: false,
+      key, saved: current.current?.key === key ? current.current.saved : null, pending: {}, queue: [], tail: Promise.resolve(), view: reloadCount && current.current?.key === key ? { ...current.current.view } : initialView(),
+      controller, reloading: false, preflightReads: 0, preflightLoading: true, preflightFailures: current.current?.key === key ? current.current.preflightFailures : 0,
       publish() {
         if (controller.signal.aborted) return
         session.view.doc = session.view.loadState === 'ready' ? optimistic(session) : null
@@ -105,41 +108,30 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
       session.preflightLoading = true
       session.publish()
       // createApi has no signal option; this read must abort without cancelling submitted PATCHes.
-      let data: PreflightResult | undefined
+      let body: unknown
       let status = 0
-      let message: string = API_MESSAGES.network
       try {
-        const { response, body } = await readPreflight(signal => observers.current.requestPreflight?.(signal, supersede || initial && reloadCount > 0) ?? fetch(`${base}/xp/experiments/${encodeURIComponent(documentId)}/preflight`, {
+        const { response, body: answerBody } = await readPreflight(signal => observers.current.requestPreflight?.(signal, supersede || initial && reloadCount > 0) ?? fetch(`${base}/xp/experiments/${encodeURIComponent(documentId)}/preflight`, {
           method: 'GET', credentials: 'include', cache: 'no-store', signal,
         }), controller.signal)
         status = response.status
-        if (response.ok) {
-          data = isPreflightResult(body) ? body : undefined
-          message = API_MESSAGES.unreadable
-        } else {
-          const envelope = body as { errors?: Array<{ code?: string; message?: string }> } | undefined
-          const error = Array.isArray(envelope?.errors) ? envelope.errors[0] : undefined
-          message = refusalMessage(status === 501 ? 'not-implemented' : error?.code, status,
-            typeof error?.message === 'string' ? error.message : undefined)
-        }
-      } catch {
-        message = API_MESSAGES.network
-      }
+        body = answerBody
+      } catch { /* Network, abort and timeout share the failed-read classification. */ }
       if (controller.signal.aborted) return
       if (revision !== preflightRevision) return
       session.preflightLoading = false
+      session.view.preflightRead = classifyReadinessRead(status, body, session.preflightFailures + 1)
+      session.preflightFailures = session.view.preflightRead.failed ? session.preflightFailures + 1 : 0
+      const data = session.view.preflightRead.answer
       if (data) {
         observers.current.onPreflight?.(data)
         session.view.preflight = data
         session.view.preflightError = null
         if (initial) session.view.loadState = 'ready'
       } else {
-        if (initial) {
-          session.view.loadState = status === 401 || status === 403 ? 'forbidden' : status === 404 ? 'missing' : 'error'
-          session.view.errors = { ...session.view.errors, _section: message }
-        } else {
-          session.view.preflightError = status === 401 || status === 403 ? PLACEMENT_FAILURE_COPY.forbidden : READINESS_COPY.checkError
-        }
+        session.view.preflight = null
+        session.view.preflightError = session.view.preflightRead.message ?? null
+        if (initial) session.view.loadState = session.view.preflightRead.loadState === 'error' ? 'ready' : session.view.preflightRead.loadState
       }
       session.publish()
     }
@@ -242,17 +234,24 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
       try {
         await waitForDrain(drainingSaves.get(key), controller.signal)
         if (controller.signal.aborted) return
-        const response = await fetch(url, { method: 'GET', credentials: 'include', signal: controller.signal })
+        const { response, body } = await readPreflight(signal => fetch(url, { method: 'GET', credentials: 'include', signal }), controller.signal)
         if (controller.signal.aborted) return
         if (!response.ok) {
-          session.view.loadState = response.status === 401 || response.status === 403 ? 'forbidden' : response.status === 404 ? 'missing' : 'error'
+          session.preflightLoading = false
+          session.view.preflightRead = classifyReadinessRead(response.status, undefined, session.preflightFailures + 1)
+          session.preflightFailures = session.view.preflightRead.failed ? session.preflightFailures + 1 : 0
+          session.view.loadState = session.view.preflightRead.loadState
           session.publish()
           return
         }
-        const doc = await response.json() as TestDocument
+        const doc = body as TestDocument | undefined
         if (controller.signal.aborted) return
-        if (doc.id == null || !doc.status) throw new Error(API_MESSAGES.unreadable)
+        if (!doc || doc.id == null || !doc.status) throw new Error(API_MESSAGES.unreadable)
         session.saved = doc
+        session.view.errors = {}
+        session.view.chosenPages = {}
+        session.view.stale = false
+        session.view.saving = 'idle'
         observers.current.onDocument?.(doc)
         await refreshPreflight(true)
         if (controller.signal.aborted) return
@@ -265,6 +264,8 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
         }
       } catch {
         if (controller.signal.aborted) return
+        session.preflightLoading = false
+        session.view.preflightRead = classifyReadinessRead(0, undefined, ++session.preflightFailures)
         session.view.loadState = 'error'
         session.view.errors = { _section: API_MESSAGES.unreadable }
         session.publish()
@@ -302,6 +303,11 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
     return entry?.session.key === key && entry.session.view.loadState === 'ready' && !entry.session.reloading
       ? entry.refreshPreflight(supersede) : Promise.resolve()
   }, [key])
+  const settledRead = state.key === key ? state.view.preflightRead : undefined
+  useReadinessPolling(settledRead, () => {
+    if (state.view.loadState === 'ready') void refreshPreflight()
+    else void reload()
+  }, !requestPreflight || state.view.loadState === 'error', state.view.preflightPending)
   useEffect(() => {
     if (!refetchPreflightOnFocus) return
     let lastReturn = -Infinity

@@ -374,6 +374,11 @@
 .xp-ui-tabbar > .xp-ui-tablist { display: contents; }
 .xp-ui-tab-actions { display: flex; align-items: center; flex-wrap: wrap; position: relative; }
 
+/* One blocker-list format in the admin footer and the Puck sidebar. */
+.xp-readiness__blockers, .xp-readiness__blockers a { color: var(--xp-error); }
+.xp-readiness__blockers ul { margin: 0; padding-inline-start: var(--xp-space-4); }
+.xp-readiness__blockers li { white-space: pre-line; }
+
 /* Shared UI controls are assembled into editor.css for the isolated canvas. */
 .xp-slot-editor {
   min-width: 0;

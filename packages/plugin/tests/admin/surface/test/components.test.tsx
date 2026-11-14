@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
+import { classifyReadinessRead } from '../../../../src/testSurface/readinessRead.js'
 import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/testSurface/surface/contracts.js'
 import type { TestDocument } from '../../../../src/testSurface/surface/testDocument.model.js'
 import { defaultArms } from '../../../../src/testSurface/arms/arms.model.js'
@@ -72,10 +73,11 @@ test('page load states are clear and the ready view has stacked anchored section
   const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' })
   expect(within(breadcrumb).getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/cms/collections/xp-experiments')
   expect(within(breadcrumb).getByText('Test').getAttribute('aria-current')).toBe('page')
-  for (const [loadState, message] of [['forbidden', "You don't have access to this test."], ['missing', 'This test no longer exists.'], ['error', "Couldn't load this test."]] as const) {
-    hook.mockReturnValue({ ...p.test, doc: null, loadState })
+  for (const [loadState, status, message] of [['forbidden', 401, 'Your session has expired. Sign in again.'], ['forbidden', 403, "You don't have permission to check where this test is used."], ['missing', 404, 'This test no longer exists.'], ['error', 503, "Couldn't check readiness. Try again."]] as const) {
+    hook.mockReturnValue({ ...p.test, doc: null, loadState, preflightRead: classifyReadinessRead(status) })
     view.rerender(<TestPage id={1} surface={surface} />)
     expect(screen.getByText(message)).toBeTruthy()
+    expect(!!screen.queryByRole('button', { name: 'Try again' })).toBe(status === 503)
   }
   fireEvent.click(screen.getByText('Try again')); expect(p.test.reload).toHaveBeenCalledOnce()
   hook.mockReturnValue(p.test); view.rerender(<TestPage id={1} surface={surface} />)

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
+import { classifyReadinessRead } from '../../../src/testSurface/readinessRead.js'
 import { ResultsRoute } from '../../../src/admin/surface/ResultsRoute.js'
 import type { ResultsResponse } from '../../../src/types/endpoints.js'
 import { preflight, props } from './readiness/fixtures.js'
@@ -34,10 +35,10 @@ test('results-only readers render the body without requesting the manager docume
   expect(screen.queryByText(/access/)).toBeNull()
 })
 test('a manager can retry a failed document read while results remain available', () => {
-  const p = props({}, { loadState: 'error', doc: null })
+  const p = props({}, { loadState: 'error', doc: null, preflightRead: classifyReadinessRead(503) })
   mocks.hook.mockReturnValue(p.test)
   render(<ResultsRoute id="12" surface={p.surface} />)
-  expect(screen.getByText("Couldn't load this test.")).toBeTruthy()
+  expect(screen.getByText("Couldn't check readiness. Try again.")).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
   expect(screen.getByText('Results body')).toBeTruthy()
 })
@@ -51,10 +52,10 @@ test('the results header setup link supports the root admin route', () => {
 
 
 test.each([
-  ['missing', 'This test no longer exists.'],
-  ['forbidden', "You don't have access to this test."],
-] as const)('a manager sees only the header message for %s', (loadState, message) => {
-  const p = props({}, { loadState, doc: null })
+  ['missing', 404, 'This test no longer exists.'],
+  ['forbidden', 403, "You don't have permission to check where this test is used."],
+] as const)('a manager sees only the header message for %s', (loadState, status, message) => {
+  const p = props({}, { loadState, doc: null, preflightRead: classifyReadinessRead(status) })
   mocks.hook.mockReturnValue(p.test)
   render(<ResultsRoute id="12" surface={p.surface} />)
   expect(screen.getAllByText(message)).toHaveLength(1)
@@ -79,13 +80,14 @@ test.each([
 })
 
 
-test('stopped restart retains the readiness gate and reason in the header', () => {
+test('stopped restart retains its settled label while pending disables the action', () => {
   const p = props({ id: 12, status: 'stopped' }, { preflightPending: true })
   mocks.hook.mockReturnValue(p.test)
   render(<ResultsRoute id={12} surface={p.surface} />)
   const restart = screen.getByRole('button', { name: 'Start a new round' }) as HTMLButtonElement
   expect(restart.disabled).toBe(true)
-  expect(restart.title).toBeTruthy()
+  expect(restart.title).toBe('')
+  expect(restart.textContent).toBe('Start a new round')
 })
 
 test.each([true, false])('localized make-content warning appears in the decided header only for managers (%s)', canManage => {

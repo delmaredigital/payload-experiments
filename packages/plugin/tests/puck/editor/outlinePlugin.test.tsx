@@ -141,7 +141,7 @@ test('bound loading and failed fetch keep every zone visible, even with a previo
   mount({ root: { props: {} }, content: [block('pending', 'failed')] }, true)
   expect(visibility('pending')).toEqual([true, true, true, true])
   await act(async () => { fail(new Error('offline')) })
-  await screen.findByText("Couldn't load this test. Try again.")
+  await screen.findByText("Couldn't check readiness. Try again.")
   expect(visibility('pending')).toEqual([true, true, true, true])
 })
 
@@ -220,7 +220,7 @@ test('a failed refetch clears known arms to unknown', async () => {
   await waitFor(() => expect(visibility('two-arm')).toEqual([true, false, false, false]))
   experimentFetch.mockRejectedValueOnce(new Error('offline'))
   returnToTab()
-  await screen.findByText("Couldn't load this test. Try again.")
+  await screen.findByText("Couldn't check readiness. Try again.")
   expect(visibility('two-arm')).toEqual([true, true, true, true])
 })
 

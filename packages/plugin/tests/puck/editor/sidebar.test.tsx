@@ -120,12 +120,12 @@ test.each(['results', 'none', 'unavailable', 'failed', 'unbound'] as const)('sid
   await mount(state === 'unbound')
   expect(fields().queryByRole('region', { name: C.versionsGroup })).toBeNull()
   if (state === 'results') {
-    expect(fields().getByText("You can view this test's results.")).toBeTruthy()
+    expect(fields().getByText("You don't have permission to check where this test is used.")).toBeTruthy()
     expect(fields().getByRole('button', { name: C.configure })).toBeTruthy()
-  } else if (state === 'none') expect(fields().getAllByText("You don't have access to this test. You can still edit its content.").length).toBeGreaterThan(0)
-  else if (state === 'unavailable') expect(fields().getByText("This test isn't available to you. You can still edit its content.")).toBeTruthy()
+  } else if (state === 'none') expect(fields().getAllByText("You don't have permission to check where this test is used.").length).toBeGreaterThan(0)
+  else if (state === 'unavailable') expect(fields().getByText('This test no longer exists.')).toBeTruthy()
   else if (state === 'failed') {
-    expect(fields().getByText(C.loadError)).toBeTruthy()
+    expect(fields().getByText("Couldn't check readiness. Try again.")).toBeTruthy()
     failed = false; fireEvent.click(fields().getByRole('button', { name: C.retrySetup }))
     await fields().findByRole('region', { name: C.versionsGroup })
   } else {
@@ -145,7 +145,8 @@ test('sidebar leftovers share Add to the test and Delete its content paths', asy
 test('sidebar uses the drawer blocker sentence and transition refusal', async () => {
   checks = [{ code: 'no-primary-metric', ok: false }]
   await mount()
-  expect(fields().getByText('Before you can start: Choose a goal.')).toBeTruthy()
+  expect(fields().getByText('Before you can start:')).toBeTruthy()
+  expect(fields().getByText('Choose a goal.', { exact: false })).toBeTruthy()
   expect(fields().queryByRole('button', { name: 'Start' })).toBeNull()
   checks = []
   // The same chrome action refreshes shared readiness after writing.
@@ -296,7 +297,7 @@ test.each([false, true])('a refused Start refreshes readiness and names the publ
   const sentence = "The block you're testing is only on a draft of Landing. Publish the page before you start."
   // Sections also name their blockers; the footer/action area must not repeat its alert.
   const readiness = drawer ? within(scope.getByRole('region', { name: 'Readiness' })) : scope
-  await readiness.findByText(drawer ? sentence : `Before you can start: ${sentence}`)
+  await readiness.findByText(sentence, { exact: false })
   expect(scope.queryByRole('alert')).toBeNull()
   expect(readiness.getAllByText(text => text.includes(sentence))).toHaveLength(1)
   expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/preflight')).length).toBe(readsBefore + 1)
@@ -327,14 +328,14 @@ test.each([false, true])('a hanging post-refusal read releases saving, guards st
   fireEvent.click(start)
   await act(async () => {})
   expect(scope.getByText("You don't have permission to do this.")).toBeTruthy()
-  expect(scope.getByText(drawer ? 'Checking readiness…' : 'Before you can start: Checking readiness…')).toBeTruthy()
+  expect(scope.queryByText('Checking readiness…')).toBeNull()
   expect(scope.queryByText('Saving this change…')).toBeNull()
-  expect(scope.queryByText('Ready to start.')).toBeNull()
+  if (drawer) expect(scope.getByText('Ready to start.')).toBeTruthy()
   fireEvent.click(start)
   expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/start'))).toHaveLength(1)
   await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
   expect(scope.queryByText('Checking readiness…')).toBeNull()
-  const failure = drawer ? "Couldn't check readiness. Try again." : "Couldn't check where this test is used. Try again."
+  const failure = "Couldn't check readiness. Try again."
   expect(scope.getAllByText(failure).length).toBeGreaterThan(0)
   const retry = scope.getByRole('button', { name: /^(Retry|Try again)$/ }) as HTMLButtonElement
   expect(retry.disabled).toBe(false)
@@ -349,7 +350,7 @@ test.each([false, true])('a hanging post-refusal read releases saving, guards st
 })
 
 
-test.each([false, true])('a named refusal stays visible until readiness actually contains its blocker (drawer: %s)', async drawer => {
+test.each([false, true])('a named refusal with a ready reread stays visible until the next successful answer (drawer: %s)', async drawer => {
   if (drawer) render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
   else await mount()
   const scope = drawer ? within(await screen.findByRole('dialog')) : fields()
@@ -380,9 +381,47 @@ test('a refused sidebar Start guards the open drawer throughout the shared rerea
   fireEvent.click(fields().getByRole('button', { name: 'Start' }))
   await fields().findByText("You don't have permission to do this.")
   expect(drawerStart.disabled).toBe(true)
-  expect(drawer.getByText('Checking readiness…')).toBeTruthy()
+  expect(drawer.queryByText('Checking readiness…')).toBeNull()
+  expect(drawer.getByText('Ready to start.')).toBeTruthy()
   fireEvent.click(drawerStart)
   expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/start'))).toHaveLength(1)
   await act(async () => { finish(reply({ placements: [], checks: [] })) })
   expect(drawerStart.disabled).toBe(false)
+})
+
+test('sidebar keeps Checkout named below the placement notice for this draft page', async () => {
+  history.replaceState({}, '', '/admin/puck/pages/here')
+  const placements = [{ collection: 'pages', id: 'here', title: 'Landing', detail: 'Draft' }, { collection: 'pages', id: 'other', title: 'Checkout', detail: 'Draft' }]
+  checks = [{ code: 'placement-unpublished', ok: false, detail: placements }]
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? Promise.resolve(reply({ placements, checks })) : original(url, init))
+  await mount()
+  expect(fields().getByText('Publish this page to start the test.')).toBeTruthy()
+  expect(fields().getByText("The block you're testing is only on a draft of Checkout. Publish the page before you start.", { exact: false })).toBeTruthy()
+  expect(fields().queryByRole('button', { name: 'Start' })).toBeNull()
+  history.replaceState({}, '', '/')
+})
+
+test.each([false, true])('unpublished refusal clears permanently through publish and a ready answer (drawer: %s)', async drawer => {
+  if (drawer) render(<ConfigureTestDrawer id={doc.id} routes={{ api: '/api', admin: '/admin' }} onClose={() => {}} />)
+  else await mount()
+  const scope = drawer ? within(await screen.findByRole('dialog')) : fields()
+  const start = await scope.findByRole('button', { name: 'Start' })
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => {
+    if (String(url).endsWith('/start')) {
+      checks = [{ code: 'placement-unpublished', ok: false, detail: [{ title: 'Landing' }] }]
+      return Promise.resolve(reply({ errors: [{ code: 'placement-unpublished', detail: [{ title: 'Landing' }] }] }, 422))
+    }
+    return original(url, init)
+  })
+  fireEvent.click(start)
+  await scope.findAllByText("The block you're testing is only on a draft of Landing. Publish the page before you start.", { exact: false })
+  await waitFor(() => expect(scope.queryByRole('alert')).toBeNull())
+  checks = [] // The person publishes; the next server answer is ready.
+  const { refreshPlacements } = await import('../../../src/puck/editor/placementsCache.js')
+  await act(async () => { await refreshPlacements('/api', doc.id) })
+  expect(scope.queryByRole('alert')).toBeNull()
+  expect(scope.getByText('Ready to start.')).toBeTruthy()
+  expect((scope.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false)
 })

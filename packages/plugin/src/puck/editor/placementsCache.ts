@@ -1,10 +1,10 @@
 import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { isPreflightResult, readPreflight } from '../../testSurface/readPreflight.js'
-import { PLACEMENT_FAILURE_COPY, placementFailureCopy } from '../../testSurface/copy/readiness.js'
+import { classifyReadinessRead, type ReadinessRead } from '../../testSurface/readinessRead.js'
 
 type Placements = PreflightResult['placements']
-type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean; blocking: boolean; startedAt: number; failures: number; value?: Placements; previousPreflight?: PreflightResult; preflight?: PreflightResult; previousResponse?: Response; response?: Response }
+type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean; blocking: boolean; startedAt: number; failures: number; value?: Placements; previousPreflight?: PreflightResult; preflight?: PreflightResult; response?: Response; read?: ReadinessRead; previousRead?: ReadinessRead }
 const cache = new Map<string, Entry>()
 const latest = new Map<string, Entry>()
 type Consumer = (placements: Placements | undefined) => void
@@ -18,7 +18,7 @@ function read(api: string, id: DocId, fresh: boolean, blocking = false): Entry {
   if (cached && (!fresh || cached.pending)) return cached
   const controller = new AbortController()
   const previous = latest.get(key)
-  const entry: Entry = { controller, pending: true, blocking, startedAt: Date.now(), failures: previous?.failures ?? 0, value: previous?.value, previousPreflight: previous?.preflight ?? (previous?.pending ? previous.previousPreflight : undefined), previousResponse: previous?.response ?? (previous?.pending ? previous.previousResponse : undefined), promise: undefined! }
+  const entry: Entry = { controller, pending: true, blocking, startedAt: Date.now(), failures: previous?.failures ?? 0, value: previous?.value, previousPreflight: previous?.preflight ?? (previous?.pending ? previous.previousPreflight : undefined), previousRead: previous?.read ?? previous?.previousRead, promise: undefined! }
   cache.set(key, entry)
   latest.set(key, entry)
   for (const notify of consumers.get(key)?.listeners ?? []) notify(entry.value)
@@ -27,6 +27,7 @@ function read(api: string, id: DocId, fresh: boolean, blocking = false): Entry {
       const { response, body: data } = await readPreflight(signal => fetch(`${api}/xp/experiments/${encodeURIComponent(id)}/preflight`, {
         credentials: 'include', cache: 'no-store', signal,
       }), controller.signal)
+      entry.read = classifyReadinessRead(response.status, data, entry.failures + 1)
       if (!response.ok) { entry.response = new Response(JSON.stringify(data), { status: response.status, headers: response.headers }); return }
       if (!isPreflightResult(data)) return
       entry.preflight = data
@@ -35,7 +36,8 @@ function read(api: string, id: DocId, fresh: boolean, blocking = false): Entry {
     } catch { return undefined }
   })().then(placements => {
     entry.pending = false
-    entry.failures = entry.preflight ? 0 : entry.failures + 1
+    entry.read ??= classifyReadinessRead(0, undefined, entry.failures + 1)
+    entry.failures = entry.read.failed ? entry.failures + 1 : 0
     entry.value = placements
     if (cache.get(key) === entry) {
       if (!entry.preflight) cache.delete(key)
@@ -132,15 +134,13 @@ export function placementsBlocking(api: string, id: DocId) {
 
 export function placementsPending(api: string, id: DocId) { return cache.get(keyFor(api, id))?.pending === true }
 
-/** HTTP access refusals and placement-discovery access refusals share one calm state. */
-export function placementReadError(api: string, id: DocId): string | undefined {
+/** Pending reads retain the complete settled classification, including terminal outcomes. */
+export function cachedReadinessRead(api: string, id: DocId) {
   const entry = latest.get(keyFor(api, id))
-  if (!entry) return
-  const check = cachedPreflight(api, id)?.checks.find(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
-  const response = entry.pending ? entry.previousResponse : entry.response
-  if (response?.status === 401 || response?.status === 403) return PLACEMENT_FAILURE_COPY.forbidden
-  if (check) return placementFailureCopy(check.detail)
-  if (entry.failures) return PLACEMENT_FAILURE_COPY['placements-failed']
+  return entry?.pending ? entry.previousRead : entry?.read
+}
+export function placementReadError(api: string, id: DocId): string | undefined {
+  return cachedReadinessRead(api, id)?.message
 }
 
 // One timer per editor document, shared by chrome, sidebar and detached drawers.
@@ -156,7 +156,8 @@ type NoticeSession = {
 const notices = new WeakMap<Document, NoticeSession>()
 const noticeDelay = (api: string, id: DocId) => {
   const failures = latest.get(keyFor(api, id))?.failures ?? 0
-  return [4_000, 8_000, 16_000, 30_000][Math.min(Math.max(0, failures - 1), 3)]!
+  const read = cachedReadinessRead(api, id)
+  return classifyReadinessRead(read?.status ?? 0, read?.answer, failures, true).pollDelay
 }
 export function watchPlacementNotice(api: string, id: DocId, doc: Document): () => void {
   let session = notices.get(doc)
@@ -165,7 +166,7 @@ export function watchPlacementNotice(api: string, id: DocId, doc: Document): () 
     const created: NoticeSession = { requests, removeRequest: key => { requests.delete(key) }, visibility: () => {}, schedule: () => {} }
     created.schedule = () => {
       if (created.timer !== undefined) { clearTimeout(created.timer); created.timer = undefined }
-      const eligible = [...created.requests.values()].filter(request => !request.pending && ![PLACEMENT_FAILURE_COPY.forbidden, PLACEMENT_FAILURE_COPY['not-found']].some(message => message === placementReadError(request.api, request.id)))
+      const eligible = [...created.requests.values()].filter(request => !request.pending && noticeDelay(request.api, request.id) !== null)
       if (doc.visibilityState !== 'visible' || !eligible.length) return
       created.timer = setTimeout(() => {
         created.timer = undefined
@@ -175,7 +176,7 @@ export function watchPlacementNotice(api: string, id: DocId, doc: Document): () 
           request.pending = true
           void refreshPlacements(request.api, request.id).then(() => {
             request.pending = false
-            request.nextAt = Date.now() + noticeDelay(request.api, request.id)
+            request.nextAt = Date.now() + (noticeDelay(request.api, request.id) ?? 0)
             if (notices.get(doc) === created) created.schedule()
           })
         }
@@ -183,7 +184,7 @@ export function watchPlacementNotice(api: string, id: DocId, doc: Document): () 
       }, Math.max(0, Math.min(...eligible.map(request => request.nextAt)) - Date.now()))
     }
     created.visibility = () => {
-      for (const request of created.requests.values()) request.nextAt = Date.now() + noticeDelay(request.api, request.id)
+      for (const request of created.requests.values()) request.nextAt = Date.now() + (noticeDelay(request.api, request.id) ?? 0)
       created.schedule()
     }
     session = created
@@ -193,13 +194,13 @@ export function watchPlacementNotice(api: string, id: DocId, doc: Document): () 
   const current = session
   const key = keyFor(api, id)
   const existing = current.requests.get(key)
-  const request = existing ?? { api, id, subscribers: 0, nextAt: Date.now() + noticeDelay(api, id), pending: false, release: () => {} }
+  const request = existing ?? { api, id, subscribers: 0, nextAt: Date.now() + (noticeDelay(api, id) ?? 0), pending: false, release: () => {} }
   request.subscribers++
   current.requests.set(key, request)
   if (!existing) request.release = subscribePlacements(api, id, () => {
     if (placementsPending(api, id)) return
     // Manual/focus retries also reset the backoff after recovery.
-    request.nextAt = Date.now() + noticeDelay(api, id)
+    request.nextAt = Date.now() + (noticeDelay(api, id) ?? 0)
     current.schedule()
   })
   if (!existing || current.timer === undefined) current.schedule()

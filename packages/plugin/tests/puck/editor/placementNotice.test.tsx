@@ -189,7 +189,7 @@ test.each([false, true])('a rejected placement read replaces retained guidance (
   vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? Promise.reject(new Error('offline')) : original(url, init))
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
   expect(screen.queryByText(SAVE_PAGE)).toBeNull()
-  const failure = drawer ? "Couldn't check readiness. Try again." : "Couldn't check where this test is used. Try again."
+  const failure = "Couldn't check readiness. Try again."
   expect(screen.getAllByText(failure).length).toBeGreaterThan(0)
   saved = published = true
   vi.mocked(fetch).mockImplementation(original)
@@ -244,7 +244,7 @@ test.each([false, true].flatMap(drawer => ['network', 'abort', 'http', 'malforme
     return Promise.reject(transport === 'abort' ? new DOMException('Aborted', 'AbortError') : new Error('offline'))
   })
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
-  const failure = drawer ? "Couldn't check readiness. Try again." : "Couldn't check where this test is used. Try again."
+  const failure = "Couldn't check readiness. Try again."
   expect(screen.getAllByText(failure).length).toBeGreaterThan(0)
   let count = requests()
   for (const delay of [4_000, 8_000, 16_000, 30_000, 30_000]) {
@@ -278,7 +278,7 @@ test.each([401, 403, 'forbidden', 'not-found'] as const)('permanent refusal %s h
   vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? Promise.resolve(typeof status === 'string'
     ? Response.json({ placements: [], checks: [{ code: 'no-placements', ok: false, detail: status }] }) : Response.json({}, { status })) : original(url, init))
   await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
-  expect(screen.getAllByText(status === 'not-found' ? "A page used by this test no longer exists. Choose another page." : "You don't have permission to check where this test is used.").length).toBeGreaterThanOrEqual(3)
+  expect(screen.getAllByText(status === 401 ? 'Your session has expired. Sign in again.' : status === 'not-found' ? "A page used by this test no longer exists. Choose another page." : "You don't have permission to check where this test is used.").length).toBeGreaterThanOrEqual(3)
   expect(screen.queryByRole('button', { name: /^(Retry|Try again)$/ })).toBeNull()
   expect(screen.queryByText("Couldn't check where this test is used. Try again.")).toBeNull()
   const count = requests()
@@ -318,7 +318,7 @@ test('a new notice keeps its four-second schedule beside a backed-off or stalled
 })
 
 
-test('a usable placements-failed answer keeps its own sentence in chrome, sidebar and drawer without transport backoff', async () => {
+test('a usable placements-failed answer keeps its own sentence in chrome, sidebar and drawer with failure backoff', async () => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
   vi.useFakeTimers()
@@ -328,9 +328,11 @@ test('a usable placements-failed answer keeps its own sentence in chrome, sideba
   const original = vi.mocked(fetch).getMockImplementation()!
   vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight')
     ? Promise.resolve(Response.json({ placements: [], checks: [{ code: 'no-placements', ok: false, detail: 'placements-failed' }] })) : original(url, init))
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (const delay of [4_000, 4_000, 8_000, 16_000, 30_000]) {
     const before = requests()
-    await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(delay - 1) })
+    expect(requests()).toBe(before)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
     expect(requests()).toBe(before + 1)
     expect(screen.getAllByText("Couldn't check where this test is used. Try again.").length).toBeGreaterThanOrEqual(3)
     expect(screen.queryByText("Couldn't check readiness. Try again.")).toBeNull()

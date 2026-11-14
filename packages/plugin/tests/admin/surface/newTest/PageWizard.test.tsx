@@ -183,7 +183,7 @@ test.each(['future-code', 'toString'])('Review tolerates unknown readiness code 
   expect(push).toHaveBeenCalledWith('/admin/experiments/xp1#section-what')
 })
 test.each([
-  [500, "Couldn't load this test."], [403, "You don't have access to this test."], [404, 'This test no longer exists.'],
+  [500, "Couldn't check readiness. Try again."], [401, 'Your session has expired. Sign in again.'], [403, "You don't have permission to check where this test is used."], [404, 'This test no longer exists.'],
 ])('wizard loading shows only status; %s shows its error, retry and back', async (status, sentence) => {
   let resolve!: (value: Response) => void
   const pending = new Promise<Response>(done => { resolve = done })
@@ -195,8 +195,13 @@ test.each([
   await act(async () => resolve(new Response('{}', { status })))
   expect((await screen.findByRole('alert')).textContent).toBe(sentence)
   expect(screen.queryByText('Loading test…')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
-  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+  if (status === 500) {
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+  } else {
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  }
   fireEvent.click(screen.getByRole('button', { name: 'Back to the test' }))
   expect(push).toHaveBeenCalledWith('/admin/experiments/xp1')
 })

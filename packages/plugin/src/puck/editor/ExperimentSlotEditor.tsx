@@ -17,11 +17,16 @@ import { Dialog } from '../../ui/Dialog.js'
 import { accentVariables, deriveAccent, validateAccent } from '../../ui/accent.js'
 import { ExperimentPicker } from '../ExperimentPicker.js'
 import { TestSidebarField, useSidebarTargets } from './sidebar.js'
+import { readPreflight } from '../../testSurface/readPreflight.js'
+import { classifyReadinessRead, type ReadinessRead } from '../../testSurface/readinessRead.js'
+import { useReadinessPolling } from '../../testSurface/useReadinessPolling.js'
+import { PlacementNotice } from './PlacementNotice.js'
 import { QuickTestActions } from './QuickTestActions.js'
 import type { TestDocApi } from '../../testSurface/surface/contracts.js'
 import type { TestDocument } from '../../testSurface/surface/testDocument.model.js'
+import { BlockerList } from '../../testSurface/surface/readiness/BlockerList.js'
 import { blockingSteps, pageReadinessContext } from '../../testSurface/surface/readiness/readiness.model.js'
-import { PLACEMENT_FAILURE_COPY, READINESS_COPY } from '../../testSurface/copy/readiness.js'
+import { READINESS_COPY } from '../../testSurface/copy/readiness.js'
 import { resolvePuckRoutes, type PuckRoutes } from '../routes.js'
 import { PuckHostProvider, usePuckRoutes } from '../hostContext.js'
 import { pickerCopy, slotLabels } from '../copy.js'
@@ -34,8 +39,8 @@ import { acquireArms, loadArms, publishExperiment, useArms } from './armsCache.j
 import { AddVariant, RemoveVersion, VersionActions, VersionWeights, useArmWrites, type WeightEdits } from './VersionBuilder.js'
 import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
-import { acquirePlacements, subscribePlacements, cachedPreflight, placementsPending, placementsBlocking, placementReadError, invalidatePlacements, refreshPlacements, focusPlacements } from './placementsCache.js'
-import { editorPlacementMessage } from '../../testSurface/surface/editorPlacement.js'
+import { acquirePlacements, subscribePlacements, cachedPreflight, cachedReadinessRead, placementsPending, placementsBlocking, placementReadError, invalidatePlacements, refreshPlacements, focusPlacements } from './placementsCache.js'
+import { editorPlacementChecks, editorPlacementMessage } from '../../testSurface/surface/editorPlacement.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { localPlacements } from './localPlacements.js'
 import { usePlacementNotice } from './usePlacementNotice.js'
@@ -87,7 +92,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const knownArms = useArms(experimentId)
   const [preflight, setPreflight] = useState<{ id: typeof experimentId; value?: PreflightResult; pending: boolean; blocking: boolean }>()
   const [placements, setPlacements] = useState<{ id: typeof experimentId; value: PreflightResult['placements'] | undefined }>()
-  const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean; forbidden?: boolean; missing?: boolean; shared?: boolean }>()
+  const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean; forbidden?: boolean; missing?: boolean; shared?: boolean; read?: ReadinessRead }>()
+  const [documentPending, setDocumentPending] = useState(false)
+  const documentFailures = useRef({ key: bindingKey, failures: 0 })
+  if (documentFailures.current.key !== bindingKey) documentFailures.current = { key: bindingKey, failures: 0 }
+  useReadinessPolling(loaded?.id === experimentId ? loaded?.read : undefined, () => setReadAttempt(value => value + 1), true, documentPending)
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [clearError, setClearError] = useState<{ key: string; message: string } | null>(null)
@@ -123,26 +132,29 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     const releaseArms = acquireArms(experimentId)
     async function load() {
       const revision = ++request
+      setDocumentPending(true)
       try {
         const doc = await loadArms(experimentId!, async signal => {
-          const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(experimentId!)}?depth=0`, {
-            credentials: 'include', signal,
-          })
+          const { response, body } = await readPreflight(boundedSignal => fetch(`${api}/xp-experiments/${encodeURIComponent(experimentId!)}?depth=0`, {
+            credentials: 'include', signal: boundedSignal,
+          }), signal)
           if (!response.ok) throw new TestReadError(response.status)
-          const doc: unknown = await response.json()
+          const doc: unknown = body
           if (!isExperiment(doc)) throw new Error('document')
           return doc
         }, controller.signal)
         if (current && revision === request) {
+          documentFailures.current.failures = 0
           setLoaded(value => ({ id: experimentId, doc, shared: value?.id === experimentId ? value?.shared : undefined }))
         }
       } catch (cause) {
         if (current && revision === request) {
-          const forbidden = cause instanceof TestReadError && (cause.status === 401 || cause.status === 403)
-          const missing = cause instanceof TestReadError && cause.status === 404
-          setLoaded(value => ({ id: experimentId, forbidden, missing, error: !forbidden && !missing, shared: value?.id === experimentId ? value?.shared : undefined }))
+          const read = classifyReadinessRead(cause instanceof TestReadError ? cause.status : 0, undefined, ++documentFailures.current.failures)
+          const forbidden = read.loadState === 'forbidden'
+          const missing = read.loadState === 'missing'
+          setLoaded(value => ({ id: experimentId, read, forbidden, missing, error: !forbidden && !missing, shared: value?.id === experimentId ? value?.shared : undefined }))
         }
-      }
+      } finally { if (current && revision === request) setDocumentPending(false) }
     }
     void load()
     // The linked test opens in another tab; refresh this same document source on return.
@@ -331,10 +343,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const newTestButton = experimentId !== undefined && canManage ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
 
   const currentPreflight = preflight && preflight.id === experimentId && Array.isArray(preflight.value?.checks) ? preflight.value : null
-  const surface = access.surface ? { ...access.surface, apiRoute: api, adminRoute: admin, editorPlacementMessage: placementMessage } : undefined
+  const editorPage = currentPuckDocument(window.location.pathname, admin, placements?.value)
+  const surface = access.surface ? { ...access.surface, editorPage, apiRoute: api, adminRoute: admin, editorPlacementMessage: placementMessage } : undefined
   const quickTest: TestDocApi = {
     doc: experiment ? { ...experiment, id: experimentId!, kind: 'block' } as TestDocument : null,
-    preflight: currentPreflight, preflightError: preflight && preflight.id === experimentId && !preflight.pending && !currentPreflight ? placementReadError(api, experimentId!) ?? READINESS_COPY.checkError : null, preflightPending: !preflight || preflight.id !== experimentId || preflight.blocking || preflight.pending && !currentPreflight,
+    preflight: currentPreflight, preflightRead: experimentId === undefined ? undefined : cachedReadinessRead(api, experimentId), preflightError: !currentPreflight ? placementReadError(api, experimentId!) ?? null : null, preflightPending: documentPending || !preflight || preflight.id !== experimentId || preflight.pending,
     hasUnsaved: writes.busy || Object.keys(weightEdits).length > 0, saving: writes.busy ? 'saving' : 'idle', stale: false, errors: {},
     chosenPages: {}, loadState: 'ready', stage: () => {}, commit: async () => {}, choosePage: async () => {},
     refreshPreflight: async supersede => { if (experimentId !== undefined) { if (supersede) invalidatePlacements(api, experimentId); await refreshPlacements(api, experimentId) } },
@@ -350,25 +363,22 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       if (doc && experimentId !== undefined) publishExperiment(experimentId, doc)
     },
   }
-  const blockers = quickTest.doc && surface ? blockingSteps(currentPreflight?.checks ? currentPreflight : null, pageReadinessContext(quickTest.doc, currentPreflight, surface)) : []
-  const placementError = experimentId === undefined ? undefined : placementReadError(api, experimentId)
-  const placementFailure = !!placementError || preflight && preflight.id === experimentId && !preflight.pending && (!preflight.value || preflight.value.checks?.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined))
-  const placementDenied = placementError === PLACEMENT_FAILURE_COPY.forbidden || placementError === PLACEMENT_FAILURE_COPY['not-found']
-  const placementNotice = placementFailure ? placementError ?? editorCopy.placementsError : placementMessage
+  const blockers = quickTest.doc && surface ? blockingSteps(currentPreflight && placementMessage && editorPage ? { ...currentPreflight, checks: editorPlacementChecks(currentPreflight.checks, editorPage) } : currentPreflight, pageReadinessContext(quickTest.doc, currentPreflight, surface)) : []
+  const placementNotice = quickTest.preflightRead?.message ?? placementMessage
   usePlacementNotice(api, experimentId, canManage ? placementNotice : undefined)
-  const placementNoticeView = placementNotice ? <Banner tone={experiment?.status === 'running' && !placementFailure ? 'warning' : 'error'} action={placementFailure && !placementDenied ? <Button onClick={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId) }}>{editorCopy.retrySetup}</Button> : undefined}>
-    {experiment?.status === 'running' && !placementFailure ? <span aria-hidden="true">⚠ </span> : null}{placementNotice}
-  </Banner> : null
-  const blockingLine = placementMessage ?? (quickTest.hasUnsaved ? READINESS_COPY.saveFirst : quickTest.preflightError ? quickTest.preflightError : quickTest.preflightPending || !currentPreflight ? READINESS_COPY.checking : blockers.map(step => step.sentence).slice(0, 3).join(' '))
+  const placementNoticeView = <PlacementNotice read={quickTest.preflightRead} message={placementMessage} running={experiment?.status === 'running'} onRetry={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId) }} />
+  const sidebarBlockers = quickTest.hasUnsaved ? [{ sentence: READINESS_COPY.saveFirst }, ...blockers]
+    : !currentPreflight && !placementNotice ? [{ sentence: READINESS_COPY.checking }] : blockers.filter(step => step.sentence !== placementNotice)
+
   const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} experiment={experiment} writes={writes} canManage={canManage}
     countBlocks={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null
 
-  const accessNotice = result?.missing ? <p className="xp-ui-help">{pickerCopy.unavailable}</p>
+  const accessNotice = result?.read ? result.read.retry ? <Banner tone="error" action={<Button onClick={() => setReadAttempt(value => value + 1)}>{editorCopy.retrySetup}</Button>}>{result.read.message}</Banner> : <p className="xp-ui-help">{result.read.message}</p>
         : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>
         : experimentId === undefined && resultsOnly ? <p className="xp-ui-help">{editorCopy.setupForbidden}</p>
         : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
-        : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner action={result?.error ? <Button onClick={() => setReadAttempt(value => value + 1)}>{editorCopy.retrySetup}</Button> : undefined} tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
-        {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
+        : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner tone={experiment?.status === 'running' ? 'warning' : 'info'}>
+        {experimentId === undefined ? bannerFor() : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
       </Banner>
 
   const removeDialog = removing?.key === bindingKey ? <RemoveVersion count={countSlotBlocks(getPuck().getItemById(props.id)?.props[removing.arm.key])} shared={locallyShared ? true : result?.shared} arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null
@@ -379,7 +389,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {access.surface?.canManage ? <ExperimentPicker value={props.experiment ?? null} onChange={sidebar.onChange} /> : null}
         {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
         {accessNotice}
-        {canManage ? placementNoticeView ?? ((experiment?.status === 'draft' || experiment?.status === 'stopped') && blockingLine ? <p role="status">{READINESS_COPY.beforeStart} {blockingLine}</p> : null) : null}
+        {canManage ? <>{placementNoticeView}{experiment?.status === 'draft' || experiment?.status === 'stopped' ? <BlockerList steps={sidebarBlockers} /> : null}</> : null}
       </section></div>, sidebar.test)}
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         {experiment && canManage ? <section aria-label={editorCopy.versionsGroup}><h4>{editorCopy.versionsGroup}</h4>
@@ -426,7 +436,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {experiment && editable ? <VersionWeights key={`weights-${experimentId}`} edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} /> : null}
       {writes.busy ? <p role="status" className="xp-ui-help">{editorCopy.savingVersions}</p> : null}
       {writes.error ? <p role="alert" className="xp-ui-error">{writes.error}</p> : null}
-      {clearError?.key === bindingKey && !(placementFailure && clearError.message === editorCopy.placementsError) ? <p role="alert" className="xp-ui-error">{clearError.message}</p> : null}
+      {clearError?.key === bindingKey ? <p role="alert" className="xp-ui-error">{clearError.message}</p> : null}
       {removed?.key === bindingKey && removed.contentRemoved ? <p className="xp-ui-help">{editorCopy.removed}</p> : null}
       {experiment && experiment.status !== 'draft' ? <ResultsReadout key={`results-${experimentId}`} id={experimentId!} api={api} experiment={experiment} /> : null}
       {!sidebar ? removeDialog : null}

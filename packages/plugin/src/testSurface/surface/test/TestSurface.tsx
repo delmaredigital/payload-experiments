@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, type ReactNode } from 'react'
 import type { DocId } from '../../../types/contracts.js'
 import type { SurfaceProps, TestDocApi } from '../contracts.js'
 import { useTestDocument } from '../useTestDocument.js'
-import { PLACEMENT_FAILURE_COPY, READINESS_COPY } from '../../copy/readiness.js'
+import type { ReadinessRead } from '../../readinessRead.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
 import { pageBlockParts } from '../pageBlock/parts.js'
 import { settingParts } from '../setting/parts.js'
@@ -23,7 +23,7 @@ import { ResultsBody } from '../results/ResultsBody.js'
 import type { TestDocument } from '../testDocument.model.js'
 import type { PreflightResult } from '../../../types/endpoints.js'
 import { usePlacementNotice } from '../../../puck/editor/usePlacementNotice.js'
-import { subscribePlacements, cachedPreflight, placementsPending, placementsBlocking, placementReadError } from '../../../puck/editor/placementsCache.js'
+import { subscribePlacements, cachedPreflight, cachedReadinessRead, placementsPending, placementsBlocking, placementReadError } from '../../../puck/editor/placementsCache.js'
 import { currentPuckDocument } from '../../../puck/editor/editor.model.js'
 import { editorPlacementMessage, editorPlacementChecks } from '../editorPlacement.js'
 import './testPage.css'
@@ -35,17 +35,19 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
 }) {
   const [barHeight, setBarHeight] = useState<number>()
   const documentState = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}), ...(requestPreflight ? { requestPreflight } : {}) })
-  const [placementRead, setPlacementRead] = useState<{ key: string; preflight?: PreflightResult; pending: boolean; blocking: boolean; error?: string }>()
+  const [placementRead, setPlacementRead] = useState<{ key: string; preflight?: PreflightResult; pending: boolean; blocking: boolean; error?: string; read?: ReadinessRead }>()
   const placementKey = JSON.stringify([surface.apiRoute, String(id)])
   const watching = embedded && surface.canManage && documentState.loadState === 'ready'
   useEffect(() => {
-    if (!watching) return
+    if (!embedded || !surface.canManage) return
     return subscribePlacements(surface.apiRoute, id, () => setPlacementRead({ key: placementKey,
-      preflight: cachedPreflight(surface.apiRoute, id), pending: placementsPending(surface.apiRoute, id), blocking: placementsBlocking(surface.apiRoute, id), error: placementReadError(surface.apiRoute, id) }))
-  }, [surface.apiRoute, id, watching, placementKey])
-  const currentRead = placementRead?.key === placementKey ? placementRead : undefined
+      preflight: cachedPreflight(surface.apiRoute, id), read: cachedReadinessRead(surface.apiRoute, id), pending: placementsPending(surface.apiRoute, id), blocking: placementsBlocking(surface.apiRoute, id), error: placementReadError(surface.apiRoute, id) }))
+  }, [surface.apiRoute, id, embedded, surface.canManage, placementKey])
+  const currentRead = documentState.loadState === 'ready' && placementRead?.key === placementKey ? placementRead : undefined
   const preflight = currentRead ? currentRead.preflight ?? (currentRead.pending && !currentRead.error ? documentState.preflight : null) : documentState.preflight
-  const sharedDocument = currentRead ? { ...documentState, preflight, preflightPending: currentRead.blocking || !preflight && (documentState.preflightPending || currentRead.pending), preflightError: !preflight && (currentRead.error || !currentRead.pending) ? currentRead.error === PLACEMENT_FAILURE_COPY.forbidden ? currentRead.error : READINESS_COPY.checkError : null } : { ...documentState, preflightPending: !preflight && documentState.preflightPending }
+  const sharedDocument = currentRead ? { ...documentState, preflight, preflightRead: currentRead.read,
+    preflightPending: currentRead.pending || documentState.preflightPending,
+    preflightError: !preflight ? currentRead.read?.message ?? null : null } : documentState
   const placementFailed = preflight?.checks.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
   const lastPlacements = useRef<{ key: string; value: PreflightResult['placements'] } | undefined>(undefined)
   if (preflight?.placements && !placementFailed) lastPlacements.current = { key: placementKey, value: preflight.placements }
@@ -64,8 +66,8 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   // Results readers have no permission to load the manager-only test/preflight.
   if (!surface.canManage) return frame(<ResultsBody id={id} surface={surface} />)
   if (test.loadState !== 'ready' || !test.doc) return frame(<div className="xp-test-page" role={test.loadState === 'error' ? 'alert' : 'status'}>
-    <p>{test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading}</p>
-    {test.loadState === 'error' ? <Button onClick={() => void test.reload()}>{C.retry}</Button> : null}
+    <p>{test.preflightRead?.message ?? (test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading)}</p>
+    {test.preflightRead?.retry ? <Button onClick={() => void test.reload()}>{C.retry}</Button> : null}
   </div>)
   const parts = test.doc.kind === 'block' ? pageBlockParts : test.doc.kind === 'page' ? pageParts : settingParts
   const props = { test, surface }
