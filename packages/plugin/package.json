@@ -1,6 +1,6 @@
 {
   "name": "@delmaredigital/payload-experiments",
-  "version": "0.4.0-rc.4",
+  "version": "0.4.0-rc.5",
   "description": "No-code A/B testing for Payload CMS and Next.js: block, page and flag experiments with holdouts, layers, exposure logging and honest statistics inside the admin — no vendor",
   "type": "module",
   "license": "MIT",

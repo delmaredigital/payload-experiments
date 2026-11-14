@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.4.0-rc.5] - 2026-11-14
+
+### plugin
+
 - Fixed: editor placement notices and setup blockers respect test status, preserve blockers on other pages, and recognize custom editor URLs. Shared placement refreshes retain settled values, deduplicate reads and throttle focus refreshes. Confirmations explain settled blockers and read failures, showing no pending-check copy; Advanced includes its blocking sentence. Running tests permit deleting leftover page content while retaining the last-placement removal guard.
   Migration impact: none.
 
