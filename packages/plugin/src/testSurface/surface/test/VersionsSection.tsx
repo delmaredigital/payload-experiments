@@ -35,7 +35,7 @@ export function VersionsSection({ test, surface, parts, contentOnCanvas = false 
     releasedAllocation.current = allocation
     save(test, 'allocation', () => ({ allocation }))
   }
-  return <Section test={test} sectionId="versions">
+  return <Section surface={surface} test={test} sectionId="versions">
     {doc.kind === 'page' && testPageCollection(surface.pageCollections, doc, test.preflight?.pagePlacements)?.contentChecks === false ? <p>{PAGE_COPY.contentChecksOff}</p> : null}
     {contentOnCanvas ? <p>{C.editVersionsOnCanvas}</p> : null}
     {reason ? <p className="xp-ui-help">{reason}</p> : null}

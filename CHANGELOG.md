@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: setup blockers have danger marks, card borders and error lines; completed steps have success checks. The footer lists what must change before Start, and outside click goals appear once as named warnings.
+  Migration impact: none.
+
 - Fixed: configuring a block on an unsaved page explains that the page must be saved, then published before Start. Editor guidance refreshes on drawer open and window focus.
   Migration impact: none.
 

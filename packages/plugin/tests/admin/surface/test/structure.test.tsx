@@ -20,7 +20,7 @@ test('rail has five marked jump links and an unmarked Advanced link, a muted adv
   const links = within(screen.getByRole('navigation', { name: 'Sections' })).getAllByRole('link')
   expect(links.map(link => link.getAttribute('href'))).toEqual(['what', 'versions', 'win', 'who', 'length', 'advanced'].map(id => `#section-${id}`))
   expect(links[0]!.textContent).toContain('✓Complete: ')
-  expect(links[2]!.textContent).toContain('○Incomplete: ')
+  expect(links[2]!.textContent).toContain('!Needs attention: ')
   expect(links[5]!.classList.contains('xp-test-rail-item--advanced')).toBe(true)
   expect(links[0]!.getAttribute('aria-current')).toBe('location')
   fireEvent.click(links[2]!)
@@ -68,7 +68,7 @@ test('readiness bar links and focuses its blocking section heading; Advanced is 
   render(<><Section test={p.test} sectionId="win">Choose a goal</Section><Section test={p.test} sectionId="advanced">Developer controls</Section>{bar(p)}</>)
   const scroll = vi.fn()
   document.getElementById('section-win')!.scrollIntoView = scroll
-  fireEvent.click(screen.getByRole('link', { name: 'Next: Choose a goal.' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Choose a goal.' }))
   expect(scroll).toHaveBeenCalledWith({ block: 'start' })
   expect(document.activeElement).toBe(document.getElementById('title-win'))
   expect(document.activeElement?.getAttribute('tabindex')).toBe('-1')
@@ -136,4 +136,32 @@ test.each([
 ])('readiness separator requires content on both sides: %j', (state, separator) => {
   const view = render(bar(props({}, state)))
   expect(Boolean(view.container.querySelector('.xp-readiness__separator'))).toBe(separator)
+})
+
+
+test('blocking cards and chips have danger marks; completed sections have success marks and unloaded sections stay neutral', () => {
+  const p = props({}, { preflight: preflight([{ code: 'no-primary-metric', ok: false }]) })
+  const view = render(<><Section test={p.test} sectionId="win">Goal</Section><Section test={p.test} sectionId="what">Page</Section><Rail test={p.test} /></>)
+  expect(document.getElementById('section-win')?.classList.contains('xp-ui-section--blocked')).toBe(true)
+  expect(screen.getByLabelText('Needs attention').textContent).toBe('!')
+  expect(document.getElementById('section-what')?.classList.contains('xp-ui-section--complete')).toBe(true)
+  expect(document.querySelector('.xp-test-rail-mark--blocked')?.textContent).toBe('!')
+  expect(document.querySelector('.xp-test-blocker')?.classList.contains('xp-ui-error')).toBe(true)
+  view.rerender(<Section test={{ ...p.test, preflight: null }} sectionId="win">Goal</Section>)
+  expect(document.querySelector('.xp-ui-section--blocked, .xp-ui-section--complete')).toBeNull()
+})
+test('footer lists three blockers and counts the remainder, while warning notes render once separately', () => {
+  const p = props({}, { preflight: preflight([
+    { code: 'no-placements', ok: false }, { code: 'empty-slot', ok: false },
+    { code: 'no-primary-metric', ok: false }, { code: 'no-planned-duration', ok: false },
+  ]) })
+  const message = 'Heads up: the click goal “Sign up” is outside this test’s block. The test can still start.'
+  p.test.preflight!.goalNotes = [{ metricId: 1, message }, { metricId: 1, message }]
+  render(bar(p))
+  const blockers = document.querySelector('.xp-readiness__blockers')!
+  expect(blockers.querySelectorAll('a')).toHaveLength(3)
+  expect(blockers.textContent).toContain('and 1 more')
+  expect(screen.getAllByText(message)).toHaveLength(1)
+  expect(screen.getByText(message).classList.contains('xp-readiness__warning')).toBe(true)
+  expect(blockers.textContent).not.toContain(message)
 })

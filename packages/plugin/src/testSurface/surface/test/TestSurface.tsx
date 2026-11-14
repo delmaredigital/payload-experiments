@@ -51,7 +51,7 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
     <div className="xp-test-page xp-test-page--setup" style={{ paddingBottom: embedded || barHeight === undefined ? undefined : `${barHeight}px` }}>
     <div className="xp-test-layout"><Rail test={test} /><div className="xp-test-content">
     {test.errors._section ? <Banner tone="error" action={test.stale ? <Button onClick={() => void test.reload()}>{C.reload}</Button> : undefined}>{test.errors._section}</Banner> : null}
-    <Section test={test} sectionId="what">
+    <Section surface={surface} test={test} sectionId="what">
       <TestName {...props} /><parts.Binding {...props} /><Hypothesis {...props} />
     </Section>
     <VersionsSection {...props} parts={parts} contentOnCanvas={embedded} /><GoalSection {...props} embedded={embedded} /><TargetingSection {...props} />

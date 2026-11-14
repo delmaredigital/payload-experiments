@@ -52,19 +52,19 @@ test('exports the complete parts and a ready primary Start for a draft', () => {
   expect(button('Start').disabled).toBe(false)
   expect(button('Start').closest('.xp-readiness--ready')).toBeTruthy()
 })
-test('only the first missing item is shown, linked in section order, and disables Start with its tooltip', () => {
+test('missing items are linked in section order and disable Start with a visible reason', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'no-planned-duration', ok: false }, { code: 'no-primary-metric', ok: false }]) })} />)
-  expect(screen.getByRole('link').getAttribute('href')).toBe('#section-win')
-  expect(screen.getByRole('status').textContent).toBe('Next: Choose a goal.')
+  expect(screen.getAllByRole('link')[0]!.getAttribute('href')).toBe('#section-win')
+  expect(screen.getByRole('status').textContent).toContain('Before you can start:')
   expect(button('Start').disabled).toBe(true)
   expect(button('Start').closest('[title]')?.getAttribute('title')).toBe('Choose a goal.')
-  expect(screen.queryByText('Choose how long to run it.')).toBeNull()
+  expect(screen.getByText('Choose how long to run it.')).toBeTruthy()
 })
 test('block path refusal shows its message and removal line in Who takes part and disables Start', () => {
   render(<Banner {...props({}, { preflight: preflight([{ code: 'block-path-rule', ok: false, detail: { rules: [1] } }]) })} />)
   const message = 'Remove the page-path rule in Who takes part; page block tests run on their page.'
   expect(screen.getByRole('status').textContent).toContain(message)
-  expect(screen.getByText('Remove rule').closest('a')?.getAttribute('href')).toBe('#section-who')
+  expect(screen.getByText(message).closest('a')?.getAttribute('href')).toBe('#section-who')
   expect(button('Start').disabled).toBe(true)
   expect(button('Start').closest('[title]')?.getAttribute('title')).toBe(message)
 })
@@ -79,7 +79,7 @@ test('absent preflight never permits a start; a header refusal has no section li
   expect(screen.getByRole('status').textContent).toBe('Checking readiness…')
   view.rerender(<Banner {...props({}, { preflight: preflight([{ code: 'page-user-unit', ok: false }]) })} />)
   expect(screen.queryByRole('link')).toBeNull()
-  expect(screen.getByRole('status').textContent).toBe('Next: Whole-page tests count visitors. Create the test again counting visitors.')
+  expect(screen.getByRole('status').textContent).toContain('Whole-page tests count visitors. Create the test again counting visitors.')
 })
 test('draft start is direct, locks synchronously, posts once with credentials and reloads on success', async () => {
   let resolve!: (value: Response) => void
@@ -453,7 +453,7 @@ test('Banner renders click fairness warnings, unchecked placements and outside-g
     { code: 'goal-in-some-versions', ok: true, warning: true, detail: [{ metricId: 4, name: 'Join' }] },
     { code: 'placement-unchecked', ok: true, warning: true, detail: { path: '/landing' } },
   ])
-  checked.goalNotes = [{ metricId: 5, message: "This goal isn't inside the part being tested, so every version shows it the same way." }]
+  checked.goalNotes = [{ metricId: 5, message: "Heads up: the click goal “Sign up” is outside this test's block, so every version shows the same button. The test can still start. To compare different buttons, move the goal inside each version." }]
   render(<Banner {...props({}, { preflight: checked })} />)
   expect(screen.getByText("Join appears in some versions but not all, so the comparison wouldn't be fair. Add it to every version, or choose another goal.")).toBeTruthy()
   expect(screen.getByText("/landing couldn't be checked, so the test can't confirm every version shows the same goals. Check that you can open it.")).toBeTruthy()
@@ -521,6 +521,6 @@ test('add-goal warnings use preflight titles and document links without a placem
 test('an unknown failing readiness code links Review setup to the first section', () => {
   const p = props({}, { preflight: preflight([{ code: 'future-code', ok: false }] as unknown as ReturnType<typeof preflight>['checks']) })
   render(<Banner {...p} />)
-  expect(screen.getByRole('link', { name: 'Next: Review setup' }).getAttribute('href')).toBe('#section-what')
+  expect(screen.getByRole('link', { name: 'Review setup' }).getAttribute('href')).toBe('#section-what')
   expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true)
 })

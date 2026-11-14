@@ -113,7 +113,7 @@ export function GoalSection({ test, surface, embedded = false }: SectionProps & 
   const kind = sourceFor(primary?.source, surface.metricSources)?.kind
   const baseline = test.preflight?.baseline && String(test.preflight.baseline.metricId) === String(doc.metrics?.primary)
     ? reviewView(test.preflight, { primaryMetricKind: kind }).baseline : null
-  return <Section test={test} sectionId="win">
+  return <Section surface={surface} test={test} sectionId="win">
     {failed ? <p role="alert">{C.goalsError} <span className="xp-ui-button-group"><Button onClick={() => setAttempt(n => n + 1)}>{C.retry}</Button></span></p> : null}
     <SelectEdit labelAction={<span className="xp-ui-button-group"><Button variant="link" size="sm" href={surfaceUrls.goals(surface.adminRoute, !reason ? { return: String(doc.id) } : undefined)}>{C.manageGoals}</Button></span>} label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} groups={onPage.size ? [{ options: [{ value: '', label: C.chooseGoal }] }, ...roleGroups('primary')!] : undefined} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
     <p>{C.goalHelp}</p>

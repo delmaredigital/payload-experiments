@@ -100,3 +100,9 @@
 .xp-ui-drawer > .xp-ui-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: var(--xp-space-4); padding: var(--xp-space-4) var(--xp-space-5); border-bottom: 1px solid var(--xp-border); flex-shrink: 0; background: var(--xp-surface); }
 .xp-ui-drawer > .xp-ui-dialog-header h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; font: var(--xp-text-title); }
 .xp-ui-drawer-body { min-height: 0; overflow: auto; overscroll-behavior: contain; flex: 1; background: var(--xp-bg); }
+
+.xp-ui-section--blocked { border-color: var(--xp-error-border); }
+.xp-ui-section--blocked .xp-ui-section-number, .xp-ui-section--blocked .xp-ui-section-complete { color: var(--xp-error); border-color: var(--xp-error-border); }
+.xp-ui-section--complete .xp-ui-section-complete { color: var(--xp-success); }
+.xp-ui-section--complete .xp-ui-section-number { color: var(--xp-success); border-color: var(--xp-success); }
+.xp-ui-section--blocked h2:focus { outline-color: var(--xp-error); }

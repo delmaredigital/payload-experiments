@@ -1030,3 +1030,5 @@ New click goals are accepted within 30 seconds. A click goal may be primary;
 primary and guardrail goals must appear in every tested version or outside all
 of them. Secondary asymmetry warns, and results health checks published rows
 again on every run.
+
+Setup sections use a red exclamation mark and border for blockers, a green check for completed steps, and neutral marks while unchecked. “Before you can start:” lists up to three blockers with section links and a count of any others. Links scroll to and focus the affected section. Outside click goals appear separately as named warnings and do not disable Start.

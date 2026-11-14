@@ -22,7 +22,7 @@ export function TargetingSection({ test, surface }: SectionProps) {
   // Page block tests are scoped by their page; path rules belong to setting and flag tests (ruling Nov 3).
   const blockPath = (key: string) => test.doc!.kind === 'block' && key === 'path'
   const keys = Object.keys(surface.attributeKeys).filter(key => !blockPath(key))
-  return <Section test={test} sectionId="who"><p>{rules.length ? C.rulesSummary : C.everyone}</p>
+  return <Section surface={surface} test={test} sectionId="who"><p>{rules.length ? C.rulesSummary : C.everyone}</p>
     {rules.map((rule, index) => {
       const remove = () => { setRowsRevision(revision => revision + 1); update(current => current.filter((_, i) => i !== index)) }
       if (blockPath(rule.attribute)) return <div className="xp-targeting-row" key={`${rowsRevision}-${index}`}><p className="xp-ui-help">{C.blockPathRule}</p>

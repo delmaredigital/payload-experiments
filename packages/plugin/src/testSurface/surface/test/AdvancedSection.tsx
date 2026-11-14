@@ -17,7 +17,7 @@ export function AdvancedSection({ test, surface }: SectionProps) {
   const numbers = [
     ['minExposuresPerArm', 200, 1], ['attributionWindowHours', '', 1], ['sequentialTuningParameter', '', 0],
   ] as const
-  return <Section test={test} sectionId="advanced">
+  return <Section surface={surface} test={test} sectionId="advanced">
     {doc.kind === 'page' ? <PageHoldout test={test} surface={surface} /> : null}
     <div className="xp-field-grid"><div><SelectEdit label={C.exposurePolicy.label} value={doc.exposurePolicy} reason={reasonFor(test, 'exposurePolicy')}
       options={exposureOptions(doc.kind).map(value => ({ value, label: C.policies[value] }))}

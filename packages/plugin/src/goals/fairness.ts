@@ -9,7 +9,7 @@ import { resolvePageCollection } from '../transitions/pageCollection.js'
 import { scanPlacements, uniquePlacementDocs } from '../transitions/placementInteractions.js'
 import { CLICK_KEY } from './key.js'
 
-export const OUTSIDE_GOAL = "This goal isn't inside the part being tested, so every version shows it the same way."
+export const OUTSIDE_GOAL = (name: string) => `Heads up: the click goal “${name}” is outside this test's block, so every version shows the same button. The test can still start. To compare different buttons, move the goal inside each version.`
 export const LEGACY_FAIRNESS = "Goal fairness isn't checked for tests started before this update."
 export interface GoalPlacement { collection?: string; id?: DocId; path?: string; title?: string }
 export interface GoalContent {

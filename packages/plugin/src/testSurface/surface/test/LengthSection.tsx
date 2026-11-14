@@ -6,13 +6,13 @@ import { durationSuggestion } from './testPage.model.js'
 import { FieldErrors, positiveInteger, reasonFor, save, TextEdit } from './fields.js'
 import { Section } from './Section.js'
 
-export function LengthSection({ test }: SectionProps) {
+export function LengthSection({ test, surface }: SectionProps) {
   const doc = test.doc!
   const reason = reasonFor(test, 'analysis')
   const suggestion = durationSuggestion(test.preflight, doc.analysis?.plannedDurationDays)
   const required = ['manual', 'viewport'].includes(doc.exposurePolicy)
   const change = (field: 'reachPerDay' | 'plannedDurationDays', raw: string) => save(test, 'analysis', () => ({ analysis: { ...test.doc!.analysis, [field]: raw.trim() ? Number(raw) : null } }))
-  return <Section test={test} sectionId="length">
+  return <Section surface={surface} test={test} sectionId="length">
     <div className="xp-field-grid"><div><TextEdit label={required ? `${C.reach} ${C.required}` : C.reach} value={doc.analysis?.reachPerDay ?? ''} type="number" min={1} reason={reason}
       required={required} onCommit={value => change('reachPerDay', value)} />
     <p className="xp-ui-help">{C.reachHelp}</p><FieldErrors test={test} path="analysis.reachPerDay" /></div>

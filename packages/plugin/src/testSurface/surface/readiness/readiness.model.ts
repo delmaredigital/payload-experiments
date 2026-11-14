@@ -102,22 +102,25 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'slot-required': versions, 'duplicate-slot': versions,
 }
 
+export function blockingSteps(preflight: PreflightResult | null, ctx: ReadinessContext) {
+  return (['header', ...SECTION_ORDER] as const).flatMap(section => (preflight?.checks ?? []).flatMap(check => {
+    const mapping = Object.hasOwn(READINESS, check.code) ? READINESS[check.code] : undefined
+    if (check.ok || (mapping?.section ?? 'what') !== section) return []
+    const sentence = mapping ? mapping.next(check.detail, ctx) : SURFACE_COPY.next
+    const arm = readinessArm(check.code, check.detail, ctx)
+    return sentence ? [{ section, sentence, code: check.code, ...(arm ? { arm } : {}) }] : []
+  }))
+}
 export function nextStep(preflight: PreflightResult | null, ctx: ReadinessContext) {
-  for (const section of ['header', ...SECTION_ORDER] as const) {
-    for (const check of preflight?.checks ?? []) {
-      if (!Object.hasOwn(READINESS, check.code)) {
-        if (!check.ok && section === SECTION_ORDER[0]) return { section, sentence: SURFACE_COPY.next, code: check.code }
-        continue
-      }
-      const mapping = READINESS[check.code]
-      if (check.ok || mapping.section !== section) continue
-      const sentence = mapping.next(check.detail, ctx)
-      const nextStep = typeof mapping.nextStep === 'function' ? mapping.nextStep(check.detail, ctx) : mapping.nextStep
-      const arm = readinessArm(check.code, check.detail, ctx)
-      if (sentence) return { section, sentence, code: check.code, ...(arm ? { arm } : {}), ...(nextStep ? { nextStep } : {}) }
-    }
-  }
-  return null
+  const next = blockingSteps(preflight, ctx)[0]
+  if (!next) return null
+  const mapping = READINESS[next.code]
+  const detail = preflight?.checks.find(check => !check.ok && check.code === next.code)?.detail
+  const action = mapping && (typeof mapping.nextStep === 'function' ? mapping.nextStep(detail, ctx) : mapping.nextStep)
+  return { ...next, ...(action ? { nextStep: action } : {}) }
+}
+export function sectionBlocked(test: { preflight: PreflightResult | null }, section: SectionId) {
+  return !!test.preflight?.checks.some(check => !check.ok && (Object.hasOwn(READINESS, check.code) ? READINESS[check.code].section : 'what') === section)
 }
 
 export function sectionDone(test: { preflight: PreflightResult | null }): Record<SectionId, boolean> {
