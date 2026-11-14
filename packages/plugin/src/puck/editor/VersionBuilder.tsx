@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { addVariant, removeArm, balanceWeight, splitEvenly, totalWeight, withSlotsFor } from '../../arms/model.js'
 import { checkArms } from '../../collections/experiments/armInvariants.js'
 import { issueMessage } from '../../arms/copy.js'
@@ -120,10 +120,10 @@ export function RemoveVersion({ arm, writes, count, shared, onRemove, onClose }:
     </Dialog>
 }
 
-export function VersionWeights({ experiment, writes, editable = true, beforeSplit, actions }: { experiment: EditorExperiment; writes: ArmWrites; editable?: boolean; beforeSplit?: ReactNode; actions?: (arm: EditorExperiment['arms'][number]) => ReactNode }) {
+export type WeightEdits = Partial<Record<ArmKey, string>>
+export function VersionWeights({ experiment, writes, edits, setEdits, groupId, splitIntent, editable = true, beforeSplit, actions }: { experiment: EditorExperiment; writes: ArmWrites; edits: WeightEdits; setEdits: (edits: WeightEdits) => void; groupId: string; splitIntent: RefObject<boolean>; editable?: boolean; beforeSplit?: ReactNode; actions?: (arm: EditorExperiment['arms'][number]) => ReactNode }) {
   const id = useId()
   const split = useRef<HTMLDivElement>(null)
-  const [edits, setEdits] = useState<Partial<Record<ArmKey, string>>>({})
   const invalidKeys = new Set(Object.entries(edits).filter(([, raw]) => raw.trim() === '' || !Number.isInteger(Number(raw)) || Number(raw) < 0 || Number(raw) > 100).map(([key]) => key))
   const apply = (arms: Arm[]) => arms.reduce((next, arm) => edits[arm.key] === undefined ? next : (() => {
     const value = edits[arm.key]!.trim() === '' ? NaN : Number(edits[arm.key])
@@ -141,9 +141,13 @@ export function VersionWeights({ experiment, writes, editable = true, beforeSpli
       min={0} max={100} step={1} value={edits[arm.key] ?? live.find(current => current.key === arm.key)?.weight ?? ''} disabled={writes.busy || !editable}
       error={invalidKeys.has(arm.key) ? C.invalidShare : undefined}
       onChange={event => setEdits({ [arm.key]: event.target.value })}
-      onBlur={event => { if (!split.current?.contains(event.relatedTarget)) void commit() }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void commit() } }} />{actions?.(arm)}</div>)}</div>
+      onBlur={event => { const target = event.relatedTarget as Element | null; if (!splitIntent.current && !(typeof target?.closest === 'function' && target.closest('[data-xp-split]')?.getAttribute('data-xp-split') === groupId)) void commit() }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void commit() } }} />{actions?.(arm)}</div>)}</div>
     {Object.keys(edits).length && !invalidKeys.size ? issues.map((issue, i) => <p role="alert" className="xp-ui-error" key={i}>{issueMessage(issue, totalWeight(live))}</p>) : null}
     {beforeSplit}
-    {editable ? <div ref={split}><Button variant="quiet" size="sm" disabled={writes.busy} onClick={async () => { if (await writes.write(splitEvenly)) setEdits({}) }}>{C.split}</Button></div> : null}
+    {editable ? <div ref={split} data-xp-split={groupId} onPointerDownCapture={() => {
+      // Pointer intent reaches the destination before the source iframe loses focus.
+      splitIntent.current = true
+      setTimeout(() => { splitIntent.current = false }, 0)
+    }}><Button variant="quiet" size="sm" disabled={writes.busy} onClick={async () => { if (await writes.write(splitEvenly)) setEdits({}) }}>{C.split}</Button></div> : null}
   </div>
 }

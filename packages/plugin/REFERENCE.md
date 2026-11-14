@@ -803,6 +803,13 @@ it does not save or publish the page. A Start refusal uses the server's sentence
 Escape, Close and the backdrop dismiss the drawer and return focus to its button.
 Links that leave the surface open in a new tab.
 
+Every version tab has a visible **Options** menu beside its label. Managers can rename versions (including Original) and remove non-Original versions in draft or stopped tests. **Remove version** confirms the block count deleted from this page, asks you to save the page, and explains when the test also changes on other pages. Running menus explain that versions cannot change.
+
+Selecting an Experiment block opens three sidebar groups: **Test** (picker, status and readiness), **Versions** (names, shares, removal, leftover content, Add variant and Split evenly), then **Actions** (Configure test and draft Start or running Stop). Both places use the block's document, write state, permissions and placements cache. Stop uses the drawer's confirmation and refusal messages; Decide remains in the drawer. No additional host wiring is required.
+
+While a block, sidebar or open configure drawer shows **Save this page to put the test on it.** or **Publish this page to start the test.**, placements refresh about every four seconds while the editor document is visible. One timer serves the editor and deduplicates requests for the same test through the placements cache. It stops when no notice remains, when the tab is hidden, or when the notice unmounts. Other editor states do not poll.
+
+
 Setup sections use a red exclamation mark and border for blockers, a green check for completed steps, and neutral marks while unchecked. “Before you can start:” lists up to three blockers with section links and a count of any others. Links scroll to and focus the affected section. Outside click goals appear separately as named warnings and do not disable Start.
 
 Creating a test from a block carries its existing versions and populated content into the new test with an even split. Binding an existing test keeps leftover content visible in tabs marked “not in this test.” Managers can add it to a draft test; any page editor can delete its page content after confirming the version name and block count. Running, stopped, decided and archived tests offer deletion only. More than two leftover versions share a collapsed notice with individual actions. Save the page to keep content removal.
@@ -843,7 +850,7 @@ Results readers get the read-only results surface. While loading the drawer show
 a quiet loading sentence. Access failures show the existing forbidden sentence;
 other failures show “Setup isn't available right now.” with **Open in a new tab**
 and Retry. Version names summarize the canvas; traffic shares stay editable, and
-adding, removing or renaming a version uses the block chrome.
+adding, removing or renaming a version uses the block chrome or sidebar.
 
 Each object includes the test block and its **A/B tests** sidebar category. The
 editor object also includes the outline plugin: it hides empty version slots
@@ -1038,7 +1045,3 @@ New click goals are accepted within 30 seconds. A click goal may be primary;
 primary and guardrail goals must appear in every tested version or outside all
 of them. Secondary asymmetry warns, and results health checks published rows
 again on every run.
-
-Every version tab has a visible **Options** menu beside its label. Managers can rename versions (including Original) and remove non-Original versions in draft or stopped tests. **Remove version** confirms the block count deleted from this page, asks you to save the page, and explains when the test also changes on other pages. Running menus explain that versions cannot change.
-
-Selecting an Experiment block opens three sidebar groups: **Test** (picker, status and readiness), **Versions** (names, shares, removal, leftover content, Add variant and Split evenly), then **Actions** (Configure test and draft Start or running Stop). Both places use the block's document, write state, permissions and placements cache. Stop uses the drawer's confirmation and refusal messages; Decide remains in the drawer. No additional host wiring is required.

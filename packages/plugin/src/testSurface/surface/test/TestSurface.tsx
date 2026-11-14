@@ -1,8 +1,9 @@
 'use client'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, useRef, type ReactNode } from 'react'
 import type { DocId } from '../../../types/contracts.js'
 import type { SurfaceProps, TestDocApi } from '../contracts.js'
 import { useTestDocument } from '../useTestDocument.js'
+import { READINESS_COPY } from '../../copy/readiness.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
 import { pageBlockParts } from '../pageBlock/parts.js'
 import { settingParts } from '../setting/parts.js'
@@ -21,6 +22,8 @@ import { ReadinessBar } from './ReadinessBar.js'
 import { ResultsBody } from '../results/ResultsBody.js'
 import type { TestDocument } from '../testDocument.model.js'
 import type { PreflightResult } from '../../../types/endpoints.js'
+import { usePlacementNotice } from '../../../puck/editor/usePlacementNotice.js'
+import { acquirePlacements, cachedPreflight, placementsPending } from '../../../puck/editor/placementsCache.js'
 import { editorPlacementMessage } from '../editorPlacement.js'
 import './testPage.css'
 
@@ -31,10 +34,24 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
 }) {
   const [barHeight, setBarHeight] = useState<number>()
   const documentState = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}) })
-  const placementFailed = documentState.preflight?.checks.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
-  const message = placementFailed ? undefined : editorPlacementMessage(documentState.preflight?.placements, surface.editorPage)
+  const [placementRead, setPlacementRead] = useState<{ key: string; preflight?: PreflightResult; pending: boolean }>()
+  const placementKey = JSON.stringify([surface.apiRoute, String(id)])
+  const watching = embedded && !!surface.editorPage && surface.canManage && !!documentState.preflight
+  useEffect(() => {
+    if (!watching) return
+    return acquirePlacements(surface.apiRoute, id, () => setPlacementRead({ key: placementKey,
+      preflight: cachedPreflight(surface.apiRoute, id), pending: placementsPending(surface.apiRoute, id) }))
+  }, [surface.apiRoute, id, watching, placementKey])
+  const currentRead = placementRead?.key === placementKey ? placementRead : undefined
+  const preflight = currentRead ? currentRead.preflight ?? null : documentState.preflight
+  const sharedDocument = currentRead ? { ...documentState, preflight, preflightPending: documentState.preflightPending || currentRead.pending, preflightError: !currentRead.pending && !preflight ? READINESS_COPY.checkError : documentState.preflightError } : documentState
+  const placementFailed = preflight?.checks.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)
+  const lastPlacements = useRef<{ key: string; value: PreflightResult['placements'] } | undefined>(undefined)
+  if (preflight?.placements && !placementFailed) lastPlacements.current = { key: placementKey, value: preflight.placements }
+  const message = editorPlacementMessage(lastPlacements.current?.key === placementKey ? lastPlacements.current.value : undefined, surface.editorPage)
   surface = { ...surface, editorPlacementMessage: message }
-  const test = message && documentState.preflight ? { ...documentState, preflight: { ...documentState.preflight, checks: [...documentState.preflight.checks.filter(check => !['no-placements', 'placement-removed', 'placement-unpublished'].includes(check.code)), { code: 'no-placements' as const, ok: false }] } } : documentState
+  usePlacementNotice(surface.apiRoute, id, watching ? message : undefined)
+  const test = message && preflight ? { ...sharedDocument, preflight: { ...preflight, checks: [...preflight.checks.filter(check => !['no-placements', 'placement-removed', 'placement-unpublished'].includes(check.code)), { code: 'no-placements' as const, ok: false }] } } : sharedDocument
   useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
   const frame = (body: ReactNode) => {
     const children = <div className="xp-test-surface">{body}</div>

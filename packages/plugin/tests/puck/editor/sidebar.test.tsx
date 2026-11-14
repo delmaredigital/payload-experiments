@@ -147,3 +147,49 @@ test('sidebar uses the drawer blocker sentence and transition refusal', async ()
   expect((await fields().findByRole('alert')).textContent).toBe("You don't have permission to do this.")
   expect(document.body.textContent).not.toContain('PRIVATE')
 })
+
+
+test('cross-surface Split evenly clears shared invalid weight edits in both places', async () => {
+  await mount()
+  const chromeInput = chrome().getByLabelText(C.weight('Original'))
+  fireEvent.change(chromeInput, { target: { value: '101' } })
+  expect((fields().getByLabelText(C.weight('Original')) as HTMLInputElement).value).toBe('101')
+  expect(fields().queryByRole('button', { name: 'Start' })).toBeNull()
+  fireEvent.click(fields().getByRole('button', { name: C.split }))
+  await waitFor(() => expect((chromeInput as HTMLInputElement).value).toBe('50'))
+  expect(chrome().queryByText(C.invalidShare)).toBeNull()
+  expect(fields().queryByText(C.invalidShare)).toBeNull()
+})
+
+
+test('pending focus refresh explains why Start is hidden even with prior readiness', async () => {
+  await mount()
+  await fields().findByRole('button', { name: 'Start' })
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let finish!: (response: Response) => void
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight') ? new Promise(resolve => { finish = resolve }) : original(url, init))
+  fireEvent(window, new Event('focus'))
+  expect(fields().getByText('Before you can start: Checking readiness…')).toBeTruthy()
+  expect(fields().queryByRole('button', { name: 'Start' })).toBeNull()
+  await act(async () => { finish(reply({ checks: [], placements: [] })) })
+  await fields().findByRole('button', { name: 'Start' })
+})
+
+
+test('a completed version write supersedes readiness requested before the PATCH', async () => {
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let finishOld!: (response: Response) => void
+  let reads = 0
+  vi.mocked(fetch).mockImplementation((url, init) => {
+    if (String(url).endsWith('/preflight') && reads++ === 0) return new Promise(resolve => { finishOld = resolve })
+    return original(url, init)
+  })
+  await mount()
+  fireEvent.click(fields().getByRole('button', { name: C.add }))
+  await screen.findByRole('tab', { name: 'Variant B' })
+  await fields().findByRole('button', { name: 'Start' })
+  await act(async () => { finishOld(reply({ checks: [{ code: 'no-primary-metric', ok: false }], placements: [] })) })
+  expect(fields().getByRole('button', { name: 'Start' })).toBeTruthy()
+  expect(fields().queryByText('Before you can start: Choose a goal.')).toBeNull()
+  expect(reads).toBe(2)
+})

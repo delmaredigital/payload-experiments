@@ -1,13 +1,11 @@
 'use client'
 
 import { createUsePuck, useGetPuck } from '@puckeditor/core'
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore, useRef } from 'react'
 import type { ExperimentRef } from '../../types/puck.js'
-import { ExperimentPicker } from '../ExperimentPicker.js'
-import { editorCopy as C } from './copy.js'
 
 const usePuckSelector = createUsePuck()
-type Targets = { test: HTMLElement; controls: HTMLElement }
+type Targets = { test: HTMLElement; controls: HTMLElement; onChange: (value: ExperimentRef | null) => void }
 type Bridge = { targets: Map<string, Targets>; listeners: Set<() => void> }
 // useGetPuck returns the store's stable getState function (Puck 0.24:7223–7228).
 // A WeakMap keeps separate editors (including their iframes) isolated.
@@ -23,16 +21,18 @@ export function useSidebarTargets(id: string) {
     () => entry.targets.get(id), () => undefined)
 }
 
-/** The custom field owns only its picker and portal destinations, never another data reader. */
-export function TestSidebarField({ value, onChange }: { value: ExperimentRef | null; onChange: (value: ExperimentRef | null) => void }) {
+/** The custom field owns only its portal destinations and binding callback, never another data reader. */
+export function TestSidebarField({ onChange }: { onChange: (value: ExperimentRef | null) => void }) {
   const getPuck = useGetPuck()
+  const change = useRef(onChange)
+  change.current = onChange
   const id = usePuckSelector(state => state.selectedItem?.props.id)
   const [test, setTest] = useState<HTMLDivElement | null>(null)
   const [controls, setControls] = useState<HTMLDivElement | null>(null)
   useEffect(() => {
     if (!id || !test || !controls) return
     const entry = bridge(getPuck)
-    const targets = { test, controls }
+    const targets = { test, controls, onChange: (value: ExperimentRef | null) => change.current(value) }
     entry.targets.set(id, targets)
     for (const notify of entry.listeners) notify()
     return () => {
@@ -41,7 +41,7 @@ export function TestSidebarField({ value, onChange }: { value: ExperimentRef | n
     }
   }, [id, test, controls, getPuck])
   return <div className="xp-slot-root xp-slot-editor xp-slot-sidebar" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-    <section aria-label={C.testGroup}><h4>{C.testGroup}</h4><ExperimentPicker value={value} onChange={onChange} /><div ref={setTest} /></section>
+    <div ref={setTest} />
     <div ref={setControls} />
   </div>
 }

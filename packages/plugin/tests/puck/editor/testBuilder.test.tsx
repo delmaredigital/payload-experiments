@@ -590,3 +590,14 @@ test('every tab has a labelled visible menu before selection or hover; removal n
   fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   expect(within(screen.getByRole('dialog')).getByText(C.removeHelp(1))).toBeTruthy()
 })
+
+
+test('removing a version also explains its effect on other pages', async () => {
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight')
+    ? Promise.resolve(response({ checks: [], placements: [{ collection: 'pages', id: 'another', detail: 'Published' }] })) : originalFetch(url, init))
+  await mount()
+  await screen.findByText(C.sharedTest)
+  menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  expect(within(screen.getByRole('dialog')).getByText(C.removeShared)).toBeTruthy()
+})

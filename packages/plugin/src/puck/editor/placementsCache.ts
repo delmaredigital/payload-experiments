@@ -88,3 +88,46 @@ export function acquirePlacements(api: string, id: DocId, notify: (placements: P
 export function cachedPreflight(api: string, id: DocId) { return preflights.get(keyFor(api, id)) }
 
 export function placementsPending(api: string, id: DocId) { return cache.get(keyFor(api, id))?.pending === true }
+
+// One timer per editor document, shared by chrome, sidebar and detached drawers.
+// Watching is opt-in: only a rendered save/publish notice owns a subscription.
+type NoticeSession = {
+  requests: Map<string, { api: string; id: DocId; count: number }>
+  timer?: ReturnType<typeof setInterval>
+  visibility: () => void
+}
+const notices = new WeakMap<Document, NoticeSession>()
+export function watchPlacementNotice(api: string, id: DocId, doc: Document): () => void {
+  let session = notices.get(doc)
+  if (!session) {
+    const created: NoticeSession = { requests: new Map(), visibility: () => {} }
+    created.visibility = () => {
+      if (created.timer !== undefined) { clearInterval(created.timer); created.timer = undefined }
+      if (doc.visibilityState !== 'visible' || !created.requests.size) return
+      created.timer = setInterval(() => {
+        if (doc.visibilityState !== 'visible') return
+        for (const request of [...created.requests.values()]) void refreshPlacements(request.api, request.id)
+      }, 4_000)
+    }
+    session = created
+    notices.set(doc, session)
+    doc.addEventListener('visibilitychange', created.visibility)
+  }
+  const current = session
+  const key = keyFor(api, id)
+  const request = current.requests.get(key) ?? { api, id, count: 0 }
+  request.count++
+  current.requests.set(key, request)
+  if (current.timer === undefined) current.visibility()
+  let active = true
+  return () => {
+    if (!active) return
+    active = false
+    if (--request.count === 0) current.requests.delete(key)
+    if (!current.requests.size) {
+      if (current.timer !== undefined) clearInterval(current.timer)
+      doc.removeEventListener('visibilitychange', current.visibility)
+      notices.delete(doc)
+    }
+  }
+}

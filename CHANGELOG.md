@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: save/publish guidance clears after an in-place page save or publish without waiting for focus changes. Only visible save/publish notices refresh placements, about every four seconds through a shared editor timer and cache.
+  Migration impact: none.
+
 - Added: selecting an Experiment block shows Test, Versions and Actions in the sidebar, sharing the block controls and state. Draft Start and running Stop use the drawer transitions; Decide stays in the drawer. No host wiring or migration is needed.
 
 - Fixed: every version tab has a visible Options menu. Remove version confirms how many blocks it deletes from this page and explains shared-test impact. Existing draft/stopped manager access is preserved.
@@ -28,7 +31,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed: setup blockers have danger marks, card borders and error lines; completed steps have success checks. The footer lists what must change before Start, and outside click goals appear once as named warnings.
   Migration impact: none.
 
-- Fixed: configuring a block on an unsaved page explains that the page must be saved, then published before Start. Editor guidance refreshes on drawer open and window focus.
+- Fixed: configuring a block on an unsaved page explains that the page must be saved, then published before Start. Editor guidance refreshes on drawer open, window focus, and while a visible save/publish notice remains.
   Migration impact: none.
 
 ## [0.4.0-rc.4] - 2026-11-13
