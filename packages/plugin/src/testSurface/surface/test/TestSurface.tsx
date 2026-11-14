@@ -4,6 +4,7 @@ import type { DocId } from '../../../types/contracts.js'
 import type { SurfaceProps, TestDocApi } from '../contracts.js'
 import { useTestDocument } from '../useTestDocument.js'
 import type { ReadinessRead } from '../../readinessRead.js'
+import { API_MESSAGES } from '../../copy/common.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
 import { pageBlockParts } from '../pageBlock/parts.js'
 import { settingParts } from '../setting/parts.js'
@@ -66,7 +67,7 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   // Results readers have no permission to load the manager-only test/preflight.
   if (!surface.canManage) return frame(<ResultsBody id={id} surface={surface} />)
   if (test.loadState !== 'ready' || !test.doc) return frame(<div className="xp-test-page" role={test.loadState === 'error' ? 'alert' : 'status'}>
-    <p>{test.preflightRead?.message ?? (test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading)}</p>
+    <p>{test.preflightRead?.kind === 'signed-out' ? API_MESSAGES.unauthenticated : test.loadState === 'forbidden' ? C.forbidden : test.loadState === 'missing' ? C.missing : test.loadState === 'error' ? C.error : C.loading}</p>
     {(test.preflightRead?.retry ?? test.loadState === 'error') ? <Button onClick={() => void test.reload()}>{C.retry}</Button> : null}
   </div>)
   const parts = test.doc.kind === 'block' ? pageBlockParts : test.doc.kind === 'page' ? pageParts : settingParts

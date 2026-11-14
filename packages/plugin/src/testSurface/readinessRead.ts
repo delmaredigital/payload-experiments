@@ -20,7 +20,7 @@ export function classifyReadinessRead(status: number, body?: unknown, failures =
   const message = kind === 'signed-out' ? API_MESSAGES.unauthenticated
     : kind === 'not-found' ? answer ? PLACEMENT_FAILURE_COPY['not-found'] : document && context.surface === 'editor' ? pickerCopy.unavailable : API_MESSAGES.notFound
       : kind === 'no-access' ? document ? context.surface === 'editor' ? context.resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden : TEST_PAGE.forbidden : PLACEMENT_FAILURE_COPY.forbidden
-        : kind === 'permanent' ? status === 501 ? API_MESSAGES.notImplemented : "This request couldn't be checked. Reload the page."
+        : kind === 'permanent' ? status === 501 ? API_MESSAGES.notImplemented : document ? context.surface === 'editor' ? editorCopy.loadError : TEST_PAGE.error : READINESS_COPY.invalidRequest
           : kind === 'failed' ? document ? context.surface === 'editor' ? editorCopy.loadError : TEST_PAGE.error : READINESS_COPY.checkError : detail !== undefined ? placementFailureCopy(detail) : undefined
   // Subscribers determine whether save/publish guidance is displayed. Its polling
   // eligibility is classified here, alongside permanent and temporary failures.

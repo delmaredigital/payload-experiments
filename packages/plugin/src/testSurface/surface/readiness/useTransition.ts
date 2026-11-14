@@ -23,13 +23,14 @@ export function useTransition(test: TestDocApi, onSuccess?: () => void, surface?
     if (refusal.current.status !== test.doc?.status) { clearError(); return }
     if (refusal.current.kind !== 'start' && refusal.current.kind !== 'restart') return
     const successful = !!answer && !test.preflightError
+    const explained = successful && test.doc && ['draft', 'stopped'].includes(test.doc.status) && blockingSteps(answer, surface ? pageReadinessContext(test.doc, answer, surface) : test.doc).length > 0
     if (refusal.current.phase === 'rereading') {
       // Observe the answer even if another shared read has already begun.
       if (!checking || successful && answer !== refusal.current.answer) {
         refusal.current = { ...refusal.current, phase: 'waiting', answer }
-        if (successful && test.doc && ['draft', 'stopped'].includes(test.doc.status) && blockingSteps(answer, surface ? pageReadinessContext(test.doc, answer, surface) : test.doc).length > 0) clearError()
+        if (explained) clearError()
       }
-    } else if (successful && answer !== refusal.current.answer) clearError()
+    } else if (explained && answer !== refusal.current.answer) clearError()
   }, [answer, checking, error, test.preflightPending, test.preflightError, test.doc?.status])
   function clearError() { refusal.current = null; setError(null) }
   async function run(kind: ActionId | 'restart', request: () => Promise<ApiResult<unknown>>, { reloadOnSuccess = true } = {}) {

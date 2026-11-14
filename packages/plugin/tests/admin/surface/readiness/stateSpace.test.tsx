@@ -1,4 +1,14 @@
 // @vitest-environment jsdom
+// Defect-reintroduction proofs (each mutation restored after its red run):
+// 1. Restored 65956fe's sentence-matching transitionAlert without lifetime dismissal:
+//    “unpublished refusal → explained blocker → publish → ready never revives an alert”
+//    failed for sidebar, drawer and admin (3 cases).
+// 2. Dropped every placement-unpublished check in editorPlacementChecks:
+//    “two draft pages keep Checkout named under this page’s publishing notice; lists cap at three”
+//    and “mounted sidebar keeps an other-page blocker under this page’s notice” failed (2).
+// 3. Removed detail === 'not-found' from the classifier's terminal branch:
+//    “fetch producer / … / not-found detail” failed for placementsCache,
+//    useTestDocument, TestSurface sharedDocument and EditorRender quickTest (4 cases).
 import { act, cleanup, fireEvent, render, renderHook, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { ReadinessBar } from '../../../../src/testSurface/surface/test/ReadinessBar.js'
@@ -42,7 +52,7 @@ const outcomes = [
   { name: 'forbidden detail', status: 200, message: denied, retry: false, detail: 'forbidden' },
   { name: 'network', status: 0, message: failed, retry: true, detail: undefined },
   { name: 'timeout', status: 0, message: failed, retry: true, detail: undefined },
-  { name: '400', status: 400, message: "This request couldn't be checked. Reload the page.", retry: false, detail: undefined },
+  { name: '400', status: 400, message: "This test's setup couldn't be checked.", retry: false, detail: undefined },
   { name: '501', status: 501, message: "This isn't available yet.", retry: false, detail: undefined },
   { name: '409', status: 409, message: failed, retry: true, detail: undefined },
   { name: '429', status: 429, message: failed, retry: true, detail: undefined },
@@ -92,7 +102,7 @@ function answerFor(pageState: Row['pageState']): PreflightResult {
 // placementNotice integration tests; it adds no readiness policy here.
 test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pending / $history', async row => {
   const p = props({ status: row.status })
-  p.surface.editorPage = page
+  if (row.surface !== 'admin') p.surface.editorPage = page
   let release!: () => void
   p.test.refreshPreflight = vi.fn(() => new Promise<void>(resolve => { release = resolve }))
   let responseStatus = 200
@@ -111,9 +121,10 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
     }
     responseStatus = status || 503
     responseBody = body ?? {}
-    await act(async () => { await refreshPlacements('/matrix', doc.id) })
+    let placements: PreflightResult['placements'] | undefined
+    await act(async () => { placements = await refreshPlacements('/matrix', doc.id) })
     const read = cachedReadinessRead('/matrix', doc.id)!
-    const local = read.answer && !read.message ? editorPlacementMessage(read.answer.placements, page, row.status) : undefined
+    const local = editorPlacementMessage(placements, p.surface.editorPage, row.status)
     const setup = row.status === 'draft' || row.status === 'stopped'
     p.surface.editorPlacementMessage = row.surface === 'admin' ? undefined : local
     p.test.preflightRead = read
@@ -177,7 +188,8 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
   const offered = row.surface === 'chrome' ? false : row.surface === 'sidebar' ? row.status === 'draft' && ready : setup
   expect(!!start).toBe(offered)
   if (start) expect(start.disabled).toBe(!ready || row.pending)
-  const alertExpected = row.history === 'ready' && row.outcome.name === 'answered' || row.history !== 'none' && (!setup || row.history !== 'blocker' && row.history !== 'blocker then answer' && !(row.outcome.status === 200 && row.outcome.name !== 'unusable 200'))
+  const displayedBlocker = row.outcome.status === 200 && row.outcome.name !== 'unusable 200' && (row.outcome.name !== 'answered' || row.pageState !== 'published')
+  const alertExpected = row.history !== 'none' && (!setup || !row.history.startsWith('blocker') && !displayedBlocker)
   expect(scope().queryByText(refused) !== null).toBe(alertExpected)
   // The producer supplies the delay. A surface subscribes only while a notice
   // is displayed; actual timer/subscription behaviour is exercised below.
@@ -287,7 +299,72 @@ test.each(statuses.flatMap(status => flagOutcomes.flatMap(outcome => [false, tru
   expect(p.test.preflightRead.pollDelay).toBe(outcome.retry ? 4_000 : null)
 })
 
-test('a later answer beneath a new pending read clears a refusal permanently, even if the new read fails', async () => {
+// Exercise real document/preflight fetches and window focus, including refusals
+// absent from readiness. Every test kind uses the same refusal lifetime.
+test.each(['block', 'page', 'flag', 'code'] as const)('%s Start/Restart refusal survives identical ready focus answers until a displayed blocker', async kind => {
+  vi.useFakeTimers()
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  for (const status of ['draft', 'stopped'] as const) {
+    const p = props({ kind, status })
+    let answer = preflight()
+    let reads = 0
+    const permission = "You don't have permission to do this."
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return Response.json({ errors: [{ code: 'forbidden' }] }, { status: 403 })
+      if (url.endsWith('/preflight')) { reads++; return Response.json(answer) }
+      return Response.json(p.test.doc)
+    }))
+    function FocusSurface() {
+      const test = useTestDocument(doc.id, { apiRoute: '/focus', refetchPreflightOnFocus: true })
+      return test.doc ? <ReadinessContent test={test} surface={p.surface} /> : null
+    }
+    const view = render(<FocusSurface />)
+    await act(async () => {})
+    const scope = within(view.container)
+    const label = status === 'stopped' ? 'Start a new round' : 'Start'
+    fireEvent.click(scope.getByRole('button', { name: label }))
+    if (status === 'stopped') fireEvent.click(scope.getAllByRole('button', { name: label })[1]!)
+    await act(async () => {})
+    expect(reads).toBe(2) // Initial answer, then the mandatory post-refusal answer.
+    expect(scope.getByRole('alert').textContent).toBe(permission)
+    async function focus() {
+      await act(async () => { await vi.advanceTimersByTimeAsync(101); fireEvent.focus(window) })
+    }
+    await focus() // A newly parsed but identical ready answer.
+    expect(reads).toBe(3)
+    expect(scope.getByRole('alert').textContent).toBe(permission)
+    expect(view.container.textContent).toContain('Ready to start.')
+    expect((scope.getAllByRole('button', { name: label }).at(-1) as HTMLButtonElement).disabled).toBe(false)
+    answer = preflight([{ code: 'invalid-status', ok: false }]) // No displayed sentence.
+    await focus()
+    expect(scope.getByRole('alert').textContent).toBe(permission)
+    answer = preflight([{ code: 'no-primary-metric', ok: false }])
+    await focus()
+    expect(scope.queryByRole('alert')).toBeNull()
+    expect(view.container.textContent).toContain('Choose a goal.')
+    answer = preflight()
+    await focus()
+    expect(scope.queryByRole('alert')).toBeNull()
+    view.unmount()
+  }
+})
+
+test.each([
+  [{ kind: 'readiness' }, "This test's setup couldn't be checked."],
+  [{ kind: 'where-used' }, "This test's setup couldn't be checked."],
+  [{ kind: 'document' }, "Couldn't load this test."],
+  [{ kind: 'document', surface: 'editor' }, "Couldn't load this test. Try selecting it again."],
+] as const)('invalid request copy follows read context %j without Retry or reload guidance', (context, sentence) => {
+  const read = classifyReadinessRead(400, undefined, 1, context)
+  expect(read.message).toBe(sentence)
+  expect(read.message).not.toMatch(/reload/i)
+  expect(read.retry).toBe(false)
+  expect(read.pollDelay).toBeNull()
+})
+
+test('a later ready answer beneath a new pending read retains a refusal, including when the new read fails', async () => {
   const p = props()
   vi.stubGlobal('fetch', vi.fn(async () => Response.json({ errors: [{ code: 'future-refusal', message: refused }] }, { status: 422 })))
   const view = render(<ReadinessContent {...p} />)
@@ -298,13 +375,13 @@ test('a later answer beneath a new pending read clears a refusal permanently, ev
   p.test.preflightRead = classifyReadinessRead(200, p.test.preflight)
   p.test.preflightPending = true // Answer B arrived; request C already began.
   view.rerender(<ReadinessContent {...p} />)
-  expect(within(view.container).queryByText(refused)).toBeNull()
+  expect(within(view.container).getByText(refused)).toBeTruthy()
   p.test.preflight = null
   p.test.preflightRead = classifyReadinessRead(503)
   p.test.preflightError = failed
   p.test.preflightPending = false
   view.rerender(<ReadinessContent {...p} />)
-  expect(within(view.container).queryByText(refused)).toBeNull()
+  expect(within(view.container).getByText(refused)).toBeTruthy()
   expect(view.container.textContent).toContain(failed)
 })
 
@@ -323,7 +400,7 @@ test.each([400, 401, 403, 404, 409, 429, 501, 503, 'network', 'unusable'] as con
   const hook = renderHook(() => useTestDocument(doc.id, { apiRoute: '/api' }))
   await act(async () => {})
   const retry = outcome === 409 || outcome === 429 || outcome === 503 || typeof outcome === 'string'
-  expect(hook.result.current.preflightRead?.message).toBe(outcome === 400 ? "This request couldn't be checked. Reload the page." : outcome === 501 ? "This isn't available yet." : outcome === 401 ? signedOut : outcome === 403 ? "You don't have access to this test." : outcome === 404 ? missing : "Couldn't load this test.")
+  expect(hook.result.current.preflightRead?.message).toBe(outcome === 400 ? "Couldn't load this test." : outcome === 501 ? "This isn't available yet." : outcome === 401 ? signedOut : outcome === 403 ? "You don't have access to this test." : outcome === 404 ? missing : "Couldn't load this test.")
   expect(hook.result.current.preflightRead?.retry).toBe(retry)
   let count = fetcher.mock.calls.length
   if (retry) {
@@ -446,7 +523,7 @@ test.each(producerRows)('fetch producer / $producer / $outcome.name', async ({ p
   const id = `producer-${producer}-${outcome.name}`
   const p = props({ id })
   p.surface.apiRoute = '/producer'
-  p.surface.editorPage = page
+  if (producer !== 'useTestDocument') p.surface.editorPage = page
   let delivering = producer !== 'TestSurface sharedDocument'
   const body = outcome.name === 'unusable 200' ? {} : outcome.detail
     ? preflight([{ code: 'no-placements', ok: false, detail: outcome.detail }]) : answerFor('published')
@@ -470,11 +547,9 @@ test.each(producerRows)('fetch producer / $producer / $outcome.name', async ({ p
     view = render(<PlacementNotice read={read} running={false} onRetry={() => {}} />)
     expect(read.message).toBe(outcome.message)
   } else if (producer === 'useTestDocument') {
-    const hook = renderHook(() => useTestDocument(id, { apiRoute: '/producer' }))
+    view = render(<TestSurface id={id} surface={p.surface} renderFrame={({ test, children }) => { observed = test; return children }} />)
     await act(async () => {})
-    observed = hook.result.current
-    expect(observed.preflightRead?.message).toBe(outcome.message)
-    view = render(<ReadinessContent test={{ ...observed, doc: observed.doc ?? p.test.doc }} surface={p.surface} />)
+    expect(observed?.preflightRead?.message).toBe(outcome.message)
   } else if (producer === 'TestSurface sharedDocument') {
     release = acquirePlacements('/producer', id, () => {})
     await act(async () => {})
@@ -499,8 +574,13 @@ test.each(producerRows)('fetch producer / $producer / $outcome.name', async ({ p
     if (outcome.message) expect(view.container.querySelector('.xp-slot-chrome')?.textContent).toContain(outcome.message)
   }
   if (producer !== 'EditorRender quickTest') {
-    if (outcome.message) expect(view!.container.textContent).toContain(outcome.message)
-    expect(!!within(view!.container).queryByRole('button', { name: /^(Retry|Try again)$/ })).toBe(outcome.retry)
+    const message = producer === 'useTestDocument' && outcome.status === 403 ? "You don't have access to this test." : outcome.message
+    if (message) expect(view!.container.textContent).toContain(message)
+    // A ready admin page also has independent goal-loading recovery. Assert
+    // readiness recovery in its own region; load states use the page itself.
+    const readiness = within(view!.container).queryByRole('region', { name: 'Readiness' })
+    const recovery = within(readiness ?? view!.container)
+    expect(!!recovery.queryByRole('button', { name: /^(Retry|Try again)$/ })).toBe(outcome.retry)
   }
   view!.unmount(); release?.()
   history.replaceState({}, '', '/')

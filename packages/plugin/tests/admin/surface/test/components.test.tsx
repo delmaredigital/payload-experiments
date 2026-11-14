@@ -15,6 +15,7 @@ import { GoalSection } from '../../../../src/testSurface/surface/test/GoalSectio
 import { pageParts } from '../../../../src/testSurface/surface/test/pageParts.js'
 import { pageBlockParts } from '../../../../src/testSurface/surface/pageBlock/parts.js'
 import { EDITABLE_BY_STATUS } from '../../../../src/collections/experiments/editability.js'
+import { classifyReadinessRead } from '../../../../src/testSurface/readinessRead.js'
 import { lockedReason } from '../../../../src/testSurface/lockedNotice.model.js'
 
 vi.mock('@payloadcms/ui', async () => (await import('../../_helpers/payloadUiMock.js')).payloadUiMock())
@@ -72,12 +73,15 @@ test('page load states are clear and the ready view has stacked anchored section
   const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' })
   expect(within(breadcrumb).getByRole('link', { name: 'Tests' }).getAttribute('href')).toBe('/cms/collections/xp-experiments')
   expect(within(breadcrumb).getByText('Test').getAttribute('aria-current')).toBe('page')
-  for (const [loadState, message] of [['forbidden', "You don't have access to this test."], ['missing', 'This test no longer exists.'], ['error', "Couldn't load this test."]] as const) {
-    hook.mockReturnValue({ ...p.test, doc: null, loadState })
+  for (const [status, message] of [[403, "You don't have access to this test."], [404, 'This test no longer exists.'], [400, "Couldn't load this test."], [501, "Couldn't load this test."], [401, 'Your session has expired. Sign in again.'], [503, "Couldn't load this test."]] as const) {
+    // A readiness refusal can decide the page state after the document loaded.
+    const preflightRead = classifyReadinessRead(status, undefined, 1, { kind: status === 403 ? 'readiness' : 'document' })
+    hook.mockReturnValue({ ...p.test, doc: null, loadState: preflightRead.loadState, preflightRead })
     view.rerender(<TestPage id={1} surface={surface} />)
     expect(screen.getByText(message)).toBeTruthy()
   }
   fireEvent.click(screen.getByText('Try again')); expect(p.test.reload).toHaveBeenCalledOnce()
+  p.test.preflightRead = classifyReadinessRead(200, p.test.preflight)
   hook.mockReturnValue(p.test); view.rerender(<TestPage id={1} surface={surface} />)
   expect(hook).toHaveBeenLastCalledWith(1, { apiRoute: '/cms-api', refetchPreflightOnFocus: true })
   for (const id of ['what', 'versions', 'win', 'who', 'length', 'advanced']) expect(view.container.querySelector(`#section-${id}`)).toBeTruthy()

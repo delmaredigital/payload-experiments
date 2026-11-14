@@ -20,6 +20,7 @@ export const READINESS_COPY = {
   reloadFirst: 'Reload to see the latest test settings before starting.',
   ready: 'Ready to start.', saveFirst: 'Wait for your changes to save.',
   saving: 'Saving…', saved: 'Saved', saveError: "Couldn't save — see the highlighted field",
+  invalidRequest: "This test's setup couldn't be checked.",
   checkError: "Couldn't check readiness. Try again.", checking: 'Checking readiness…', retry: 'Try again',
   archived: 'Archived.', running: 'Running', stopped: 'Stopped', decided: 'Decided',
   addMetric: 'Add a guardrail or something to watch', allocate: 'Let more people in',
