@@ -355,7 +355,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   </Banner> : null
   const blockingLine = placementMessage ?? (quickTest.hasUnsaved ? READINESS_COPY.saveFirst : quickTest.preflightError ? READINESS_COPY.checkError : quickTest.preflightPending || !currentPreflight ? READINESS_COPY.checking : blockers.map(step => step.sentence).slice(0, 3).join(' '))
   const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} experiment={experiment} writes={writes} canManage={canManage}
-    count={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null
+    countBlocks={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null
 
   const accessNotice = result?.missing ? <p className="xp-ui-help">{pickerCopy.unavailable}</p>
         : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>

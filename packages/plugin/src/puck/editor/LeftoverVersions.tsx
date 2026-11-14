@@ -10,9 +10,9 @@ import { tabsFor } from './editor.model.js'
 import type { ArmWrites } from './VersionBuilder.js'
 
 /** Page content stays editable even when it does not belong to the selected test. */
-export function LeftoverVersions({ slots, experiment, writes, canManage, count, onDelete, onSelect }: {
+export function LeftoverVersions({ slots, experiment, writes, canManage, countBlocks, onDelete, onSelect }: {
   slots: ArmSlot[]; experiment: EditorExperiment; writes: ArmWrites; canManage: boolean
-  count: (slot: ArmSlot) => number; onDelete: (slot: ArmSlot) => void; onSelect: (slot: ArmSlot) => void
+  countBlocks: (slot: ArmSlot) => number; onDelete: (slot: ArmSlot) => void; onSelect: (slot: ArmSlot) => void
 }) {
   const [deleting, setDeleting] = useState<ArmSlot | null>(null)
   const versions = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(tabsFor(experiment).map(tab => tab.label))
@@ -36,7 +36,7 @@ export function LeftoverVersions({ slots, experiment, writes, canManage, count, 
     {slots.length > 2 ? <details className="xp-ui-banner xp-ui-banner--warning xp-slot-leftovers"><summary><span aria-hidden="true">⚠ </span>{C.leftovers(slots.map(slot => slotLabels[slot]).join(', '))}</summary>{slots.map(notice)}</details>
       : slots.map(slot => <div key={slot} className="xp-ui-banner xp-ui-banner--warning xp-slot-leftovers"><span aria-hidden="true">⚠</span>{notice(slot)}</div>)}
     {deleting ? <Dialog open title={C.deleteContentTitle(slotLabels[deleting])} initialFocus="cancel" onClose={() => setDeleting(null)}>
-      <div className="xp-slot-drawer"><p>{C.deleteContentHelp(slotLabels[deleting], count(deleting))}</p><div className="xp-ui-button-group">
+      <div className="xp-slot-drawer"><p>{C.deleteContentHelp(slotLabels[deleting], countBlocks(deleting))}</p><div className="xp-ui-button-group">
         <Button data-dialog-cancel onClick={() => setDeleting(null)}>{C.cancel}</Button>
         <Button variant="danger" onClick={() => { onDelete(deleting); setDeleting(null) }}>{C.deleteContent}</Button>
       </div></div>

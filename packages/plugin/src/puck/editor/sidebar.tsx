@@ -6,18 +6,26 @@ import type { ExperimentRef } from '../../types/puck.js'
 
 const usePuckSelector = createUsePuck()
 type Targets = { test: HTMLElement; controls: HTMLElement; onChange: (value: ExperimentRef | null) => void }
-type Bridge = { targets: Map<string, Targets>; listeners: Set<() => void> }
+type Bridge = {
+  targets: Map<string, Targets>; listeners: Set<() => void>
+  removeListener: (notify: () => void) => void; removeTarget: (id: string) => void
+}
 // useGetPuck returns the store's stable getState function (Puck 0.24:7223–7228).
 // A WeakMap keeps separate editors (including their iframes) isolated.
 const bridges = new WeakMap<object, Bridge>()
 function bridge(session: object): Bridge {
   let entry = bridges.get(session)
-  if (!entry) { entry = { targets: new Map(), listeners: new Set() }; bridges.set(session, entry) }
+  if (!entry) {
+    const targets = new Map<string, Targets>()
+    const listeners = new Set<() => void>()
+    entry = { targets, listeners, removeListener: notify => { listeners.delete(notify) }, removeTarget: id => { targets.delete(id) } }
+    bridges.set(session, entry)
+  }
   return entry
 }
 export function useSidebarTargets(id: string) {
   const entry = bridge(useGetPuck())
-  return useSyncExternalStore(notify => { entry.listeners.add(notify); return () => { entry.listeners.delete(notify) } },
+  return useSyncExternalStore(notify => { entry.listeners.add(notify); return () => { entry.removeListener(notify) } },
     () => entry.targets.get(id), () => undefined)
 }
 
@@ -36,7 +44,7 @@ export function TestSidebarField({ onChange }: { onChange: (value: ExperimentRef
     entry.targets.set(id, targets)
     for (const notify of entry.listeners) notify()
     return () => {
-      if (entry.targets.get(id) === targets) entry.targets.delete(id)
+      if (entry.targets.get(id) === targets) entry.removeTarget(id)
       for (const notify of entry.listeners) notify()
     }
   }, [id, test, controls, getPuck])

@@ -5,7 +5,9 @@ type Placements = PreflightResult['placements']
 type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean; startedAt: number; value?: Placements; previousPreflight?: PreflightResult; preflight?: PreflightResult; response?: Response }
 const cache = new Map<string, Entry>()
 const latest = new Map<string, Entry>()
-const consumers = new Map<string, Set<(placements: Placements | undefined) => void>>()
+type Consumer = (placements: Placements | undefined) => void
+type Consumers = { listeners: Set<Consumer>; removeListener: (notify: Consumer) => void }
+const consumers = new Map<string, Consumers>()
 const keyFor = (api: string, id: DocId) => JSON.stringify([api, String(id)])
 
 function read(api: string, id: DocId, fresh: boolean): Entry {
@@ -17,7 +19,7 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
   const entry: Entry = { controller, pending: true, startedAt: Date.now(), value: previous?.value, previousPreflight: previous?.preflight ?? previous?.previousPreflight, promise: undefined! }
   cache.set(key, entry)
   latest.set(key, entry)
-  for (const notify of consumers.get(key) ?? []) notify(entry.value)
+  for (const notify of consumers.get(key)?.listeners ?? []) notify(entry.value)
   entry.promise = (async () => {
     try {
       const response = await fetch(`${api}/xp/experiments/${encodeURIComponent(id)}/preflight`, {
@@ -34,7 +36,7 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
     if (placements !== undefined) entry.value = placements
     if (cache.get(key) === entry) {
       if (placements === undefined) cache.delete(key)
-      for (const notify of consumers.get(key) ?? []) notify(placements)
+      for (const notify of consumers.get(key)?.listeners ?? []) notify(placements)
     }
     return placements
   })
@@ -55,22 +57,27 @@ export function invalidatePlacements(api: string, id: DocId) {
   const key = keyFor(api, id)
   cache.get(key)?.controller.abort()
   cache.delete(key)
-  if (consumers.get(key)?.size) void read(api, id, true).promise
+  if (consumers.get(key)?.listeners.size) void read(api, id, true).promise
   else latest.delete(key)
 }
 
 /** Listen without starting a request; the drawer already owns its initial preflight. */
 export function subscribePlacements(api: string, id: DocId, notify: (placements: Placements | undefined) => void): () => void {
   const key = keyFor(api, id)
-  const listeners = consumers.get(key) ?? new Set<(placements: Placements | undefined) => void>()
-  consumers.set(key, listeners)
-  listeners.add(notify)
+  let group = consumers.get(key)
+  if (!group) {
+    const listeners = new Set<Consumer>()
+    group = { listeners, removeListener: notify => { listeners.delete(notify) } }
+    consumers.set(key, group)
+  }
+  const current = group
+  current.listeners.add(notify)
   let listening = true
   return () => {
     if (!listening) return
     listening = false
-    listeners.delete(notify)
-    if (!listeners.size && consumers.get(key) === listeners) {
+    current.removeListener(notify)
+    if (!current.listeners.size && consumers.get(key) === current) {
       consumers.delete(key)
       latest.delete(key)
       cache.get(key)?.controller.abort()
@@ -119,7 +126,8 @@ export function placementsPending(api: string, id: DocId) { return cache.get(key
 // One timer per editor document, shared by chrome, sidebar and detached drawers.
 // Watching is opt-in: only a rendered save/publish notice owns a subscription.
 type NoticeSession = {
-  requests: Map<string, { api: string; id: DocId; count: number }>
+  requests: Map<string, { api: string; id: DocId; subscribers: number }>
+  removeRequest: (key: string) => void
   timer?: ReturnType<typeof setInterval>
   visibility: () => void
 }
@@ -127,7 +135,8 @@ const notices = new WeakMap<Document, NoticeSession>()
 export function watchPlacementNotice(api: string, id: DocId, doc: Document): () => void {
   let session = notices.get(doc)
   if (!session) {
-    const created: NoticeSession = { requests: new Map(), visibility: () => {} }
+    const requests = new Map<string, { api: string; id: DocId; subscribers: number }>()
+    const created: NoticeSession = { requests, removeRequest: key => { requests.delete(key) }, visibility: () => {} }
     created.visibility = () => {
       if (created.timer !== undefined) { clearInterval(created.timer); created.timer = undefined }
       if (doc.visibilityState !== 'visible' || !created.requests.size) return
@@ -142,15 +151,15 @@ export function watchPlacementNotice(api: string, id: DocId, doc: Document): () 
   }
   const current = session
   const key = keyFor(api, id)
-  const request = current.requests.get(key) ?? { api, id, count: 0 }
-  request.count++
+  const request = current.requests.get(key) ?? { api, id, subscribers: 0 }
+  request.subscribers++
   current.requests.set(key, request)
   if (current.timer === undefined) current.visibility()
   let active = true
   return () => {
     if (!active) return
     active = false
-    if (--request.count === 0) current.requests.delete(key)
+    if (--request.subscribers === 0) current.removeRequest(key)
     if (!current.requests.size) {
       if (current.timer !== undefined) clearInterval(current.timer)
       doc.removeEventListener('visibilitychange', current.visibility)
