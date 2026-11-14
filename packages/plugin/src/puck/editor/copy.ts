@@ -53,6 +53,7 @@ export const editorCopy = {
   tabs: 'Test versions',
   add: 'Add variant',
   menu: (label: string) => `Options for ${label}`,
+  testGroup: 'Test', versionsGroup: 'Versions', actionsGroup: 'Actions',
   options: 'Options',
   runningVersions: "Versions can't change while the test runs.",
   removeVersion: 'Remove version',

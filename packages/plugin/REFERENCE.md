@@ -1040,3 +1040,5 @@ of them. Secondary asymmetry warns, and results health checks published rows
 again on every run.
 
 Every version tab has a visible **Options** menu beside its label. Managers can rename versions (including Original) and remove non-Original versions in draft or stopped tests. **Remove version** confirms the block count deleted from this page, asks you to save the page, and explains when the test also changes on other pages. Running menus explain that versions cannot change.
+
+Selecting an Experiment block opens three sidebar groups: **Test** (picker, status and readiness), **Versions** (names, shares, removal, leftover content, Add variant and Split evenly), then **Actions** (Configure test and draft Start or running Stop). Both places use the block's document, write state, permissions and placements cache. Stop uses the drawer's confirmation and refusal messages; Decide remains in the drawer. No additional host wiring is required.

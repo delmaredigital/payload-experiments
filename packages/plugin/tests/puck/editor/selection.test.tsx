@@ -228,3 +228,21 @@ test('an activated stationary press leaves Puck as the only selection dispatcher
   fireEvent.click(heading)
   expect(actions).toEqual([read().getSelectorForId('test-block')])
 })
+
+
+test('the actual version menu padding is a control boundary before selection or hover', async () => {
+  const actions: unknown[] = []
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block] }} iframe={{ enabled: false }} onAction={action => {
+    if (action.type === 'setUi' && 'itemSelector' in action.ui) actions.push(action)
+  }}><Puck.Preview /></Puck>)
+  fireEvent.click(await screen.findByRole('button', { name: 'Options for Variant A' }))
+  const menu = document.querySelector<HTMLElement>('.xp-slot-version-menu')!
+  await waitFor(() => expect(menu.hasAttribute('data-puck-overlay-portal')).toBe(true))
+  const down = vi.fn()
+  menu.closest('.xp-slot-root')!.parentElement!.addEventListener('pointerdown', down)
+  fireEvent.pointerDown(menu); fireEvent.pointerUp(menu); fireEvent.click(menu)
+  expect(down).not.toHaveBeenCalled()
+  expect(actions).toEqual([])
+  fireEvent.pointerDown(document.body)
+  expect(document.querySelector('.xp-slot-version-menu')).toBeNull()
+})

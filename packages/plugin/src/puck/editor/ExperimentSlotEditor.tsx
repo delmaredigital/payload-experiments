@@ -1,5 +1,6 @@
 'use client'
 
+import { createPortal } from 'react-dom'
 import { createUsePuck, useGetPuck, type ComponentConfig } from '@puckeditor/core'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { ArmSlot, ExperimentRef, ExperimentSlotProps } from '../../types/puck.js'
@@ -12,7 +13,12 @@ import { Banner } from '../../ui/Banner.js'
 import { Tabs } from '../../ui/Tabs.js'
 import { Dialog } from '../../ui/Dialog.js'
 import { accentVariables, deriveAccent, validateAccent } from '../../ui/accent.js'
-import { createExperimentSlotField } from '../experimentSlotField.js'
+import { TestSidebarField, useSidebarTargets } from './sidebar.js'
+import { QuickTestActions } from './QuickTestActions.js'
+import type { TestDocApi } from '../../testSurface/surface/contracts.js'
+import type { TestDocument } from '../../testSurface/surface/testDocument.model.js'
+import { blockingSteps, pageReadinessContext } from '../../testSurface/surface/readiness/readiness.model.js'
+import { READINESS_COPY } from '../../testSurface/copy/readiness.js'
 import { resolvePuckRoutes, type PuckRoutes } from '../routes.js'
 import { PuckHostProvider, usePuckRoutes } from '../hostContext.js'
 import { pickerCopy, slotLabels } from '../copy.js'
@@ -25,12 +31,12 @@ import { acquireArms, loadArms, publishExperiment, useArms } from './armsCache.j
 import { AddVariant, RemoveVersion, VersionActions, VersionWeights, useArmWrites } from './VersionBuilder.js'
 import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
-import { acquirePlacements, invalidatePlacements, refreshPlacements } from './placementsCache.js'
+import { acquirePlacements, cachedPreflight, placementsPending, invalidatePlacements, refreshPlacements } from './placementsCache.js'
 import { editorPlacementMessage } from '../../testSurface/surface/editorPlacement.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { localPlacements } from './localPlacements.js'
 import { useEditorSurface } from './editorSurface.js'
-import { ConfigureTestButton, ConfigureTestControl } from './ConfigureTestDrawer.js'
+import { ConfigureTestControl } from './ConfigureTestDrawer.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
@@ -51,6 +57,7 @@ function isExperiment(value: unknown): value is EditorExperiment {
 
 function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAccent> }) {
   const getPuck = useGetPuck()
+  const sidebar = useSidebarTargets(props.id)
   const { admin, api } = usePuckRoutes()
   const access = useEditorSurface(api)
   const root = useRef<HTMLElement>(null)
@@ -74,10 +81,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   useEffect(() => { binding.current.live = true; return () => { binding.current.live = false } }, [])
   const isCurrentBinding = () => binding.current.live && binding.current.key === bindingKey
   const knownArms = useArms(experimentId)
+  const [preflight, setPreflight] = useState<{ id: typeof experimentId; value?: PreflightResult; pending: boolean }>()
   const [placements, setPlacements] = useState<{ id: typeof experimentId; value: PreflightResult['placements'] | undefined }>()
   const [loaded, setLoaded] = useState<{ id: typeof experimentId; doc?: EditorExperiment; error?: boolean; forbidden?: boolean; missing?: boolean; shared?: boolean }>()
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
-  const [openMenu, setOpenMenu] = useState<ArmSlot | null>(null)
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [clearError, setClearError] = useState<{ key: string; message: string } | null>(null)
   const creation = useRef<ReturnType<typeof openCreateExperimentDrawer>>(undefined)
   useEffect(() => () => creation.current?.closeIfIdle(), [])
@@ -140,16 +148,17 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const cachedExperiment = loaded?.id === experimentId && !loaded?.forbidden && !loaded?.missing ? knownArms?.doc : undefined
   const status = cachedExperiment?.status ?? (loaded?.id === experimentId ? loaded?.doc?.status : undefined)
   useEffect(() => {
-    if (experimentId === undefined || !status) return
+    if (experimentId === undefined || !status || !access.surface?.canManage) return
     const release = acquirePlacements(api, experimentId, placements => {
       setPlacements({ id: experimentId, value: placements })
+      setPreflight({ id: experimentId, value: cachedPreflight(api, experimentId), pending: placementsPending(api, experimentId) })
       const shared = placements === undefined ? undefined : isSharedTest(placements, currentPuckDocument(window.location.pathname, admin, placements))
       setLoaded(value => ({ ...(value?.id === experimentId ? value : {}), id: experimentId, shared }))
     }, true)
     const focus = () => { void refreshPlacements(api, experimentId) }
     window.addEventListener('focus', focus)
     return () => { release(); window.removeEventListener('focus', focus) }
-  }, [api, admin, experimentId, status])
+  }, [api, admin, experimentId, status, access.surface?.canManage])
 
   const locallyShared = usePuckSelector(state => experimentId !== undefined &&
     (localPlacements(state.appState.data, state.config).get(String(experimentId))?.size ?? 0) > 1)
@@ -170,7 +179,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const writes = useArmWrites(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, doc => {
     publishExperiment(experimentId!, doc)
     if (isCurrentBinding()) setLoaded(value => ({ id: experimentId, doc, shared: value?.id === experimentId ? value?.shared : undefined }))
-  }, isCurrentBinding, () => setClearError(null))
+  }, isCurrentBinding, () => setClearError(null), () => { invalidatePlacements(api, experimentId!) })
   // The slot arrays belong to the page; reading the test is unnecessary to edit them.
   const pageSlots = usePuckSelector(state => (['control', 'variantA', 'variantB', 'variantC'] as const).filter(slot => {
     const content: unknown = state.getItemById(props.id)?.props[slot]
@@ -299,7 +308,54 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const placementMessage = editorPlacementMessage(placements && placements.id === experimentId ? placements.value : undefined, currentPuckDocument(window.location.pathname, admin))
   const newTestButton = experimentId !== undefined && canManage ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
 
+  const currentPreflight = preflight && preflight.id === experimentId ? preflight.value ?? null : null
+  const surface = access.surface ? { ...access.surface, apiRoute: api, adminRoute: admin, editorPlacementMessage: placementMessage } : undefined
+  const quickTest: TestDocApi = {
+    doc: experiment ? { ...experiment, id: experimentId!, kind: 'block' } as TestDocument : null,
+    preflight: currentPreflight, preflightError: preflight && preflight.id === experimentId && !preflight.pending && !currentPreflight ? READINESS_COPY.checkError : null, preflightPending: !preflight || preflight.id !== experimentId || preflight.pending,
+    hasUnsaved: writes.busy, saving: writes.busy ? 'saving' : 'idle', stale: false, errors: {},
+    chosenPages: {}, loadState: 'ready', stage: () => {}, commit: async () => {}, choosePage: async () => {},
+    refreshPreflight: async () => { if (experimentId !== undefined) await refreshPlacements(api, experimentId) },
+    reload: async () => { if (experimentId !== undefined) await refreshPlacements(api, experimentId) },
+    acceptTransition: result => {
+      const doc = (result as { doc?: EditorExperiment } | undefined)?.doc
+      if (doc && experimentId !== undefined) publishExperiment(experimentId, doc)
+    },
+  }
+  const blockers = quickTest.doc && surface ? blockingSteps(currentPreflight?.checks ? currentPreflight : null, pageReadinessContext(quickTest.doc, currentPreflight, surface)) : []
+  const blockingLine = placementMessage ?? (writes.busy ? READINESS_COPY.saveFirst : quickTest.preflightError ? READINESS_COPY.checkError : !currentPreflight ? READINESS_COPY.checking : blockers.map(step => step.sentence).slice(0, 3).join(' '))
+  const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} experiment={experiment} writes={writes} canManage={canManage}
+    count={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => setActive({ id: experimentId, slot })} /> : null
+
+  const accessNotice = result?.missing ? <p className="xp-ui-help">{pickerCopy.unavailable}</p>
+        : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>
+        : experimentId === undefined && resultsOnly ? <p className="xp-ui-help">{editorCopy.setupForbidden}</p>
+        : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
+        : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner action={result?.error ? <Button onClick={() => setReadAttempt(value => value + 1)}>{editorCopy.retrySetup}</Button> : undefined} tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
+        {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
+      </Banner>
+
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
+    {sidebar ? <>
+      {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>{experiment ? <StatusChip status={experiment.status} /> : null}
+        {accessNotice}
+        {canManage && experiment?.status === 'draft' && blockingLine ? <p role="status">{placementMessage ?? <>Before you can start: {blockingLine}</>}</p> : null}
+      </div>, sidebar.test)}
+      {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+        {experiment && canManage ? <section aria-label={editorCopy.versionsGroup}><h4>{editorCopy.versionsGroup}</h4>
+          <VersionWeights experiment={experiment} writes={writes} editable={editable} beforeSplit={<>{leftoverControls}{editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => setActive({ id: experimentId, slot })} /> : null}</>} actions={arm => <>
+            <VersionActions arm={arm} writes={writes} editable={editable} running={experiment.status === 'running'} open={openMenu === `sidebar-${arm.key}`} onOpenChange={open => setOpenMenu(open ? `sidebar-${arm.key}` : null)} canCopy={!originalEmpty} onCopy={requestCopy} onRequestRemove={() => setRemoving({ key: bindingKey, arm })} />
+            {editable && arm.kind !== 'control' ? <Button onClick={() => setRemoving({ key: bindingKey, arm })}>{editorCopy.remove}</Button> : null}
+          </>} />
+        </section> : null}
+        <section aria-label={editorCopy.actionsGroup}><h4>{editorCopy.actionsGroup}</h4>
+          {experimentId !== undefined && access.surface && !result?.missing && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}
+          {canManage && experiment && surface ? <QuickTestActions key={`${experimentId}/${experiment.status}`} test={quickTest} surface={surface} /> : null}
+          {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
+          {writes.error ? <p role="alert">{writes.error}</p> : null}
+        </section>
+      </div>, sidebar.controls)}
+    </> : null}
     <EditorControls className="xp-slot-chrome" selected={isSelected} onSelect={selectBlock}>
       <header className="xp-slot-header" tabIndex={0} aria-label={editorCopy.selectBlock}
         onKeyDown={event => {
@@ -311,16 +367,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         <h3 className="xp-slot-title">{experiment?.name ?? experimentSlotLabel}</h3>
         {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
       </header>
-      {result?.missing ? <p className="xp-ui-help">{pickerCopy.unavailable}</p>
-        : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>
-        : experimentId === undefined && resultsOnly ? <p className="xp-ui-help">{editorCopy.setupForbidden}</p>
-        : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
-        : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner action={result?.error ? <Button onClick={() => setReadAttempt(value => value + 1)}>{editorCopy.retrySetup}</Button> : undefined} tone={result?.error ? 'error' : experiment?.status === 'running' ? 'warning' : 'info'}>
-        {experimentId === undefined ? bannerFor() : result?.error ? editorCopy.loadError : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
-      </Banner>}
-      {experiment && orphanSlots.length ? <LeftoverVersions key={bindingKey} slots={orphanSlots} experiment={experiment} writes={writes} canManage={canManage}
-        count={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])}
-        onDelete={removeContent} onSelect={slot => setActive({ id: experimentId, slot })} /> : null}
+      {accessNotice}
+      {leftoverControls}
       {shared ? <Banner tone="info" action={newTestButton}>{editorCopy.sharedTest}</Banner> : null}
       {placementMessage && canManage ? <p className="xp-ui-error" role="status">{placementMessage}</p> : null}
       {experimentId !== undefined && canManage && !experiment ? <p className="xp-ui-help">{editorCopy.loadingBeforeNew}</p> : null}
@@ -370,7 +418,13 @@ export function createExperimentSlotEditor({ routes: inputRoutes, accent }: { ro
   const routes = resolvePuckRoutes(inputRoutes)
   return {
     label: experimentSlotLabel,
-    fields: { ...experimentSlotFields, experiment: createExperimentSlotField({ routes, renderActions: test => <ConfigureTestButton id={test.id} routes={routes} />, onBind: (previous, next) => { if (previous) invalidatePlacements(routes.api, previous.id); if (next) invalidatePlacements(routes.api, next.id) } }) },
+    fields: { ...experimentSlotFields, experiment: { type: 'custom', label: pickerCopy.label,
+      render: ({ value, onChange }) => <PuckHostProvider routes={routes}><TestSidebarField value={value} onChange={next => {
+        if (value) invalidatePlacements(routes.api, value.id)
+        if (next) invalidatePlacements(routes.api, next.id)
+        onChange(next)
+      }} /></PuckHostProvider>,
+    } },
     defaultProps: experimentSlotDefaultProps,
     render: props => <PuckHostProvider routes={routes}><EditorRender {...props} accent={sets} /></PuckHostProvider>,
   }

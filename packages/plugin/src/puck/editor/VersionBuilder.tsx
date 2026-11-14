@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { addVariant, removeArm, balanceWeight, splitEvenly, totalWeight, withSlotsFor } from '../../arms/model.js'
 import { checkArms } from '../../collections/experiments/armInvariants.js'
 import { issueMessage } from '../../arms/copy.js'
@@ -12,7 +12,7 @@ import type { EditorExperiment } from './editor.model.js'
 import { ArmWriteError, writeArms } from './armWrites.js'
 import { editorCopy as C } from './copy.js'
 
-export function useArmWrites(url: string, publish: (doc: EditorExperiment) => void, isCurrent: () => boolean, onWrite: () => void) {
+export function useArmWrites(url: string, publish: (doc: EditorExperiment) => void, isCurrent: () => boolean, onWrite: () => void, onSaved?: () => void) {
   const guard = useRef(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -21,7 +21,7 @@ export function useArmWrites(url: string, publish: (doc: EditorExperiment) => vo
     guard.current = true
     onWrite()
     setBusy(true); setError(null)
-    try { return await writeArms(url, transform, publish, options) }
+    try { const saved = await writeArms(url, transform, publish, options); onSaved?.(); return saved }
     catch (error) { if (isCurrent()) setError(error instanceof ArmWriteError ? error.message : C.writeNetwork) }
     finally { guard.current = false; setBusy(false) }
   }
@@ -87,10 +87,10 @@ export function VersionActions({ arm, writes, editable, running = false, open, o
       disabled={writes.busy} onClick={() => onOpenChange(!open)}>{C.options} ▾</Button> : null}
     {open ? <div id={`${id}-menu`} className="xp-slot-version-menu" role="group" tabIndex={-1} aria-label={C.menu(arm.label)}>
       {editable ? <Button variant="quiet" size="sm" onClick={() => { setName(arm.label); setInvalid(false); closeMenu() }}>{C.rename}</Button> : null}
-      {arm.kind !== 'control' ? <>
+      {arm.kind === 'variant' ? <>
         <Button variant="quiet" size="sm" disabled={!canCopy} onClick={() => { closeMenu(); onCopy(slot) }}>{C.copy}</Button>{!canCopy ? <p className="xp-ui-help">{C.copyEmpty}</p> : null}
-        {editable ? <Button variant="quiet" size="sm" onClick={() => { closeMenu(); onRequestRemove() }}>{C.removeVersion}</Button> : null}
       </> : null}
+      {arm.kind !== 'control' && editable ? <Button variant="quiet" size="sm" onClick={() => { closeMenu(); onRequestRemove() }}>{C.removeVersion}</Button> : null}
       {running ? <p className="xp-ui-help">{C.runningVersions}</p> : null}
     </div> : null}
     </div>
@@ -104,7 +104,7 @@ export function VersionActions({ arm, writes, editable, running = false, open, o
 export function RemoveVersion({ arm, writes, count, shared, onRemove, onClose }: {
   arm: EditorExperiment['arms'][number]; writes: ArmWrites; count: number; shared: boolean; onRemove: (slot: ArmSlot) => void; onClose: () => void
 }) {
-  const slot = arm.key as ArmSlot
+  const slot = arm.key === 'holdout' ? undefined : arm.key as ArmSlot
   const [tried, setTried] = useState(false)
   return <Dialog open title={C.removeTitle(arm.label)} initialFocus="cancel" dismissible={!writes.busy} onClose={() => onClose()}>
       <div className="xp-slot-drawer"><p>{C.removeHelp(count)}</p>{shared ? <p>{C.removeShared}</p> : null}
@@ -114,13 +114,13 @@ export function RemoveVersion({ arm, writes, count, shared, onRemove, onClose }:
         <Button variant="danger" busy={writes.busy} onClick={async () => {
           setTried(true)
           const saved = await writes.write(arms => splitEvenly(removeArm(arms, arm.key)))
-          if (saved) { onRemove(slot); onClose() }
+          if (saved) { if (slot) onRemove(slot); onClose() }
         }}>{C.remove}</Button>
       </div></div>
     </Dialog>
 }
 
-export function VersionWeights({ experiment, writes }: { experiment: EditorExperiment; writes: ArmWrites }) {
+export function VersionWeights({ experiment, writes, editable = true, beforeSplit, actions }: { experiment: EditorExperiment; writes: ArmWrites; editable?: boolean; beforeSplit?: ReactNode; actions?: (arm: EditorExperiment['arms'][number]) => ReactNode }) {
   const id = useId()
   const split = useRef<HTMLDivElement>(null)
   const [edits, setEdits] = useState<Partial<Record<ArmKey, string>>>({})
@@ -137,12 +137,13 @@ export function VersionWeights({ experiment, writes }: { experiment: EditorExper
     if (saved) setEdits({})
   }
   return <div className="xp-slot-weights">
-    <div className="xp-slot-weight-inputs">{experiment.arms.map(arm => <NumberInput key={arm.key} id={`${id}-${arm.key}`} label={C.weight(arm.label)}
-      min={0} max={100} step={1} value={edits[arm.key] ?? live.find(current => current.key === arm.key)?.weight ?? ''} disabled={writes.busy}
+    <div className="xp-slot-weight-inputs">{experiment.arms.map(arm => <div className="xp-slot-weight-row" key={arm.key}><NumberInput id={`${id}-${arm.key}`} label={C.weight(arm.label)}
+      min={0} max={100} step={1} value={edits[arm.key] ?? live.find(current => current.key === arm.key)?.weight ?? ''} disabled={writes.busy || !editable}
       error={invalidKeys.has(arm.key) ? C.invalidShare : undefined}
       onChange={event => setEdits({ [arm.key]: event.target.value })}
-      onBlur={event => { if (!split.current?.contains(event.relatedTarget)) void commit() }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void commit() } }} />)}</div>
+      onBlur={event => { if (!split.current?.contains(event.relatedTarget)) void commit() }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void commit() } }} />{actions?.(arm)}</div>)}</div>
     {Object.keys(edits).length && !invalidKeys.size ? issues.map((issue, i) => <p role="alert" className="xp-ui-error" key={i}>{issueMessage(issue, totalWeight(live))}</p>) : null}
-    <div ref={split}><Button variant="quiet" size="sm" disabled={writes.busy} onClick={async () => { if (await writes.write(splitEvenly)) setEdits({}) }}>{C.split}</Button></div>
+    {beforeSplit}
+    {editable ? <div ref={split}><Button variant="quiet" size="sm" disabled={writes.busy} onClick={async () => { if (await writes.write(splitEvenly)) setEdits({}) }}>{C.split}</Button></div> : null}
   </div>
 }

@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: selecting an Experiment block shows Test, Versions and Actions in the sidebar, sharing the block controls and state. Draft Start and running Stop use the drawer transitions; Decide stays in the drawer. No host wiring or migration is needed.
+
 - Fixed: every version tab has a visible Options menu. Remove version confirms how many blocks it deletes from this page and explains shared-test impact. Existing draft/stopped manager access is preserved.
   Migration impact: none.
 

@@ -2,8 +2,9 @@ import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 
 type Placements = PreflightResult['placements']
-type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean }
+type Entry = { controller: AbortController; promise: Promise<Placements | undefined>; pending: boolean; preflight?: PreflightResult }
 const cache = new Map<string, Entry>()
+const preflights = new Map<string, PreflightResult>()
 const consumers = new Map<string, Set<(placements: Placements | undefined) => void>>()
 const keyFor = (api: string, id: DocId) => JSON.stringify([api, String(id)])
 
@@ -22,12 +23,15 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
       })
       if (!response.ok) return
       const data = await response.json() as PreflightResult
+      entry.preflight = data
       if (data.checks?.some(check => !check.ok && check.code === 'no-placements' && check.detail !== undefined)) return
       return Array.isArray(data.placements) ? data.placements : undefined
     } catch { return undefined }
   })().then(placements => {
     entry.pending = false
     if (cache.get(key) === entry) {
+      if (entry.preflight) preflights.set(key, entry.preflight)
+      else preflights.delete(key)
       if (placements === undefined) cache.delete(key)
       for (const notify of consumers.get(key) ?? []) notify(placements)
     }
@@ -40,11 +44,13 @@ function read(api: string, id: DocId, fresh: boolean): Entry {
 export function refreshPlacements(api: string, id: DocId) { return read(api, id, true).promise }
 
 /** Reuse the surface's successful preflight, without another editor request. */
-export function publishPlacements(api: string, id: DocId, placements: Placements | undefined) {
+export function publishPlacements(api: string, id: DocId, placements: Placements | undefined, preflight?: PreflightResult) {
   const key = keyFor(api, id)
   cache.get(key)?.controller.abort()
+  if (preflight) preflights.set(key, preflight)
+  else preflights.delete(key)
   if (placements === undefined) cache.delete(key)
-  else cache.set(key, { controller: new AbortController(), promise: Promise.resolve(placements), pending: false })
+  else cache.set(key, { controller: new AbortController(), promise: Promise.resolve(placements), pending: false, preflight })
   for (const notify of consumers.get(key) ?? []) notify(placements)
 }
 
@@ -52,6 +58,7 @@ export function invalidatePlacements(api: string, id: DocId) {
   const key = keyFor(api, id)
   cache.get(key)?.controller.abort()
   cache.delete(key)
+  preflights.delete(key)
   for (const notify of consumers.get(key) ?? []) notify(undefined)
   if (consumers.get(key)?.size) void read(api, id, true).promise
 }
@@ -70,8 +77,14 @@ export function acquirePlacements(api: string, id: DocId, notify: (placements: P
     listeners.delete(notify)
     if (!listeners.size) {
       consumers.delete(key)
+      preflights.delete(key)
       cache.get(key)?.controller.abort()
       cache.delete(key)
     }
   }
 }
+
+/** Current readiness shares the same request and lifetime as placements. */
+export function cachedPreflight(api: string, id: DocId) { return preflights.get(keyFor(api, id)) }
+
+export function placementsPending(api: string, id: DocId) { return cache.get(keyFor(api, id))?.pending === true }
