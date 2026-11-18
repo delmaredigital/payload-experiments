@@ -284,6 +284,24 @@ test('a delayed removal for a previous binding never overwrites the new document
 })
 
 
+test('an in-flight Remove refusal cannot reopen a dialog closed by rebinding', async () => {
+  const view = await mount()
+  let finish!: () => void
+  const fetcher = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH'
+    ? new Promise(resolve => { finish = () => resolve(response({}, 403)) }) : fetcher(url, init))
+  selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
+  await waitFor(() => expect(finish).toBeTypeOf('function'))
+  doc = { ...doc, name: 'Second test' }
+  view.rerender(editor('second-test'))
+  await screen.findByRole('heading', { name: 'Second test' })
+  expect(screen.queryByRole('dialog')).toBeNull()
+  await act(async () => finish())
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
 test.each([false, true])('Remove 409 announces mapped stale copy inside the still-open dialog (already removed: %s)', async alreadyRemoved => {
   await mount(); selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   refuse = { status: 409, code: 'stale-edit' }

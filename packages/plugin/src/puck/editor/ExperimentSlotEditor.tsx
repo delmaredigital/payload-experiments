@@ -108,7 +108,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   useEffect(() => () => creation.current?.closeIfIdle(), [])
   // A non-empty variant is only overwritten after an explicit second confirmation.
   const [confirming, setConfirming] = useState<ArmSlot | null>(null)
-  // Keep a failed removal open even if the recovery read no longer contains that version.
+  // A Remove refusal stays with its open dialog, even if the version disappears or the test locks.
+  // Close on a binding change, Cancel/Escape, or success; only then discard its refusal.
   const [removing, setRemoving] = useState<{ key: string; arm: EditorExperiment['arms'][number] } | null>(null)
   const pageTitle = usePuckSelector(state => typeof state.appState.data.root.props?.title === 'string' ? state.appState.data.root.props.title : '')
   // Selection only changes the chrome's appearance; actions always resolve this block by id.
@@ -215,12 +216,13 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   }, [armKeys])
   useEffect(() => { setWeightEdits({}); splitIntent.current = false }, [bindingKey, status])
   useEffect(() => {
-    setRemoving(current => current?.key === bindingKey && armKeys?.split(',').includes(current.arm.key) ? current : null)
-  }, [bindingKey, armKeys])
+    setRemoving(current => current?.key === bindingKey ? current : null)
+  }, [bindingKey])
   const writes = useArmWrites({ url: `${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, bindingKey,
     controlKeys: [
-      ...(editable ? ['split', ...(experiment!.arms.filter(arm => arm.kind === 'variant').length < 3 ? ['add'] : []), ...experiment!.arms.filter(arm => arm.kind !== 'control').map(arm => `remove:${arm.key}`)] : []),
-      ...(canManage && experiment?.status === 'draft' ? orphanSlots.map(slot => `leftover:${slot}`) : []),
+      'split', 'add', ...(experiment?.arms.map(arm => `remove:${arm.key}`) ?? []),
+      ...(removing?.key === bindingKey ? [`remove:${removing.arm.key}`] : []),
+      ...orphanSlots.map(slot => `leftover:${slot}`),
     ],
     publish: doc => {
       publishExperiment(experimentId!, doc)

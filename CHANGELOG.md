@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: version write refusals remain visible when a test starts elsewhere. Remove refusals appear once in the open dialog, even if the version has disappeared, and clear when it closes. Switching tests hides the previous test’s errors immediately. Migration impact: none.
+
 - Fixed: a refused Traffic value stays visible with its error; Escape cancels a pending name change before its save starts. Generated test names are capped at 200 characters. Use a different test is available when a test fails to load. New test and Add goal use styled dropdowns, and unavailable controls have consistent disabled styling. Migration impact: none.
 
 - Fixed: shared dropdown widths keep their chevrons aligned with the control. Traffic saves preserve concurrent version removals; successful splits clear Traffic errors, and version write refusals clear when their control closes, disappears or changes tests. Migration impact: none.

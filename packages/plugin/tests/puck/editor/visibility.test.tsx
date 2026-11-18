@@ -74,11 +74,12 @@ test.each(['decided', 'archived'])('un-hiding a retained %s block restores its n
   await mount(status, { root: { props: {} }, content: [{ ...block, props: { ...block.props, _visibility: { hidden: true } } }] })
   expect(chrome().getByText(C.hidden)).toBeTruthy()
   const item = read().getItemById(block.props.id)!
-  act(() => read().dispatch({ type: 'replace', destinationIndex: 0, destinationZone: 'root:default', data: { ...item, props: { ...item.props, _visibility: {} } } }))
+  const selector = read().getSelectorForId(item.props.id)!
+  act(() => read().dispatch({ type: 'replace', destinationIndex: selector.index, destinationZone: selector.zone, data: { ...item, props: { ...item.props, _visibility: {} } } }))
   await waitFor(() => expect(chrome().queryByText(C.hidden)).toBeNull())
   expect(sidebar().queryByText(C.hidden)).toBeNull()
   expect(sidebar().getByText(status === 'decided' ? C.decided('Variant A') : C.archived)).toBeTruthy()
-  expect(chrome().getByRole('tab', { name: 'Variant A' })).toBeTruthy()
+  expect(screen.getByRole('tab', { name: 'Variant A' })).toBeTruthy()
   expect(sidebar().getByRole('button', { name: 'Configure test' })).toBeTruthy()
   expect(sidebar().queryByRole('button', { name: 'Start' })).toBeNull()
   expect(sidebar().queryByRole('alert')).toBeNull()

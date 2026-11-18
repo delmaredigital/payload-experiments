@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
 import { Puck, useGetPuck, type Config } from '@puckeditor/core'
@@ -9,6 +9,7 @@ import { publishExperiment } from '../../../src/puck/editor/armsCache.js'
 import { editorCopy as C } from '../../../src/puck/editor/copy.js'
 import { watchPlacementNotice } from '../../../src/puck/editor/placementsCache.js'
 import { ConfigureTestDrawer } from '../../../src/puck/editor/ConfigureTestDrawer.js'
+import { useArmWrites } from '../../../src/puck/editor/VersionBuilder.js'
 import type { Status } from '../../../src/types/contracts.js'
 
 const base = { ...newTestBody({ kind: 'block', name: 'Hero test', slug: 'hero', unitType: 'visitor' }), id: 'sidebar-test', status: 'draft' as Status, updatedAt: 'one' }
@@ -801,7 +802,8 @@ test('a Traffic completion cannot restore a draft pruned by an in-flight externa
   const control = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') })
   const variant = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Variant A') })
   fireEvent.change(variant, { target: { value: '40' } })
-  fireEvent.change(control, { target: { value: '60' } })
+  // The balanced preview is already 60; use a distinct value to create a second draft.
+  fireEvent.change(control, { target: { value: '70' } })
   let finish!: () => void
   vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH'
     ? new Promise(resolve => { finish = () => resolve(reply({ doc })) }) : original(url, init))
@@ -815,7 +817,7 @@ test('a Traffic completion cannot restore a draft pruned by an in-flight externa
   expect(control.value).toBe('100')
 })
 
-test('a refused Remove clears on Cancel and does not survive a successful Add version', async () => {
+test('a refused Remove appears once and clears on Cancel before reopening or adding a version', async () => {
   await mount()
   const original = vi.mocked(fetch).getMockImplementation()!
   let refuse = true
@@ -823,11 +825,16 @@ test('a refused Remove clears on Cancel and does not survive a successful Add ve
   fireEvent.click(fields().getByRole('button', { name: C.removeVersion }))
   const dialog = await screen.findByRole('dialog')
   fireEvent.click(within(dialog).getByRole('button', { name: C.remove }))
-  await within(dialog).findByRole('alert')
+  const alert = await within(dialog).findByRole('alert')
+  expect(screen.getAllByRole('alert')).toEqual([alert])
   await waitFor(() => expect(within(dialog).getByRole('button', { name: C.cancel }).getAttribute('aria-disabled')).toBeNull())
   fireEvent.click(within(dialog).getByRole('button', { name: C.cancel }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(fields().queryByRole('alert')).toBeNull()
+  fireEvent.click(fields().getByRole('button', { name: C.removeVersion }))
+  const reopened = await screen.findByRole('dialog')
+  expect(within(reopened).queryByRole('alert')).toBeNull()
+  fireEvent.click(within(reopened).getByRole('button', { name: C.cancel }))
   refuse = false
   fireEvent.click(fields().getByRole('button', { name: C.add }))
   await fields().findByRole('group', { name: 'Variant B' })
@@ -853,7 +860,7 @@ test('Use a different test clears a prior write refusal from the old binding', a
   expect(fields().queryByRole('alert')).toBeNull()
 })
 
-test.each(['remove', 'leftover'] as const)('a %s refusal is pruned when its control disappears', async kind => {
+test.each(['remove', 'leftover'] as const)('a %s refusal stays only while its control or dialog remains', async kind => {
   await mount(false, true)
   const original = vi.mocked(fetch).getMockImplementation()!
   vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
@@ -867,7 +874,13 @@ test.each(['remove', 'leftover'] as const)('a %s refusal is pruned when its cont
     fireEvent.click(fields().getByRole('button', { name: C.addLeftover }))
     await fields().findByRole('alert')
     const item = read().getItemById('sidebar-block')!
-    act(() => read().dispatch({ type: 'replace', destinationIndex: 0, destinationZone: 'root:default', data: { ...item, props: { ...item.props, variantC: [] } } }))
+    const selector = read().getSelectorForId(item.props.id)!
+    act(() => read().dispatch({ type: 'replace', destinationIndex: selector.index, destinationZone: selector.zone, data: { ...item, props: { ...item.props, variantC: [] } } }))
+  }
+  if (kind === 'remove') {
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('alert').textContent).toBe("You don't have permission to do this.")
+    fireEvent.click(within(dialog).getByRole('button', { name: C.cancel }))
   }
   await waitFor(() => expect(fields().queryByRole('alert')).toBeNull())
 })
@@ -889,7 +902,7 @@ test('a successful Split clears every Traffic refusal and restores Start', async
   expect(await fields().findByRole('button', { name: 'Start' })).toBeTruthy()
 })
 
-test.each(['remove', 'leftover'] as const)('an in-flight %s refusal cannot restore an error after its control disappears', async kind => {
+test.each(['remove', 'leftover'] as const)('an in-flight %s refusal stays with an open dialog and is discarded for a disappeared control', async kind => {
   await mount(false, true)
   const original = vi.mocked(fetch).getMockImplementation()!
   let finish!: () => void
@@ -906,13 +919,21 @@ test.each(['remove', 'leftover'] as const)('an in-flight %s refusal cannot resto
     await waitFor(() => expect(fields().queryByRole('spinbutton', { name: C.weight('Variant A') })).toBeNull())
   } else {
     const item = read().getItemById('sidebar-block')!
-    act(() => read().dispatch({ type: 'replace', destinationIndex: 0, destinationZone: 'root:default', data: { ...item, props: { ...item.props, variantC: [] } } }))
+    const selector = read().getSelectorForId(item.props.id)!
+    act(() => read().dispatch({ type: 'replace', destinationIndex: selector.index, destinationZone: selector.zone, data: { ...item, props: { ...item.props, variantC: [] } } }))
     await waitFor(() => expect(fields().queryByRole('button', { name: C.addLeftover })).toBeNull())
   }
   await act(async () => finish())
   await waitFor(() => expect(screen.queryByText(C.savingVersions)).toBeNull())
-  expect(fields().queryByRole('alert')).toBeNull()
-  expect(screen.queryByRole('dialog')).toBeNull()
+  if (kind === 'remove') {
+    const dialog = screen.getByRole('dialog')
+    const alert = within(dialog).getByRole('alert')
+    expect(alert.textContent).toBe("You don't have permission to do this.")
+    expect(screen.getAllByRole('alert')).toEqual([alert])
+  } else {
+    expect(fields().queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  }
 })
 
 test('a successful Add version clears an unrelated Split refusal in the version controls', async () => {
@@ -926,4 +947,51 @@ test('a successful Add version clears an unrelated Split refusal in the version 
   fireEvent.click(fields().getByRole('button', { name: C.add }))
   await fields().findByRole('group', { name: 'Variant B' })
   expect(fields().queryByRole('alert')).toBeNull()
+})
+
+
+test('an open Remove dialog shows the locked refusal after the test starts elsewhere', async () => {
+  await mount()
+  fireEvent.click(fields().getByRole('button', { name: C.removeVersion }))
+  const dialog = await screen.findByRole('dialog')
+  doc = { ...doc, status: 'running', updatedAt: 'two' }
+  act(() => publishExperiment(doc.id, doc))
+  await waitFor(() => expect(fields().queryByRole('button', { name: C.removeVersion })).toBeNull())
+  fireEvent.click(within(dialog).getByRole('button', { name: C.remove }))
+  const alert = await within(dialog).findByRole('alert')
+  expect(alert.textContent).toBe(C.locked.running)
+  expect(screen.getAllByRole('alert')).toEqual([alert])
+  expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(0)
+})
+
+test.each(['split', 'add'] as const)('a pending %s shows the locked refusal after the test starts elsewhere', async control => {
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let finish!: () => void
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/xp-experiments/sidebar-test?depth=0')
+    ? new Promise(resolve => { finish = () => resolve(reply(doc)) }) : original(url, init))
+  fireEvent.click(fields().getByRole('button', { name: control === 'split' ? C.split : C.add }))
+  await waitFor(() => expect(finish).toBeTypeOf('function'))
+  doc = { ...doc, status: 'running', updatedAt: 'two' }
+  act(() => publishExperiment(doc.id, doc))
+  await waitFor(() => expect(fields().queryByRole('button', { name: C.add })).toBeNull())
+  await act(async () => finish())
+  expect((await fields().findByRole('alert')).textContent).toBe(C.locked.running)
+  expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(0)
+})
+
+test('the first render under a new binding excludes the previous binding’s refusal', async () => {
+  const renders: Array<{ bindingKey: string; error: string; splitError?: string }> = []
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
+  const { result, rerender } = renderHook(({ bindingKey }) => {
+    const writes = useArmWrites({ url: '/api/xp-experiments/sidebar-test', bindingKey, controlKeys: ['split', 'add'],
+      publish: () => {}, isCurrent: () => true, onWrite: () => {} })
+    renders.push({ bindingKey, error: writes.error, splitError: writes.errorFor('split') })
+    return writes
+  }, { initialProps: { bindingKey: 'first' } })
+  await act(async () => { await result.current.write(arms => arms, { errorKey: 'split' }) })
+  expect(result.current.error).toBe("You don't have permission to do this.")
+  rerender({ bindingKey: 'second' })
+  expect(renders.find(render => render.bindingKey === 'second')).toEqual({ bindingKey: 'second', error: '', splitError: undefined })
 })

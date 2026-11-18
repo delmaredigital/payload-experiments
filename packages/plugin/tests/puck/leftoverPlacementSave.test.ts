@@ -54,7 +54,7 @@ test('hiding the last running placement is refused with hidden copy; another vis
       ...published.puckData, content: [{ ...block, props: { ...block.props, _visibility: { hidden: true } } }],
     } } } as never)
   }
-  await expect(save()).rejects.toMatchObject({ code: 'locked-placement', message: '“Hero” is running and this is the only published place it appears. Its block cannot be hidden until you stop the test.' })
+  await expect(save()).rejects.toMatchObject({ code: 'locked-placement', message: '“Hero” is running and this is the only published place it appears. Stop the test first, or keep its block visible on this page.' })
   payload.documents.pages!.push({ ...published, id: 3 })
   await expect(save()).resolves.toBeDefined()
 })
