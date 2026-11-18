@@ -343,3 +343,18 @@ test('page preflight uses its registered collection and passes the manager-read 
   expect(other).not.toHaveBeenCalled()
   expect(payload.calls.filter(call => call.method === 'findByID').every(call => call.args.req === req && call.args.overrideAccess === false)).toBe(true)
 })
+
+test('where-used and readiness exclude hidden placements and retain partial visibility', async () => {
+  const { options, payload, req } = blockSetup()
+  const make = (id: number, visibility: unknown) => ({ id, title: `Page ${id}`, _status: 'published', puckData: { content: [{
+    type: 'ExperimentSlot', props: { id: `slot-${id}`, experiment: 'hero', _visibility: visibility, control: [{}], variantA: [{}] },
+  }] } })
+  payload.documents.pages = [make(10, { hidden: true }), make(11, { hideOn: ['phone', 'tablet', 'desktop'] }), make(12, { hideOn: ['phone'] })]
+  const answer = await (await handlePreflight(req, { options })).json() as PreflightResult
+  expect(answer.placements.map(place => place.id)).toEqual([12])
+  expect(answer.checks.find(check => check.code === 'no-placements')?.ok).toBe(true)
+  payload.documents.pages.pop()
+  const hiddenOnly = await (await handlePreflight(req, { options })).json() as PreflightResult
+  expect(hiddenOnly.placements).toEqual([])
+  expect(hiddenOnly.checks).toContainEqual({ code: 'no-placements', ok: false })
+})

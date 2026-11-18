@@ -103,3 +103,9 @@ test('with a viewport exposure the slot keeps its fixed-geometry wrapper', () =>
   expect(html).toContain('data-xp-sentinel')
   expect(html).toContain('A content')
 })
+
+test.each([{ hidden: true }, { hideOn: ['phone', 'tablet', 'desktop'] }])('the standalone public component honors fully hidden visibility %j', _visibility => {
+  const { props, slots } = renderProps({ _visibility, xpExpose: { slug: 'example', arm: 'control', phase: 1 } })
+  expect(renderToString(ExperimentSlot.render(props))).toBe('')
+  for (const slot of Object.values(slots)) expect(slot).not.toHaveBeenCalled()
+})

@@ -16,6 +16,7 @@ test('the neutral click-goal picker copy participates in the shared copy audit',
   expect(copyPaths).toContain(new URL('../../src/goals/picker/copy.ts', import.meta.url).pathname)
 })
 const samples: Record<string, unknown[][]> = {
+  hiddenOn: [['phone'], ['phone and tablet']], hiddenBlockPlacementCopy: [['Example']],
   moreBlockers: [[1], [3]], outsideTest: [['Variant A']],
   removeHelp: [[0], [1], [3]],
   pageInUseCopy: [['/example'], ['/example', true]],
@@ -273,4 +274,14 @@ test('smoke editor copy names setup, version fields and goal roles, and removes 
     for (const text of removed) expect(audited, path).not.toContain(text)
   }
   expect(Object.hasOwn(TEST_PAGE, 'clickGoalsNote')).toBe(false)
+})
+
+
+test('hidden-block sentences participate in the copy audit', async () => {
+  const { editorCopy } = await import('../../src/puck/editor/copy.js')
+  const { hiddenBlockPlacementCopy } = await import('../../src/testSurface/copy/readiness.js')
+  expect(editorCopy.hidden).toBe("This block is hidden, so visitors won't see this test here.")
+  expect(editorCopy.hiddenOn('phone')).toBe('This block is hidden on phone. Visitors on phone are still counted in this test.')
+  expect(editorCopy.hiddenOn('phone and tablet')).toBe('This block is hidden on phone and tablet. Visitors on phone and tablet are still counted in this test.')
+  expect(hits([editorCopy.hidden, editorCopy.hiddenOn('phone'), hiddenBlockPlacementCopy('Example')])).toEqual([])
 })

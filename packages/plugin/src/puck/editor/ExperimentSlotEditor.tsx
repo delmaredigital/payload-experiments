@@ -40,7 +40,7 @@ import { EditorControls } from './EditorControls.js'
 import { acquirePlacements, cachedPreflight, cachedReadinessRead, placementsPending, placementsBlocking, placementReadError, invalidatePlacements, refreshPlacements, focusPlacements } from './placementsCache.js'
 import { sidebarReadinessBlockers, editorPlacementMessage } from '../../testSurface/surface/editorPlacement.js'
 import type { PreflightResult } from '../../types/endpoints.js'
-import { localPlacements } from './localPlacements.js'
+import { localPlacements, localBlockVisibility } from './localPlacements.js'
 import { usePlacementNotice } from './usePlacementNotice.js'
 import { useEditorSurface } from './editorSurface.js'
 import { createBlockTest, CreateRefused } from './createTest.js'
@@ -182,6 +182,12 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     return () => { release(); window.removeEventListener('focus', focus) }
   }, [api, admin, experimentId, status, access.surface?.canManage])
 
+  const blockVisibility = usePuckSelector(state => {
+    const visibility = localBlockVisibility(state.appState.data, props.id)
+    return visibility?.hidden ? 'hidden' : visibility?.hideOn.join(' and ') ?? ''
+  })
+  const hidden = blockVisibility === 'hidden'
+  const visibilityNotice = hidden ? editorCopy.hidden : blockVisibility ? editorCopy.hiddenOn(blockVisibility) : undefined
   const locallyShared = usePuckSelector(state => experimentId !== undefined &&
     (localPlacements(state.appState.data, state.config).get(String(experimentId))?.size ?? 0) > 1)
 
@@ -328,7 +334,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       if (isCurrentBinding()) setSetupError(cause instanceof CreateRefused ? cause.message : editorCopy.createError)
     } finally { setupBusy.current = false; if (isCurrentBinding()) setSettingUp(false) }
   }
-  const placementMessage = editorPlacementMessage(placements && placements.id === experimentId ? placements.value : undefined, currentPuckDocument(window.location.pathname, admin, placements && placements.id === experimentId ? placements.value : undefined), experiment?.status)
+  const placementMessage = hidden ? undefined : editorPlacementMessage(placements && placements.id === experimentId ? placements.value : undefined, currentPuckDocument(window.location.pathname, admin, placements && placements.id === experimentId ? placements.value : undefined), experiment?.status)
 
   const currentPreflight = preflight && preflight.id === experimentId && Array.isArray(preflight.value?.checks) ? preflight.value : null
   const editorPage = currentPuckDocument(window.location.pathname, admin, placements?.value)
@@ -353,7 +359,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   }
   const placementNotice = quickTest.preflightRead?.message ?? placementMessage
   usePlacementNotice(api, experimentId, canManage ? placementNotice : undefined)
-  const placementNoticeView = <PlacementNotice read={quickTest.preflightRead} message={placementMessage} running={experiment?.status === 'running'} onRetry={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId) }} />
+  const placementNoticeView = <>{visibilityNotice ? <Banner tone="info">{visibilityNotice}</Banner> : null}{canManage ? <PlacementNotice read={quickTest.preflightRead} message={placementMessage} running={experiment?.status === 'running'} onRetry={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId) }} /> : null}</>
   const sidebarBlockers = surface ? sidebarReadinessBlockers(quickTest, surface) : []
 
   const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} active={slot} dragging={dragging} experiment={experiment} writes={writes} canManage={canManage}
@@ -377,7 +383,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           {experiment ? <><strong>{experiment.name}</strong><StatusChip status={experiment.status} /></> : null}
           {accessNotice}
           {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
-          {canManage ? <>{placementNoticeView}{experiment?.status === 'draft' || experiment?.status === 'stopped' ? <BlockerList steps={sidebarBlockers} /> : null}</> : null}
+          {placementNoticeView}{canManage ? <>{experiment?.status === 'draft' || experiment?.status === 'stopped' ? <BlockerList steps={sidebarBlockers} /> : null}</> : null}
           {experimentId !== undefined && access.surface && !result?.missing && !result?.error && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}
           {canManage && experiment && surface ? <QuickTestActions key={`${experimentId}/${experiment.status}`} test={quickTest} surface={surface} /> : null}
           {canSetUp ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
@@ -433,7 +439,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       </header>
       {canSetUp || result?.missing ? null : accessNotice}
       {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
-      {canManage ? placementNoticeView : null}
+      {placementNoticeView}
       {setupError && canSetUp ? <p role={sidebar ? undefined : 'alert'}>{setupError}</p> : null}
       {canSetUp ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
     </EditorControls>

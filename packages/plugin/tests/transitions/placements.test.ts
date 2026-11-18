@@ -75,3 +75,19 @@ test.each([true, false])('Puck scan uses the published editor when the draft dis
     blocksCollections: [{ slug: 'pages', field: 'layout', appliesTo: doc => doc.legacy === true }] })
   expect(result).toHaveLength(publishedBlocks ? 0 : 2)
 })
+
+test.each(['self', 'slot', 'zone', 'sizes'] as const)('hidden Puck %s placements do not satisfy readiness or appear in discovery', async mode => {
+  const hidden = slot('hero')
+  const content = mode === 'self' || mode === 'sizes' ? [{ ...hidden, props: { ...hidden.props, _visibility: mode === 'sizes' ? { hideOn: ['phone', 'tablet', 'desktop'] } : { hidden: true } } }]
+    : [{ type: 'Container', props: { id: 'container', _visibility: { hidden: true }, ...(mode === 'slot' ? { children: [hidden] } : {}) } }]
+  const payload = fakePayload({ collections: { pages: [{ id: 1, _status: 'published', puckData: { content, zones: mode === 'zone' ? { 'container:children': [hidden] } : undefined } }] } })
+  const placements = await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', blocksCollections: [], puckCollections: ['pages'] })
+  expect(placements).toEqual([])
+  const checks = checkStart({ experiment: { id: 1, slug: 'hero', status: 'draft', kind: 'block', unitType: 'visitor', allocation: 100, exposurePolicy: 'render', arms: defaultArms('block') }, metrics: [], placements } as import('../../src/transitions/checkStart.js').CheckStartInput)
+  expect(checks).toContainEqual({ code: 'no-placements', ok: false })
+})
+test('a partially hidden Puck block remains a published place', async () => {
+  const item = slot('hero')
+  const payload = fakePayload({ collections: { pages: [{ id: 1, _status: 'published', puckData: { content: [{ ...item, props: { ...item.props, _visibility: { hideOn: ['phone', 'tablet'] } } }] } }] } })
+  expect(await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', blocksCollections: [], puckCollections: ['pages'] })).toMatchObject([{ published: true }])
+})

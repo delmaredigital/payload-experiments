@@ -1061,3 +1061,20 @@ test('Experiment-block make-content preserves published and draft data and write
     expect(write.args).toMatchObject({ overrideAccess: false, overrideLock: false })
   }
 }, 5000) // Measured below 100 ms locally; cap leaves CI headroom.
+
+test.each(['self', 'slot', 'zone'] as const)('Make permanent preserves fully hidden %s siblings rather than revealing their content', async mode => {
+  const f = fixture('block', false)
+  const hidden = { ...slot([text('Hidden winner')]), props: { ...slot([text('Hidden winner')]).props, id: 'hidden', ...(mode === 'self' ? { _visibility: { hidden: true } } : {}) } }
+  const parent = mode === 'self' ? hidden : { type: 'Container', props: { id: 'parent', _visibility: { hidden: true }, ...(mode === 'slot' ? { children: [hidden] } : {}) } }
+  f.payload.documents.pages = [{ id: 3, _status: 'published', puckData: { content: [slot(), parent], ...(mode === 'zone' ? { zones: { 'parent:children': [hidden] } } : {}) } }]
+  await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(hostUpdates(f)).toHaveLength(1)
+  expect(hostUpdates(f)[0]!.args.data).toEqual(expect.objectContaining({ puckData: { content: [text('Winner'), parent], ...(mode === 'zone' ? { zones: { 'parent:children': [hidden] } } : {}) } }))
+})
+test('Make permanent preserves size-specific visibility when unwrapping the winning blocks', async () => {
+  const f = fixture('block', false)
+  const partial = slot()
+  f.payload.documents.pages = [{ id: 3, _status: 'published', puckData: { content: [{ ...partial, props: { ...partial.props, _visibility: { hideOn: ['phone'] } } }] } }]
+  await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(hostUpdates(f)[0]!.args.data).toEqual(expect.objectContaining({ puckData: { content: [{ type: 'Text', props: { text: 'Winner', _visibility: { hideOn: ['phone'] } } }] } }))
+})

@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Added: fully hidden Puck Experiment blocks and blocks inside hidden ancestors no longer count as places a test appears. Hiding the last published place of a running test is refused. Editor notices explain full and size-specific hiding; partial hiding still counts visitors. The public resolver omits fully hidden subtrees and exposures. Payload blocks placements are unchanged. Migration impact: none.
+
 - Fixed: a deleted test can be repaired with Set up test while retaining the block’s content. Stopped tests offer Start a new round. Migration impact: none.
 
 - Fixed: version names stay consistent across tabs, sidebar controls and block guidance, including a renamed first version. New first versions default to Original. Migration impact: none.

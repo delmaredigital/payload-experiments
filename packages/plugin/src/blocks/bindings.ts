@@ -1,3 +1,4 @@
+import { walkVisiblePuck } from '../puck/visibility.js'
 import { documentEditor, puckCollections } from '../options.js'
 import type { ResolvedOptions } from '../types/contracts.js'
 import { EXPERIMENT_BLOCK_SLUG, hostBlocks, isObject } from './model.js'
@@ -14,15 +15,10 @@ export function placementSlugs(options: Pick<ResolvedOptions, 'blocks' | 'puck'>
   if (editor !== 'puck') return []
   const registration = puckCollections(options).find(r => r.slug === collection)
   const found = new Set<string>()
-  function walk(v: unknown) {
-    if (Array.isArray(v)) { v.forEach(walk); return }
-    if (!isObject(v)) return
-    if (v.type === 'ExperimentSlot' && isObject(v.props)) {
-      const ref = v.props.experiment, slug = typeof ref === 'string' ? ref : isObject(ref) ? ref.slug : undefined
-      if (typeof slug === 'string') found.add(slug)
-    }
-    Object.values(v).forEach(walk)
-  }
-  if (registration) walk(doc[registration.field])
+  if (registration) walkVisiblePuck(doc[registration.field], (node, visibility) => {
+    if (visibility.hidden || node.type !== 'ExperimentSlot') return
+    const ref = node.props.experiment, slug = typeof ref === 'string' ? ref : isObject(ref) ? ref.slug : undefined
+    if (typeof slug === 'string') found.add(slug)
+  })
   return [...found]
 }

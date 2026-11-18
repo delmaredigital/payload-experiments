@@ -1,6 +1,8 @@
 import { ARM_LABELS } from '../../labels/arms.js'
 
 export const editorCopy = {
+  hidden: "This block is hidden, so visitors won't see this test here.",
+  hiddenOn: (sizes: string) => `This block is hidden on ${sizes}. Visitors on ${sizes} are still counted in this test.`,
   retrySetup: 'Retry',
   controlsUnavailable: "Test controls couldn't load.",
   setupForbidden: "You don't have access to set up tests.",

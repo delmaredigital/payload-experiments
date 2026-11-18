@@ -759,6 +759,28 @@ configured to allow client writes; record revenue on the server.
 
 Works with: payload-puck ≥0.10.3 (experiments ≥0.4.0).
 
+With payload-puck 0.12.0's block visibility controls, a fully hidden Experiment
+block, or one inside any fully hidden block, is not a place the test appears.
+It is omitted from placement discovery and where-used, and cannot satisfy Start's
+published-place requirement. Publishing a change that hides the last published
+place of a running test is refused; stop the test first. Draft saves follow the
+same rules as removing a block.
+
+The stored contract is `props._visibility = { hidden?: true, hideOn?:
+('phone' | 'tablet' | 'desktop')[] }`. `hidden: true` or all three sizes means
+fully hidden. Missing or malformed visibility is shown. The editor explains:
+“This block is hidden, so visitors won't see this test here.” The public
+`resolveExperimentData` path removes fully hidden blocks and their subtrees,
+including legacy zones, before recording exposures. The Experiment render
+component also returns nothing for its own fully hidden flag without a host wrapper.
+
+Hiding on one or two sizes still leaves the block in the HTML and counts as a
+place. Visitors on those sizes are still counted in the test, even when CSS hides
+the block from view. The editor says, for example: “This block is hidden on phone.
+Visitors on phone are still counted in this test.” Payload blocks editor
+placements are unaffected. Make permanent leaves fully hidden siblings intact
+and carries size-specific hiding onto the unwrapped winning blocks.
+
 For payload-puck hosts, add one integration object on each side. In the render
 config, pass `integrations` to `extendConfig`:
 

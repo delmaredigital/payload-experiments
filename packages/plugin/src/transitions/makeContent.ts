@@ -1,3 +1,4 @@
+import { puckVisibility, hiddenOnSizes, visibilitySizes } from '../puck/visibility.js'
 import { Forbidden, NotFound, ValidationError, Locked, commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field, type Block } from 'payload'
 import { latestDraftContent, publishedContent as readPublishedContent } from '../db/publishedContent.js'
 import { EXPERIMENT_BLOCK_SLUG, hostBlocks, slotBlocks } from '../blocks/model.js'
@@ -41,19 +42,28 @@ const isNotFound = (error: unknown) => contentFailureReason(error) === 'not-foun
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
 
 /** Flatten selected slots in every content array, including nested selected slots. */
-function unwrap(value: unknown, slug: string, slot: string): unknown {
+function unwrap(value: unknown, slug: string, slot: string, visibility = puckVisibility(value)): unknown {
   if (Array.isArray(value)) return value.flatMap(node => {
+    if (object(node) && visibility.get(node)?.hidden) return [node]
     if (object(node) && node.type === 'ExperimentSlot' && object(node.props)) {
       const ref = node.props.experiment
       if ((typeof ref === 'string' ? ref : object(ref) ? ref.slug : undefined) === slug) {
         const content = node.props[slot]
         if (!Array.isArray(content)) throw new Error('The winning content slot is missing.')
-        return unwrap(content, slug, slot) as unknown[]
+        const selected = unwrap(content, slug, slot, visibility) as unknown[]
+        const hideOn = hiddenOnSizes(node.props._visibility)
+        return hideOn.length ? selected.map(child => {
+          if (!object(child) || !object(child.props)) return child
+          const current = object(child.props._visibility) ? child.props._visibility : {}
+          return { ...child, props: { ...child.props, _visibility: { ...current,
+            hideOn: visibilitySizes.filter(size => hideOn.includes(size) || hiddenOnSizes(current).includes(size)),
+          } } }
+        }) : selected
       }
     }
-    return [unwrap(node, slug, slot)]
+    return [unwrap(node, slug, slot, visibility)]
   })
-  if (object(value)) return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, unwrap(child, slug, slot)]))
+  if (object(value)) return visibility.get(value)?.hidden ? value : Object.fromEntries(Object.entries(value).map(([key, child]) => [key, unwrap(child, slug, slot, visibility)]))
   return value
 }
 

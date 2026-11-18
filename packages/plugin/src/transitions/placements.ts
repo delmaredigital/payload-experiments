@@ -1,3 +1,4 @@
+import { walkVisiblePuck } from '../puck/visibility.js'
 import { BLOCK_SLOTS, EXPERIMENT_BLOCK_SLUG, hostBlocks, slotBlocks } from '../blocks/model.js'
 import { safeError } from '../log.js'
 import { pageVersionContent } from '../db/pageContent.js'
@@ -104,14 +105,13 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
           }
           const editor = editors.get(String(doc.id)) ?? documentEditor({ puck: { enabled: true, collections: puckCollections }, blocks: { collections: args.blocksCollections } }, collection, doc)
           if (editor !== 'puck') continue
-          function walk(value: unknown): void {
-            if (!value || typeof value !== 'object') return
-            if (Array.isArray(value)) { value.forEach(walk); return }
-            const node = value as Record<string, unknown>
-            const props = node.props as Record<string, unknown> | undefined
-            const ref = props?.experiment
+          const offsets = new Map([...placements].map(([slug, list]) => [slug, list.length]))
+          walkVisiblePuck(doc[field], (node, visibility) => {
+            if (visibility.hidden) return
+            const props = node.props
+            const ref = props.experiment
             const experiment = typeof ref === 'string' ? ref : ref && typeof ref === 'object' && 'slug' in ref ? ref.slug : null
-            if (node.type === 'ExperimentSlot' && props && typeof experiment === 'string' && slugs.has(experiment)) {
+            if (node.type === 'ExperimentSlot' && typeof experiment === 'string' && slugs.has(experiment)) {
               placements.get(experiment)!.push({ collection, id: doc.id, editor: 'puck', doc, title: String(doc.title ?? doc.name ?? doc.id),
                 published: !draft || doc._status === 'published',
                 ...(publishedSlugs.has(String(doc.id)) ? { slug: publishedSlugs.get(String(doc.id))! } : {}),
@@ -120,24 +120,19 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
                 locked: doc._isLocked === true || doc.locked === true,
               })
             }
-            Object.values(node).forEach(walk)
-          }
-          const offsets = new Map([...placements].map(([slug, list]) => [slug, list.length]))
-          walk(doc[field])
+          })
           if (args.compareVersions && !draft && [...placements].some(([slug, list]) => list.length > offsets.get(slug)!)) {
             const raw = await comparisonContent(req, collection, doc.id)
             const rawSlots = new Map<string, Array<Record<string, unknown>>>()
-            const collect = (value: unknown): void => {
-              if (Array.isArray(value)) { value.forEach(collect); return }
-              if (!value || typeof value !== 'object') return
-              const node = value as Record<string, unknown>, props = node.props as Record<string, unknown> | undefined
+            const collect = (value: unknown): void => walkVisiblePuck(value, (node, visibility) => {
+              if (visibility.hidden) return
+              const props = node.props
               const ref = props?.experiment
               const slug = typeof ref === 'string' ? ref : ref && typeof ref === 'object' && 'slug' in ref ? ref.slug : undefined
               if (node.type === 'ExperimentSlot' && props && typeof slug === 'string') {
                 const list = rawSlots.get(slug) ?? []; list.push(props); rawSlots.set(slug, list)
               }
-              Object.values(node).forEach(collect)
-            }
+            })
             if (raw && raw._status !== 'draft') collect(raw[field])
             for (const [slug, list] of placements) list.slice(offsets.get(slug)).forEach((placement, index) => {
               const props = rawSlots.get(slug)?.[index]

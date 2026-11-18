@@ -62,19 +62,8 @@ export function removedPlacementViews(req: PayloadRequest, collection: string, b
   after: Record<string, unknown>, removingPage: boolean): RemovedPlacementViews {
   const result: RemovedPlacementViews = new Map()
   if (!before) return result
-  const localization = req.payload.config.localization
-  const config = req.payload.config.collections?.find(entry => entry.slug === collection)
   const options = req.payload.config.custom!.xp as ResolvedOptions
-  const fields = config ? flattenTopLevelFields(config.fields) : []
-  const localized = fields.filter(field => 'name' in field && 'localized' in field && field.localized)
-  // Keep the raw locale maps for unchanged languages when merging a partial,
-  // flattened main-row write back into the adapter baseline.
-  const rawAfter = { ...after }
-  if (localization && req.locale !== 'all') for (const field of localized) {
-    if (!('name' in field) || typeof field.name !== 'string' || !(field.name in after)) continue
-    const previousValue = before[field.name]
-    rawAfter[field.name] = { ...(isObject(previousValue) ? previousValue : {}), [req.locale || localization.defaultLocale]: after[field.name] }
-  }
+  const rawAfter = mergedPlacementLocales(req, collection, before, after)
   for (const view of placementLocaleViews(req, collection)) {
     const viewReq = localeRequest(req, view)
     const previous = placementSlugs(options, collection, placementLocaleContent(viewReq, collection, before))
@@ -82,4 +71,22 @@ export function removedPlacementViews(req: PayloadRequest, collection: string, b
     for (const slug of previous.filter(slug => !next.includes(slug))) result.set(slug, [...(result.get(slug) ?? []), view])
   }
   return result
+}
+
+/** Rebuild unchanged locale maps around a flattened hook write before reading each view. */
+export function mergedPlacementLocales(req: PayloadRequest, collection: string, before: Record<string, unknown> | undefined,
+  after: Record<string, unknown>): Record<string, unknown> {
+  const localization = req.payload.config.localization
+  const config = req.payload.config.collections?.find(entry => entry.slug === collection)
+  const fields = config ? flattenTopLevelFields(config.fields) : []
+  const localized = fields.filter(field => 'name' in field && 'localized' in field && field.localized)
+  // Keep the raw locale maps for unchanged languages when merging a partial,
+  // flattened main-row write back into the adapter baseline.
+  const rawAfter = { ...after }
+  if (localization && req.locale !== 'all') for (const field of localized) {
+    if (!('name' in field) || typeof field.name !== 'string' || !(field.name in after)) continue
+    const previousValue = before?.[field.name]
+    rawAfter[field.name] = { ...(isObject(previousValue) ? previousValue : {}), [req.locale || localization.defaultLocale]: after[field.name] }
+  }
+  return rawAfter
 }

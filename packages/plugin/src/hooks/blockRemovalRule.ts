@@ -1,11 +1,13 @@
+import { walkVisiblePuck } from '../puck/visibility.js'
+import { documentEditor, puckCollections } from '../options.js'
 import type { PayloadRequest } from 'payload'
 import type { Executor } from '../db/executor.js'
 import { removableBlockTests, type PlacementTest } from '../db/placements.js'
 import { XpNoTransactionError, XpRefusal } from '../errors.js'
-import { lastBlockPlacementCopy, pendingBlockRemovalCopy, bulkBlockRemovalCopy } from '../testSurface/copy/readiness.js'
+import { lastBlockPlacementCopy, hiddenBlockPlacementCopy, pendingBlockRemovalCopy, bulkBlockRemovalCopy } from '../testSurface/copy/readiness.js'
 import { hasOtherPublishedBlockPlacement } from '../transitions/placements.js'
 import { bulkRemoves, type BulkPlacementRemoval } from '../db/bulkPlacementRemoval.js'
-import { localeRequest, placementLocaleContent, removedPlacementViews, placementDocumentKey, type RemovedPlacementViews, type PlacementLocaleView } from '../blocks/placementLocale.js'
+import { localeRequest, placementLocaleContent, removedPlacementViews, placementDocumentKey, placementLocaleViews, mergedPlacementLocales, type RemovedPlacementViews, type PlacementLocaleView } from '../blocks/placementLocale.js'
 import { placementSlugs } from '../blocks/bindings.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 
@@ -63,7 +65,26 @@ export const blockRemovalRule = {
   async prepare(req: PayloadRequest, collection: string, before: Record<string, unknown> | undefined, after: Record<string, unknown>, removingPage: boolean, exec?: Executor, tests?: readonly PlacementTest[]) {
     const views = removedPlacementViews(req, collection, before, after, removingPage)
     const affected = views.size ? await blockRemovalRule.discover(exec!, [...views.keys()], tests) : []
-    return { views, affected }
+    const hidden = new Set<string>()
+    const options = req.payload.config.custom!.xp as ResolvedOptions
+    const registration = puckCollections(options).find(entry => entry.slug === collection)
+    const rawAfter = mergedPlacementLocales(req, collection, before, after)
+    if (views.size && !removingPage && registration && documentEditor(options, collection, after) === 'puck') {
+      for (const view of placementLocaleViews(req, collection)) {
+        const viewReq = localeRequest(req, view)
+        const visibleBefore = new Set<string>()
+        walkVisiblePuck(placementLocaleContent(viewReq, collection, before)?.[registration.field], (block, visibility) => {
+          if (!visibility.hidden && block.type === 'ExperimentSlot') visibleBefore.add(String(block.props.id))
+        })
+        walkVisiblePuck(placementLocaleContent(viewReq, collection, rawAfter)?.[registration.field], (block, visibility) => {
+          if (!visibility.hidden || block.type !== 'ExperimentSlot' || !visibleBefore.has(String(block.props.id))) return
+          const ref = block.props.experiment
+          const slug = typeof ref === 'string' ? ref : ref && typeof ref === 'object' && 'slug' in ref ? ref.slug : undefined
+          if (typeof slug === 'string') hidden.add(slug)
+        })
+      }
+    }
+    return { views, affected, hidden }
   },
   async discover(exec: Executor, removed: string[], tests?: readonly PlacementTest[]): Promise<PlacementTest[]> {
     if (tests) return tests.filter(test => test.kind === 'block' && ['draft', 'stopped', 'running'].includes(test.status) && removed.includes(test.slug))
@@ -88,7 +109,7 @@ export const blockRemovalRule = {
     }
     return claims
   },
-  async check(req: PayloadRequest, current: readonly PlacementTest[], affected: readonly PlacementTest[], collection: string, id: DocId, removingPage: boolean, views: RemovedPlacementViews, bulk?: BulkPlacementRemoval): Promise<void> {
+  async check(req: PayloadRequest, current: readonly PlacementTest[], affected: readonly PlacementTest[], collection: string, id: DocId, removingPage: boolean, views: RemovedPlacementViews, bulk?: BulkPlacementRemoval, hidden?: ReadonlySet<string>): Promise<void> {
     const transaction = await req.transactionID
     // Claim only after every earlier guard passed. These claims cover subsequent
     // writes; the complete bulk selection covers siblings before any can decide.
@@ -109,7 +130,7 @@ export const blockRemovalRule = {
         if (transaction == null) throw new XpNoTransactionError('Save this page with transactions on.')
         // Bulk selection is immutable through every sibling's decision, including
         // earlier rule refusals. afterOperation explains unrelated failed writes.
-        const message = excludedSibling ? bulk ? bulkBlockRemovalCopy(test.name) : pendingBlockRemovalCopy(test.name) : lastBlockPlacementCopy(test.name, removingPage)
+        const message = excludedSibling ? bulk ? bulkBlockRemovalCopy(test.name) : pendingBlockRemovalCopy(test.name) : hidden?.has(test.slug) ? hiddenBlockPlacementCopy(test.name) : lastBlockPlacementCopy(test.name, removingPage)
         if (bulk && excludedSibling) bulk.refusals.set(message, pendingBlockRemovalCopy(test.name))
         throw new XpRefusal('locked-placement', message, { experimentId: test.id }, 409)
       }

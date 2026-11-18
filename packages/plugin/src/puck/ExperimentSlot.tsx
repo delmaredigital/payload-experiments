@@ -1,3 +1,4 @@
+import { fullyHidden } from './visibility.js'
 import type { ComponentConfig } from '@puckeditor/core'
 import type { ExperimentSlotProps } from '../types/puck.js'
 import { ViewportExposure } from '../client/ViewportExposure.js'
@@ -13,6 +14,7 @@ export function createExperimentSlot({ routes: inputRoutes }: { routes?: PuckRou
     fields: { ...experimentSlotFields, experiment: createExperimentSlotField({ routes }) },
     defaultProps: experimentSlotDefaultProps,
     render: props => {
+      if (fullyHidden(props._visibility)) return <></>
       const Slot = props[slotToRender(props)]
       return <ViewportExposure expose={props.xpExpose}><Slot /></ViewportExposure>
     },

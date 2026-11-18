@@ -31,3 +31,30 @@ test('publishing a running block permits deleting leftover content but refuses d
   expect(payload.calls).toEqual([])
   await expect(save([])).rejects.toMatchObject({ code: 'locked-placement', status: 409 })
 })
+
+test('hiding the last running placement is refused with hidden copy; another visible place permits it', async () => {
+  const options = sampleOptions()
+  options.puck = { enabled: true, collections: ['pages'] }
+  const testDoc = { id: 2, kind: 'block', slug: 'hero', name: 'Hero', status: 'running', arms: [], phase: 1, pageCollection: null, placementDocs: null }
+  const block = { type: 'ExperimentSlot', props: { id: 'hero-block', experiment: { id: 2, slug: 'hero' }, control: [{}], variantA: [{}] } }
+  const published = { id: 1, _status: 'published', puckData: { root: { props: {} }, content: [block] } }
+  const executor = createFakeExecutor()
+  const payload = fakePayload({ executor, config: { custom: { xp: options } }, collections: { pages: [published], 'xp-experiments': [testDoc] } })
+  payload.db.findOne = vi.fn(async () => published) as never
+  executor.query = async <R>(text: string, params: unknown[] = []) => {
+    executor.calls.push({ text, params })
+    return { rows: (text.includes('LEFT JOIN LATERAL') || text.includes('ANY($1::text[])') ? [testDoc] : text.includes('current_setting') ? [{ timeout: '0' }] : []) as R[], rowCount: 1 }
+  }
+  const collection = { slug: 'pages', versions: { drafts: {} } }
+  payload.config.collections = [collection as never]
+  const save = () => {
+    const req = fakeReq({ payload })
+    req.transactionID = executor.withSession({ payload }).transactionID
+    return pageGuardBeforeChange({ req, collection, originalDoc: published, operation: 'update', data: { _status: 'published', puckData: {
+      ...published.puckData, content: [{ ...block, props: { ...block.props, _visibility: { hidden: true } } }],
+    } } } as never)
+  }
+  await expect(save()).rejects.toMatchObject({ code: 'locked-placement', message: '“Hero” is running and this is the only published place it appears. Its block cannot be hidden until you stop the test.' })
+  payload.documents.pages!.push({ ...published, id: 3 })
+  await expect(save()).resolves.toBeDefined()
+})

@@ -1,4 +1,5 @@
-import { walkTree, type Config, type Data } from '@puckeditor/core'
+import { walkVisiblePuck, type BlockVisibility } from '../visibility.js'
+import { type Config, type Data } from '@puckeditor/core'
 
 // Puck data/config are immutable. Selection, hover and drag state reuse this
 // result, and every block on the page shares a single traversal per data change.
@@ -9,17 +10,27 @@ export function localPlacements(data: Data, config: Config): Map<string, Set<str
   let placements = configs.get(config)
   if (!placements) {
     placements = new Map()
-    const collect = (content: import('@puckeditor/core').ComponentData[]) => {
-      for (const item of content) if (item.type === 'ExperimentSlot' && item.props.experiment?.id !== undefined) {
-        const key = String(item.props.experiment.id)
+    walkVisiblePuck(data, (item, visibility) => {
+      const ref = item.props.experiment as { id?: unknown } | null | undefined
+      if (!visibility.hidden && item.type === 'ExperimentSlot' && ref && ref.id !== undefined) {
+        const key = String(ref.id)
         const ids = placements!.get(key) ?? new Set<string>()
-        ids.add(item.props.id)
+        ids.add(String(item.props.id))
         placements!.set(key, ids)
       }
-    }
-    walkTree(data, config, content => { collect(content) })
-    for (const content of Object.values(data.zones ?? {})) collect(content)
+    })
     configs.set(config, placements)
   }
   return placements
+}
+
+const visibilityPages = new WeakMap<Data, Map<string, BlockVisibility>>()
+export function localBlockVisibility(data: Data, id: string): BlockVisibility | undefined {
+  let blocks = visibilityPages.get(data)
+  if (!blocks) {
+    blocks = new Map()
+    walkVisiblePuck(data, (block, visibility) => blocks!.set(String(block.props.id), visibility))
+    visibilityPages.set(data, blocks)
+  }
+  return blocks.get(id)
 }

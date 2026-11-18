@@ -119,3 +119,33 @@ test.each(['missing', 'unpublished'] as const)('a published page lookup with a %
   })
   expect(content).toEqual({ keys: [], readArms: [], unchecked: [{ collection: 'pages', path: '/a' }] })
 }, 5_000) // Measured <1 ms locally; cap exceeds 3×.
+
+test('hidden Puck occurrences and hidden goal children cannot add an asymmetric Start blocker', async () => {
+  const options = sampleOptions()
+  options.puck = { enabled: true, collections: ['pages'] }
+  const slot = (id: string, hidden: boolean) => ({ type: 'ExperimentSlot', props: {
+    id, experiment: 'fair', _visibility: hidden ? { hidden: true } : undefined,
+    control: [{ type: 'CTA', props: { id: `cta-${id}`, xpGoal: hidden ? 'hidden-goal' : 'join' } },
+      { type: 'CTA', props: { id: `hidden-child-${id}`, _visibility: { hidden: true }, xpGoal: 'hidden-child' } }],
+    variantA: hidden ? [] : [{ type: 'CTA', props: { id: `variant-${id}`, xpGoal: 'join' } }],
+  } })
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', fields: [] }] }, collections: { pages: [{ id: 1, _status: 'published', puckData: {
+    content: [slot('visible', false), slot('hidden', true), { type: 'Container', props: { id: 'parent', _visibility: { hidden: true } } }],
+    zones: { 'parent:children': [slot('legacy', false)] },
+  } }] } })
+  const content = await goalContent(fakeReq({ payload }), options, experiment, [{ collection: 'pages', id: 1 }])
+  expect(content.keys).toEqual([{ key: 'join', arms: ['control', 'variantA'], label: 'CTA' }])
+  expect(asymmetricGoal(content, 'click:hidden-goal', arms)).toBe(false)
+})
+
+test('a nested occurrence does not turn an asymmetric outer goal into a symmetric one', async () => {
+  const options = sampleOptions()
+  options.puck = { enabled: true, collections: ['pages'] }
+  const cta = { type: 'CTA', props: { xpGoal: 'join' } }
+  const nested = { type: 'ExperimentSlot', props: { id: 'nested', experiment: 'fair', control: [cta], variantA: [cta] } }
+  const outer = { type: 'ExperimentSlot', props: { id: 'outer', experiment: 'fair', control: [nested], variantA: [] } }
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', fields: [] }] }, collections: { pages: [{ id: 1, _status: 'published', puckData: { content: [outer] } }] } })
+  const content = await goalContent(fakeReq({ payload }), options, experiment, [{ collection: 'pages', id: 1 }])
+  expect(content.keys).toEqual([{ key: 'join', arms: ['control'], label: 'CTA' }])
+  expect(asymmetricGoal(content, 'click:join', arms)).toBe(true)
+})

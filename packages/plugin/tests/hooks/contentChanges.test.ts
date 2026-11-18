@@ -479,3 +479,12 @@ test.each([true, false])('Experiment-block audit compares stored slot rows, inde
   expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(changed ? 1 : 0)
   expect(payload.calls).toEqual([])
 })
+
+test('changes inside a fully hidden Puck ancestor are not changes to a place the running test appears', async () => {
+  const { args, executor } = setup()
+  for (const doc of [args.previousDoc, args.doc]) doc.puckData = { content: [{ type: 'Container', props: {
+    id: 'hidden', _visibility: { hidden: true }, children: doc.puckData.content,
+  } }] }
+  await recordContentChange(args)
+  expect(executor.calls.some(call => call.text.startsWith('UPDATE'))).toBe(false)
+})

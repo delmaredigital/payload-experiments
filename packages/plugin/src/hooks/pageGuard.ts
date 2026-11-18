@@ -236,7 +236,7 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
     const exec = await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
     let tests = await placementTests(exec)
     const trashing = Boolean(collection.trash && after.deletedAt != null)
-    const { views, affected } = await blockRemovalRule.prepare(req, collection.slug, collection.trash && before?.deletedAt != null ? undefined : before, after, trashing || drafts && after._status !== 'published', exec, tests)
+    const { views, affected, hidden } = await blockRemovalRule.prepare(req, collection.slug, collection.trash && before?.deletedAt != null ? undefined : before, after, trashing || drafts && after._status !== 'published', exec, tests)
     const publishes = !drafts || after._status === 'published'
     const noTransaction = () => {
       if (publishes && tests.some(t => t.kind === 'block' && active(t) && afterSlugs.includes(t.slug))) throw new XpNoTransactionError('Save this page with transactions on.')
@@ -262,7 +262,7 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
       if (old != null && (unpublishing || trashing || page!.pathOf(after) !== old)) protect(tests.filter(t => !t.pageCollection || t.pageCollection === collection.slug), normalisePath(old))
     }
     if (publishes) refuseInteraction(tests, beforeSlugs, afterSlugs, beforePaths, afterPaths, collection.slug)
-    if (affected.length) await blockRemovalRule.check(req, tests, affected, collection.slug, originalDoc.id as DocId, trashing || drafts && after._status !== 'published', views, call?.bulk)
+    if (affected.length) await blockRemovalRule.check(req, tests, affected, collection.slug, originalDoc.id as DocId, trashing || drafts && after._status !== 'published', views, call?.bulk, hidden)
     return data
   } catch (error) { mapBusy(error) }
 }

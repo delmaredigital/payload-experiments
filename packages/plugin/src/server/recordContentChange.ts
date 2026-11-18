@@ -1,3 +1,4 @@
+import { puckVisibility } from '../puck/visibility.js'
 import { EXPERIMENT_BLOCK_SLUG, hostBlocks } from '../blocks/model.js'
 import { safeError } from '../log.js'
 import { isDeepStrictEqual } from 'node:util'
@@ -19,6 +20,7 @@ const object = (value: unknown): value is Record<string, unknown> => value !== n
 
 function bindings(data: unknown, puck: boolean): Map<string, Binding> {
   const found = new Map<string, Binding>()
+  const visibility = puck ? puckVisibility(data) : undefined
   function add(field: Binding['field'], value: DocId, content: unknown) {
     const key = field + ':' + value
     const binding = found.get(key) ?? { field, value, contents: [] }
@@ -27,7 +29,7 @@ function bindings(data: unknown, puck: boolean): Map<string, Binding> {
   }
   function walk(value: unknown): void {
     if (Array.isArray(value)) { value.forEach(walk); return }
-    if (!object(value)) return
+    if (!object(value) || visibility?.get(value)?.hidden) return
     if (puck && value.type === 'ExperimentSlot' && object(value.props)) {
       const props = value.props
       const slug = typeof props.experiment === 'string' ? props.experiment : object(props.experiment) ? props.experiment.slug : undefined

@@ -1,14 +1,17 @@
+import { puckVisibility } from '../puck/visibility.js'
 import type { Data } from '@puckeditor/core'
 import type { Assignments, RenderedExposure } from '../types/assignments.js'
 import { manifestOf, suppressExposure } from './context.js'
 
 export function resolveExperimentData<TData extends Data>(puckData: TData, assignments: Assignments): { data: TData; rendered: RenderedExposure[] } {
+  const visibility = puckVisibility(puckData)
   const rendered = new Map<string, RenderedExposure>()
   const slots = ['control', 'variantA', 'variantB', 'variantC']
   const manifest = manifestOf(assignments)
   function walk(value: unknown): unknown {
-    if (Array.isArray(value)) return value.map(walk)
+    if (Array.isArray(value)) return value.map(walk).filter(item => item !== undefined)
     if (!value || typeof value !== 'object') return value
+    if (visibility.get(value)?.hidden) return undefined
     const node = value as Record<string, unknown>
     if (node.type !== 'ExperimentSlot') return Object.fromEntries(Object.entries(node).map(([key, item]) => [key, walk(item)]))
     const props = node.props && typeof node.props === 'object' ? node.props as Record<string, unknown> : {}

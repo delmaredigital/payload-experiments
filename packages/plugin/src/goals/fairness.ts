@@ -1,3 +1,4 @@
+import { puckVisibility, type BlockVisibility } from '../puck/visibility.js'
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, ResolvedOptions } from '../types/contracts.js'
 import type { PlacementDoc } from '../db/placements.js'
@@ -23,13 +24,13 @@ export interface GoalContent {
 type Experiment = { id: DocId; slug: string; kind: string; arms: Arm[]; pageCollection?: string | null }
 
 /** Inspect inline JSON only; depth-zero relationship ids never dereference another document. */
-function collect(value: unknown, into: Map<string, string>, label = '', labels: ReadonlyMap<string, string>): void {
-  if (Array.isArray(value)) { value.forEach(item => collect(item, into, label, labels)); return }
-  if (!isObject(value)) return
+function collect(value: unknown, into: Map<string, string>, label = '', labels: ReadonlyMap<string, string>, visibility?: ReadonlyMap<object, BlockVisibility>): void {
+  if (Array.isArray(value)) { value.forEach(item => collect(item, into, label, labels, visibility)); return }
+  if (!isObject(value) || visibility?.get(value)?.hidden) return
   const blockType = typeof value.blockType === 'string' ? value.blockType : typeof value.type === 'string' ? value.type : ''
   const containing = labels.get(blockType) ?? (blockType || label)
   if (typeof value.xpGoal === 'string' && CLICK_KEY.test(value.xpGoal)) into.set(value.xpGoal, containing || value.xpGoal)
-  Object.values(value).forEach(item => collect(item, into, containing, labels))
+  Object.values(value).forEach(item => collect(item, into, containing, labels, visibility))
 }
 
 function blockLabels(req: PayloadRequest): Map<string, string> {
@@ -95,13 +96,14 @@ export async function goalContent<TUser extends { id: DocId }>(req: PayloadReque
         } else {
           const registration = puckCollections(options).find(c => c.slug === placement.collection)
           if (!registration) continue
+          const visibility = puckVisibility(doc[registration.field])
           const walk = (value: unknown): void => {
             if (Array.isArray(value)) { value.forEach(walk); return }
-            if (!isObject(value)) return
+            if (!isObject(value) || visibility.get(value)?.hidden) return
             const props = isObject(value.props) ? value.props : undefined
             const ref = props?.experiment
             if (value.type === 'ExperimentSlot' && props && (typeof ref === 'string' ? ref : isObject(ref) ? ref.slug : undefined) === experiment.slug) {
-              for (const arm of experiment.arms.filter(a => a.kind !== 'holdout')) collect(props[arm.slot ?? arm.key], byArm.get(arm.key)!, '', labels)
+              for (const arm of experiment.arms.filter(a => a.kind !== 'holdout')) collect(props[arm.slot ?? arm.key], byArm.get(arm.key)!, '', labels, visibility)
               return
             }
             Object.values(value).forEach(walk)
