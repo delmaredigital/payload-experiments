@@ -1,11 +1,10 @@
 'use client'
 
 import { createUsePuck, useGetPuck } from '@puckeditor/core'
-import { useEffect, useState, useSyncExternalStore, useRef } from 'react'
-import type { ExperimentRef } from '../../types/puck.js'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
 const usePuckSelector = createUsePuck()
-type Targets = { test: HTMLElement; controls: HTMLElement; onChange: (value: ExperimentRef | null) => void }
+type Targets = { test: HTMLElement; controls: HTMLElement }
 type Bridge = {
   targets: Map<string, Targets>; listeners: Set<() => void>
   removeListener: (notify: () => void) => void; removeTarget: (id: string) => void
@@ -29,18 +28,16 @@ export function useSidebarTargets(id: string) {
     () => entry.targets.get(id), () => undefined)
 }
 
-/** The custom field owns only its portal destinations and binding callback, never another data reader. */
-export function TestSidebarField({ onChange }: { onChange: (value: ExperimentRef | null) => void }) {
+/** The custom field owns only its portal destinations never another data reader. */
+export function TestSidebarField() {
   const getPuck = useGetPuck()
-  const change = useRef(onChange)
-  change.current = onChange
   const id = usePuckSelector(state => state.selectedItem?.props.id)
   const [test, setTest] = useState<HTMLDivElement | null>(null)
   const [controls, setControls] = useState<HTMLDivElement | null>(null)
   useEffect(() => {
     if (!id || !test || !controls) return
     const entry = bridge(getPuck)
-    const targets = { test, controls, onChange: (value: ExperimentRef | null) => change.current(value) }
+    const targets = { test, controls }
     entry.targets.set(id, targets)
     for (const notify of entry.listeners) notify()
     return () => {

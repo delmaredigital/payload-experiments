@@ -70,14 +70,14 @@ type Row = { surface: typeof surfaces[number]; status: Status; pageState: typeof
 const rows: Row[] = []
 let omitted = 0
 for (const surface of surfaces) for (const status of statuses) for (const pageState of pages) for (const outcome of outcomes) for (const pending of [false, true]) for (const history of histories) {
-  // Chrome has no transition runner; sidebar offers draft Start and running Stop.
+  // Chrome has no transition runner; sidebar offers draft/stopped Start and running Stop.
   // Archived tests have no transition; decided transitions live in drawer/admin.
   // Redundant rows are omitted to bound the product: a blocker is an
   // answered check; ready requires a published page; failed has no usable answer.
   // "then answer" means any later settled read, including 401/403/404/5xx.
   // Other omissions cover surfaces with no action and equivalent page states.
   const usable = outcome.status === 200 && outcome.name !== 'unusable 200'
-  const redundantOrUnavailable = history !== 'none' && (surface === 'chrome' || status === 'archived' || surface === 'sidebar' && !['draft', 'running'].includes(status))
+  const redundantOrUnavailable = history !== 'none' && (surface === 'chrome' || status === 'archived' || surface === 'sidebar' && !['draft', 'stopped', 'running'].includes(status))
     || history === 'blocker' && (!usable || outcome.name === 'answered' && pageState === 'published')
     || history === 'ready' && pageState !== 'published'
     || history === 'failed' && usable
@@ -142,9 +142,9 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
   const view = render(content())
   const scope = () => within(view.container)
   if (row.history !== 'none') {
-    const label = row.status === 'stopped' ? 'Start a new round' : row.status === 'running' ? 'Stop' : row.status === 'decided' ? 'Make it the content' : 'Start'
+    const label = row.status === 'stopped' ? row.surface === 'sidebar' ? 'Start' : 'Start a new round' : row.status === 'running' ? 'Stop' : row.status === 'decided' ? 'Make it the content' : 'Start'
     fireEvent.click(scope().getByRole('button', { name: label }))
-    if (row.status !== 'draft') fireEvent.click(scope().getAllByRole('button', { name: label })[1]!)
+    if (row.status !== 'draft') fireEvent.click(within(scope().getByRole('dialog')).getByRole('button', { name: row.status === 'stopped' ? 'Start a new round' : label }))
     await act(async () => {})
     expect(scope().getByText(refused).getAttribute('role')).toBe('alert')
     const first = row.history.split(' ')[0]
@@ -174,7 +174,7 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
       : row.pageState === 'saved draft' ? 'Publish this page to start the test.' : 'Save this page to put the test on it.'
   if (row.outcome.message) expect(text).toContain(row.outcome.message)
   else if (setup && row.surface !== 'chrome') {
-    const expected = row.pageState === 'published' ? row.surface === 'sidebar' && row.status === 'stopped' ? 'Stopped' : 'Ready to start.' : row.surface === 'admin'
+    const expected = row.pageState === 'published' ? 'Ready to start.' : row.surface === 'admin'
       ? row.pageState === 'unsaved' ? 'Not on a page yet. Open a page, add an Experiment block and choose this test.' : row.pageState === 'another page only' ? otherPage : "The block you're testing is only on a draft of Landing. Publish the page before you start."
       : local!
     expect(text).toContain(expected)
@@ -183,11 +183,17 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
   else if (!setup) expect(text).toContain({ running: 'Running', decided: 'Decided: Original.', archived: 'Archived.' }[row.status as 'running' | 'decided' | 'archived'])
   const retry = scope().queryByRole('button', { name: /^(Retry|Try again)$/ })
   expect(retry !== null).toBe(row.outcome.retry)
-  const start = scope().queryAllByRole('button', { name: row.status === 'stopped' ? 'Start a new round' : 'Start' }).at(-1) as HTMLButtonElement | undefined
+  const start = scope().queryAllByRole('button', { name: row.status === 'stopped' && row.surface !== 'sidebar' ? 'Start a new round' : 'Start' }).at(-1) as HTMLButtonElement | undefined
   const ready = row.outcome.name === 'answered' && row.pageState === 'published'
-  const offered = row.surface === 'chrome' ? false : row.surface === 'sidebar' ? row.status === 'draft' && ready : setup
+  const offered = row.surface === 'chrome' ? false : row.surface === 'sidebar' ? setup && ready : setup
   expect(!!start).toBe(offered)
-  if (start) expect(start.disabled).toBe(!ready || row.pending)
+  if (start) {
+    const dialog = scope().queryByRole('dialog')
+    const effective = row.surface === 'sidebar' && row.status === 'stopped' && dialog
+      ? within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Start a new round' }) : start
+    expect(effective.disabled).toBe(!ready || row.pending)
+    if (effective !== start) expect(start.disabled).toBe(true)
+  }
   const displayedBlocker = row.outcome.status === 200 && row.outcome.name !== 'unusable 200' && row.outcome.name !== 'placements-failed' && (row.outcome.name !== 'answered' || row.pageState !== 'published')
   const alertExpected = row.history !== 'none' && (!setup || !row.history.startsWith('blocker') && !displayedBlocker)
   expect(scope().queryByText(refused) !== null).toBe(alertExpected)
@@ -200,8 +206,8 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
 
 test('matrix accounts for available and explicitly redundant combinations', () => {
   expect(rows.length + omitted).toBe(4 * 5 * outcomes.length * 4 * 2 * 7)
-  expect(rows.length).toBe(7_480)
-  expect(omitted).toBe(9_320)
+  expect(rows.length).toBe(7_988)
+  expect(omitted).toBe(8_812)
 })
 
 // Observe the real shared timer too: the presentation product above must not
@@ -267,7 +273,7 @@ test.each(['sidebar', 'drawer', 'admin'] as const)('unpublished refusal → expl
 })
 
 test.each([
-  { surface: 'sidebar', status: 'draft' },
+  { surface: 'sidebar', status: 'draft' }, { surface: 'sidebar', status: 'stopped' },
   { surface: 'drawer', status: 'draft' }, { surface: 'drawer', status: 'stopped' },
   { surface: 'admin', status: 'draft' }, { surface: 'admin', status: 'stopped' },
 ] as const)('refusal → placements-failed → automatic retry ready retains alert and permits Start ($surface / $status)', async ({ surface, status }) => {
@@ -284,9 +290,9 @@ test.each([
   const content = () => surface === 'sidebar' ? <><BlockerList steps={blockingSteps(p.test.preflight, p.test.doc!)} /><QuickTestActions {...p} /></> : <ReadinessContent {...p} />
   const view = render(content())
   const scope = () => within(view.container)
-  const label = status === 'stopped' ? 'Start a new round' : 'Start'
+  const label = status === 'stopped' && surface !== 'sidebar' ? 'Start a new round' : 'Start'
   fireEvent.click(scope().getByRole('button', { name: label }))
-  if (status === 'stopped') fireEvent.click(scope().getAllByRole('button', { name: label })[1]!)
+  if (status === 'stopped') fireEvent.click(within(scope().getByRole('dialog')).getByRole('button', { name: 'Start a new round' }))
   await act(async () => {})
   expect(scope().getByRole('alert').textContent).toBe(refused)
   const id = `failed-refusal-${surface}-${status}`
@@ -307,7 +313,9 @@ test.each([
   applyRead()
   expect(view.container.textContent).toContain('Ready to start.')
   expect(scope().getByRole('alert').textContent).toBe(refused)
-  expect((scope().getAllByRole('button', { name: label }).at(-1) as HTMLButtonElement).disabled).toBe(false)
+  const finalStart = status === 'stopped' ? within(scope().getByRole('dialog')).getByRole<HTMLButtonElement>('button', { name: 'Start a new round' })
+    : scope().getByRole<HTMLButtonElement>('button', { name: label })
+  expect(finalStart.disabled).toBe(false)
   stop(); release()
 })
 

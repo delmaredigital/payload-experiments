@@ -114,6 +114,8 @@ test.each(['render', 'editor'] as const)('%s factory supplies custom sidebar rou
   if (field.type !== 'custom') throw new Error('Expected custom picker field')
   const fetch = mockFetch()
   if (kind === 'editor') {
+    HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+    HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
     vi.stubGlobal('matchMedia', (media: string) => ({ matches: false, media, addEventListener() {}, removeEventListener() {} }))
     vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} })
     fetch.mockImplementation(async (url: string) => ({ ok: true, status: 200, json: async () => url.endsWith('/editor-surface') ? { canManage: true, canReadResults: true } : { docs } }))
@@ -121,6 +123,7 @@ test.each(['render', 'editor'] as const)('%s factory supplies custom sidebar rou
     render(<Puck config={{ components: { ExperimentSlot: config } }} iframe={{ enabled: false }}
       data={{ root: { props: {} }, content: [{ type: 'ExperimentSlot', props: { id: 'custom-route', experiment: null, control: [], variantA: [], variantB: [], variantC: [] } }] }}
       ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}><Puck.Preview /><Puck.Fields /></Puck>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Use an existing test' }))
   } else render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'test' }))
   await screen.findByRole('option', { name: 'First example · Draft' })
   expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments?where%5Bkind%5D%5Bequals%5D=block&depth=0&sort=id&limit=100&page=1', expect.objectContaining({ credentials: 'include' }))

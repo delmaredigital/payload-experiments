@@ -254,3 +254,19 @@ test('editor placement instructions and named goal warnings use editor language'
   expect(OUTSIDE_GOAL('Sign up')).toContain('click goal “Sign up”')
   expect(OUTSIDE_GOAL('Sign up')).toContain('The test can still start.')
 })
+
+test('smoke editor copy names setup, version fields and goal roles, and removes the superseded invitations', async () => {
+  const { editorCopy } = await import('../../src/puck/editor/copy.js')
+  const { TEST_PAGE } = await import('../../src/testSurface/copy/testPage.js')
+  expect(editorCopy.unbound).toBe('This Experiment block has no test yet.')
+  expect(editorCopy.createLabel).toBe('Set up test')
+  expect(editorCopy.existingTest).toBe('Use an existing test')
+  expect(editorCopy.differentTest).toBe('Use a different test')
+  expect(editorCopy.saved).toBe('Saved')
+  expect(TEST_PAGE.goalHelp).toBe('The one thing you want more of. It decides the winner.')
+  expect([TEST_PAGE.dontTrack, TEST_PAGE.watch, TEST_PAGE.mustNotWorsen]).toEqual(["Don't track", 'Watch', 'Must not get worse'])
+  const files = [...copyPaths, ...editorFiles, new URL('../../REFERENCE.md', import.meta.url).pathname, new URL('../../../../CHANGELOG.md', import.meta.url).pathname]
+  const removed = ['Test this block', 'Choose or create a test to show different versions.', 'Start a new test from this block', 'Remove the test from this block']
+  for (const path of files) for (const text of removed) expect(readFileSync(path, 'utf8'), path).not.toContain(text)
+  expect(Object.hasOwn(TEST_PAGE, 'clickGoalsNote')).toBe(false)
+})

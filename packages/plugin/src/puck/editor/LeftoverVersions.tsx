@@ -11,13 +11,13 @@ import { tabsFor } from './editor.model.js'
 import type { ArmWrites } from './VersionBuilder.js'
 
 /** Page content stays editable even when it does not belong to the selected test. */
-export function LeftoverVersions({ slots, experiment, writes, canManage, countBlocks, onDelete, onSelect }: {
-  slots: ArmSlot[]; experiment: EditorExperiment; writes: ArmWrites; canManage: boolean
+export function LeftoverVersions({ slots, experiment, writes, canManage, countBlocks, onDelete, onSelect, active, dragging }: {
+  active: ArmSlot; dragging: boolean; slots: ArmSlot[]; experiment: EditorExperiment; writes: ArmWrites; canManage: boolean
   countBlocks: (slot: ArmSlot) => number; onDelete: (slot: ArmSlot) => void; onSelect: (slot: ArmSlot) => void
 }) {
   const [deleting, setDeleting] = useState<ArmSlot | null>(null)
   const versions = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(tabsFor(experiment).map(tab => tab.label))
-  const notice = (slot: ArmSlot) => <div key={slot} className="xp-slot-version-group" role="group" aria-label={C.outsideTest(slotLabels[slot])}><FieldGroup variant="card" collapsible={false}><Button variant="quiet" onClick={() => onSelect(slot)}>{C.outsideTest(slotLabels[slot])}</Button>
+  const notice = (slot: ArmSlot) => <div key={slot} className="xp-slot-version-group" data-active={active === slot} role="group" aria-label={C.outsideTest(slotLabels[slot])}><FieldGroup variant="card" collapsible={false}><Button variant="quiet" aria-pressed={active === slot} disabled={dragging} onClick={() => onSelect(slot)}>{C.outsideTest(slotLabels[slot])}</Button>
     <p>{C.orphan(slotLabels[slot], versions)}</p>
     <div className="xp-ui-button-group">
       {canManage && experiment.status === 'draft' ? <Button disabled={writes.busy} onClick={async () => {

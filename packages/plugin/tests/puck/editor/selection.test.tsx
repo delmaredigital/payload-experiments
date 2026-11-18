@@ -60,13 +60,13 @@ test.each([false, true].flatMap(nested => [false, true].map(fullScreen => ({ nes
   const fields = within(screen.getByTestId('fields'))
   for (const target of [await fields.findByLabelText('Original traffic (%)'), fields.getByRole('textbox', { name: 'Variant A Name' })]) {
     fireEvent.click(target)
-    expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('test-block')))
+    expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('test-block'))
   }
   fireEvent.click(canvas.getByRole('tab', { name: 'Variant A' }))
   fireEvent.click(fields.getByRole('button', { name: 'Remove version' }))
   fireEvent.click(canvas.getByRole('heading', { name: 'Remove Variant A?' }))
   expect(actions).toHaveLength(0)
-  expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('test-block')))
+  expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('test-block'))
 
 })
 

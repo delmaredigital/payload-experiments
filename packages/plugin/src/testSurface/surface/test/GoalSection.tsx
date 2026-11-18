@@ -92,7 +92,7 @@ export function GoalSection({ test, surface, embedded = false }: SectionProps & 
   const [previousCount, setPreviousCount] = useState(otherCount)
   if (previousCount !== otherCount) {
     setPreviousCount(otherCount)
-    if (otherCount > 0) setOtherOpen(true)
+    setOtherOpen(otherCount > 0)
   }
   const roleId = useId()
   const goalGroups = onPage.size ? [

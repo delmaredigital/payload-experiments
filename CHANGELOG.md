@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: version names stay consistent across tabs, sidebar controls and block guidance, including a renamed first version. New first versions default to Original. Migration impact: none.
+
 - Fixed: What counts as a win uses a styled Goal dropdown and one optional list with one role per other goal: Don’t track, Watch, or Must not get worse. Choosing the main goal clears its other role. The admin page and editor drawer share the form; stored fields and validation are unchanged. Migration impact: none.
 
 - Fixed: the Outline follows the open version tab for bound and unbound Experiment blocks, including leftover content, with the existing structure guards, drag deferral and show-all safety fallback. Migration impact: none.

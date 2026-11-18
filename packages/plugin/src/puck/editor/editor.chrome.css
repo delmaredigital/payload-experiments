@@ -18,7 +18,7 @@
 
 .xp-slot-header {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--xp-space-2);
   cursor: pointer;
@@ -39,7 +39,11 @@
   color: var(--xp-text);
   font: inherit;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .xp-slot-editor > .xp-ui-tabs > .xp-ui-tabs-header {
@@ -159,7 +163,6 @@
 
 .xp-slot-editor .xp-ui-tabbar { flex: 1 1 auto; min-width: 0; }
 
-.xp-slot-weight-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xp-space-2); }
 .xp-slot-sidebar { display: grid; gap: var(--xp-space-4); }
 .xp-slot-sidebar section, .xp-slot-sidebar section > div { display: grid; gap: var(--xp-space-3); }
 .xp-slot-sidebar h4 { margin: 0; font: inherit; font-weight: 600; }
@@ -173,8 +176,4 @@
 .xp-slot-sidebar .xp-slot-version-name { display: flex; align-items: end; gap: var(--xp-space-2); }
 .xp-slot-sidebar .xp-slot-version-name > .xp-ui-field { flex: 1; min-width: 0; }
 
-/* Keep name and status together while allowing long names to shrink. */
-.xp-slot-header { flex-wrap: nowrap; }
-.xp-slot-title { min-width: 0; flex: 1; }
 .xp-slot-header .xp-ui-status { flex: none; }
-.xp-slot-editor .xp-ui-tablist { flex-wrap: wrap; min-width: 0; }

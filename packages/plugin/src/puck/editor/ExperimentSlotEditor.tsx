@@ -226,6 +226,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     return () => publishOutlineVersion(getPuck, props.id)
   }, [getPuck, props.id, slot])
   const Slot = props[slot]
+  const originalLabel = tabs.find(tab => tab.slot === 'control')?.label ?? slotLabels.control
   const winnerKey = experiment?.decision?.winnerArm
   const winner = tabs.find(tab => tab.slot === winnerKey)?.label
 
@@ -272,7 +273,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     setActive({ id: experimentId, slot: 'control' })
   }
 
-  function bind(experiment: ExperimentRef | null) {
+  function bind(experiment: ExperimentRef) {
     if (!isCurrentBinding()) return false
     const { getItemById, dispatch, getSelectorForId } = getPuck()
     const item = getItemById(props.id), selector = getSelectorForId(props.id)
@@ -304,7 +305,6 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     creation.current = openCreateExperimentDrawer(root.current, { admin, api }, {
       initialName: pageTitle,
       arms: newTestArms,
-      label: experimentId === undefined ? editorCopy.createLabel : editorCopy.createAnother,
       onCreate: bind,
     })
   }
@@ -348,7 +348,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const placementNoticeView = <PlacementNotice read={quickTest.preflightRead} message={placementMessage} running={experiment?.status === 'running'} onRetry={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId) }} />
   const sidebarBlockers = surface ? sidebarReadinessBlockers(quickTest, surface) : []
 
-  const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} experiment={experiment} writes={writes} canManage={canManage}
+  const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} active={slot} dragging={dragging} experiment={experiment} writes={writes} canManage={canManage}
     countBlocks={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null
 
   const documentRead = result?.read ? classifyReadinessRead(result.read.status, undefined, documentFailures.current.failures, { kind: 'document', surface: 'editor', resultsOnly }) : undefined
@@ -357,7 +357,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         : experimentId === undefined && resultsOnly ? <p className="xp-ui-help">{editorCopy.setupForbidden}</p>
         : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
         : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner tone={experiment?.status === 'running' ? 'warning' : 'info'}>
-        {experimentId === undefined ? bannerFor() : experiment ? bannerFor(experiment.status, winner) : editorCopy.loading}
+        {experimentId === undefined ? bannerFor() : experiment ? bannerFor(experiment.status, winner, originalLabel) : editorCopy.loading}
       </Banner>
 
   const removeDialog = removing?.key === bindingKey ? <RemoveVersion count={countSlotBlocks(getPuck().getItemById(props.id)?.props[removing.arm.key])} shared={locallyShared ? true : result?.shared} arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null
@@ -378,7 +378,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         </FieldGroup></section>
       </div>, sidebar.test)}
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-        {experiment ? <section aria-label={editorCopy.versionsGroup}><FieldGroup label={editorCopy.versionsGroup} collapsible={false}>
+        {experiment && access.surface && !noAccess ? <section aria-label={editorCopy.versionsGroup}><FieldGroup label={editorCopy.versionsGroup} collapsible={false}>
           {!editable ? <p className="xp-ui-help">{canManage ? editorCopy.locked[experiment.status as keyof typeof editorCopy.locked] ?? editorCopy.lockedGeneric : editorCopy.readOnlyVersions}</p> : null}
           <VersionWeights edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable}
             beforeSplit={<>{leftoverControls}{editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}</>}
@@ -387,27 +387,27 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
                 <Button variant="quiet" aria-pressed={slot === arm.key} disabled={arm.kind === 'holdout' || dragging} onClick={() => setActive({ id: experimentId, slot: arm.key as ArmSlot })}>{arm.label}</Button>
                 <VersionName key={`${experimentId}-${arm.key}`} arm={arm} writes={writes} editable={editable} />
                 {input}
-                {arm.kind === 'variant' ? <><Button disabled={writes.busy || originalEmpty} onClick={() => requestCopy(arm.key as ArmSlot)}>{editorCopy.copy}</Button>{originalEmpty ? <p className="xp-ui-help">{editorCopy.copyEmpty}</p> : null}</> : null}
+                {arm.kind === 'variant' ? <><Button disabled={writes.busy || originalEmpty} onClick={() => requestCopy(arm.key as ArmSlot)}>{editorCopy.copy(originalLabel)}</Button>{originalEmpty ? <p className="xp-ui-help">{editorCopy.copyEmpty(originalLabel)}</p> : null}</> : null}
                 {editable && arm.kind !== 'control' ? <Button disabled={writes.busy} onClick={() => setRemoving({ key: bindingKey, arm })}>{editorCopy.removeVersion}</Button> : null}
               </FieldGroup>
             </div>} />
         </FieldGroup></section> : null}
-        {canManage && experimentId !== undefined ? <FieldGroup label={editorCopy.moreGroup} defaultExpanded={false}>
-          <Button disabled={!experiment} onClick={() => setChoosing(true)}>{editorCopy.differentTest}</Button>
+        {access.surface?.canManage && experimentId !== undefined ? <FieldGroup label={editorCopy.moreGroup} defaultExpanded={false}>
+          <Button onClick={() => setChoosing(true)}>{editorCopy.differentTest}</Button>
         </FieldGroup> : null}
         {writes.busy ? <p role="status">{editorCopy.savingVersions}</p> : null}
         {writes.error ? <p role="alert">{writes.error}</p> : null}
         {clearError?.key === bindingKey ? <p role="alert">{clearError.message}</p> : null}
         {removed?.key === bindingKey && removed.contentRemoved ? <p>{editorCopy.removed}</p> : null}
         {experiment && experiment.status !== 'draft' ? <ResultsReadout key={`results-${experimentId}`} id={experimentId!} api={api} experiment={experiment} /> : null}
-        {confirming ? <div role="alert"><p>{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming)}</p><div className="xp-ui-button-group">
+        {confirming ? <div role="alert"><p>{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming, originalLabel)}</p><div className="xp-ui-button-group">
           <Button variant="primary" onClick={() => copyTo(confirming)}>{editorCopy.replace}</Button>
           <Button onClick={() => setConfirming(null)}>{editorCopy.cancel}</Button>
         </div></div> : null}
         {removeDialog}
-        {choosing ? <Dialog open title={editorCopy.differentTest} onClose={() => setChoosing(false)}><div className="xp-slot-drawer">
+        {choosing ? <Dialog open title={experimentId === undefined ? editorCopy.existingTest : editorCopy.differentTest} onClose={() => setChoosing(false)}><div className="xp-slot-drawer">
           <ExperimentPicker value={props.experiment ?? null} allowEmpty={false} onChange={value => { if (value && bind(value)) setChoosing(false) }} />
-          <Button onClick={() => { setChoosing(false); createFromBlock() }}>{editorCopy.createAnother}</Button>
+          <Button disabled={experimentId !== undefined && !experiment} onClick={() => { setChoosing(false); createFromBlock() }}>{editorCopy.createAnother}</Button>
           <Button onClick={() => setChoosing(false)}>{editorCopy.cancel}</Button>
         </div></Dialog> : null}
       </div>, sidebar.controls)}
@@ -420,10 +420,10 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
             selectBlock()
           }
         }}>
-        <h3 className="xp-slot-title">{experiment?.name ?? experimentSlotLabel}</h3>
-        {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
+        <h3 className="xp-slot-title" title={experimentId === undefined ? editorCopy.unbound : experiment?.name ?? experimentSlotLabel}>{experimentId === undefined ? editorCopy.unbound : experiment?.name ?? experimentSlotLabel}</h3>
+        {experiment ? <StatusChip status={experiment.status} /> : null}
       </header>
-      {accessNotice}
+      {experimentId === undefined && canManage ? null : accessNotice}
       {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
       {canManage ? placementNoticeView : null}
       {setupError && experimentId === undefined ? <p role="alert">{setupError}</p> : null}
@@ -433,7 +433,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       items={tabs.map(tab => ({ id: tab.slot, label: tab.label, content: tab.slot === slot ?
         <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'}>
           <Slot className="xp-slot-drop-target" />
-          {slotEmpty ? <span className="xp-slot-drop-label">{editorCopy.dropZone(slot)}</span> : null}
+          {slotEmpty ? <span className="xp-slot-drop-label">{editorCopy.dropZone(tabs.find(tab => tab.slot === slot)?.label ?? slotLabels[slot])}</span> : null}
         </div> : null }))} />
   </section>
 }
@@ -445,11 +445,7 @@ export function createExperimentSlotEditor({ routes: inputRoutes, accent }: { ro
   return {
     label: experimentSlotLabel,
     fields: { ...experimentSlotFields, experiment: { type: 'custom', label: pickerCopy.label,
-      render: ({ value, onChange }) => <PuckHostProvider routes={routes}><TestSidebarField onChange={next => {
-        if (value) invalidatePlacements(routes.api, value.id)
-        if (next) invalidatePlacements(routes.api, next.id)
-        onChange(next)
-      }} /></PuckHostProvider>,
+      render: () => <PuckHostProvider routes={routes}><TestSidebarField /></PuckHostProvider>,
     } },
     defaultProps: experimentSlotDefaultProps,
     render: props => <PuckHostProvider routes={routes}><EditorRender {...props} accent={sets} /></PuckHostProvider>,

@@ -168,7 +168,7 @@ test('an unbound results-only reader sees the setup-access line without a create
   setup('results', 200, undefined, true)
   const chrome = document.querySelector<HTMLElement>('.xp-slot-chrome')!
   await within(chrome).findByText("You don't have access to set up tests.")
-  expect(within(chrome).queryByText('This Experiment block has no test yet.')).toBeNull()
+  expect(within(chrome).getByRole('heading', { name: 'This Experiment block has no test yet.' })).toBeTruthy()
   expect(within(chrome).queryByRole('button')).toBeNull()
 })
 

@@ -17,6 +17,7 @@ let failure: 'lookup' | 'post' | 'network' | 'malformed' | undefined
 let taken: boolean
 const reply = (body: unknown, status = 200) => Response.json(body, { status })
 beforeEach(() => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   role = 'manager'; failure = undefined; taken = false
   vi.stubGlobal('matchMedia', (media: string) => ({ matches: false, media, addEventListener() {}, removeEventListener() {} }))
   vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} })
@@ -31,7 +32,7 @@ beforeEach(() => {
       if (failure === 'malformed') return reply({ doc: {} })
       return reply({ doc: { id: 'created', slug: 'landing-test' } })
     }
-    if (url.searchParams.has('where[name][in]')) {
+    if (url.searchParams.has('where[or][0][name][equals]')) {
       if (failure === 'network') throw new Error('offline')
       return failure === 'lookup' ? reply({}, 403) : reply({ docs: taken ? [{ name: 'Landing test' }] : [] })
     }

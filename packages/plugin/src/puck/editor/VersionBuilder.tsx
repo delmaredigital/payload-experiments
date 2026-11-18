@@ -16,13 +16,13 @@ export function useArmWrites(url: string, publish: (doc: EditorExperiment) => vo
   const guard = useRef(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  async function write(transform: (arms: Arm[]) => Arm[], options?: { draftOnly?: boolean }): Promise<Arm[] | undefined> {
+  async function write(transform: (arms: Arm[]) => Arm[], options?: { draftOnly?: boolean; onError?: (message: string) => void }): Promise<Arm[] | undefined> {
     if (guard.current) return
     guard.current = true
     onWrite()
     setBusy(true); setError(null)
     try { const saved = await writeArms(url, transform, publish, options); onSaved?.(); return saved }
-    catch (error) { if (isCurrent()) setError(error instanceof ArmWriteError ? error.message : C.writeNetwork) }
+    catch (error) { if (isCurrent()) { const message = error instanceof ArmWriteError ? error.message : C.writeNetwork; if (options?.onError) options.onError(message); else setError(message) } }
     finally { guard.current = false; setBusy(false) }
   }
   return { write, busy, error }
@@ -48,7 +48,7 @@ export function VersionName({ arm, writes, editable }: { arm: EditorExperiment['
   const [name, setName] = useState(arm.label)
   const draft = useRef(arm.label)
   const pending = useRef(false)
-  const [attempted, setAttempted] = useState(false)
+  const [error, setError] = useState<string>()
   const [invalid, setInvalid] = useState(false)
   const [saved, setSaved] = useState(false)
   useEffect(() => { draft.current = arm.label; setName(arm.label) }, [arm.label])
@@ -62,18 +62,18 @@ export function VersionName({ arm, writes, editable }: { arm: EditorExperiment['
     if (!draft.current.trim()) { setInvalid(true); return }
     const label = draft.current.trim()
     pending.current = true
-    setAttempted(true); setSaved(false)
+    setError(undefined); setSaved(false)
     try {
-      const result = await writes.write(arms => arms.map(current => current.key === arm.key ? { ...current, label } : current))
+      const result = await writes.write(arms => arms.map(current => current.key === arm.key ? { ...current, label } : current), { onError: setError })
       if (result) setSaved(true)
     } finally { pending.current = false }
   }
   return <div className="xp-slot-version-name"><TextInput id={id} label={C.name} aria-label={`${arm.label} ${C.name}`} value={name}
-    readOnly={!editable} disabled={writes.busy} error={invalid ? C.emptyLabel : attempted ? writes.error ?? undefined : undefined}
-    onChange={event => { draft.current = event.target.value; setName(event.target.value); setInvalid(false); setAttempted(false); setSaved(false) }}
+    readOnly={!editable} disabled={writes.busy} error={invalid ? C.emptyLabel : error}
+    onChange={event => { draft.current = event.target.value; setName(event.target.value); setInvalid(false); setError(undefined); setSaved(false) }}
     onBlur={() => void commit()} onKeyDown={event => {
       if (event.key === 'Enter') { event.preventDefault(); void commit() }
-      if (event.key === 'Escape') { event.preventDefault(); draft.current = arm.label; setName(arm.label); setInvalid(false); setAttempted(false); setSaved(false) }
+      if (event.key === 'Escape') { event.preventDefault(); draft.current = arm.label; setName(arm.label); setInvalid(false); setError(undefined); setSaved(false) }
     }} />{saved ? <span role="status" className="xp-ui-help">{C.saved}</span> : null}</div>
 }
 

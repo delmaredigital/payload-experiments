@@ -142,3 +142,10 @@ test('current document can match either saved version’s custom editor pathname
   expect(currentPuckDocument('/admin/puck-editor/pages/create', '/admin')).toBeUndefined()
   expect(currentPuckDocument('/admin/puck-editor/pages/%', '/admin')).toBeUndefined()
 })
+
+
+test('saved first-version names drive tabs and notices, while the default stays Original', () => {
+  expect(tabsFor({ arms: [{ key: 'control', kind: 'control', label: 'Control' }] })).toEqual([{ slot: 'control', label: 'Control' }])
+  expect(bannerFor('draft', undefined, 'Control')).toBe('This block shows the Control to everyone until the test starts.')
+  expect(tabsFor()).toEqual([{ slot: 'control', label: 'Original' }])
+})

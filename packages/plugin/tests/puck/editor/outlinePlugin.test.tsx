@@ -98,7 +98,7 @@ test('walks nested slots and legacy zones and escapes item ids', () => {
   expect(CSS.escape).toHaveBeenCalledWith('escaped"id')
 })
 
-test('editor fetch fills cache, tab-return refetch updates it, warning uses static label, and saved page data stays unchanged', async () => {
+test('editor fetch fills cache, tab-return refetch updates it, marked tab uses its page label, and saved page data stays unchanged', async () => {
   const data: Data = { root: { props: {} }, content: [block('orphan', 'test', true)], zones: {} }
   const before = structuredClone(data)
   let saved: Data | undefined
@@ -112,9 +112,9 @@ test('editor fetch fills cache, tab-return refetch updates it, warning uses stat
     iframe={{ enabled: false }} ui={{ itemExpanded: { orphan: true } }}>
     <Puck.Outline /><Puck.Preview /><Save />
   </Puck>)
-  await screen.findByText("Variant C has content on this page, but the test only has Original and Variant A. Visitors never see it.")
+  await screen.findByRole('tab', { name: 'Variant C · not in this test' })
   expect(visibility('orphan')).toEqual([true, false, false, false])
-  expect(screen.getByText(/Variant C has content/).closest('.xp-ui-banner--warning')).toBeTruthy()
+  expect(screen.queryByText(/Variant C has content/)).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Save page' }))
   expect(saved).toEqual(before)
   expect(data).toEqual(before)
@@ -167,15 +167,15 @@ test('visibility return refetches once for two blocks on the same test; focus an
   expect(experimentFetch).toHaveBeenCalledTimes(2)
 })
 
-test('during a refetch hidden rows stay hidden without flicker and the orphan warning stays visible', async () => {
+test('during a refetch hidden rows stay hidden without flicker and the marked leftover tab stays visible', async () => {
   mount({ root: { props: {} }, content: [block('orphan', 'test', true)] }, true)
-  await screen.findByText(/Variant C has content/)
+  await screen.findByRole('tab', { name: 'Variant C · not in this test' })
   let finish!: (response: Response) => void
   experimentFetch.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
   returnToTab()
   expect(experimentFetch).toHaveBeenCalledTimes(2)
   expect(visibility('orphan')).toEqual([true, false, false, false])
-  expect(screen.getByText(/Variant C has content/)).toBeTruthy()
+  expect(screen.getByRole('tab', { name: 'Variant C · not in this test' })).toBeTruthy()
   await act(async () => { finish({ ok: true, json: async () => doc } as Response) })
   expect(visibility('orphan')).toEqual([true, false, false, false])
 })
@@ -203,7 +203,7 @@ test.each([false, true])('a second block joins known arms and the pending fetch;
   await waitFor(() => expect(document.querySelectorAll('.xp-slot-editor')).toHaveLength(2))
   expect(visibility('two-arm')).toEqual(knownVisibility)
   expect(visibility('orphan')).toEqual([true, false, false, false])
-  expect(Boolean(screen.queryByText(/Variant C has content/))).toBe(orphan)
+  expect(Boolean(screen.queryByRole('tab', { name: 'Variant C · not in this test' }))).toBe(orphan)
   expect(experimentFetch).toHaveBeenCalledTimes(2)
   await act(async () => { finish({ ok: true, json: async () => doc } as Response) })
   view.unmount()
@@ -300,7 +300,7 @@ test('real Puck zone rows follow the plugin slot-field order with the required r
 
 test('each real block outline follows its own active tab, including leftover content; hidden rows have no pointer targets', async () => {
   mount({ root: { props: {} }, content: [block('two-arm'), block('orphan', 'test', true)] }, true)
-  await screen.findByText(/Variant C has content/)
+  await screen.findByRole('tab', { name: 'Variant C · not in this test' })
   expect(visibility('two-arm')).toEqual([true, false, false, false])
   expect(visibility('orphan')).toEqual([true, false, false, false])
   const editors = document.querySelectorAll('.xp-slot-editor')

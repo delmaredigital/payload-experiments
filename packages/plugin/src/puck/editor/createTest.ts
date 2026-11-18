@@ -1,3 +1,4 @@
+import { fetchAllDocs } from '../../lib/fetchAllDocs.js'
 import type { ExperimentRef } from '../../types/puck.js'
 import { editorCopy } from './copy.js'
 import { isSlugCollision, newTestBody, slugify, slugCandidate } from './editor.model.js'
@@ -51,12 +52,11 @@ export async function createBlockTest(api: string, pageTitle: string, arms: Para
   const base = `${pageTitle.trim() || 'Page'} test`
   for (let next = 1; ; next += 50) {
     const names = Array.from({ length: 50 }, (_, offset) => next + offset === 1 ? base : `${base} ${next + offset}`)
-    const query = new URLSearchParams({ 'where[name][in]': names.join(','), limit: '50', depth: '0', 'select[name]': 'true' })
-    const response = await fetch(`${api}/xp-experiments?${query}`, { credentials: 'include' })
-    const body = await response.json()
-    if (!response.ok) throw new CreateRefused(refusalMessage(body))
-    if (!Array.isArray(body?.docs)) throw new Error(editorCopy.createError)
-    const taken = new Set(body.docs.map((doc: { name?: string }) => doc.name))
+    const query = new URLSearchParams({ depth: '0', 'select[name]': 'true' })
+    names.forEach((name, index) => query.set(`where[or][${index}][name][equals]`, name))
+    const response = await fetchAllDocs<{ name?: string }>(`${api}/xp-experiments?${query}`, { credentials: 'include' })
+    if (!response.ok) throw new CreateRefused(refusalMessage(response.body))
+    const taken = new Set(response.docs.map(doc => doc.name))
     const name = names.find(candidate => !taken.has(candidate))
     if (name) return createTest(api, { name, kind: 'block', unitType: 'visitor', arms })
   }

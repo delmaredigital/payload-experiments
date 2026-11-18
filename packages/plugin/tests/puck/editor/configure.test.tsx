@@ -168,8 +168,8 @@ test('a start refusal displays the same server sentence without a custom page-sa
 test.each([false, true])('drawer clicks, keys and pointer events preserve real Puck selection (selected: %s)', async selected => {
   setup()
   if (selected) fireEvent.click(await screen.findByRole('heading', { name: base.name }))
-  const before = read().appState.ui.itemSelector
   const { drawer } = await open()
+  const before = read().appState.ui.itemSelector
   const name = await within(drawer).findByLabelText('Test name')
   actions.length = 0
   for (const target of [drawer, name, within(drawer).getByText('Edit version content on the canvas.')]) {
@@ -348,13 +348,13 @@ test('unsaved page guidance appears in chrome, section and footer, then refreshe
   try {
     const { drawer } = await open()
     const save = 'Save this page to put the test on it.'
-    await waitFor(() => expect(screen.getAllByText(save).length).toBe(3))
+    await waitFor(() => expect(screen.getAllByText(save).length).toBe(4))
     expect((within(drawer).getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true)
     placements = [{ collection: 'pages', id: 7, title: 'Page', ok: true, detail: 'Draft' }]
     now += 10_001
     fireEvent.focus(window)
     const publish = 'Publish this page to start the test.'
-    await waitFor(() => expect(screen.getAllByText(publish).length).toBe(3))
+    await waitFor(() => expect(screen.getAllByText(publish).length).toBe(4))
     placements = [{ ...placements[0]!, detail: 'Published' }]
     // Focus refreshes are debounced by the shared document reader.
     await new Promise(resolve => setTimeout(resolve, 110))
@@ -368,7 +368,7 @@ test('unsaved page guidance appears in chrome, section and footer, then refreshe
     now += 10_001
     const reopened = await open()
     await within(reopened.drawer).findByLabelText('Test name')
-    await waitFor(() => expect(screen.getAllByText(publish)).toHaveLength(3))
+    await waitFor(() => expect(screen.getAllByText(publish)).toHaveLength(4))
   } finally { window.history.replaceState({}, '', '/') }
 })
 
@@ -438,7 +438,7 @@ test('the real editor drawer uses one other-goal list and moves a role exclusive
   expect(within(other).getAllByRole('combobox')).toHaveLength(2)
   expect(win.queryByRole('checkbox')).toBeNull()
   expect(win.getByRole('combobox', { name: 'Goal' }).closest('.xp-ui-select-wrap')).toBeTruthy()
-  fireEvent.change(within(other).getByLabelText('Lessons · lessons'), { target: { value: 'guardrails' } })
+  fireEvent.change(await within(other).findByLabelText('Lessons · lessons'), { target: { value: 'guardrails' } })
   await waitFor(() => expect(saved.metrics).toEqual({ primary: 1, guardrails: [3, 2], secondary: [] }))
   const patch = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')![1]!
   expect(JSON.parse(String(patch.body))).toEqual({ metrics: { primary: 1, guardrails: [3, 2], secondary: [] } })

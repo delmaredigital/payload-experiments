@@ -1,7 +1,4 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { createExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
@@ -50,7 +47,7 @@ async function mount() {
   await screen.findByRole('heading', { name: 'Example' })
   return view
 }
-function menu(label = 'Variant A') { fireEvent.click(screen.getByRole('tab', { name: label })) }
+function selectVersion(label = 'Variant A') { fireEvent.click(screen.getByRole('tab', { name: label })) }
 function patches() { return vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH') }
 beforeEach(() => {
   targets = { test: document.createElement('div'), controls: document.createElement('div'), onChange: vi.fn() }; document.body.append(targets.test, targets.controls)
@@ -112,13 +109,13 @@ test.each(['other', 'none'] as const)('Remove focuses Cancel, confirms once and 
     const modal = document.querySelector('dialog[open]')
     if (!modal || modal.contains(this)) focus.call(this)
   })
-  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  await mount(); selectVersion(); screen.getByRole('button', { name: C.removeVersion }).focus(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   let dialog = screen.getByRole('dialog')
   expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: C.cancel }))
   fireEvent.keyDown(dialog, { key: 'Escape' })
   expect(screen.queryByRole('dialog')).toBeNull(); expect(patches()).toHaveLength(0)
   expect(document.activeElement).toBe(screen.getByRole('button', { name: C.removeVersion }))
-  menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   dialog = screen.getByRole('dialog')
   const remove = within(dialog).getByRole('button', { name: C.remove })
   fireEvent.click(remove); fireEvent.click(remove)
@@ -134,7 +131,7 @@ test.each(['other', 'none'] as const)('Remove focuses Cancel, confirms once and 
   fireEvent.click(screen.getByRole('button', { name: C.add }))
   await screen.findByRole('tab', { name: 'Variant A' })
   await waitFor(() => expect((screen.getByRole('button', { name: C.removeVersion }) as HTMLButtonElement).disabled).toBe(false))
-  menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
   await waitFor(() => expect(screen.queryByRole('tab', { name: 'Variant A' })).toBeNull())
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Original' })))
@@ -176,7 +173,7 @@ test('a fresh Remove dialog hides a failed Add error until its own attempt', asy
   await mount(); refuse = { status: 403, code: 'forbidden' }
   fireEvent.click(screen.getByRole('button', { name: C.add }))
   await screen.findByText("You don't have permission to do this.")
-  menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   const dialog = screen.getByRole('dialog')
   expect(within(dialog).queryByRole('alert')).toBeNull()
   expect(patches()).toHaveLength(1)
@@ -274,7 +271,7 @@ test('a delayed removal for a previous binding never overwrites the new document
     }
     return fetcher(url, init)
   })
-  menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
   await waitFor(() => expect(order).toEqual(['GET', 'GET', 'PATCH']))
   doc = { ...doc, name: 'Second test' }
@@ -288,7 +285,7 @@ test('a delayed removal for a previous binding never overwrites the new document
 
 
 test.each([false, true])('Remove 409 announces mapped stale copy inside the still-open dialog (already removed: %s)', async alreadyRemoved => {
-  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  await mount(); selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   refuse = { status: 409, code: 'stale-edit' }
   if (alreadyRemoved) {
     const fetcher = vi.mocked(fetch).getMockImplementation()!
@@ -316,7 +313,7 @@ test.each(['non-JSON', 'invalid shape', 'invalid arm', 'unknown status'] as cons
 })
 
 test.each(['missingItem', 'missingSelector'] as const)('successful Remove explains when content cannot be cleared: %s', async missing => {
-  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  await mount(); selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   puck[missing] = true
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
   expect((await screen.findByRole('alert')).textContent).toBe(C.removeUncleared)
@@ -325,7 +322,7 @@ test.each(['missingItem', 'missingSelector'] as const)('successful Remove explai
 })
 
 test('rebinding hides an uncleared-content error from the previous binding', async () => {
-  const view = await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  const view = await mount(); selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   puck.missingSelector = true
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
   await screen.findByText(C.removeUncleared)
@@ -336,7 +333,7 @@ test('rebinding hides an uncleared-content error from the previous binding', asy
 })
 
 test('the next successful write clears an uncleared-content error on the same binding', async () => {
-  await mount(); menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  await mount(); selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   puck.missingSelector = true
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: C.remove }))
   await screen.findByText(C.removeUncleared)
@@ -375,7 +372,7 @@ test('a successful in-flight arm write clears a document-refetch error', async (
   refetch = true
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
   fireEvent(document, new Event('visibilitychange'))
-  await screen.findByText("Couldn't load this test. Try selecting it again.")
+  await screen.findAllByText("Couldn't load this test. Try selecting it again.")
   await act(async () => { complete(response({ doc: { ...doc, arms: [...doc.arms, { key: 'variantB', kind: 'variant', label: 'Variant B', slot: 'variantB', weight: 0 }] } })) })
   await screen.findByRole('tab', { name: 'Variant B' })
   expect(screen.queryByText("Couldn't load this test. Try selecting it again.")).toBeNull()
@@ -409,9 +406,9 @@ test('copying an empty Original has a visible reason next to the disabled action
   const content = puck.item.props.control
   puck.item.props.control = []
   try {
-    await mount(); menu()
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: C.copy }).disabled).toBe(true)
-    expect(screen.getByText(C.copyEmpty)).toBeTruthy()
+    await mount(); selectVersion()
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: C.copy() }).disabled).toBe(true)
+    expect(screen.getByText(C.copyEmpty())).toBeTruthy()
   } finally { puck.item.props.control = content }
 })
 test('leftover Add checks draft status again before writing', async () => {
@@ -429,7 +426,7 @@ test('removing a version also explains its effect on other pages', async () => {
   vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/preflight')
     ? Promise.resolve(response({ checks: [], placements: [{ collection: 'pages', id: 'another', detail: 'Published' }] })) : originalFetch(url, init))
   await mount()
-  await screen.findByText(C.sharedTest)
-  menu(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
+  await screen.findAllByText(C.sharedTest)
+  selectVersion(); fireEvent.click(screen.getByRole('button', { name: C.removeVersion }))
   expect(within(screen.getByRole('dialog')).getByText(C.removeShared)).toBeTruthy()
 })

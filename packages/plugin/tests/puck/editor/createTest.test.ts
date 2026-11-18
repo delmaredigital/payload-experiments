@@ -92,3 +92,25 @@ test('250 occupied names need exactly six bounded in probes and one successful P
   }
   expect(fetch.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
 })
+
+test('default block names preserve punctuation and read all duplicate-name pages before picking a number', async () => {
+  const { createBlockTest } = await import('../../../src/puck/editor/createTest.js')
+  const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
+    if (init?.method === 'POST') return response({ doc: { id: 'created', slug: 'news-events-test-3' } })
+    const url = new URL(input, 'https://example.test')
+    if (url.searchParams.has('where[or][0][name][equals]')) {
+      expect(url.searchParams.get('where[or][0][name][equals]')).toBe('News, Events test')
+      expect(url.searchParams.get('where[or][1][name][equals]')).toBe('News, Events test 2')
+      expect(url.searchParams.has('where[name][in]')).toBe(false)
+      return response(url.searchParams.get('page') === '1' ? {
+        docs: Array.from({ length: 100 }, (_, id) => ({ id, name: 'News, Events test' })), hasNextPage: true,
+      } : { docs: [{ id: 'last', name: 'News, Events test 2' }], hasNextPage: false })
+    }
+    return response({ docs: [] })
+  })
+  vi.stubGlobal('fetch', fetcher)
+  await createBlockTest('/api', 'News, Events', [])
+  const post = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')!
+  expect(JSON.parse(String(post[1]!.body)).name).toBe('News, Events test 3')
+  expect(fetcher).toHaveBeenCalledTimes(4)
+})

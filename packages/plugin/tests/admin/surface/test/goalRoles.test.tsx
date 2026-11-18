@@ -34,6 +34,9 @@ test.each([false, true])('one collapsed optional list has one role per remaining
   expect((screen.getByLabelText('Completion · signup') as HTMLSelectElement).value).toBe('secondary')
   expect((screen.getByLabelText('Donation · signup') as HTMLSelectElement).value).toBe('guardrails')
   expect(p.test.stage).not.toHaveBeenCalled()
+  p.test.doc!.metrics = { primary: 1, guardrails: [], secondary: [] }
+  view.rerender(<GoalSection {...p} embedded={embedded} />)
+  expect(screen.getByText('Other goals (optional)').closest('details')!.open).toBe(false)
 })
 
 test('a role changes exclusively, and promoting a watched goal clears its other role in the same payload', async () => {
@@ -55,7 +58,7 @@ test('a role changes exclusively, and promoting a watched goal clears its other 
 })
 
 test('no other goals means no optional section', async () => {
-  vi.mocked(fetch).mockResolvedValue(Response.json({ docs: goals.slice(0, 1) }))
+  vi.mocked(fetch).mockImplementation(async () => Response.json({ docs: goals.slice(0, 1) }))
   render(<GoalSection {...props({ metrics: { primary: 1 } })} />)
   await screen.findByRole('option', { name: 'Registration · signup' })
   expect(screen.queryByText(/Other goals/)).toBeNull()

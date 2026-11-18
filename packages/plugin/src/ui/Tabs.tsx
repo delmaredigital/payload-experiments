@@ -2,7 +2,7 @@
 import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import './ui.css'
-export interface Tab { id: string; label: string; content: ReactNode; actions?: ReactNode; disabled?: boolean }
+export interface Tab { id: string; label: string; content: ReactNode; disabled?: boolean }
 export function Tabs({ items, label, value, onChange, renderHeader, disabled = false }: { items: Tab[]; label: string; disabled?: boolean; value?: string; onChange?: (id: string) => void; renderHeader?: (children: ReactNode) => ReactNode }) {
   const prefix = useId()
   const [local, setLocal] = useState(() => items.find(item => !item.disabled)?.id)
@@ -10,7 +10,7 @@ export function Tabs({ items, label, value, onChange, renderHeader, disabled = f
   const selected = items.find(item => item.id === requested && !item.disabled)?.id ?? items.find(item => !item.disabled)?.id
   function select(id: string) { if (disabled) return; setLocal(id); onChange?.(id) }
   const header = <div className="xp-ui-tabbar"><div role="tablist" aria-label={label} aria-disabled={disabled || undefined} className="xp-ui-tablist">
-    {items.map((item, index) => <button key={item.id} style={{ order: index * 2 }} type="button" role="tab" id={`${prefix}-tab-${item.id}`} aria-controls={`${prefix}-panel-${item.id}`}
+    {items.map(item => <button key={item.id} type="button" role="tab" id={`${prefix}-tab-${item.id}`} aria-controls={`${prefix}-panel-${item.id}`}
       aria-selected={selected === item.id} tabIndex={selected === item.id ? 0 : -1} disabled={disabled || item.disabled}
       className="xp-ui-tab" onClick={() => select(item.id)} onKeyDown={event => {
         if (disabled) return
@@ -23,7 +23,7 @@ export function Tabs({ items, label, value, onChange, renderHeader, disabled = f
         event.preventDefault(); select(next.id)
         event.currentTarget.ownerDocument.getElementById(`${prefix}-tab-${next.id}`)?.focus()
       }}>{item.label}</button>)}
-  </div>{items.map((item, index) => item.actions ? <div key={item.id} style={{ order: index * 2 + 1 }} className="xp-ui-tab-actions">{item.actions}</div> : null)}</div>
+  </div></div>
   return <div className="xp-ui-tabs">{renderHeader ? renderHeader(header) : <div className="xp-ui-tabs-header">{header}</div>}{items.map(item => <div role="tabpanel" id={`${prefix}-panel-${item.id}`} aria-labelledby={`${prefix}-tab-${item.id}`}
     hidden={selected !== item.id} tabIndex={0} key={item.id} className="xp-ui-tabpanel">{item.content}</div>)}</div>
 }

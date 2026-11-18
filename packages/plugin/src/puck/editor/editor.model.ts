@@ -20,9 +20,9 @@ export function tabsFor(experiment?: Pick<EditorExperiment, 'arms'> | null): Arr
     .sort((a, b) => Number(b.slot === 'control') - Number(a.slot === 'control'))
 }
 
-export function bannerFor(status?: Status | null, winner: string = editorCopy.labels.control): string {
+export function bannerFor(status?: Status | null, winner: string = editorCopy.labels.control, original: string = editorCopy.labels.control): string {
   switch (status) {
-    case 'draft': case 'stopped': return editorCopy.draft
+    case 'draft': case 'stopped': return editorCopy.draft(original)
     case 'running': return editorCopy.running
     case 'decided': return editorCopy.decided(winner)
     case 'archived': return editorCopy.archived

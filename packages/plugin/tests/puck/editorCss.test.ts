@@ -130,9 +130,12 @@ test('only the labelled header offers selection focus and pointer affordance', (
   expect(properties(selected)['box-shadow']).toBe('inset 0 0 0 2px var(--xp-focus)')
 })
 
-test('sidebar version menus open into the panel instead of past its left edge', () => {
+test('sidebar chips stay compact, active groups are marked, and narrow headers keep one name line', () => {
   const rules = generatedRules()
-  expect(properties(rules.get('.xp-slot-sidebar .xp-slot-version-menu')!)).toMatchObject({
-    'inset-inline-start': '0', 'inset-inline-end': 'auto',
-  })
+  expect(properties(rules.get('.xp-slot-sidebar .xp-ui-status')!)).toMatchObject({ 'justify-self': 'start', width: 'max-content' })
+  expect(properties(rules.get('.xp-slot-header')!)['flex-wrap']).toBe('nowrap')
+  expect(properties(rules.get('.xp-slot-title')!)).toMatchObject({ 'min-width': '0', 'white-space': 'nowrap', 'text-overflow': 'ellipsis' })
+  expect(properties(rules.get('.xp-slot-editor .xp-ui-tablist')!)['flex-wrap']).toBe('wrap')
+  expect(properties(rules.get('.xp-ui-tab')!)).toMatchObject({ 'min-width': '0', 'max-width': '100%', 'overflow-wrap': 'anywhere', 'white-space': 'normal' })
+  expect([...rules.keys()].some(selector => selector.includes('version-menu'))).toBe(false)
 })

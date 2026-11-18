@@ -157,7 +157,7 @@ test('sidebar uses the drawer blocker sentence and transition refusal', async ()
 })
 
 
-test('cross-surface Split evenly clears shared invalid weight edits in both places', async () => {
+test('Split evenly discards invalid traffic edits in the sidebar', async () => {
   await mount()
   const chromeInput = fields().getByLabelText(C.weight('Original'))
   fireEvent.change(chromeInput, { target: { value: '101' } })
@@ -446,8 +446,8 @@ test('visible name inputs save on blur and Enter, Escape restores, errors stay n
 
 test('version group headers and canvas tabs stay in step without changing real Puck selection', async () => {
   const actions = await mount()
-  const original = fields().getByRole('button', { name: 'Original', exact: true })
-  const variant = fields().getByRole('button', { name: 'Variant A', exact: true })
+  const original = fields().getByRole('button', { name: 'Original' })
+  const variant = fields().getByRole('button', { name: 'Variant A' })
   fireEvent.click(variant)
   expect(screen.getByRole('tab', { name: 'Variant A' }).getAttribute('aria-selected')).toBe('true')
   fireEvent.click(screen.getByRole('tab', { name: 'Original' }))
@@ -460,4 +460,76 @@ test('version group headers and canvas tabs stay in step without changing real P
   expect(within(chooser).queryByRole('option', { name: 'No test' })).toBeNull()
   expect(within(chooser).getByRole('button', { name: 'Create a test' })).toBeTruthy()
   expect(actions).toEqual([])
+})
+
+test('a later operation failure does not become a successful name field’s error', async () => {
+  await mount()
+  const name = fields().getByRole('textbox', { name: 'Variant A Name' })
+  fireEvent.change(name, { target: { value: 'Short ask' } }); fireEvent.blur(name)
+  await screen.findByRole('tab', { name: 'Short ask' })
+  const group = within(fields().getByRole('group', { name: 'Short ask' }))
+  expect(await group.findByText('Saved')).toBeTruthy()
+  await waitFor(() => expect((fields().getByRole('button', { name: C.add }) as HTMLButtonElement).disabled).toBe(false))
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
+  fireEvent.click(fields().getByRole('button', { name: C.add }))
+  await fields().findByRole('alert')
+  expect(group.queryByRole('alert')).toBeNull()
+  expect(group.getByRole('textbox').getAttribute('aria-invalid')).toBeNull()
+})
+
+test('leftover headers and tabs show the same active version and defer switches while dragging', async () => {
+  const actions = await mount(false, true)
+  const button = fields().getByRole('button', { name: C.outsideTest('Variant C') })
+  fireEvent.click(button)
+  expect(screen.getByRole('tab', { name: C.outsideTest('Variant C') }).getAttribute('aria-selected')).toBe('true')
+  expect(button.getAttribute('aria-pressed')).toBe('true')
+  fireEvent.click(screen.getByRole('tab', { name: 'Original' }))
+  expect(button.getAttribute('aria-pressed')).toBe('false')
+  act(() => read().dispatch({ type: 'setUi', ui: { isDragging: true } }))
+  expect((button as HTMLButtonElement).disabled).toBe(true)
+  expect(actions).toEqual([])
+})
+
+test('saved names, including Control, agree in tabs, sidebar, traffic and content guidance', async () => {
+  doc.arms[0]!.label = 'Control'; doc.arms[1]!.label = 'Short ask'
+  await mount()
+  const header = chrome()
+  expect(header.getByText('This block shows the Control to everyone until the test starts.')).toBeTruthy()
+  expect(screen.getByRole('tab', { name: 'Control' })).toBeTruthy()
+  expect(fields().getByRole('button', { name: 'Control' })).toBeTruthy()
+  expect((fields().getByRole('textbox', { name: 'Control Name' }) as HTMLInputElement).value).toBe('Control')
+  expect(fields().getByRole('spinbutton', { name: 'Control traffic (%)' })).toBeTruthy()
+  expect(fields().getByRole('button', { name: 'Copy Control here' })).toBeTruthy()
+  expect(screen.getByText('Drop Control content here')).toBeTruthy()
+  fireEvent.click(screen.getByRole('tab', { name: 'Short ask' }))
+  expect(screen.getByText('Drop Short ask content here')).toBeTruthy()
+  expect(header.queryByText(/Original/)).toBeNull()
+})
+
+test.each([403, 404, 500])('a manager can repair an unreadable binding (%s) through More without creating a record', async code => {
+  testCode = code
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).includes('/xp-experiments?') ? Promise.resolve(reply({ docs: [{ ...doc, id: 'replacement', slug: 'replacement' }] }))
+    : String(url).includes('/xp-experiments/replacement?') ? Promise.resolve(reply(doc)) : original(url, init))
+  await mount()
+  fireEvent.click(fields().getByRole('button', { name: 'More' }))
+  fireEvent.click(fields().getByRole('button', { name: 'Use a different test' }))
+  const dialog = await screen.findByRole('dialog')
+  const picker = await within(dialog).findByRole('combobox')
+  expect((within(dialog).getByRole('button', { name: 'Create a test' }) as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.change(picker, { target: { value: 'replacement' } })
+  await waitFor(() => expect(read().getItemById('sidebar-block')?.props.experiment).toEqual({ id: 'replacement', slug: 'replacement' }))
+  expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
+})
+
+test('a results reader with a readable test gets read-only version fields and one rights explanation', async () => {
+  role = 'results'
+  await mount()
+  const versions = await fields().findByRole('region', { name: 'Versions' })
+  for (const input of within(versions).getAllByRole('textbox')) expect((input as HTMLInputElement).readOnly).toBe(true)
+  for (const input of within(versions).getAllByRole('spinbutton')) expect((input as HTMLInputElement).readOnly).toBe(true)
+  expect(within(versions).getAllByText(C.readOnlyVersions)).toHaveLength(1)
+  for (const name of [C.add, C.split, C.removeVersion, C.moreGroup]) expect(fields().queryByRole('button', { name })).toBeNull()
+  expect(fields().getByRole('button', { name: C.configure })).toBeTruthy()
 })

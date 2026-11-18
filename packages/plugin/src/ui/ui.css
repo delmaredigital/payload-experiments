@@ -41,7 +41,7 @@
 .xp-ui-section-body { padding: 20px; }
 .xp-ui-tabs { color: var(--xp-text); font: var(--xp-text-body); }
 .xp-ui-tablist { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--xp-border); }
-.xp-ui-tab { appearance: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 12px; background: transparent; color: var(--xp-text-2); font: var(--xp-text-body); cursor: pointer; }
+.xp-ui-tab { min-width: 0; max-width: 100%; overflow-wrap: anywhere; white-space: normal; appearance: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 12px; background: transparent; color: var(--xp-text-2); font: var(--xp-text-body); cursor: pointer; }
 .xp-ui-tab[aria-selected='true'] { color: var(--xp-accent-text); text-decoration: var(--xp-accent-text-decoration); border-bottom-color: var(--xp-accent-text); font-weight: 600; }
 .xp-ui-tab:disabled { opacity: .5; cursor: not-allowed; }
 .xp-ui-tabpanel { padding-block: 16px; }
@@ -115,7 +115,6 @@
 /* Actions sit beside each tab visually and outside the tablist's owned roles. */
 .xp-ui-tabbar { display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px; border-bottom: 1px solid var(--xp-border); }
 .xp-ui-tabbar > .xp-ui-tablist { display: contents; }
-.xp-ui-tab-actions { display: flex; align-items: center; flex-wrap: wrap; position: relative; }
 
 /* One blocker-list format in the admin footer and the Puck sidebar. */
 .xp-readiness__blockers, .xp-readiness__blockers a { color: var(--xp-error); }

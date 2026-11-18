@@ -27,6 +27,7 @@ vi.mock('@puckeditor/core', async importOriginal => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   return {
   ...await importOriginal<typeof import('@puckeditor/core')>(),
+  FieldGroup: ({ children, label }: { children: import('react').ReactNode; label?: string }) => <div>{label}{children}</div>,
   createUsePuck: () => (selector: (state: unknown) => unknown) => {
     const result = selector({ selectedItem: selectedItem(), getItemById: (id: string) => id === puck.item.props.id ? puck.item : undefined, config: { components: {} }, appState: { data: { root: { props: { title: puck.title } }, content: [] } } })
     puck.selectors.push(result)
@@ -36,6 +37,9 @@ vi.mock('@puckeditor/core', async importOriginal => {
   }
 })
 
+vi.mock('../../../src/puck/editor/sidebar.js', () => ({ TestSidebarField: () => null, useSidebarTargets: () => targets }))
+let targets: { test: HTMLElement; controls: HTMLElement; onChange: ReturnType<typeof vi.fn> } | undefined
+function showSidebar() { targets = { test: document.createElement('div'), controls: document.createElement('div'), onChange: vi.fn() }; document.body.append(targets.test, targets.controls) }
 type RenderProps = Parameters<typeof ExperimentSlotEditor.render>[0]
 const doc: EditorExperiment = {
   name: 'Example', status: 'running', arms: [
@@ -56,6 +60,7 @@ function props(overrides: Partial<RenderProps> = {}): RenderProps {
 }
 
 beforeEach(() => {
+  targets = undefined
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
   puck.item.props.experiment = { id: 1, slug: 'example' }
@@ -66,7 +71,7 @@ beforeEach(() => {
   puck.selected = true
   vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.endsWith('/preflight') ? { placements: [], checks: [] } : doc)))
 })
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); targets?.test.remove(); targets?.controls.remove(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 test.each([false, 'other'] as const)('clicking non-interactive chrome selects this block with selection %s', async selection => {
   puck.selected = selection
@@ -114,12 +119,12 @@ test('missing selectors do not dispatch selection and native chrome controls kee
   fireEvent.click(title)
   expect(puck.dispatch).not.toHaveBeenCalled()
   puck.getSelectorForId.mockReturnValue({ index: 2, zone: 'parent:content' })
-  const link = screen.getByLabelText('Original traffic (%)')
+  const link = screen.getByRole('tab', { name: 'Original' })
   const open = vi.fn((event: MouseEvent) => event.preventDefault())
   link.addEventListener('click', open)
   fireEvent.click(link)
   expect(open).toHaveBeenCalledOnce()
-  const input = screen.getByLabelText('Original traffic (%)')
+  const input = screen.getByRole('tab', { name: 'Original' })
   fireEvent.click(input)
   fireEvent.keyDown(input, { key: ' ' })
   expect(puck.dispatch).not.toHaveBeenCalled()
@@ -150,12 +155,12 @@ test('renders only the selected group slot, switches tabs, and has primitive sel
 })
 
 test.each(['running', 'draft'].flatMap(status => [false, 'other'].map(selection => ({ status, selection }))))('$status: copy replaces this block at its actual zone with selection $selection', async ({ status, selection }) => {
+  showSidebar()
   puck.selected = selection as false | 'other'
   vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status }))
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props()} />)
   fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Options for New headline' }))
   fireEvent.click(screen.getByRole('button', { name: 'Copy Original here' }))
   expect(puck.getSelectorForId).toHaveBeenCalledWith('slot-1')
   await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
@@ -172,6 +177,7 @@ test.each(['running', 'draft'].flatMap(status => [false, 'other'].map(selection 
 })
 
 test.each(['running', 'draft'] as const)('%s: copy is disabled for an empty Original', async status => {
+  showSidebar()
   vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status }))
   const original = puck.item.props.control
   puck.item.props.control = []
@@ -179,7 +185,6 @@ test.each(['running', 'draft'] as const)('%s: copy is disabled for an empty Orig
     const Editor = ExperimentSlotEditor.render
     render(<Editor {...props()} />)
     fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Options for New headline' }))
     const copy = screen.getByRole('button', { name: 'Copy Original here' })
     expect((copy as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(copy)
@@ -234,6 +239,7 @@ test('decided banner uses the stored winner label', async () => {
 })
 
 test.each(['running', 'draft'].flatMap(status => [false, 'other'].map(selection => ({ status, selection }))))('$status: copy confirms existing content with selection $selection', async ({ status, selection }) => {
+  showSidebar()
   puck.selected = selection as false | 'other'
   vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status }))
   const original = puck.item.props.variantA
@@ -242,13 +248,11 @@ test.each(['running', 'draft'].flatMap(status => [false, 'other'].map(selection 
     const Editor = ExperimentSlotEditor.render
     render(<Editor {...props()} />)
     fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Options for New headline' }))
     fireEvent.click(screen.getByRole('button', { name: 'Copy Original here' }))
     expect(puck.dispatch).not.toHaveBeenCalled()
     expect(screen.getByRole('alert').textContent).toContain('New headline already has content.')
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(puck.dispatch).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Options for New headline' }))
     fireEvent.click(screen.getByRole('button', { name: 'Copy Original here' }))
     fireEvent.click(screen.getByRole('button', { name: 'Replace' }))
     expect(puck.dispatch).toHaveBeenCalledTimes(1)
@@ -287,10 +291,10 @@ test('empty slots have a labelled frame and filled slots have neither, even when
   const Editor = ExperimentSlotEditor.render
   const view = render(<Editor {...props()} />)
   fireEvent.click(await screen.findByRole('tab', { name: 'New headline' }))
-  expect(screen.getByText('Drop Variant A content here')).toBeTruthy()
+  expect(screen.getByText('Drop New headline content here')).toBeTruthy()
   expect(screen.getByRole('tabpanel').querySelector('.xp-slot-panel')!.classList.contains('xp-slot-panel-empty')).toBe(true)
   fireEvent.click(screen.getByRole('tab', { name: 'Original' }))
-  expect(screen.queryByText('Drop the original content here')).toBeNull()
+  expect(screen.queryByText('Drop Original content here')).toBeNull()
   expect(screen.getByRole('tabpanel').querySelector('.xp-slot-panel')!.classList.contains('xp-slot-panel-empty')).toBe(false)
   puck.selected = false
   view.rerender(<Editor {...props()} />)
@@ -299,7 +303,7 @@ test('empty slots have a labelled frame and filled slots have neither, even when
   puck.item.props.control = []
   try {
     view.rerender(<Editor {...props()} />)
-    expect(screen.getByText('Drop the original content here')).toBeTruthy()
+    expect(screen.getByText('Drop Original content here')).toBeTruthy()
   } finally { puck.item.props.control = control }
 })
 
@@ -314,11 +318,11 @@ test.each(['draft', 'stopped', 'running', 'decided', 'archived'] as const)('only
   expect(banner.classList.contains('xp-ui-banner')).toBe(true)
 })
 
-test('unbound header names the registered block and marks it Not set up', () => {
+test('unbound header presents a setup state with one primary action', () => {
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props({ experiment: null })} />)
-  expect(screen.getByRole('heading', { name: 'Experiment block' })).toBeTruthy()
-  expect(screen.getByText('Not set up').classList.contains('xp-ui-status')).toBe(true)
+  expect(screen.getByRole('heading', { name: 'This Experiment block has no test yet.' })).toBeTruthy()
+  expect(screen.queryByText('Not set up')).toBeNull()
   expect(screen.getByRole('button', { name: 'Set up test' }).classList.contains('xp-ui-button--primary')).toBe(true)
 })
 
@@ -346,7 +350,7 @@ test.each([0, 1, 2])('shared notice uses existing placement read: %s placements'
 test('the click that ends a drag cannot dispatch another selection after Puck clears drag state', async () => {
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props({ experiment: null })} />)
-  const heading = screen.getByRole('heading', { name: 'Experiment block' })
+  const heading = screen.getByRole('heading', { name: 'This Experiment block has no test yet.' })
   fireEvent.pointerDown(heading)
   puck.dragging = true
   fireEvent.pointerMove(heading)
