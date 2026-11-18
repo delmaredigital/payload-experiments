@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { referencePalette, resolvedTokens } from '../../../../scripts/generate-editor-css.mjs'
 import { contrast } from '../../src/ui/accent.js'
 import { expect, test } from 'vitest'
@@ -112,4 +112,23 @@ test('dropdowns draw their chevron and spacing independently of native browser a
   expect(rule('.xp-ui-select')).toContain('padding-inline-end: 36px')
   expect(rule('.xp-ui-select-wrap::after')).toContain('rotate(45deg)')
   expect(rule('.xp-ui-select-wrap::after')).toContain('pointer-events: none')
+})
+
+
+test('select chevrons cannot be bypassed by a bare xp-ui-select outside the shared wrapper', () => {
+  const root = new URL('../../src/', import.meta.url)
+  function scan(directory: URL): void {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory)
+      if (entry.isDirectory()) scan(path)
+      else if (/\.tsx$/.test(entry.name)) {
+        const source = readFileSync(path, 'utf8')
+        if (source.includes('xp-ui-select')) {
+          expect(path.pathname).toBe(new URL('../../src/ui/Inputs.tsx', import.meta.url).pathname)
+          expect(source).toMatch(/<span className="xp-ui-select-wrap"><select/)
+        }
+      }
+    }
+  }
+  scan(root)
 })
