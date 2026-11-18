@@ -54,6 +54,7 @@ export function useArmWrites({ url, bindingKey, status, controlKeys, publish, is
       // status now so the lock change that caused this refusal does not erase it.
       const accepted = publish(doc) ?? doc
       if (scope.current.bindingKey === bindingKey) scope.current.status = accepted.status
+      return accepted
     }, options); if (isCurrent()) setErrors({ bindingKey, errors: {} }); onSaved?.(); return saved }
     catch (error) { if (isCurrent()) { const message = error instanceof ArmWriteError ? error.message : C.writeNetwork; if (options?.onError) options.onError(message); else if (scope.current.bindingKey === bindingKey && scope.current.keys.has(errorKey)) {
       const refusal = { message, status: scope.current.status }

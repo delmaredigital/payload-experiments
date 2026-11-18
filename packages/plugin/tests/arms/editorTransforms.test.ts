@@ -2,6 +2,8 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { defaultArms, splitEvenly } from '../../src/arms/model.js'
 import { addLeftoverArms, addVersionArms, ArmWriteError, removeVersionArms, renameVersionArms, setVersionTraffic, writeArms } from '../../src/puck/editor/armWrites.js'
 import { editorCopy as C } from '../../src/puck/editor/copy.js'
+import type { EditorExperiment } from '../../src/puck/editor/editor.model.js'
+import { XP_IF_UPDATED_AT_HEADER } from '../../src/constants.js'
 import type { Arm } from '../../src/types/contracts.js'
 
 const pair = () => defaultArms('block').map((arm, i) => ({ ...arm, weight: i ? 30 : 70 }))
@@ -47,4 +49,37 @@ test('valid version intents preserve current metadata and work from fresh arms',
   // Split has no individual target: it splits only the versions still present.
   expect(splitEvenly([arms[0]!, holdout])).toEqual([{ ...arms[0], weight: 90 }, holdout])
   expect(arms).toEqual(before)
+})
+
+
+test.each([
+  { status: 'running', draftOnly: false },
+  { status: 'running', draftOnly: true },
+  { status: 'stopped', draftOnly: false },
+] as const)('writeArms refuses a rejected $status read before status, draft-only or transform checks (draftOnly=$draftOnly)', async ({ status, draftOnly }) => {
+  const fresh: EditorExperiment = { name: 'Example', status, updatedAt: '2026-11-18T20:01:00.000Z', arms: pair() }
+  const accepted: EditorExperiment = { ...fresh, status: 'stopped', updatedAt: '2026-11-18T20:02:00.000Z' }
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json(fresh)))
+  const publish = vi.fn(() => accepted)
+  const transform = vi.fn(splitEvenly)
+  await expect(writeArms('/api/xp-experiments/test', transform, publish, { draftOnly })).rejects.toThrowError(new ArmWriteError(C.staleEdit))
+  expect(publish).toHaveBeenCalledExactlyOnceWith(fresh)
+  expect(transform).not.toHaveBeenCalled()
+  expect(fetch).toHaveBeenCalledTimes(1)
+})
+
+test('writeArms transforms and PATCHes an accepted fresh document with its timestamp', async () => {
+  const fresh: EditorExperiment = { name: 'Example', status: 'stopped', updatedAt: '2026-11-18T20:02:00.000Z', arms: pair() }
+  const saved = { ...fresh, arms: splitEvenly(pair()), updatedAt: '2026-11-18T20:03:00.000Z' }
+  vi.stubGlobal('fetch', vi.fn(async (_url, init?: RequestInit) => Response.json(init?.method === 'PATCH' ? { doc: saved } : fresh)))
+  // Acceptance is determined by timestamp, not object identity.
+  const publish = vi.fn((doc: EditorExperiment) => ({ ...doc }))
+  const transform = vi.fn(splitEvenly)
+  await expect(writeArms('/api/xp-experiments/test', transform, publish)).resolves.toEqual(saved.arms)
+  expect(transform).toHaveBeenCalledExactlyOnceWith(fresh.arms)
+  expect(fetch).toHaveBeenNthCalledWith(2, '/api/xp-experiments/test', {
+    method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json', [XP_IF_UPDATED_AT_HEADER]: fresh.updatedAt },
+    body: JSON.stringify({ arms: saved.arms }),
+  })
+  expect(publish.mock.calls).toEqual([[fresh], [saved]])
 })

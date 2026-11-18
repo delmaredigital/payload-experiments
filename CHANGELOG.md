@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: a version edit whose read finishes after a newer cached test reports the stale-edit message instead of an outdated lock reason, without sending a save. Migration impact: none.
+
 - Fixed: retrying Remove after a version disappears refuses the stale edit without changing traffic. Traffic, Add variant and leftover Add also refuse obsolete changes before saving. Split and Add refusals clear on a later test status change; Add refusals also clear at the version cap. Migration impact: none.
 
 - Fixed: version write refusals remain visible when a test starts elsewhere. Remove refusals appear once in the open dialog, even if the version has disappeared, and clear when it closes. Switching tests hides the previous test’s errors immediately. Migration impact: none.

@@ -1020,7 +1020,7 @@ test('an Add refusal clears when Add disappears at the version cap, even while l
   expect(fields().queryByRole('alert')).toBeNull()
 })
 
-test('a Split refusal records the accepted cache status when an older read finishes late', async () => {
+test.each(['Split', 'Traffic', 'Name'] as const)('%s refuses an older read with stale-edit and retries against the accepted stopped document', async control => {
   doc.updatedAt = '2026-11-18T20:00:00.000Z'
   await mount()
   const original = vi.mocked(fetch).getMockImplementation()!
@@ -1028,19 +1028,36 @@ test('a Split refusal records the accepted cache status when an older read finis
   const older = { ...doc, status: 'running', updatedAt: '2026-11-18T20:01:00.000Z' }
   vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/xp-experiments/sidebar-test?depth=0')
     ? new Promise(resolve => { finish = () => resolve(reply(older)) }) : original(url, init))
-  fireEvent.click(fields().getByRole('button', { name: C.split }))
+  const attempt = () => {
+    if (control === 'Split') fireEvent.click(fields().getByRole('button', { name: C.split }))
+    else {
+      const input = control === 'Traffic' ? fields().getByLabelText(C.weight('Original')) : fields().getByRole('textbox', { name: 'Variant A Name' })
+      fireEvent.change(input, { target: { value: control === 'Traffic' ? '60' : 'New headline' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+    }
+  }
+  attempt()
   await waitFor(() => expect(finish).toBeTypeOf('function'))
-  doc = { ...doc, status: 'stopped', updatedAt: '2026-11-18T20:02:00.000Z' }
+  doc = { ...doc, status: 'stopped', arms: doc.arms.map((arm, i) => ({ ...arm, weight: i ? 30 : 70 })), updatedAt: '2026-11-18T20:02:00.000Z' }
   act(() => publishExperiment(doc.id, doc))
   await fields().findByText('Stopped')
   await act(async () => finish())
-  expect((await fields().findByRole('alert')).textContent).toBe(C.locked.running)
-  // The older running response never replaced the newer stopped document.
+  const group = control === 'Split' ? fields() : within(fields().getByRole('group', { name: control === 'Traffic' ? 'Original' : 'Variant A' }))
+  expect((await group.findByRole('alert')).textContent).toBe(C.staleEdit)
+  expect(fields().queryByText(C.locked.running)).toBeNull()
   expect(await fields().findByRole('button', { name: 'Start a new round' })).toBeTruthy()
-  doc = { ...doc, arms: [...doc.arms, { key: 'variantB', slot: 'variantB', kind: 'variant', label: 'Variant B', weight: 0 }], updatedAt: '2026-11-18T20:03:00.000Z' }
-  act(() => publishExperiment(doc.id, doc))
-  await fields().findByRole('group', { name: 'Variant B' })
-  expect(fields().getByRole('alert').textContent).toBe(C.locked.running)
+  expect((fields().getByLabelText(C.weight('Original')) as HTMLInputElement).readOnly).toBe(false)
+  expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(0)
+  expect(doc.arms.map(arm => arm.weight)).toEqual([70, 30])
+
+  vi.mocked(fetch).mockImplementation(original)
+  attempt()
+  await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(1))
+  await waitFor(() => expect(fields().queryByRole('alert')).toBeNull())
+  const patch = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH')![1]!
+  expect(new Headers(patch.headers).get('x-xp-if-updated-at')).toBe('2026-11-18T20:02:00.000Z')
+  if (control === 'Name') expect(doc.arms[1]!.label).toBe('New headline')
+  else expect(doc.arms.map(arm => arm.weight)).toEqual(control === 'Split' ? [50, 50] : [60, 40])
 })
 
 test('the first render under a new binding excludes the previous binding’s refusal', async () => {
