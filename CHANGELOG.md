@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: the Outline follows the open version tab for bound and unbound Experiment blocks, including leftover content, with the existing structure guards, drag deferral and show-all safety fallback. Migration impact: none.
+
 - Fixed: unbound Experiment blocks offer one-click Set up test, creating a named draft from populated versions, binding it and opening Configure test. The sidebar also offers Use an existing test. Loading or inserting a block never creates a test. Migration impact: none.
 
 - Fixed: the sidebar owns Test, per-version controls and collapsed More groups. Names save visibly on blur/Enter with Escape and inline feedback; version headers and tabs stay in step. Use a different test replaces the separate new-test and detach flows. Stop or delete the block to stop testing; server placement rules are unchanged. Migration impact: none.
