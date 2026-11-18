@@ -7,7 +7,7 @@ export const NEW_TEST_COPY = {
   blockMeaning: 'Compare different versions of content on a page.',
   settingMeaning: 'Compare different choices for a setting on your site.',
   unavailable: 'A developer needs to set up pages or settings before you can create a test.',
-  handoff: 'Open the page, add an Experiment block where you want the test, and choose Test this block.',
+  handoff: 'Open the page, add an Experiment block where you want it, and choose Set up test.',
   noPages: 'There are no pages yet.', recentPages: 'Showing the 50 most recently edited.', open: 'Open',
   chooseSetting: 'Which setting do you want to test?', people: 'Count people as:',
   visitors: 'Visitors', users: 'Signed-in users', peopleHelp: 'Count each browser as a visitor, or each signed-in account as one person.',

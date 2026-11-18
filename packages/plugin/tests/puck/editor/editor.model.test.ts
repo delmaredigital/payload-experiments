@@ -29,7 +29,7 @@ test.each([
   ['running', 'Changing this content mid-test mixes two versions in one result'],
   ['decided', "Decided: New headline. Use 'Make it the content' on the test to finish."],
   ['archived', 'This test is archived; the winning content is shown to everyone.'],
-  [undefined, 'Choose or create a test to show different versions.'],
+  [undefined, 'This Experiment block has no test yet.'],
 ] as const)('banner for %s', (status, text) => {
   expect(bannerFor(status, 'New headline')).toBe(text)
 })

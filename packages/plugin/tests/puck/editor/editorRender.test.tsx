@@ -199,26 +199,6 @@ test('never creates an observer or sends an exposure, even with xpExpose', async
   expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/xp/events'))).toBe(false)
 })
 
-test.each([false, 'other'] as const)('unbound create binds this block with selection %s without swallowing or double-firing the button', async selection => {
-  puck.selected = selection
-  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] }))).mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'created', slug: 'new-test' } })))
-  const Editor = ExperimentSlotEditor.render
-  render(<Editor {...props({ experiment: null })} />)
-  expect(screen.getByRole('status').textContent).toBe('Choose or create a test to show different versions.')
-  expect(screen.getAllByRole('tab')).toHaveLength(1)
-  fireEvent.click(screen.getByRole('button', { name: 'Test this block' }))
-  expect(screen.getAllByRole('dialog')).toHaveLength(1)
-  expect(puck.dispatch).not.toHaveBeenCalled()
-  expect(screen.getByLabelText('Name').closest('[data-puck-preview]')).toBeNull()
-  expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Welcome page')
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New test' } })
-  fireEvent.keyDown(screen.getByLabelText('Name'), { key: ' ' })
-  expect(puck.dispatch).not.toHaveBeenCalled()
-  fireEvent.click(screen.getAllByRole('button', { name: 'Test this block' })[1]!)
-  await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
-  expect(puck.dispatch.mock.calls[0]![0].data.props.experiment).toEqual({ id: 'created', slug: 'new-test' })
-})
-
 test('new binding hides stale tabs, resets selection, and aborts the old load', async () => {
   const Editor = ExperimentSlotEditor.render
   const view = render(<Editor {...props()} />)
@@ -334,32 +314,12 @@ test.each(['draft', 'stopped', 'running', 'decided', 'archived'] as const)('only
   expect(banner.classList.contains('xp-ui-banner')).toBe(true)
 })
 
-test.each(['draft', 'running'] as const)('%s binding offers Configure test', async status => {
-  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status })))
-  const Editor = ExperimentSlotEditor.render
-  render(<Editor {...props()} />)
-  await screen.findByRole('heading', { name: 'Example' })
-  expect(screen.getByRole('button', { name: 'Configure test' }).classList.contains('xp-ui-button--primary')).toBe(true)
-  expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
-})
-
-test('binding changes keep Configure test and never offer to create an unbound test', async () => {
-  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status: 'draft' })))
-  const Editor = ExperimentSlotEditor.render
-  const view = render(<Editor {...props()} />)
-  await screen.findByRole('heading', { name: 'Example' })
-  view.rerender(<Editor {...props({ experiment: { id: 2, slug: 'running' } })} />)
-  await screen.findByRole('tab', { name: 'New headline' })
-  expect(screen.getByRole('button', { name: 'Configure test' })).toBeTruthy()
-  expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
-})
-
 test('unbound header names the registered block and marks it Not set up', () => {
   const Editor = ExperimentSlotEditor.render
   render(<Editor {...props({ experiment: null })} />)
   expect(screen.getByRole('heading', { name: 'Experiment block' })).toBeTruthy()
   expect(screen.getByText('Not set up').classList.contains('xp-ui-status')).toBe(true)
-  expect(screen.getByRole('button', { name: 'Test this block' }).classList.contains('xp-ui-button--primary')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Set up test' }).classList.contains('xp-ui-button--primary')).toBe(true)
 })
 
 test.each(['draft', 'running'] as const)('custom routes reach the bound %s fetch', async status => {
@@ -368,21 +328,6 @@ test.each(['draft', 'running'] as const)('custom routes reach the bound %s fetch
   render(<Editor {...props({ experiment: { id: 'id/with space', slug: 'example' } })} />)
   await screen.findByRole('heading', { name: 'Example' })
   expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments/id%2Fwith%20space?depth=0', expect.objectContaining({ credentials: 'include' }))
-  expect(screen.getByRole('button', { name: 'Configure test' })).toBeTruthy()
-})
-
-test('custom API route reaches both drawer requests', async () => {
-  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ docs: [] })))
-    .mockResolvedValueOnce(new Response(JSON.stringify({ doc: { id: 'new', slug: 'welcome-page' } })))
-  const Editor = createExperimentSlotEditor({ routes: { api: '/content-api/' } }).render
-  render(<Editor {...props({ experiment: null })} />)
-  fireEvent.click(screen.getByRole('button', { name: 'Test this block' }))
-  expect(document.activeElement).toBe(screen.getByLabelText('Name'))
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Test this block' }))
-  await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
-  expect(vi.mocked(fetch).mock.calls.map(([url]) => url).filter(url => !String(url).endsWith('/xp/editor-surface'))).toEqual([
-    expect.stringMatching(/^\/content-api\/xp-experiments\?where\[slug\]\[in\]=welcome-page%2C/), '/content-api/xp-experiments',
-  ])
 })
 
 test.each([0, 1, 2])('shared notice uses existing placement read: %s placements', async count => {
@@ -395,9 +340,7 @@ test.each([0, 1, 2])('shared notice uses existing placement read: %s placements'
   if (count > 0) {
     const notice = await screen.findByText('This test is also used in another place. Changes here affect that test.')
     expect(notice.closest('.xp-ui-banner')?.classList.contains('xp-ui-banner--info')).toBe(true)
-    expect(within(notice.closest('.xp-ui-banner') as HTMLElement).getByRole('button', { name: 'Start a new test from this block' })).toBeTruthy()
   } else expect(screen.queryByText('This test is also used in another place. Changes here affect that test.')).toBeNull()
-  expect(screen.getAllByRole('button', { name: 'Start a new test from this block' })).toHaveLength(1)
 })
 
 test('the click that ends a drag cannot dispatch another selection after Puck clears drag state', async () => {

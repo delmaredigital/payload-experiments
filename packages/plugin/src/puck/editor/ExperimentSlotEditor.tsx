@@ -43,7 +43,8 @@ import type { PreflightResult } from '../../types/endpoints.js'
 import { localPlacements } from './localPlacements.js'
 import { usePlacementNotice } from './usePlacementNotice.js'
 import { useEditorSurface } from './editorSurface.js'
-import { ConfigureTestControl } from './ConfigureTestDrawer.js'
+import { createBlockTest, CreateRefused } from './createTest.js'
+import { ConfigureTestControl, openConfigureTestDrawer } from './ConfigureTestDrawer.js'
 import './editor.css'
 
 const usePuckSelector = createUsePuck()
@@ -98,6 +99,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
   const [choosing, setChoosing] = useState(false)
   const [clearError, setClearError] = useState<{ key: string; message: string } | null>(null)
+  const setupBusy = useRef(false)
+  const [settingUp, setSettingUp] = useState(false)
+  const [setupError, setSetupError] = useState('')
+  const configuration = useRef<ReturnType<typeof openConfigureTestDrawer>>(undefined)
+  useEffect(() => () => configuration.current?.close(), [])
   const creation = useRef<ReturnType<typeof openCreateExperimentDrawer>>(undefined)
   useEffect(() => () => creation.current?.closeIfIdle(), [])
   // A non-empty variant is only overwritten after an explicit second confirmation.
@@ -283,7 +289,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     if (!isCurrentBinding()) throw new Error('binding')
     const item = getPuck().getItemById(props.id)
     if (!item) throw new Error('binding')
-    if (experimentId === undefined) return armsFromBlock({ arms: defaultArms('block') }, item.props)
+    if (experimentId === undefined) return armsFromBlock({ arms: [defaultArms('block')[0]!] }, item.props)
     // Another placement can rename or add a version while this dialog is open.
     const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}?depth=0`, { credentials: 'include', cache: 'no-store' })
     if (!response.ok) throw new Error('load')
@@ -301,6 +307,18 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       label: experimentId === undefined ? editorCopy.createLabel : editorCopy.createAnother,
       onCreate: bind,
     })
+  }
+  async function setUpTest() {
+    if (setupBusy.current || !canManage || experimentId !== undefined || !root.current) return
+    const source = root.current
+    setupBusy.current = true; setSettingUp(true); setSetupError('')
+    try {
+      const created = await createBlockTest(api, pageTitle, await newTestArms())
+      if (bind(created)) configuration.current = openConfigureTestDrawer(source, { admin, api }, created.id)
+      else creation.current = openCreateExperimentDrawer(source, { admin, api }, { created, onCreate: () => false })
+    } catch (cause) {
+      if (isCurrentBinding()) setSetupError(cause instanceof CreateRefused ? cause.message : editorCopy.createError)
+    } finally { setupBusy.current = false; if (isCurrentBinding()) setSettingUp(false) }
   }
   const placementMessage = editorPlacementMessage(placements && placements.id === experimentId ? placements.value : undefined, currentPuckDocument(window.location.pathname, admin, placements && placements.id === experimentId ? placements.value : undefined), experiment?.status)
 
@@ -354,7 +372,9 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           {canManage ? <>{placementNoticeView}{experiment?.status === 'draft' || experiment?.status === 'stopped' ? <BlockerList steps={sidebarBlockers} /> : null}</> : null}
           {experimentId !== undefined && access.surface && !result?.missing && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}
           {canManage && experiment && surface ? <QuickTestActions key={`${experimentId}/${experiment.status}`} test={quickTest} surface={surface} /> : null}
-          {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
+          {experimentId === undefined && canManage ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
+          {experimentId === undefined && canManage ? <Button disabled={settingUp} onClick={() => setChoosing(true)}>{editorCopy.existingTest}</Button> : null}
+          {setupError && experimentId === undefined ? <p role="alert">{setupError}</p> : null}
         </FieldGroup></section>
       </div>, sidebar.test)}
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
@@ -406,7 +426,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {accessNotice}
       {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
       {canManage ? placementNoticeView : null}
-      {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
+      {setupError && experimentId === undefined ? <p role="alert">{setupError}</p> : null}
+      {experimentId === undefined && canManage ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
     </EditorControls>
     <Tabs disabled={dragging} label={editorCopy.tabs} value={slot} renderHeader={children => <EditorControls className="xp-ui-tabs-header">{children}</EditorControls>} onChange={value => setActive({ id: experimentId, slot: value as ArmSlot })}
       items={tabs.map(tab => ({ id: tab.slot, label: tab.label, content: tab.slot === slot ?

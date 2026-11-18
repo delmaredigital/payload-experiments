@@ -391,14 +391,12 @@ test('creating from an unbound four-version block carries every version with an 
   const original = fetcher.getMockImplementation()!
   let posted: { arms: Array<{ key: string; label: string; weight: number }> } | undefined
   fetcher.mockImplementation(async (url, init) => {
+    if (url.includes('/xp-experiments?')) return response({ docs: [] })
     if (init?.method === 'POST') { posted = JSON.parse(String(init.body)); return response({ doc: { id: 'created', slug: 'created' } }) }
     return original(url, init)
   })
   const chrome = document.querySelector('.xp-slot-chrome') as HTMLElement
-  fireEvent.click(within(chrome).getByRole('button', { name: 'Test this block' }))
-  const dialog = screen.getByRole('dialog')
-  fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'New test' } })
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Test this block' }))
+  fireEvent.click(within(chrome).getByRole('button', { name: 'Set up test' }))
   await waitFor(() => expect(posted?.arms.map(arm => arm.weight)).toEqual([25, 25, 25, 25]))
   expect(posted?.arms.map(arm => arm.label)).toEqual(['Original', 'Variant A', 'Variant B', 'Variant C'])
 })

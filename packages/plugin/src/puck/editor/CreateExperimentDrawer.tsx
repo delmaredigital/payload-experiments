@@ -15,7 +15,8 @@ import { editorCopy } from './copy.js'
 import { invalidatePlacements } from './placementsCache.js'
 import './editor.css'
 
-export function CreateExperimentDrawer({ onCreate, onClose, initialName = '', arms, label = editorCopy.createLabel, onPendingChange }: {
+export function CreateExperimentDrawer({ onCreate, onClose, initialName = '', arms, label = editorCopy.createAnother, onPendingChange, created }: {
+  created?: ExperimentRef
   initialName?: string
   arms?: Arm[] | (() => Promise<Arm[]>)
   label?: string
@@ -29,7 +30,7 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '', ar
   const inFlight = useRef(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
-  const [unbound, setUnbound] = useState<ExperimentRef>()
+  const [unbound, setUnbound] = useState<ExperimentRef | undefined>(created)
 
   async function submitNew() {
     if (inFlight.current || !name.trim()) return
@@ -55,11 +56,12 @@ export function CreateExperimentDrawer({ onCreate, onClose, initialName = '', ar
   return <Dialog open title={label} onClose={onClose} dismissible={!pending}>
     <div className="xp-slot-drawer">
       {unbound ? <p>{editorCopy.createdUnbound}{' '}<a href={`${admin}/experiments/${encodeURIComponent(unbound.id)}`} target="_blank" rel="noopener noreferrer">{editorCopy.openTest}</a></p> : null}
-      <TextInput id={nameId} label={editorCopy.name} value={name} disabled={pending} onChange={event => setName(event.currentTarget.value)} />
+      {!unbound ? <><TextInput id={nameId} label={editorCopy.name} value={name} disabled={pending} onChange={event => setName(event.currentTarget.value)} />
       {error ? <Banner tone="error">{error}</Banner> : null}
       {!name.trim() ? <p className="xp-ui-help">{editorCopy.enterName}</p> : null}
+      </> : null}
       <div className="xp-ui-button-group">
-        <Button variant="primary" disabled={pending || !!unbound || !name.trim()} onClick={() => { void submitNew() }}>{pending ? editorCopy.creating : label}</Button>
+        {!unbound ? <Button variant="primary" disabled={pending || !name.trim()} onClick={() => { void submitNew() }}>{pending ? editorCopy.creating : label}</Button> : null}
         <Button disabled={pending} onClick={onClose}>{editorCopy.cancel}</Button>
       </div>
     </div>

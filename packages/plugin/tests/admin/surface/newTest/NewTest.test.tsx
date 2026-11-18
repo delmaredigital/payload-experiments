@@ -41,7 +41,7 @@ test('block hand-off groups page links, marks a full list, and never creates any
   pages.push({ id: 'story', collection: 'stories', editor: 'blocks' as const, collectionLabel: 'Stories', title: 'Story', editorUrl: '/stories/story' })
   render(<NewTest surface={surface} pages={pages} />)
   fireEvent.click(screen.getByRole('button', { name: /A block on a page/ }))
-  expect(screen.getByText('Open the page, add an Experiment block where you want the test, and choose Test this block.')).toBeTruthy()
+  expect(screen.getByText('Open the page, add an Experiment block where you want it, and choose Set up test.')).toBeTruthy()
   expect(screen.getByRole('heading', { name: 'Pages' })).toBeTruthy()
   expect(screen.getByRole('heading', { name: 'Stories' })).toBeTruthy()
   expect(screen.getAllByRole('link', { name: 'Open' })).toHaveLength(51)

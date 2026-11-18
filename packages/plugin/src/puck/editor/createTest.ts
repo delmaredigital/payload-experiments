@@ -45,3 +45,19 @@ export async function createTest(api: string, input: Omit<Parameters<typeof newT
     return { id: doc.id, slug: doc.slug }
   }
 }
+
+/** Choose a free display name before the existing slug/creation path. Called only by Set up test. */
+export async function createBlockTest(api: string, pageTitle: string, arms: Parameters<typeof newTestBody>[0]['arms']): Promise<ExperimentRef> {
+  const base = `${pageTitle.trim() || 'Page'} test`
+  for (let next = 1; ; next += 50) {
+    const names = Array.from({ length: 50 }, (_, offset) => next + offset === 1 ? base : `${base} ${next + offset}`)
+    const query = new URLSearchParams({ 'where[name][in]': names.join(','), limit: '50', depth: '0', 'select[name]': 'true' })
+    const response = await fetch(`${api}/xp-experiments?${query}`, { credentials: 'include' })
+    const body = await response.json()
+    if (!response.ok) throw new CreateRefused(refusalMessage(body))
+    if (!Array.isArray(body?.docs)) throw new Error(editorCopy.createError)
+    const taken = new Set(body.docs.map((doc: { name?: string }) => doc.name))
+    const name = names.find(candidate => !taken.has(candidate))
+    if (name) return createTest(api, { name, kind: 'block', unitType: 'visitor', arms })
+  }
+}

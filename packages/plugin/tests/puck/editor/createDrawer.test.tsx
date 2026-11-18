@@ -19,7 +19,7 @@ function setup(body: unknown = { doc: { id: 42, slug: 'new-test' } }, status = 2
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New test' } })
   return { fetch, onCreate, onClose }
 }
-const create = () => fireEvent.click(screen.getByRole('button', { name: 'Test this block' }))
+const create = () => fireEvent.click(screen.getByRole('button', { name: 'Create a test' }))
 const expectedBody = {
   name: 'New test', slug: 'new-test', kind: 'block', unitType: 'visitor', exposurePolicy: 'render',
   arms: [{ key: 'control', kind: 'control', label: 'Original', weight: 50, slot: 'control' },
@@ -29,12 +29,12 @@ const expectedBody = {
 test('posts the exact complete draft body, without a slug input, and binds the result', async () => {
   const { fetch, onCreate, onClose } = setup()
   expect(screen.queryByLabelText('Slug')).toBeNull()
-  expect(screen.getByRole('heading', { name: 'Test this block' })).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'Create a test' })).toBeTruthy()
   expect(screen.getByRole('dialog').getAttribute('aria-labelledby')).toBe(screen.getByRole('heading').id)
   expect(screen.getByRole('dialog').tagName).toBe('DIALOG')
   expect(document.activeElement).toBe(screen.getByLabelText('Name'))
   expect(screen.getByLabelText('Name').classList.contains('xp-ui-input')).toBe(true)
-  expect(screen.getByRole('button', { name: 'Test this block' }).classList.contains('xp-ui-button--primary')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Create a test' }).classList.contains('xp-ui-button--primary')).toBe(true)
   expect(screen.getByRole('button', { name: 'Cancel' }).classList.contains('xp-ui-button--primary')).toBe(false)
   create()
   await waitFor(() => expect(onCreate).toHaveBeenCalledWith({ id: 42, slug: 'new-test' }))
@@ -85,7 +85,7 @@ test.each(['network', 'json', 'malformed', 'lookup'])('%s failure stays in the d
 test('pending creation blocks repeated clicks and cancel', async () => {
   const { fetch } = setup()
   fetch.mockReset().mockReturnValue(new Promise(() => {}))
-  const button = screen.getByRole('button', { name: 'Test this block' })
+  const button = screen.getByRole('button', { name: 'Create a test' })
   fireEvent.click(button); fireEvent.click(button)
   expect(fetch).toHaveBeenCalledOnce()
   expect((screen.getByRole('button', { name: 'Creating…' }) as HTMLButtonElement).disabled).toBe(true)
@@ -126,6 +126,6 @@ test.each([false, true])('creation dialog keeps its host accent and theme (dark:
 test('a blank name explains the disabled create button', () => {
   vi.stubGlobal('fetch', vi.fn())
   render(<CreateExperimentDrawer onCreate={() => true} onClose={() => {}} />)
-  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Test this block' }).disabled).toBe(true)
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Create a test' }).disabled).toBe(true)
   expect(screen.getByText('Enter a name to create the test.')).toBeTruthy()
 })

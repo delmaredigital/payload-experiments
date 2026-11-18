@@ -58,7 +58,7 @@ test('no test access: calm chrome, usable page versions and content editing, rea
   await within(chrome).findByText(noAccess)
   expect(within(chrome).queryByRole('alert')).toBeNull()
   expect(within(chrome).queryByRole('button', { name: 'Configure test' })).toBeNull()
-  expect(within(chrome).queryByRole('button', { name: 'Start a new test from this block' })).toBeNull()
+  expect(within(chrome).queryByRole('button', { name: 'Use a different test' })).toBeNull()
   expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'Variant A'])
   fireEvent.click(screen.getByRole('tab', { name: 'Variant A' }))
   expect(screen.getByText('Variant content')).toBeTruthy()
@@ -81,7 +81,7 @@ test('results-only: Configure opens the reader, creation and version management 
   const fetcher = setup('results')
   await screen.findByText("You can view this test's results.")
   expect(screen.queryByText(noAccess)).toBeNull()
-  expect(screen.queryByRole('button', { name: 'Start a new test from this block' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Use a different test' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Add variant' })).toBeNull()
   act(() => read().dispatch({ type: 'setUi', ui: { itemSelector: read().getSelectorForId('permission-slot')! } }))
   fireEvent.click(await within(screen.getByTestId('fields')).findByRole('button', { name: 'Configure test' }))
@@ -92,7 +92,7 @@ test('results-only: Configure opens the reader, creation and version management 
   fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(fetcher.mock.calls.some(([url]) => url.endsWith('/preflight'))).toBe(false)
-  expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Set up test' })).toBeNull()
 })
 
 test('manager retains setup, creation and version management controls', async () => {
@@ -131,17 +131,18 @@ test.each([false, true])('pending permissions keep management actions absent fro
   const pending = new Promise<Response>(done => { resolve = done })
   setup('manager', 200, pending, unbound)
   expect(screen.getByRole('status').textContent).toContain('Loading')
-  for (const name of ['Test this block', 'Start a new test from this block', 'Configure test', 'Add variant']) {
+  for (const name of ['Set up test', 'Use a different test', 'Configure test', 'Add variant']) {
     expect(screen.queryByRole('button', { name })).toBeNull()
   }
   await act(async () => { resolve(response(surface)) })
-  expect(await screen.findByRole('button', { name: unbound ? 'Test this block' : 'Start a new test from this block' })).toBeTruthy()
+  if (!unbound) act(() => read().dispatch({ type: 'setUi', ui: { itemSelector: read().getSelectorForId('permission-slot')! } }))
+  expect(await screen.findByRole('button', { name: unbound ? 'Set up test' : 'Configure test' })).toBeTruthy()
 })
 test('an unbound block without access names tests generally and offers no actions', async () => {
   setup('none', 403, undefined, true)
   await screen.findByText("You don't have access to tests.")
   expect(screen.queryByText(noAccess)).toBeNull()
-  expect(document.querySelector('.xp-slot-chrome .xp-ui-button-group')?.textContent).toBe('')
+  expect(document.querySelector('.xp-slot-chrome button')).toBeNull()
 })
 test('a bound 404 is calm, retains page-owned version tabs and permits removal', async () => {
   setup('manager', 404)
@@ -151,10 +152,6 @@ test('a bound 404 is calm, retains page-owned version tabs and permits removal',
   expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'Variant A'])
   fireEvent.click(screen.getByRole('tab', { name: 'Variant A' }))
   expect(screen.getByText('Variant content')).toBeTruthy()
-  fireEvent.click(screen.getByRole('button', { name: detach }))
-  const dialog = await screen.findByRole('dialog')
-  fireEvent.click(within(dialog).getByRole('button', { name: detach }))
-  await waitFor(() => expect(read().getItemById('permission-slot')?.props.experiment).toBeNull())
 })
 
 
@@ -171,7 +168,7 @@ test('an unbound results-only reader sees the setup-access line without a create
   setup('results', 200, undefined, true)
   const chrome = document.querySelector<HTMLElement>('.xp-slot-chrome')!
   await within(chrome).findByText("You don't have access to set up tests.")
-  expect(within(chrome).queryByText('Choose or create a test to show different versions.')).toBeNull()
+  expect(within(chrome).queryByText('This Experiment block has no test yet.')).toBeNull()
   expect(within(chrome).queryByRole('button')).toBeNull()
 })
 
@@ -200,7 +197,8 @@ test.each([500, 'network', 'malformed'] as const)('a failed controls read (%s) i
   expect(within(chrome).queryByRole('button', { name: 'Configure test' })).toBeNull()
   fetcher.mockImplementation((url: string) => url.endsWith('/xp/editor-surface') ? Promise.resolve(response(surface)) : original(url))
   fireEvent.click(within(chrome).getByRole('button', { name: 'Retry' }))
-  expect(await within(chrome).findByRole('button', { name: bound ? 'Configure test' : 'Test this block' })).toBeTruthy()
+  if (bound) act(() => read().dispatch({ type: 'setUi', ui: { itemSelector: read().getSelectorForId('permission-slot')! } }))
+  expect(await (bound ? within(screen.getByTestId('fields')) : within(chrome)).findByRole('button', { name: bound ? 'Configure test' : 'Set up test' })).toBeTruthy()
   expect(within(chrome).queryByText("Test controls couldn't load.")).toBeNull()
 })
 

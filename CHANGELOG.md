@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: unbound Experiment blocks offer one-click Set up test, creating a named draft from populated versions, binding it and opening Configure test. The sidebar also offers Use an existing test. Loading or inserting a block never creates a test. Migration impact: none.
+
 - Fixed: the sidebar owns Test, per-version controls and collapsed More groups. Names save visibly on blur/Enter with Escape and inline feedback; version headers and tabs stay in step. Use a different test replaces the separate new-test and detach flows. Stop or delete the block to stop testing; server placement rules are unchanged. Migration impact: none.
 
 - Fixed: Experiment block headers show the test name, status, notices and plain version tabs. Version and test controls live in the sidebar. Migration impact: none.
@@ -272,7 +274,7 @@ Migration impact: none.
 - Added Goals list and form pages inside Tests, reached through the "Manage goals" link. Migration impact: none.
 - Centralized admin theme tokens and moved Tests above collection groups, after any host-provided leading navigation links.
 - Audience list rules without fixed values now use keyboard-accessible chips and save arrays; fixed value lists keep their checkboxes, and existing comma-separated values remain readable.
-- Styled the Puck Experiment block header, warning, version tabs, selected-version copy action, empty drop zones and creation panel for host editor resets and both admin themes. The self-contained stylesheet is exported as `@delmaredigital/payload-experiments/puck/editor.css`. Hosts must load it inside the editor iframe: in the CSS that builds the iframe stylesheet, add `@import "@delmaredigital/payload-experiments/puck/editor.css";` after `@import "tailwindcss";`. Alternatively, serve the exported file and append its URL to payload-puck's `editorStylesheets`, after the host stylesheet. The client import alone does not reach an iframe with `syncHostStyles: false`. A block already linked to a test no longer offers "Test this block"; it links to "Set up the test" while the test is a draft and to "View results" afterwards.
+- Styled the Puck Experiment block header, warning, version tabs, selected-version copy action, empty drop zones and creation panel for host editor resets and both admin themes. The self-contained stylesheet is exported as `@delmaredigital/payload-experiments/puck/editor.css`. Hosts must load it inside the editor iframe: in the CSS that builds the iframe stylesheet, add `@import "@delmaredigital/payload-experiments/puck/editor.css";` after `@import "tailwindcss";`. Alternatively, serve the exported file and append its URL to payload-puck's `editorStylesheets`, after the host stylesheet. The client import alone does not reach an iframe with `syncHostStyles: false`. A block already linked to a test no longer offers "Set up test"; it links to "Set up the test" while the test is a draft and to "View results" afterwards.
 - Release workflow: prereleases now publish under their own npm dist-tag (`rc` for this line), not `next`, and a tag whose version, or whose CHANGELOG notes, do not match the package is refused before publishing. Install release candidates with `@rc` or an exact version.
 
 Migration impact: none. The Tests import-map path is unchanged.
@@ -307,7 +309,7 @@ Migration impact: none. Host step: update the package pin; no other action is ne
 
 **Added**
 
-- A full-screen Tests admin surface at `/admin/experiments`, reached from a single "Tests" navigation link: a home that groups tests (needs attention, running, ready to start, draft, decided, archived), a New test flow (a block on a page, or a setting), one test page with plain-language sections and an Advanced disclosure, a readiness banner that names the next step, and results with a recommendation sentence and Decide. Puck's Experiment block offers "Test this block" to create a test from the page.
+- A full-screen Tests admin surface at `/admin/experiments`, reached from a single "Tests" navigation link: a home that groups tests (needs attention, running, ready to start, draft, decided, archived), a New test flow (a block on a page, or a setting), one test page with plain-language sections and an Advanced disclosure, a readiness banner that names the next step, and results with a recommendation sentence and Decide. Puck's Experiment block offers "Set up test" to create a test from the page.
 - `ResultsResponse.decision` lets results readers without manage access see the winner.
 - `verdict.worstArm` identifies the worse version on snapshots computed from this version.
 - Optional `admin.editorUrl`, `admin.previewUrl` and `admin.descriptions` host configuration, validated at registration and kept server-side.
