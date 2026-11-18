@@ -11,29 +11,29 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-- Fixed: a version edit whose read finishes after a newer cached test reports the stale-edit message instead of an outdated lock reason, without sending a save. Migration impact: none.
+- Fixed: A version edit that finishes after someone else changed the test now says so, instead of showing an outdated lock message, and saves nothing. Migration impact: none.
 
-- Fixed: retrying Remove after a version disappears refuses the stale edit without changing traffic. Traffic, Add variant and leftover Add also refuse obsolete changes before saving. Split and Add refusals clear on a later test status change; Add refusals also clear at the version cap. Migration impact: none.
+- Fixed: retrying Remove after a version disappears explains that the test changed and leaves traffic unchanged. Traffic, Add variant and Add for leftover content also explain when the test changed and save nothing. Split and Add errors clear when the test status changes; Add errors also clear when the test reaches the version limit. Migration impact: none.
 
-- Fixed: version write refusals remain visible when a test starts elsewhere. Remove refusals appear once in the open dialog, even if the version has disappeared, and clear when it closes. Switching tests hides the previous test’s errors immediately. Migration impact: none.
+- Fixed: errors when saving version changes remain visible when a test starts elsewhere. Remove errors appear once in the open dialog, even if the version has disappeared, and clear when it closes. Switching tests hides the previous test’s errors immediately. Migration impact: none.
 
 - Fixed: a refused Traffic value stays visible with its error; Escape cancels a pending name change before its save starts. Generated test names are capped at 200 characters. Use a different test is available when a test fails to load. New test and Add goal use styled dropdowns, and unavailable controls have consistent disabled styling. Migration impact: none.
 
-- Fixed: shared dropdown widths keep their chevrons aligned with the control. Traffic saves preserve concurrent version removals; successful splits clear Traffic errors, and version write refusals clear when their control closes, disappears or changes tests. Migration impact: none.
+- Fixed: shared dropdown widths keep their chevrons aligned with the control. Saving Traffic keeps versions removed by someone else from reappearing; successful splits clear Traffic errors, and errors when saving version changes clear when their control closes, disappears or changes tests. Migration impact: none.
 
-- Added: fully hidden Puck Experiment blocks and blocks inside hidden ancestors no longer count as places a test appears. Hiding the last published place of a running test is refused. Editor notices explain full and size-specific hiding; partial hiding still counts visitors. The public resolver omits fully hidden subtrees and exposures. Payload blocks placements are unchanged. Migration impact: none.
+- Added: fully hidden Puck Experiment blocks and blocks inside other hidden blocks no longer count as places a test appears. Hiding the last published place of a running test is refused. Editor notices explain hiding on all screens or only certain screen sizes; hiding on only some screen sizes still counts visitors. Visitors do not see fully hidden blocks or count as having seen them. This change applies only to Puck. Migration impact: none.
 
 - Fixed: a deleted test can be repaired with Set up test while retaining the block’s content. Stopped tests offer Start a new round. Migration impact: none.
 
 - Fixed: version names stay consistent across tabs, sidebar controls and block guidance, including a renamed first version. New first versions default to Original. Migration impact: none.
 
-- Fixed: What counts as a win uses a styled Goal dropdown and one optional list with one role per other goal: Don’t track, Watch, or Must not get worse. Choosing the main goal clears its other role. The admin page and editor drawer share the form; stored fields and validation are unchanged. Migration impact: none.
+- Fixed: What counts as a win uses a styled Goal dropdown and one optional list with one role per other goal: Don’t track, Watch, or Must not get worse. Choosing the main goal clears its other role. The admin page and editor drawer show the same form. Migration impact: none.
 
-- Fixed: the Outline follows the open version tab for bound and unbound Experiment blocks, including leftover content, with the existing structure guards, drag deferral and show-all safety fallback. Migration impact: none.
+- Fixed: the Outline follows the open version tab for Experiment blocks with or without a test, including leftover content. During a drag, the Outline waits until the drag ends before following a newly opened version tab. If the Outline cannot safely show just the open version, it shows all versions so content stays reachable. Migration impact: none.
 
-- Fixed: unbound Experiment blocks offer one-click Set up test, creating a named draft from populated versions, binding it and opening Configure test. The sidebar also offers Use an existing test. Loading or inserting a block never creates a test. Migration impact: none.
+- Fixed: Experiment blocks with no test offer one-click Set up test, creating a named draft from versions that have content, attaching it to the block and opening Configure test. The sidebar also offers Use an existing test. Loading or inserting a block never creates a test. Migration impact: none.
 
-- Fixed: the sidebar owns Test, per-version controls and collapsed More groups. Names save visibly on blur/Enter with Escape and inline feedback; version headers and tabs stay in step. Use a different test replaces the separate new-test and detach flows. Stop or delete the block to stop testing; server placement rules are unchanged. Migration impact: none.
+- Fixed: the sidebar shows Test, per-version controls and collapsed More groups. Names show save feedback when you leave the field or press Enter; Escape cancels the edit, and version headers and tabs stay in step. Use a different test lets you create or choose another test. Stop or delete the block to stop testing; rules about where a test can appear are unchanged. Migration impact: none.
 
 - Fixed: Experiment block headers show the test name, status, notices and plain version tabs. Version and test controls live in the sidebar. Migration impact: none.
 
