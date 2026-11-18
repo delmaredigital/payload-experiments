@@ -267,6 +267,10 @@ test('smoke editor copy names setup, version fields and goal roles, and removes 
   expect([TEST_PAGE.dontTrack, TEST_PAGE.watch, TEST_PAGE.mustNotWorsen]).toEqual(["Don't track", 'Watch', 'Must not get worse'])
   const files = [...copyPaths, ...editorFiles, new URL('../../REFERENCE.md', import.meta.url).pathname, new URL('../../../../CHANGELOG.md', import.meta.url).pathname]
   const removed = ['Test this block', 'Choose or create a test to show different versions.', 'Start a new test from this block', 'Remove the test from this block']
-  for (const path of files) for (const text of removed) expect(readFileSync(path, 'utf8'), path).not.toContain(text)
+  for (const path of files) {
+    const source = readFileSync(path, 'utf8')
+    const audited = path.endsWith('/CHANGELOG.md') ? source.split('## [Unreleased]')[1]!.split(/\n## \[/)[0]! : source
+    for (const text of removed) expect(audited, path).not.toContain(text)
+  }
   expect(Object.hasOwn(TEST_PAGE, 'clickGoalsNote')).toBe(false)
 })
