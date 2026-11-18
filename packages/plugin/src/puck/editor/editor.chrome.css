@@ -132,7 +132,8 @@
 [class*="_PuckFields"] .xp-slot-root .xp-ui-error { color: var(--xp-error); }
 [class*="_PuckFields"] .xp-slot-root .xp-ui-help { color: var(--xp-text-2); }
 [class*="_PuckFields"] .xp-slot-root .xp-ui-field label { color: var(--xp-text); }
-[class*="_PuckFields"] .xp-puck-field .xp-ui-button:disabled {
+[class*="_PuckFields"] .xp-puck-field .xp-ui-button:disabled,
+[class*="_PuckFields"] .xp-puck-field .xp-ui-button[aria-disabled='true'] {
   opacity: 1;
   background: var(--xp-surface-3);
   border-color: var(--xp-border-strong);

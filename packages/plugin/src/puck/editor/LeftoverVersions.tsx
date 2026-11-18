@@ -28,7 +28,7 @@ export function LeftoverVersions({ slots, experiment, writes, canManage, countBl
           const holdout = next.findIndex(arm => arm.kind === 'holdout')
           next.splice(holdout < 0 ? next.length : holdout, 0, { key: slot, slot, kind: 'variant', label: slotLabels[slot], weight: 0 })
           return next
-        }, { draftOnly: true })
+        }, { draftOnly: true, errorKey: `leftover:${slot}` })
         if (saved) onSelect(slot)
       }}>{C.addLeftover}</Button> : null}
       <Button onClick={() => setDeleting(slot)}>{C.deleteContent}</Button>

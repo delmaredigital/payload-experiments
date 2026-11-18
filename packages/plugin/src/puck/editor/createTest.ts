@@ -47,8 +47,8 @@ export async function createTest(api: string, input: Omit<Parameters<typeof newT
   }
 }
 
-// The name field has no field override; Payload's defaultMaxTextLength is 40,000.
-const NAME_MAX_LENGTH = 40_000
+// Keep generated names readable and bounded, including the numbered suffix.
+const NAME_MAX_LENGTH = 200
 function blockTestName(title: string, index: number): string {
   const suffix = index === 1 ? ' test' : ` test ${index}`
   // Do not leave half a surrogate pair at the title boundary.
@@ -61,7 +61,7 @@ export async function createBlockTest(api: string, pageTitle: string, arms: Para
   const title = pageTitle.trim() || editorCopy.pageFallback
   const base = blockTestName(title, 1)
   // A short common prefix also matches candidates whose title is trimmed for a number.
-  const query = new URLSearchParams({ depth: '0', 'select[name]': 'true', 'where[name][like]': base.slice(0, 64) })
+  const query = new URLSearchParams({ depth: '0', 'select[name]': 'true', 'where[name][like]': base.slice(0, 64).replace(/[\uD800-\uDBFF]$/, '') })
   const response = await fetchAllDocs<{ name?: string }>(`${api}/xp-experiments?${query}`, { credentials: 'include' })
   if (!response.ok) throw new CreateRefused(refusalMessage(response.body))
   const taken = new Set(response.docs.map(doc => doc.name))

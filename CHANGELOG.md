@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: a deleted test can be repaired with Set up test while retaining the block’s content. Stopped tests offer Start a new round. Migration impact: none.
+
 - Fixed: version names stay consistent across tabs, sidebar controls and block guidance, including a renamed first version. New first versions default to Original. Migration impact: none.
 
 - Fixed: What counts as a win uses a styled Goal dropdown and one optional list with one role per other goal: Don’t track, Watch, or Must not get worse. Choosing the main goal clears its other role. The admin page and editor drawer share the form; stored fields and validation are unchanged. Migration impact: none.

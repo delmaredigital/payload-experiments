@@ -7,7 +7,7 @@ import { placementUncheckedCopy } from '../../copy/readiness.js'
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { Button } from '../../../ui/Button.js'
-import { TextInput } from '../../../ui/Inputs.js'
+import { TextInput, Select } from '../../../ui/Inputs.js'
 import { Dialog } from '../../../ui/Dialog.js'
 import type { AddMetricWarning, AddMetricBody, MakeContentResult as ContentResult } from '../../../types/endpoints.js'
 import type { DocId } from '../../../types/contracts.js'
@@ -136,13 +136,13 @@ export function AddMetricAction({ test, surface, onClose }: Props) {
     }) : <>
       <p>{C.addMetric}</p>
       {loading ? <p role="status">{R.loadingMetrics}</p> : null}
-      <label>{R.role}<select value={role} disabled={disabled} onChange={event => setRole(event.target.value as AddMetricBody['role'])}>
+      <Select id="xp-add-goal-role" label={R.role} value={role} disabled={disabled} onChange={event => setRole(event.target.value as AddMetricBody['role'])}>
         <option value="secondary">{R.supporting}</option><option value="guardrail">{R.guardrail}</option>
-      </select></label>
-      <label>{R.metric}<select value={metric} disabled={disabled || loading} onChange={event => setMetric(event.target.value)}>
+      </Select>
+      <Select id="xp-add-goal-metric" label={R.metric} value={metric} disabled={disabled || loading} onChange={event => setMetric(event.target.value)}>
         <option value="">{R.chooseMetric}</option>
         {available.map(item => <option key={item.id} value={String(item.id)}>{item.name}</option>)}
-      </select></label>
+      </Select>
       {!loading && !loadError && !available.length ? <p>{R.noMetrics}</p> : null}
       {transition.busy ? <p role="status">{C.changing}</p> : null}
       {loadError || transition.error ? <p role="alert">{loadError ?? transition.error}</p> : null}

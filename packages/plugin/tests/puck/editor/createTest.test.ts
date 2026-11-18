@@ -135,10 +135,10 @@ test.each([0, 1, 137])('long block title uses short lookup URLs with %s existing
   expect(JSON.parse(String(post[1]!.body)).name).toBe(count ? `${base} ${count + 1}` : base)
 })
 
-test.each([false, true])('block names retain their suffix at the Payload text limit (occupied: %s)', async occupied => {
+test.each([false, true])('block names retain their suffix at the generated name limit (occupied: %s)', async occupied => {
   const { createBlockTest } = await import('../../../src/puck/editor/createTest.js')
-  const title = 'x'.repeat(40_000)
-  const base = `${'x'.repeat(39_995)} test`
+  const title = 'x'.repeat(200)
+  const base = `${'x'.repeat(195)} test`
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
     expect(input.length).toBeLessThan(8000)
     if (init?.method === 'POST') return response({ doc: { id: 1, slug: 'created' } })
@@ -148,8 +148,8 @@ test.each([false, true])('block names retain their suffix at the Payload text li
   await createBlockTest('/api', title, [])
   const post = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')!
   const name = JSON.parse(String(post[1]!.body)).name
-  expect(name).toHaveLength(40_000)
-  expect(name).toBe(occupied ? `${'x'.repeat(39_993)} test 2` : base)
+  expect(name).toHaveLength(200)
+  expect(name).toBe(occupied ? `${'x'.repeat(193)} test 2` : base)
 })
 
 test('empty page titles use the copy module fallback', async () => {
@@ -158,4 +158,17 @@ test('empty page titles use the copy module fallback', async () => {
   vi.stubGlobal('fetch', fetcher)
   await createBlockTest('/api', '  ', [])
   expect(JSON.parse(String(fetcher.mock.calls.find(([, init]) => init?.method === 'POST')![1]!.body)).name).toBe('Page test')
+})
+
+
+test('an emoji crossing the lookup prefix boundary stays valid Unicode', async () => {
+  const { createBlockTest } = await import('../../../src/puck/editor/createTest.js')
+  const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
+    const params = new URL(input, 'https://example.test').searchParams
+    if (params.has('where[name][like]')) expect(params.get('where[name][like]')).toBe('x'.repeat(63))
+    return response(init?.method === 'POST' ? { doc: { id: 1, slug: 'created' } } : { docs: [] })
+  })
+  vi.stubGlobal('fetch', fetcher)
+  await createBlockTest('/api', 'x'.repeat(63) + '😀 page', [])
+  expect(fetcher).toHaveBeenCalledTimes(3)
 })

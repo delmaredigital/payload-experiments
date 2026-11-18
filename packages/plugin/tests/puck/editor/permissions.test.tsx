@@ -152,6 +152,7 @@ test('a bound 404 names deletion, retains page-owned tabs and offers setup', asy
   expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'Variant A'])
   fireEvent.click(screen.getByRole('tab', { name: 'Variant A' }))
   expect(screen.getByText('Variant content')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Set up test' })).toBeTruthy()
 })
 
 

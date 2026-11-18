@@ -42,10 +42,10 @@ beforeEach(() => {
   }))
 })
 afterEach(async () => { cleanup(); await act(async () => {}); vi.unstubAllGlobals(); vi.restoreAllMocks() })
-async function mount(empty = false) {
+async function mount(empty = false, fields = true) {
   function Probe() { read = useGetPuck(); return null }
   render(<Puck config={config} data={{ root: { props: { title: 'Landing' } }, content: empty ? [] : [block] }} iframe={{ enabled: false }}>
-    <Puck.Preview /><aside data-testid="fields"><Puck.Fields /></aside><Probe />
+    <Puck.Preview />{fields ? <aside data-testid="fields"><Puck.Fields /></aside> : null}<Probe />
   </Puck>)
   if (!empty) await screen.findByRole('button', { name: 'Set up test' })
 }
@@ -143,4 +143,13 @@ test('selected setup failure has one alert in the sidebar and plain text in the 
   expect(screen.getByTestId('fields').contains(alert)).toBe(true)
   expect(document.querySelector('.xp-slot-chrome')!.textContent).toContain("Couldn't create the test. Try again.")
   expect(document.querySelector('.xp-slot-chrome [role="alert"]')).toBeNull()
+})
+
+
+test('selected blocks without a fields panel still announce setup failure once', async () => {
+  failure = 'post'
+  await mount(false, false)
+  act(() => read().dispatch({ type: 'setUi', ui: { itemSelector: read().getSelectorForId('setup-block')! } }))
+  fireEvent.click(screen.getByRole('button', { name: 'Set up test' }))
+  expect((await screen.findAllByRole('alert')).map(node => node.textContent)).toEqual(["Couldn't create the test. Try again."])
 })

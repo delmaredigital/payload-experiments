@@ -201,11 +201,17 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   }, [removed, bindingKey])
   const splitIntent = useRef(false)
   const [weightEdits, setWeightEdits] = useState<WeightEdits>({})
+  const armKeys = experiment?.arms.map(arm => arm.key).join(',')
+  useEffect(() => {
+    if (!armKeys) return
+    const keys = new Set(armKeys.split(','))
+    setWeightEdits(current => Object.fromEntries(Object.entries(current).filter(([key]) => keys.has(key))))
+  }, [armKeys])
   useEffect(() => { setWeightEdits({}); splitIntent.current = false }, [bindingKey, status])
   const writes = useArmWrites(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, doc => {
     publishExperiment(experimentId!, doc)
     if (isCurrentBinding()) setLoaded(value => ({ id: experimentId, doc, shared: value?.id === experimentId ? value?.shared : undefined }))
-  }, isCurrentBinding, () => setClearError(null), () => { if (isCurrentBinding()) setWeightEdits({}); invalidatePlacements(api, experimentId!) })
+  }, isCurrentBinding, () => setClearError(null), () => { invalidatePlacements(api, experimentId!) })
   // The slot arrays belong to the page; reading the test is unnecessary to edit them.
   const pageSlots = usePuckSelector(state => (['control', 'variantA', 'variantB', 'variantC'] as const).filter(slot => {
     const content: unknown = state.getItemById(props.id)?.props[slot]
@@ -291,7 +297,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     if (!isCurrentBinding()) throw new Error('binding')
     const item = getPuck().getItemById(props.id)
     if (!item) throw new Error('binding')
-    if (experimentId === undefined || result?.missing || result?.forbidden) return armsFromBlock({ arms: [defaultArms('block')[0]!] }, item.props)
+    if (experimentId === undefined || result?.missing || result?.forbidden || result?.error) return armsFromBlock({ arms: [defaultArms('block')[0]!] }, item.props)
     // Another placement can rename or add a version while this dialog is open.
     const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}?depth=0`, { credentials: 'include', cache: 'no-store' })
     if (response.status === 403 || response.status === 404) return armsFromBlock({ arms: [defaultArms('block')[0]!] }, item.props)
@@ -394,7 +400,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
               </FieldGroup>
             </div>} />
         </FieldGroup></section> : null}
-        {access.surface?.canManage && experimentId !== undefined && !result?.error ? <FieldGroup label={editorCopy.moreGroup} defaultExpanded={false}>
+        {access.surface?.canManage && experimentId !== undefined ? <FieldGroup label={editorCopy.moreGroup} defaultExpanded={false}>
           <Button onClick={() => setChoosing(true)}>{editorCopy.differentTest}</Button>
         </FieldGroup> : null}
         {writes.busy ? <p role="status">{editorCopy.savingVersions}</p> : null}
@@ -409,7 +415,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {removeDialog}
         {choosing ? <Dialog open title={experimentId === undefined ? editorCopy.existingTest : editorCopy.differentTest} onClose={() => setChoosing(false)}><div className="xp-slot-drawer">
           <ExperimentPicker value={props.experiment ?? null} allowEmpty={false} onChange={value => { if (value && bind(value)) setChoosing(false) }} />
-          <Button disabled={experimentId !== undefined && !experiment && !unavailable} onClick={() => { setChoosing(false); createFromBlock() }}>{editorCopy.createAnother}</Button>
+          <Button disabled={experimentId !== undefined && !experiment && !unavailable && !result?.error} onClick={() => { setChoosing(false); createFromBlock() }}>{editorCopy.createAnother}</Button>
           <Button onClick={() => setChoosing(false)}>{editorCopy.cancel}</Button>
         </div></Dialog> : null}
       </div>, sidebar.controls)}
@@ -428,7 +434,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {canSetUp || result?.missing ? null : accessNotice}
       {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
       {canManage ? placementNoticeView : null}
-      {setupError && canSetUp ? <p role={isSelected ? undefined : "alert"}>{setupError}</p> : null}
+      {setupError && canSetUp ? <p role={sidebar ? undefined : 'alert'}>{setupError}</p> : null}
       {canSetUp ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
     </EditorControls>
     <Tabs disabled={dragging} label={editorCopy.tabs} value={slot} renderHeader={children => <EditorControls className="xp-ui-tabs-header">{children}</EditorControls>} onChange={value => setActive({ id: experimentId, slot: value as ArmSlot })}

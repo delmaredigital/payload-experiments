@@ -24,7 +24,7 @@ const config: Config = { components: { ExperimentSlot: ExperimentSlotEditor, Tex
 const reply = (value: unknown, status = 200) => Response.json(value, { status })
 function fields() { return within(screen.getByTestId('sidebar')) }
 function chrome() { return within(document.querySelector<HTMLElement>('.xp-slot-chrome')!) }
-async function mount(unbound = false, leftover = false) {
+async function mount(unbound = false, leftover = false, unreadable = false) {
   function Probe() { read = useGetPuck(); return null }
   const actions: unknown[] = []
   render(<Puck config={config} data={{ root: { props: {} }, content: [{ ...block, props: { ...block.props, experiment: unbound ? null : block.props.experiment,
@@ -34,7 +34,7 @@ async function mount(unbound = false, leftover = false) {
   await waitFor(() => expect(chrome().queryByText('Loading test…')).toBeNull())
   act(() => read().dispatch({ type: 'setUi', ui: { itemSelector: read().getSelectorForId('sidebar-block')! } }))
   await fields().findByRole('region', { name: 'Test' })
-  if (!unbound && role === 'manager' && !failed && testCode === 200) await fields().findByRole('region', { name: C.versionsGroup })
+  if (!unbound && !unreadable && role === 'manager' && !failed && testCode === 200) await fields().findByRole('region', { name: C.versionsGroup })
   actions.length = 0
   return actions
 }
@@ -536,13 +536,17 @@ test('a results reader with a readable test gets read-only version fields and on
 })
 
 
-test.each([403, 404, 500, 0])('unreadable binding %s has the right header, sidebar and recovery actions', async code => {
-  testCode = code || 500
+test.each([403, 404, 500, 0, 'malformed'] as const)('unreadable binding %s has the right header, sidebar and recovery actions', async code => {
+  testCode = typeof code === 'number' ? code || 500 : 200
+  if (code === 'malformed') {
+    const original = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation((url, init) => String(url).includes('/sidebar-test?') ? Promise.resolve(reply({ ...doc, arms: [null] })) : original(url, init))
+  }
   if (!code) {
     const original = vi.mocked(fetch).getMockImplementation()!
     vi.mocked(fetch).mockImplementation((url, init) => String(url).includes('/sidebar-test?') ? Promise.reject(new Error('offline')) : original(url, init))
   }
-  await mount()
+  await mount(false, false, code === 'malformed')
   if (code === 404) {
     expect(chrome().getByRole('heading', { name: C.deleted })).toBeTruthy()
     expect(fields().getByText(C.deleted)).toBeTruthy()
@@ -569,9 +573,14 @@ test.each([403, 404, 500, 0])('unreadable binding %s has the right header, sideb
   } else {
     expect(chrome().getByRole('button', { name: C.retrySetup })).toBeTruthy()
     expect(fields().getByRole('button', { name: C.retrySetup })).toBeTruthy()
-    expect(fields().queryByRole('button', { name: C.moreGroup })).toBeNull()
     expect(fields().queryByRole('button', { name: C.configure })).toBeNull()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(fields().getByRole('button', { name: C.moreGroup }))
+    fireEvent.click(fields().getByRole('button', { name: C.differentTest }))
+    const dialog = await screen.findByRole('dialog')
+    const reads = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/sidebar-test?')).length
+    fireEvent.click(within(dialog).getByRole('button', { name: C.createAnother }))
+    await within(await screen.findByRole('dialog')).findByRole('textbox', { name: /Name/ })
+    expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/sidebar-test?'))).toHaveLength(reads)
   }
 })
 
@@ -682,4 +691,105 @@ test.each([403, 404])('Create a test from an unavailable binding %s uses page co
   const post = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST')!
   expect(JSON.parse(String(post[1]!.body)).arms.map((arm: { key: string }) => arm.key)).toEqual(['control', 'variantC'])
   expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/sidebar-test?'))).toHaveLength(reads)
+})
+
+
+test('a refused Traffic save retains its draft and error after the queued Name succeeds', async () => {
+  await mount()
+  const name = fields().getByRole<HTMLInputElement>('textbox', { name: 'Variant A Name' })
+  fireEvent.change(name, { target: { value: 'Queued name' } })
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let finish!: () => void
+  let patches = 0
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' && ++patches === 1
+    ? new Promise(resolve => { finish = () => resolve(reply({}, 403)) }) : original(url, init))
+  const input = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') })
+  fireEvent.change(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
+  await waitFor(() => expect(finish).toBeTypeOf('function'))
+  fireEvent.blur(name)
+  await act(async () => finish())
+  await screen.findByRole('tab', { name: 'Queued name' })
+  expect(fields().getByRole('alert').textContent).toBe("You don't have permission to do this.")
+  expect(input.value).toBe('60')
+  expect(doc.arms.map(arm => arm.weight)).toEqual([50, 50])
+  expect(patches).toBe(2)
+  fireEvent.change(input, { target: { value: '70' } })
+  expect(fields().queryByRole('alert')).toBeNull()
+})
+
+test.each([false, true])('Escape cancels only a Name save that has not started (started: %s)', async started => {
+  await mount()
+  const name = fields().getByRole<HTMLInputElement>('textbox', { name: 'Variant A Name' })
+  fireEvent.change(name, { target: { value: 'Escaped name' } })
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let finish!: () => void
+  let patches = 0
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' && ++patches === 1
+    ? new Promise(resolve => { finish = () => { void original(url, init).then(resolve) } }) : original(url, init))
+  if (!started) {
+    const input = fields().getByLabelText(C.weight('Original'))
+    fireEvent.change(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(finish).toBeTypeOf('function'))
+  }
+  fireEvent.keyDown(name, { key: 'Enter' })
+  await waitFor(() => expect(finish).toBeTypeOf('function'))
+  fireEvent.keyDown(name, { key: 'Escape' })
+  expect(name.value).toBe(started ? 'Escaped name' : 'Variant A')
+  await act(async () => finish())
+  await waitFor(() => expect(name.readOnly).toBe(false))
+  expect(doc.arms[1]!.label).toBe(started ? 'Escaped name' : 'Variant A')
+  expect(patches).toBe(1)
+})
+
+
+test('a refused Split never replaces another Traffic control’s refusal', async () => {
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
+  const input = fields().getByLabelText(C.weight('Original'))
+  fireEvent.change(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
+  await fields().findByRole('alert')
+  await waitFor(() => expect((input as HTMLInputElement).readOnly).toBe(false))
+  fireEvent.click(fields().getByRole('button', { name: C.split }))
+  await waitFor(() => expect(fields().getAllByRole('alert')).toHaveLength(2))
+  expect(within(fields().getByRole('group', { name: 'Original' })).getByRole('alert').textContent).toBe("You don't have permission to do this.")
+})
+
+test('saving and escaping another Traffic control preserve the first refused draft', async () => {
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let refuse = true
+  vi.mocked(fetch).mockImplementation((url, init) => refuse && init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
+  const control = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') })
+  const variant = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Variant A') })
+  fireEvent.change(control, { target: { value: '60' } }); fireEvent.keyDown(control, { key: 'Enter' })
+  await fields().findByRole('alert')
+  await waitFor(() => expect(control.readOnly).toBe(false))
+  refuse = false
+  fireEvent.change(variant, { target: { value: '45' } }); fireEvent.keyDown(variant, { key: 'Enter' })
+  await waitFor(() => expect(doc.arms.map(arm => arm.weight)).toEqual([55, 45]))
+  expect(control.value).toBe('60')
+  expect(variant.value).toBe('45')
+  expect(fields().getByRole('alert').textContent).toBe("You don't have permission to do this.")
+  await waitFor(() => expect(variant.readOnly).toBe(false))
+  fireEvent.change(variant, { target: { value: '40' } }); fireEvent.keyDown(variant, { key: 'Escape' })
+  expect(control.value).toBe('60')
+  expect(fields().getByRole('alert')).toBeTruthy()
+})
+
+test('removing a version clears its Traffic draft without retaining a missing control as unsaved', async () => {
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let refuse = true
+  vi.mocked(fetch).mockImplementation((url, init) => refuse && init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
+  const variant = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Variant A') })
+  fireEvent.change(variant, { target: { value: '40' } }); fireEvent.keyDown(variant, { key: 'Enter' })
+  await fields().findByRole('alert')
+  await waitFor(() => expect(variant.readOnly).toBe(false))
+  refuse = false
+  fireEvent.click(fields().getByRole('button', { name: C.removeVersion }))
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: C.remove }))
+  await waitFor(() => expect(fields().queryByRole('spinbutton', { name: C.weight('Variant A') })).toBeNull())
+  expect(await fields().findByRole('button', { name: 'Start' })).toBeTruthy()
+  expect(fields().queryByRole('alert')).toBeNull()
 })

@@ -116,23 +116,26 @@ test('dropdowns draw their chevron and spacing independently of native browser a
 })
 
 
-test('every xp-ui-select has a chevron wrapper, including the public CSS-free picker', () => {
+test('every native select uses the shared component or wrapped public picker', () => {
   const root = new URL('../../src/', import.meta.url)
   function className(element: ts.JsxOpeningElement | ts.JsxSelfClosingElement): string {
     const attribute = element.attributes.properties.find(attr => ts.isJsxAttribute(attr) && attr.name.getText() === 'className')
     return attribute && ts.isJsxAttribute(attribute) ? attribute.initializer?.getText() ?? '' : ''
   }
+  const found: string[] = []
   function scan(directory: URL): void {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory)
       if (entry.isDirectory()) scan(path)
       else if (/\.tsx$/.test(entry.name)) {
         const source = readFileSync(path, 'utf8')
-        if (!source.includes('xp-ui-select')) continue
         const tree = ts.createSourceFile(path.pathname, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
         function visit(node: ts.Node): void {
           const element = ts.isJsxElement(node) ? node.openingElement : ts.isJsxSelfClosingElement(node) ? node : undefined
-          if (element && /\bxp-ui-select(?!-)\b/.test(className(element))) {
+          if (element && element.tagName.getText() === 'select') {
+            found.push(path.pathname)
+            expect(path.pathname).toMatch(/\/(ui\/Inputs|puck\/ExperimentPicker)\.tsx$/)
+            expect(className(element), path.pathname).toContain('xp-ui-select')
             expect(element.tagName.getText(), path.pathname).toBe('select')
             expect(ts.isJsxElement(node.parent), path.pathname).toBe(true)
             if (ts.isJsxElement(node.parent)) {
@@ -147,4 +150,9 @@ test('every xp-ui-select has a chevron wrapper, including the public CSS-free pi
     }
   }
   scan(root)
+  expect(found.map(path => path.slice(root.pathname.length)).sort()).toEqual(['puck/ExperimentPicker.tsx', 'ui/Inputs.tsx'])
+})
+
+test('aria-disabled controls have the native disabled styling', () => {
+  for (const control of ['input', 'button']) expect(rule(`.xp-ui-${control}[aria-disabled='true']`)).toBe(rule(`.xp-ui-${control}:disabled`))
 })

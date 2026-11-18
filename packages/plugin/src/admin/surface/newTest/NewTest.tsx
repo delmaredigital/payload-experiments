@@ -12,6 +12,7 @@ import type { SurfaceProps } from '../../../testSurface/surface/contracts.js'
 import { NEW_TEST_COPY as C } from '../../copy/newTest.js'
 import { CreateRefused, createTest } from '../../../puck/editor/createTest.js'
 import { PageWizard } from './PageWizard.js'
+import { Select } from '../../../ui/Select.js'
 import './newTest.css'
 
 type Layer = { id: DocId; name: string }
@@ -103,10 +104,10 @@ export function NewTest({ surface, pages }: { surface: SurfaceProps; pages?: Tes
         <label><input type="radio" name="people" checked={unitType === 'user'} onChange={() => setUnitType('user')} />{C.users}</label>
       </fieldset><p id="xp-new-people-help">{C.peopleHelp}</p>
       <details open={advanced} onToggle={event => setAdvanced(event.currentTarget.open)}><summary>{C.advanced}</summary>
-        <label>{C.group}<select aria-describedby="xp-new-group-help" disabled={layerState !== 'ready'}
+        <Select id="xp-new-group" label={C.group} aria-describedby="xp-new-group-help" disabled={layerState !== 'ready'}
           value={layer === undefined ? '' : layers.findIndex(item => item.id === layer)} onChange={event => setLayer(event.currentTarget.value === '' ? undefined : layers[Number(event.currentTarget.value)]?.id)}>
           <option value="">{C.noGroup}</option>{layers.map((item, index) => <option key={index} value={index}>{item.name}</option>)}
-        </select></label><p id="xp-new-group-help">{C.groupHelp}</p>
+        </Select><p id="xp-new-group-help">{C.groupHelp}</p>
         {layerState === 'loading' ? <p role="status">{C.groupsLoading}</p> : layerState === 'error' ? <p role="alert">{C.groupsError}{' '}<button type="button" onClick={() => setLayerRetry(value => value + 1)}>{C.retry}</button></p> : null}
       </details>
     </> : <form onSubmit={event => { event.preventDefault(); void submit() }}>
