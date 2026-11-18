@@ -32,7 +32,7 @@ beforeEach(() => {
       if (failure === 'malformed') return reply({ doc: {} })
       return reply({ doc: { id: 'created', slug: 'landing-test' } })
     }
-    if (url.searchParams.has('where[or][0][name][equals]')) {
+    if (url.searchParams.has('where[name][like]')) {
       if (failure === 'network') throw new Error('offline')
       return failure === 'lookup' ? reply({}, 403) : reply({ docs: taken ? [{ name: 'Landing test' }] : [] })
     }

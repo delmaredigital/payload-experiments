@@ -22,6 +22,7 @@ export const editorCopy = {
   dropZone: (label: string) => `Drop ${label} content here`,
   replaceConfirm: (label: string, original: string = ARM_LABELS.control) => `${label} already has content. Replace it with a copy of the ${original}?`,
   replace: 'Replace',
+  pageFallback: 'Page',
   createLabel: 'Set up test',
   existingTest: 'Use an existing test',
   sharedTest: 'This test is also used in another place. Changes here affect that test.',

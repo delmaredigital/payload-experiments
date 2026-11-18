@@ -47,17 +47,26 @@ export async function createTest(api: string, input: Omit<Parameters<typeof newT
   }
 }
 
-/** Choose a free display name before the existing slug/creation path. Called only by Set up test. */
+// The name field has no field override; Payload's defaultMaxTextLength is 40,000.
+const NAME_MAX_LENGTH = 40_000
+function blockTestName(title: string, index: number): string {
+  const suffix = index === 1 ? ' test' : ` test ${index}`
+  // Do not leave half a surrogate pair at the title boundary.
+  return title.slice(0, NAME_MAX_LENGTH - suffix.length).replace(/[\uD800-\uDBFF]$/, '').trimEnd() + suffix
+}
+
+/** Choose a free display name before the existing slug/creation path. Called only by Set up test.
+ * Names are not unique: two editors may choose the same display name. Slugs are guarded separately. */
 export async function createBlockTest(api: string, pageTitle: string, arms: Parameters<typeof newTestBody>[0]['arms']): Promise<ExperimentRef> {
-  const base = `${pageTitle.trim() || 'Page'} test`
-  for (let next = 1; ; next += 50) {
-    const names = Array.from({ length: 50 }, (_, offset) => next + offset === 1 ? base : `${base} ${next + offset}`)
-    const query = new URLSearchParams({ depth: '0', 'select[name]': 'true' })
-    names.forEach((name, index) => query.set(`where[or][${index}][name][equals]`, name))
-    const response = await fetchAllDocs<{ name?: string }>(`${api}/xp-experiments?${query}`, { credentials: 'include' })
-    if (!response.ok) throw new CreateRefused(refusalMessage(response.body))
-    const taken = new Set(response.docs.map(doc => doc.name))
-    const name = names.find(candidate => !taken.has(candidate))
-    if (name) return createTest(api, { name, kind: 'block', unitType: 'visitor', arms })
+  const title = pageTitle.trim() || editorCopy.pageFallback
+  const base = blockTestName(title, 1)
+  // A short common prefix also matches candidates whose title is trimmed for a number.
+  const query = new URLSearchParams({ depth: '0', 'select[name]': 'true', 'where[name][like]': base.slice(0, 64) })
+  const response = await fetchAllDocs<{ name?: string }>(`${api}/xp-experiments?${query}`, { credentials: 'include' })
+  if (!response.ok) throw new CreateRefused(refusalMessage(response.body))
+  const taken = new Set(response.docs.map(doc => doc.name))
+  for (let index = 1; ; index++) {
+    const name = blockTestName(title, index)
+    if (!taken.has(name)) return createTest(api, { name, kind: 'block', unitType: 'visitor', arms })
   }
 }

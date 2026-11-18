@@ -98,9 +98,9 @@ test('default block names preserve punctuation and read all duplicate-name pages
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
     if (init?.method === 'POST') return response({ doc: { id: 'created', slug: 'news-events-test-3' } })
     const url = new URL(input, 'https://example.test')
-    if (url.searchParams.has('where[or][0][name][equals]')) {
-      expect(url.searchParams.get('where[or][0][name][equals]')).toBe('News, Events test')
-      expect(url.searchParams.get('where[or][1][name][equals]')).toBe('News, Events test 2')
+    if (url.searchParams.has('where[name][like]')) {
+      expect(url.searchParams.get('where[name][like]')).toBe('News, Events test')
+      expect(url.searchParams.get('limit')).toBe('100')
       expect(url.searchParams.has('where[name][in]')).toBe(false)
       return response(url.searchParams.get('page') === '1' ? {
         docs: Array.from({ length: 100 }, (_, id) => ({ id, name: 'News, Events test' })), hasNextPage: true,
@@ -113,4 +113,49 @@ test('default block names preserve punctuation and read all duplicate-name pages
   const post = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')!
   expect(JSON.parse(String(post[1]!.body)).name).toBe('News, Events test 3')
   expect(fetcher).toHaveBeenCalledTimes(4)
+})
+
+
+test.each([0, 1, 137])('long block title uses short lookup URLs with %s existing names', async count => {
+  const { createBlockTest } = await import('../../../src/puck/editor/createTest.js')
+  const title = 'A long page title '.repeat(10)
+  const base = `${title.trim()} test`
+  const existing = Array.from({ length: count }, (_, index) => ({ id: index, name: index === 0 ? base : `${base} ${index + 1}` }))
+  const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
+    expect(input.length).toBeLessThan(2000)
+    if (init?.method === 'POST') return response({ doc: { id: 1, slug: 'created' } })
+    const params = new URL(input, 'https://example.test').searchParams
+    if (!params.has('where[name][like]')) return response({ docs: [] })
+    const page = Number(params.get('page'))
+    return response({ docs: existing.slice((page - 1) * 100, page * 100), hasNextPage: count > page * 100 })
+  })
+  vi.stubGlobal('fetch', fetcher)
+  await createBlockTest('/api', title, [])
+  const post = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')!
+  expect(JSON.parse(String(post[1]!.body)).name).toBe(count ? `${base} ${count + 1}` : base)
+})
+
+test.each([false, true])('block names retain their suffix at the Payload text limit (occupied: %s)', async occupied => {
+  const { createBlockTest } = await import('../../../src/puck/editor/createTest.js')
+  const title = 'x'.repeat(40_000)
+  const base = `${'x'.repeat(39_995)} test`
+  const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
+    expect(input.length).toBeLessThan(2000)
+    if (init?.method === 'POST') return response({ doc: { id: 1, slug: 'created' } })
+    return response({ docs: input.includes('name') && occupied ? [{ name: base }] : [] })
+  })
+  vi.stubGlobal('fetch', fetcher)
+  await createBlockTest('/api', title, [])
+  const post = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')!
+  const name = JSON.parse(String(post[1]!.body)).name
+  expect(name).toHaveLength(40_000)
+  expect(name).toBe(occupied ? `${'x'.repeat(39_993)} test 2` : base)
+})
+
+test('empty page titles use the copy module fallback', async () => {
+  const { createBlockTest } = await import('../../../src/puck/editor/createTest.js')
+  const fetcher = vi.fn(async (_input: string, init?: RequestInit) => response(init?.method === 'POST' ? { doc: { id: 1, slug: 'page-test' } } : { docs: [] }))
+  vi.stubGlobal('fetch', fetcher)
+  await createBlockTest('/api', '  ', [])
+  expect(JSON.parse(String(fetcher.mock.calls.find(([, init]) => init?.method === 'POST')![1]!.body)).name).toBe('Page test')
 })
