@@ -6,7 +6,7 @@
 :where(.xp-test-surface) .xp-verdict-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--xp-space-3); margin-top: var(--xp-space-5); padding-top: var(--xp-space-4); border-top: 1px solid var(--xp-border); color: var(--xp-text-3); font: var(--xp-text-small); }
 :where(.xp-test-surface) .xp-round-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--xp-space-2); min-width: 0; }
 :where(.xp-test-surface) .xp-round-meta .xp-ui-field { display: flex; align-items: center; gap: var(--xp-space-2); margin: 0; min-width: 0; }
-:where(.xp-test-surface) .xp-round-meta select { width: auto; max-width: 100%; }
+:where(.xp-test-surface) .xp-round-meta .xp-ui-select-wrap { width: auto; max-width: 100%; }
 :where(.xp-test-surface) .xp-results-chips { display: flex; flex-wrap: wrap; gap: var(--xp-space-2); list-style: none; padding: 0; margin-bottom: 0; }
 :where(.xp-test-surface) .xp-stat-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--xp-border); border-radius: var(--xp-radius-card); background: var(--xp-surface); overflow: hidden; }
 :where(.xp-test-surface) .xp-stat-tile { padding: 20px; min-width: 0; }

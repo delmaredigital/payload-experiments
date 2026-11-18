@@ -189,7 +189,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const hidden = blockVisibility === 'hidden'
   const visibilityNotice = hidden ? editorCopy.hidden : blockVisibility ? editorCopy.hiddenOn(blockVisibility) : undefined
   const locallyShared = usePuckSelector(state => experimentId !== undefined &&
-    (localPlacements(state.appState.data, state.config).get(String(experimentId))?.size ?? 0) > 1)
+    (localPlacements(state.appState.data).get(String(experimentId))?.size ?? 0) > 1)
 
   const result = experimentId === undefined || loaded?.id !== experimentId ? undefined : loaded
   const shared = locallyShared || result?.shared === true
@@ -214,10 +214,18 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     setWeightEdits(current => Object.fromEntries(Object.entries(current).filter(([key]) => keys.has(key))))
   }, [armKeys])
   useEffect(() => { setWeightEdits({}); splitIntent.current = false }, [bindingKey, status])
-  const writes = useArmWrites(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, doc => {
-    publishExperiment(experimentId!, doc)
-    if (isCurrentBinding()) setLoaded(value => ({ id: experimentId, doc, shared: value?.id === experimentId ? value?.shared : undefined }))
-  }, isCurrentBinding, () => setClearError(null), () => { invalidatePlacements(api, experimentId!) })
+  useEffect(() => {
+    setRemoving(current => current?.key === bindingKey && armKeys?.split(',').includes(current.arm.key) ? current : null)
+  }, [bindingKey, armKeys])
+  const writes = useArmWrites({ url: `${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, bindingKey,
+    controlKeys: [
+      ...(editable ? ['split', ...(experiment!.arms.filter(arm => arm.kind === 'variant').length < 3 ? ['add'] : []), ...experiment!.arms.filter(arm => arm.kind !== 'control').map(arm => `remove:${arm.key}`)] : []),
+      ...(canManage && experiment?.status === 'draft' ? orphanSlots.map(slot => `leftover:${slot}`) : []),
+    ],
+    publish: doc => {
+      publishExperiment(experimentId!, doc)
+      if (isCurrentBinding()) setLoaded(value => ({ id: experimentId, doc, shared: value?.id === experimentId ? value?.shared : undefined }))
+    }, isCurrent: isCurrentBinding, onWrite: () => setClearError(null), onSaved: () => { invalidatePlacements(api, experimentId!) } })
   // The slot arrays belong to the page; reading the test is unnecessary to edit them.
   const pageSlots = usePuckSelector(state => (['control', 'variantA', 'variantB', 'variantC'] as const).filter(slot => {
     const content: unknown = state.getItemById(props.id)?.props[slot]
@@ -394,7 +402,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         {experiment && access.surface && !noAccess ? <section aria-label={editorCopy.versionsGroup}><FieldGroup label={editorCopy.versionsGroup} collapsible={false}>
           {!editable ? <p className="xp-ui-help">{canManage ? editorCopy.locked[experiment.status as keyof typeof editorCopy.locked] ?? editorCopy.lockedGeneric : editorCopy.readOnlyVersions}</p> : null}
-          <VersionWeights edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable}
+          <VersionWeights key={bindingKey} edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable}
             beforeSplit={<>{leftoverControls}{editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}</>}
             renderRow={(arm, input) => <div className="xp-slot-version-group" data-active={slot === arm.key} role="group" aria-label={arm.label}>
               <FieldGroup variant="card" collapsible={false}>

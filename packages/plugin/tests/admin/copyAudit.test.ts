@@ -285,3 +285,9 @@ test('hidden-block sentences participate in the copy audit', async () => {
   expect(editorCopy.hiddenOn('phone and tablet')).toBe('This block is hidden on phone and tablet. Visitors on phone and tablet are still counted in this test.')
   expect(hits([editorCopy.hidden, editorCopy.hiddenOn('phone'), hiddenBlockPlacementCopy('Example')])).toEqual([])
 })
+
+
+test('Unreleased records the user-visible sidebar and shared-control fixes', () => {
+  const unreleased = readFileSync(new URL('../../../../CHANGELOG.md', import.meta.url), 'utf8').split('## [Unreleased]')[1]!.split(/\n## \[/)[0]!
+  for (const change of ['refused Traffic value', 'Escape cancels a pending name change', '200 characters', 'Use a different test', 'fails to load', 'New test and Add goal', 'disabled styling']) expect(unreleased, change).toContain(change)
+})

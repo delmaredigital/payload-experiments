@@ -79,7 +79,7 @@ export const lastBlockPlacementCopy = (name: string, removingPage = false) => re
   ? `“${name}” is running and this page is the only published place it appears. Stop the test first.`
   : `“${name}” is running and this is the only published place it appears. Stop the test, or keep its block on this page.`
 
-export const hiddenBlockPlacementCopy = (name: string) => `“${name}” is running and this is the only published place it appears. Its block cannot be hidden until you stop the test.`
+export const hiddenBlockPlacementCopy = (name: string) => `“${name}” is running and this is the only published place it appears. Stop the test first, or keep its block visible on this page.`
 
 export const bulkBlockRemovalCopy = (name: string) => `“${name}” is running and the pages in this change are the only published places it appears. Stop the test first.`
 

@@ -1,13 +1,11 @@
 import { walkVisiblePuck, type BlockVisibility } from '../visibility.js'
-import { type Config, type Data } from '@puckeditor/core'
+import type { Data } from '@puckeditor/core'
 
-// Puck data/config are immutable. Selection, hover and drag state reuse this
+// Puck data is immutable. Selection, hover and drag state reuse this
 // result, and every block on the page shares a single traversal per data change.
-const pages = new WeakMap<Data, WeakMap<Config, Map<string, Set<string>>>>()
-export function localPlacements(data: Data, config: Config): Map<string, Set<string>> {
-  let configs = pages.get(data)
-  if (!configs) { configs = new WeakMap(); pages.set(data, configs) }
-  let placements = configs.get(config)
+const pages = new WeakMap<Data, Map<string, Set<string>>>()
+export function localPlacements(data: Data): Map<string, Set<string>> {
+  let placements = pages.get(data)
   if (!placements) {
     placements = new Map()
     walkVisiblePuck(data, (item, visibility) => {
@@ -19,7 +17,7 @@ export function localPlacements(data: Data, config: Config): Map<string, Set<str
         placements!.set(key, ids)
       }
     })
-    configs.set(config, placements)
+    pages.set(data, placements)
   }
   return placements
 }

@@ -763,7 +763,7 @@ With payload-puck 0.12.0's block visibility controls, a fully hidden Experiment
 block, or one inside any fully hidden block, is not a place the test appears.
 It is omitted from placement discovery and where-used, and cannot satisfy Start's
 published-place requirement. Publishing a change that hides the last published
-place of a running test is refused; stop the test first. Draft saves follow the
+place of a running test is refused: `“<test name>” is running and this is the only published place it appears. Stop the test first, or keep its block visible on this page.` Draft saves follow the
 same rules as removing a block.
 
 The stored contract is `props._visibility = { hidden?: true, hideOn?:
@@ -780,6 +780,7 @@ the block from view. The editor says, for example: “This block is hidden on ph
 Visitors on phone are still counted in this test.” Payload blocks editor
 placements are unaffected. Make permanent leaves fully hidden siblings intact
 and carries size-specific hiding onto the unwrapped winning blocks.
+After Make permanent finishes, un-hiding a retained block lets you save and publish it again; visitors see the saved winner without a new exposure, and the editor shows the test’s current decided or archived state.
 
 For payload-puck hosts, add one integration object on each side. In the render
 config, pass `integrations` to `extendConfig`:

@@ -25,7 +25,7 @@ afterEach(async () => { cleanup(); await act(async () => {}); vi.unstubAllGlobal
 async function mount(status: string, data: Data) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.endsWith('/editor-surface') ? { canManage: true, canReadResults: true }
     : url.endsWith('/preflight') ? { checks, placements } : url.endsWith('/results') || url.includes('/summary?') ? {} : {
-      name: 'Visibility test', status, arms: [{ key: 'control', kind: 'control', label: 'Original', weight: 50 }, { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 50 }],
+      name: 'Visibility test', status, decision: { winnerArm: 'variantA' }, arms: [{ key: 'control', kind: 'control', label: 'Original', weight: 50 }, { key: 'variantA', kind: 'variant', label: 'Variant A', weight: 50 }],
     })))
   function Probe() { read = useGetPuck(); return null }
   render(<Puck config={config} data={data} iframe={{ enabled: false }}><Puck.Preview /><aside data-testid="fields"><Puck.Fields /></aside><Probe /></Puck>)
@@ -67,4 +67,20 @@ test('without a published place the existing missing-placement blocker remains',
   await mount('draft', { root: { props: {} }, content: [{ ...block, props: { ...block.props, _visibility: { hidden: true } } }] })
   expect(await sidebar().findByText('Not on a page yet. Open a page, add an Experiment block and choose this test.')).toBeTruthy()
   expect(sidebar().queryByRole('button', { name: 'Start' })).toBeNull()
+})
+
+
+test.each(['decided', 'archived'])('un-hiding a retained %s block restores its normal editor state', async status => {
+  await mount(status, { root: { props: {} }, content: [{ ...block, props: { ...block.props, _visibility: { hidden: true } } }] })
+  expect(chrome().getByText(C.hidden)).toBeTruthy()
+  const item = read().getItemById(block.props.id)!
+  act(() => read().dispatch({ type: 'replace', destinationIndex: 0, destinationZone: 'root:default', data: { ...item, props: { ...item.props, _visibility: {} } } }))
+  await waitFor(() => expect(chrome().queryByText(C.hidden)).toBeNull())
+  expect(sidebar().queryByText(C.hidden)).toBeNull()
+  expect(sidebar().getByText(status === 'decided' ? C.decided('Variant A') : C.archived)).toBeTruthy()
+  expect(chrome().getByRole('tab', { name: 'Variant A' })).toBeTruthy()
+  expect(sidebar().getByRole('button', { name: 'Configure test' })).toBeTruthy()
+  expect(sidebar().queryByRole('button', { name: 'Start' })).toBeNull()
+  expect(sidebar().queryByRole('alert')).toBeNull()
+  expect(screen.queryByText(/Save this page|Publish this page/)).toBeNull()
 })

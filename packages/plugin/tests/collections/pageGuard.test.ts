@@ -1145,3 +1145,15 @@ test('a stale no-transaction restore cannot consume the caller rollback cleanup'
   expect(staleRestore!.complete).not.toBe(true)
   expect(stack).toEqual([staleRestore])
 })
+
+
+test.each(['decided', 'archived'])('un-hiding a retained %s block permits draft save and publish', async status => {
+  const f = blockSetup(status)
+  const hidden = { ...f.block, props: { ...f.block.props, id: 'retained', _visibility: { hidden: true } } }
+  Object.assign(f.published, { puckData: { content: [hidden] } })
+  const shown = { puckData: { content: [{ ...hidden, props: { ...hidden.props, _visibility: {} } }] } }
+  await expect(f.save({ ...shown, _status: 'draft' }, true)).resolves.toMatchObject(shown)
+  await expect(f.save({ ...shown, _status: 'published' })).resolves.toMatchObject(shown)
+  Object.assign(f.published, shown)
+  await expect(pageGuardAfterChange({ req: f.req, collection: f.collection, doc: f.published } as never)).resolves.toBe(f.published)
+})

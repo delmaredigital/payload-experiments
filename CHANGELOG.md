@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: a refused Traffic value stays visible with its error; Escape cancels a pending name change before its save starts. Generated test names are capped at 200 characters. Use a different test is available when a test fails to load. New test and Add goal use styled dropdowns, and unavailable controls have consistent disabled styling. Migration impact: none.
+
+- Fixed: shared dropdown widths keep their chevrons aligned with the control. Traffic saves preserve concurrent version removals; successful splits clear Traffic errors, and version write refusals clear when their control closes, disappears or changes tests. Migration impact: none.
+
 - Added: fully hidden Puck Experiment blocks and blocks inside hidden ancestors no longer count as places a test appears. Hiding the last published place of a running test is refused. Editor notices explain full and size-specific hiding; partial hiding still counts visitors. The public resolver omits fully hidden subtrees and exposures. Payload blocks placements are unchanged. Migration impact: none.
 
 - Fixed: a deleted test can be repaired with Set up test while retaining the block’s content. Stopped tests offer Start a new round. Migration impact: none.

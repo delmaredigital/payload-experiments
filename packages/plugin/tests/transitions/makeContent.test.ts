@@ -1067,7 +1067,8 @@ test.each(['self', 'slot', 'zone'] as const)('Make permanent preserves fully hid
   const hidden = { ...slot([text('Hidden winner')]), props: { ...slot([text('Hidden winner')]).props, id: 'hidden', ...(mode === 'self' ? { _visibility: { hidden: true } } : {}) } }
   const parent = mode === 'self' ? hidden : { type: 'Container', props: { id: 'parent', _visibility: { hidden: true }, ...(mode === 'slot' ? { children: [hidden] } : {}) } }
   f.payload.documents.pages = [{ id: 3, _status: 'published', puckData: { content: [slot(), parent], ...(mode === 'zone' ? { zones: { 'parent:children': [hidden] } } : {}) } }]
-  await makeContent(f.req, { experimentId: 1, options: f.options })
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.doc.status).toBe('archived')
   expect(hostUpdates(f)).toHaveLength(1)
   expect(hostUpdates(f)[0]!.args.data).toEqual(expect.objectContaining({ puckData: { content: [text('Winner'), parent], ...(mode === 'zone' ? { zones: { 'parent:children': [hidden] } } : {}) } }))
 })

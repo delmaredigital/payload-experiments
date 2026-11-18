@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { addVariant, removeArm, balanceWeight, splitEvenly, totalWeight, withSlotsFor } from '../../arms/model.js'
 import { checkArms } from '../../collections/experiments/armInvariants.js'
 import { issueMessage } from '../../arms/copy.js'
@@ -12,11 +12,22 @@ import type { EditorExperiment } from './editor.model.js'
 import { ArmWriteError, writeArms } from './armWrites.js'
 import { editorCopy as C } from './copy.js'
 
-export function useArmWrites(url: string, publish: (doc: EditorExperiment) => void, isCurrent: () => boolean, onWrite: () => void, onSaved?: () => void) {
+export function useArmWrites({ url, bindingKey, controlKeys, publish, isCurrent, onWrite, onSaved }: {
+  url: string; bindingKey: string; controlKeys: string[]
+  publish: (doc: EditorExperiment) => void; isCurrent: () => boolean; onWrite: () => void; onSaved?: () => void
+}) {
   const guard = useRef(false)
   const running = useRef<Promise<void>>(Promise.resolve())
   const [busy, setBusy] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const controls = controlKeys.join(',')
+  const scope = useRef({ bindingKey, keys: new Set(controlKeys) })
+  scope.current = { bindingKey, keys: new Set(controlKeys) }
+  useEffect(() => { setErrors({}) }, [bindingKey])
+  useEffect(() => {
+    const keys = new Set(controls.split(','))
+    setErrors(current => Object.fromEntries(Object.entries(current).filter(([key]) => keys.has(key))))
+  }, [controls])
   const clearError = (key: string) => setErrors(current => { const next = { ...current }; delete next[key]; return next })
   async function write(transform: (arms: Arm[]) => Arm[], options?: { draftOnly?: boolean; onError?: (message: string) => void; queue?: boolean; cancelled?: () => boolean; onStart?: () => void; errorKey?: string }): Promise<Arm[] | undefined> {
     if (options?.queue) {
@@ -32,8 +43,8 @@ export function useArmWrites(url: string, publish: (doc: EditorExperiment) => vo
     setBusy(true)
     const errorKey = options?.errorKey ?? 'add'
     if (!options?.onError) clearError(errorKey)
-    try { const saved = await writeArms(url, transform, publish, options); onSaved?.(); return saved }
-    catch (error) { if (isCurrent()) { const message = error instanceof ArmWriteError ? error.message : C.writeNetwork; if (options?.onError) options.onError(message); else setErrors(current => ({ ...current, [errorKey]: message })) } }
+    try { const saved = await writeArms(url, transform, publish, options); if (isCurrent()) setErrors({}); onSaved?.(); return saved }
+    catch (error) { if (isCurrent()) { const message = error instanceof ArmWriteError ? error.message : C.writeNetwork; if (options?.onError) options.onError(message); else if (scope.current.bindingKey === bindingKey && scope.current.keys.has(errorKey)) setErrors(current => ({ ...current, [errorKey]: message })) } }
     finally { guard.current = false; setBusy(false); release() }
   }
   return { write, busy, error: Object.values(errors).join(' '), errorFor: (key: string) => errors[key], clearError }
@@ -98,23 +109,24 @@ export function RemoveVersion({ arm, writes, count, shared, onRemove, onClose }:
 }) {
   const slot = arm.key === 'holdout' ? undefined : arm.key as ArmSlot
   const [tried, setTried] = useState(false)
-  return <Dialog open title={C.removeTitle(arm.label)} initialFocus="cancel" dismissible={!writes.busy} onClose={() => onClose()}>
+  const close = () => { writes.clearError(`remove:${arm.key}`); onClose() }
+  return <Dialog open title={C.removeTitle(arm.label)} initialFocus="cancel" dismissible={!writes.busy} onClose={close}>
       <div className="xp-slot-drawer"><p>{C.removeHelp(count)}</p>{shared === undefined ? <p>{C.removeScopeUnknown}</p> : shared ? <p>{C.removeShared}</p> : null}
       {tried && writes.errorFor(`remove:${arm.key}`) ? <p role="alert" className="xp-ui-error">{writes.errorFor(`remove:${arm.key}`)}</p> : null}
       <div className="xp-ui-button-group">
-        <Button data-dialog-cancel aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) onClose() }}>{C.cancel}</Button>
+        <Button data-dialog-cancel aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) close() }}>{C.cancel}</Button>
         <Button variant="danger" aria-busy={writes.busy || undefined} aria-disabled={writes.busy || undefined} onClick={async () => {
           if (writes.busy) return
           setTried(true)
           const saved = await writes.write(arms => splitEvenly(removeArm(arms, arm.key)), { errorKey: `remove:${arm.key}` })
-          if (saved) { if (slot) onRemove(slot); onClose() }
+          if (saved) { if (slot) onRemove(slot); close() }
         }}>{C.remove}</Button>
       </div></div>
     </Dialog>
 }
 
 export type WeightEdits = Partial<Record<ArmKey, string>>
-export function VersionWeights({ experiment, writes, edits, setEdits, groupId, splitIntent, editable = true, beforeSplit, renderRow }: { experiment: EditorExperiment; writes: ArmWrites; edits: WeightEdits; setEdits: (edits: WeightEdits) => void; groupId: string; splitIntent: RefObject<boolean>; editable?: boolean; beforeSplit?: ReactNode; renderRow?: (arm: EditorExperiment['arms'][number], input: ReactNode) => ReactNode }) {
+export function VersionWeights({ experiment, writes, edits, setEdits, groupId, splitIntent, editable = true, beforeSplit, renderRow }: { experiment: EditorExperiment; writes: ArmWrites; edits: WeightEdits; setEdits: Dispatch<SetStateAction<WeightEdits>>; groupId: string; splitIntent: RefObject<boolean>; editable?: boolean; beforeSplit?: ReactNode; renderRow?: (arm: EditorExperiment['arms'][number], input: ReactNode) => ReactNode }) {
   const id = useId()
   const split = useRef<HTMLDivElement>(null)
   const [errors, setErrors] = useState<Partial<Record<ArmKey, string>>>({})
@@ -127,7 +139,7 @@ export function VersionWeights({ experiment, writes, edits, setEdits, groupId, s
   const invalidKeys = new Set(Object.entries(edits).filter(([, raw]) => raw.trim() === '' || !Number.isInteger(Number(raw)) || Number(raw) < 0 || Number(raw) > 100).map(([key]) => key))
   const apply = (arms: Arm[], key: ArmKey) => balanceWeight(arms, key, Number(edits[key]))
   const keys = Object.keys(edits) as ArmKey[]
-  const clearDraft = (key: ArmKey) => setEdits(Object.fromEntries(Object.entries(edits).filter(([current]) => current !== key)))
+  const clearDraft = (key: ArmKey) => setEdits(current => Object.fromEntries(Object.entries(current).filter(([candidate]) => candidate !== key)))
   const live = withSlotsFor(keys.length === 1 && !invalidKeys.has(keys[0]!) && !errors[keys[0]!] ? apply(experiment.arms as Arm[], keys[0]!) : experiment.arms as Arm[], 'block')
   const issues = checkArms(live, 'block')
   async function commit(key: ArmKey) {
@@ -140,7 +152,7 @@ export function VersionWeights({ experiment, writes, edits, setEdits, groupId, s
     <div className="xp-slot-weight-inputs">{experiment.arms.map(arm => { const input = <NumberInput id={`${id}-${arm.key}`} label={C.traffic} aria-label={C.weight(arm.label)}
       min={0} max={100} step={1} value={edits[arm.key] ?? live.find(current => current.key === arm.key)?.weight ?? ''} readOnly={!editable || writes.busy} aria-disabled={writes.busy || undefined}
       error={invalidKeys.has(arm.key) ? C.invalidShare : errors[arm.key]}
-      onChange={event => { clearErrors([arm.key]); setEdits({ ...edits, [arm.key]: event.target.value }) }}
+      onChange={event => { clearErrors([arm.key]); const value = event.target.value; setEdits(current => ({ ...current, [arm.key]: value })) }}
       onBlur={event => { const target = event.relatedTarget as Element | null; if (!splitIntent.current && !(typeof target?.closest === 'function' && target.closest('[data-xp-split]')?.getAttribute('data-xp-split') === groupId)) void commit(arm.key) }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void commit(arm.key) } if (event.key === 'Escape' && !writes.busy) { event.preventDefault(); clearErrors([arm.key]); clearDraft(arm.key) } }} />; return <div key={arm.key}>{renderRow ? renderRow(arm, input) : input}</div> })}</div>
     {Object.keys(edits).length && !invalidKeys.size ? issues.map((issue, i) => <p role="alert" className="xp-ui-error" key={i}>{issueMessage(issue, totalWeight(live))}</p>) : null}
     {beforeSplit}
@@ -148,6 +160,6 @@ export function VersionWeights({ experiment, writes, edits, setEdits, groupId, s
       // Pointer intent reaches the destination before the source iframe loses focus.
       splitIntent.current = true
       setTimeout(() => { splitIntent.current = false }, 0)
-    }}><Button variant="quiet" size="sm" aria-disabled={writes.busy || undefined} onClick={async () => { if (writes.busy) return; const saved = await writes.write(splitEvenly, { errorKey: 'split' }); if (saved) setEdits({}) }}>{C.split}</Button></div> : null}
+    }}><Button variant="quiet" size="sm" aria-disabled={writes.busy || undefined} onClick={async () => { if (writes.busy) return; const saved = await writes.write(splitEvenly, { errorKey: 'split' }); if (saved) { setEdits(() => ({})); setErrors({}) } }}>{C.split}</Button></div> : null}
   </div>
 }

@@ -58,3 +58,8 @@ test('manual page setup copy shares its server form and every contextual sentenc
   expect(copy.sameAddressCopy('Variant A', 'Original', '/copy')).toBe('Variant A has the same address (/copy) as Original. Choose a different page.')
   expect(copy.sameAddressCopy('Variant A', 'Original', '/copy', 'Pages')).toBe('Variant A has the same address (/copy) as Original. Choose a different page. Give the copy its own address in Pages, publish it, then choose it.')
 })
+
+
+test('hiding the last running placement offers stopping or keeping the block visible', () => {
+  expect(copy.hiddenBlockPlacementCopy('Hero')).toBe('“Hero” is running and this is the only published place it appears. Stop the test first, or keep its block visible on this page.')
+})

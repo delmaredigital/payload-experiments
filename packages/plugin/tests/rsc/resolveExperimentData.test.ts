@@ -95,3 +95,19 @@ test('a modern slot named zones cannot bypass hiding and exposure suppression', 
   expect(result.data.content[0]!.props.zones).toEqual([])
   expect(result.rendered).toEqual([])
 })
+
+
+test.each(['decided', 'archived'] as const)('un-hiding a retained %s block serves its winner without exposure', status => {
+  const m = manifest(status === 'decided' ? [experiment({ status, winnerArm: 'variantA' })] : [])
+  if (status === 'archived') m.archivedWinners.hero = 'variantA'
+  const a = assignments(m)
+  const input = data(slot('hero', { _visibility: { hidden: true } }))
+  expect(resolveExperimentData(input, a)).toMatchObject({ data: { content: [] }, rendered: [] })
+  const shown = structuredClone(input)
+  shown.content[0]!.props._visibility = {}
+  const result = resolveExperimentData(shown, a)
+  expect(result.data.content[0]!.props).toMatchObject({ xpSlot: 'variantA', variantA: [text('WINNER')], control: [], variantB: [], variantC: [] })
+  expect(result.data.content[0]!.props.xpExpose).toBeUndefined()
+  expect(result.rendered).toEqual([])
+  if (status === 'decided') expect(a.bySlug.hero?.exposable).toBe(false)
+})

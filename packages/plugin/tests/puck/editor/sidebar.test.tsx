@@ -793,3 +793,137 @@ test('removing a version clears its Traffic draft without retaining a missing co
   expect(await fields().findByRole('button', { name: 'Start' })).toBeTruthy()
   expect(fields().queryByRole('alert')).toBeNull()
 })
+
+
+test('a Traffic completion cannot restore a draft pruned by an in-flight external version removal', async () => {
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  const control = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') })
+  const variant = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Variant A') })
+  fireEvent.change(variant, { target: { value: '40' } })
+  fireEvent.change(control, { target: { value: '60' } })
+  let finish!: () => void
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH'
+    ? new Promise(resolve => { finish = () => resolve(reply({ doc })) }) : original(url, init))
+  fireEvent.keyDown(control, { key: 'Enter' })
+  await waitFor(() => expect(finish).toBeTypeOf('function'))
+  doc = { ...doc, arms: [{ ...doc.arms[0]!, weight: 100 }], updatedAt: 'two' }
+  act(() => publishExperiment(doc.id, doc))
+  await waitFor(() => expect(fields().queryByRole('spinbutton', { name: C.weight('Variant A') })).toBeNull())
+  await act(async () => finish())
+  expect(await fields().findByRole('button', { name: 'Start' })).toBeTruthy()
+  expect(control.value).toBe('100')
+})
+
+test('a refused Remove clears on Cancel and does not survive a successful Add version', async () => {
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let refuse = true
+  vi.mocked(fetch).mockImplementation((url, init) => refuse && init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
+  fireEvent.click(fields().getByRole('button', { name: C.removeVersion }))
+  const dialog = await screen.findByRole('dialog')
+  fireEvent.click(within(dialog).getByRole('button', { name: C.remove }))
+  await within(dialog).findByRole('alert')
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: C.cancel }).getAttribute('aria-disabled')).toBeNull())
+  fireEvent.click(within(dialog).getByRole('button', { name: C.cancel }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(fields().queryByRole('alert')).toBeNull()
+  refuse = false
+  fireEvent.click(fields().getByRole('button', { name: C.add }))
+  await fields().findByRole('group', { name: 'Variant B' })
+  expect(fields().queryByRole('alert')).toBeNull()
+})
+
+test('Use a different test clears a prior write refusal from the old binding', async () => {
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
+  fireEvent.click(fields().getByRole('button', { name: C.add }))
+  await fields().findByRole('alert')
+  const replacement = { ...doc, id: 'replacement-test', name: 'Replacement', slug: 'replacement' }
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).includes('/xp-experiments?') ? Promise.resolve(reply({ docs: [doc, replacement] }))
+    : String(url).includes('/xp-experiments/replacement-test?') ? Promise.resolve(reply(replacement)) : original(url, init))
+  fireEvent.click(fields().getByRole('button', { name: C.moreGroup }))
+  fireEvent.click(fields().getByRole('button', { name: C.differentTest }))
+  const dialog = await screen.findByRole('dialog')
+  await within(dialog).findByRole('option', { name: /Replacement/ })
+  fireEvent.change(within(dialog).getByRole('combobox'), { target: { value: 'replacement-test' } })
+  await waitFor(() => expect(read().getItemById('sidebar-block')?.props.experiment?.id).toBe('replacement-test'))
+  await fields().findByText('Replacement')
+  expect(fields().queryByRole('alert')).toBeNull()
+})
+
+test.each(['remove', 'leftover'] as const)('a %s refusal is pruned when its control disappears', async kind => {
+  await mount(false, true)
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
+  if (kind === 'remove') {
+    fireEvent.click(fields().getByRole('button', { name: C.removeVersion }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: C.remove }))
+    await within(screen.getByRole('dialog')).findByRole('alert')
+    doc = { ...doc, arms: [doc.arms[0]!], updatedAt: 'two' }
+    act(() => publishExperiment(doc.id, doc))
+  } else {
+    fireEvent.click(fields().getByRole('button', { name: C.addLeftover }))
+    await fields().findByRole('alert')
+    const item = read().getItemById('sidebar-block')!
+    act(() => read().dispatch({ type: 'replace', destinationIndex: 0, destinationZone: 'root:default', data: { ...item, props: { ...item.props, variantC: [] } } }))
+  }
+  await waitFor(() => expect(fields().queryByRole('alert')).toBeNull())
+})
+
+test('a successful Split clears every Traffic refusal and restores Start', async () => {
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
+  for (const label of ['Original', 'Variant A']) {
+    const input = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight(label) })
+    fireEvent.change(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
+    await within(fields().getByRole('group', { name: label })).findByRole('alert')
+    await waitFor(() => expect(input.readOnly).toBe(false))
+  }
+  vi.mocked(fetch).mockImplementation(original)
+  fireEvent.click(fields().getByRole('button', { name: C.split }))
+  await waitFor(() => expect(fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') }).value).toBe('50'))
+  expect(fields().queryByRole('alert')).toBeNull()
+  expect(await fields().findByRole('button', { name: 'Start' })).toBeTruthy()
+})
+
+test.each(['remove', 'leftover'] as const)('an in-flight %s refusal cannot restore an error after its control disappears', async kind => {
+  await mount(false, true)
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let finish!: () => void
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH'
+    ? new Promise(resolve => { finish = () => resolve(reply({}, 403)) }) : original(url, init))
+  if (kind === 'remove') {
+    fireEvent.click(fields().getByRole('button', { name: C.removeVersion }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: C.remove }))
+  } else fireEvent.click(fields().getByRole('button', { name: C.addLeftover }))
+  await waitFor(() => expect(finish).toBeTypeOf('function'))
+  if (kind === 'remove') {
+    doc = { ...doc, arms: [doc.arms[0]!], updatedAt: 'two' }
+    act(() => publishExperiment(doc.id, doc))
+    await waitFor(() => expect(fields().queryByRole('spinbutton', { name: C.weight('Variant A') })).toBeNull())
+  } else {
+    const item = read().getItemById('sidebar-block')!
+    act(() => read().dispatch({ type: 'replace', destinationIndex: 0, destinationZone: 'root:default', data: { ...item, props: { ...item.props, variantC: [] } } }))
+    await waitFor(() => expect(fields().queryByRole('button', { name: C.addLeftover })).toBeNull())
+  }
+  await act(async () => finish())
+  await waitFor(() => expect(screen.queryByText(C.savingVersions)).toBeNull())
+  expect(fields().queryByRole('alert')).toBeNull()
+  expect(screen.queryByRole('dialog')).toBeNull()
+})
+
+test('a successful Add version clears an unrelated Split refusal in the version controls', async () => {
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
+  fireEvent.click(fields().getByRole('button', { name: C.split }))
+  await fields().findByRole('alert')
+  await waitFor(() => expect(fields().getByRole('button', { name: C.add }).getAttribute('aria-disabled')).toBeNull())
+  vi.mocked(fetch).mockImplementation(original)
+  fireEvent.click(fields().getByRole('button', { name: C.add }))
+  await fields().findByRole('group', { name: 'Variant B' })
+  expect(fields().queryByRole('alert')).toBeNull()
+})

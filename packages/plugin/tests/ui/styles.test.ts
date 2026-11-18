@@ -156,3 +156,22 @@ test('every native select uses the shared component or wrapped public picker', (
 test('aria-disabled controls have the native disabled styling', () => {
   for (const control of ['input', 'button']) expect(rule(`.xp-ui-${control}[aria-disabled='true']`)).toBe(rule(`.xp-ui-${control}:disabled`))
 })
+
+
+function bareSelectRules(source: string): string[] {
+  return [...source.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{[^{}]*\}/g)]
+    .flatMap(match => match[1]!.split(',').map(selector => selector.trim()))
+    .filter(selector => /(^|[\s>+~,(])select(?=[\s.#[:>+~),]|$)/.test(selector))
+}
+test('package styles never target bare selects that can override the shared Select', () => {
+  const root = new URL('../../src/', import.meta.url)
+  const files = readdirSync(root, { recursive: true }).map(String).filter(file => file.endsWith('.css'))
+  expect(files).toEqual(expect.arrayContaining(['admin/surface/newTest/newTest.css', 'testSurface/results/results.css', 'ui/ui.css', 'puck/editor/editor.css']))
+  expect(files.length).toBeGreaterThan(10)
+  for (const file of files) expect(bareSelectRules(readFileSync(new URL(file, root), 'utf8')), file).toEqual([])
+})
+test('bare-select scan catches both original collisions and ignores shared class selectors', () => {
+  expect(bareSelectRules('.xp-new-test input:not([type=radio]), .xp-new-test textarea, .xp-new-test select { padding: .5rem; max-width: 36rem; }')).toEqual(['.xp-new-test select'])
+  expect(bareSelectRules(':where(.xp-test-surface) .xp-round-meta select { width: auto; }')).toEqual([':where(.xp-test-surface) .xp-round-meta select'])
+  expect(bareSelectRules('.xp-new-test .xp-ui-select-wrap, .xp-ui-select { max-width: 100%; }')).toEqual([])
+})
