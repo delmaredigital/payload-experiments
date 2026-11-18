@@ -1019,6 +1019,14 @@ in each theme (the accent is used as a fill, not as page text). A failing
 colour is refused with its ratio. Status chips retain Payload semantic colours.
 `deriveAccent` is also exported from `/puck/editor` for editor integrations.
 
+## What counts as a win
+
+The admin test page and editor Configure test drawer use the same form. **Goal** has a styled dropdown with a persistent chevron and **Choose a goal** placeholder. “The one thing you want more of. It decides the winner.” **Manage goals** stays beside the label. A primary click goal keeps the warning “A click shows interest, not the result you want.”
+
+**Other goals (optional)** is collapsed when none is set and shows a count when configured, for example **Other goals · 2**. Each remaining goal appears once with one role: **Don't track**, **Watch**, or **Must not get worse**. “Watch: shown in results. Must not get worse: you're warned if a version makes it worse.” Choosing a main Goal clears its other role. There is no optional section when no other goals exist. Stored `metrics.primary`, `metrics.secondary`, and `metrics.guardrails` and server validation are unchanged.
+
+Goals inside linked documents aren't shown. Goals added in code (data-xp-goal) work but aren't listed here.
+
 ## Click goals
 
 Click goals use a goal's short name as their key (`click:<short-name>`). Add

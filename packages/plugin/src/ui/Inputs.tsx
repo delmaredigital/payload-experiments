@@ -21,8 +21,8 @@ export function SearchInput(props: TextInputProps) { return <TextInput {...props
 export type SelectProps = FieldProps & { labelAction?: ReactNode } & Omit<SelectHTMLAttributes<HTMLSelectElement>, 'id'>
 export function Select({ label, labelAction, help, error, className = '', ...props }: SelectProps) {
   const field = { id: props.id, label, help, error }
-  return <Field {...field} labelAction={labelAction}><select {...props} className={`xp-ui-input xp-ui-select ${className}`} aria-invalid={Boolean(error) || undefined}
-    aria-describedby={described(field, props['aria-describedby'])} /></Field>
+  return <Field {...field} labelAction={labelAction}><span className="xp-ui-select-wrap"><select {...props} className={`xp-ui-input xp-ui-select ${className}`} aria-invalid={Boolean(error) || undefined}
+    aria-describedby={described(field, props['aria-describedby'])} /></span></Field>
 }
 export function Toggle({ label, help, error, className = '', ...props }: Omit<TextInputProps, 'type'>) {
   const field = { id: props.id, label, help, error }

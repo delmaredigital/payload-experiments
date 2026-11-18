@@ -106,3 +106,10 @@ test.each(['light', 'dark'] as const)('%s page options have readable text and a 
     expect(ratios.accent).toBeGreaterThanOrEqual(3)
   }
 })
+
+test('dropdowns draw their chevron and spacing independently of native browser appearance', () => {
+  expect(rule('.xp-ui-select')).toContain('appearance: none')
+  expect(rule('.xp-ui-select')).toContain('padding-inline-end: 36px')
+  expect(rule('.xp-ui-select-wrap::after')).toContain('rotate(45deg)')
+  expect(rule('.xp-ui-select-wrap::after')).toContain('pointer-events: none')
+})

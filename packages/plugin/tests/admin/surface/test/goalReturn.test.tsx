@@ -91,8 +91,5 @@ test('only the main goal opens return mode; guardrail and supporting pickers nev
   expect(returnLinks).toHaveLength(1)
   expect(returnLinks[0]!.textContent).toBe('Manage goals')
   expect(returnLinks[0]!.closest('.xp-ui-field-label')?.querySelector('label')?.textContent).toBe('Goal')
-  for (const label of ['Must not get worse (optional)', 'Also keep an eye on (optional)']) {
-    expect(within(screen.getByRole('group', { name: label })).queryAllByRole('link')
-      .filter(link => link.getAttribute('href')?.includes('?return='))).toHaveLength(0)
-  }
+  expect(screen.getByText('Other goals · 2').closest('details')?.querySelectorAll('a')).toHaveLength(0)
 })

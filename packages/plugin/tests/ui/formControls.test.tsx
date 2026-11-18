@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { Textarea, Checkbox, CheckboxList, Range } from '../../src/ui/Inputs.js'
+import { Textarea, Checkbox, CheckboxList, Range, Select } from '../../src/ui/Inputs.js'
 
 afterEach(cleanup)
 test.each([Textarea, Checkbox, Range])('%s wires label, help, error and external description', Component => {
@@ -50,4 +50,12 @@ test('range preserves native bounds, step and controlled values', () => {
   fireEvent.change(slider, { target: { value: '40' } }); expect(slider.value).toBe('40')
   rerender(<Range id="share" label="Share" disabled />)
   expect(screen.getByRole<HTMLInputElement>('slider').disabled).toBe(true)
+})
+
+test('shared select renders explicit dropdown chrome before opening', () => {
+  render(<Select id="goal-style" label="Goal" value="" onChange={() => {}}><option value="">Choose a goal</option></Select>)
+  const select = screen.getByRole('combobox', { name: 'Goal' })
+  expect(select.closest('.xp-ui-select-wrap')).toBeTruthy()
+  expect(select.classList.contains('xp-ui-select')).toBe(true)
+  expect(within(select).getByRole('option', { name: 'Choose a goal' })).toBeTruthy()
 })

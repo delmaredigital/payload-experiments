@@ -243,7 +243,7 @@ test('goals load via the host API and preserve the current metrics group on sele
   await waitFor(() => expect(screen.getAllByText('Registered · yes/no').length).toBeGreaterThan(0))
   expect(fetch).toHaveBeenCalledWith('/cms-api/xp-metrics?depth=0&limit=100&page=1', expect.objectContaining({ credentials: 'include' }))
   expect(screen.getByText('Registered: Over the last 28 days: 3.2%')).toBeTruthy()
-  expect(within(screen.getByRole('group', { name: 'Must not get worse (optional)' })).queryByLabelText('Registered · yes/no')).toBeNull()
+  expect(screen.getByText('Other goals (optional)').closest('details')?.querySelector('label')?.textContent).toBe('Completed · yes/no')
   p.test.doc = { ...p.test.doc!, metrics: { primary: 1, guardrails: [], secondary: [2] } }
   view.rerender(<GoalSection {...p} />)
   fireEvent.change(screen.getByLabelText('Goal'), { target: { value: '' } })
@@ -270,28 +270,6 @@ test.each([1, 'uuid-goal'])('goal choices preserve original ids (%s), and resele
   fireEvent.change(screen.getByLabelText('Goal'), { target: { value: String(id) } })
   expect(p.test.stage).toHaveBeenCalledTimes(1)
   expect(p.test.commit).toHaveBeenCalledTimes(1)
-})
-test.each([2, 'uuid-guardrail'])('checkboxes preserve metric ids (%s) and add to the current whole group', async id => {
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: [
-    { id: 1, name: 'Primary', source: 'signup' }, { id, name: 'First', source: 'signup' },
-    { id: 3, name: 'Second', source: 'signup' }, { id: 4, name: 'Watch', source: 'signup' },
-  ] }) })))
-  const p = props({ metrics: { primary: 1, guardrails: [], secondary: [] } })
-  const view = render(<GoalSection {...p} />)
-  await waitFor(() => expect(screen.getAllByText('First · yes/no').length).toBeGreaterThan(0))
-  const guardrails = () => within(screen.getByRole('group', { name: 'Must not get worse (optional)' }))
-  fireEvent.click(guardrails().getByLabelText('First · yes/no'))
-  expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [id], secondary: [] } })
-  p.test.doc!.metrics = { primary: 1, guardrails: [id], secondary: [] }
-  view.rerender(<GoalSection {...p} />)
-  // Read the current group even if another edit arrived since rendering.
-  p.test.doc!.metrics.secondary = [4]
-  fireEvent.click(guardrails().getByLabelText('Second · yes/no'))
-  expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [id, 3], secondary: [4] } })
-  p.test.doc!.metrics = { primary: 1, guardrails: [], secondary: [] }
-  view.rerender(<GoalSection {...p} />)
-  fireEvent.click(within(screen.getByRole('group', { name: 'Also keep an eye on (optional)' })).getByLabelText('First · yes/no'))
-  expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [], secondary: [id] } })
 })
 test.each(['in', 'nin'] as const)('fixed-list %s targeting checkboxes keep current rules and save arrays', op => {
   const p = props({ targeting: [{ attribute: 'country', op, value: [] }] })
@@ -330,7 +308,7 @@ test('read-only goals show None selected or a neutral label while goals are unav
   vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('Unavailable') }))
   const p = props({ status: 'running', metrics: { primary: null, guardrails: [] } })
   const view = render(<GoalSection {...p} />)
-  expect(screen.getAllByText('None selected')).toHaveLength(3)
+  expect(screen.getAllByText('None selected')).toHaveLength(1)
   p.test.doc!.metrics = { primary: 12345, guardrails: ['missing-uuid'] }
   view.rerender(<GoalSection {...p} />)
   expect(screen.getAllByText('Goal details unavailable')).toHaveLength(2)
@@ -605,32 +583,11 @@ test('holdout explanation appears only when there is a holdout arm', () => {
 test.each([2, 8])('there is no goal search with %s goals', async count => {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: Array.from({ length: count }, (_, i) => ({ id: i + 1, name: `Goal ${i + 1}`, source: 'signup' })) }) })))
   render(<GoalSection {...props()} />)
-  await waitFor(() => expect(screen.getAllByText('Goal 1 · yes/no')).toHaveLength(3))
+  await waitFor(() => expect(screen.getAllByText('Goal 1 · yes/no')).toHaveLength(2))
   expect(screen.queryByRole('searchbox')).toBeNull()
   expect(screen.queryByRole('textbox', { name: 'Search goals' })).toBeNull()
 })
 
-test('large goal lists search independently inside each list and retain checked options', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `Goal ${i + 1}`, source: 'signup' })) }) })))
-  const p = props({ metrics: { primary: 1, guardrails: [2], secondary: [3] } })
-  render(<GoalSection {...p} />)
-  await waitFor(() => expect(screen.getAllByRole('searchbox')).toHaveLength(2))
-  const guardrails = within(screen.getByRole('group', { name: 'Must not get worse (optional)' }))
-  const secondary = within(screen.getByRole('group', { name: 'Also keep an eye on (optional)' }))
-  fireEvent.change(guardrails.getByRole('searchbox'), { target: { value: 'GOAL 9' } })
-  expect(guardrails.getByRole('checkbox', { name: 'Goal 2 · yes/no' })).toBeTruthy()
-  expect(guardrails.getByRole('checkbox', { name: 'Goal 9 · yes/no' })).toBeTruthy()
-  expect(guardrails.queryByRole('checkbox', { name: 'Goal 4 · yes/no' })).toBeNull()
-  expect(secondary.getByRole('checkbox', { name: 'Goal 4 · yes/no' })).toBeTruthy()
-  fireEvent.change(secondary.getByRole('searchbox'), { target: { value: 'Goal 8' } })
-  expect(secondary.getByRole('checkbox', { name: 'Goal 3 · yes/no' })).toBeTruthy()
-  expect(secondary.getByRole('checkbox', { name: 'Goal 8 · yes/no' })).toBeTruthy()
-  expect(secondary.queryByRole('checkbox', { name: 'Goal 4 · yes/no' })).toBeNull()
-  fireEvent.click(guardrails.getByRole('checkbox', { name: 'Goal 9 · yes/no' }))
-  expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [2, 9], secondary: [3] } })
-  expect(within(screen.getByRole('combobox', { name: 'Goal' })).getByRole('option', { name: 'Goal 4 · yes/no' })).toBeTruthy()
-  expect(screen.getByRole('link', { name: 'Manage goals' }).closest('.xp-ui-field-label')?.querySelector('label')?.textContent).toBe('Goal')
-})
 test('page block tests never offer the Path attribute; setting tests still do', () => {
   const block = props({ targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
   const view = render(<TargetingSection {...block} />)
@@ -682,8 +639,8 @@ test('click goals found on the page lead every role picker, with block labels an
   const select = screen.getByRole('combobox', { name: 'Goal' })
   expect(within(select).getByRole('group', { name: "On this test's page" }).textContent).toBe('Hero interest · Hero')
   expect(within(select).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose a goal', 'Hero interest · Hero', 'Registration · yes/no', 'Other clicks · yes/no'])
-  expect(screen.getAllByRole('heading', { level: 3, name: "On this test's page" })).toHaveLength(2)
-  expect(screen.getByText("Goals inside linked documents aren't shown. Goals added in code (data-xp-goal) work but aren't listed here.")).toBeTruthy()
+  expect(screen.queryByText(/Goals inside linked documents/)).toBeNull()
+  expect(screen.queryByRole('checkbox')).toBeNull()
   expect(screen.queryByText('A click shows interest, not the result you want.')).toBeNull()
   expect(screen.queryByText('+ New click goal')).toBeNull()
 })

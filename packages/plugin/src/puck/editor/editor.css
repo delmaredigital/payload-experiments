@@ -282,7 +282,10 @@
 .xp-ui-input:hover { border-color: var(--xp-text-3); }
 .xp-ui-input[aria-invalid='true'] { border-color: var(--xp-error); }
 .xp-ui-input--number { text-align: right; font-variant-numeric: tabular-nums; }
-.xp-ui-select { cursor: pointer; appearance: auto; }
+/* The same token-based dropdown chrome in the admin and isolated editor. */
+.xp-ui-select-wrap { display: block; position: relative; min-width: 0; }
+.xp-ui-select-wrap::after { content: ''; position: absolute; inset-inline-end: 14px; top: 50%; width: 7px; height: 7px; border-right: 2px solid var(--xp-text-2); border-bottom: 2px solid var(--xp-text-2); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+.xp-ui-select { cursor: pointer; appearance: none; padding-inline-end: 36px; }
 .xp-ui-help { margin: 0; color: var(--xp-text-2); font: var(--xp-text-small); }
 .xp-ui-error { margin: 0; color: var(--xp-error); font: var(--xp-text-small); }
 .xp-ui-toggle { appearance: none; display: inline-block; width: 32px; height: 20px; margin: 0; padding: 2px; border-radius: 20px; border: 1px solid var(--xp-border-strong); background: var(--xp-surface-3); cursor: pointer; transition: background-color var(--xp-motion); }
@@ -378,6 +381,9 @@
 .xp-readiness__blockers, .xp-readiness__blockers a { color: var(--xp-error); }
 .xp-readiness__blockers ul { margin: 0; padding-inline-start: var(--xp-space-4); }
 .xp-readiness__blockers li { white-space: pre-line; }
+
+.xp-other-goals summary { cursor: pointer; font-weight: 600; }
+.xp-other-goal-list { display: grid; gap: var(--xp-space-3); padding-block: var(--xp-space-3); }
 
 /* Shared UI controls are assembled into editor.css for the isolated canvas. */
 .xp-slot-editor {

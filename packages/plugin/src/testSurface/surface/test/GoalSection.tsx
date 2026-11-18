@@ -1,5 +1,7 @@
 'use client'
 import { fetchAllDocs } from '../../../lib/fetchAllDocs.js'
+import { Select } from '../../../ui/Inputs.js'
+import { useId } from 'react'
 import { Button } from '../../../ui/Button.js'
 import { useEffect, useMemo, useState } from 'react'
 import { surfaceUrls } from '../../surfaceUrls.js'
@@ -11,7 +13,7 @@ import type { ClickKeysResult } from '../../../types/endpoints.js'
 import { createApi } from '../../api.js'
 import { sourceFor } from '../../metricSource.model.js'
 import { reviewView } from '../../review/review.model.js'
-import { CheckboxList, FieldErrors, reasonFor, save, SelectEdit } from './fields.js'
+import { FieldErrors, reasonFor, save, SelectEdit } from './fields.js'
 import { Section } from './Section.js'
 
 type Metric = { id: string | number; name: string; source: string }
@@ -84,29 +86,37 @@ export function GoalSection({ test, surface, embedded = false }: SectionProps & 
   const chosen = [doc.metrics?.primary, ...(doc.metrics?.guardrails ?? []), ...(doc.metrics?.secondary ?? [])].filter(id => id != null).map(String)
   const visible = [...options]
   for (const id of chosen) if (!visible.some(option => option.value === id)) visible.push({ value: id, label: unknownGoal })
-  const roleOptions = (role: 'primary' | 'guardrails' | 'secondary') => {
-    const blocked = new Set([...(role !== 'primary' && doc.metrics?.primary != null ? [doc.metrics.primary] : []),
-      ...(role !== 'guardrails' ? doc.metrics?.guardrails ?? [] : []), ...(role !== 'secondary' ? doc.metrics?.secondary ?? [] : [])].map(String))
-    return visible.filter(option => !blocked.has(option.value))
+  const otherGoals = visible.filter(option => option.value !== String(doc.metrics?.primary ?? ''))
+  const otherCount = new Set([...(doc.metrics?.guardrails ?? []), ...(doc.metrics?.secondary ?? [])].map(String).filter(id => id !== String(doc.metrics?.primary ?? ''))).size
+  const [otherOpen, setOtherOpen] = useState(otherCount > 0)
+  const [previousCount, setPreviousCount] = useState(otherCount)
+  if (previousCount !== otherCount) {
+    setPreviousCount(otherCount)
+    if (otherCount > 0) setOtherOpen(true)
   }
-  const roleGroups = (role: 'primary' | 'guardrails' | 'secondary') => onPage.size ? [
-    { label: C.clickPageGroup, options: roleOptions(role).filter(option => onPage.has(option.value)).map(option => ({ ...option, label: onPage.get(option.value)! })) },
-    { options: roleOptions(role).filter(option => !onPage.has(option.value)) },
+  const roleId = useId()
+  const goalGroups = onPage.size ? [
+    { options: [{ value: '', label: C.chooseGoal }] },
+    { label: C.clickPageGroup, options: visible.filter(option => onPage.has(option.value)).map(option => ({ ...option, label: onPage.get(option.value)! })) },
+    { options: visible.filter(option => !onPage.has(option.value)) },
   ] : undefined
   const originalId = (value: string) => metrics.find(metric => String(metric.id) === value)?.id
     ?? [test.doc!.metrics?.primary, ...(test.doc!.metrics?.guardrails ?? []), ...(test.doc!.metrics?.secondary ?? [])].find(id => id != null && String(id) === value)
   const changePrimary = (value: string) => {
     const id = value ? originalId(value) : null
     if (id === undefined || id === (test.doc!.metrics?.primary ?? null)) return
-    save(test, 'metrics', () => ({ metrics: { ...test.doc!.metrics, primary: id } }))
+    save(test, 'metrics', () => ({ metrics: { ...test.doc!.metrics, primary: id,
+      guardrails: test.doc!.metrics?.guardrails?.filter(saved => String(saved) !== value),
+      secondary: test.doc!.metrics?.secondary?.filter(saved => String(saved) !== value) } }))
   }
-  const toggle = (role: 'guardrails' | 'secondary', value: string, checked: boolean) => save(test, 'metrics', () => {
+  const setRole = (value: string, role: string) => save(test, 'metrics', () => {
     const current = test.doc!.metrics
-    const ids = current?.[role] ?? []
     const id = originalId(value)
-    return { metrics: { ...current, [role]: checked && id != null
-      ? ids.some(saved => String(saved) === value) ? ids : [...ids, id]
-      : ids.filter(saved => String(saved) !== value) } }
+    const guardrails = (current?.guardrails ?? []).filter(saved => String(saved) !== value)
+    const secondary = (current?.secondary ?? []).filter(saved => String(saved) !== value)
+    return { metrics: { ...current,
+      guardrails: role === 'guardrails' && id != null ? [...guardrails, id] : guardrails,
+      secondary: role === 'secondary' && id != null ? [...secondary, id] : secondary } }
   })
   const display = (ids: Array<string | number>) => ids.length ? ids.map(id => options.find(option => option.value === String(id))?.label ?? unknownGoal).join(', ') : C.noGoal
   const primary = metrics.find(metric => String(metric.id) === String(doc.metrics?.primary))
@@ -115,16 +125,25 @@ export function GoalSection({ test, surface, embedded = false }: SectionProps & 
     ? reviewView(test.preflight, { primaryMetricKind: kind }).baseline : null
   return <Section surface={surface} test={test} sectionId="win">
     {failed ? <p role="alert">{C.goalsError} <span className="xp-ui-button-group"><Button onClick={() => setAttempt(n => n + 1)}>{C.retry}</Button></span></p> : null}
-    <SelectEdit labelAction={<span className="xp-ui-button-group"><Button variant="link" size="sm" href={surfaceUrls.goals(surface.adminRoute, !reason ? { return: String(doc.id) } : undefined)}>{C.manageGoals}</Button></span>} label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...roleOptions('primary')]} groups={onPage.size ? [{ options: [{ value: '', label: C.chooseGoal }] }, ...roleGroups('primary')!] : undefined} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
+    <SelectEdit labelAction={<span className="xp-ui-button-group"><Button variant="link" size="sm" href={surfaceUrls.goals(surface.adminRoute, !reason ? { return: String(doc.id) } : undefined)}>{C.manageGoals}</Button></span>} label={C.goal} value={loaded && !primary ? '' : String(doc.metrics?.primary ?? '')} options={[{ value: '', label: C.chooseGoal }, ...visible]} groups={goalGroups} reason={reason} readOnlyValue={display(doc.metrics?.primary == null ? [] : [doc.metrics.primary])} onCommit={changePrimary} />
     <p>{C.goalHelp}</p>
     {primary && isClickSource(primary.source) ? <p>{C.clickGoalHelp}</p> : null}
     {baseline ? <p>{primary?.name ? `${primary.name}: ` : ''}{baseline}</p> : null}
     <FieldErrors test={test} path="metrics.primary" />
-    <CheckboxList searchable={metrics.length > 8} label={C.guardrails} value={(doc.metrics?.guardrails ?? []).map(String)} options={roleOptions('guardrails')} groups={roleGroups('guardrails')} reason={reason} readOnlyValue={display(doc.metrics?.guardrails ?? [])} onToggle={(value, checked) => toggle('guardrails', value, checked)} />
-    <p>{C.guardrailHelp}</p><FieldErrors test={test} path="metrics.guardrails" />
-    <CheckboxList searchable={metrics.length > 8} label={C.secondary} value={(doc.metrics?.secondary ?? []).map(String)} options={roleOptions('secondary')} groups={roleGroups('secondary')} reason={reason} readOnlyValue={display(doc.metrics?.secondary ?? [])} onToggle={(value, checked) => toggle('secondary', value, checked)} />
-    <FieldErrors test={test} path="metrics.secondary" />
-    {metrics.some(metric => isClickSource(metric.source)) ? <p>{C.clickGoalsNote}</p> : null}
+    {otherGoals.length ? <details className="xp-other-goals" open={otherOpen} onToggle={event => setOtherOpen(event.currentTarget.open)}>
+      <summary>{otherCount ? `${C.otherGoalsTitle} · ${otherCount}` : C.otherGoals}</summary>
+      <div className="xp-other-goal-list">{otherGoals.map((option, index) => {
+        const role = doc.metrics?.guardrails?.some(id => String(id) === option.value) ? 'guardrails'
+          : doc.metrics?.secondary?.some(id => String(id) === option.value) ? 'secondary' : ''
+        return <Select key={option.value} id={`${roleId}-${index}`} label={onPage.get(option.value) ?? option.label} value={role} disabled={Boolean(reason)}
+          onChange={event => setRole(option.value, event.target.value)}>
+          <option value="">{C.dontTrack}</option><option value="secondary">{C.watch}</option><option value="guardrails">{C.mustNotWorsen}</option>
+        </Select>
+      })}</div>
+      <p>{C.otherGoalsHelp}</p>
+      {reason ? <p className="xp-ui-help">{reason}</p> : null}
+      <FieldErrors test={test} path="metrics.guardrails" /><FieldErrors test={test} path="metrics.secondary" />
+    </details> : null}
     {test.errors.metrics ? <p role="alert">{test.errors.metrics}</p> : null}
   </Section>
 }

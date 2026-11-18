@@ -32,8 +32,6 @@ test('usage roles use plain labels while the test form marks optional fields', (
   expect(row!.roles).toEqual([TEST_PAGE.guardrailsShort, TEST_PAGE.secondaryShort])
   expect(TEST_PAGE.guardrailsShort).toBe('Must not get worse')
   expect(TEST_PAGE.secondaryShort).toBe('Also keep an eye on')
-  expect(TEST_PAGE.guardrails).toBe(`${TEST_PAGE.guardrailsShort} (optional)`)
-  expect(TEST_PAGE.secondary).toBe(`${TEST_PAGE.secondaryShort} (optional)`)
 })
 test('usage list shows five until expanded', () => {
   const rows = Array.from({ length: 7 }, (_, id) => id)

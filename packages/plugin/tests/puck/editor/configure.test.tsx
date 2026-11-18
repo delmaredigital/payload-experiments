@@ -428,3 +428,18 @@ test('drawer uses danger marks for blockers and renders a named outside-goal war
   expect(within(drawer).getAllByText(message)).toHaveLength(1)
   expect(drawer.querySelector('.xp-readiness__warning')?.textContent).toContain(message)
 })
+
+test('the real editor drawer uses one other-goal list and moves a role exclusively in its PATCH', async () => {
+  const fetcher = setup()
+  const { drawer } = await open('sidebar')
+  const win = within(await within(drawer).findByRole('region', { name: 'What counts as a win' }))
+  const other = win.getByText('Other goals · 2').closest('details')!
+  expect(other.open).toBe(true)
+  expect(within(other).getAllByRole('combobox')).toHaveLength(2)
+  expect(win.queryByRole('checkbox')).toBeNull()
+  expect(win.getByRole('combobox', { name: 'Goal' }).closest('.xp-ui-select-wrap')).toBeTruthy()
+  fireEvent.change(within(other).getByLabelText('Lessons · lessons'), { target: { value: 'guardrails' } })
+  await waitFor(() => expect(saved.metrics).toEqual({ primary: 1, guardrails: [3, 2], secondary: [] }))
+  const patch = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')![1]!
+  expect(JSON.parse(String(patch.body))).toEqual({ metrics: { primary: 1, guardrails: [3, 2], secondary: [] } })
+})
