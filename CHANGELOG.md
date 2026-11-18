@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: retrying Remove after a version disappears refuses the stale edit without changing traffic. Traffic, Add variant and leftover Add also refuse obsolete changes before saving. Split and Add refusals clear on a later test status change; Add refusals also clear at the version cap. Migration impact: none.
+
 - Fixed: version write refusals remain visible when a test starts elsewhere. Remove refusals appear once in the open dialog, even if the version has disappeared, and clear when it closes. Switching tests hides the previous test’s errors immediately. Migration impact: none.
 
 - Fixed: a refused Traffic value stays visible with its error; Escape cancels a pending name change before its save starts. Generated test names are capped at 200 characters. Use a different test is available when a test fails to load. New test and Add goal use styled dropdowns, and unavailable controls have consistent disabled styling. Migration impact: none.

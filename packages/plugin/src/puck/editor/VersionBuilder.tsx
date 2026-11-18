@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react'
-import { addVariant, removeArm, balanceWeight, splitEvenly, totalWeight, withSlotsFor } from '../../arms/model.js'
+import { balanceWeight, splitEvenly, totalWeight, withSlotsFor } from '../../arms/model.js'
 import { checkArms } from '../../collections/experiments/armInvariants.js'
 import { issueMessage } from '../../arms/copy.js'
 import type { Arm, ArmKey } from '../../types/contracts.js'
@@ -9,26 +9,28 @@ import { Button } from '../../ui/Button.js'
 import { Dialog } from '../../ui/Dialog.js'
 import { NumberInput, TextInput } from '../../ui/Inputs.js'
 import type { EditorExperiment } from './editor.model.js'
-import { ArmWriteError, writeArms } from './armWrites.js'
+import { addVersionArms, ArmWriteError, removeVersionArms, renameVersionArms, setVersionTraffic, writeArms } from './armWrites.js'
 import { editorCopy as C } from './copy.js'
 
-export function useArmWrites({ url, bindingKey, controlKeys, publish, isCurrent, onWrite, onSaved }: {
-  url: string; bindingKey: string; controlKeys: string[]
-  publish: (doc: EditorExperiment) => void; isCurrent: () => boolean; onWrite: () => void; onSaved?: () => void
+export function useArmWrites({ url, bindingKey, status, controlKeys, publish, isCurrent, onWrite, onSaved }: {
+  url: string; bindingKey: string; status?: EditorExperiment['status']; controlKeys: string[]
+  publish: (doc: EditorExperiment) => EditorExperiment | void; isCurrent: () => boolean; onWrite: () => void; onSaved?: () => void
 }) {
   const guard = useRef(false)
   const running = useRef<Promise<void>>(Promise.resolve())
   const [busy, setBusy] = useState(false)
-  const [errorState, setErrors] = useState<{ bindingKey: string; errors: Record<string, string> }>({ bindingKey, errors: {} })
-  const errors: Record<string, string> = errorState.bindingKey === bindingKey ? errorState.errors : {}
+  type Refusal = { message: string; status: typeof status }
+  const [errorState, setErrors] = useState<{ bindingKey: string; errors: Record<string, Refusal> }>({ bindingKey, errors: {} })
+  const errors: Record<string, Refusal> = errorState.bindingKey === bindingKey ? errorState.errors : {}
   const controls = controlKeys.join(',')
-  const scope = useRef({ bindingKey, keys: new Set(controlKeys) })
-  scope.current = { bindingKey, keys: new Set(controlKeys) }
+  const scope = useRef({ bindingKey, status, keys: new Set(controlKeys) })
+  scope.current = { bindingKey, status, keys: new Set(controlKeys) }
   useEffect(() => {
     const keys = new Set(controls.split(','))
     setErrors(current => ({ bindingKey, errors: current.bindingKey === bindingKey
-      ? Object.fromEntries(Object.entries(current.errors).filter(([key]) => keys.has(key))) : {} }))
-  }, [bindingKey, controls])
+      ? Object.fromEntries(Object.entries(current.errors).filter(([key, refusal]) => keys.has(key) &&
+        (key !== 'split' && key !== 'add' || refusal.status === status))) : {} }))
+  }, [bindingKey, controls, status])
   const clearError = (key: string) => setErrors(current => {
     if (current.bindingKey !== bindingKey) return current
     const next = { ...current.errors }; delete next[key]; return { bindingKey, errors: next }
@@ -47,11 +49,19 @@ export function useArmWrites({ url, bindingKey, controlKeys, publish, isCurrent,
     setBusy(true)
     const errorKey = options?.errorKey ?? 'add'
     if (!options?.onError) clearError(errorKey)
-    try { const saved = await writeArms(url, transform, publish, options); if (isCurrent()) setErrors({ bindingKey, errors: {} }); onSaved?.(); return saved }
-    catch (error) { if (isCurrent()) { const message = error instanceof ArmWriteError ? error.message : C.writeNetwork; if (options?.onError) options.onError(message); else if (scope.current.bindingKey === bindingKey && scope.current.keys.has(errorKey)) setErrors(current => ({ bindingKey, errors: { ...(current.bindingKey === bindingKey ? current.errors : {}), [errorKey]: message } })) } }
+    try { const saved = await writeArms(url, transform, doc => {
+      // Publishing and refusing can finish in one React batch. Remember the fresh
+      // status now so the lock change that caused this refusal does not erase it.
+      const accepted = publish(doc) ?? doc
+      if (scope.current.bindingKey === bindingKey) scope.current.status = accepted.status
+    }, options); if (isCurrent()) setErrors({ bindingKey, errors: {} }); onSaved?.(); return saved }
+    catch (error) { if (isCurrent()) { const message = error instanceof ArmWriteError ? error.message : C.writeNetwork; if (options?.onError) options.onError(message); else if (scope.current.bindingKey === bindingKey && scope.current.keys.has(errorKey)) {
+      const refusal = { message, status: scope.current.status }
+      setErrors(current => ({ bindingKey, errors: { ...(current.bindingKey === bindingKey ? current.errors : {}), [errorKey]: refusal } }))
+    } } }
     finally { guard.current = false; setBusy(false); release() }
   }
-  return { write, busy, error: Object.entries(errors).filter(([key]) => !key.startsWith('remove:')).map(([, message]) => message).join(' '), errorFor: (key: string) => errors[key], clearError }
+  return { write, busy, error: Object.entries(errors).filter(([key]) => !key.startsWith('remove:')).map(([, refusal]) => refusal.message).join(' '), errorFor: (key: string) => errors[key]?.message, clearError }
 }
 export type ArmWrites = ReturnType<typeof useArmWrites>
 
@@ -61,7 +71,7 @@ export function AddVariant({ experiment, writes, onSelect }: { experiment: Edito
     if (writes.busy) return
     let added: ArmSlot | undefined
     const saved = await writes.write(arms => {
-      const next = addVariant(arms, 'block')
+      const next = addVersionArms(arms)
       added = next.find(arm => !arms.some(existing => existing.key === arm.key))?.key as ArmSlot | undefined
       return next
     })
@@ -92,10 +102,7 @@ export function VersionName({ arm, writes, editable }: { arm: EditorExperiment['
     pending.current = attempt
     setError(undefined); setSaved(false)
     try {
-      const result = await writes.write(arms => {
-        if (!arms.some(current => current.key === arm.key)) throw new ArmWriteError(C.staleEdit)
-        return arms.map(current => current.key === arm.key ? { ...current, label } : current)
-      }, { onError: setError, queue: true, cancelled: () => attempt.cancelled, onStart: () => { attempt.started = true } })
+      const result = await writes.write(arms => renameVersionArms(arms, arm.key, label), { onError: setError, queue: true, cancelled: () => attempt.cancelled, onStart: () => { attempt.started = true } })
       if (result) setSaved(true)
     } finally { pending.current = null }
   }
@@ -120,7 +127,7 @@ export function RemoveVersion({ arm, writes, count, shared, onRemove, onClose }:
         <Button data-dialog-cancel aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) close() }}>{C.cancel}</Button>
         <Button variant="danger" aria-busy={writes.busy || undefined} aria-disabled={writes.busy || undefined} onClick={async () => {
           if (writes.busy) return
-          const saved = await writes.write(arms => splitEvenly(removeArm(arms, arm.key)), { errorKey: `remove:${arm.key}` })
+          const saved = await writes.write(arms => removeVersionArms(arms, arm.key), { errorKey: `remove:${arm.key}` })
           if (saved) { if (slot) onRemove(slot); close() }
         }}>{C.remove}</Button>
       </div></div>
@@ -147,7 +154,7 @@ export function VersionWeights({ experiment, writes, edits, setEdits, groupId, s
   async function commit(key: ArmKey) {
     if (writes.busy || edits[key] === undefined || invalidKeys.has(key)) return
     clearErrors([key])
-    const saved = await writes.write(arms => apply(arms, key), { onError: message => setErrors(current => ({ ...current, [key]: message })) })
+    const saved = await writes.write(arms => setVersionTraffic(arms, key, Number(edits[key])), { onError: message => setErrors(current => ({ ...current, [key]: message })) })
     if (saved) clearDraft(key)
   }
   return <div className="xp-slot-weights">

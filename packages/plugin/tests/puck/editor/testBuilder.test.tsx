@@ -321,6 +321,57 @@ test.each([false, true])('Remove 409 announces mapped stale copy inside the stil
   expect(puck.dispatch).not.toHaveBeenCalled()
 })
 
+test('retrying refused Remove after the version disappears sends no PATCH and preserves 70/30', async () => {
+  doc.arms.push({ key: 'variantB', slot: 'variantB', kind: 'variant', label: 'Variant B', weight: 0 })
+  await mount()
+  const row = screen.getByRole('group', { name: 'Variant B' })
+  fireEvent.click(within(row).getByRole('button', { name: C.removeVersion }))
+  const dialog = screen.getByRole('dialog')
+  const fetcher = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation(async (url, init) => {
+    if (init?.method === 'PATCH') {
+      doc = { ...doc, updatedAt: 'colleague-edit', arms: doc.arms.filter(arm => arm.key !== 'variantB').map((arm, i) => ({ ...arm, weight: i ? 30 : 70 })) }
+      return response({ errors: [{ code: 'stale-edit' }] }, 409)
+    }
+    return fetcher(url, init)
+  })
+  fireEvent.click(within(dialog).getByRole('button', { name: C.remove }))
+  expect((await within(dialog).findByRole('alert')).textContent).toBe(C.staleEdit)
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: C.remove }).getAttribute('aria-disabled')).toBeNull())
+  const before = structuredClone(doc.arms)
+  vi.mocked(fetch).mockClear()
+  vi.mocked(fetch).mockImplementation(fetcher)
+  fireEvent.click(within(dialog).getByRole('button', { name: C.remove }))
+  await waitFor(() => expect(within(dialog).getByRole('alert').textContent).toBe(C.staleEdit))
+  expect(patches()).toHaveLength(0)
+  expect(doc.arms).toEqual(before)
+  expect(doc.arms.map(arm => arm.weight)).toEqual([70, 30])
+  expect(screen.getByRole('dialog')).toBe(dialog)
+  expect(puck.dispatch).not.toHaveBeenCalled()
+})
+
+test.each(['Traffic', 'Add', 'leftover Add', 'Name'] as const)('%s refuses a fresh document whose target or precondition disappeared', async intent => {
+  if (intent === 'leftover Add') puck.item.props.variantB = [{ type: 'Text', props: { id: 'b' } }] as never[]
+  try {
+    await mount()
+    if (intent === 'Traffic' || intent === 'Name') {
+      const input = screen.getByRole(intent === 'Traffic' ? 'spinbutton' : 'textbox', { name: intent === 'Traffic' ? C.weight('Variant A') : 'Variant A Name' })
+      fireEvent.change(input, { target: { value: intent === 'Traffic' ? '60' : 'New name' } })
+      doc = { ...doc, arms: [{ ...doc.arms[0]!, weight: 100 }] }
+      fireEvent.keyDown(input, { key: 'Enter' })
+    } else {
+      doc = { ...doc, arms: [...doc.arms, { key: 'variantB', slot: 'variantB', kind: 'variant', label: 'Variant B', weight: 0 },
+        ...(intent === 'Add' ? [{ key: 'variantC' as const, slot: 'variantC' as const, kind: 'variant' as const, label: 'Variant C', weight: 0 }] : [])] }
+      fireEvent.click(screen.getByRole('button', { name: intent === 'Add' ? C.add : C.addLeftover }))
+    }
+    // The fresh read can remove the originating control and its inline error.
+    await waitFor(() => expect(order.filter(call => call === 'GET')).toHaveLength(2))
+    await waitFor(() => expect(screen.queryByText(C.savingVersions)).toBeNull())
+    expect(patches()).toHaveLength(0)
+    expect(puck.dispatch).not.toHaveBeenCalled()
+  } finally { puck.item.props.variantB = [] }
+})
+
 test.each(['non-JSON', 'invalid shape', 'invalid arm', 'unknown status'] as const)('refetch handles %s with authored copy', async mode => {
   await mount()
   vi.mocked(fetch).mockResolvedValueOnce(mode === 'non-JSON' ? new Response('not json') : response(mode === 'invalid shape' ? {} :

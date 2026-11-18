@@ -980,6 +980,69 @@ test.each(['split', 'add'] as const)('a pending %s shows the locked refusal afte
   expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(0)
 })
 
+test.each(['split', 'add'] as const)('a %s lock refusal survives same-status reads and clears on a later status change', async control => {
+  await mount()
+  doc = { ...doc, status: 'running', updatedAt: 'two' }
+  // This fresh read publishes running and raises the refusal in the same batch.
+  fireEvent.click(fields().getByRole('button', { name: control === 'split' ? C.split : C.add }))
+  expect((await fields().findByRole('alert')).textContent).toBe(C.locked.running)
+  doc = { ...doc, name: 'Updated name', updatedAt: 'three' }
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  fireEvent(document, new Event('visibilitychange'))
+  await fields().findByText('Updated name')
+  expect(fields().getByRole('alert').textContent).toBe(C.locked.running)
+  doc = { ...doc, status: 'stopped', updatedAt: 'four' }
+  act(() => publishExperiment(doc.id, doc))
+  await fields().findByRole('button', { name: C.add })
+  await waitFor(() => expect(fields().queryByRole('alert')).toBeNull())
+  // A later return to the recorded status cannot resurrect the refusal.
+  doc = { ...doc, status: 'running', updatedAt: 'five' }
+  act(() => publishExperiment(doc.id, doc))
+  await waitFor(() => expect(fields().queryByRole('button', { name: C.add })).toBeNull())
+  expect(fields().queryByRole('alert')).toBeNull()
+})
+
+test('an Add refusal clears when Add disappears at the version cap, even while locked', async () => {
+  await mount()
+  doc = { ...doc, status: 'running', updatedAt: 'two' }
+  fireEvent.click(fields().getByRole('button', { name: C.add }))
+  expect((await fields().findByRole('alert')).textContent).toBe(C.locked.running)
+  doc = { ...doc, updatedAt: 'three', arms: [...doc.arms,
+    { key: 'variantB', slot: 'variantB', kind: 'variant', label: 'Variant B', weight: 0 },
+    { key: 'variantC', slot: 'variantC', kind: 'variant', label: 'Variant C', weight: 0 }] }
+  act(() => publishExperiment(doc.id, doc))
+  await fields().findByRole('group', { name: 'Variant C' })
+  expect(fields().queryByRole('button', { name: C.add })).toBeNull()
+  await waitFor(() => expect(fields().queryByRole('alert')).toBeNull())
+  doc = { ...doc, arms: doc.arms.filter(arm => arm.key !== 'variantC'), updatedAt: 'four' }
+  act(() => publishExperiment(doc.id, doc))
+  await waitFor(() => expect(fields().queryByRole('group', { name: 'Variant C' })).toBeNull())
+  expect(fields().queryByRole('alert')).toBeNull()
+})
+
+test('a Split refusal records the accepted cache status when an older read finishes late', async () => {
+  doc.updatedAt = '2026-11-18T20:00:00.000Z'
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let finish!: () => void
+  const older = { ...doc, status: 'running', updatedAt: '2026-11-18T20:01:00.000Z' }
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).endsWith('/xp-experiments/sidebar-test?depth=0')
+    ? new Promise(resolve => { finish = () => resolve(reply(older)) }) : original(url, init))
+  fireEvent.click(fields().getByRole('button', { name: C.split }))
+  await waitFor(() => expect(finish).toBeTypeOf('function'))
+  doc = { ...doc, status: 'stopped', updatedAt: '2026-11-18T20:02:00.000Z' }
+  act(() => publishExperiment(doc.id, doc))
+  await fields().findByText('Stopped')
+  await act(async () => finish())
+  expect((await fields().findByRole('alert')).textContent).toBe(C.locked.running)
+  // The older running response never replaced the newer stopped document.
+  expect(await fields().findByRole('button', { name: 'Start a new round' })).toBeTruthy()
+  doc = { ...doc, arms: [...doc.arms, { key: 'variantB', slot: 'variantB', kind: 'variant', label: 'Variant B', weight: 0 }], updatedAt: '2026-11-18T20:03:00.000Z' }
+  act(() => publishExperiment(doc.id, doc))
+  await fields().findByRole('group', { name: 'Variant B' })
+  expect(fields().getByRole('alert').textContent).toBe(C.locked.running)
+})
+
 test('the first render under a new binding excludes the previous binding’s refusal', async () => {
   const renders: Array<{ bindingKey: string; error: string; splitError?: string }> = []
   const original = vi.mocked(fetch).getMockImplementation()!

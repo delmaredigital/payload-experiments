@@ -69,14 +69,15 @@ export function subscribe(listener: () => void): () => void {
   return () => { listeners.delete(listener) }
 }
 
-export function publishExperiment(testId: DocId, doc: EditorExperiment) {
+export function publishExperiment(testId: DocId, doc: EditorExperiment): EditorExperiment {
   const previous = cache.get(String(testId))?.doc
   // Surface reads and chrome writes share this producer too. A GET that began
   // before a save cannot overwrite its newer server timestamp when it finishes.
-  if (previous?.updatedAt && doc.updatedAt && Date.parse(previous.updatedAt) > Date.parse(doc.updatedAt)) return
+  if (previous?.updatedAt && doc.updatedAt && Date.parse(previous.updatedAt) > Date.parse(doc.updatedAt)) return previous
   revisions.set(String(testId), (revisions.get(String(testId)) ?? 0) + 1)
   cache.set(String(testId), { arms: doc.arms.map(arm => arm.key), doc })
   for (const listener of listeners) listener()
+  return doc
 }
 
 /** undefined means unknown. */

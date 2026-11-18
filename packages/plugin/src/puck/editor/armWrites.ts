@@ -1,12 +1,40 @@
 import { checkArms } from '../../collections/experiments/armInvariants.js'
 import { issueMessage } from '../../arms/copy.js'
-import { totalWeight, withSlotsFor } from '../../arms/model.js'
+import { addVariant, balanceWeight, removeArm, splitEvenly, totalWeight, withSlotsFor } from '../../arms/model.js'
 import { XP_IF_UPDATED_AT_HEADER } from '../../constants.js'
-import type { Arm } from '../../types/contracts.js'
+import type { Arm, ArmKey } from '../../types/contracts.js'
+import type { ArmSlot } from '../../types/puck.js'
+import { slotLabels } from '../copy.js'
 import type { EditorExperiment } from './editor.model.js'
 import { editorCopy, writeRefusal } from './copy.js'
 
 export class ArmWriteError extends Error {}
+
+/** Refuse obsolete intents before a no-op can become a successful PATCH. */
+export function removeVersionArms(arms: Arm[], key: ArmKey): Arm[] {
+  if (!arms.some(arm => arm.key === key && arm.kind !== 'control')) throw new ArmWriteError(editorCopy.staleEdit)
+  return splitEvenly(removeArm(arms, key))
+}
+export function addVersionArms(arms: Arm[]): Arm[] {
+  const next = addVariant(arms, 'block')
+  if (next.length === arms.length) throw new ArmWriteError(editorCopy.staleEdit)
+  return next
+}
+export function setVersionTraffic(arms: Arm[], key: ArmKey, weight: number): Arm[] {
+  if (!arms.some(arm => arm.key === key) || arms.length < 2) throw new ArmWriteError(editorCopy.staleEdit)
+  return balanceWeight(arms, key, weight)
+}
+export function renameVersionArms(arms: Arm[], key: ArmKey, label: string): Arm[] {
+  if (!arms.some(arm => arm.key === key)) throw new ArmWriteError(editorCopy.staleEdit)
+  return arms.map(arm => arm.key === key ? { ...arm, label } : arm)
+}
+export function addLeftoverArms(arms: Arm[], slot: ArmSlot): Arm[] {
+  if (slot === 'control' || arms.some(arm => arm.key === slot) || !arms.some(arm => arm.kind === 'control') || arms.filter(arm => arm.kind === 'variant').length >= 3) throw new ArmWriteError(editorCopy.staleEdit)
+  const next = [...arms]
+  const holdout = next.findIndex(arm => arm.kind === 'holdout')
+  next.splice(holdout < 0 ? next.length : holdout, 0, { key: slot, slot, kind: 'variant', label: slotLabels[slot], weight: 0 })
+  return next
+}
 
 type WritableExperiment = EditorExperiment & { arms: Arm[]; updatedAt: string }
 export async function readExperiment(url: string, signal?: AbortSignal): Promise<EditorExperiment> {

@@ -110,6 +110,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const [confirming, setConfirming] = useState<ArmSlot | null>(null)
   // A Remove refusal stays with its open dialog, even if the version disappears or the test locks.
   // Close on a binding change, Cancel/Escape, or success; only then discard its refusal.
+  // Split/Add refusals survive the locking read, then clear on a later status change;
+  // Add also clears when three variants leave no room for another version.
   const [removing, setRemoving] = useState<{ key: string; arm: EditorExperiment['arms'][number] } | null>(null)
   const pageTitle = usePuckSelector(state => typeof state.appState.data.root.props?.title === 'string' ? state.appState.data.root.props.title : '')
   // Selection only changes the chrome's appearance; actions always resolve this block by id.
@@ -218,15 +220,16 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   useEffect(() => {
     setRemoving(current => current?.key === bindingKey ? current : null)
   }, [bindingKey])
-  const writes = useArmWrites({ url: `${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, bindingKey,
+  const writes = useArmWrites({ url: `${api}/xp-experiments/${encodeURIComponent(String(experimentId))}`, bindingKey, status,
     controlKeys: [
-      'split', 'add', ...(experiment?.arms.map(arm => `remove:${arm.key}`) ?? []),
+      'split', ...(experiment && experiment.arms.filter(arm => arm.kind === 'variant').length < 3 ? ['add'] : []), ...(experiment?.arms.map(arm => `remove:${arm.key}`) ?? []),
       ...(removing?.key === bindingKey ? [`remove:${removing.arm.key}`] : []),
       ...orphanSlots.map(slot => `leftover:${slot}`),
     ],
     publish: doc => {
-      publishExperiment(experimentId!, doc)
-      if (isCurrentBinding()) setLoaded(value => ({ id: experimentId, doc, shared: value?.id === experimentId ? value?.shared : undefined }))
+      const accepted = publishExperiment(experimentId!, doc)
+      if (isCurrentBinding()) setLoaded(value => ({ id: experimentId, doc: accepted, shared: value?.id === experimentId ? value?.shared : undefined }))
+      return accepted
     }, isCurrent: isCurrentBinding, onWrite: () => setClearError(null), onSaved: () => { invalidatePlacements(api, experimentId!) } })
   // The slot arrays belong to the page; reading the test is unnecessary to edit them.
   const pageSlots = usePuckSelector(state => (['control', 'variantA', 'variantB', 'variantC'] as const).filter(slot => {

@@ -22,9 +22,9 @@ test('an old panel GET cannot replace a newer chrome save', () => {
   const release = acquireArms('t-saved')
   const saved = { name: 'Latest saved name', updatedAt: '2026-11-12T10:01:00Z', status: 'draft' as const,
     arms: [{ key: 'control' as const, kind: 'control' as const, label: 'Original' }] }
-  publishExperiment('t-saved', saved)
+  expect(publishExperiment('t-saved', saved)).toBe(saved)
   const { result } = renderHook(() => useArms('t-saved'))
-  act(() => publishExperiment('t-saved', { ...saved, name: 'Old name', updatedAt: '2026-11-12T10:00:00Z' }))
+  act(() => { expect(publishExperiment('t-saved', { ...saved, name: 'Old name', updatedAt: '2026-11-12T10:00:00Z' })).toBe(saved) })
   expect(result.current?.doc).toBe(saved)
   release()
 })

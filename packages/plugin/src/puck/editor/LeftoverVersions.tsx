@@ -9,6 +9,7 @@ import { editorCopy as C } from './copy.js'
 import type { EditorExperiment } from './editor.model.js'
 import { tabsFor } from './editor.model.js'
 import type { ArmWrites } from './VersionBuilder.js'
+import { addLeftoverArms } from './armWrites.js'
 
 /** Page content stays editable even when it does not belong to the selected test. */
 export function LeftoverVersions({ slots, experiment, writes, canManage, countBlocks, onDelete, onSelect, active, dragging }: {
@@ -22,13 +23,7 @@ export function LeftoverVersions({ slots, experiment, writes, canManage, countBl
     <div className="xp-ui-button-group">
       {canManage && experiment.status === 'draft' ? <Button aria-disabled={writes.busy || undefined} onClick={async () => {
         if (writes.busy) return
-        const saved = await writes.write(arms => {
-          if (arms.some(arm => arm.key === slot)) return arms
-          const next = [...arms]
-          const holdout = next.findIndex(arm => arm.kind === 'holdout')
-          next.splice(holdout < 0 ? next.length : holdout, 0, { key: slot, slot, kind: 'variant', label: slotLabels[slot], weight: 0 })
-          return next
-        }, { draftOnly: true, errorKey: `leftover:${slot}` })
+        const saved = await writes.write(arms => addLeftoverArms(arms, slot), { draftOnly: true, errorKey: `leftover:${slot}` })
         if (saved) onSelect(slot)
       }}>{C.addLeftover}</Button> : null}
       <Button onClick={() => setDeleting(slot)}>{C.deleteContent}</Button>
