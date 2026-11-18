@@ -372,7 +372,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           {accessNotice}
           {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
           {canManage ? <>{placementNoticeView}{experiment?.status === 'draft' || experiment?.status === 'stopped' ? <BlockerList steps={sidebarBlockers} /> : null}</> : null}
-          {experimentId !== undefined && access.surface && !result?.missing && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}
+          {experimentId !== undefined && access.surface && !result?.missing && !result?.error && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}
           {canManage && experiment && surface ? <QuickTestActions key={`${experimentId}/${experiment.status}`} test={quickTest} surface={surface} /> : null}
           {canSetUp ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
           {experimentId === undefined && canManage ? <Button disabled={settingUp} onClick={() => setChoosing(true)}>{editorCopy.existingTest}</Button> : null}
@@ -389,8 +389,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
                 <Button variant="quiet" aria-pressed={slot === arm.key} disabled={arm.kind === 'holdout' || dragging} onClick={() => setActive({ id: experimentId, slot: arm.key as ArmSlot })}>{arm.label}</Button>
                 <VersionName key={`${experimentId}-${arm.key}`} arm={arm} writes={writes} editable={editable} />
                 {input}
-                {arm.kind === 'variant' ? <><Button disabled={writes.busy || originalEmpty} onClick={() => requestCopy(arm.key as ArmSlot)}>{editorCopy.copy(originalLabel)}</Button>{originalEmpty ? <p className="xp-ui-help">{editorCopy.copyEmpty(originalLabel)}</p> : null}</> : null}
-                {editable && arm.kind !== 'control' ? <Button disabled={writes.busy} onClick={() => setRemoving({ key: bindingKey, arm })}>{editorCopy.removeVersion}</Button> : null}
+                {arm.kind === 'variant' ? <><Button disabled={originalEmpty} aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) requestCopy(arm.key as ArmSlot) }}>{editorCopy.copy(originalLabel)}</Button>{originalEmpty ? <p className="xp-ui-help">{editorCopy.copyEmpty(originalLabel)}</p> : null}</> : null}
+                {editable && arm.kind !== 'control' ? <Button aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) setRemoving({ key: bindingKey, arm }) }}>{editorCopy.removeVersion}</Button> : null}
               </FieldGroup>
             </div>} />
         </FieldGroup></section> : null}
@@ -402,7 +402,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {clearError?.key === bindingKey ? <p role="alert">{clearError.message}</p> : null}
         {removed?.key === bindingKey && removed.contentRemoved ? <p>{editorCopy.removed}</p> : null}
         {experiment && experiment.status !== 'draft' ? <ResultsReadout key={`results-${experimentId}`} id={experimentId!} api={api} experiment={experiment} /> : null}
-        {confirming ? <div role="alert"><p>{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming, originalLabel)}</p><div className="xp-ui-button-group">
+        {confirming ? <div className="xp-slot-copy-confirm" role="alert"><p>{editorCopy.replaceConfirm(tabs.find(tab => tab.slot === confirming)?.label ?? confirming, originalLabel)}</p><div className="xp-ui-button-group">
           <Button variant="primary" onClick={() => copyTo(confirming)}>{editorCopy.replace}</Button>
           <Button onClick={() => setConfirming(null)}>{editorCopy.cancel}</Button>
         </div></div> : null}
@@ -422,13 +422,13 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
             selectBlock()
           }
         }}>
-        <h3 className="xp-slot-title" title={experimentId === undefined ? editorCopy.unbound : result?.missing ? editorCopy.deleted : experiment?.name ?? experimentSlotLabel}>{experimentId === undefined ? editorCopy.unbound : result?.missing ? editorCopy.deleted : experiment?.name ?? experimentSlotLabel}</h3>
+        <h3 className={experimentId === undefined || result?.missing ? "xp-slot-title xp-slot-title-sentence" : "xp-slot-title"} title={experimentId === undefined ? editorCopy.unbound : result?.missing ? editorCopy.deleted : experiment?.name ?? experimentSlotLabel}>{experimentId === undefined ? editorCopy.unbound : result?.missing ? editorCopy.deleted : experiment?.name ?? experimentSlotLabel}</h3>
         {experiment ? <StatusChip status={experiment.status} /> : null}
       </header>
       {canSetUp || result?.missing ? null : accessNotice}
       {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
       {canManage ? placementNoticeView : null}
-      {setupError && canSetUp ? <p role="alert">{setupError}</p> : null}
+      {setupError && canSetUp ? <p role={isSelected ? undefined : "alert"}>{setupError}</p> : null}
       {canSetUp ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
     </EditorControls>
     <Tabs disabled={dragging} label={editorCopy.tabs} value={slot} renderHeader={children => <EditorControls className="xp-ui-tabs-header">{children}</EditorControls>} onChange={value => setActive({ id: experimentId, slot: value as ArmSlot })}

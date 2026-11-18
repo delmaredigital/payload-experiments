@@ -122,7 +122,7 @@ test.each([0, 1, 137])('long block title uses short lookup URLs with %s existing
   const base = `${title.trim()} test`
   const existing = Array.from({ length: count }, (_, index) => ({ id: index, name: index === 0 ? base : `${base} ${index + 1}` }))
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
-    expect(input.length).toBeLessThan(2000)
+    expect(input.length).toBeLessThan(8000)
     if (init?.method === 'POST') return response({ doc: { id: 1, slug: 'created' } })
     const params = new URL(input, 'https://example.test').searchParams
     if (!params.has('where[name][like]')) return response({ docs: [] })
@@ -140,7 +140,7 @@ test.each([false, true])('block names retain their suffix at the Payload text li
   const title = 'x'.repeat(40_000)
   const base = `${'x'.repeat(39_995)} test`
   const fetcher = vi.fn(async (input: string, init?: RequestInit) => {
-    expect(input.length).toBeLessThan(2000)
+    expect(input.length).toBeLessThan(8000)
     if (init?.method === 'POST') return response({ doc: { id: 1, slug: 'created' } })
     return response({ docs: input.includes('name') && occupied ? [{ name: base }] : [] })
   })

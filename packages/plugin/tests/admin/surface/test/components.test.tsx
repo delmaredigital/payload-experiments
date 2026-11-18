@@ -673,15 +673,15 @@ test('no click goals means no linked-document note and no click-primary help', a
   expect(screen.queryByText(/Goals inside linked documents/)).toBeNull()
   expect(screen.queryByText('A click shows interest, not the result you want.')).toBeNull()
 })
-test('grouped and plain SelectEdit and CheckboxList retain their values and commit behaviour', () => {
+test('grouped and plain SelectEdit and the targeting CheckboxList retain values and commit behaviour', () => {
   const commit = vi.fn(), toggle = vi.fn()
   const options = [{ value: 'a', label: 'Alpha' }, { value: 'b', label: 'Beta' }]
   const groups = [{ label: 'First group', options: options.slice(0, 1) }, { options: options.slice(1) }]
   const view = render(<><SelectEdit label="Select" value="a" options={options} groups={groups} onCommit={commit} />
-    <CheckboxList label="Checks" value={['a']} options={options} groups={groups} onToggle={toggle} /></>)
+    <CheckboxList label="Checks" value={['a']} options={options} onToggle={toggle} /></>)
   expect(screen.getByRole('group', { name: 'First group' })).toBeTruthy()
-  expect(screen.getByRole('heading', { name: 'First group' })).toBeTruthy()
-  expect(screen.getAllByRole('list')).toHaveLength(2)
+  expect(screen.queryByRole('heading')).toBeNull()
+  expect(screen.queryByRole('list')).toBeNull()
   fireEvent.change(screen.getByRole('combobox'), { target: { value: 'b' } })
   fireEvent.click(screen.getByRole('checkbox', { name: 'Beta' }))
   expect(commit).toHaveBeenCalledWith('b'); expect(toggle).toHaveBeenCalledWith('b', true)

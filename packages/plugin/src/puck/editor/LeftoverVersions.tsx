@@ -20,7 +20,8 @@ export function LeftoverVersions({ slots, experiment, writes, canManage, countBl
   const notice = (slot: ArmSlot) => <div key={slot} className="xp-slot-version-group" data-active={active === slot} role="group" aria-label={C.outsideTest(slotLabels[slot])}><FieldGroup variant="card" collapsible={false}><Button variant="quiet" aria-pressed={active === slot} disabled={dragging} onClick={() => onSelect(slot)}>{C.outsideTest(slotLabels[slot])}</Button>
     <p>{C.orphan(slotLabels[slot], versions)}</p>
     <div className="xp-ui-button-group">
-      {canManage && experiment.status === 'draft' ? <Button disabled={writes.busy} onClick={async () => {
+      {canManage && experiment.status === 'draft' ? <Button aria-disabled={writes.busy || undefined} onClick={async () => {
+        if (writes.busy) return
         const saved = await writes.write(arms => {
           if (arms.some(arm => arm.key === slot)) return arms
           const next = [...arms]

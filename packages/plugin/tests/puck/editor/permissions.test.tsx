@@ -52,7 +52,7 @@ beforeEach(() => {
 })
 afterEach(async () => { cleanup(); await act(async () => {}); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
-test('no test access: calm chrome, usable page versions and content editing, read-only sidebar, removal', async () => {
+test('no test access: calm chrome, usable page versions and content editing, no test-management controls', async () => {
   const fetcher = setup()
   const chrome = document.querySelector<HTMLElement>('.xp-slot-chrome')!
   await within(chrome).findByText(noAccess)
@@ -77,7 +77,7 @@ test('no test access: calm chrome, usable page versions and content editing, rea
   expect(fetcher.mock.calls.some(([url]) => url.endsWith('/preflight'))).toBe(false)
 })
 
-test('results-only: Configure opens the reader, creation and version management stay hidden, removal works', async () => {
+test('results-only: Configure opens the reader, creation and version management stay hidden', async () => {
   const fetcher = setup('results')
   await screen.findByText("You can view this test's results.")
   expect(screen.queryByText(noAccess)).toBeNull()
@@ -144,7 +144,7 @@ test('an unbound block without access names tests generally and offers no action
   expect(screen.queryByText(noAccess)).toBeNull()
   expect(document.querySelector('.xp-slot-chrome button')).toBeNull()
 })
-test('a bound 404 is calm, retains page-owned version tabs and permits removal', async () => {
+test('a bound 404 names deletion, retains page-owned tabs and offers setup', async () => {
   setup('manager', 404)
   await screen.findByText("The test for this block was deleted.")
   expect(screen.queryByRole('alert')).toBeNull()

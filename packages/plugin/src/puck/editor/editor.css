@@ -484,7 +484,7 @@
   gap: var(--xp-space-4);
 }
 
-.xp-slot-confirm {
+.xp-slot-copy-confirm {
   padding: var(--xp-space-2) var(--xp-space-3);
   border: 1px solid var(--xp-warning);
   border-radius: var(--xp-radius);
@@ -551,7 +551,6 @@
 
 .xp-slot-sidebar { display: grid; gap: var(--xp-space-4); }
 .xp-slot-sidebar section, .xp-slot-sidebar section > div { display: grid; gap: var(--xp-space-3); }
-.xp-slot-sidebar h4 { margin: 0; font: inherit; font-weight: 600; }
 .xp-slot-sidebar .xp-slot-weight-inputs { display: grid; }
 .xp-slot-sidebar .xp-slot-weight-inputs .xp-ui-field { max-width: none; flex: 1 1 100%; }
 
@@ -563,3 +562,10 @@
 .xp-slot-sidebar .xp-slot-version-name > .xp-ui-field { flex: 1; min-width: 0; }
 
 .xp-slot-header .xp-ui-status { flex: none; }
+
+.xp-slot-title-sentence {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}

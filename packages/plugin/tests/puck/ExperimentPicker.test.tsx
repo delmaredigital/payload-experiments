@@ -144,7 +144,8 @@ test('all 150 tests load; search above eight filters name and slug but keeps the
   expect(fetch).toHaveBeenCalledTimes(2)
   const search = screen.getByRole('searchbox', { name: 'Search tests' })
   const select = screen.getByRole('combobox')
-  const label = select.previousElementSibling!
+  expect(select.parentElement!.className).toBe('xp-ui-select-wrap')
+  const label = select.parentElement!.previousElementSibling!
   expect(label.tagName).toBe('LABEL')
   expect(label.textContent).toBe('Test')
   expect(label.getAttribute('for')).toBe(select.id)

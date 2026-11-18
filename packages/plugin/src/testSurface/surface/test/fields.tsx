@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useId, useState } from 'react'
-import { TextInput, NumberInput, Textarea, Select, SearchInput, Checkbox, CheckboxList as UICheckboxList } from '../../../ui/Inputs.js'
+import { TextInput, NumberInput, Textarea, Select, CheckboxList as UICheckboxList } from '../../../ui/Inputs.js'
 import { TEST_PAGE as C } from '../../copy/testPage.js'
 import type { ReactNode } from 'react'
 import { EDITABLE_BY_STATUS } from '../../../collections/experiments/editability.js'
@@ -70,22 +70,16 @@ export function SelectEdit({ label, value, options, groups, reason, onCommit, re
       : options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
   </Select>
 }
-export function CheckboxList({ label, value, options, groups, reason, onToggle, readOnlyValue, searchable = false }: {
+export function CheckboxList({ label, value, options, reason, onToggle, readOnlyValue }: {
   label: string; value: string[]; options: readonly { label: string; value: string }[]; reason?: string | null
-  onToggle: (value: string, checked: boolean) => void; readOnlyValue?: string; searchable?: boolean; groups?: readonly OptionGroup[]
+  onToggle: (value: string, checked: boolean) => void; readOnlyValue?: string
 }) {
   const id = useId()
-  const [query, setQuery] = useState('')
-  const visible = searchable ? options.filter(option => value.includes(option.value) || option.label.toLowerCase().includes(query.toLowerCase())) : options
   if (reason) return <ReadOnly label={label} reason={reason} value={readOnlyValue ?? value.map(v => options.find(o => o.value === v)?.label ?? v).join(', ')} />
-  return <UICheckboxList id={id} label={label} value={value} options={groups ? [] : visible} onChange={next => {
+  return <UICheckboxList id={id} label={label} value={value} options={options} onChange={next => {
     const changed = options.find(option => next.includes(option.value) !== value.includes(option.value))
     if (changed) onToggle(changed.value, next.includes(changed.value))
-  }}>{searchable ? <SearchInput id={`${id}-search`} label={C.searchGoals} value={query} onChange={event => setQuery(event.target.value)} /> : null}{groups ? groups.map((group, index) => {
-    const items = group.options.filter(option => visible.some(item => item.value === option.value))
-    return items.length ? <div key={index}>{group.label ? <h3>{group.label}</h3> : null}<ul>{items.map(option => <li key={option.value}><Checkbox
-      id={`${id}-${index}-${option.value}`} label={option.label} checked={value.includes(option.value)} onChange={event => onToggle(option.value, event.target.checked)} /></li>)}</ul></div> : null
-  }) : null}</UICheckboxList>
+  }} />
 }
 export function TestName({ test }: SectionProps) {
   return <><TextEdit label={C.name} value={test.doc?.name ?? ''} reason={reasonFor(test, 'name')}

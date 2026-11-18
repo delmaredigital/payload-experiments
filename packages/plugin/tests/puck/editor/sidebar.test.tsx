@@ -63,7 +63,7 @@ beforeEach(() => {
 })
 afterEach(async () => { cleanup(); await act(async () => {}); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
-test.each(['draft', 'running', 'stopped', 'decided'] as const)('%s sidebar has ordered Test, Versions and Actions with the matching controls', async status => {
+test.each(['draft', 'running', 'stopped', 'decided'] as const)('%s sidebar has ordered Test, Versions and collapsed More with the matching controls', async status => {
   doc.status = status
   await mount()
   expect(fields().getByRole('region', { name: C.testGroup })).toBeTruthy()
@@ -74,8 +74,9 @@ test.each(['draft', 'running', 'stopped', 'decided'] as const)('%s sidebar has o
   expect((within(versions).getByLabelText(C.weight('Original')) as HTMLInputElement).readOnly).toBe(status === 'running' || status === 'decided')
   expect(!!fields().queryByRole('button', { name: C.add })).toBe(status === 'draft' || status === 'stopped')
   expect(!!fields().queryByRole('button', { name: C.removeVersion })).toBe(status === 'draft' || status === 'stopped')
-  if (status === 'draft' || status === 'stopped') await fields().findByRole('button', { name: 'Start' })
-  expect(!!fields().queryByRole('button', { name: 'Start' })).toBe(status === 'draft' || status === 'stopped')
+  const start = status === 'stopped' ? 'Start a new round' : 'Start'
+  if (status === 'draft' || status === 'stopped') await fields().findByRole('button', { name: start })
+  expect(!!fields().queryByRole('button', { name: start })).toBe(status === 'draft' || status === 'stopped')
   expect(!!fields().queryByRole('button', { name: 'Stop' })).toBe(status === 'running')
   expect(fields().queryByRole('button', { name: /Decide/ })).toBeNull()
   expect(fields().getByRole('button', { name: C.configure })).toBeTruthy()
@@ -536,7 +537,7 @@ test('a results reader with a readable test gets read-only version fields and on
 
 
 test.each([403, 404, 500, 0])('unreadable binding %s has the right header, sidebar and recovery actions', async code => {
-  testCode = code || 200
+  testCode = code || 500
   if (!code) {
     const original = vi.mocked(fetch).getMockImplementation()!
     vi.mocked(fetch).mockImplementation((url, init) => String(url).includes('/sidebar-test?') ? Promise.reject(new Error('offline')) : original(url, init))
@@ -569,6 +570,116 @@ test.each([403, 404, 500, 0])('unreadable binding %s has the right header, sideb
     expect(chrome().getByRole('button', { name: C.retrySetup })).toBeTruthy()
     expect(fields().getByRole('button', { name: C.retrySetup })).toBeTruthy()
     expect(fields().queryByRole('button', { name: C.moreGroup })).toBeNull()
+    expect(fields().queryByRole('button', { name: C.configure })).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
   }
+})
+
+
+test('Traffic keeps focus while saving and the next Name control stays in the sidebar tab order', async () => {
+  await mount()
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let finish!: () => void
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH'
+    ? new Promise(resolve => { finish = () => { void original(url, init).then(resolve) } }) : original(url, init))
+  const input = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') })
+  input.focus()
+  fireEvent.change(input, { target: { value: '60' } })
+  fireEvent.keyDown(input, { key: 'Enter' })
+  await waitFor(() => expect(finish).toBeTypeOf('function'))
+  expect(document.activeElement).toBe(input)
+  expect(input.disabled).toBe(false)
+  expect(input.readOnly).toBe(true)
+  const name = fields().getByRole<HTMLInputElement>('textbox', { name: 'Variant A Name' })
+  expect(name.disabled).toBe(false)
+  // jsdom has no Tab default action. Follow its focusable target after delivering Tab.
+  fireEvent.keyDown(input, { key: 'Tab' }); name.focus()
+  expect(screen.getByTestId('sidebar').contains(document.activeElement)).toBe(true)
+  await act(async () => finish())
+  await waitFor(() => expect(input.readOnly).toBe(false))
+  expect(document.activeElement).toBe(name)
+})
+
+test('a Name commit made during a Traffic save queues and preserves both intents', async () => {
+  await mount()
+  const name = fields().getByRole<HTMLInputElement>('textbox', { name: 'Variant A Name' })
+  fireEvent.change(name, { target: { value: 'Queued name' } })
+  const original = vi.mocked(fetch).getMockImplementation()!
+  let finish!: () => void
+  let patches = 0
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' && ++patches === 1
+    ? new Promise(resolve => { finish = () => { void original(url, init).then(resolve) } }) : original(url, init))
+  const input = fields().getByLabelText(C.weight('Original'))
+  fireEvent.change(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
+  await waitFor(() => expect(finish).toBeTypeOf('function'))
+  fireEvent.blur(name)
+  expect(patches).toBe(1)
+  await act(async () => finish())
+  await screen.findByRole('tab', { name: 'Queued name' })
+  expect(doc.arms.map(arm => [arm.label, arm.weight])).toEqual([['Original', 60], ['Queued name', 40]])
+  expect(patches).toBe(2)
+})
+
+test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('leftover content actions respect %s status and reader rights', async status => {
+  doc.status = status
+  await mount(false, true)
+  expect(Boolean(fields().queryByRole('button', { name: C.addLeftover }))).toBe(status === 'draft')
+  expect(fields().getByRole('button', { name: C.deleteContent })).toBeTruthy()
+  cleanup(); role = 'results'
+  await mount(false, true)
+  expect(fields().queryByRole('button', { name: C.addLeftover })).toBeNull()
+  fireEvent.click(fields().getByRole('button', { name: C.deleteContent }))
+  const dialog = await screen.findByRole('dialog')
+  fireEvent.click(within(dialog).getByRole('button', { name: C.deleteContent }))
+  await waitFor(() => expect(read().getItemById('sidebar-block')?.props.variantC).toEqual([]))
+  expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false)
+  cleanup(); role = 'none'
+  await mount(false, true)
+  expect(fields().queryByRole('button', { name: C.addLeftover })).toBeNull()
+  expect(fields().queryByRole('button', { name: C.deleteContent })).toBeNull()
+})
+
+test.each([false, true])('creating through Use a different test preserves gapped page content and excludes holdout (refused: %s)', async refused => {
+  doc.arms = [doc.arms[0]!, { key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 10 }, { ...doc.arms[1]!, key: 'variantB', slot: 'variantB', label: 'Saved B', weight: 40 }]
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'POST'
+    ? Promise.resolve(reply(refused ? {} : { doc: { id: 'created', slug: 'new-test' } }, refused ? 403 : 200)) : original(url, init))
+  await mount(false, true)
+  const before = structuredClone(read().getItemById('sidebar-block'))
+  fireEvent.click(fields().getByRole('button', { name: C.moreGroup }))
+  fireEvent.click(fields().getByRole('button', { name: C.differentTest }))
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: C.createAnother }))
+  const dialog = await screen.findByRole('dialog')
+  fireEvent.change(within(dialog).getByRole('textbox', { name: C.name }), { target: { value: 'Replacement' } })
+  fireEvent.click(within(dialog).getByRole('button', { name: C.createAnother }))
+  await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))
+  const post = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST')!
+  expect(JSON.parse(String(post[1]!.body)).arms.map((arm: { key: string; label: string }) => [arm.key, arm.label])).toEqual([['control', 'Original'], ['variantB', 'Saved B'], ['variantC', 'Variant C']])
+  if (refused) {
+    await within(dialog).findByRole('alert')
+    expect(read().getItemById('sidebar-block')).toEqual(before)
+  } else {
+    await waitFor(() => expect(read().getItemById('sidebar-block')?.props.experiment?.id).toBe('created'))
+    expect(read().getItemById('sidebar-block')?.props.variantC).toEqual(before?.props.variantC)
+  }
+})
+
+
+test.each([403, 404])('Create a test from an unavailable binding %s uses page content without reading the old test', async code => {
+  testCode = code
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'POST'
+    ? Promise.resolve(reply({ doc: { id: 'created', slug: 'replacement' } })) : original(url, init))
+  await mount(false, true)
+  const reads = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/sidebar-test?')).length
+  fireEvent.click(fields().getByRole('button', { name: C.moreGroup }))
+  fireEvent.click(fields().getByRole('button', { name: C.differentTest }))
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: C.createAnother }))
+  const dialog = await screen.findByRole('dialog')
+  fireEvent.change(within(dialog).getByRole('textbox', { name: C.name }), { target: { value: 'Replacement' } })
+  fireEvent.click(within(dialog).getByRole('button', { name: C.createAnother }))
+  await waitFor(() => expect(read().getItemById('sidebar-block')?.props.experiment?.id).toBe('created'))
+  const post = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST')!
+  expect(JSON.parse(String(post[1]!.body)).arms.map((arm: { key: string }) => arm.key)).toEqual(['control', 'variantC'])
+  expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/sidebar-test?'))).toHaveLength(reads)
 })

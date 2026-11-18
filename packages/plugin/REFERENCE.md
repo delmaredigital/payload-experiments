@@ -805,11 +805,11 @@ Links that leave the surface open in a new tab.
 
 An unbound Experiment block is a setup state: **This Experiment block has no test yet.** Choose **Set up test** to create and bind a draft and immediately open Configure test. Creation uses `<page title> test` (or `Page test`), adding a number if that name is taken. It keeps Original and each populated variant, split evenly. Loading a page or inserting the block never creates a test. The sidebar also offers **Use an existing test**. Access refusals and creation failures keep their existing guidance and content intact.
 
-Selecting an Experiment block opens **Test**, **Versions** and collapsed **More** groups in the sidebar. Test shows the saved name, status chip, notices, “Before you can start:” list, primary **Configure test**, and ready **Start** (draft/stopped) or **Stop** (running). Restart retains its confirmation; Decide stays in the drawer.
+Selecting an Experiment block opens **Test**, **Versions** and collapsed **More** groups in the sidebar. Test shows the saved name, status chip, notices, “Before you can start:” list, primary **Configure test**, and ready **Start** (draft), **Start a new round** (stopped) or **Stop** (running). Restart retains its confirmation; Decide stays in the drawer.
 
 Versions show their saved names in tabs, sidebar headings, traffic fields, notices and content guidance. The first version defaults to **Original**; existing names such as **Control** are preserved. Each version has its own group with an always-visible **Name** input and **Traffic (%)**. Names save on blur or Enter, Escape restores the saved name, and **Saved** or the refusal appears beside the input. Version group headers select the corresponding block tab; tab selection marks the matching group. Original has no copy or removal actions. Variants offer **Copy Original here**, using the first version's saved name if renamed. Managers in draft/stopped tests can **Remove version** for any version except Original, with the existing content-count and shared-test confirmation. Locked inputs remain read-only with one explanation. **Add variant** and **Split evenly** follow the groups. Leftover versions have their own marked group, with **Add to the test** (draft managers) and confirmed **Delete its content**.
 
-**More** contains **Use a different test**, opening the test picker or **Create a test** flow. The picker cannot clear a binding. To stop testing, Stop the test or delete the Experiment block. The server's placement rules still apply. All controls share the block's document, write state, permissions and placements cache. No host wiring is required.
+**More** contains **Use a different test**, opening the test picker or **Create a test** flow. The picker cannot clear a binding. To stop testing, Stop the test or delete the Experiment block. The server's placement rules still apply. Version inputs stay focusable while saving; a Name commit waits for a running version write and then applies to fresh test data. All controls share the block's document, write state, permissions and placements cache. No host wiring is required.
 
 Draft and stopped tests show **Save this page to put the test on it.** or **Publish this page to start the test.** Running tests instead say **This test is running, but visitors won't see it here until this page is published.** (or **saved and published** for an unsaved placement). Decided and archived tests show no placement notice. While a notice is visible in a block, sidebar or open configure drawer, placements refresh about every four seconds while the editor document is visible. One timer serves the editor and deduplicates requests for the same test through the placements cache. It stops when no notice remains, when the tab is hidden, or when the notice unmounts. Other editor states do not poll. Refreshes retain the last settled placement display while pending and share one in-flight read per test. A failed read shows its failure guidance. Background refreshes keep settled readiness and Start mounted. Running placement notices use warning styling; draft and stopped placement blockers use danger styling. Focus refreshes are limited to once per ten seconds. Server placement checks still protect the last running placement when page content is saved.
 
@@ -828,14 +828,15 @@ Disabled editor actions explain the next step nearby: add Original content befor
 Permission-dependent actions stay hidden until access is known; the sidebar Test
 field shows a quiet loading line while its list read is pending. An unbound block
 without test access says "You don't have access to tests." A bound test returning
-404 says "This test isn't available to you. You can still edit its content." and
-keeps the page-owned version tabs, including when the test was deleted.
+404 says "The test for this block was deleted." and keeps the page-owned version tabs.
+Managers can choose Set up test to replace the deleted binding with a draft built from this block's content.
+Use a different test also offers Create a test for deleted or forbidden bindings, using the block's own versions without reading the unavailable test. Temporary failures offer Retry.
 
 Page editors without manage or results access see "You don't have access to this
 test. You can still edit its content." Populated versions remain available from
 the page's own slot data with default version labels; their content stays editable
 on the canvas. The sidebar Test field becomes a read-only sentence. Configure and
-new-test actions are hidden. A missing bound test always shows the unavailable line and no Configure, including
+new-test actions are hidden. A missing bound test always shows the deleted-test sentence and no Configure, including
 for results readers. An unbound results-only reader sees "You don't have access to
 set up tests." A failed controls read shows "Test controls couldn't load." with
 Retry; retry rechecks permissions before showing controls. Results-only readers see "You can view this test's

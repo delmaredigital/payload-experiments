@@ -10,7 +10,6 @@ export const editorCopy = {
   openInTab: 'Open in a new tab',
   closeConfigure: 'Close',
   selectBlock: 'Select this test block',
-  placementsError: "Couldn't check where this test is used. Try again.",
   deleted: 'The test for this block was deleted.',
   unbound: 'This Experiment block has no test yet.',
   draft: (label: string) => `This block shows the ${label} to everyone until the test starts.`,

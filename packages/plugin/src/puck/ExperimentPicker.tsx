@@ -4,7 +4,6 @@ import { useEffect, useId, useState } from 'react'
 import { fetchAllDocs } from '../lib/fetchAllDocs.js'
 import type { ExperimentRef } from '../types/puck.js'
 import { usePuckRoutes } from './hostContext.js'
-import { Select } from '../ui/Inputs.js'
 import { pickerCopy } from './copy.js'
 
 type ExperimentOption = ExperimentRef & { name: string; updatedAt?: string; status: keyof typeof pickerCopy.statuses }
@@ -68,14 +67,15 @@ export function ExperimentPicker({ value, onChange, allowEmpty = true }: {
       <input id={`${id}-search`} type="search" className="xp-ui-input" value={search}
         onChange={event => setSearch(event.currentTarget.value)} />
     </div> : null}
-    <Select id={id} label={pickerCopy.label} value={selected} onChange={event => {
+    <label htmlFor={id}>{pickerCopy.label}</label>
+    <span className="xp-ui-select-wrap"><select id={id} className="xp-ui-input xp-ui-select" value={selected} onChange={event => {
       const experiment = experiments.find(doc => String(doc.id) === event.currentTarget.value)
       if (experiment || allowEmpty) onChange(experiment ? { id: experiment.id, slug: experiment.slug } : null)
     }}>
       <option value="" disabled={!allowEmpty}>{allowEmpty ? pickerCopy.none : pickerCopy.choose}</option>
       {value && !experiments.some(doc => String(doc.id) === selected) ? <option value={selected}>{value.slug}</option> : null}
       {visible.map(doc => <option key={doc.id} value={String(doc.id)}>{doc.name} · {pickerCopy.statuses[doc.status]}</option>)}
-    </Select>
+    </select></span>
     {state === 'error' ? <div className="xp-ui-banner xp-ui-banner--error" role="alert"><p>{pickerCopy[state]}</p></div> : null}
   </div>
 }

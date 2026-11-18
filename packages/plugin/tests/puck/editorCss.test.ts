@@ -139,3 +139,12 @@ test('sidebar chips stay compact, active groups are marked, and narrow headers k
   expect(properties(rules.get('.xp-ui-tab')!)).toMatchObject({ 'min-width': '0', 'max-width': '100%', 'overflow-wrap': 'anywhere', 'white-space': 'normal' })
   expect([...rules.keys()].some(selector => selector.includes('version-menu'))).toBe(false)
 })
+
+
+test('unbound and deleted sentences wrap and copy confirmation retains warning styling', () => {
+  const rules = generatedRules()
+  expect(properties(rules.get('.xp-slot-title-sentence')!)).toMatchObject({ 'white-space': 'normal', overflow: 'visible', 'text-overflow': 'clip' })
+  expect(properties(rules.get('.xp-slot-copy-confirm')!)).toMatchObject({ border: '1px solid var(--xp-warning)', background: 'var(--xp-warning-surface)' })
+  expect(rules.has('.xp-slot-confirm')).toBe(false)
+  expect(rules.has('.xp-slot-sidebar h4')).toBe(false)
+})

@@ -29,7 +29,7 @@ export const TEST_PAGE = {
   otherGoalsHelp: "Watch: shown in results. Must not get worse: you're warned if a version makes it worse.",
   goal: 'Goal', goalHelp: 'The one thing you want more of. It decides the winner.',
   guardrailsShort,
-  secondaryShort, manageGoals: 'Manage goals', searchGoals: 'Search goals', chooseGoal: 'Choose a goal',
+  secondaryShort, manageGoals: 'Manage goals', chooseGoal: 'Choose a goal',
   goalsError: "Couldn't load goals. Try again.", noGoal: 'None selected', missingGoal: 'A goal that no longer exists', goalUnavailable: 'Goal details unavailable',
   everyone: 'Everyone on the pages where this appears.', rulesSummary: 'Only people matching these rules.', addRule: 'Add a rule', removeRule: 'Remove rule',
   blockPathRule: 'This rule no longer applies to page block tests; remove it.',

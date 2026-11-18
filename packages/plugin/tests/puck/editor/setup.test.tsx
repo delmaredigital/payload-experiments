@@ -131,3 +131,16 @@ test('a deleted binding is replaced in one click using only the block content', 
   expect(JSON.parse(String(posts()[0]![1]!.body)).arms.map((arm: { key: string }) => arm.key)).toEqual(['control', 'variantB'])
   expect(read().getItemById('setup-block')?.props.experiment?.id).toBe('created')
 })
+
+
+test('selected setup failure has one alert in the sidebar and plain text in the header', async () => {
+  failure = 'post'
+  await mount()
+  act(() => read().dispatch({ type: 'setUi', ui: { itemSelector: read().getSelectorForId('setup-block')! } }))
+  const fields = within(screen.getByTestId('fields'))
+  fireEvent.click(await fields.findByRole('button', { name: 'Set up test' }))
+  const alert = await screen.findByRole('alert')
+  expect(screen.getByTestId('fields').contains(alert)).toBe(true)
+  expect(document.querySelector('.xp-slot-chrome')!.textContent).toContain("Couldn't create the test. Try again.")
+  expect(document.querySelector('.xp-slot-chrome [role="alert"]')).toBeNull()
+})

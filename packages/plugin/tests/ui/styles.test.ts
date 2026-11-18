@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { referencePalette, resolvedTokens } from '../../../../scripts/generate-editor-css.mjs'
+import ts from 'typescript'
 import { contrast } from '../../src/ui/accent.js'
 import { expect, test } from 'vitest'
 
@@ -115,18 +116,33 @@ test('dropdowns draw their chevron and spacing independently of native browser a
 })
 
 
-test('select chevrons cannot be bypassed by a bare xp-ui-select outside the shared wrapper', () => {
+test('every xp-ui-select has a chevron wrapper, including the public CSS-free picker', () => {
   const root = new URL('../../src/', import.meta.url)
+  function className(element: ts.JsxOpeningElement | ts.JsxSelfClosingElement): string {
+    const attribute = element.attributes.properties.find(attr => ts.isJsxAttribute(attr) && attr.name.getText() === 'className')
+    return attribute && ts.isJsxAttribute(attribute) ? attribute.initializer?.getText() ?? '' : ''
+  }
   function scan(directory: URL): void {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory)
       if (entry.isDirectory()) scan(path)
       else if (/\.tsx$/.test(entry.name)) {
         const source = readFileSync(path, 'utf8')
-        if (source.includes('xp-ui-select')) {
-          expect(path.pathname).toBe(new URL('../../src/ui/Inputs.tsx', import.meta.url).pathname)
-          expect(source).toMatch(/<span className="xp-ui-select-wrap"><select/)
+        if (!source.includes('xp-ui-select')) continue
+        const tree = ts.createSourceFile(path.pathname, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+        function visit(node: ts.Node): void {
+          const element = ts.isJsxElement(node) ? node.openingElement : ts.isJsxSelfClosingElement(node) ? node : undefined
+          if (element && /\bxp-ui-select(?!-)\b/.test(className(element))) {
+            expect(element.tagName.getText(), path.pathname).toBe('select')
+            expect(ts.isJsxElement(node.parent), path.pathname).toBe(true)
+            if (ts.isJsxElement(node.parent)) {
+              expect(node.parent.openingElement.tagName.getText(), path.pathname).toBe('span')
+              expect(className(node.parent.openingElement), path.pathname).toContain('xp-ui-select-wrap')
+            }
+          }
+          ts.forEachChild(node, visit)
         }
+        visit(tree)
       }
     }
   }

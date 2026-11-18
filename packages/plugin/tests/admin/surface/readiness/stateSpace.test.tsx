@@ -142,7 +142,7 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
   const view = render(content())
   const scope = () => within(view.container)
   if (row.history !== 'none') {
-    const label = row.status === 'stopped' ? row.surface === 'sidebar' ? 'Start' : 'Start a new round' : row.status === 'running' ? 'Stop' : row.status === 'decided' ? 'Make it the content' : 'Start'
+    const label = row.status === 'stopped' ? 'Start a new round' : row.status === 'running' ? 'Stop' : row.status === 'decided' ? 'Make it the content' : 'Start'
     fireEvent.click(scope().getByRole('button', { name: label }))
     if (row.status !== 'draft') fireEvent.click(within(scope().getByRole('dialog')).getByRole('button', { name: row.status === 'stopped' ? 'Start a new round' : label }))
     await act(async () => {})
@@ -183,7 +183,8 @@ test.each(rows)('$surface / $status / $outcome.name / $pageState / pending=$pend
   else if (!setup) expect(text).toContain({ running: 'Running', decided: 'Decided: Original.', archived: 'Archived.' }[row.status as 'running' | 'decided' | 'archived'])
   const retry = scope().queryByRole('button', { name: /^(Retry|Try again)$/ })
   expect(retry !== null).toBe(row.outcome.retry)
-  const start = scope().queryAllByRole('button', { name: row.status === 'stopped' && row.surface !== 'sidebar' ? 'Start a new round' : 'Start' }).at(-1) as HTMLButtonElement | undefined
+  const start = scope().queryAllByRole('button', { name: row.status === 'stopped' ? 'Start a new round' : 'Start' })
+    .filter(button => row.surface !== 'sidebar' || !button.closest('dialog')).at(-1) as HTMLButtonElement | undefined
   const ready = row.outcome.name === 'answered' && row.pageState === 'published'
   const offered = row.surface === 'chrome' ? false : row.surface === 'sidebar' ? setup && ready : setup
   expect(!!start).toBe(offered)
@@ -290,7 +291,7 @@ test.each([
   const content = () => surface === 'sidebar' ? <><BlockerList steps={blockingSteps(p.test.preflight, p.test.doc!)} /><QuickTestActions {...p} /></> : <ReadinessContent {...p} />
   const view = render(content())
   const scope = () => within(view.container)
-  const label = status === 'stopped' && surface !== 'sidebar' ? 'Start a new round' : 'Start'
+  const label = status === 'stopped' ? 'Start a new round' : 'Start'
   fireEvent.click(scope().getByRole('button', { name: label }))
   if (status === 'stopped') fireEvent.click(within(scope().getByRole('dialog')).getByRole('button', { name: 'Start a new round' }))
   await act(async () => {})

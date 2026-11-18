@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
 import { Puck, registerOverlayPortal, useGetPuck, type Config } from '@puckeditor/core'
+import { createExperimentSlotField } from '../../../src/puck/experimentSlotField.js'
 import { EditorControls } from '../../../src/puck/editor/EditorControls.js'
 import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
 // These rendering/selection scenarios use a known manager. Access loading and
@@ -67,7 +68,24 @@ test.each([false, true].flatMap(nested => [false, true].map(fullScreen => ({ nes
   fireEvent.click(canvas.getByRole('heading', { name: 'Remove Variant A?' }))
   expect(actions).toHaveLength(0)
   expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('test-block'))
-
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+  fireEvent.click(fields.getByRole('button', { name: 'More' }))
+  fireEvent.click(fields.getByRole('button', { name: 'Use a different test' }))
+  const chooser = await screen.findByRole('dialog')
+  const picker = await within(chooser).findByRole('combobox')
+  for (const target of [within(chooser).getByRole('heading'), picker, within(chooser).getByRole('button', { name: 'Create a test' })]) {
+    fireEvent.pointerDown(target); fireEvent.pointerUp(target)
+    if (target !== within(chooser).getByRole('button', { name: 'Create a test' })) fireEvent.click(target)
+    fireEvent.keyDown(target, { key: 'ArrowDown' })
+    expect(actions).toEqual([])
+    expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('test-block'))
+  }
+  fireEvent.click(within(chooser).getByRole('button', { name: 'Create a test' }))
+  const create = await screen.findByRole('dialog')
+  fireEvent.click(within(create).getByRole('textbox', { name: 'Name' }))
+  expect(actions).toEqual([])
+  expect(read().appState.ui.itemSelector).toEqual(read().getSelectorForId('test-block'))
+  fireEvent.click(within(create).getByRole('button', { name: 'Cancel' }))
 })
 
 // Minimal pre-fix chrome: no plugin selection handler can explain these dispatches.
@@ -155,3 +173,23 @@ test('an activated stationary press leaves Puck as the only selection dispatcher
 })
 
 
+
+
+test('the public experimentSlotField No test option unbinds through real Puck without changing content', async () => {
+  const publicConfig: Config = { ...config, components: { ...config.components, ExperimentSlot: {
+    ...ExperimentSlotEditor, fields: { ...ExperimentSlotEditor.fields, experiment: createExperimentSlotField() },
+  } } }
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).includes('/xp-experiments?')
+    ? Promise.resolve(Response.json({ docs: [{ id: 'selection-test', slug: 'test', name: 'Selection test', status: 'draft' }] })) : original(url, init))
+  let read!: ReturnType<typeof useGetPuck>
+  function Probe() { read = useGetPuck(); return null }
+  render(<Puck config={publicConfig} data={{ root: { props: {} }, content: [block] }} iframe={{ enabled: false }}
+    ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}><Puck.Preview /><Puck.Fields /><Probe /></Puck>)
+  const picker = await screen.findByRole('combobox', { name: 'Test' })
+  expect(picker.closest('.xp-ui-select-wrap')).toBeTruthy()
+  fireEvent.change(picker, { target: { value: '' } })
+  await waitFor(() => expect(read().getItemById('test-block')?.props.experiment).toBeNull())
+  for (const slot of ['control', 'variantA', 'variantB', 'variantC']) expect(read().getItemById('test-block')?.props[slot]).toEqual([])
+  expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+})

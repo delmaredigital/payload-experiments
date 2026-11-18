@@ -99,7 +99,8 @@ test('optional goals open initially and on zero-to-positive, but never auto-clos
   await screen.findByLabelText('Completion · signup')
   const details = screen.getByText('Other goals · 1').closest('details')!
   expect(details.open).toBe(true)
-  fireEvent.toggle(details, { target: { open: false } })
+  details.open = false
+  fireEvent(details, new Event('toggle'))
   p.test.doc!.metrics = { primary: 1, secondary: ['two', 3] }
   view.rerender(<GoalSection {...p} />)
   expect(details.open).toBe(false)

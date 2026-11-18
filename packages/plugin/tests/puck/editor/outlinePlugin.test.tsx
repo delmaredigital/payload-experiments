@@ -391,7 +391,7 @@ test('expanding or recovering from fallback during a drag never hides newly meas
   expect(visibility('two-arm')).toEqual([true, false, false, false])
 })
 
-test('unbound populated versions keep default tabs and outline rows; Original-only keeps one tab', async () => {
+test('unbound populated versions have default labels and Outline follows their open tab; Original-only keeps one tab', async () => {
   const view = mount({ root: { props: {} }, content: [block('unbound', null, true)] }, true)
   expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'Variant C'])
   expect(visibility('unbound')).toEqual([true, false, false, false])
@@ -440,4 +440,16 @@ test.each(['unknown', 'empty'])('populated leftover tabs survive an empty shared
   fireEvent.click(screen.getByRole('tab', { name: label }))
   expect(screen.getByText('Orphan content')).toBeTruthy()
   expect(screen.getByRole('tab', { name: 'Variant A' })).toBeTruthy()
+})
+
+
+test('bound and unbound blocks produce identical Outline visibility for the same open version', async () => {
+  mount({ root: { props: {} }, content: [block('orphan', 'test', true), block('unbound', null, true)] }, true)
+  await screen.findByRole('tab', { name: 'Variant C · not in this test' })
+  const editors = document.querySelectorAll<HTMLElement>('.xp-slot-editor')
+  for (const [boundLabel, unboundLabel] of [['Original', 'Original'], ['Variant C · not in this test', 'Variant C']]) {
+    fireEvent.click(within(editors[0]!).getByRole('tab', { name: boundLabel }))
+    fireEvent.click(within(editors[1]!).getByRole('tab', { name: unboundLabel }))
+    expect(visibility('orphan')).toEqual(visibility('unbound'))
+  }
 })

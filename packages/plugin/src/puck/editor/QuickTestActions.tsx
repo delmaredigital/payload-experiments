@@ -24,7 +24,7 @@ export function QuickTestActions({ test, surface }: SectionProps) {
     {showAction ? <Button disabled={transition.busy || confirm || test.hasUnsaved || action.id === 'start' && !ready} busy={transition.busy} onClick={() => {
       if (action.id === 'start' && doc.status !== 'stopped') void transition.run('start', () => createApi(surface.apiRoute).start(doc.id))
       else setConfirm(true)
-    }}>{action.id === 'start' ? 'Start' : action.label}</Button> : null}
+    }}>{action.label}</Button> : null}
     {transition.error ? <p role="alert">{transition.error}</p> : null}
     {confirm ? <ConfirmAction test={test} surface={surface} action={action} winnerLabel="" onClose={() => setConfirm(false)} /> : null}
   </>
