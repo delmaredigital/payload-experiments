@@ -581,3 +581,18 @@ test('the click that ends a drag cannot dispatch another selection after Puck cl
   fireEvent.click(heading)
   expect(puck.dispatch).toHaveBeenCalledExactlyOnceWith({ type: 'setUi', ui: { itemSelector: { index: 2, zone: 'parent:content' } } })
 })
+
+test('bound header contains name, status, notices and plain tabs without action controls', async () => {
+  const Editor = ExperimentSlotEditor.render
+  render(<Editor {...props()} />)
+  const title = await screen.findByRole('heading', { name: 'Example' })
+  const chrome = within(title.closest<HTMLElement>('.xp-slot-chrome')!)
+  expect(chrome.getByText('Running')).toBeTruthy()
+  for (const name of [/Options/, /traffic/i, 'Split evenly', 'Configure test', /Start a new test/, /Remove the test/, 'Add variant', 'Add to the test', 'Delete its content', 'Refresh']) {
+    expect(chrome.queryByRole('button', { name })).toBeNull()
+  }
+  expect(chrome.queryByRole('spinbutton')).toBeNull()
+  expect(chrome.queryByRole('textbox')).toBeNull()
+  expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'New headline'])
+  expect(document.querySelector('.xp-ui-tab-actions')).toBeNull()
+})

@@ -177,3 +177,9 @@
 .xp-slot-sidebar .xp-slot-weight-inputs .xp-ui-field { max-width: none; flex: 1 1 100%; }
 
 .xp-slot-sidebar .xp-slot-version-menu { inset-inline-start: 0; inset-inline-end: auto; }
+
+/* Keep name and status together while allowing long names to shrink. */
+.xp-slot-header { flex-wrap: nowrap; }
+.xp-slot-title { min-width: 0; flex: 1; }
+.xp-slot-header .xp-ui-status { flex: none; }
+.xp-slot-editor .xp-ui-tablist { flex-wrap: wrap; min-width: 0; }

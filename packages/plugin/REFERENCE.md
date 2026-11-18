@@ -795,7 +795,7 @@ export function PuckProvider({ children }: { children: React.ReactNode }) {
 
 The block chrome explains when you need to save the page to place its test, or publish it before starting. Configure refreshes saved placements when opened; the chrome and an open drawer refresh on window focus. Saving is never automatic. The admin keeps its page-placement instructions.
 
-The bound block and its Test sidebar field both offer **Configure test**. It
+The Test sidebar field offers **Configure test**. The block header shows only the test name, status, notices and plain version tabs. It
 opens a full-height right drawer with the same goal, guardrails, secondary goals,
 audience, split, length, readiness, actions and results as the admin test surface.
 Version content is edited on the canvas. The panel edits the test immediately;

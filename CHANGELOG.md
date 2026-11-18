@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: Experiment block headers show the test name, status, notices and plain version tabs. Version and test controls live in the sidebar. Migration impact: none.
+
 ## [0.4.0-rc.5] - 2026-11-14
 
 ### plugin
