@@ -11,6 +11,10 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+## [0.4.0-rc.6] - 2026-11-18
+
+### plugin
+
 - Fixed: A version edit that finishes after someone else changed the test now says so, instead of showing an outdated lock message, and saves nothing. Migration impact: none.
 
 - Fixed: retrying Remove after a version disappears explains that the test changed and leaves traffic unchanged. Traffic, Add variant and Add for leftover content also explain when the test changed and save nothing. Split and Add errors clear when the test status changes; Add errors also clear when the test reaches the version limit. Migration impact: none.
