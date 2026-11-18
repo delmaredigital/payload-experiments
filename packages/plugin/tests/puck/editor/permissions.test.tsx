@@ -146,7 +146,7 @@ test('an unbound block without access names tests generally and offers no action
 })
 test('a bound 404 is calm, retains page-owned version tabs and permits removal', async () => {
   setup('manager', 404)
-  await screen.findByText("This test isn't available to you. You can still edit its content.")
+  await screen.findByText("The test for this block was deleted.")
   expect(screen.queryByRole('alert')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Configure test' })).toBeNull()
   expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'Variant A'])
@@ -158,7 +158,7 @@ test('a bound 404 is calm, retains page-owned version tabs and permits removal',
 test.each(['none', 'results', 'manager'] as const)('a deleted bound test takes priority for a %s reader and never offers Configure', async role => {
   setup(role, 404)
   const chrome = document.querySelector<HTMLElement>('.xp-slot-chrome')!
-  await within(chrome).findByText("This test isn't available to you. You can still edit its content.")
+  await within(chrome).findByText("The test for this block was deleted.")
   expect(within(chrome).queryByText("You can view this test's results.")).toBeNull()
   expect(within(chrome).queryByRole('button', { name: 'Configure test' })).toBeNull()
   expect(within(chrome).queryByRole('alert')).toBeNull()

@@ -121,7 +121,7 @@ test.each(['results', 'none', 'unavailable', 'failed', 'unbound'] as const)('sid
     expect(fields().getByText("You can view this test's results.")).toBeTruthy()
     expect(fields().getByRole('button', { name: C.configure })).toBeTruthy()
   } else if (state === 'none') expect(fields().getAllByText("You don't have access to this test. You can still edit its content.").length).toBeGreaterThan(0)
-  else if (state === 'unavailable') expect(fields().getByText("This test isn't available to you. You can still edit its content.")).toBeTruthy()
+  else if (state === 'unavailable') expect(fields().getByText("The test for this block was deleted.")).toBeTruthy()
   else if (state === 'failed') {
     expect(fields().getByText("Couldn't load this test. Try selecting it again.")).toBeTruthy()
     failed = false; fireEvent.click(fields().getByRole('button', { name: C.retrySetup }))
@@ -507,7 +507,7 @@ test('saved names, including Control, agree in tabs, sidebar, traffic and conten
   expect(header.queryByText(/Original/)).toBeNull()
 })
 
-test.each([403, 404, 500])('a manager can repair an unreadable binding (%s) through More without creating a record', async code => {
+test.each([403, 404])('a manager can replace an unavailable binding (%s) through More', async code => {
   testCode = code
   const original = vi.mocked(fetch).getMockImplementation()!
   vi.mocked(fetch).mockImplementation((url, init) => String(url).includes('/xp-experiments?') ? Promise.resolve(reply({ docs: [{ ...doc, id: 'replacement', slug: 'replacement' }] }))
@@ -517,7 +517,7 @@ test.each([403, 404, 500])('a manager can repair an unreadable binding (%s) thro
   fireEvent.click(fields().getByRole('button', { name: 'Use a different test' }))
   const dialog = await screen.findByRole('dialog')
   const picker = await within(dialog).findByRole('combobox')
-  expect((within(dialog).getByRole('button', { name: 'Create a test' }) as HTMLButtonElement).disabled).toBe(true)
+  expect((within(dialog).getByRole('button', { name: 'Create a test' }) as HTMLButtonElement).disabled).toBe(false)
   fireEvent.change(picker, { target: { value: 'replacement' } })
   await waitFor(() => expect(read().getItemById('sidebar-block')?.props.experiment).toEqual({ id: 'replacement', slug: 'replacement' }))
   expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
@@ -532,4 +532,43 @@ test('a results reader with a readable test gets read-only version fields and on
   expect(within(versions).getAllByText(C.readOnlyVersions)).toHaveLength(1)
   for (const name of [C.add, C.split, C.removeVersion, C.moreGroup]) expect(fields().queryByRole('button', { name })).toBeNull()
   expect(fields().getByRole('button', { name: C.configure })).toBeTruthy()
+})
+
+
+test.each([403, 404, 500, 0])('unreadable binding %s has the right header, sidebar and recovery actions', async code => {
+  testCode = code || 200
+  if (!code) {
+    const original = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation((url, init) => String(url).includes('/sidebar-test?') ? Promise.reject(new Error('offline')) : original(url, init))
+  }
+  await mount()
+  if (code === 404) {
+    expect(chrome().getByRole('heading', { name: C.deleted })).toBeTruthy()
+    expect(fields().getByText(C.deleted)).toBeTruthy()
+    expect(chrome().getByRole('button', { name: C.createLabel })).toBeTruthy()
+    expect(fields().getByRole('button', { name: C.createLabel })).toBeTruthy()
+  } else {
+    expect(chrome().queryByRole('button', { name: C.createLabel })).toBeNull()
+    expect(fields().queryByRole('button', { name: C.createLabel })).toBeNull()
+  }
+  if (code === 403 || code === 404) {
+    if (code === 403) {
+      expect(chrome().getByText("You don't have access to this test. You can still edit its content.")).toBeTruthy()
+      expect(fields().getByText("You don't have access to this test. You can still edit its content.")).toBeTruthy()
+    }
+    fireEvent.click(fields().getByRole('button', { name: C.moreGroup }))
+    fireEvent.click(fields().getByRole('button', { name: C.differentTest }))
+    const dialog = await screen.findByRole('dialog')
+    expect((within(dialog).getByRole('button', { name: C.createAnother }) as HTMLButtonElement).disabled).toBe(false)
+    const reads = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/sidebar-test?')).length
+    fireEvent.click(within(dialog).getByRole('button', { name: C.createAnother }))
+    const create = await screen.findByRole('dialog')
+    await within(create).findByRole('textbox', { name: /Name/ })
+    expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/sidebar-test?'))).toHaveLength(reads)
+  } else {
+    expect(chrome().getByRole('button', { name: C.retrySetup })).toBeTruthy()
+    expect(fields().getByRole('button', { name: C.retrySetup })).toBeTruthy()
+    expect(fields().queryByRole('button', { name: C.moreGroup })).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  }
 })

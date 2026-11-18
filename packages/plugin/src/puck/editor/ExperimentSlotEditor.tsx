@@ -192,6 +192,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const resultsOnly = access.surface?.canReadResults === true && !access.surface.canManage
   const unavailable = result?.forbidden || result?.missing
   const canManage = access.surface?.canManage === true && !unavailable
+  const canSetUp = access.surface?.canManage === true && (experimentId === undefined || result?.missing === true)
   const editable = canManage && (experiment?.status === 'draft' || experiment?.status === 'stopped')
   const [removed, setRemoved] = useState<{ key: string; revision: number; contentRemoved: boolean } | null>(null)
   useEffect(() => {
@@ -290,9 +291,10 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     if (!isCurrentBinding()) throw new Error('binding')
     const item = getPuck().getItemById(props.id)
     if (!item) throw new Error('binding')
-    if (experimentId === undefined) return armsFromBlock({ arms: [defaultArms('block')[0]!] }, item.props)
+    if (experimentId === undefined || result?.missing || result?.forbidden) return armsFromBlock({ arms: [defaultArms('block')[0]!] }, item.props)
     // Another placement can rename or add a version while this dialog is open.
     const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}?depth=0`, { credentials: 'include', cache: 'no-store' })
+    if (response.status === 403 || response.status === 404) return armsFromBlock({ arms: [defaultArms('block')[0]!] }, item.props)
     if (!response.ok) throw new Error('load')
     const doc: unknown = await response.json()
     const latest = getPuck().getItemById(props.id)
@@ -309,7 +311,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     })
   }
   async function setUpTest() {
-    if (setupBusy.current || !canManage || experimentId !== undefined || !root.current) return
+    if (setupBusy.current || !canSetUp || !root.current) return
     const source = root.current
     setupBusy.current = true; setSettingUp(true); setSetupError('')
     try {
@@ -352,7 +354,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     countBlocks={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null
 
   const documentRead = result?.read ? classifyReadinessRead(result.read.status, undefined, documentFailures.current.failures, { kind: 'document', surface: 'editor', resultsOnly }) : undefined
-  const accessNotice = documentRead ? documentRead.retry ? <Banner tone="error" action={<Button onClick={() => setReadAttempt(value => value + 1)}>{editorCopy.retrySetup}</Button>}>{documentRead.message}</Banner> : <p className="xp-ui-help">{documentRead.message}</p>
+  const accessNotice = result?.missing ? <p className="xp-ui-help">{editorCopy.deleted}</p> : documentRead ? documentRead.retry ? <Banner tone="error" action={<Button onClick={() => setReadAttempt(value => value + 1)}>{editorCopy.retrySetup}</Button>}>{documentRead.message}</Banner> : <p className="xp-ui-help">{documentRead.message}</p>
         : !access.surface && !access.error ? <p className="xp-ui-help" role="status">{editorCopy.loading}</p> : access.error === 'unavailable' ? <p className="xp-ui-help">{editorCopy.controlsUnavailable} <Button onClick={access.retry}>{editorCopy.retrySetup}</Button></p>
         : experimentId === undefined && resultsOnly ? <p className="xp-ui-help">{editorCopy.setupForbidden}</p>
         : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
@@ -372,9 +374,9 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           {canManage ? <>{placementNoticeView}{experiment?.status === 'draft' || experiment?.status === 'stopped' ? <BlockerList steps={sidebarBlockers} /> : null}</> : null}
           {experimentId !== undefined && access.surface && !result?.missing && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}
           {canManage && experiment && surface ? <QuickTestActions key={`${experimentId}/${experiment.status}`} test={quickTest} surface={surface} /> : null}
-          {experimentId === undefined && canManage ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
+          {canSetUp ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
           {experimentId === undefined && canManage ? <Button disabled={settingUp} onClick={() => setChoosing(true)}>{editorCopy.existingTest}</Button> : null}
-          {setupError && experimentId === undefined ? <p role="alert">{setupError}</p> : null}
+          {setupError && canSetUp ? <p role="alert">{setupError}</p> : null}
         </FieldGroup></section>
       </div>, sidebar.test)}
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
@@ -392,7 +394,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
               </FieldGroup>
             </div>} />
         </FieldGroup></section> : null}
-        {access.surface?.canManage && experimentId !== undefined ? <FieldGroup label={editorCopy.moreGroup} defaultExpanded={false}>
+        {access.surface?.canManage && experimentId !== undefined && !result?.error ? <FieldGroup label={editorCopy.moreGroup} defaultExpanded={false}>
           <Button onClick={() => setChoosing(true)}>{editorCopy.differentTest}</Button>
         </FieldGroup> : null}
         {writes.busy ? <p role="status">{editorCopy.savingVersions}</p> : null}
@@ -407,7 +409,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {removeDialog}
         {choosing ? <Dialog open title={experimentId === undefined ? editorCopy.existingTest : editorCopy.differentTest} onClose={() => setChoosing(false)}><div className="xp-slot-drawer">
           <ExperimentPicker value={props.experiment ?? null} allowEmpty={false} onChange={value => { if (value && bind(value)) setChoosing(false) }} />
-          <Button disabled={experimentId !== undefined && !experiment} onClick={() => { setChoosing(false); createFromBlock() }}>{editorCopy.createAnother}</Button>
+          <Button disabled={experimentId !== undefined && !experiment && !unavailable} onClick={() => { setChoosing(false); createFromBlock() }}>{editorCopy.createAnother}</Button>
           <Button onClick={() => setChoosing(false)}>{editorCopy.cancel}</Button>
         </div></Dialog> : null}
       </div>, sidebar.controls)}
@@ -420,14 +422,14 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
             selectBlock()
           }
         }}>
-        <h3 className="xp-slot-title" title={experimentId === undefined ? editorCopy.unbound : experiment?.name ?? experimentSlotLabel}>{experimentId === undefined ? editorCopy.unbound : experiment?.name ?? experimentSlotLabel}</h3>
+        <h3 className="xp-slot-title" title={experimentId === undefined ? editorCopy.unbound : result?.missing ? editorCopy.deleted : experiment?.name ?? experimentSlotLabel}>{experimentId === undefined ? editorCopy.unbound : result?.missing ? editorCopy.deleted : experiment?.name ?? experimentSlotLabel}</h3>
         {experiment ? <StatusChip status={experiment.status} /> : null}
       </header>
-      {experimentId === undefined && canManage ? null : accessNotice}
+      {canSetUp || result?.missing ? null : accessNotice}
       {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
       {canManage ? placementNoticeView : null}
-      {setupError && experimentId === undefined ? <p role="alert">{setupError}</p> : null}
-      {experimentId === undefined && canManage ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
+      {setupError && canSetUp ? <p role="alert">{setupError}</p> : null}
+      {canSetUp ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
     </EditorControls>
     <Tabs disabled={dragging} label={editorCopy.tabs} value={slot} renderHeader={children => <EditorControls className="xp-ui-tabs-header">{children}</EditorControls>} onChange={value => setActive({ id: experimentId, slot: value as ArmSlot })}
       items={tabs.map(tab => ({ id: tab.slot, label: tab.label, content: tab.slot === slot ?

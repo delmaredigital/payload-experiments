@@ -117,3 +117,17 @@ test.each(['removed', 'rebound'] as const)('created test recovery survives a blo
   fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 })
+
+
+test('a deleted binding is replaced in one click using only the block content', async () => {
+  const original = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((url, init) => String(url).includes('/deleted?') ? Promise.resolve(reply({}, 404)) : original(url, init))
+  function Probe() { read = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: { title: 'Landing' } }, content: [{ ...block, props: { ...block.props, experiment: { id: 'deleted', slug: 'gone' } } }] }} iframe={{ enabled: false }}>
+    <Puck.Preview /><Probe />
+  </Puck>)
+  fireEvent.click(await screen.findByRole('button', { name: 'Set up test' }))
+  await waitFor(() => expect(openConfigureTestDrawer).toHaveBeenCalledOnce())
+  expect(JSON.parse(String(posts()[0]![1]!.body)).arms.map((arm: { key: string }) => arm.key)).toEqual(['control', 'variantB'])
+  expect(read().getItemById('setup-block')?.props.experiment?.id).toBe('created')
+})
