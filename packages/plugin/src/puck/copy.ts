@@ -10,6 +10,7 @@ export const slotLabels = {
 export const pickerCopy = {
   label: 'Test',
   none: 'No test',
+  choose: 'Choose a test',
   search: 'Search tests',
   loading: 'Loading tests…',
   error: "Couldn't load tests.",

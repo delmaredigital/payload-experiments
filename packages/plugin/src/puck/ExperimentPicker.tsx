@@ -17,7 +17,8 @@ function isExperimentOption(value: unknown): value is ExperimentOption {
     typeof doc.status === 'string' && Object.hasOwn(pickerCopy.statuses, doc.status)
 }
 
-export function ExperimentPicker({ value, onChange }: {
+export function ExperimentPicker({ value, onChange, allowEmpty = true }: {
+  allowEmpty?: boolean
   value: ExperimentRef | null
   onChange: (value: ExperimentRef | null) => void
 }) {
@@ -67,11 +68,11 @@ export function ExperimentPicker({ value, onChange }: {
         onChange={event => setSearch(event.currentTarget.value)} />
     </div> : null}
     <label htmlFor={id}>{pickerCopy.label}</label>
-    <select id={id} className="xp-ui-input xp-ui-select" value={selected} /* stays enabled on error so a saved experiment can still be unbound */ onChange={event => {
+    <select id={id} className="xp-ui-input xp-ui-select" value={selected} onChange={event => {
       const experiment = experiments.find(doc => String(doc.id) === event.currentTarget.value)
-      onChange(experiment ? { id: experiment.id, slug: experiment.slug } : null)
+      if (experiment || allowEmpty) onChange(experiment ? { id: experiment.id, slug: experiment.slug } : null)
     }}>
-      <option value="">{pickerCopy.none}</option>
+      <option value="" disabled={!allowEmpty}>{allowEmpty ? pickerCopy.none : pickerCopy.choose}</option>
       {value && !experiments.some(doc => String(doc.id) === selected) ? <option value={selected}>{value.slug}</option> : null}
       {visible.map(doc => <option key={doc.id} value={String(doc.id)}>{doc.name} · {pickerCopy.statuses[doc.status]}</option>)}
     </select>

@@ -1,7 +1,7 @@
 'use client'
 
 import { createPortal } from 'react-dom'
-import { createUsePuck, useGetPuck, type ComponentConfig } from '@puckeditor/core'
+import { createUsePuck, useGetPuck, FieldGroup, type ComponentConfig } from '@puckeditor/core'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { ArmSlot, ExperimentRef, ExperimentSlotProps } from '../../types/puck.js'
 import { defaultArms } from '../../arms/model.js'
@@ -34,10 +34,10 @@ import { cloneSlot, countSlotBlocks } from './cloneSlot.js'
 import { openCreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
 import { acquireArms, loadArms, publishExperiment, useArms } from './armsCache.js'
-import { AddVariant, RemoveVersion, VersionActions, VersionWeights, useArmWrites, type WeightEdits } from './VersionBuilder.js'
+import { AddVariant, RemoveVersion, VersionName, VersionWeights, useArmWrites, type WeightEdits } from './VersionBuilder.js'
 import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
-import { acquirePlacements, subscribePlacements, cachedPreflight, cachedReadinessRead, placementsPending, placementsBlocking, placementReadError, invalidatePlacements, refreshPlacements, focusPlacements } from './placementsCache.js'
+import { acquirePlacements, cachedPreflight, cachedReadinessRead, placementsPending, placementsBlocking, placementReadError, invalidatePlacements, refreshPlacements, focusPlacements } from './placementsCache.js'
 import { sidebarReadinessBlockers, editorPlacementMessage } from '../../testSurface/surface/editorPlacement.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { localPlacements } from './localPlacements.js'
@@ -96,11 +96,10 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   if (documentFailures.current.key !== bindingKey) documentFailures.current = { key: bindingKey, failures: 0 }
   useReadinessPolling(loaded?.id === experimentId ? loaded?.read : undefined, () => setReadAttempt(value => value + 1), true, documentPending)
   const [active, setActive] = useState<{ id: typeof experimentId; slot: ArmSlot }>()
-  const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const [choosing, setChoosing] = useState(false)
   const [clearError, setClearError] = useState<{ key: string; message: string } | null>(null)
   const creation = useRef<ReturnType<typeof openCreateExperimentDrawer>>(undefined)
   useEffect(() => () => creation.current?.closeIfIdle(), [])
-  const [detaching, setDetaching] = useState<string | null>(null)
   // A non-empty variant is only overwritten after an explicit second confirmation.
   const [confirming, setConfirming] = useState<ArmSlot | null>(null)
   // Keep a failed removal open even if the recovery read no longer contains that version.
@@ -299,46 +298,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     creation.current = openCreateExperimentDrawer(root.current, { admin, api }, {
       initialName: pageTitle,
       arms: newTestArms,
-      label: experimentId === undefined ? editorCopy.createLabel : editorCopy.newTest,
+      label: experimentId === undefined ? editorCopy.createLabel : editorCopy.createAnother,
       onCreate: bind,
     })
   }
-  const canDetach = !!result?.forbidden || !!result?.missing || !!experiment && (experiment.status !== 'running' || result?.shared !== undefined && shared)
-  const [checkingDetach, setCheckingDetach] = useState(false)
-  const detachBusy = useRef(false)
-  async function requestDetach(confirm = false) {
-    if (detachBusy.current || experimentId === undefined) return
-    detachBusy.current = true
-    setCheckingDetach(true)
-    setClearError(null)
-    let releasePlacements: (() => void) | undefined
-    try {
-      const response = await fetch(`${api}/xp-experiments/${encodeURIComponent(String(experimentId))}?depth=0`, { credentials: 'include', cache: 'no-store' })
-      const current: unknown = response.ok ? await response.json() : null
-      if (!isCurrentBinding()) return
-      if (![401, 403, 404].includes(response.status) && !isExperiment(current)) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null); return }
-      // A status change replaces the display subscription; keep the explicit running check alive.
-      if (isExperiment(current) && current.status === 'running') releasePlacements = subscribePlacements(api, experimentId, () => {})
-      if (isExperiment(current)) publishExperiment(experimentId, current)
-      if (isExperiment(current) && current.status === 'running') {
-        const placements = await refreshPlacements(api, experimentId)
-        if (!isCurrentBinding()) return
-        if (!placements) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null); return }
-        const local = getPuck()
-        const anotherLocal = (localPlacements(local.appState.data, local.config).get(String(experimentId))?.size ?? 0) > 1
-        if (!anotherLocal && !isSharedTest(placements, currentPuckDocument(window.location.pathname, admin, placements))) {
-          setClearError({ key: bindingKey, message: editorCopy.stopToDetach }); setDetaching(null); return
-        }
-      }
-      if (!isCurrentBinding()) return
-      if (confirm) { bind(null); setDetaching(null) }
-      else setDetaching(bindingKey)
-    } catch {
-      if (isCurrentBinding()) { setClearError({ key: bindingKey, message: editorCopy.placementsError }); setDetaching(null) }
-    } finally { releasePlacements?.(); detachBusy.current = false; setCheckingDetach(false) }
-  }
   const placementMessage = editorPlacementMessage(placements && placements.id === experimentId ? placements.value : undefined, currentPuckDocument(window.location.pathname, admin, placements && placements.id === experimentId ? placements.value : undefined), experiment?.status)
-  const newTestButton = experimentId !== undefined && canManage ? <Button disabled={!experiment} onClick={createFromBlock}>{editorCopy.newTest}</Button> : null
 
   const currentPreflight = preflight && preflight.id === experimentId && Array.isArray(preflight.value?.checks) ? preflight.value : null
   const editorPage = currentPuckDocument(window.location.pathname, admin, placements?.value)
@@ -382,26 +346,37 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
 
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
     {sidebar ? <>
-      {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><section aria-label={editorCopy.testGroup}><h4>{editorCopy.testGroup}</h4>
-        {access.surface?.canManage ? <ExperimentPicker value={props.experiment ?? null} onChange={sidebar.onChange} /> : null}
-        {experiment ? <StatusChip status={experiment.status} /> : experimentId === undefined ? <span className="xp-ui-status">{editorCopy.notSetUp}</span> : null}
-        {accessNotice}
-        {canManage ? <>{placementNoticeView}{experiment?.status === 'draft' || experiment?.status === 'stopped' ? <BlockerList steps={sidebarBlockers} /> : null}</> : null}
-      </section></div>, sidebar.test)}
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-        {experiment && canManage ? <section aria-label={editorCopy.versionsGroup}><h4>{editorCopy.versionsGroup}</h4>
-          <VersionWeights edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable} beforeSplit={<>{leftoverControls}{editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}</>} actions={arm => <>
-            <VersionActions arm={arm} writes={writes} editable={editable} running={experiment.status === 'running'} open={openMenu === `sidebar-${arm.key}`} onOpenChange={open => setOpenMenu(open ? `sidebar-${arm.key}` : null)} canCopy={!originalEmpty} onCopy={requestCopy} onRequestRemove={() => setRemoving({ key: bindingKey, arm })} />
-            {editable && arm.kind !== 'control' ? <Button disabled={writes.busy} onClick={() => setRemoving({ key: bindingKey, arm })}>{editorCopy.remove}</Button> : null}
-          </>} />
-        </section> : null}
-        <section aria-label={editorCopy.actionsGroup}><h4>{editorCopy.actionsGroup}</h4>
+        <section aria-label={editorCopy.testGroup}><FieldGroup label={editorCopy.testGroup} collapsible={false}>
+          {experiment ? <><strong>{experiment.name}</strong><StatusChip status={experiment.status} /></> : null}
+          {accessNotice}
+          {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
+          {canManage ? <>{placementNoticeView}{experiment?.status === 'draft' || experiment?.status === 'stopped' ? <BlockerList steps={sidebarBlockers} /> : null}</> : null}
           {experimentId !== undefined && access.surface && !result?.missing && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}
           {canManage && experiment && surface ? <QuickTestActions key={`${experimentId}/${experiment.status}`} test={quickTest} surface={surface} /> : null}
           {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
-          {writes.error ? <p role="alert">{writes.error}</p> : null}
-        </section>
+        </FieldGroup></section>
+      </div>, sidebar.test)}
+      {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+        {experiment ? <section aria-label={editorCopy.versionsGroup}><FieldGroup label={editorCopy.versionsGroup} collapsible={false}>
+          {!editable ? <p className="xp-ui-help">{canManage ? editorCopy.locked[experiment.status as keyof typeof editorCopy.locked] ?? editorCopy.lockedGeneric : editorCopy.readOnlyVersions}</p> : null}
+          <VersionWeights edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable}
+            beforeSplit={<>{leftoverControls}{editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}</>}
+            renderRow={(arm, input) => <div className="xp-slot-version-group" data-active={slot === arm.key} role="group" aria-label={arm.label}>
+              <FieldGroup variant="card" collapsible={false}>
+                <Button variant="quiet" aria-pressed={slot === arm.key} disabled={arm.kind === 'holdout' || dragging} onClick={() => setActive({ id: experimentId, slot: arm.key as ArmSlot })}>{arm.label}</Button>
+                <VersionName key={`${experimentId}-${arm.key}`} arm={arm} writes={writes} editable={editable} />
+                {input}
+                {arm.kind === 'variant' ? <><Button disabled={writes.busy || originalEmpty} onClick={() => requestCopy(arm.key as ArmSlot)}>{editorCopy.copy}</Button>{originalEmpty ? <p className="xp-ui-help">{editorCopy.copyEmpty}</p> : null}</> : null}
+                {editable && arm.kind !== 'control' ? <Button disabled={writes.busy} onClick={() => setRemoving({ key: bindingKey, arm })}>{editorCopy.removeVersion}</Button> : null}
+              </FieldGroup>
+            </div>} />
+        </FieldGroup></section> : null}
+        {canManage && experimentId !== undefined ? <FieldGroup label={editorCopy.moreGroup} defaultExpanded={false}>
+          <Button disabled={!experiment} onClick={() => setChoosing(true)}>{editorCopy.differentTest}</Button>
+        </FieldGroup> : null}
         {writes.busy ? <p role="status">{editorCopy.savingVersions}</p> : null}
+        {writes.error ? <p role="alert">{writes.error}</p> : null}
         {clearError?.key === bindingKey ? <p role="alert">{clearError.message}</p> : null}
         {removed?.key === bindingKey && removed.contentRemoved ? <p>{editorCopy.removed}</p> : null}
         {experiment && experiment.status !== 'draft' ? <ResultsReadout key={`results-${experimentId}`} id={experimentId!} api={api} experiment={experiment} /> : null}
@@ -410,6 +385,11 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           <Button onClick={() => setConfirming(null)}>{editorCopy.cancel}</Button>
         </div></div> : null}
         {removeDialog}
+        {choosing ? <Dialog open title={editorCopy.differentTest} onClose={() => setChoosing(false)}><div className="xp-slot-drawer">
+          <ExperimentPicker value={props.experiment ?? null} allowEmpty={false} onChange={value => { if (value && bind(value)) setChoosing(false) }} />
+          <Button onClick={() => { setChoosing(false); createFromBlock() }}>{editorCopy.createAnother}</Button>
+          <Button onClick={() => setChoosing(false)}>{editorCopy.cancel}</Button>
+        </div></Dialog> : null}
       </div>, sidebar.controls)}
     </> : null}
     <EditorControls className="xp-slot-chrome" selected={isSelected} onSelect={selectBlock}>
@@ -428,7 +408,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       {canManage ? placementNoticeView : null}
       {experimentId === undefined && canManage ? <Button variant="primary" onClick={createFromBlock}>{editorCopy.createLabel}</Button> : null}
     </EditorControls>
-    <Tabs disabled={dragging} label={editorCopy.tabs} value={slot} renderHeader={children => <EditorControls className="xp-ui-tabs-header">{children}</EditorControls>} onChange={value => { setOpenMenu(null); setActive({ id: experimentId, slot: value as ArmSlot }) }}
+    <Tabs disabled={dragging} label={editorCopy.tabs} value={slot} renderHeader={children => <EditorControls className="xp-ui-tabs-header">{children}</EditorControls>} onChange={value => setActive({ id: experimentId, slot: value as ArmSlot })}
       items={tabs.map(tab => ({ id: tab.slot, label: tab.label, content: tab.slot === slot ?
         <div className={slotEmpty ? 'xp-slot-panel xp-slot-panel-empty' : 'xp-slot-panel'}>
           <Slot className="xp-slot-drop-target" />

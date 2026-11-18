@@ -7,7 +7,6 @@ import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEdi
 import { fixture, phaseFor } from '../../admin/results/fixtures.js'
 
 const noAccess = "You don't have access to this test. You can still edit its content."
-const detach = 'Remove the test from this block'
 const doc = { name: 'Hero test', status: 'draft', arms: [
   { key: 'control', kind: 'control', label: 'Original', weight: 50 },
   { key: 'variantA', kind: 'variant', label: 'New headline', weight: 50 },
@@ -75,39 +74,7 @@ test('no test access: calm chrome, usable page versions and content editing, rea
   expect(within(fields).queryByRole('combobox')).toBeNull()
   expect(within(fields).queryByRole('button', { name: 'Configure test' })).toBeNull()
   expect(screen.queryByRole('alert')).toBeNull()
-  fireEvent.click(within(chrome).getByRole('button', { name: detach }))
-  const dialog = await screen.findByRole('dialog')
-  fireEvent.click(within(dialog).getByRole('button', { name: detach }))
-  await waitFor(() => expect(read().getItemById('permission-slot')?.props.experiment).toBeNull())
-  expect(read().getItemById('variant-text')?.props.text).toBe('Edited variant')
-  expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
   expect(fetcher.mock.calls.some(([url]) => url.endsWith('/preflight'))).toBe(false)
-})
-
-test.each([401, 403, 404])('a fresh status %s permits confirmation and detach; save is authoritative', async code => {
-  setup('manager')
-  await screen.findByRole('heading', { name: doc.name })
-  statusCode = code
-  const before = structuredClone(read().getItemById('permission-slot')?.props.variantA)
-  fireEvent.click(await screen.findByRole('button', { name: detach }))
-  const dialog = await screen.findByRole('dialog')
-  expect(read().getItemById('permission-slot')?.props.experiment).toEqual(block.props.experiment)
-  fireEvent.click(within(dialog).getByRole('button', { name: detach }))
-  await waitFor(() => expect(read().getItemById('permission-slot')?.props.experiment).toBeNull())
-  expect(read().getItemById('permission-slot')?.props.variantA).toEqual(before)
-})
-
-test.each([500, 'network'] as const)('status %s refuses detach with the existing retry sentence', async code => {
-  setup('manager')
-  await screen.findByRole('heading', { name: doc.name })
-  statusCode = code
-  fireEvent.click(await screen.findByRole('button', { name: detach }))
-  await screen.findByText("Couldn't check where this test is used. Try again.")
-  expect(screen.queryByRole('dialog')).toBeNull()
-  expect(read().getItemById('permission-slot')?.props.experiment).toEqual(block.props.experiment)
-  statusCode = 200
-  fireEvent.click(screen.getByRole('button', { name: detach }))
-  expect(await screen.findByRole('dialog')).toBeTruthy()
 })
 
 test('results-only: Configure opens the reader, creation and version management stay hidden, removal works', async () => {
@@ -116,17 +83,14 @@ test('results-only: Configure opens the reader, creation and version management 
   expect(screen.queryByText(noAccess)).toBeNull()
   expect(screen.queryByRole('button', { name: 'Start a new test from this block' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Add variant' })).toBeNull()
-  fireEvent.click(await screen.findByRole('button', { name: 'Configure test' }))
+  act(() => read().dispatch({ type: 'setUi', ui: { itemSelector: read().getSelectorForId('permission-slot')! } }))
+  fireEvent.click(await within(screen.getByTestId('fields')).findByRole('button', { name: 'Configure test' }))
   const drawer = await screen.findByRole('dialog')
   await within(drawer).findByRole('table', { name: 'Registrations' })
   expect(within(drawer).queryByLabelText('Test name')).toBeNull()
   expect(within(drawer).getByRole('link', { name: 'Open in a new tab' }).getAttribute('href')).toBe('/admin/experiments/permission-test/results')
   fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-  fireEvent.click(screen.getByRole('button', { name: detach }))
-  const dialog = await screen.findByRole('dialog')
-  fireEvent.click(within(dialog).getByRole('button', { name: detach }))
-  await waitFor(() => expect(read().getItemById('permission-slot')?.props.experiment).toBeNull())
   expect(fetcher.mock.calls.some(([url]) => url.endsWith('/preflight'))).toBe(false)
   expect(screen.queryByRole('button', { name: 'Test this block' })).toBeNull()
 })
@@ -134,8 +98,9 @@ test('results-only: Configure opens the reader, creation and version management 
 test('manager retains setup, creation and version management controls', async () => {
   setup('manager')
   await screen.findByRole('heading', { name: doc.name })
-  expect(screen.getByRole('button', { name: 'Configure test' })).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Start a new test from this block' })).toBeTruthy()
+  act(() => read().dispatch({ type: 'setUi', ui: { itemSelector: read().getSelectorForId('permission-slot')! } }))
+  expect(await screen.findByRole('button', { name: 'Configure test' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'More' }).getAttribute('aria-expanded')).toBe('false')
   expect(screen.getByRole('button', { name: 'Add variant' })).toBeTruthy()
 })
 

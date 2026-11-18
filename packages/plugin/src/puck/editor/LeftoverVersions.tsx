@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { FieldGroup } from '@puckeditor/core'
 import type { ArmSlot } from '../../types/puck.js'
 import { Button } from '../../ui/Button.js'
 import { Dialog } from '../../ui/Dialog.js'
@@ -16,7 +17,7 @@ export function LeftoverVersions({ slots, experiment, writes, canManage, countBl
 }) {
   const [deleting, setDeleting] = useState<ArmSlot | null>(null)
   const versions = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(tabsFor(experiment).map(tab => tab.label))
-  const notice = (slot: ArmSlot) => <div key={slot}>
+  const notice = (slot: ArmSlot) => <div key={slot} className="xp-slot-version-group" role="group" aria-label={C.outsideTest(slotLabels[slot])}><FieldGroup variant="card" collapsible={false}><Button variant="quiet" onClick={() => onSelect(slot)}>{C.outsideTest(slotLabels[slot])}</Button>
     <p>{C.orphan(slotLabels[slot], versions)}</p>
     <div className="xp-ui-button-group">
       {canManage && experiment.status === 'draft' ? <Button disabled={writes.busy} onClick={async () => {
@@ -31,10 +32,9 @@ export function LeftoverVersions({ slots, experiment, writes, canManage, countBl
       }}>{C.addLeftover}</Button> : null}
       <Button onClick={() => setDeleting(slot)}>{C.deleteContent}</Button>
     </div>
-  </div>
+  </FieldGroup></div>
   return <>
-    {slots.length > 2 ? <details className="xp-ui-banner xp-ui-banner--warning xp-slot-leftovers"><summary><span aria-hidden="true">⚠ </span>{C.leftovers(slots.map(slot => slotLabels[slot]).join(', '))}</summary>{slots.map(notice)}</details>
-      : slots.map(slot => <div key={slot} className="xp-ui-banner xp-ui-banner--warning xp-slot-leftovers"><span aria-hidden="true">⚠</span>{notice(slot)}</div>)}
+    {slots.map(notice)}
     {deleting ? <Dialog open title={C.deleteContentTitle(slotLabels[deleting])} initialFocus="cancel" onClose={() => setDeleting(null)}>
       <div className="xp-slot-drawer"><p>{C.deleteContentHelp(slotLabels[deleting], countBlocks(deleting))}</p><div className="xp-ui-button-group">
         <Button data-dialog-cancel onClick={() => setDeleting(null)}>{C.cancel}</Button>

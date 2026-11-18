@@ -15,16 +15,16 @@ export function QuickTestActions({ test, surface }: SectionProps) {
   const transition = useTransition(test, undefined, surface)
   const doc = test.doc!
   const action = availableActions({ ...doc, canManage: surface.canManage }).find(item =>
-    doc.status === 'draft' ? item.id === 'start' : doc.status === 'running' && item.id === 'stop')
+    doc.status === 'draft' || doc.status === 'stopped' ? item.id === 'start' : doc.status === 'running' && item.id === 'stop')
   if (!action) return null
   const ready = !transition.checking && canStartTest(test, surface.editorPlacementMessage)
   const showAction = action.id !== 'start' || readyToStart(test, surface.editorPlacementMessage) && !test.hasUnsaved
   return <>
     {showAction && action.id === 'start' ? <p role="status">{READINESS_COPY.ready}</p> : null}
     {showAction ? <Button disabled={transition.busy || confirm || test.hasUnsaved || action.id === 'start' && !ready} busy={transition.busy} onClick={() => {
-      if (action.id === 'start') void transition.run('start', () => createApi(surface.apiRoute).start(doc.id))
+      if (action.id === 'start' && doc.status !== 'stopped') void transition.run('start', () => createApi(surface.apiRoute).start(doc.id))
       else setConfirm(true)
-    }}>{action.label}</Button> : null}
+    }}>{action.id === 'start' ? 'Start' : action.label}</Button> : null}
     {transition.error ? <p role="alert">{transition.error}</p> : null}
     {confirm ? <ConfirmAction test={test} surface={surface} action={action} winnerLabel="" onClose={() => setConfirm(false)} /> : null}
   </>

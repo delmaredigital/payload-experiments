@@ -64,8 +64,8 @@ beforeEach(() => {
 afterEach(async () => { cleanup(); await act(async () => {}); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 async function open(from: 'chrome' | 'sidebar' = 'chrome') {
   const heading = (await screen.findAllByRole('heading', { name: base.name }))[0]!
-  if (from === 'sidebar') fireEvent.click(heading)
-  const area = from === 'sidebar' ? screen.getByTestId('fields') : heading.closest<HTMLElement>('.xp-slot-chrome')!
+  fireEvent.click(heading)
+  const area = screen.getByTestId('fields')
   const trigger = await within(area).findByRole('button', { name: 'Configure test' })
   trigger.focus()
   fireEvent.click(trigger)
@@ -73,7 +73,7 @@ async function open(from: 'chrome' | 'sidebar' = 'chrome') {
   return { trigger, drawer }
 }
 
-test.each(['chrome', 'sidebar'] as const)('opens from %s, provides the shared setup, and opens navigation in a new tab', async from => {
+test.each(['sidebar'] as const)('opens from %s, provides the shared setup, and opens navigation in a new tab', async from => {
   setup()
   const { drawer } = await open(from)
   await within(drawer).findByLabelText('Test name')
@@ -90,7 +90,7 @@ test.each(['chrome', 'sidebar'] as const)('opens from %s, provides the shared se
   expect(within(drawer).queryByRole('link', { name: 'Back to admin' })).toBeNull()
 })
 
-test.each(['chrome', 'sidebar'].flatMap(from => ['Escape', 'Close', 'backdrop'].map(how => ({ from: from as 'chrome' | 'sidebar', how }))))('$from closes with $how and restores focus', async ({ from, how }) => {
+test.each(['sidebar'].flatMap(from => ['Escape', 'Close', 'backdrop'].map(how => ({ from: from as 'chrome' | 'sidebar', how }))))('$from closes with $how and restores focus', async ({ from, how }) => {
   setup()
   const { trigger, drawer } = await open(from)
   if (how === 'Escape') fireEvent.keyDown(drawer, { key: 'Escape' })

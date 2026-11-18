@@ -114,16 +114,6 @@
 }
 
 .xp-slot-editor .xp-ui-tabs-header { display: flex; flex-wrap: wrap; align-items: stretch; }
-.xp-slot-version-actions { display: contents; }
-.xp-slot-version-anchor { position: relative; display: flex; align-items: center; border-bottom: 1px solid var(--xp-border); }
-.xp-slot-version-rename { flex: 1 0 100%; min-width: 0; padding-top: var(--xp-space-2); }
-.xp-slot-version-menu {
-  position: absolute; top: 100%; inset-inline-end: 0; z-index: 5;
-  display: grid; min-width: 180px; padding: var(--xp-space-2);
-  box-shadow: 0 8px 24px var(--xp-overlay);
-  background: var(--xp-surface); border: 1px solid var(--xp-border); border-radius: var(--xp-radius);
-}
-.xp-slot-version-menu .xp-ui-button { justify-content: start; }
 .xp-slot-weight-inputs, .xp-slot-people { display: flex; flex-wrap: wrap; gap: var(--xp-space-3); }
 .xp-slot-weight-inputs { align-items: flex-start; }
 .xp-slot-weight-inputs .xp-ui-field { flex: 1 1 120px; max-width: 200px; }
@@ -176,7 +166,12 @@
 .xp-slot-sidebar .xp-slot-weight-inputs { display: grid; }
 .xp-slot-sidebar .xp-slot-weight-inputs .xp-ui-field { max-width: none; flex: 1 1 100%; }
 
-.xp-slot-sidebar .xp-slot-version-menu { inset-inline-start: 0; inset-inline-end: auto; }
+/* Grid stretching must not turn a status chip into a full-width bar. */
+.xp-slot-sidebar .xp-ui-status { justify-self: start; width: max-content; }
+.xp-slot-sidebar fieldset { min-width: 0; }
+.xp-slot-sidebar .xp-slot-version-group[data-active='true'] { border-inline-start: 3px solid var(--xp-focus); }
+.xp-slot-sidebar .xp-slot-version-name { display: flex; align-items: end; gap: var(--xp-space-2); }
+.xp-slot-sidebar .xp-slot-version-name > .xp-ui-field { flex: 1; min-width: 0; }
 
 /* Keep name and status together while allowing long names to shrink. */
 .xp-slot-header { flex-wrap: nowrap; }

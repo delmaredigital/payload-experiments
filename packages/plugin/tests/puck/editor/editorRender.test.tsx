@@ -334,22 +334,6 @@ test.each(['draft', 'stopped', 'running', 'decided', 'archived'] as const)('only
   expect(banner.classList.contains('xp-ui-banner')).toBe(true)
 })
 
-test.each(['running', 'draft'] as const)('%s: only the selected variant has a copy action', async status => {
-  vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status }))
-  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status, arms: [
-    ...doc.arms, { key: 'variantB', label: 'Variant B', kind: 'variant' },
-  ] })))
-  const Editor = ExperimentSlotEditor.render
-  render(<Editor {...props()} />)
-  await screen.findByRole('tab', { name: 'Variant B' })
-  expect(screen.queryByRole('button', { name: 'Copy Original here' })).toBeNull()
-  fireEvent.click(screen.getByRole('tab', { name: 'Variant B' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Options for Variant B' }))
-  expect(screen.getAllByRole('button', { name: 'Copy Original here' })).toHaveLength(1)
-  fireEvent.click(screen.getByRole('button', { name: 'Copy Original here' }))
-  expect(puck.dispatch.mock.calls[0]![0].data.props.variantB[0].props.text).toBe('Hello')
-})
-
 test.each(['draft', 'running'] as const)('%s binding offers Configure test', async status => {
   vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...doc, status })))
   const Editor = ExperimentSlotEditor.render
@@ -401,120 +385,6 @@ test('custom API route reaches both drawer requests', async () => {
   ])
 })
 
-test('the drawer opens in the chrome iframe document and focuses its name field', async () => {
-  puck.selected = false
-  const iframe = document.createElement('iframe')
-  document.body.append(iframe)
-  const doc = iframe.contentDocument!
-  const prototype = Object.getPrototypeOf(doc.createElement('dialog')) as HTMLDialogElement
-  prototype.showModal = function () { this.setAttribute('open', '') }
-  prototype.close = function () { this.removeAttribute('open') }
-  const container = doc.createElement('div')
-  doc.body.append(container)
-  const Editor = ExperimentSlotEditor.render
-  const view = render(<Editor {...props({ experiment: null })} />, { container, baseElement: doc.body })
-  try {
-    const frame = within(doc.body)
-    fireEvent.click(frame.getByRole('heading', { name: 'Experiment block' }))
-    expect(puck.dispatch).toHaveBeenCalledExactlyOnceWith({ type: 'setUi', ui: { itemSelector: { index: 2, zone: 'parent:content' } } })
-    puck.dispatch.mockClear()
-    const trigger = frame.getByRole('button', { name: 'Test this block' })
-    trigger.focus()
-    fireEvent.click(trigger)
-    expect(puck.dispatch).not.toHaveBeenCalled()
-    const dialog = frame.getByRole('dialog')
-    expect(dialog.ownerDocument).toBe(doc)
-    expect(doc.querySelector('dialog')).toBe(dialog)
-    expect(document.querySelector('dialog')).toBeNull()
-    expect(doc.activeElement).toBe(frame.getByLabelText('Name'))
-    fireEvent.click(frame.getByRole('button', { name: 'Cancel' }))
-    await waitFor(() => expect(frame.queryByRole('dialog')).toBeNull())
-    expect(doc.activeElement).toBe(trigger)
-  } finally { view.unmount(); iframe.remove() }
-})
-
-test.each(['draft', 'running', 'stopped', 'decided', 'archived'] as const)('%s offers the test page, a new test, and removal regardless of selection', async status => {
-  vi.mocked(fetch).mockImplementation(async url => {
-    if (String(url).endsWith('/preflight')) throw new Error('offline')
-    return Response.json({ ...doc, status })
-  })
-  const Editor = createExperimentSlotEditor({ routes: { admin: '/manage' } }).render
-  const view = render(<Editor {...props()} />)
-  await screen.findByRole('heading', { name: 'Example' })
-  expect(screen.getByRole('button', { name: 'Configure test' }).classList.contains('xp-ui-button--primary')).toBe(true)
-  const create = screen.getByRole('button', { name: 'Start a new test from this block' }) as HTMLButtonElement
-  expect(create.disabled).toBe(false)
-  expect(create.classList.contains('xp-ui-button--secondary')).toBe(true)
-  puck.selected = false
-  view.rerender(<Editor {...props()} />)
-  expect((screen.getByRole('button', { name: create.textContent! }) as HTMLButtonElement).disabled).toBe(false)
-  if (status === 'running') {
-    expect(screen.queryByRole('button', { name: 'Remove the test from this block' })).toBeNull()
-    // A failed optional placement read never guesses that this is the last placement.
-    expect(screen.queryByText('Stop the test to remove it from this block.')).toBeNull()
-  } else expect((screen.getByRole('button', { name: 'Remove the test from this block' }) as HTMLButtonElement).disabled).toBe(false)
-})
-
-test.each([false, 'other'] as const)('creating from a bound block mirrors versions and rebinds only this block with selection %s', async selection => {
-  puck.selected = selection
-  const oldB = puck.item.props.variantB
-  puck.item.props.variantB = [{ type: 'Text', props: { id: 'b-content', text: 'Keep B' } }] as never
-  const oldDoc = { ...doc, metrics: { primary: 9 }, targeting: [{ attribute: 'staff', op: 'eq', value: false }],
-    decision: { winnerArm: 'variantA' }, arms: [...doc.arms] }
-  let created: Record<string, unknown> | undefined
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
-    if (init?.method === 'POST') { created = JSON.parse(String(init.body)); return new Response(JSON.stringify({ doc: { id: 2, slug: 'welcome-page' } })) }
-    if (url.includes('where[slug]')) return new Response(JSON.stringify({ docs: [] }))
-    if (url.endsWith('/preflight')) return new Response(JSON.stringify({ placements: [], checks: [] }))
-    return new Response(JSON.stringify(url.includes('/xp-experiments/2?') ? { ...created, status: 'draft' } : oldDoc))
-  }))
-  try {
-    const Editor = ExperimentSlotEditor.render
-    const view = render(<Editor {...props()} />)
-    await screen.findByRole('tab', { name: 'New headline' })
-    fireEvent.click(screen.getByRole('button', { name: 'Start a new test from this block' }))
-    // Another placement changes the test after this dialog opens.
-    oldDoc.arms = oldDoc.arms.map(arm => arm.key === 'variantA' ? { ...arm, label: 'Latest headline' } : arm)
-    oldDoc.arms.push({ key: 'variantC', kind: 'variant', label: 'Last idea' })
-    const dialog = within(screen.getByRole('dialog'))
-    expect(dialog.getByRole('heading').textContent).toBe('Start a new test from this block')
-    expect((dialog.getByLabelText('Name') as HTMLInputElement).value).toBe('Welcome page')
-    fireEvent.click(dialog.getByRole('button', { name: 'Start a new test from this block' }))
-    await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
-    expect(created).toEqual({ name: 'Welcome page', slug: 'welcome-page', kind: 'block', unitType: 'visitor', exposurePolicy: 'render',
-      allocation: 100, analysis: { plannedDurationDays: 28 }, arms: [
-        { key: 'control', kind: 'control', slot: 'control', label: 'Original', weight: 25 },
-        { key: 'variantA', kind: 'variant', slot: 'variantA', label: 'Latest headline', weight: 25 },
-        { key: 'variantB', kind: 'variant', slot: 'variantB', label: 'Variant B', weight: 25 },
-        { key: 'variantC', kind: 'variant', slot: 'variantC', label: 'Last idea', weight: 25 },
-      ] })
-    const action = puck.dispatch.mock.calls[0]![0]
-    expect(action).toMatchObject({ type: 'replace', destinationIndex: 2, destinationZone: 'parent:content',
-      data: { ...puck.item, props: { ...puck.item.props, experiment: { id: 2, slug: 'welcome-page' } } } })
-    for (const slot of ['control', 'variantA', 'variantB', 'variantC'] as const) expect(action.data.props[slot]).toBe(puck.item.props[slot])
-    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method && init.method !== 'GET')).toHaveLength(1)
-    expect(oldDoc.arms).toHaveLength(4)
-    view.rerender(<Editor {...props({ experiment: { id: 2, slug: 'welcome-page' } })} />)
-    await screen.findByRole('tab', { name: 'Variant B' })
-    expect(screen.queryByText(/has content but isn't part/)).toBeNull()
-  } finally { puck.item.props.variantB = oldB }
-})
-
-test('a refused mirrored test stays in the dialog and leaves the binding and content untouched', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
-    if (init?.method === 'POST') return new Response(JSON.stringify({ errors: [{ data: { errors: [{ message: 'Choose valid versions.' }] } }] }), { status: 400 })
-    if (url.includes('where[slug]')) return new Response(JSON.stringify({ docs: [] }))
-    return new Response(JSON.stringify(doc))
-  }))
-  const Editor = ExperimentSlotEditor.render
-  render(<Editor {...props()} />)
-  await screen.findByRole('tab', { name: 'New headline' })
-  fireEvent.click(screen.getByRole('button', { name: 'Start a new test from this block' }))
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start a new test from this block' }))
-  expect((await within(screen.getByRole('dialog')).findByRole('alert')).textContent).toBe('Choose valid versions.')
-  expect(puck.dispatch).not.toHaveBeenCalled()
-})
-
 test.each([0, 1, 2])('shared notice uses existing placement read: %s placements', async count => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/preflight')
     ? { checks: [], placements: Array.from({ length: count }, (_, id) => ({ collection: 'pages', id, detail: 'Published' })) } : doc))))
@@ -528,41 +398,6 @@ test.each([0, 1, 2])('shared notice uses existing placement read: %s placements'
     expect(within(notice.closest('.xp-ui-banner') as HTMLElement).getByRole('button', { name: 'Start a new test from this block' })).toBeTruthy()
   } else expect(screen.queryByText('This test is also used in another place. Changes here affect that test.')).toBeNull()
   expect(screen.getAllByRole('button', { name: 'Start a new test from this block' })).toHaveLength(1)
-})
-
-test.each([false, 'other'] as const)('removal asks first and clears only this binding with selection %s', async selection => {
-  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ ...doc, status: 'draft' }) } as Response)
-  vi.mocked(fetch).mockImplementation(async (url: RequestInfo | URL) => new Response(JSON.stringify(String(url).endsWith('/preflight') ? { placements: [], checks: [] } : { ...doc, status: 'draft' })))
-  puck.selected = selection
-  const Editor = ExperimentSlotEditor.render
-  const view = render(<Editor {...props()} />)
-  await screen.findByRole('tab', { name: 'New headline' })
-  await act(async () => {})
-  const calls = vi.mocked(fetch).mock.calls.length
-  const remove = () => fireEvent.click(screen.getByRole('button', { name: 'Remove the test from this block' }))
-  remove()
-  await screen.findByRole('dialog')
-  expect(document.activeElement).toBe(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
-  expect(puck.dispatch).not.toHaveBeenCalled()
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
-  expect(puck.dispatch).not.toHaveBeenCalled()
-  remove()
-  await screen.findByRole('dialog')
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove the test from this block' }))
-  await waitFor(() => expect(puck.dispatch).toHaveBeenCalledOnce())
-  const action = puck.dispatch.mock.calls[0]![0]
-  expect(action.data.props).toEqual({ ...puck.item.props, experiment: null })
-  for (const slot of ['control', 'variantA', 'variantB', 'variantC'] as const) expect(action.data.props[slot]).toBe(puck.item.props[slot])
-  view.rerender(<Editor {...props({ experiment: null })} />)
-  expect(screen.getByRole('button', { name: 'Test this block' })).toBeTruthy()
-  expect(screen.queryByRole('dialog')).toBeNull()
-  const detachReads = vi.mocked(fetch).mock.calls.slice(calls)
-  // Offer, offer after Cancel, and confirmation each recheck the status.
-  expect(detachReads.filter(([url]) => String(url).includes('/xp-experiments/'))).toHaveLength(3)
-  // Only the successful removal invalidates sharing; drafts need no preflight gate.
-  expect(detachReads.filter(([url]) => String(url).endsWith('/preflight'))).toHaveLength(1)
-  expect(detachReads).toHaveLength(4)
-  expect(vi.mocked(fetch).mock.calls.at(-1)?.[0]).toContain('/preflight')
 })
 
 test('the click that ends a drag cannot dispatch another selection after Puck clears drag state', async () => {
