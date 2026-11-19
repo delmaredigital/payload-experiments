@@ -218,7 +218,7 @@ test('open markers have a focus ring and at least a 24px hit target; feedback sp
   expect(properties(rules.get('.xp-slot-version-open:focus-visible')!).outline).toBe('2px solid var(--xp-focus)')
   expect(properties(rules.get('.xp-slot-version-row .xp-ui-error')!)['grid-column']).toBe('1/-1')
   expect(properties(rules.get('.xp-slot-version-saved')!)).toMatchObject({ 'grid-column': '1/-1', 'min-height': '16px' })
-  expect(properties(rules.get('.xp-slot-version-saved[aria-hidden="true"]')!).visibility).toBe('hidden')
+  expect(rules.has('.xp-slot-version-saved[aria-hidden="true"]')).toBe(false)
   expect(properties(rules.get('.xp-ui-input--number')!)['text-align']).toBe('end')
   expect([...rules.keys()].some(selector => selector.includes('.xp-slot-lock-notice:has'))).toBe(false)
   expect(properties(rules.get('.xp-slot-lock-notice[data-attention="true"]')!)).toMatchObject({ background: 'var(--xp-error-bg)', color: 'var(--xp-error)' })

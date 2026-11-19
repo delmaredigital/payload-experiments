@@ -11,7 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-- Fixed: sidebar dropdown values, menus and unavailable options stay readable under Payload dark mode. The Puck configuration entry works without stylesheet imports: menus anchor to their controls and distinguish the active and selected options. Fallback menus follow theme changes while open and ignore their own scrolling. Migration impact: none.
+- Fixed: sidebar dropdown values, menus and unavailable options stay readable under Payload dark mode. The Puck configuration entry works without stylesheet imports: menus anchor to their controls; `aria-selected` marks the saved value, the keyboard-active option has a separate state, and the selected option is bold. Fallback menus follow theme changes while open and ignore their own scrolling. Migration impact: none.
 - Fixed: version cards open through an accessible marker button or a click on the card background. Focusing or editing fields keeps the current canvas and Outline version open. Leftover content uses the same compact cards and keeps its content actions together. Migration impact: none.
 - Fixed: version field errors use the full card width and identify the affected input. Saved feedback has reserved space so saving does not change the card height. Numeric inputs align with the writing direction. Migration impact: none.
 - Fixed: locked-version notices announce and scroll once per attempt burst, return to their resting style after two seconds, and clean up their timers. Locked holdouts have no empty action row. Migration impact: none.
@@ -20,9 +20,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed: Add variant and Split evenly appear together as matching secondary buttons. Migration impact: none.
 - Fixed: locked version fields look read-only and remain focusable. Trying to edit them or use the unavailable Split evenly button brings the lock notice into view, announces the reason, and briefly highlights it with reduced-motion support. Running, decided, archived, other lock reasons and permission notices use the same notice box. Migration impact: none.
 - Fixed: hovering over a dropdown option no longer saves it when leaving the control. Menus fit long labels, close when their control scrolls away, keep label clicks and option-group names accessible, and work inside modal drawers with or without browser popover support. Migration impact: none.
-- Fixed: delete confirmations check the current visitor effect on the server, listing published Experiment blocks that will return to the Original (including blocks added after the decision) and page addresses that will stop routing to the winner. The dialog waits for the check, shows a capped list with the remaining count, and explains a failed check while still allowing deletion. Migration impact: none.
 - Fixed: dropdown menus now use the plugin’s light and dark themes in admin views and the page editor, with keyboard navigation and menus that stay visible inside drawers. Migration impact: none.
-- Added: managers can delete draft and archived tests from the test page or tests list, with a confirmation explaining what happens to the test, results and winner. Migration impact: none.
+- Added: managers can delete draft and archived tests from the test page or tests list. The confirmation checks the site right now across published placements and all served locales, lists version changes and routed page addresses, and counts pages the manager cannot open without revealing their details. Paths come from the page path adapter; preview callbacks are not used. A persistent live region announces the check result; a stalled check times out after 15 seconds and still allows deletion. Archived Experiment blocks explain the available manual content steps instead of offering an unavailable action. Migration impact: none.
 
 ## [0.4.0-rc.6] - 2026-11-18
 

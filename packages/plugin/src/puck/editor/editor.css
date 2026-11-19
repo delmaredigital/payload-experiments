@@ -644,7 +644,6 @@
 .xp-slot-version-row .xp-ui-error { grid-column: 1 / -1; margin: 0; }
 /* Reserve one feedback line. Visibility preserves geometry between saves. */
 .xp-slot-version-saved { grid-column: 1 / -1; min-height: 16px; margin: 0; font: var(--xp-text-small); }
-.xp-slot-version-saved[aria-hidden='true'] { visibility: hidden; }
 .xp-slot-version-row:has(.xp-ui-error) .xp-slot-version-saved { display: none; }
 .xp-slot-version-row > .xp-slot-version-actions, .xp-slot-version-help { grid-column: 1 / -1; margin: 0; }
 @container (max-width: 220px) {

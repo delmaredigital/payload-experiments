@@ -40,6 +40,7 @@ export type {
   AddMetricWarning,
   AddMetricResult,
   ClickKeysResult,
+  DeleteImpactResult,
   DecideBody,
   ArchiveBody,
   MakeContentResult,
