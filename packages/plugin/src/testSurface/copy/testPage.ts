@@ -45,3 +45,10 @@ export const weeksHint = (days: number) => `About ${Math.round(days / 7 * 10) / 
 export const NUMBER_COMPARISONS = { eq: 'is', neq: 'is not', gt: 'is more than', gte: 'is at least', lt: 'is less than', lte: 'is at most' } as const
 
 export const placementCount = (count: number) => ` (placed ${count} times)`
+
+export const DELETE_TEST = {
+  action: 'Delete test', cancel: 'Cancel', deleted: 'Test deleted.',
+  title: (name: string) => `Delete “${name}”?`,
+  consequences: 'This permanently deletes the test and all its rounds and results.',
+  content: 'Your page content stays. An Experiment block that used this test stays on its page and says the test was deleted.',
+} as const

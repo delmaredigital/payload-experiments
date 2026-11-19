@@ -1,4 +1,6 @@
 'use client'
+import { DeleteTest } from './DeleteTest.js'
+import { surfaceUrls } from '../../surfaceUrls.js'
 import { useEffect, useState, useRef, type ReactNode } from 'react'
 import type { DocId } from '../../../types/contracts.js'
 import type { SurfaceProps, TestDocApi } from '../contracts.js'
@@ -81,6 +83,9 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
     </Section>
     <VersionsSection {...props} parts={parts} contentOnCanvas={embedded} /><GoalSection {...props} embedded={embedded} /><TargetingSection {...props} />
     <LengthSection {...props} /><AdvancedSection {...props} />
+    {!embedded ? <div><DeleteTest test={test.doc} canManage={surface.canManage} apiRoute={surface.apiRoute} onDeleted={message => {
+      window.location.assign(surfaceUrls.home(surface.adminRoute, { deleted: message === API_MESSAGES.testAlreadyDeleted ? 'already' : 'done' }))
+    }} /></div> : null}
     {embedded && surface.canReadResults && test.doc.status !== 'draft' ? <ResultsBody key={`${test.doc.id}/${test.doc.phase}/${test.doc.status}`} id={id} surface={surface} onChanged={doc => { test.acceptTransition?.({ doc }); void test.reload() }} /> : null}
     </div></div>
     <ReadinessBar {...props} onHeightChange={setBarHeight} />

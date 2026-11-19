@@ -1,5 +1,8 @@
 'use client'
 
+import { DeleteTest } from '../../testSurface/surface/test/DeleteTest.js'
+import { DELETE_TEST } from '../../testSurface/copy/testPage.js'
+import { API_MESSAGES } from '../../testSurface/copy/common.js'
 import { surfaceUrls } from '../../testSurface/surfaceUrls.js'
 import { useEffect, useMemo, useState } from 'react'
 import { formatAdminURL } from 'payload/shared'
@@ -33,6 +36,11 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, fla
   const [state, setState] = useState<State>({ loading: true })
   const [search, setSearch] = useState('')
   const [attempt, setAttempt] = useState(0)
+  const [notice, setNotice] = useState<string>()
+  useEffect(() => {
+    const deleted = new URLSearchParams(window.location.search).get('deleted')
+    if (deleted === 'done' || deleted === 'already') setNotice(deleted === 'done' ? DELETE_TEST.deleted : API_MESSAGES.testAlreadyDeleted)
+  }, [])
   useEffect(() => {
     let active = true
     const controller = new AbortController()
@@ -82,16 +90,18 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, fla
     {canManage ? <Button href={surfaceUrls.goals(adminRoute)}>{SURFACE_COPY.goals}</Button> : null}
     {newTest}
   </>}>
+    {notice ? <p role="status">{notice}</p> : null}
     {state.loading ? <p role="status">{SURFACE_COPY.loading}</p>
       : state.error ? <Banner tone="error" action={retry}>{SURFACE_COPY.loadError}</Banner>
         : <>
           {state.summaryError ? <Banner tone="error" action={retry}>{SURFACE_COPY.summaryError}</Banner> : null}
           {state.tests.length === 0 ? <EmptyState action={newTest}>{SURFACE_COPY.empty}</EmptyState>
-            : <TestGroups tests={state.tests} summaries={state.summaries} goalNames={state.goalNames} adminRoute={adminRoute} flagPoints={flagPoints} search={search} clear={() => setSearch('')} />}
+            : <TestGroups tests={state.tests} summaries={state.summaries} goalNames={state.goalNames} adminRoute={adminRoute} apiRoute={apiRoute} canManage={canManage} onDeleted={(id, message) => { setNotice(message); setState(current => !current.loading && !current.error ? { ...current, tests: current.tests.filter(test => String(test.id) !== String(id)) } : current) }} flagPoints={flagPoints} search={search} clear={() => setSearch('')} />}
         </>}
   </SurfaceShell>
 }
-function TestGroups({ tests, summaries, goalNames, adminRoute, flagPoints, search, clear }: {
+function TestGroups({ tests, summaries, goalNames, adminRoute, apiRoute, canManage, onDeleted, flagPoints, search, clear }: {
+  apiRoute: string; canManage: boolean; onDeleted: (id: HomeTest['id'], message: string) => void
   tests: HomeTest[]; summaries: SummaryResponse; goalNames: Record<string, string>; adminRoute: string; flagPoints?: ReadinessContext['flagPoints']; search: string; clear: () => void
 }) {
   const groups = groupTests(tests, summaries, search)
@@ -111,7 +121,7 @@ function TestGroups({ tests, summaries, goalNames, adminRoute, flagPoints, searc
             <span>{card.line}</span>
           </div>
         </div>
-        <Button className="xp-tests-row-action" size="sm" href={card.href}>{card.action}</Button>
+        <div className="xp-ui-button-group"><DeleteTest test={test} canManage={canManage} apiRoute={apiRoute} onDeleted={message => onDeleted(test.id, message)} /><Button className="xp-tests-row-action" size="sm" href={card.href}>{card.action}</Button></div>
       </article>
     })}</div>
     const heading = <div className="xp-tests-group-head"><h2 id={`xp-tests-group-${index}`}>{group.label}</h2><span>{group.tests.length}</span></div>

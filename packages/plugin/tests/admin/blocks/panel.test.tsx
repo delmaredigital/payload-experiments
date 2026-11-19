@@ -233,9 +233,9 @@ test.each([true, false])('draft delete precedes replace, updates cache for label
 })
 test.each([
   [{ docs: [] }, {}, 200, 'This test was already deleted. Reload the page.', 2],
-  [{ docs: [{ id: 4 }] }, { errors: [{ message: 'You are not allowed to perform this action.' }] }, 403, 'This test is no longer a draft. Reload the page.', 3],
-  [{ docs: [{ id: 4 }] }, {}, 404, 'This test is no longer a draft. Reload the page.', 3],
-  [{ docs: [{ id: 4 }] }, { errors: [{ code: 'invalid-status', message: 'Only draft or archived tests can be deleted.' }] }, 409, 'This test is no longer a draft. Reload the page.', 3],
+  [{ docs: [{ id: 4 }] }, { errors: [{ message: 'You are not allowed to perform this action.' }] }, 403, 'You are not allowed to perform this action.', 3],
+  [{ docs: [{ id: 4 }] }, {}, 404, 'This test was already deleted. Reload the page.', 3],
+  [{ docs: [{ id: 4 }] }, { errors: [{ code: 'invalid-status', message: 'Only draft or archived tests can be deleted.' }] }, 409, 'Only draft or archived tests can be deleted.', 3],
   [{ docs: [{ id: 4 }] }, { errors: [{ message: 'This page is locked.' }] }, 409, 'This page is locked.', 3],
   [{ docs: [{ id: 4 }] }, {}, 500, API_MESSAGES.failed, 3],
 ] as const)('draft refusal %s replaces nothing and displays the API message', async (lookup, deletion, status, message, calls) => {
@@ -255,7 +255,7 @@ test('a draft that starts before confirmation is refused without unwrapping or m
     ? Response.json({ errors: [{ message: 'You are not allowed to perform this action.' }] }, { status: serverStatus === 'running' ? 403 : 200 })
     : Response.json({ docs: [{ id: 4, status: serverStatus }] }))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: BLOCK_COPY.deleteAndUnwrap }))
-  expect(await screen.findByRole('alert')).toHaveProperty('textContent', BLOCK_COPY.noLongerDraft)
+  expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'You are not allowed to perform this action.')
   expect(fetch.mock.calls.slice(1)).toEqual([
     ['/api/xp-experiments?where[slug][equals]=hero-test&depth=0&limit=1', { method: 'GET', credentials: 'include' }],
     ['/api/xp-experiments/4', { method: 'DELETE', credentials: 'include' }],

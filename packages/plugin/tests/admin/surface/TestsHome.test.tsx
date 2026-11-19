@@ -256,3 +256,35 @@ test('home makes no goal-name request when no card needs asymmetric-goal copy', 
   await screen.findByText('Ready')
   expect(fetch.mock.calls.some(([url]) => url.includes('xp-metrics'))).toBe(false)
 })
+
+
+test.each([false, true])('row delete is offered only to managers in guard-allowed states (manage=%s)', async canManage => {
+  fetchData(['draft', 'running', 'stopped', 'decided', 'archived'].map(status => ({ id: status, name: `${status} test`, status, kind: 'block' })))
+  const view = render(<TestsHome adminRoute="/admin" apiRoute="/api" canManage={canManage} />)
+  await screen.findByText('draft test')
+  for (const status of ['draft', 'running', 'stopped', 'decided', 'archived']) {
+    const row = screen.getByText(`${status} test`).closest('article')!
+    expect(Boolean(row.querySelector('button'))).toBe(canManage && ['draft', 'archived'].includes(status))
+  }
+  view.unmount()
+})
+test('returning after a deletion shows confirmation on the tests list', async () => {
+  window.history.replaceState(null, '', '/admin/collections/xp-experiments?deleted=done')
+  fetchData([])
+  render(<TestsHome adminRoute="/admin" apiRoute="/api" />)
+  await screen.findByText('Test deleted.')
+  window.history.replaceState(null, '', '/')
+})
+
+
+test('deleting a row removes it and confirms on the tests list', async () => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => init?.method === 'DELETE' ? Response.json({ id: 1 })
+    : Response.json(url.includes('/summary?') ? {} : { docs: [{ id: 1, name: 'Draft test', kind: 'block', status: 'draft' }] })))
+  render(<TestsHome adminRoute="/admin" apiRoute="/api" canManage />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Delete test' }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete test' }))
+  await screen.findByText('Test deleted.')
+  expect(screen.queryByRole('article')).toBeNull()
+})

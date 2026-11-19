@@ -1,3 +1,4 @@
+import { API_MESSAGES } from '../../src/testSurface/copy/common.js'
 import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from 'vitest'
 import { createApi } from '../../src/testSurface/api.js'
 import type { ClickKeysResult, ErrorEnvelope, ResultsResponse } from '../../src/types/endpoints.js'
@@ -241,14 +242,14 @@ test('deleteTest uses collection DELETE with an encoded id and credentials', asy
   expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/custom/api/xp-experiments/id%20%2F%3F', { method: 'DELETE', credentials: 'include' })
 })
 test.each([
-  [403, { errors: [{ message: 'You are not allowed to perform this action.' }] }],
-  [404, { errors: [{ code: 'not-found', message: 'Not found' }] }],
-  [409, { errors: [{ code: 'invalid-status', message: 'Only draft or archived tests can be deleted.' }] }],
-] as const)('DELETE %s uses the no-longer-draft refusal', async (status, body) => {
+  [403, { errors: [{ message: 'You are not allowed to perform this action.' }] }, 'You are not allowed to perform this action.'],
+  [404, { errors: [{ code: 'not-found', message: 'Not found' }] }, API_MESSAGES.testAlreadyDeleted],
+  [409, { errors: [{ code: 'invalid-status', message: 'Only draft or archived tests can be deleted.' }] }, 'Only draft or archived tests can be deleted.'],
+] as const)('DELETE %s retains its refusal', async (status, body, message) => {
   respond(body, status)
-  expect(await api.deleteTest(1)).toMatchObject({ ok: false, status, message: 'This test is no longer a draft. Reload the page.' })
+  expect(await api.deleteTest(1)).toMatchObject({ ok: false, status, message })
 })
-test.each([403, 404])('non-JSON DELETE %s uses the no-longer-draft refusal', async status => {
+test.each([[403, API_MESSAGES.forbidden], [404, API_MESSAGES.testAlreadyDeleted]] as const)('non-JSON DELETE %s retains its refusal', async (status, message) => {
   fetchMock.mockResolvedValueOnce(new Response('Refused', { status }))
-  expect(await api.deleteTest(1)).toMatchObject({ ok: false, status, message: 'This test is no longer a draft. Reload the page.' })
+  expect(await api.deleteTest(1)).toMatchObject({ ok: false, status, message })
 })

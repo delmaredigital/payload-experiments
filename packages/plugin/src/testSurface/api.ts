@@ -53,7 +53,7 @@ export function createApi(apiBase: string) {
       return { ok: true, data: id }
     },
     deleteTest: (id: DocId) => request<unknown>(() => `${collectionBase}/${encodeURIComponent(id)}`, 'DELETE', undefined, {
-      notFound: API_MESSAGES.testNoLongerDraft, forbidden: API_MESSAGES.testNoLongerDraft, codes: { 'invalid-status': API_MESSAGES.testNoLongerDraft },
+      notFound: API_MESSAGES.testAlreadyDeleted, preserveMessage: true,
     }),
     wrapBlock: (body: WrapBlockBody) => request<Record<string, unknown>>(() => `${apiBase.replace(/\/$/, '')}/xp/blocks/wrap`, 'POST', body),
     pages: (query: { collection: string; q?: string; path?: string; page?: number }, signal?: AbortSignal) => request<PagesResult>(() => `${apiBase.replace(/\/$/, '')}/xp/pages?${new URLSearchParams({ collection: query.collection, ...(query.q ? { q: query.q } : {}), ...(query.path !== undefined ? { path: query.path } : {}), ...(query.page ? { page: String(query.page) } : {}) })}`, 'GET', undefined, undefined, signal),
