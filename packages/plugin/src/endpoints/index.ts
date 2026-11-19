@@ -1,3 +1,4 @@
+import { handleDeleteImpact } from './deleteImpact.js'
 import { handleEditorSurface } from './editorSurface.js'
 import { handleClickKeys } from './clickKeys.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
@@ -33,6 +34,7 @@ export const ROUTES: Array<{ method: Endpoint['method']; path: string; access: A
   { method: 'post', path: '/xp/experiments/:id/content-report/dismiss', access: 'manage', handler: handleDismissContentEntry },
   { method: 'post', path: '/xp/experiments/:id/content-report/restore', access: 'manage', handler: handleRestoreContentEntry },
   { method: 'post', path: '/xp/experiments/:id/archive', access: 'manage', handler: handleArchive },
+  { method: 'get', path: '/xp/experiments/:id/delete-impact', access: 'manage', handler: handleDeleteImpact },
   { method: 'get', path: '/xp/experiments/:id/preflight', access: 'manage', handler: handlePreflight },
   { method: 'get', path: '/xp/experiments/:id/preview-token', access: 'manage', handler: handlePreviewToken },
   { method: 'get', path: '/xp/experiments/:id/results', access: 'readResults', handler: handleResults },

@@ -291,6 +291,7 @@ test.each([200, 404])('deleting a row focuses the pre-mounted live notice (HTTP 
   const live = screen.getByTestId('delete-notice')
   expect(live.textContent).toBe('')
   fireEvent.click(await screen.findByRole('button', { name: 'Delete test' }))
+  await waitFor(() => expect(within(screen.getByRole('dialog')).getByRole<HTMLButtonElement>('button', { name: 'Delete test' }).disabled).toBe(false))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete test' }))
   await screen.findByText(status === 404 ? 'This test was already deleted.' : 'Test deleted.')
   expect(screen.getByTestId('delete-notice')).toBe(live)
@@ -298,12 +299,15 @@ test.each([200, 404])('deleting a row focuses the pre-mounted live notice (HTTP 
   expect(screen.queryByRole('article')).toBeNull()
 })
 
-test('list selects the full decision and warns before deleting an archived page winner', async () => {
+test('list loads current delete impact before warning about an archived page winner', async () => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
   const fetch = fetchData([{ id: 1, name: 'Archived winner', kind: 'page', status: 'archived', decision: { winnerArm: 'variantA' } }])
+  const original = fetch.getMockImplementation()!
+  fetch.mockImplementation((url: string) => url.endsWith('/delete-impact') ? Promise.resolve(Response.json({ effect: 'page', winnerPath: '/new', addresses: ['/original'] })) : original(url))
   render(<TestsHome adminRoute="/admin" apiRoute="/api" canManage />)
   fireEvent.click(await screen.findByRole('button', { name: 'Delete test' }))
   expect(new URL(fetch.mock.calls[0]![0], 'https://test.local').searchParams.get('select[decision]')).toBe('true')
-  expect(screen.getByRole('dialog').textContent).toContain('other addresses will stop sending visitors to the winner')
+  await screen.findByText(/These other addresses will stop sending visitors to the winner/)
+  expect(fetch).toHaveBeenCalledWith('/api/xp/experiments/1/delete-impact', expect.objectContaining({ method: 'GET' }))
 })

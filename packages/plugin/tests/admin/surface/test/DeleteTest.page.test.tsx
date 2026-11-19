@@ -29,6 +29,7 @@ test.each([200, 404])('test-page delete returns to the list with its confirmatio
   hook.mockReturnValue({ ...p.test, loadState: 'ready', errors: {}, chosenPages: {} })
   render(<TestPage id={p.test.doc!.id} surface={p.surface} />)
   fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  await waitFor(() => expect(within(screen.getByRole('dialog')).getByRole<HTMLButtonElement>('button', { name: 'Delete test' }).disabled).toBe(false))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete test' }))
   await waitFor(() => expect(navigate).toHaveBeenCalledWith(`/admin/collections/xp-experiments?deleted=${status === 404 ? 'already' : 'done'}`))
 })

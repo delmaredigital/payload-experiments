@@ -2,6 +2,8 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { payloadUiMock, resetPayloadUiMock, setAuth, setConfig } from '../_helpers/payloadUiMock.js'
+import { createExperimentsPlugin } from '../../../src/plugin.js'
+import { sampleOptions } from '../../collections/fixtures.js'
 import { TestsDashboardCards } from '../../../src/admin/TestsDashboardCards.js'
 
 vi.mock('@payloadcms/ui', () => payloadUiMock())
@@ -43,8 +45,6 @@ test.each(['/control', '/'])('dashboard hrefs respect admin route %s', admin => 
 
 
 test('deprecated export stays callable without plugin injection until 0.5.0', async () => {
-  const { createExperimentsPlugin } = await import('../../../src/plugin.js')
-  const { sampleOptions } = await import('../../collections/fixtures.js')
   const config = await createExperimentsPlugin(sampleOptions())({ secret: 'test-only', db: {} as import('payload').Config['db'] })
   expect(config.admin?.components?.beforeNavLinks).toBeUndefined()
   expect(config.admin?.components?.beforeDashboard).toBeUndefined()

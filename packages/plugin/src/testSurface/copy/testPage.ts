@@ -51,7 +51,12 @@ export const DELETE_TEST = {
   title: (name: string) => `Delete “${name}”?`,
   consequences: 'This permanently deletes the test and all its rounds and results.',
   alreadyDeleted: 'This test was already deleted.',
+  checking: 'Checking what visitors will see…',
+  checkFailed: "Couldn’t check what visitors will see after deletion. You can still choose to delete this test.",
+  noEffect: 'Deleting this test will not change what visitors see.',
+  versionChange: (before: string, after: string) => `${before} → ${after}`,
+  morePlaces: (count: number) => `${count} more ${count === 1 ? 'place' : 'places'}.`,
   blockWinner: 'On these pages, visitors will see the Original again:',
-  pageWinner: 'The other addresses will stop sending visitors to the winner, and those pages can be changed again.',
+  pageWinner: 'These other addresses will stop sending visitors to the winner and will show their own pages. Those pages can be changed again.',
   content: 'Deleting the test does not delete your page content. An Experiment block that used this test stays on its page and says the test was deleted.',
 } as const

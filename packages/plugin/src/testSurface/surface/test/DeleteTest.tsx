@@ -1,32 +1,42 @@
 'use client'
-import { useRef, useState } from 'react'
-import type { ContentReport } from '../../../types/endpoints.js'
-import type { DocId, ExperimentKind } from '../../../types/contracts.js'
+import { useEffect, useRef, useState } from 'react'
+import type { DeleteImpactResult } from '../../../types/endpoints.js'
+import type { DocId } from '../../../types/contracts.js'
 import { createApi } from '../../api.js'
 import { DELETE_TEST as C } from '../../copy/testPage.js'
 import { Button } from '../../../ui/Button.js'
 import { Dialog } from '../../../ui/Dialog.js'
 
 export type DeleteOutcome = 'done' | 'already'
+type Impact = { state: 'loading' | 'failed' } | { state: 'ready'; data: DeleteImpactResult }
+const VISIBLE_PLACES = 5
 
 /** Matches deleteExperiment's status guard; the server rechecks under its lock. */
 export function DeleteTest({ test, canManage, apiRoute, onDeleted }: {
-  test: { id: DocId; name: string; status: string; kind: ExperimentKind; decision?: { winnerArm?: string | null; discardedAt?: string | null; pagesReleasedAt?: string | null; contentReport?: ContentReport | null } | null }; canManage: boolean; apiRoute: string
+  test: { id: DocId; name: string; status: string }; canManage: boolean; apiRoute: string
   onDeleted: (outcome: DeleteOutcome) => void
 }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
   const [error, setError] = useState<string>()
+  const [impact, setImpact] = useState<Impact>({ state: 'loading' })
+  useEffect(() => {
+    if (!open) return
+    let current = true
+    const controller = new AbortController()
+    setImpact({ state: 'loading' })
+    void createApi(apiRoute).deleteImpact(test.id, controller.signal).then(result => {
+      if (!current) return
+      setImpact(result.ok && result.data && ['none', 'block', 'page'].includes(result.data.effect)
+        ? { state: 'ready', data: result.data } : { state: 'failed' })
+    })
+    return () => { current = false; controller.abort() }
+  }, [open, test.id, apiRoute])
   if (!canManage || !['draft', 'archived'].includes(test.status)) return null
-  const standingWinner = test.status === 'archived' && test.decision?.winnerArm && !test.decision.discardedAt
-  const report = test.decision?.contentReport
-  const docs = Array.isArray(report) ? report : report?.docs ?? []
-  const remaining = standingWinner && test.kind === 'block' && test.decision?.winnerArm !== 'control'
-    ? docs.filter(doc => doc.dismissedAt || !doc.ok) : []
-  const warning = remaining.length ? C.blockWinner : standingWinner && test.kind === 'page' && !test.decision?.pagesReleasedAt ? C.pageWinner : undefined
+  const checking = impact.state === 'loading'
   async function remove() {
-    if (pending.current) return
+    if (checking || pending.current) return
     pending.current = true; setBusy(true); setError(undefined)
     const result = await createApi(apiRoute).deleteTest(test.id)
     if (result.ok || result.status === 404) {
@@ -36,17 +46,26 @@ export function DeleteTest({ test, canManage, apiRoute, onDeleted }: {
     pending.current = false; setBusy(false)
   }
   return <>
-    <Button variant="quiet" size="sm" onClick={() => { setError(undefined); setOpen(true) }}>{C.action}</Button>
+    <Button variant="quiet" size="sm" onClick={() => { setError(undefined); setImpact({ state: 'loading' }); setOpen(true) }}>{C.action}</Button>
     <Dialog open={open} title={C.title(test.name)} initialFocus="cancel" dismissible={!busy} onClose={() => setOpen(false)}>
-      <p>{C.consequences}</p><p>{C.content}</p>{warning ? <p>{warning}</p> : null}
-      {remaining.length ? <ul>{remaining.map(doc => {
-        const title = 'title' in doc && typeof doc.title === 'string' ? doc.title : ''
-        const path = 'path' in doc && typeof doc.path === 'string' ? doc.path : ''
-        return <li key={`${doc.collection}/${doc.id}`}>{title && path ? `${title} (${path})` : title || path || `${doc.collection}/${doc.id}`}</li>
-      })}</ul> : null}
+      <p>{C.consequences}</p><p>{C.content}</p>
+      {checking ? <p role="status">{C.checking}</p> : impact.state === 'failed' ? <p role="alert">{C.checkFailed}</p> : null}
+      {impact.state === 'ready' ? <ImpactDetails impact={impact.data} /> : null}
       {error ? <p role="alert">{error}</p> : null}
       <div className="xp-ui-button-group"><Button data-dialog-cancel disabled={busy} onClick={() => setOpen(false)}>{C.cancel}</Button>
-        <Button variant="danger" aria-disabled={busy || undefined} aria-busy={busy || undefined} onClick={() => void remove()}>{C.action}</Button></div>
+        <Button variant="danger" disabled={checking} aria-disabled={busy || checking || undefined} aria-busy={busy || undefined} onClick={() => void remove()}>{C.action}</Button></div>
     </Dialog>
+  </>
+}
+
+function ImpactDetails({ impact }: { impact: DeleteImpactResult }) {
+  if (impact.effect === 'none') return <p>{C.noEffect}</p>
+  const places = impact.effect === 'block' ? impact.placements.map(place =>
+    `${place.title}${place.path ? ` (${place.path})` : ''}: ${C.versionChange(place.before.label, place.after.label)}`)
+    : impact.addresses.map(path => `${path}: ${C.versionChange(impact.winnerPath, path)}`)
+  return <>
+    <p>{impact.effect === 'block' ? C.blockWinner : C.pageWinner}</p>
+    <ul>{places.slice(0, VISIBLE_PLACES).map((place, index) => <li key={index}>{place}</li>)}</ul>
+    {places.length > VISIBLE_PLACES ? <p>{C.morePlaces(places.length - VISIBLE_PLACES)}</p> : null}
   </>
 }

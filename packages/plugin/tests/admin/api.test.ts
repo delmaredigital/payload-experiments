@@ -1,7 +1,7 @@
 import { API_MESSAGES } from '../../src/testSurface/copy/common.js'
 import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from 'vitest'
 import { createApi } from '../../src/testSurface/api.js'
-import type { ClickKeysResult, ErrorEnvelope, ResultsResponse } from '../../src/types/endpoints.js'
+import type { DeleteImpactResult, ClickKeysResult, ErrorEnvelope, ResultsResponse } from '../../src/types/endpoints.js'
 import type { ExperimentKind, Status } from '../../src/types/contracts.js'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -265,4 +265,12 @@ test.each([
 test.each([403, 404, 409])('draft delete restores reload instruction (%s)', async status => {
   respond({ errors: [{ ...(status === 409 ? { code: 'invalid-status' } : {}), message: 'Developer text' }] }, status)
   expect(await api.deleteTest(1, { draft: true })).toMatchObject({ ok: false, message: status === 404 ? API_MESSAGES.testAlreadyDeleted : API_MESSAGES.testNoLongerDraft })
+})
+
+test('delete impact is a typed manager GET with the encoded id and configured API base', async () => {
+  respond({ effect: 'none' } satisfies DeleteImpactResult)
+  const result = await api.deleteImpact('test/id')
+  if (!result.ok) throw new Error(result.message)
+  expectTypeOf(result.data).toEqualTypeOf<DeleteImpactResult | undefined>()
+  expect(fetchMock).toHaveBeenCalledWith('/custom/api/xp/experiments/test%2Fid/delete-impact', expect.objectContaining({ method: 'GET', credentials: 'include' }))
 })

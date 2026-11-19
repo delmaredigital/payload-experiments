@@ -83,7 +83,7 @@ test('server runtime infers the host session user without a Payload collection',
   })
   const pluginOptions = { runtime, access: { manage: () => true } } satisfies ExperimentsPluginOptions<typeof user>
   const endpoints = buildEndpoints({ options: pluginOptions })
-  expect(endpoints).toHaveLength(23)
+  expect(endpoints).toHaveLength(24)
   expect(endpoints).toContainEqual(expect.objectContaining({ method: 'get', path: '/xp/editor-surface' }))
   expectTypeOf(runtime).toEqualTypeOf<ExperimentsServerRuntime<typeof user>>()
   expectTypeOf<Parameters<typeof runtime.userIdOf>[0]>().toEqualTypeOf<typeof user>()

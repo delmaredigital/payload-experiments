@@ -29,6 +29,8 @@ interface ScanOptions {
   puckCollections: NonNullable<ResolvedOptions['puck']>['collections']
   blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']
   compareVersions?: boolean
+  /** Read the current visitor surface without fetching newer unpublished drafts. */
+  publishedOnly?: boolean
   /** Hook reads must see every placement and must never invoke nested access checks (CORE-21). */
   pageGuard?: true
   change?: PlacementChange
@@ -88,7 +90,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
     const publishedIds = new Set<string>()
     const publishedSlugs = new Map<string, string>()
     const draftsEnabled = req.payload.config.collections?.some(config => config.slug === collection && config.versions && config.versions.drafts)
-    for (const draft of [false, true]) {
+    for (const draft of args.publishedOnly ? [false] : [false, true]) {
       let page = 1
       while (true) {
         const result = await placementDocuments(req, {
@@ -149,7 +151,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
     const { slug: collection, field } = registration
     const published = new Map<string, Record<string, unknown>>()
     const draftsEnabled = req.payload.config.collections?.some(c => c.slug === collection && c.versions && c.versions.drafts)
-    for (const draft of [false, true]) {
+    for (const draft of args.publishedOnly ? [false] : [false, true]) {
       let page = 1
       while (true) {
         const result = await placementDocuments(req, { collection, req, overrideAccess: false, depth: 0, limit: 100, page, draft, includeLockStatus: true,
