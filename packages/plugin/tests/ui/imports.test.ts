@@ -13,6 +13,10 @@ test('all UI modules, including type imports, stay Payload/admin/stats/server fr
     const text = readFileSync(path, 'utf8')
     expect(text, path).not.toMatch(/\brequire\s*\(/)
     if (/\buse(?:State|Effect|Ref|Id|Memo|Callback|Context)\s*\(/.test(text)) expect(text.startsWith("'use client'"), path).toBe(true)
-    if (path.endsWith('.tsx')) expect(text, path).toContain("import './ui.css'")
+    if (path === join(root, 'SelectControl.tsx')) {
+      // /puck must stay importable in Node; its picker loads this client leaf
+      // while admin/client and the generated editor stylesheet supply its CSS.
+      expect(graph.files.filter(file => /\.css$/i.test(file)), path).toEqual([])
+    } else if (path.endsWith('.tsx')) expect(text, path).toContain("import './ui.css'")
   }
 })

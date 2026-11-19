@@ -3,7 +3,9 @@ import { Children, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, 
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { INPUT_COPY } from '../testSurface/copy/common.js'
-import './ui.css'
+
+// Style-free client leaf for the server-safe /puck entry. Inputs.tsx and the
+// admin/editor stylesheets load ui.css for their respective rendering contexts.
 
 export interface SelectOption { value: string; label: string; disabled?: boolean; group?: string }
 export interface SelectChange { target: { value: string; name?: string }; currentTarget: { value: string; name?: string } }

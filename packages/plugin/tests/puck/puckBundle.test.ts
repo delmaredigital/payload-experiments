@@ -15,6 +15,8 @@ test('/puck reaches only server-safe code and the approved client leaves', () =>
   const allowedClient = new Set([
     'client/ViewportExposure.tsx', 'puck/ExperimentPicker.tsx',
     'client/beacon.ts', 'puck/hostContext.tsx',
+    // The picker shares the style-free combobox leaf, without the styled Inputs module.
+    'ui/SelectControl.tsx',
   ].map(path))
   const clients = graph.files.filter(file => hasClientDirective(readFileSync(file, 'utf8')))
   expect(clients).toContain(path('client/ViewportExposure.tsx'))

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
 import { Puck, type Config } from '@puckeditor/core'
@@ -148,7 +148,8 @@ test.each(['draft', 'stopped', 'running', 'decided', 'archived'])('chrome, sideb
   await screen.findByRole('heading', { name: 'Notice test' })
   await act(async () => {})
   if (expected) {
-    expect(screen.getAllByText(expected)).toHaveLength(2)
+    // Loading the heading does not mean the separate placement read settled.
+    await waitFor(() => expect(screen.getAllByText(expected)).toHaveLength(2))
     for (const notice of screen.getAllByText(expected)) expect(notice.closest(status === 'running' ? '.xp-ui-banner--warning' : '.xp-ui-banner--error')).toBeTruthy()
   }
   else expect(screen.queryByText(SAVE_PAGE)).toBeNull()

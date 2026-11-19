@@ -82,6 +82,48 @@ test('sidebar enabled and solid disabled buttons meet their text contrast thresh
   expect(contrast(resolve(disabled.color!), resolve(disabled.background!))).toBeGreaterThanOrEqual(3)
 })
 
+test.each<[string, Record<string, string>]>([
+  ['.xp-ui-combobox', { color: 'var(--xp-text)', background: 'var(--xp-surface)', 'border-color': 'var(--xp-border-strong)' }],
+  ['.xp-ui-combobox:hover', { 'border-color': 'var(--xp-text-3)' }],
+  ['.xp-ui-combobox:focus-visible', { outline: '2px solid var(--xp-focus)' }],
+  ['.xp-ui-combobox[aria-invalid="true"]', { 'border-color': 'var(--xp-error)' }],
+  ['.xp-ui-combobox:disabled', { opacity: '1', color: 'var(--xp-text-2)', background: 'var(--xp-surface-3)', 'border-color': 'var(--xp-border-strong)' }],
+  ['.xp-ui-combobox>span:first-child', { color: 'inherit' }],
+  ['.xp-ui-combobox-chevron', { 'border-right-color': 'var(--xp-text-2)', 'border-bottom-color': 'var(--xp-text-2)' }],
+  ['.xp-ui-combobox-popup', { color: 'var(--xp-text)', background: 'var(--xp-surface)', 'border-color': 'var(--xp-border-strong)' }],
+  ['.xp-ui-combobox-option', { color: 'var(--xp-text)' }],
+  ['.xp-ui-combobox-option[aria-selected="true"]', { color: 'var(--xp-text)', background: 'var(--xp-surface-3)', outline: '1px solid var(--xp-border-strong)' }],
+  ['.xp-ui-combobox-option[aria-disabled="true"]', { color: 'var(--xp-text-3)' }],
+  ['.xp-ui-combobox-group', { color: 'var(--xp-text-2)' }],
+])('sidebar %s restores dropdown colors above the host dark-mode override', (target, expected) => {
+  const selector = `[class*="_PuckFields"] .xp-slot-root ${target}`
+  const rule = generatedRules().get(selector)
+  expect(rule, selector).toBeDefined()
+  expect(properties(rule!)).toMatchObject(expected)
+  const [ids, classes, elements] = specificity(selector)
+  expect(ids > 0 || classes > 2 || classes === 2 && elements > 1).toBe(true)
+})
+
+test('dropdown values inherit disabled colors and disabled options override the active highlight', () => {
+  const rules = generatedRules()
+  const prefix = '[class*="_PuckFields"] .xp-slot-root '
+  const selectors = [...rules.keys()]
+  // SelectControl uses aria-selected for the current keyboard/pointer option.
+  const selected = `${prefix}.xp-ui-combobox-option[aria-selected="true"]`
+  const disabled = `${prefix}.xp-ui-combobox-option[aria-disabled="true"]`
+  expect(selectors.indexOf(disabled)).toBeGreaterThan(selectors.indexOf(selected))
+  const css = readFileSync(new URL('puck/editor/editor.css', source), 'utf8')
+  const tokens = declarations(css.match(/\[class\*="_PuckFields"\] \.xp-slot-root\s*\{([^}]+)\}/)![1]!)
+  const resolve = (value: string): string => value.replace(/var\((--[\w-]+)\)/g, (_, name: string) => tokens[name]!)
+  for (const target of ['.xp-ui-combobox', '.xp-ui-combobox:disabled', '.xp-ui-combobox-popup', '.xp-ui-combobox-option[aria-selected="true"]']) {
+    const style = properties(rules.get(prefix + target)!)
+    expect(contrast(resolve(style.color!), resolve(style.background!)), target).toBeGreaterThanOrEqual(4.5)
+  }
+  // The fallback leaves the Puck field override subtree and uses these shared
+  // declarations with tokens copied from the trigger by SelectControl.
+  expect(properties(rules.get('.xp-ui-combobox-popup')!)).toMatchObject({ color: 'var(--xp-text)', background: 'var(--xp-surface)', border: '1px solid var(--xp-border-strong)' })
+})
+
 test('installed Puck still ships the field-panel class used by the sidebar theme boundary', () => {
   const shipped = readFileSync(require.resolve('@puckeditor/core/puck.css'), 'utf8')
   expect(shipped).toMatch(/\._PuckFields_[a-z0-9]+_\d+/)

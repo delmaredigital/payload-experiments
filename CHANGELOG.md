@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: sidebar dropdown values, menus and unavailable options stay readable under Payload dark mode. The Puck configuration entry keeps working without stylesheet imports. Migration impact: none.
+
 - Fixed: version cards open through an accessible marker button or a click on the card background. Focusing or editing fields keeps the current canvas and Outline version open. Leftover content uses the same compact cards and keeps its content actions together. Migration impact: none.
 - Fixed: version field errors use the full card width and identify the affected input. Saved feedback has reserved space so saving does not change the card height. Numeric inputs align with the writing direction. Migration impact: none.
 - Fixed: locked-version notices announce and scroll once per attempt burst, return to their resting style after two seconds, and clean up their timers. Locked holdouts have no empty action row. Migration impact: none.
