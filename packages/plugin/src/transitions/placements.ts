@@ -1,3 +1,4 @@
+import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { walkVisiblePuck } from '../puck/visibility.js'
 import { BLOCK_SLOTS, EXPERIMENT_BLOCK_SLUG, hostBlocks, slotBlocks } from '../blocks/model.js'
 import { safeError } from '../log.js'
@@ -28,15 +29,16 @@ export interface PlacementChange {
 interface ScanOptions {
   puckCollections: NonNullable<ResolvedOptions['puck']>['collections']
   blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']
+  localeView?: PlacementLocaleView
   compareVersions?: boolean
   /** Read the current visitor surface without fetching newer unpublished drafts. */
   publishedOnly?: boolean
-  /** Hook reads must see every placement and must never invoke nested access checks (CORE-21). */
+  /** Hooks and manager-authorized visitor-impact reads must see every placement (CORE-21). */
   pageGuard?: true
   change?: PlacementChange
 }
 async function placementDocuments(req: PayloadRequest, query: Parameters<PayloadRequest['payload']['find']>[0], guard?: true) {
-  // §7.8 page guard: the hook must see test placements regardless of the editor's access.
+  // §7.8 page guard / visitor impact: count all placements regardless of the editor's access; impact details are checked separately.
   if (guard) return req.payload.find({ ...query, req, overrideAccess: true })
   return req.payload.find({ ...query, req, overrideAccess: false })
 }
@@ -95,6 +97,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
       while (true) {
         const result = await placementDocuments(req, {
           collection, req, overrideAccess: false, limit: 100, page, depth: 0, draft, includeLockStatus: true,
+          ...(args.localeView?.locale ? { locale: args.localeView.locale, fallbackLocale: args.localeView.fallbackLocale } : {}),
           ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}),
         }, args.pageGuard)
         for (const doc of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {
@@ -111,8 +114,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
           walkVisiblePuck(doc[field], (node, visibility) => {
             if (visibility.hidden) return
             const props = node.props
-            const ref = props.experiment
-            const experiment = typeof ref === 'string' ? ref : ref && typeof ref === 'object' && 'slug' in ref ? ref.slug : null
+            const experiment = puckExperimentSlug(props.experiment)
             if (node.type === 'ExperimentSlot' && typeof experiment === 'string' && slugs.has(experiment)) {
               placements.get(experiment)!.push({ collection, id: doc.id, editor: 'puck', doc, title: String(doc.title ?? doc.name ?? doc.id),
                 published: !draft || doc._status === 'published',
@@ -129,8 +131,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
             const collect = (value: unknown): void => walkVisiblePuck(value, (node, visibility) => {
               if (visibility.hidden) return
               const props = node.props
-              const ref = props?.experiment
-              const slug = typeof ref === 'string' ? ref : ref && typeof ref === 'object' && 'slug' in ref ? ref.slug : undefined
+              const slug = puckExperimentSlug(props?.experiment)
               if (node.type === 'ExperimentSlot' && props && typeof slug === 'string') {
                 const list = rawSlots.get(slug) ?? []; list.push(props); rawSlots.set(slug, list)
               }
@@ -155,6 +156,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
       let page = 1
       while (true) {
         const result = await placementDocuments(req, { collection, req, overrideAccess: false, depth: 0, limit: 100, page, draft, includeLockStatus: true,
+          ...(args.localeView?.locale ? { locale: args.localeView.locale, fallbackLocale: args.localeView.fallbackLocale } : {}),
           ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}) }, args.pageGuard)
         for (const doc of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {
           if (!draft && doc._status === 'draft') continue

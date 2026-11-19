@@ -1,7 +1,8 @@
+import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { walkVisiblePuck } from '../puck/visibility.js'
 import { documentEditor, puckCollections } from '../options.js'
 import type { ResolvedOptions } from '../types/contracts.js'
-import { EXPERIMENT_BLOCK_SLUG, hostBlocks, isObject } from './model.js'
+import { EXPERIMENT_BLOCK_SLUG, hostBlocks } from './model.js'
 
 /** Same document-kind rule as the scan; Payload blocks are top level, Puck is recursive. */
 export function placementSlugs(options: Pick<ResolvedOptions, 'blocks' | 'puck'>, collection: string, doc: Record<string, unknown> | undefined): string[] {
@@ -17,7 +18,7 @@ export function placementSlugs(options: Pick<ResolvedOptions, 'blocks' | 'puck'>
   const found = new Set<string>()
   if (registration) walkVisiblePuck(doc[registration.field], (node, visibility) => {
     if (visibility.hidden || node.type !== 'ExperimentSlot') return
-    const ref = node.props.experiment, slug = typeof ref === 'string' ? ref : isObject(ref) ? ref.slug : undefined
+    const slug = puckExperimentSlug(node.props.experiment)
     if (typeof slug === 'string') found.add(slug)
   })
   return [...found]

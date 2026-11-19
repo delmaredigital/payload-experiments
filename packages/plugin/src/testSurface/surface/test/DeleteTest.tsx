@@ -10,6 +10,7 @@ import { Dialog } from '../../../ui/Dialog.js'
 export type DeleteOutcome = 'done' | 'already'
 type Impact = { state: 'loading' | 'failed' } | { state: 'ready'; data: DeleteImpactResult }
 const VISIBLE_PLACES = 5
+export const DELETE_IMPACT_TIMEOUT_MS = 15_000
 
 /** Matches deleteExperiment's status guard; the server rechecks under its lock. */
 export function DeleteTest({ test, canManage, apiRoute, onDeleted }: {
@@ -25,13 +26,18 @@ export function DeleteTest({ test, canManage, apiRoute, onDeleted }: {
     if (!open) return
     let current = true
     const controller = new AbortController()
+    const timer = setTimeout(() => {
+      if (!current) return
+      current = false; controller.abort(); setImpact({ state: 'failed' })
+    }, DELETE_IMPACT_TIMEOUT_MS)
     setImpact({ state: 'loading' })
     void createApi(apiRoute).deleteImpact(test.id, controller.signal).then(result => {
       if (!current) return
+      clearTimeout(timer)
       setImpact(result.ok && result.data && ['none', 'block', 'page'].includes(result.data.effect)
         ? { state: 'ready', data: result.data } : { state: 'failed' })
     })
-    return () => { current = false; controller.abort() }
+    return () => { current = false; clearTimeout(timer); controller.abort() }
   }, [open, test.id, apiRoute])
   if (!canManage || !['draft', 'archived'].includes(test.status)) return null
   const checking = impact.state === 'loading'

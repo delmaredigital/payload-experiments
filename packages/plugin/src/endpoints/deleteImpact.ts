@@ -1,9 +1,10 @@
-import type { PayloadRequest } from 'payload'
+import { Forbidden, type PayloadRequest } from 'payload'
+import { localeRequest, placementLocaleViews } from '../blocks/placementLocale.js'
 import { XpRefusal } from '../errors.js'
-import { compileManifest, type ManifestInputExperiment, type ManifestPhase } from '../manifest/compile.js'
+import { compileManifest, loadManifestInputs, type ManifestInputExperiment } from '../manifest/compile.js'
+import { puckCollections } from '../options.js'
 import { scanBlockPlacements } from '../transitions/placements.js'
 import type { DeleteImpactResult, EndpointContext } from '../types/endpoints.js'
-import type { ArmSlot } from '../types/puck.js'
 import { routeId } from './routeId.js'
 
 /** Advisory read only. Delete keeps its own access check, status guard and transaction. */
@@ -21,32 +22,57 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
   if (experiment.status === 'draft' || !decision?.winnerArm || decision.discardedAt || kind !== 'block' && kind !== 'page'
     || kind === 'page' && decision.pagesReleasedAt || kind === 'block' && decision.winnerArm === 'control') return reply({ effect: 'none' })
 
-  const phases = await req.payload.find({ collection: 'xp-phases', req, overrideAccess: false, depth: 0, limit: 1, sort: '-phase',
-    where: { experiment: { equals: id }, phaseKind: { equals: 'test' } } })
-  const lastTestPhase = phases.docs[0] as unknown as ManifestPhase | undefined
-  // Compile the same frozen routing as the runtime. Missing phase data is a failed check, never "no effect".
-  const manifest = compileManifest({ experiments: [{ ...experiment, currentPhase: null, lastTestPhase }], flagDefaults: {} }, 0)
+  // Use the live builder's complete inputs and ordering, including archived address collisions.
+  const inputs = await loadManifestInputs(req)
+  let manifest: ReturnType<typeof compileManifest>
+  try { manifest = compileManifest(inputs, 0, { attributeKeys: options.attributeKeys }) }
+  catch (cause) { throw new XpRefusal('placement-unchecked', 'The effect of deleting this test could not be determined.', undefined, 422, { cause }) }
   if (kind === 'page') {
-    const routes = Object.entries(manifest.archivedPages)
+    const routes = Object.entries(manifest.archivedPages).filter(([, route]) => route.slug === experiment.slug)
     return reply(routes.length ? { effect: 'page', winnerPath: routes[0]![1].winnerPath, addresses: routes.map(([path]) => path) } : { effect: 'none' })
   }
-  const winnerSlot = manifest.archivedWinners[experiment.slug] as ArmSlot | undefined
+  const winnerSlot = manifest.archivedWinners[experiment.slug]
   if (!winnerSlot || winnerSlot === 'control') return reply({ effect: 'none' })
-  const winner = lastTestPhase!.arms.find(arm => arm.key === decision.winnerArm)!
-  const control = lastTestPhase!.arms.find(arm => arm.key === 'control')!
-  const placements = await scanBlockPlacements(req, { slug: experiment.slug, puckCollections: options.puck?.enabled ? options.puck.collections : [],
-    blocksCollections: options.blocks?.collections ?? [], publishedOnly: true })
+  const phase = inputs.experiments.find(test => String(test.id) === String(id))?.lastTestPhase
+  const winner = phase?.arms.find(arm => arm.key === decision.winnerArm)
+  const control = phase?.arms.find(arm => arm.key === 'control')
+  if (!winner || !control) throw new XpRefusal('placement-unchecked', 'The effect of deleting this test could not be determined.', undefined, 422)
   const affected: Extract<DeleteImpactResult, { effect: 'block' }>['placements'] = []
-  for (const placement of placements) {
-    // Native blocks already fall back to Original if the winner's slot has no content.
-    if (!placement.published || placement.editor === 'blocks' && !placement.slots[winnerSlot]) continue
-    const registration = options.pages?.collections.find(entry => entry.slug === placement.collection)
-    const path = registration && placement.doc ? registration.pathOf(placement.doc)
-      : await options.admin?.previewUrl?.(placement) ?? null
-    const titleField = req.payload.config.collections?.find(entry => entry.slug === placement.collection)?.admin?.useAsTitle
-    affected.push({ collection: placement.collection, id: placement.id,
-      title: titleField && placement.doc?.[titleField] != null ? String(placement.doc[titleField]) : placement.title,
-      path, before: { key: winner.key, label: winner.label }, after: { key: control.key, label: control.label } })
+  const changedPages = new Set<string>(), readablePages = new Set<string>()
+  const puck = options.puck?.enabled ? puckCollections(options) : []
+  const blocks = options.blocks?.collections ?? []
+  for (const collection of new Set([...puck, ...blocks].map(entry => entry.slug))) {
+    for (const view of placementLocaleViews(req, collection)) {
+      const viewReq = localeRequest(req, view)
+      // The route is manager-gated. Count the entire visitor surface, then disclose only access-checked page details.
+      const placements = await scanBlockPlacements(viewReq, { slug: experiment.slug, puckCollections: puck.filter(entry => entry.slug === collection),
+        blocksCollections: blocks.filter(entry => entry.slug === collection), publishedOnly: true, pageGuard: true, localeView: view })
+      const changed = placements.filter(place => place.published && (place.editor !== 'blocks' || place.slots[winnerSlot]) && (place.slots[winnerSlot] || place.slots.control))
+      if (!changed.length) continue
+      for (const place of changed) changedPages.add(JSON.stringify([collection, String(place.id)]))
+      // find applies Where-scoped read access as well as a boolean refusal. Never disclose the privileged document.
+      let readable: Array<Record<string, unknown> & { id: string | number }> = []
+      try {
+        const result = await req.payload.find({ collection, req: viewReq, overrideAccess: false, depth: 0, draft: false, pagination: false, limit: 0,
+          ...(view.locale ? { locale: view.locale, fallbackLocale: view.fallbackLocale } : {}),
+          where: { id: { in: [...new Set(changed.map(place => place.id))] } } })
+        readable = result.docs
+      } catch (cause) { if (!(cause instanceof Forbidden) && (cause as { status?: number })?.status !== 403) throw cause }
+      for (const place of changed) {
+        const doc = readable.find(doc => String(doc.id) === String(place.id))
+        if (!doc) continue
+        readablePages.add(JSON.stringify([collection, String(place.id)]))
+        const registration = options.pages?.collections.find(entry => entry.slug === collection)
+        let path: string | null = null
+        try { const value = registration?.pathOf(doc); if (typeof value === 'string') path = value } catch { /* An optional public path cannot fail the impact check. */ }
+        const titleField = req.payload.config.collections?.find(entry => entry.slug === collection)?.admin?.useAsTitle
+        affected.push({ collection, id: place.id,
+          title: String((titleField ? doc[titleField] : undefined) ?? doc.title ?? doc.name ?? doc.id), path,
+          before: place.slots[winnerSlot] ? { key: winner.key, label: winner.label } : { key: 'empty', label: 'Nothing' },
+          after: place.slots.control ? { key: control.key, label: control.label } : { key: 'empty', label: 'Nothing' } })
+      }
+    }
   }
-  return reply(affected.length ? { effect: 'block', placements: affected } : { effect: 'none' })
+  return reply(changedPages.size ? { effect: 'block', controlLabel: control.label, pageCount: changedPages.size,
+    unreadablePages: [...changedPages].filter(key => !readablePages.has(key)).length, placements: affected } : { effect: 'none' })
 }

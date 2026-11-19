@@ -62,6 +62,7 @@ export type WrapBlockBody = { collection: string; id: DocId; field: string; bloc
 /** Current visitor effect of deleting a draft or archived test; independent of its stored content report. */
 export type DeleteImpactResult = { effect: 'none' } | {
   effect: 'block'
+  controlLabel: string; unreadablePages: number; pageCount: number
   placements: Array<{ collection: string; id: DocId; title: string; path: string | null;
     before: { key: string; label: string }; after: { key: string; label: string } }>
 } | { effect: 'page'; winnerPath: string; addresses: string[] }

@@ -1,3 +1,4 @@
+import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { puckVisibility } from '../puck/visibility.js'
 import type { Data } from '@puckeditor/core'
 import type { Assignments, RenderedExposure } from '../types/assignments.js'
@@ -20,8 +21,7 @@ export function resolveExperimentData<TData extends Data>(puckData: TData, assig
     delete clean.xpSlot
     delete clean.xpArm
     delete clean.xpExpose
-    const ref = props.experiment as { slug?: unknown } | null | undefined
-    const slug = typeof ref?.slug === 'string' ? ref.slug : undefined
+    const slug = puckExperimentSlug(props.experiment)
     const assignment = slug && Object.hasOwn(assignments.bySlug, slug) ? assignments.bySlug[slug] : undefined
     const experiment = manifest?.experiments.find(e => e.slug === slug)
     const arm = experiment?.arms.find(a => a.key === assignment?.arm)
