@@ -43,6 +43,7 @@ export const editorCopy = {
   deleteContentHelp: (label: string, count: number) => `This deletes the ${count} ${count === 1 ? 'block' : 'blocks'} in ${label} from this page. Save the page to keep this change.`,
   draftOnly: 'Only draft tests can add this version. Use a different test to include it.',
   outsideTest: (label: string) => `${label} · not in this test`,
+  showVersion: (label: string) => `Show ${label} on the page`,
   tabs: 'Test versions',
   add: 'Add variant',
   testGroup: 'Test', versionsGroup: 'Versions', moreGroup: 'More',

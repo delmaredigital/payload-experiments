@@ -152,9 +152,9 @@ test('unbound and deleted sentences wrap and copy confirmation retains warning s
 
 test('compact version rows wrap by available width and preserve accessible labels', () => {
   const rules = generatedRules()
-  expect(properties(rules.get('.xp-slot-version-row')!)).toMatchObject({ display: 'flex', 'flex-wrap': 'wrap', 'min-width': '0' })
-  expect(properties(rules.get('.xp-slot-sidebar .xp-slot-version-name')!)).toMatchObject({ display: 'grid', flex: '1 1 110px', 'min-width': '0' })
-  expect(properties(rules.get('.xp-slot-version-traffic')!).flex).toBe('0 1 72px')
+  expect(properties(rules.get('.xp-slot-version-row')!)).toMatchObject({ display: 'grid', 'grid-template-columns': '24px minmax(0,1fr) 72px', 'min-width': '0' })
+  expect(properties(rules.get('.xp-slot-version-name')!)).toMatchObject({ display: 'contents' })
+  expect(properties(rules.get('.xp-slot-version-traffic')!).display).toBe('contents')
   expect(properties(rules.get('.xp-slot-version-row .xp-ui-field>label')!)).toMatchObject({ position: 'absolute', 'clip-path': 'inset(50%)' })
   expect(properties(rules.get('.xp-slot-version-actions')!).display).toBe('flex')
   expect(properties(rules.get('.xp-slot-version-actions .xp-ui-button')!)).toMatchObject({ height: 'auto', 'min-height': '30px' })
@@ -167,4 +167,17 @@ test('locked fields remain legible and attention never requires animation', () =
   expect(properties(rules.get('.xp-slot-lock-notice[data-attention="true"]')!).outline).toBe('2px solid var(--xp-error)')
   const css = readFileSync(new URL('puck/editor/editor.css', source), 'utf8')
   expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\.xp-slot-lock-notice \{ transition: outline-color 180ms;/)
+})
+
+
+test('open markers have a focus ring and at least a 24px hit target; feedback spans the row', () => {
+  const rules = generatedRules()
+  expect(properties(rules.get('.xp-slot-version-open')!)).toMatchObject({ 'min-width': '24px', 'min-height': '32px' })
+  expect(properties(rules.get('.xp-slot-version-open:focus-visible')!).outline).toBe('2px solid var(--xp-focus)')
+  expect(properties(rules.get('.xp-slot-version-row .xp-ui-error')!)['grid-column']).toBe('1/-1')
+  expect(properties(rules.get('.xp-slot-version-saved')!)).toMatchObject({ 'grid-column': '1/-1', 'min-height': '16px' })
+  expect(properties(rules.get('.xp-slot-version-saved[aria-hidden="true"]')!).visibility).toBe('hidden')
+  expect(properties(rules.get('.xp-ui-input--number')!)['text-align']).toBe('end')
+  expect([...rules.keys()].some(selector => selector.includes('.xp-slot-lock-notice:has'))).toBe(false)
+  expect(properties(rules.get('.xp-slot-lock-notice[data-attention="true"]')!)).toMatchObject({ background: 'var(--xp-error-bg)', color: 'var(--xp-error)' })
 })

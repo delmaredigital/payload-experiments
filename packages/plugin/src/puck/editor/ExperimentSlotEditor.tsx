@@ -34,7 +34,7 @@ import { cloneSlot, countSlotBlocks } from './cloneSlot.js'
 import { openCreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
 import { acquireArms, loadArms, publishExperiment, useArms } from './armsCache.js'
-import { AddVariant, RemoveVersion, VersionName, VersionWeights, VersionLock, useArmWrites, type WeightEdits } from './VersionBuilder.js'
+import { AddVariant, RemoveVersion, VersionCard, VersionName, VersionWeights, VersionLock, useArmWrites, type WeightEdits } from './VersionBuilder.js'
 import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
 import { acquirePlacements, cachedPreflight, cachedReadinessRead, placementsPending, placementsBlocking, placementReadError, invalidatePlacements, refreshPlacements, focusPlacements } from './placementsCache.js'
@@ -414,18 +414,16 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           <VersionWeights key={bindingKey} edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable} showSplit={canManage}
             beforeActions={leftoverControls}
             beforeSplit={editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}
-            renderRow={(arm, input) => <div className="xp-slot-version-group" data-active={slot === arm.key} role="group" aria-label={arm.label}>
-              <div className="xp-slot-version-row">
-                <VersionName key={`${experimentId}-${arm.key}`} arm={arm} writes={writes} editable={editable}
-                  onSelect={arm.kind === 'holdout' || dragging ? undefined : () => setActive({ id: experimentId, slot: arm.key as ArmSlot })} />
+            renderRow={(arm, input) => <VersionCard label={arm.label} active={slot === (arm.kind === 'holdout' ? 'control' : arm.key)} dragging={dragging}
+              onSelect={() => setActive({ id: experimentId, slot: arm.kind === 'holdout' ? 'control' : arm.key as ArmSlot })}>
+                <VersionName key={`${experimentId}-${arm.key}`} arm={arm} writes={writes} editable={editable} />
                 {input}
-              </div>
-              {arm.kind !== 'control' ? <div className="xp-slot-version-actions">
+              {arm.kind === 'variant' || arm.kind === 'holdout' && editable ? <div className="xp-slot-version-actions">
                 {arm.kind === 'variant' ? <Button size="sm" disabled={originalEmpty} aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) requestCopy(arm.key as ArmSlot) }}>{editorCopy.copy(originalLabel)}</Button> : null}
-                {editable ? <Button size="sm" aria-describedby={lockId} aria-disabled={!editable || writes.busy || undefined} onClick={() => { if (editable && !writes.busy) setRemoving({ key: bindingKey, arm }) }}>{editorCopy.removeVersion}</Button> : null}
+                {editable ? <Button size="sm" aria-describedby={lockId} aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) setRemoving({ key: bindingKey, arm }) }}>{editorCopy.removeVersion}</Button> : null}
               </div> : null}
-              {arm.kind === 'variant' && originalEmpty ? <p className="xp-ui-help">{editorCopy.copyEmpty(originalLabel)}</p> : null}
-            </div>} />
+              {arm.kind === 'variant' && originalEmpty ? <p className="xp-ui-help xp-slot-version-help">{editorCopy.copyEmpty(originalLabel)}</p> : null}
+            </VersionCard>} />
           </>}</VersionLock>
         </FieldGroup></section> : null}
         {access.surface?.canManage && experimentId !== undefined ? <FieldGroup label={editorCopy.moreGroup} defaultExpanded={false}>

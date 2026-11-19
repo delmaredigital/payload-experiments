@@ -9,6 +9,7 @@ vi.hoisted(() => {
 import { Puck, useGetPuck, type Config, type Data } from '@puckeditor/core'
 import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
 import { experimentOutlinePlugin } from '../../../src/puck/editor/experimentOutlinePlugin.js'
+import { editorCopy as C } from '../../../src/puck/editor/copy.js'
 import { setArms } from '../../../src/puck/editor/armsCache.js'
 
 const doc = { id: 'test', slug: 'test', name: 'Outline test', status: 'draft', arms: [
@@ -452,4 +453,28 @@ test('bound and unbound blocks produce identical Outline visibility for the same
     fireEvent.click(within(editors[1]!).getByRole('tab', { name: unboundLabel }))
     expect(visibility('orphan')).toEqual(visibility('unbound'))
   }
+})
+
+
+test('sidebar open controls and card clicks update the real Outline; field focus does not', async () => {
+  let read!: ReturnType<typeof useGetPuck>
+  function Probe() { read = useGetPuck(); return null }
+  render(<Puck config={config} data={{ root: { props: {} }, content: [block('two-arm', 'test', true)] }}
+    plugins={[experimentOutlinePlugin()]} iframe={{ enabled: false }} ui={{ itemExpanded: { 'two-arm': true }, itemSelector: { index: 0, zone: 'root:default-zone' } }}>
+    <Puck.Outline /><Puck.Preview /><div data-testid="sidebar"><Puck.Fields /></div><Probe />
+  </Puck>)
+  const fields = within(screen.getByTestId('sidebar'))
+  const variant = await fields.findByRole('group', { name: 'Variant A' })
+  act(() => within(variant).getByRole('textbox').focus())
+  expect(visibility('two-arm')).toEqual([true, false, false, false])
+  fireEvent.click(within(variant).getByRole('button', { name: 'Show Variant A on the page' }))
+  expect(visibility('two-arm')).toEqual([false, true, false, false])
+  expect(screen.getByRole('tab', { name: 'Variant A' }).getAttribute('aria-selected')).toBe('true')
+  const leftover = fields.getByRole('group', { name: C.outsideTest('Variant C') })
+  fireEvent.click(leftover)
+  expect(visibility('two-arm')).toEqual([false, false, false, true])
+  expect(screen.getByRole('tab', { name: C.outsideTest('Variant C') }).getAttribute('aria-selected')).toBe('true')
+  act(() => read().dispatch({ type: 'setUi', ui: { isDragging: true } }))
+  fireEvent.click(variant)
+  expect(visibility('two-arm')).toEqual([false, false, false, true])
 })

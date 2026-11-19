@@ -14,22 +14,36 @@ import { editorCopy as C } from './copy.js'
 
 const VersionLockContext = createContext<string | undefined>(undefined)
 
+/** A pointer shortcut supplements the explicit, keyboard-accessible open marker. */
+export function VersionCard({ label, openLabel = label, active, dragging, onSelect, children }: {
+  label: string; openLabel?: string; active: boolean; dragging: boolean; onSelect: () => void; children: ReactNode
+}) {
+  return <div className="xp-slot-version-group" data-active={active} role="group" aria-label={label} aria-current={active ? 'true' : undefined}
+    onClick={event => {
+      if (!dragging && !(event.target as Element).closest('button, input, label, select, textarea, a, [role="button"], [contenteditable="true"]')) onSelect()
+    }}>
+    <div className="xp-slot-version-row">
+      <button type="button" className="xp-slot-version-open" aria-label={C.showVersion(openLabel)} aria-pressed={active} disabled={dragging} onClick={onSelect} />
+      {children}
+    </div>
+  </div>
+}
+
 /** Keep unavailable controls reachable, and explain an attempted edit in place. */
 export function VersionLock({ message, children }: { message?: string; children: (noticeId?: string) => ReactNode }) {
   const id = useId()
   const notice = useRef<HTMLDivElement>(null)
-  const [attempt, setAttempt] = useState(0)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [attention, setAttention] = useState(false)
   useEffect(() => {
-    if (!attention) return
-    const timer = setTimeout(() => setAttention(false), 2000)
-    return () => clearTimeout(timer)
-  }, [attempt, attention])
-  useEffect(() => { setAttempt(0); setAttention(false) }, [message])
+    setAttention(false)
+    return () => { clearTimeout(timer.current); timer.current = undefined }
+  }, [message])
   const explain = () => {
-    setAttempt(value => value + 1)
+    if (timer.current !== undefined) return
     setAttention(true)
     notice.current?.scrollIntoView?.({ block: 'nearest' })
+    timer.current = setTimeout(() => { timer.current = undefined; setAttention(false) }, 2000)
   }
   return <VersionLockContext.Provider value={message ? id : undefined}>
     <div className="xp-slot-version-controls" onClickCapture={event => {
@@ -46,7 +60,7 @@ export function VersionLock({ message, children }: { message?: string; children:
       }
     }}>
       {message ? <div ref={notice} id={id} className="xp-slot-lock-notice" data-attention={attention}>
-        <span key={attempt} role={attempt ? 'alert' : undefined}>{message}</span>
+        {attention ? <span key="attention" role="alert">{message}</span> : <span key="rest">{message}</span>}
       </div> : null}
       {children(message ? id : undefined)}
     </div>
@@ -122,7 +136,7 @@ export function AddVariant({ experiment, writes, onSelect }: { experiment: Edito
 }
 
 /** Always-visible editor for the saved version name. */
-export function VersionName({ arm, writes, editable, onSelect }: { onSelect?: () => void; arm: EditorExperiment['arms'][number]; writes: ArmWrites; editable: boolean }) {
+export function VersionName({ arm, writes, editable }: { arm: EditorExperiment['arms'][number]; writes: ArmWrites; editable: boolean }) {
   const id = useId()
   const lockId = useContext(VersionLockContext)
   const [name, setName] = useState(arm.label)
@@ -149,13 +163,14 @@ export function VersionName({ arm, writes, editable, onSelect }: { onSelect?: ()
       if (result) setSaved(true)
     } finally { pending.current = null }
   }
+  const message = invalid ? C.emptyLabel : error
   return <div className="xp-slot-version-name"><TextInput id={id} label={C.name} aria-label={`${arm.label} ${C.name}`} value={name}
-    readOnly={!editable || writes.busy} aria-disabled={!editable || writes.busy || undefined} aria-describedby={lockId} onFocus={onSelect} error={invalid ? C.emptyLabel : error}
+    readOnly={!editable || writes.busy} aria-disabled={!editable || writes.busy || undefined} aria-describedby={[lockId, saved ? `${id}-saved` : undefined].filter(Boolean).join(' ') || undefined} aria-errormessage={message ? `${id}-error` : undefined} error={message}
     onChange={event => { if (!editable || writes.busy) return; draft.current = event.target.value; setName(event.target.value); setInvalid(false); setError(undefined); setSaved(false) }}
     onBlur={() => void commit()} onKeyDown={event => {
       if (event.key === 'Enter') { event.preventDefault(); void commit() }
       if (event.key === 'Escape') { event.preventDefault(); if (pending.current?.started) return; if (pending.current) pending.current.cancelled = true; draft.current = arm.label; setName(arm.label); setInvalid(false); setError(undefined); setSaved(false) }
-    }} />{saved ? <span role="status" className="xp-ui-help">{C.saved}</span> : null}</div>
+    }} /><span id={`${id}-saved`} role={saved ? 'status' : undefined} aria-hidden={!saved} className="xp-ui-help xp-slot-version-saved">{C.saved}</span></div>
 }
 
 export function RemoveVersion({ arm, writes, count, shared, onRemove, onClose }: {
@@ -203,17 +218,17 @@ export function VersionWeights({ experiment, writes, edits, setEdits, groupId, s
   return <div className="xp-slot-weights">
     <div className="xp-slot-weight-inputs">{experiment.arms.map(arm => { const input = <NumberInput id={`${id}-${arm.key}`} label={C.traffic} aria-label={C.weight(arm.label)}
       min={0} max={100} step={1} value={edits[arm.key] ?? live.find(current => current.key === arm.key)?.weight ?? ''} readOnly={!editable || writes.busy} aria-disabled={!editable || writes.busy || undefined} aria-describedby={lockId}
-      error={invalidKeys.has(arm.key) ? C.invalidShare : errors[arm.key]}
+      error={invalidKeys.has(arm.key) ? C.invalidShare : errors[arm.key]} aria-errormessage={invalidKeys.has(arm.key) || errors[arm.key] ? `${id}-${arm.key}-error` : undefined}
       onChange={event => { if (!editable || writes.busy) return; clearErrors([arm.key]); const value = event.target.value; setEdits(current => ({ ...current, [arm.key]: value })) }}
       onBlur={event => { const target = event.relatedTarget as Element | null; if (!splitIntent.current && !(typeof target?.closest === 'function' && target.closest('[data-xp-split]')?.getAttribute('data-xp-split') === groupId)) void commit(arm.key) }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void commit(arm.key) } if (event.key === 'Escape' && !writes.busy) { event.preventDefault(); clearErrors([arm.key]); clearDraft(arm.key) } }} />; return <div key={arm.key} className="xp-slot-version-item">{renderRow ? renderRow(arm, <div className="xp-slot-version-traffic">{input}<span className="xp-slot-percent" aria-hidden="true">{C.percent}</span></div>) : input}</div> })}</div>
     {Object.keys(edits).length && !invalidKeys.size ? issues.map((issue, i) => <p role="alert" className="xp-ui-error" key={i}>{issueMessage(issue, totalWeight(live))}</p>) : null}
     {beforeActions}
-    <div className="xp-slot-version-actions">{beforeSplit}
+    {beforeSplit || showSplit ? <div className="xp-slot-version-actions">{beforeSplit}
     {showSplit ? <div data-xp-split={groupId} onPointerDownCapture={() => {
       // Pointer intent reaches the destination before the source iframe loses focus.
       if (!editable) return
       splitIntent.current = true
       setTimeout(() => { splitIntent.current = false }, 0)
-    }}><Button size="sm" aria-describedby={lockId} aria-disabled={!editable || writes.busy || undefined} onClick={async () => { if (!editable || writes.busy) return; const saved = await writes.write(splitEvenly, { errorKey: 'split' }); if (saved) { setEdits(() => ({})); setErrors({}) } }}>{C.split}</Button></div> : null}</div>
+    }}><Button size="sm" aria-describedby={lockId} aria-disabled={!editable || writes.busy || undefined} onClick={async () => { if (!editable || writes.busy) return; const saved = await writes.write(splitEvenly, { errorKey: 'split' }); if (saved) { setEdits(() => ({})); setErrors({}) } }}>{C.split}</Button></div> : null}</div> : null}
   </div>
 }

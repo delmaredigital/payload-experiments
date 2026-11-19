@@ -11,6 +11,9 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: version cards open through an accessible marker button or a click on the card background. Focusing or editing fields keeps the current canvas and Outline version open. Leftover content uses the same compact cards and keeps its content actions together. Migration impact: none.
+- Fixed: version field errors use the full card width and identify the affected input. Saved feedback has reserved space so saving does not change the card height. Numeric inputs align with the writing direction. Migration impact: none.
+- Fixed: locked-version notices announce and scroll once per attempt burst, return to their resting style after two seconds, and clean up their timers. Locked holdouts have no empty action row. Migration impact: none.
 - Fixed: Experiment block version cards fit narrow sidebars with the name as the heading, Traffic beside it with a percent suffix, and compact Copy and Remove actions on one row. Original uses just the name and Traffic row; save feedback and the open-version marker remain visible. Migration impact: none.
 - Fixed: the sidebar Test heading leaves space between the test name and status, wraps long names, and gives notice boxes compact padding and readable wrapping. Migration impact: none.
 - Fixed: Add variant and Split evenly appear together as matching secondary buttons. Migration impact: none.
