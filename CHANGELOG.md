@@ -11,6 +11,11 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: Experiment block version cards fit narrow sidebars with the name as the heading, Traffic beside it with a percent suffix, and compact Copy and Remove actions on one row. Original uses just the name and Traffic row; save feedback and the open-version marker remain visible. Migration impact: none.
+- Fixed: the sidebar Test heading leaves space between the test name and status, wraps long names, and gives notice boxes compact padding and readable wrapping. Migration impact: none.
+- Fixed: Add variant and Split evenly appear together as matching secondary buttons. Migration impact: none.
+- Fixed: locked version fields look read-only and remain focusable. Trying to edit them or use the unavailable Split evenly button brings the lock notice into view, announces the reason, and briefly highlights it with reduced-motion support. Running, decided, archived, other lock reasons and permission notices use the same notice box. Migration impact: none.
+
 ## [0.4.0-rc.6] - 2026-11-18
 
 ### plugin

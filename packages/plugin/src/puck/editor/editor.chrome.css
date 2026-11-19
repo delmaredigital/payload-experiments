@@ -184,3 +184,80 @@
   overflow-wrap: anywhere;
   text-overflow: clip;
 }
+
+/* Compact field cards fit the Puck sidebar and wrap by their own available width. */
+.xp-slot-sidebar .xp-slot-test-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--xp-space-2);
+}
+.xp-slot-test-heading > strong { min-width: 0; overflow-wrap: anywhere; }
+.xp-slot-test-heading > .xp-ui-status { flex: none; }
+.xp-slot-sidebar .xp-ui-banner {
+  min-width: 0;
+  padding: var(--xp-space-2) var(--xp-space-3);
+  gap: var(--xp-space-2);
+  font: var(--xp-text-small);
+  overflow-wrap: anywhere;
+}
+.xp-slot-sidebar .xp-ui-banner > p { min-width: 0; }
+.xp-slot-version-controls, .xp-slot-weights { display: grid; gap: var(--xp-space-2); min-width: 0; }
+.xp-slot-sidebar .xp-slot-weight-inputs { gap: var(--xp-space-2); }
+.xp-slot-version-item { min-width: 0; }
+.xp-slot-version-group {
+  display: grid;
+  gap: var(--xp-space-2);
+  padding: var(--xp-space-2);
+  border: 1px solid var(--xp-border-strong);
+  border-inline-start: 3px solid var(--xp-border-strong);
+  border-radius: var(--xp-radius-control);
+  background: var(--xp-surface);
+  min-width: 0;
+}
+.xp-slot-version-row { display: flex; flex-wrap: wrap; align-items: start; gap: var(--xp-space-2); min-width: 0; }
+.xp-slot-sidebar .xp-slot-version-name { display: grid; flex: 1 1 110px; gap: var(--xp-space-half); min-width: 0; }
+.xp-slot-version-name .xp-ui-input { font-weight: 600; }
+.xp-slot-version-traffic { position: relative; flex: 0 1 72px; min-width: 0; }
+.xp-slot-version-row .xp-ui-field > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.xp-slot-version-row .xp-ui-input { height: 32px; padding-inline: var(--xp-space-2); font-size: 13px; }
+.xp-slot-version-row .xp-ui-input--number { padding-inline-end: 22px; appearance: textfield; }
+.xp-slot-version-row .xp-ui-input--number::-webkit-inner-spin-button,
+.xp-slot-version-row .xp-ui-input--number::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.xp-slot-percent { position: absolute; inset-inline-end: var(--xp-space-2); top: 6px; font: var(--xp-text-small); color: var(--xp-text-2); pointer-events: none; }
+.xp-slot-version-actions { display: flex; align-items: stretch; gap: var(--xp-space-one-half); min-width: 0; }
+.xp-slot-version-actions > * { flex: 1 1 0; min-width: 0; }
+.xp-slot-version-actions > div { display: flex; }
+.xp-slot-version-actions .xp-ui-button { flex: 1; height: auto; min-height: 30px; padding: var(--xp-space-1) var(--xp-space-one-half); font-size: 12px; line-height: 16px; }
+/* Match the solid disabled-button pattern without fading readable field values. */
+.xp-slot-sidebar .xp-ui-input[aria-disabled='true'] {
+  opacity: 1;
+  background: var(--xp-surface-3);
+  border-color: var(--xp-border-strong);
+  color: var(--xp-text-2);
+  cursor: not-allowed;
+}
+.xp-slot-lock-notice {
+  padding: var(--xp-space-2) var(--xp-space-3);
+  border: 1px solid var(--xp-warning-border);
+  border-radius: var(--xp-radius-control);
+  background: var(--xp-warning-bg);
+  color: var(--xp-warning);
+  font: var(--xp-text-small);
+  overflow-wrap: anywhere;
+  scroll-margin-block: var(--xp-space-3);
+}
+.xp-slot-lock-notice:has([role='alert']) { border-color: var(--xp-error-border); background: var(--xp-error-bg); color: var(--xp-error); }
+.xp-slot-lock-notice[data-attention='true'] { outline: 2px solid var(--xp-error); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .xp-slot-lock-notice { transition: outline-color 180ms; }
+}

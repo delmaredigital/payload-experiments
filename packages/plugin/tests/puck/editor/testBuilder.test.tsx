@@ -199,7 +199,7 @@ test.each(['101', '-1', '50.5', ''])('invalid weight %j shows a field error with
 test('a status changed since mount blocks the write using the fresh document', async () => {
   await mount(); doc.status = 'running'
   fireEvent.click(screen.getByRole('button', { name: C.add }))
-  await screen.findByText(C.locked.running, { selector: '.xp-ui-help' })
+  await screen.findByText(C.locked.running, { selector: '.xp-slot-lock-notice span' })
   expect(patches()).toHaveLength(0)
   expect(screen.queryByRole('button', { name: C.add })).toBeNull()
 })

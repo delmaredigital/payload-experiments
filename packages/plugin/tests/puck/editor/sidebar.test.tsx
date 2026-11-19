@@ -83,6 +83,67 @@ test.each(['draft', 'running', 'stopped', 'decided'] as const)('%s sidebar has o
   expect(fields().getByRole('button', { name: C.configure })).toBeTruthy()
 })
 
+test('compact cards use the name as their heading and keep matching actions together', async () => {
+  await mount()
+  const original = fields().getByRole('group', { name: 'Original' })
+  expect(within(original).queryByRole('button')).toBeNull()
+  const variant = fields().getByRole('group', { name: 'Variant A' })
+  expect(within(variant).queryByRole('button', { name: 'Variant A' })).toBeNull()
+  const name = within(variant).getByRole('textbox', { name: 'Variant A Name' })
+  act(() => name.focus())
+  expect(screen.getByRole('tab', { name: 'Variant A' }).getAttribute('aria-selected')).toBe('true')
+  expect(variant.getAttribute('data-active')).toBe('true')
+  expect(document.activeElement).toBe(name)
+  const copy = within(variant).getByRole('button', { name: C.copy('Original') })
+  const remove = within(variant).getByRole('button', { name: C.removeVersion })
+  expect(copy.parentElement).toBe(remove.parentElement)
+  const add = fields().getByRole('button', { name: C.add })
+  const split = fields().getByRole('button', { name: C.split })
+  expect(add.parentElement).toBe(split.parentElement?.parentElement)
+  for (const button of [copy, remove, add, split]) expect(button.classList.contains('xp-ui-button--secondary')).toBe(true)
+})
+
+test.each(['running', 'decided', 'archived'] as const)('%s locks announce attempted changes without moving focus or writing', async status => {
+  doc.status = status
+  await mount()
+  const scroll = vi.fn()
+  const notice = fields().getByText(C.locked[status]).closest<HTMLElement>('.xp-slot-lock-notice')!
+  expect(notice).not.toBeNull()
+  notice.scrollIntoView = scroll
+  expect(within(notice).queryByRole('alert')).toBeNull()
+  const name = fields().getByRole<HTMLInputElement>('textbox', { name: 'Original Name' })
+  const traffic = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') })
+  for (const input of [name, traffic]) {
+    expect(input.readOnly).toBe(true)
+    expect(input.getAttribute('aria-disabled')).toBe('true')
+    expect(input.getAttribute('aria-describedby')).toContain(notice.id)
+    act(() => input.focus())
+    fireEvent.keyDown(input, { key: '7' })
+    expect(document.activeElement).toBe(input)
+    expect(within(notice).getByRole('alert').textContent).toBe(C.locked[status])
+    fireEvent.change(input, { target: { value: '7' } }); fireEvent.blur(input)
+  }
+  for (const label of [C.split]) {
+    const button = fields().getByRole<HTMLButtonElement>('button', { name: label })
+    expect(button.disabled).toBe(false)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    act(() => button.focus())
+    fireEvent.click(button)
+    fireEvent.keyDown(button, { key: 'Enter' })
+    expect(document.activeElement).toBe(button)
+  }
+  expect(scroll).toHaveBeenCalledWith({ block: 'nearest' })
+  expect(notice.getAttribute('data-attention')).toBe('true')
+  vi.useFakeTimers()
+  fireEvent.click(name)
+  act(() => { vi.advanceTimersByTime(2200) })
+  expect(notice.getAttribute('data-attention')).toBe('false')
+  expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')).toEqual([])
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(doc.arms.map(arm => arm.weight)).toEqual([50, 50])
+  expect(doc.arms[0]!.label).toBe('Original')
+})
+
 test('sidebar edits and transitions update chrome without reload or Puck selection changes', async () => {
   const actions = await mount()
   const selected = read().appState.ui.itemSelector
@@ -448,13 +509,13 @@ test('visible name inputs save on blur and Enter, Escape restores, errors stay n
 
 test('version group headers and canvas tabs stay in step without changing real Puck selection', async () => {
   const actions = await mount()
-  const original = fields().getByRole('button', { name: 'Original' })
-  const variant = fields().getByRole('button', { name: 'Variant A' })
-  fireEvent.click(variant)
+  const original = fields().getByRole('group', { name: 'Original' })
+  const variant = fields().getByRole('group', { name: 'Variant A' })
+  act(() => within(variant).getByRole('textbox').focus())
   expect(screen.getByRole('tab', { name: 'Variant A' }).getAttribute('aria-selected')).toBe('true')
   fireEvent.click(screen.getByRole('tab', { name: 'Original' }))
-  expect(original.getAttribute('aria-pressed')).toBe('true')
-  expect(variant.getAttribute('aria-pressed')).toBe('false')
+  expect(original.getAttribute('data-active')).toBe('true')
+  expect(variant.getAttribute('data-active')).toBe('false')
   fireEvent.click(fields().getByRole('button', { name: 'More' }))
   fireEvent.click(fields().getByRole('button', { name: 'Use a different test' }))
   const chooser = await screen.findByRole('dialog')
@@ -499,7 +560,7 @@ test('saved names, including Control, agree in tabs, sidebar, traffic and conten
   const header = chrome()
   expect(header.getByText('This block shows the Control to everyone until the test starts.')).toBeTruthy()
   expect(screen.getByRole('tab', { name: 'Control' })).toBeTruthy()
-  expect(fields().getByRole('button', { name: 'Control' })).toBeTruthy()
+  expect(fields().getByRole('group', { name: 'Control' })).toBeTruthy()
   expect((fields().getByRole('textbox', { name: 'Control Name' }) as HTMLInputElement).value).toBe('Control')
   expect(fields().getByRole('spinbutton', { name: 'Control traffic (%)' })).toBeTruthy()
   expect(fields().getByRole('button', { name: 'Copy Control here' })).toBeTruthy()

@@ -48,7 +48,7 @@ export const editorCopy = {
   testGroup: 'Test', versionsGroup: 'Versions', moreGroup: 'More',
   differentTest: 'Use a different test', createAnother: 'Create a test',
   readOnlyVersions: "You don't have permission to change this test's versions.",
-  traffic: 'Traffic (%)', saved: 'Saved',
+  traffic: 'Traffic (%)', percent: '%', saved: 'Saved',
   removeVersion: 'Remove version',
   emptyLabel: 'Enter a name for this version.',
   remove: 'Remove',

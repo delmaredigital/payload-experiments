@@ -34,7 +34,7 @@ import { cloneSlot, countSlotBlocks } from './cloneSlot.js'
 import { openCreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
 import { acquireArms, loadArms, publishExperiment, useArms } from './armsCache.js'
-import { AddVariant, RemoveVersion, VersionName, VersionWeights, useArmWrites, type WeightEdits } from './VersionBuilder.js'
+import { AddVariant, RemoveVersion, VersionName, VersionWeights, VersionLock, useArmWrites, type WeightEdits } from './VersionBuilder.js'
 import { ResultsReadout } from './ResultsReadout.js'
 import { EditorControls } from './EditorControls.js'
 import { acquirePlacements, cachedPreflight, cachedReadinessRead, placementsPending, placementsBlocking, placementReadError, invalidatePlacements, refreshPlacements, focusPlacements } from './placementsCache.js'
@@ -387,13 +387,17 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         {experimentId === undefined ? bannerFor() : experiment ? bannerFor(experiment.status, winner, originalLabel) : editorCopy.loading}
       </Banner>
 
+  const versionLockMessage = editable || !experiment ? undefined : canManage
+    ? editorCopy.locked[experiment.status as keyof typeof editorCopy.locked] ?? editorCopy.lockedGeneric
+    : editorCopy.readOnlyVersions
+
   const removeDialog = removing?.key === bindingKey ? <RemoveVersion count={countSlotBlocks(getPuck().getItemById(props.id)?.props[removing.arm.key])} shared={locallyShared ? true : result?.shared} arm={removing.arm} writes={writes} onRemove={removeContent} onClose={() => setRemoving(null)} /> : null
 
   return <section ref={root} className="xp-slot-root xp-slot-editor" style={props.accent ? accentVariables(props.accent[mode]) as CSSProperties : undefined}>
     {sidebar ? <>
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         <section aria-label={editorCopy.testGroup}><FieldGroup label={editorCopy.testGroup} collapsible={false}>
-          {experiment ? <><strong>{experiment.name}</strong><StatusChip status={experiment.status} /></> : null}
+          {experiment ? <div className="xp-slot-test-heading"><strong>{experiment.name}</strong><StatusChip status={experiment.status} /></div> : null}
           {accessNotice}
           {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
           {placementNoticeView}{canManage ? <>{experiment?.status === 'draft' || experiment?.status === 'stopped' ? <BlockerList steps={sidebarBlockers} /> : null}</> : null}
@@ -406,18 +410,23 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       </div>, sidebar.test)}
       {createPortal(<div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         {experiment && access.surface && !noAccess ? <section aria-label={editorCopy.versionsGroup}><FieldGroup label={editorCopy.versionsGroup} collapsible={false}>
-          {!editable ? <p className="xp-ui-help">{canManage ? editorCopy.locked[experiment.status as keyof typeof editorCopy.locked] ?? editorCopy.lockedGeneric : editorCopy.readOnlyVersions}</p> : null}
-          <VersionWeights key={bindingKey} edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable}
-            beforeSplit={<>{leftoverControls}{editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}</>}
+          <VersionLock key={bindingKey} message={versionLockMessage}>{lockId => <>
+          <VersionWeights key={bindingKey} edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable} showSplit={canManage}
+            beforeActions={leftoverControls}
+            beforeSplit={editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}
             renderRow={(arm, input) => <div className="xp-slot-version-group" data-active={slot === arm.key} role="group" aria-label={arm.label}>
-              <FieldGroup variant="card" collapsible={false}>
-                <Button variant="quiet" aria-pressed={slot === arm.key} disabled={arm.kind === 'holdout' || dragging} onClick={() => setActive({ id: experimentId, slot: arm.key as ArmSlot })}>{arm.label}</Button>
-                <VersionName key={`${experimentId}-${arm.key}`} arm={arm} writes={writes} editable={editable} />
+              <div className="xp-slot-version-row">
+                <VersionName key={`${experimentId}-${arm.key}`} arm={arm} writes={writes} editable={editable}
+                  onSelect={arm.kind === 'holdout' || dragging ? undefined : () => setActive({ id: experimentId, slot: arm.key as ArmSlot })} />
                 {input}
-                {arm.kind === 'variant' ? <><Button disabled={originalEmpty} aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) requestCopy(arm.key as ArmSlot) }}>{editorCopy.copy(originalLabel)}</Button>{originalEmpty ? <p className="xp-ui-help">{editorCopy.copyEmpty(originalLabel)}</p> : null}</> : null}
-                {editable && arm.kind !== 'control' ? <Button aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) setRemoving({ key: bindingKey, arm }) }}>{editorCopy.removeVersion}</Button> : null}
-              </FieldGroup>
+              </div>
+              {arm.kind !== 'control' ? <div className="xp-slot-version-actions">
+                {arm.kind === 'variant' ? <Button size="sm" disabled={originalEmpty} aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) requestCopy(arm.key as ArmSlot) }}>{editorCopy.copy(originalLabel)}</Button> : null}
+                {editable ? <Button size="sm" aria-describedby={lockId} aria-disabled={!editable || writes.busy || undefined} onClick={() => { if (editable && !writes.busy) setRemoving({ key: bindingKey, arm }) }}>{editorCopy.removeVersion}</Button> : null}
+              </div> : null}
+              {arm.kind === 'variant' && originalEmpty ? <p className="xp-ui-help">{editorCopy.copyEmpty(originalLabel)}</p> : null}
             </div>} />
+          </>}</VersionLock>
         </FieldGroup></section> : null}
         {access.surface?.canManage && experimentId !== undefined ? <FieldGroup label={editorCopy.moreGroup} defaultExpanded={false}>
           <Button onClick={() => setChoosing(true)}>{editorCopy.differentTest}</Button>
