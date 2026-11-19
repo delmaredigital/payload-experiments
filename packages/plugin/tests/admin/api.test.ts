@@ -242,9 +242,9 @@ test('deleteTest uses collection DELETE with an encoded id and credentials', asy
   expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/custom/api/xp-experiments/id%20%2F%3F', { method: 'DELETE', credentials: 'include' })
 })
 test.each([
-  [403, { errors: [{ message: 'You are not allowed to perform this action.' }] }, 'You are not allowed to perform this action.'],
+  [403, { errors: [{ message: 'You are not allowed to perform this action.' }] }, API_MESSAGES.forbidden],
   [404, { errors: [{ code: 'not-found', message: 'Not found' }] }, API_MESSAGES.testAlreadyDeleted],
-  [409, { errors: [{ code: 'invalid-status', message: 'Only draft or archived tests can be deleted.' }] }, 'Only draft or archived tests can be deleted.'],
+  [409, { errors: [{ code: 'invalid-status', message: 'Only draft or archived tests can be deleted.' }] }, API_MESSAGES.deleteInvalidStatus],
 ] as const)('DELETE %s retains its refusal', async (status, body, message) => {
   respond(body, status)
   expect(await api.deleteTest(1)).toMatchObject({ ok: false, status, message })
@@ -252,4 +252,17 @@ test.each([
 test.each([[403, API_MESSAGES.forbidden], [404, API_MESSAGES.testAlreadyDeleted]] as const)('non-JSON DELETE %s retains its refusal', async (status, message) => {
   fetchMock.mockResolvedValueOnce(new Response('Refused', { status }))
   expect(await api.deleteTest(1)).toMatchObject({ ok: false, status, message })
+})
+
+test.each([
+  [401, 'invalid-status', API_MESSAGES.unauthenticated],
+  [403, 'invalid-status', API_MESSAGES.forbidden],
+  [500, 'commit-unverified', API_MESSAGES.commitUnverified],
+] as const)('delete respects status copy before server text (%s)', async (status, code, message) => {
+  respond({ errors: [{ code, message: 'Developer text' }] }, status)
+  expect(await api.deleteTest(1)).toMatchObject({ ok: false, message })
+})
+test.each([403, 404, 409])('draft delete restores reload instruction (%s)', async status => {
+  respond({ errors: [{ ...(status === 409 ? { code: 'invalid-status' } : {}), message: 'Developer text' }] }, status)
+  expect(await api.deleteTest(1, { draft: true })).toMatchObject({ ok: false, message: status === 404 ? API_MESSAGES.testAlreadyDeleted : API_MESSAGES.testNoLongerDraft })
 })

@@ -9,9 +9,9 @@ export function Button({ variant = 'secondary', size = 'md', disabled, busy, cla
   if (props.href !== undefined) {
     const { href, onClick, ...rest } = props as AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }
     return <a {...rest} className={classes} href={blocked ? undefined : href} role={blocked ? 'link' : undefined}
-      aria-disabled={blocked || undefined} aria-busy={busy || undefined} tabIndex={blocked ? -1 : rest.tabIndex}
+      aria-disabled={blocked || undefined} aria-busy={busy || props['aria-busy'] || undefined} tabIndex={blocked ? -1 : rest.tabIndex}
       onClick={event => { if (blocked) event.preventDefault(); else onClick?.(event) }}>{children}</a>
   }
   return <button {...props as ButtonHTMLAttributes<HTMLButtonElement>} type={(props as ButtonHTMLAttributes<HTMLButtonElement>).type ?? 'button'}
-    className={classes} disabled={blocked} aria-busy={busy || undefined}>{children}</button>
+    className={classes} disabled={blocked} aria-busy={busy || props['aria-busy'] || undefined}>{children}</button>
 }

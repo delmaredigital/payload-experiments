@@ -52,8 +52,10 @@ export function createApi(apiBase: string) {
       if (id === undefined) return { ok: false, status: 404, code: 'not-found', message: refusalMessage('not-found', 404, undefined, { notFound: API_MESSAGES.testAlreadyDeleted }), retryable: false }
       return { ok: true, data: id }
     },
-    deleteTest: (id: DocId) => request<unknown>(() => `${collectionBase}/${encodeURIComponent(id)}`, 'DELETE', undefined, {
-      notFound: API_MESSAGES.testAlreadyDeleted, preserveMessage: true,
+    deleteTest: (id: DocId, { draft = false }: { draft?: boolean } = {}) => request<unknown>(() => `${collectionBase}/${encodeURIComponent(id)}`, 'DELETE', undefined, {
+      notFound: API_MESSAGES.testAlreadyDeleted,
+      ...(draft ? { forbidden: API_MESSAGES.testNoLongerDraft } : {}),
+      codes: { 'invalid-status': draft ? API_MESSAGES.testNoLongerDraft : API_MESSAGES.deleteInvalidStatus },
     }),
     wrapBlock: (body: WrapBlockBody) => request<Record<string, unknown>>(() => `${apiBase.replace(/\/$/, '')}/xp/blocks/wrap`, 'POST', body),
     pages: (query: { collection: string; q?: string; path?: string; page?: number }, signal?: AbortSignal) => request<PagesResult>(() => `${apiBase.replace(/\/$/, '')}/xp/pages?${new URLSearchParams({ collection: query.collection, ...(query.q ? { q: query.q } : {}), ...(query.path !== undefined ? { path: query.path } : {}), ...(query.page ? { page: String(query.page) } : {}) })}`, 'GET', undefined, undefined, signal),

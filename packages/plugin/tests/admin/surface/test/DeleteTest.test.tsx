@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { DeleteTest } from '../../../../src/testSurface/surface/test/DeleteTest.js'
+import { DELETE_TEST } from '../../../../src/testSurface/copy/testPage.js'
 import { API_MESSAGES } from '../../../../src/testSurface/copy/common.js'
 
 beforeEach(() => {
@@ -9,7 +10,7 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
-const base = { test: { id: 42, name: 'Welcome test', status: 'draft' }, canManage: true, apiRoute: '/data', onDeleted: vi.fn() }
+const base = { test: { id: 42, name: 'Welcome test', status: 'draft', kind: 'block' as const }, canManage: true, apiRoute: '/data', onDeleted: vi.fn() }
 test.each(['draft', 'archived', 'running', 'stopped', 'decided'])('delete mirrors the guard in %s', status => {
   render(<DeleteTest {...base} test={{ ...base.test, status }} />)
   expect(Boolean(screen.queryByRole('button', { name: 'Delete test' }))).toBe(['draft', 'archived'].includes(status))
@@ -36,7 +37,7 @@ test.each([200, 404])('confirmed delete handles HTTP %s and reports completion',
   render(<DeleteTest {...base} onDeleted={onDeleted} />)
   fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete test' }))
-  await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(status === 404 ? API_MESSAGES.testAlreadyDeleted : 'Test deleted.'))
+  await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(status === 404 ? 'already' : 'done'))
   expect(fetch).toHaveBeenCalledWith('/data/xp-experiments/42', expect.objectContaining({ method: 'DELETE', credentials: 'include' }))
 })
 test('server refusal stays visible in the confirmation', async () => {
@@ -45,6 +46,41 @@ test('server refusal stays visible in the confirmation', async () => {
   render(<DeleteTest {...base} onDeleted={onDeleted} />)
   fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete test' }))
-  expect((await screen.findByRole('alert')).textContent).toBe('This action is not available in the current status.')
+  expect((await screen.findByRole('alert')).textContent).toBe(API_MESSAGES.deleteInvalidStatus)
   expect(onDeleted).not.toHaveBeenCalled()
+})
+
+
+test.each([
+  ['block', 'archived', { winnerArm: 'variantA' }, 'blockWinner'],
+  ['page', 'archived', { winnerArm: 'variantA' }, 'pageWinner'],
+  ['block', 'archived', { winnerArm: 'variantA', discardedAt: 'date' }, undefined],
+  ['page', 'archived', { winnerArm: 'variantA', discardedAt: 'date' }, undefined],
+  ['page', 'archived', { winnerArm: 'variantA', pagesReleasedAt: 'date' }, undefined],
+  ['block', 'archived', { winnerArm: 'variantA', pagesReleasedAt: 'date' }, 'blockWinner'],
+  ['block', 'archived', {}, undefined], ['page', 'archived', {}, undefined],
+  ['block', 'draft', { winnerArm: 'variantA' }, undefined],
+  ['page', 'draft', { winnerArm: 'variantA' }, undefined],
+  ['flag', 'archived', { winnerArm: 'variantA' }, undefined],
+  ['code', 'archived', { winnerArm: 'variantA' }, undefined],
+] as const)('delete consequences for %s / %s / %j', (kind, status, decision, warning) => {
+  render(<DeleteTest {...base} test={{ ...base.test, kind, status, decision }} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  const dialog = screen.getByRole('dialog')
+  for (const key of ['blockWinner', 'pageWinner'] as const) {
+    expect(dialog.textContent?.includes(DELETE_TEST[key])).toBe(key === warning)
+  }
+  expect(dialog.textContent?.includes('Make it the content')).toBe(Boolean(warning))
+})
+test('busy delete retains focus and suppresses duplicate requests', async () => {
+  let resolve!: (response: Response) => void
+  const fetch = vi.fn(() => new Promise<Response>(done => { resolve = done })); vi.stubGlobal('fetch', fetch)
+  render(<DeleteTest {...base} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  const button = within(screen.getByRole('dialog')).getByRole<HTMLButtonElement>('button', { name: 'Delete test' })
+  button.focus(); fireEvent.click(button)
+  expect(button.disabled).toBe(false); expect(button.getAttribute('aria-disabled')).toBe('true')
+  expect(button.getAttribute('aria-busy')).toBe('true'); expect(document.activeElement).toBe(button)
+  fireEvent.click(button); expect(fetch).toHaveBeenCalledTimes(1)
+  resolve(Response.json({})); await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 })

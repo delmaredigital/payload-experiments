@@ -123,3 +123,14 @@ test.each(['keydown-first', 'cancel-first'])('dialog requests one close per open
   escape(); cancel()
   expect(close).toHaveBeenCalledTimes(2)
 })
+
+
+test('buttons support a focus-preserving busy annotation without native disabling', () => {
+  render(<Button aria-busy aria-disabled onClick={() => {}}>Deleting</Button>)
+  const button = screen.getByRole<HTMLButtonElement>('button')
+  button.focus()
+  expect(button.disabled).toBe(false)
+  expect(button.getAttribute('aria-busy')).toBe('true')
+  expect(button.getAttribute('aria-disabled')).toBe('true')
+  expect(document.activeElement).toBe(button)
+})

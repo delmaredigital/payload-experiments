@@ -14,7 +14,7 @@ function fetchData(docs: unknown[], summaries = {}, totalDocs = docs.length) {
 test('loading then empty state with the creation and Goals links', async () => {
   const fetch = fetchData([])
   render(<TestsHome adminRoute="/control" apiRoute="/data" canManage />)
-  expect(screen.getByRole('status').textContent).toBe('Loading tests…')
+  expect(screen.getByText('Loading tests…').getAttribute('role')).toBe('status')
   expect(await screen.findByText('Create a test to learn what works.')).toBeTruthy()
   expect(screen.getAllByRole('link', { name: 'New test' }).every(link => link.getAttribute('href') === '/control/experiments/new')).toBe(true)
   expect(screen.getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/collections/xp-metrics')
@@ -269,22 +269,41 @@ test.each([false, true])('row delete is offered only to managers in guard-allowe
   view.unmount()
 })
 test('returning after a deletion shows confirmation on the tests list', async () => {
-  window.history.replaceState(null, '', '/admin/collections/xp-experiments?deleted=done')
+  window.history.replaceState(null, '', '/admin/collections/xp-experiments?other=keep&deleted=done#tests')
   fetchData([])
   render(<TestsHome adminRoute="/admin" apiRoute="/api" />)
   await screen.findByText('Test deleted.')
+  expect(window.location.search).toBe('?other=keep')
+  expect(window.location.hash).toBe('#tests')
+  cleanup()
+  render(<TestsHome adminRoute="/admin" apiRoute="/api" />)
+  expect(screen.queryByText('Test deleted.')).toBeNull()
   window.history.replaceState(null, '', '/')
 })
 
 
-test('deleting a row removes it and confirms on the tests list', async () => {
+test.each([200, 404])('deleting a row focuses the pre-mounted live notice (HTTP %s)', async status => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => init?.method === 'DELETE' ? Response.json({ id: 1 })
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => init?.method === 'DELETE' ? Response.json({ id: 1 }, { status })
     : Response.json(url.includes('/summary?') ? {} : { docs: [{ id: 1, name: 'Draft test', kind: 'block', status: 'draft' }] })))
   render(<TestsHome adminRoute="/admin" apiRoute="/api" canManage />)
+  const live = screen.getByTestId('delete-notice')
+  expect(live.textContent).toBe('')
   fireEvent.click(await screen.findByRole('button', { name: 'Delete test' }))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete test' }))
-  await screen.findByText('Test deleted.')
+  await screen.findByText(status === 404 ? 'This test was already deleted.' : 'Test deleted.')
+  expect(screen.getByTestId('delete-notice')).toBe(live)
+  expect(document.activeElement).toBe(live)
   expect(screen.queryByRole('article')).toBeNull()
+})
+
+test('list selects the full decision and warns before deleting an archived page winner', async () => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  const fetch = fetchData([{ id: 1, name: 'Archived winner', kind: 'page', status: 'archived', decision: { winnerArm: 'variantA' } }])
+  render(<TestsHome adminRoute="/admin" apiRoute="/api" canManage />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Delete test' }))
+  expect(new URL(fetch.mock.calls[0]![0], 'https://test.local').searchParams.get('select[decision]')).toBe('true')
+  expect(screen.getByRole('dialog').textContent).toContain('other addresses will stop sending visitors to the winner')
 })

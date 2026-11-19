@@ -17,7 +17,7 @@ export interface HomeTest {
   analysis?: { plannedDurationDays?: number | null } | null
   arms?: Arm[] | null
   decidedAt?: string | null
-  decision?: { winnerArm?: string | null; holdoutReleasedAt?: string | null } | null
+  decision?: { winnerArm?: string | null; holdoutReleasedAt?: string | null; discardedAt?: string | null; pagesReleasedAt?: string | null } | null
 }
 type Summary = SummaryResponse[DocId] | undefined
 export type Health = 'red' | 'amber' | 'green'

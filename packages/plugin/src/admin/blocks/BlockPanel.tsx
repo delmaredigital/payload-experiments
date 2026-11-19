@@ -54,7 +54,7 @@ export function BlockStatusField({ path }: UIFieldClientProps) {
         const api = createApi(config.routes.api)
         const found = await api.findTestIdBySlug(block.experiment)
         if (!found.ok) throw new RefusalError(found.message)
-        const removed = await api.deleteTest(found.data)
+        const removed = await api.deleteTest(found.data, { draft: true })
         if (!removed.ok) throw new RefusalError(removed.message)
         deleted = true
         setBlockStatus(config.routes.api, block.experiment, { deleted: true })
