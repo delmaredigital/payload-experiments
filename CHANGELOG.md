@@ -22,7 +22,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed: locked version fields look read-only and remain focusable. Trying to edit them or use the unavailable Split evenly button brings the lock notice into view, announces the reason, and briefly highlights it with reduced-motion support. Running, decided, archived, other lock reasons and permission notices use the same notice box. Migration impact: none.
 - Fixed: hovering over a dropdown option no longer saves it when leaving the control. Menus fit long labels, close when their control scrolls away, keep label clicks and option-group names accessible, and work inside modal drawers with or without browser popover support. Migration impact: none.
 
-- Delete confirmations explain when visitors return to the Original or page redirects end, and point to “Make it the content” to keep the winner. Delete refusals use plain reload instructions, completion notices are announced and focused, and URL confirmations are consumed once.
+- Fixed: delete confirmations identify unresolved block placements where visitors will see the Original again, and explain when page redirects end, including when Original won. No winner warning is shown for block tests whose winner is Original or whose recorded placements were all made the content. Delete refusals use plain reload instructions, completion notices are announced and focused, and URL confirmations are consumed once. Migration impact: none.
 
 - Fixed: dropdown menus now use the plugin’s light and dark themes in admin views and the page editor, with keyboard navigation and menus that stay visible inside drawers. Migration impact: none.
 

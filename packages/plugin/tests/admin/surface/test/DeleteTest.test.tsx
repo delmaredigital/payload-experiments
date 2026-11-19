@@ -51,15 +51,25 @@ test('server refusal stays visible in the confirmation', async () => {
 })
 
 
+const done = { collection: 'pages', id: 1, ok: true }
+const dismissed = { collection: 'pages', id: 2, ok: false, dismissedAt: 'date', title: 'Welcome', path: '/welcome' }
+const failed = { collection: 'pages', id: 3, ok: false }
 test.each([
-  ['block', 'archived', { winnerArm: 'variantA' }, 'blockWinner'],
+  ['block', 'archived', { winnerArm: 'control', contentReport: { docs: [dismissed] } }, undefined],
+  ['block', 'archived', { winnerArm: 'variantA', contentReport: { docs: [done] } }, undefined],
+  ['block', 'archived', { winnerArm: 'variantA', contentReport: { docs: [] } }, undefined],
+  ['block', 'archived', { winnerArm: 'variantA' }, undefined],
+  ['block', 'archived', { winnerArm: 'variantA', contentReport: { docs: [done, dismissed] } }, 'blockWinner'],
+  ['block', 'archived', { winnerArm: 'variantA', contentReport: { docs: [failed] } }, 'blockWinner'],
+  ['block', 'archived', { winnerArm: 'variantA', contentReport: [dismissed] }, 'blockWinner'],
+  ['block', 'archived', { winnerArm: 'variantA', contentReport: { docs: [dismissed] }, discardedAt: 'date' }, undefined],
   ['page', 'archived', { winnerArm: 'variantA' }, 'pageWinner'],
-  ['block', 'archived', { winnerArm: 'variantA', discardedAt: 'date' }, undefined],
+  ['page', 'archived', { winnerArm: 'control' }, 'pageWinner'],
   ['page', 'archived', { winnerArm: 'variantA', discardedAt: 'date' }, undefined],
   ['page', 'archived', { winnerArm: 'variantA', pagesReleasedAt: 'date' }, undefined],
-  ['block', 'archived', { winnerArm: 'variantA', pagesReleasedAt: 'date' }, 'blockWinner'],
+  ['page', 'archived', { winnerArm: 'control', pagesReleasedAt: 'date' }, undefined],
   ['block', 'archived', {}, undefined], ['page', 'archived', {}, undefined],
-  ['block', 'draft', { winnerArm: 'variantA' }, undefined],
+  ['block', 'draft', { winnerArm: 'variantA', contentReport: { docs: [dismissed] } }, undefined],
   ['page', 'draft', { winnerArm: 'variantA' }, undefined],
   ['flag', 'archived', { winnerArm: 'variantA' }, undefined],
   ['code', 'archived', { winnerArm: 'variantA' }, undefined],
@@ -70,7 +80,14 @@ test.each([
   for (const key of ['blockWinner', 'pageWinner'] as const) {
     expect(dialog.textContent?.includes(DELETE_TEST[key])).toBe(key === warning)
   }
-  expect(dialog.textContent?.includes('Make it the content')).toBe(Boolean(warning))
+  expect(dialog.textContent).not.toContain('Make it the content')
+  expect(dialog.textContent).not.toMatch(/nothing changes|does not affect visitors/i)
+})
+test('block warning names only unresolved places, using available titles and paths or document identifiers', () => {
+  render(<DeleteTest {...base} test={{ ...base.test, status: 'archived', decision: { winnerArm: 'variantA', contentReport: { docs: [done, dismissed, failed] } } }} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  const places = within(screen.getByRole('dialog')).getAllByRole('listitem').map(item => item.textContent)
+  expect(places).toEqual(['Welcome (/welcome)', 'pages/3'])
 })
 test('busy delete retains focus and suppresses duplicate requests', async () => {
   let resolve!: (response: Response) => void
