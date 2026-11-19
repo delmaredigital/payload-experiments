@@ -287,7 +287,10 @@ test('hidden-block sentences participate in the copy audit', async () => {
 })
 
 
-test('Unreleased records the user-visible sidebar and shared-control fixes', () => {
-  const unreleased = readFileSync(new URL('../../../../CHANGELOG.md', import.meta.url), 'utf8').split('## [Unreleased]')[1]!.split(/\n## \[/)[0]!
-  for (const change of ['refused Traffic value', 'Escape cancels a pending name change', '200 characters', 'Use a different test', 'fails to load', 'New test and Add goal', 'disabled styling']) expect(unreleased, change).toContain(change)
+test('the changelog records the user-visible sidebar and shared-control fixes', () => {
+  const changelog = readFileSync(new URL('../../../../CHANGELOG.md', import.meta.url), 'utf8')
+  const sectionStart = changelog.indexOf('## [0.4.0-rc.6]')
+  expect(sectionStart, 'CHANGELOG.md is missing the ## [0.4.0-rc.6] heading').toBeGreaterThanOrEqual(0)
+  const released = changelog.slice(sectionStart).split(/\n## \[/)[0]!
+  for (const change of ['refused Traffic value', 'Escape cancels a pending name change', '200 characters', 'Use a different test', 'fails to load', 'New test and Add goal', 'disabled styling']) expect(released, change).toContain(change)
 })
