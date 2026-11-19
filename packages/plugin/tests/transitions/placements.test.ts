@@ -6,7 +6,7 @@ import { sampleOptions } from '../collections/fixtures.js'
 import { defaultArms } from '../../src/collections/experiments/armInvariants.js'
 import { checkStart } from '../../src/transitions/checkStart.js'
 
-const slot = (experiment: unknown, control: unknown[] = [{}], variantA: unknown[] = [{}, {}]) => ({ type: 'ExperimentSlot', props: { experiment, control, variantA } })
+const slot = (experiment: unknown, control: unknown[] = [{}], variantA: unknown[] = [{}, {}]) => ({ type: 'ExperimentSlot', props: { experiment: typeof experiment === 'string' ? { slug: experiment } : experiment, control, variantA } })
 test('all placements use only the published main slug, including when a latest draft moves the page', async () => {
   const content = { content: [slot('hero'), slot('hero')] }
   const find = vi.fn(async ({ draft }: { draft?: boolean }) => ({ docs: draft ? [
@@ -29,7 +29,7 @@ test('custom Puck fields are scanned without reading puckData', async () => {
   expect(placements).toHaveLength(1)
   expect(placements[0]).toMatchObject({ collection: 'templates', id: 'template', slots: { control: 1, variantA: 2 } })
 })
-test('pages both views with manager access; finds nested slug and object refs, preserves top-level counts', async () => {
+test('pages both views with manager access; finds nested object refs, preserves top-level counts', async () => {
   const find = vi.fn(async ({ page, draft }: { page?: number; draft?: boolean }) => ({
     docs: page === 2 ? [{ id: 102, title: 'Nested', _status: draft ? 'draft' : 'published', puckData: { zones: { aside: [{ type: 'Wrapper', props: { content: [slot({ slug: 'hero' }, [{ props: { nested: [{}] } }])] } }] } } }]
       : Array.from({ length: 100 }, (_, n) => ({ id: n, title: 'Home', _status: draft ? 'draft' : 'published', puckData: { content: [slot('hero'), slot('other')] } })),
@@ -90,4 +90,9 @@ test('a partially hidden Puck block remains a published place', async () => {
   const item = slot('hero')
   const payload = fakePayload({ collections: { pages: [{ id: 1, _status: 'published', puckData: { content: [{ ...item, props: { ...item.props, _visibility: { hideOn: ['phone', 'tablet'] } } }] } }] } })
   expect(await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', blocksCollections: [], puckCollections: ['pages'] })).toMatchObject([{ published: true }])
+})
+
+test('the scan rejects plain-string bindings just as the Puck resolver does', async () => {
+  const payload = fakePayload({ collections: { pages: [{ id: 1, puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: 'hero', control: [{}], variantA: [{}] } }] } }] } })
+  expect(await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', blocksCollections: [], puckCollections: ['pages'] })).toEqual([])
 })

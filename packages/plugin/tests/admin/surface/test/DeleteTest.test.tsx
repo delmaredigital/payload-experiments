@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { DeleteImpactResult } from '../../../../src/types/endpoints.js'
-import { DeleteTest } from '../../../../src/testSurface/surface/test/DeleteTest.js'
+import { DeleteTest, DELETE_IMPACT_TIMEOUT_MS } from '../../../../src/testSurface/surface/test/DeleteTest.js'
 import { DELETE_TEST } from '../../../../src/testSurface/copy/testPage.js'
 import { API_MESSAGES } from '../../../../src/testSurface/copy/common.js'
 
@@ -11,7 +11,7 @@ beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
 })
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
 const base = { test: { id: 42, name: 'Welcome test', status: 'draft', kind: 'block' as const }, canManage: true, apiRoute: '/data', onDeleted: vi.fn() }
 test.each(['draft', 'archived', 'running', 'stopped', 'decided'])('delete mirrors the guard in %s', status => {
   render(<DeleteTest {...base} test={{ ...base.test, status }} />)
@@ -64,8 +64,8 @@ function openWithImpact(impact: DeleteImpactResult) {
 const place = (id: number) => ({ collection: 'pages', id, title: `Page ${id}`, path: `/page-${id}`,
   before: { key: 'variantA', label: 'New welcome' }, after: { key: 'control', label: 'Original' } })
 test('lists live pages and the version before and after delete, capped at five with a remaining count', async () => {
-  openWithImpact({ effect: 'block', placements: Array.from({ length: 8 }, (_, i) => place(i)) })
-  await screen.findByText(DELETE_TEST.blockWinner)
+  openWithImpact({ effect: 'block', controlLabel: 'Original', pageCount: 8, unreadablePages: 0, placements: Array.from({ length: 8 }, (_, i) => place(i)) })
+  await screen.findByText(DELETE_TEST.blockWinner('Original'))
   const rows = within(screen.getByRole('dialog')).getAllByRole('listitem')
   expect(rows).toHaveLength(5)
   expect(rows[0]!.textContent).toContain('Page 0 (/page-0)')
@@ -89,7 +89,7 @@ test('page address lists are capped too', async () => {
 test('explicit no effect comes from the read even for an archived test', async () => {
   openWithImpact({ effect: 'none' })
   await screen.findByText(DELETE_TEST.noEffect)
-  expect(screen.queryByText(DELETE_TEST.blockWinner)).toBeNull()
+  expect(screen.queryByText(DELETE_TEST.blockWinner('Original'))).toBeNull()
   expect(screen.queryByText(DELETE_TEST.pageWinner)).toBeNull()
 })
 test('loading blocks delete and does not show unchecked consequences', async () => {
@@ -130,9 +130,9 @@ test('reopening fetches current impact and ignores a closed dialog’s old read'
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
   fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
   await screen.findByText(DELETE_TEST.noEffect)
-  first(Response.json({ effect: 'block', placements: [place(1)] }))
+  first(Response.json({ effect: 'block', controlLabel: 'Original', pageCount: 8, unreadablePages: 0, placements: [place(1)] }))
   await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
-  expect(screen.queryByText(DELETE_TEST.blockWinner)).toBeNull()
+  expect(screen.queryByText(DELETE_TEST.blockWinner('Original'))).toBeNull()
 })
 test('busy delete retains focus and suppresses duplicate requests', async () => {
   let resolve!: (response: Response) => void
@@ -146,4 +146,51 @@ test('busy delete retains focus and suppresses duplicate requests', async () => 
   expect(button.getAttribute('aria-busy')).toBe('true'); expect(document.activeElement).toBe(button)
   fireEvent.click(button); expect(fetch).toHaveBeenCalledTimes(2)
   resolve(Response.json({})); await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+})
+
+test('stalled impact reads time out, enable deletion and ignore a late response', async () => {
+  vi.useFakeTimers()
+  let settle!: (response: Response) => void
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { settle = resolve })))
+  render(<DeleteTest {...base} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  await act(async () => { await vi.advanceTimersByTimeAsync(DELETE_IMPACT_TIMEOUT_MS) })
+  expect(screen.getByText(DELETE_TEST.checkFailed)).toBeTruthy()
+  expect(within(screen.getByRole('dialog')).getByRole<HTMLButtonElement>('button', { name: 'Delete test' }).disabled).toBe(false)
+  await act(async () => { settle(Response.json({ effect: 'none' })) })
+  expect(screen.queryByText(DELETE_TEST.noEffect)).toBeNull()
+})
+test.each([
+  [{ effect: 'none' }, DELETE_TEST.noEffect],
+  [{ effect: 'block', controlLabel: 'Current hero', pageCount: 3, unreadablePages: 2, placements: [{ ...place(1), after: { key: 'control', label: 'Current hero' } }] }, '3 pages will change'],
+] as const)('one mounted live region announces the settled result %j', async (impact, summary) => {
+  let settle!: (response: Response) => void
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { settle = resolve })))
+  render(<DeleteTest {...base} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  const status = screen.getByRole('status')
+  await act(async () => { settle(Response.json(impact)) })
+  expect(screen.getByRole('status')).toBe(status)
+  expect(status.textContent).toBe(summary)
+  if (impact.effect === 'block') {
+    expect(screen.getByRole('dialog').textContent).toContain("and 2 pages you can't open")
+    expect(screen.getByRole('dialog').textContent).toContain('Current hero')
+    expect(screen.getByRole('dialog').textContent).toContain('site right now')
+    expect(screen.getByRole('dialog').textContent).not.toContain('see the Original again')
+  }
+})
+test('the same live region announces a failed check', async () => {
+  let settle!: (response: Response) => void
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { settle = resolve })))
+  render(<DeleteTest {...base} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  const status = screen.getByRole('status')
+  await act(async () => { settle(Response.json({}, { status: 422 })) })
+  expect(screen.getByRole('status')).toBe(status)
+  expect(status.textContent).toBe(DELETE_TEST.checkFailed)
+})
+
+test('page rows show another archived route when deleting reveals it', async () => {
+  openWithImpact({ effect: 'page', winnerPath: '/new', addresses: ['/original'], afterPaths: { '/original': '/older' } })
+  await screen.findByText('/original: /new → /older')
 })

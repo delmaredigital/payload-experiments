@@ -5,6 +5,7 @@ import { compileManifest, loadManifestInputs, type ManifestInputExperiment } fro
 import { puckCollections } from '../options.js'
 import { scanBlockPlacements } from '../transitions/placements.js'
 import type { DeleteImpactResult, EndpointContext } from '../types/endpoints.js'
+import type { ArmSlot } from '../types/puck.js'
 import { routeId } from './routeId.js'
 
 /** Advisory read only. Delete keeps its own access check, status guard and transaction. */
@@ -28,10 +29,13 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
   try { manifest = compileManifest(inputs, 0, { attributeKeys: options.attributeKeys }) }
   catch (cause) { throw new XpRefusal('placement-unchecked', 'The effect of deleting this test could not be determined.', undefined, 422, { cause }) }
   if (kind === 'page') {
-    const routes = Object.entries(manifest.archivedPages).filter(([, route]) => route.slug === experiment.slug)
-    return reply(routes.length ? { effect: 'page', winnerPath: routes[0]![1].winnerPath, addresses: routes.map(([path]) => path) } : { effect: 'none' })
+    const after = compileManifest({ ...inputs, excludeIds: [id] }, 0, { attributeKeys: options.attributeKeys })
+    const routes = Object.entries(manifest.archivedPages).filter(([path, route]) => route.slug === experiment.slug && (after.archivedPages[path]?.winnerPath ?? path) !== route.winnerPath)
+    const afterPaths = Object.fromEntries(routes.flatMap(([path]) => after.archivedPages[path] ? [[path, after.archivedPages[path]!.winnerPath]] : []))
+    return reply(routes.length ? { effect: 'page', winnerPath: routes[0]![1].winnerPath, addresses: routes.map(([path]) => path),
+      ...(Object.keys(afterPaths).length ? { afterPaths } : {}) } : { effect: 'none' })
   }
-  const winnerSlot = manifest.archivedWinners[experiment.slug]
+  const winnerSlot = manifest.archivedWinners[experiment.slug] as ArmSlot | undefined
   if (!winnerSlot || winnerSlot === 'control') return reply({ effect: 'none' })
   const phase = inputs.experiments.find(test => String(test.id) === String(id))?.lastTestPhase
   const winner = phase?.arms.find(arm => arm.key === decision.winnerArm)
@@ -43,7 +47,7 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
   const blocks = options.blocks?.collections ?? []
   for (const collection of new Set([...puck, ...blocks].map(entry => entry.slug))) {
     for (const view of placementLocaleViews(req, collection)) {
-      const viewReq = localeRequest(req, view)
+      const viewReq = view.locale ? localeRequest(req, view) : req
       // The route is manager-gated. Count the entire visitor surface, then disclose only access-checked page details.
       const placements = await scanBlockPlacements(viewReq, { slug: experiment.slug, puckCollections: puck.filter(entry => entry.slug === collection),
         blocksCollections: blocks.filter(entry => entry.slug === collection), publishedOnly: true, pageGuard: true, localeView: view })
@@ -54,7 +58,7 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
       let readable: Array<Record<string, unknown> & { id: string | number }> = []
       try {
         const result = await req.payload.find({ collection, req: viewReq, overrideAccess: false, depth: 0, draft: false, pagination: false, limit: 0,
-          ...(view.locale ? { locale: view.locale, fallbackLocale: view.fallbackLocale } : {}),
+          locale: view.locale || undefined, fallbackLocale: view.locale ? view.fallbackLocale : undefined,
           where: { id: { in: [...new Set(changed.map(place => place.id))] } } })
         readable = result.docs
       } catch (cause) { if (!(cause instanceof Forbidden) && (cause as { status?: number })?.status !== 403) throw cause }

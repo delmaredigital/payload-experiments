@@ -10,7 +10,7 @@ export type EditorExperiment = {
   updatedAt?: string
   status: Status
   arms: Array<Pick<Arm, 'key' | 'kind' | 'label'> & Partial<Arm>>
-  decision?: { winnerArm?: string } | null
+  decision?: { winnerArm?: string; discardedAt?: string } | null
 }
 
 export function tabsFor(experiment?: Pick<EditorExperiment, 'arms'> | null): Array<{ slot: ArmSlot; label: string }> {
@@ -20,12 +20,13 @@ export function tabsFor(experiment?: Pick<EditorExperiment, 'arms'> | null): Arr
     .sort((a, b) => Number(b.slot === 'control') - Number(a.slot === 'control'))
 }
 
-export function bannerFor(status?: Status | null, winner: string = editorCopy.labels.control, original: string = editorCopy.labels.control): string {
+export function bannerFor(status?: Status | null, winner: string = editorCopy.labels.control, original: string = editorCopy.labels.control, decision?: EditorExperiment['decision']): string {
   switch (status) {
     case 'draft': case 'stopped': return editorCopy.draft(original)
     case 'running': return editorCopy.running
     case 'decided': return editorCopy.decided(winner)
-    case 'archived': return editorCopy.archived
+    case 'archived': return decision?.winnerArm && !decision.discardedAt
+      ? editorCopy.archived(winner) : editorCopy.archivedOriginal(original, Boolean(decision?.discardedAt))
     default: return editorCopy.unbound
   }
 }

@@ -384,7 +384,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
         : experimentId === undefined && resultsOnly ? <p className="xp-ui-help">{editorCopy.setupForbidden}</p>
         : experimentId === undefined && noAccess ? <p className="xp-ui-help">{pickerCopy.forbiddenUnbound}</p>
         : experimentId !== undefined && (noAccess || unavailable || resultsOnly) ? <p className="xp-ui-help">{resultsOnly ? pickerCopy.resultsOnly : pickerCopy.forbidden}</p> : <Banner tone={experiment?.status === 'running' ? 'warning' : 'info'}>
-        {experimentId === undefined ? bannerFor() : experiment ? bannerFor(experiment.status, winner, originalLabel) : editorCopy.loading}
+        {experimentId === undefined ? bannerFor() : experiment ? bannerFor(experiment.status, winner, originalLabel, experiment.decision ?? null) : editorCopy.loading}
       </Banner>
 
   const versionLockMessage = editable || !experiment ? undefined : canManage

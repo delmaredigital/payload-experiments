@@ -169,3 +169,10 @@ test.each(['hidden', 'locale', 'mixed'] as const)('visitor scan includes inacces
   expect(JSON.stringify(result)).not.toContain('SECRET')
   expect(payload.calls.some(call => call.args.collection === 'pages' && call.args.overrideAccess === true && call.args.locale === 'fr')).toBe(true)
 })
+
+test('deleting a colliding page route reveals the other compiled route rather than its own page', async () => {
+  const { read, payload } = setup({ kind: 'page' })
+  payload.documents['xp-experiments']!.unshift({ ...experiment, id: 'older', slug: 'older', kind: 'page' })
+  payload.documents['xp-phases']!.push({ ...phase, id: 'older-phase', experiment: 'older', arms: phase.arms.map(arm => arm.key === 'variantA' ? { ...arm, pageTarget: '/older-winner' } : arm) })
+  expect(await (await read()).json()).toEqual({ effect: 'page', winnerPath: '/new', addresses: ['/original'], afterPaths: { '/original': '/older-winner' } })
+})

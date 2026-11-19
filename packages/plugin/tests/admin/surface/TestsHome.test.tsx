@@ -308,6 +308,6 @@ test('list loads current delete impact before warning about an archived page win
   render(<TestsHome adminRoute="/admin" apiRoute="/api" canManage />)
   fireEvent.click(await screen.findByRole('button', { name: 'Delete test' }))
   expect(new URL(fetch.mock.calls[0]![0], 'https://test.local').searchParams.get('select[decision]')).toBe('true')
-  await screen.findByText(/These other addresses will stop sending visitors to the winner/)
+  await screen.findByText(/These addresses will change where they send visitors/)
   expect(fetch).toHaveBeenCalledWith('/api/xp/experiments/1/delete-impact', expect.objectContaining({ method: 'GET' }))
 })

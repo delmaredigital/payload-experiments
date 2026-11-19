@@ -28,10 +28,10 @@ test.each([
   ['stopped', 'This block shows the Original to everyone until the test starts.'],
   ['running', 'Changing this content mid-test mixes two versions in one result'],
   ['decided', "Decided: New headline. Use 'Make it the content' on the test to finish."],
-  ['archived', 'This test is archived; the winning content is shown to everyone.'],
+  ['archived', 'Archived: this block serves New headline, or nothing if that version is empty. To keep the content without the test, move it out of this Experiment block on the canvas, then remove the Experiment block.'],
   [undefined, 'This Experiment block has no test yet.'],
 ] as const)('banner for %s', (status, text) => {
-  expect(bannerFor(status, 'New headline')).toBe(text)
+  expect(bannerFor(status, 'New headline', undefined, status === 'archived' ? { winnerArm: 'variantA' } : undefined)).toBe(text)
 })
 
 test.each([
@@ -148,4 +148,9 @@ test('saved first-version names drive tabs and notices, while the default stays 
   expect(tabsFor({ arms: [{ key: 'control', kind: 'control', label: 'Control' }] })).toEqual([{ slot: 'control', label: 'Control' }])
   expect(bannerFor('draft', undefined, 'Control')).toBe('This block shows the Control to everyone until the test starts.')
   expect(tabsFor()).toEqual([{ slot: 'control', label: 'Original' }])
+})
+
+test('archived Puck guidance distinguishes a discarded winner from no decision', () => {
+  expect(bannerFor('archived', 'New headline', 'Current hero', { winnerArm: 'variantA', discardedAt: 'date' })).toBe('Winner discarded: this block shows Current hero. To keep it without the test, move its content out on the canvas, then remove this Experiment block.')
+  expect(bannerFor('archived', undefined, 'Current hero', null)).toBe('Archived without a winner: this block shows Current hero. To keep it without the test, move its content out on the canvas, then remove this Experiment block.')
 })

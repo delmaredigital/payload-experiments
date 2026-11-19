@@ -56,7 +56,10 @@ export const DELETE_TEST = {
   noEffect: 'Deleting this test will not change what visitors see.',
   versionChange: (before: string, after: string) => `${before} → ${after}`,
   morePlaces: (count: number) => `${count} more ${count === 1 ? 'place' : 'places'}.`,
-  blockWinner: 'On these pages, visitors will see the Original again:',
-  pageWinner: 'These other addresses will stop sending visitors to the winner and will show their own pages. Those pages can be changed again.',
+  blockWinner: (label: string) => `On these pages, visitors will see ${label} again, or nothing where it is empty:`,
+  currentSite: 'This list reflects the site right now.',
+  changedPages: (count: number) => `${count} ${count === 1 ? 'page' : 'pages'} will change`,
+  unreadablePages: (count: number) => `and ${count} ${count === 1 ? "page you can't open" : "pages you can't open"}.`,
+  pageWinner: 'These addresses will change where they send visitors:',
   content: 'Deleting the test does not delete your page content. An Experiment block that used this test stays on its page and says the test was deleted.',
 } as const

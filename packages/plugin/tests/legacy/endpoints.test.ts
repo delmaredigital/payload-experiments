@@ -149,3 +149,10 @@ test('page picker avoids numeric-id title searches and bounds query and page', a
   expect(find).toHaveBeenLastCalledWith(expect.objectContaining({ where: { title: { like: 'x'.repeat(100) } } }))
   await expect(handlePages(fakeReq({ payload, url: 'https://host/api/xp/pages?collection=pages&page=1001' }), { options })).rejects.toMatchObject({ code: 'invalid-body', status: 422 })
 })
+
+test('placement status preserves the recorded winner while marking a discarded archive for block copy', async () => {
+  const options = sampleOptions()
+  const payload = fakePayload({ collections: { 'xp-experiments': [{ id: 1, slug: 'hero', name: 'Hero', kind: 'block', status: 'archived', arms: [], decision: { winnerArm: 'variantA', discardedAt: 'date' } }] }, overrides: { findGlobal: vi.fn(async () => ({ retiredSlugs: [] })) } })
+  const response = await handlePlacementStatus(fakeReq({ payload, body: JSON.stringify({ slugs: ['hero'] }) }), { options })
+  expect((await response.json()).slugs.hero).toMatchObject({ status: 'archived', winnerArm: 'variantA', discarded: true })
+})

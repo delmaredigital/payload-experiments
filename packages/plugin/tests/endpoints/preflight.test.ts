@@ -136,9 +136,9 @@ function blockSetup() {
   Object.assign(experiment, { kind: 'block', arms: defaultArms('block'), exposurePolicy: 'render' })
   options.puck = { enabled: true, collections: ['pages'] }
   payload.documents.pages = [{ id: 10, title: 'Landing', slug: 'landing', _status: 'published', puckData: { content: [{
-    type: 'ExperimentSlot', props: { experiment: 'hero', control: [{}], variantA: [{}, {}] },
+    type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{}], variantA: [{}, {}] },
   }] } }, { id: 11, title: 'Draft landing', slug: 'draft-only', _status: 'draft', puckData: { content: [{
-    type: 'ExperimentSlot', props: { experiment: 'hero', control: [{}], variantA: [] },
+    type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{}], variantA: [] },
   }] } }]
   return { options, payload, req }
 }
@@ -162,7 +162,7 @@ test('block preflight resolves host URLs with publication state and carries ever
 test('several slots on one page version share one host preview lookup', async () => {
   const { options, payload, req } = blockSetup()
   const page = (payload.documents.pages as Array<{ id: number; puckData: { content: unknown[] } }>).find(doc => doc.id === 10)!
-  page.puckData.content.push({ type: 'ExperimentSlot', props: { experiment: 'hero', control: [{}], variantA: [{}] } })
+  page.puckData.content.push({ type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{}], variantA: [{}] } })
   const previewUrl = vi.fn(async ({ id }) => `/page/${id}`)
   options.admin = { previewUrl }
   const body = await (await handlePreflight(req, { options })).json() as PreflightResult
@@ -347,7 +347,7 @@ test('page preflight uses its registered collection and passes the manager-read 
 test('where-used and readiness exclude hidden placements and retain partial visibility', async () => {
   const { options, payload, req } = blockSetup()
   const make = (id: number, visibility: unknown) => ({ id, title: `Page ${id}`, _status: 'published', puckData: { content: [{
-    type: 'ExperimentSlot', props: { id: `slot-${id}`, experiment: 'hero', _visibility: visibility, control: [{}], variantA: [{}] },
+    type: 'ExperimentSlot', props: { id: `slot-${id}`, experiment: { slug: 'hero' }, _visibility: visibility, control: [{}], variantA: [{}] },
   }] } })
   payload.documents.pages = [make(10, { hidden: true }), make(11, { hideOn: ['phone', 'tablet', 'desktop'] }), make(12, { hideOn: ['phone'] })]
   const answer = await (await handlePreflight(req, { options })).json() as PreflightResult

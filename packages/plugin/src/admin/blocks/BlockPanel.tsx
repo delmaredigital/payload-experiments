@@ -67,7 +67,7 @@ export function BlockStatusField({ path }: UIFieldClientProps) {
   const sentence = statusSentence(status)
   const linkedCopy = liveStatus(status) ? status.status === 'running' ? blockRunningUnwrap
     : status.status === 'decided' ? blockDecidedUnwrap
-      : status.status === 'archived' && status.winnerArm ? blockFinishedCopy(slotLabel(status.winnerArm, status)) : undefined : undefined
+      : status.status === 'archived' && status.winnerArm && !status.discarded ? blockFinishedCopy(slotLabel(status.winnerArm, status)) : undefined : undefined
   const href = formatAdminURL({ adminRoute: config.routes.admin, path: `/experiments/by-slug/${encodeURIComponent(block?.experiment ?? '')}` })
   return <div>
     {liveStatus(status) && status.status === 'running' ? <Banner>{sentence}</Banner> : linkedCopy && liveStatus(status) && status.status === 'archived' ? null : <p>{sentence}</p>}

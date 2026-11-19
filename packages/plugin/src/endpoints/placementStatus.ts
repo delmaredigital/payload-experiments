@@ -55,7 +55,8 @@ export async function handlePlacementStatus<TUser extends { id: DocId }>(req: Pa
     const round = rounds.get(slug)!
     result.slugs[slug] = { name: test.name, status: test.status, kind: test.kind,
       arms: round.arms.map(({ key, label, slot }) => ({ key, label, ...(slot ? { slot } : {}) })),
-      ...(test.decision?.winnerArm ? { winnerArm: test.decision.winnerArm } : {}), rollout: round.rollout }
+      ...(test.decision?.winnerArm ? { winnerArm: test.decision.winnerArm } : {}),
+      ...(test.decision?.discardedAt ? { discarded: true } : {}), rollout: round.rollout }
   }
   const collections = new Map<string, Awaited<ReturnType<typeof resolvePageCollection>>>()
   const winnerTitles = new Map<string, string | undefined>()

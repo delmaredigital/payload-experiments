@@ -18,7 +18,8 @@ export const BLOCK_COPY = {
   noLongerDraft: API_MESSAGES.testNoLongerDraft,
   finishUnwrap: 'The test was removed; use Unwrap to finish.',
   deleted: "This block's test was deleted; the page shows the Original.",
-  discarded: 'This test has ended; the page shows the Original.',
+  discarded: 'Winner discarded: this block shows the Original. Use Unwrap to replace it with the Original content.',
+  neverDecided: 'Archived without a winner: this block shows the Original. Use Unwrap to replace it with the Original content.',
   running: "Running: visitors see different versions. Edit a version's tab to change it; the change is noted on the results.",
   stopped: 'Stopped: visitors see the Original.',
   slotLabels: { control: 'Original', variantA: 'Variant A', variantB: 'Variant B', variantC: 'Variant C' } as Record<string, string>,
@@ -37,7 +38,7 @@ export const blockDecidedStatus = (winner: string, rollout: boolean) => `Decided
 export type BlockLinkedCopy = { before: string; link: string; after: string }
 export const blockRunningUnwrap: BlockLinkedCopy = { before: 'Stop ', link: 'the test', after: ' to unwrap.' }
 export const blockDecidedUnwrap: BlockLinkedCopy = { before: 'To put the winner into this page, use "Make it the content" on ', link: 'the test', after: '.' }
-export const blockFinishedCopy = (winner: string): BlockLinkedCopy => ({ before: `Finished: visitors see ${winner}. Use "Make it the content" on `, link: 'the test', after: ' to replace this block.' })
+export const blockFinishedCopy = (winner: string): BlockLinkedCopy => ({ before: `Archived: this block keeps serving ${winner}, with the Original as a fallback if it is empty. To replace it, copy the content into ordinary page blocks, then remove this Experiment block. View the results on `, link: 'the test', after: '.' })
 export const blockFinishedStatus = (winner: string) => { const copy = blockFinishedCopy(winner); return copy.before + copy.link + copy.after }
 export const blockDeleteConfirmation = (name: string) => `Delete the draft test ${name} and put the Original back in its place? Deleting the test can't be undone.`
 export const blockUnwrapConfirmation = (name: string) => `Put the Original back in this block's place? The test ${name} and its results are kept; it can't be started again.`

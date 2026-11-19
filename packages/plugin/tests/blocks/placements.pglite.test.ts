@@ -54,7 +54,7 @@ test('detached rescan freezes document ids only and current published paths dete
   const options = sampleOptions()
   options.puck = { enabled: true, collections: ['pages'] }
   options.pages = { collections: [{ slug: 'pages', pathOf: doc => String(doc.path), findByPath: async () => null }] }
-  const payload = fakePayload({ config: { collections: [{ slug: 'pages', fields: [] }] }, collections: { pages: [{ id: 21, path: '/current', puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: 'freeze', control: [{}], variantA: [{}] } }] } }] } })
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', fields: [] }] }, collections: { pages: [{ id: 21, path: '/current', puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'freeze' }, control: [{}], variantA: [{}] } }] } }] } })
   Object.assign(payload.db, { findOne: vi.fn(async () => ({ id: 21, path: '/current' })) })
   const req = fakeReq({ payload }); req.transactionID = 'outer'
   const noLocks: Executor = { query<R>(sql: string, params?: unknown[]) { return sql.includes('pg_advisory_xact_lock') ? Promise.resolve({ rows: [] as R[], rowCount: 1 }) : raw.query<R>(sql, params) } }
@@ -76,7 +76,7 @@ test('detached rescan freezes document ids only and current published paths dete
   await raw.query("UPDATE xp_experiments SET status='archived' WHERE id=$1", [own])
   expect(await placementInteractions(req, raw, options, { id: page, kind: 'page', arms: [] }, ['/current'])).not.toContainEqual(expect.objectContaining({ experimentId: own }))
   const legacy = await insert('legacy-freeze', 'block', null)
-  payload.documents.pages![0]!.puckData = { content: [{ type: 'ExperimentSlot', props: { experiment: 'legacy-freeze', control: [{}], variantA: [{}] } }] }
+  payload.documents.pages![0]!.puckData = { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'legacy-freeze' }, control: [{}], variantA: [{}] } }] }
   expect(await placementInteractions(req, raw, options, { id: page, kind: 'page', arms: [] }, ['/current'])).toContainEqual(expect.objectContaining({ experimentId: legacy }))
   // A hand-made copy (Payload's Duplicate) used as a version page carries another test's slot: Start's check names it as the version.
   const versionArms = [{ key: 'control', kind: 'control', pageTarget: '/original' }, { key: 'variantA', kind: 'variant', pageTarget: '/current' }] as never

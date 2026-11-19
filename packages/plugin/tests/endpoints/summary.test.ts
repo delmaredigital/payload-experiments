@@ -72,7 +72,7 @@ function readinessSetup() {
     'xp-experiments': [draft('one'), draft('two'), draft('flag', 'flag')],
     'xp-metrics': [{ id: 2, source: 'binomial' }],
     pages: [{ id: 10, _status: 'published', puckData: { content: ['one', 'two'].map(experiment => ({
-      type: 'ExperimentSlot', props: { experiment, control: [{}], variantA: [{}] },
+      type: 'ExperimentSlot', props: { experiment: { slug: experiment }, control: [{}], variantA: [{}] },
     })) } }],
   } })
   vi.mocked(newestSnapshotIds).mockResolvedValue([])
@@ -313,7 +313,7 @@ test('summary JSON never includes placement titles or flag placement free text',
   const { options, req, payload, placements } = readinessSetup()
   const secret = 'secret-value from a host error or page title'
   payload.documents.pages = [{ id: 10, title: secret, _status: 'published', puckData: { content: [{
-    type: 'ExperimentSlot', props: { experiment: 'one', control: [{}], variantA: [] },
+    type: 'ExperimentSlot', props: { experiment: { slug: 'one' }, control: [{}], variantA: [] },
   }] } }]
   placements.mockImplementation(async () => [{ arm: 'control', ok: false, detail: secret }, { arm: 'variantA', ok: true }])
   const body = await (await handleSummary(req, { options })).json()

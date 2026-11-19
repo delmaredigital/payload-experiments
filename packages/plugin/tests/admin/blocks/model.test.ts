@@ -19,8 +19,9 @@ test.each([
   [{ ...live, status: 'stopped' }, 'Stopped: visitors see the Original.'],
   [{ ...live, status: 'decided', winnerArm: 'variantA' }, 'Decided: visitors see New hero.'],
   [{ ...live, status: 'decided', winnerArm: 'variantA', rollout: true }, 'Decided: visitors see New hero; a holdout still sees the Original.'],
-  [{ ...live, status: 'archived', winnerArm: 'variantA' }, 'Finished: visitors see New hero. Use "Make it the content" on the test to replace this block.'],
-  [{ ...live, status: 'archived' }, 'This test has ended; the page shows the Original.'],
+  [{ ...live, status: 'archived', winnerArm: 'variantA' }, 'Archived: this block keeps serving New hero, with the Original as a fallback if it is empty. To replace it, copy the content into ordinary page blocks, then remove this Experiment block. View the results on the test.'],
+  [{ ...live, status: 'archived', winnerArm: 'variantA', discarded: true }, 'Winner discarded: this block shows the Original. Use Unwrap to replace it with the Original content.'],
+  [{ ...live, status: 'archived' }, 'Archived without a winner: this block shows the Original. Use Unwrap to replace it with the Original content.'],
   [{ missing: true }, "This block's test was deleted; the page shows the Original."],
   [{ deleted: true }, "This block's test was deleted; the page shows the Original."],
 ] as Array<[BlockStatus, string]>)('status %j uses authored sentence', (status, sentence) => expect(statusSentence(status)).toBe(sentence))

@@ -291,7 +291,7 @@ test.each([true, false])('stopped confirmation preserves the test, replaces then
 test.each([
   ['running', 'Stop the test to unwrap.'],
   ['decided', 'To put the winner into this page, use "Make it the content" on the test.'],
-  ['archived', 'Finished: visitors see New hero. Use "Make it the content" on the test to replace this block.'],
+  ['archived', 'Archived: this block keeps serving New hero, with the Original as a fallback if it is empty. To replace it, copy the content into ordinary page blocks, then remove this Experiment block. View the results on the test.'],
 ] as const)('%s gives a linked sentence with no Unwrap action', async (status, sentence) => {
   prepare({ ...live, status, winnerArm: 'variantA' }, { slug: 'hero /?' })
   render(<BlockStatusField {...props} />)
@@ -348,4 +348,12 @@ test('a stale pending status read cannot overwrite the deletion cache entry', as
   await act(async () => respond(Response.json({ slugs: { 'hero-test': live } })))
   expect(screen.getByText(BLOCK_COPY.deleted)).toBeTruthy()
   expect(screen.getByText('Variant A')).toBeTruthy()
+})
+
+test.each([false, true])('archived with no live winner offers the truthful Unwrap action (discarded=%s)', async discarded => {
+  prepare({ ...live, status: 'archived', ...(discarded ? { winnerArm: 'variantA', discarded: true } : {}) })
+  render(<BlockStatusField {...props} />)
+  expect(await screen.findByRole('button', { name: 'Unwrap' })).toBeTruthy()
+  expect(screen.getByText(discarded ? BLOCK_COPY.discarded : BLOCK_COPY.neverDecided)).toBeTruthy()
+  expect(screen.queryByText(/Make it the content/)).toBeNull()
 })

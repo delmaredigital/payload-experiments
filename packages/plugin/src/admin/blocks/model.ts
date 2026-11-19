@@ -17,10 +17,10 @@ export function statusSentence(status: BlockStatus): string {
     case 'running': return BLOCK_COPY.running
     case 'stopped': return BLOCK_COPY.stopped
     case 'decided': return blockDecidedStatus(winnerLabel, status.rollout)
-    case 'archived': return status.winnerArm ? blockFinishedStatus(winnerLabel) : BLOCK_COPY.discarded
+    case 'archived': return status.discarded ? BLOCK_COPY.discarded : status.winnerArm ? blockFinishedStatus(winnerLabel) : BLOCK_COPY.neverDecided
   }
 }
-export function isOrphan(status: BlockStatus): boolean { return !liveStatus(status) || status.status === 'archived' && !status.winnerArm }
+export function isOrphan(status: BlockStatus): boolean { return !liveStatus(status) || status.status === 'archived' && (status.discarded || !status.winnerArm) }
 export function labelText(value: unknown): string | undefined {
   return typeof value === 'string' ? value : value && typeof value === 'object' ? Object.values(value).find((item): item is string => typeof item === 'string') : undefined
 }

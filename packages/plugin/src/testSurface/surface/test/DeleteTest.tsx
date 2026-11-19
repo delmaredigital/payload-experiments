@@ -55,7 +55,7 @@ export function DeleteTest({ test, canManage, apiRoute, onDeleted }: {
     <Button variant="quiet" size="sm" onClick={() => { setError(undefined); setImpact({ state: 'loading' }); setOpen(true) }}>{C.action}</Button>
     <Dialog open={open} title={C.title(test.name)} initialFocus="cancel" dismissible={!busy} onClose={() => setOpen(false)}>
       <p>{C.consequences}</p><p>{C.content}</p>
-      {checking ? <p role="status">{C.checking}</p> : impact.state === 'failed' ? <p role="alert">{C.checkFailed}</p> : null}
+      <p role="status" aria-atomic="true">{checking ? C.checking : impact.state === 'failed' ? C.checkFailed : impact.state === 'ready' ? impactSummary(impact.data) : ''}</p>
       {impact.state === 'ready' ? <ImpactDetails impact={impact.data} /> : null}
       {error ? <p role="alert">{error}</p> : null}
       <div className="xp-ui-button-group"><Button data-dialog-cancel disabled={busy} onClick={() => setOpen(false)}>{C.cancel}</Button>
@@ -64,14 +64,20 @@ export function DeleteTest({ test, canManage, apiRoute, onDeleted }: {
   </>
 }
 
+function impactSummary(impact: DeleteImpactResult): string {
+  return impact.effect === 'none' ? C.noEffect : C.changedPages(impact.effect === 'block' ? impact.pageCount : impact.addresses.length)
+}
+
 function ImpactDetails({ impact }: { impact: DeleteImpactResult }) {
-  if (impact.effect === 'none') return <p>{C.noEffect}</p>
+  if (impact.effect === 'none') return null
   const places = impact.effect === 'block' ? impact.placements.map(place =>
     `${place.title}${place.path ? ` (${place.path})` : ''}: ${C.versionChange(place.before.label, place.after.label)}`)
-    : impact.addresses.map(path => `${path}: ${C.versionChange(impact.winnerPath, path)}`)
+    : impact.addresses.map(path => `${path}: ${C.versionChange(impact.winnerPath, impact.afterPaths?.[path] ?? path)}`)
   return <>
-    <p>{impact.effect === 'block' ? C.blockWinner : C.pageWinner}</p>
-    <ul>{places.slice(0, VISIBLE_PLACES).map((place, index) => <li key={index}>{place}</li>)}</ul>
+    <p>{impact.effect === 'block' ? C.blockWinner(impact.controlLabel) : C.pageWinner}</p>
+    <p>{C.currentSite}</p>
+    {places.length ? <ul>{places.slice(0, VISIBLE_PLACES).map((place, index) => <li key={index}>{place}</li>)}</ul> : null}
+    {impact.effect === 'block' && impact.unreadablePages > 0 ? <p>{C.unreadablePages(impact.unreadablePages)}</p> : null}
     {places.length > VISIBLE_PLACES ? <p>{C.morePlaces(places.length - VISIBLE_PLACES)}</p> : null}
   </>
 }

@@ -54,7 +54,7 @@ export type PlacementStatusBody = { docs?: Array<{ collection: string; id: DocId
 export type PageTestStatus = { slug: string; name: string; status: Status; role: 'original' | 'version'; winner: boolean; armLabel: string; winnerLabel?: string; winnerTitle?: string; winnerPath?: string; originalPath?: string; rollout: boolean; pagesReleased: boolean }
 export type PlacementStatusResult = {
   docs: Record<string, { path: string | null; tests: PageTestStatus[] }>
-  slugs: Record<string, { missing: true } | { deleted: true } | { name: string; status: Status; kind: ExperimentKind; arms: Array<{ key: string; label: string; slot?: string }>; winnerArm?: string; rollout: boolean }>
+  slugs: Record<string, { missing: true } | { deleted: true } | { name: string; status: Status; kind: ExperimentKind; arms: Array<{ key: string; label: string; slot?: string }>; winnerArm?: string; discarded?: boolean; rollout: boolean }>
 }
 
 export type WrapBlockBody = { collection: string; id: DocId; field: string; blockId: string; experiment: string }
@@ -65,4 +65,4 @@ export type DeleteImpactResult = { effect: 'none' } | {
   controlLabel: string; unreadablePages: number; pageCount: number
   placements: Array<{ collection: string; id: DocId; title: string; path: string | null;
     before: { key: string; label: string }; after: { key: string; label: string } }>
-} | { effect: 'page'; winnerPath: string; addresses: string[] }
+} | { effect: 'page'; winnerPath: string; addresses: string[]; afterPaths?: Record<string, string> }
