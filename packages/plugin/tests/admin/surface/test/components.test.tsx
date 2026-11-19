@@ -36,7 +36,7 @@ function props(partial: Partial<TestDocument> = {}): SectionProps {
     hasUnsaved: false, stale: false, loadState: 'ready', saving: 'saved', errors: {}, chosenPages: {}, choosePage: vi.fn(async () => {}), stage: vi.fn(), commit: vi.fn(async () => {}), reload: vi.fn(async () => {}), refreshPreflight: vi.fn(async () => {}) } }
 }
 function blurChange(label: string, value: string) {
-  const input = screen.getByLabelText(label)
+  const input = screen.getByLabelText(label, { selector: 'input, textarea, button' })
   changeField(input, { target: { value } }); fireEvent.blur(input)
 }
 const metricsFetch = () => vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: [{ id: 1, name: 'Registered', source: 'signup' }, { id: 2, name: 'Completed', source: 'signup' }], hasNextPage: false }) })))
@@ -222,7 +222,7 @@ test('audience controls use typed values, word comparisons and current whole rul
   const p = props({ targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
   const view = render(<TargetingSection {...p} />)
   expect((screen.getByLabelText('Value') as HTMLInputElement).type).toBe('number')
-  expect(screen.getByText('is at least')).toBeTruthy()
+  expect(screen.getByText('is at least', { selector: 'button > span:first-child' })).toBeTruthy()
   changeField(screen.getByLabelText('Value'), { target: { value: '21' } })
   expect(p.test.stage).not.toHaveBeenCalled()
   p.test.doc = { ...p.test.doc!, targeting: [...p.test.doc!.targeting!, { attribute: 'member', op: 'eq', value: true }] }
@@ -603,7 +603,7 @@ test('an existing path rule on a page block test is read-only with a removal not
   const p = props({ targeting: [{ attribute: 'path', op: 'in', value: ['/a'] }, { attribute: 'age', op: 'gte', value: 18 }] })
   render(<TargetingSection {...p} />)
   expect(screen.getByText('This rule no longer applies to page block tests; remove it.')).toBeTruthy()
-  expect(screen.getAllByLabelText('Attribute')).toHaveLength(1)
+  expect(screen.getAllByRole('combobox', { name: 'Attribute' })).toHaveLength(1)
   fireEvent.click(screen.getAllByRole('button', { name: 'Remove rule' })[0]!)
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
 })
@@ -637,7 +637,7 @@ function clickProps(primary?: number) {
 test('click goals found on the page lead every role picker, with block labels and the linked-document note', async () => {
   clickGoalsFetch()
   render(<GoalSection {...clickProps()} />)
-  await screen.findByLabelText('Hero interest · Hero')
+  await screen.findByRole('combobox', { name: 'Hero interest · Hero' })
   const select = screen.getByRole('combobox', { name: 'Goal' })
   const menu = openSelect(select)
   expect(menu.getByRole('group', { name: "On this test's page" }).textContent).toContain('Hero interest · Hero')
@@ -702,7 +702,7 @@ test('an older click-key response arriving last cannot replace the latest page g
     ? new Promise<Response>(resolve => { pending.push(resolve) })
     : Promise.resolve(new Response(JSON.stringify({ docs: [clickMetric] })))))
   render(<GoalSection {...clickProps()} />)
-  await screen.findByLabelText('Hero interest · yes/no')
+  await screen.findByRole('combobox', { name: 'Hero interest · yes/no' })
   expect(pending).toHaveLength(1)
   fireEvent.focus(window)
   expect(pending).toHaveLength(2)

@@ -177,3 +177,162 @@ test('a short menu stays below when it fits, using its height after opening', ()
   expect(within(doc.body).getByRole('listbox').dataset.placement).toBe('bottom')
   view.unmount(); iframe.remove()
 })
+
+test.each(['outside', 'blur', 'Tab'])('pointer hover never selects on %s', leaving => {
+  const change = vi.fn()
+  render(<><Select id="role" name="role" label="Other goal" defaultValue="watch" onChange={change} options={[
+    { value: 'watch', label: 'Watch' }, { value: 'guardrail', label: 'Must not get worse' },
+  ]} /><button>Elsewhere</button></>)
+  const combo = screen.getByRole('combobox'); combo.focus(); fireEvent.click(combo)
+  fireEvent.pointerMove(screen.getByRole('option', { name: 'Must not get worse' }))
+  if (leaving === 'outside') fireEvent.pointerDown(screen.getByText('Elsewhere'))
+  else if (leaving === 'blur') fireEvent.blur(combo)
+  else fireEvent.keyDown(combo, { key: 'Tab' })
+  expect(screen.queryByRole('listbox')).toBeNull(); expect(change).not.toHaveBeenCalled()
+  expect(combo.textContent).toBe('Watch')
+})
+test('keyboard exploration still commits on an outside click', () => {
+  render(<Example />); key('End')
+  fireEvent.pointerDown(screen.getByRole('button', { name: 'Next' }))
+  expect(formValue()).toBe('cherry')
+})
+test('label clicks focus the control without opening its menu', () => {
+  render(<Example />)
+  fireEvent.click(screen.getByText('Fruit', { selector: 'label' }))
+  expect(document.activeElement).toBe(screen.getByRole('combobox'))
+  expect(screen.queryByRole('listbox')).toBeNull()
+})
+test('aria-controls is stable while closed, and a group is named by its visible label once', () => {
+  render(<Select id="groups" label="Choice" options={[{ value: 'a', label: 'Alpha', group: 'Letters' }]} />)
+  const combo = screen.getByRole('combobox')
+  expect(combo.getAttribute('aria-controls')).toBe('groups-listbox')
+  const list = document.getElementById(combo.getAttribute('aria-controls')!)!
+  expect(list).toBeTruthy(); expect(list.hidden).toBe(true)
+  fireEvent.click(combo)
+  const group = screen.getByRole('group', { name: 'Letters' })
+  expect(group.hasAttribute('aria-label')).toBe(false)
+  expect(document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent).toBe('Letters')
+})
+test('uncontrolled value follows options that arrive later and retains a chosen value', () => {
+  const view = render(<form><Select id="late" name="late" label="Late" options={[]} /></form>)
+  const options = [{ value: 'a', label: 'Alpha' }, { value: 'b', label: 'Beta' }]
+  view.rerender(<form><Select id="late" name="late" label="Late" options={options} /></form>)
+  const combo = screen.getByRole('combobox')
+  expect(combo.textContent).toBe('Alpha'); expect(new FormData(combo.closest('form')!).get('late')).toBe('a')
+  fireEvent.click(combo); fireEvent.click(screen.getByRole('option', { name: 'Beta' }))
+  view.rerender(<form><Select id="late" name="late" label="Late" options={[...options]} /></form>)
+  expect(combo.textContent).toBe('Beta')
+})
+test('a disabled combobox makes the interaction helper fail loudly', async () => {
+  const { changeField } = await import('../_helpers/select.js')
+  render(<Example disabled />)
+  expect(() => changeField(screen.getByRole('combobox'), { target: { value: 'banana' } })).toThrow(/disabled/i)
+})
+test.each(['popover', 'fallback'])('Escape closes only the menu inside a modal (%s)', async mode => {
+  const { Dialog } = await import('../../src/ui/Dialog.js')
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  const original = HTMLElement.prototype.showPopover
+  if (mode === 'fallback') delete (HTMLElement.prototype as Partial<HTMLElement>).showPopover
+  const close = vi.fn()
+  render(<Dialog open title="Configure" onClose={close}><div style={{ transform: 'translateX(10px)' }}><Example /></div></Dialog>)
+  const combo = screen.getByRole('combobox'); fireEvent.click(combo)
+  const menu = screen.getByRole('listbox')
+  if (mode === 'fallback') expect(menu.parentElement).toBe(screen.getByRole('dialog'))
+  key('Escape')
+  expect(screen.queryByRole('listbox')).toBeNull(); expect(close).not.toHaveBeenCalled()
+  key('Escape'); expect(close).toHaveBeenCalledTimes(1)
+  HTMLElement.prototype.showPopover = original
+  vi.restoreAllMocks()
+})
+test('without popovers the popup escapes transformed ancestors into its document body', () => {
+  const original = HTMLElement.prototype.showPopover
+  // Feature absence, rather than an API stub that still counts as support.
+  delete (HTMLElement.prototype as Partial<HTMLElement>).showPopover
+  try {
+    render(<div style={{ transform: 'translateX(20px)' }}><Example /></div>)
+    fireEvent.click(screen.getByRole('combobox'))
+    expect(screen.getByRole('listbox').parentElement).toBe(document.body)
+    fireEvent.click(screen.getByRole('option', { name: 'Berry' }))
+    expect(formValue()).toBe('berry')
+  } finally { HTMLElement.prototype.showPopover = original }
+})
+test('scroll closes the menu when its trigger leaves the drawer body', () => {
+  render(<div data-testid="scroll" style={{ overflow: 'auto' }}><Example /></div>)
+  const scroller = screen.getByTestId('scroll'), combo = screen.getByRole('combobox')
+  const rect = (top: number, bottom: number) => ({ x: 20, y: top, left: 20, right: 220, top, bottom, width: 200, height: bottom - top, toJSON() {} })
+  vi.spyOn(scroller, 'getBoundingClientRect').mockReturnValue(rect(100, 300))
+  const bounds = vi.spyOn(combo, 'getBoundingClientRect').mockReturnValue(rect(120, 160))
+  fireEvent.click(combo); expect(screen.getByRole('listbox')).toBeTruthy()
+  bounds.mockReturnValue(rect(60, 100)); fireEvent.scroll(scroller)
+  expect(screen.queryByRole('listbox')).toBeNull(); expect(formValue()).toBe('apple')
+})
+test.each(['ltr', 'rtl'])('popup widens, anchors logically, and uses visual viewport coordinates (%s)', direction => {
+  render(<div dir={direction}><Example /></div>)
+  const combo = screen.getByRole('combobox')
+  vi.spyOn(combo, 'getBoundingClientRect').mockReturnValue({ x: direction === 'rtl' ? 320 : 250, y: 400, left: direction === 'rtl' ? 320 : 250, right: direction === 'rtl' ? 380 : 310, top: 400, bottom: 440, width: 60, height: 40, toJSON() {} })
+  vi.spyOn(window, 'getComputedStyle').mockImplementation(node => ({ direction, overflow: 'visible', overflowX: 'visible', overflowY: 'visible' }) as CSSStyleDeclaration)
+  const viewport = new EventTarget()
+  Object.assign(viewport, { offsetLeft: 100, offsetTop: 100, width: 400, height: 400 })
+  Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport })
+  const intrinsic = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) { return this.getAttribute('role') === 'listbox' ? 240 : 0 })
+  try {
+    fireEvent.click(combo)
+    const menu = screen.getByRole('listbox')
+    expect(menu.style.width).toBe('240px')
+    expect(menu.style.left).toBe(direction === 'ltr' ? '250px' : '140px')
+    expect(menu.dataset.placement).toBe('top'); expect(menu.style.top).toBe('116px'); expect(menu.style.bottom).toBe('auto')
+  } finally { intrinsic.mockRestore(); vi.restoreAllMocks(); Reflect.deleteProperty(window, 'visualViewport') }
+})
+
+test.each([['ltr', 430, 490, '250px'], ['rtl', 150, 210, '150px']] as const)('popup flips to the logical end near the %s viewport edge', (direction, left, right, expected) => {
+  render(<Example />)
+  const combo = screen.getByRole('combobox')
+  vi.spyOn(combo, 'getBoundingClientRect').mockReturnValue({ x: left, y: 200, left, right, top: 200, bottom: 240, width: 60, height: 40, toJSON() {} })
+  vi.spyOn(window, 'getComputedStyle').mockReturnValue({ direction, overflow: 'visible' } as CSSStyleDeclaration)
+  const viewport = new EventTarget()
+  Object.assign(viewport, { offsetLeft: 100, offsetTop: 100, width: 400, height: 400 })
+  Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport })
+  vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(240)
+  try { fireEvent.click(combo); expect(screen.getByRole('listbox').style.left).toBe(expected) }
+  finally { vi.restoreAllMocks(); Reflect.deleteProperty(window, 'visualViewport') }
+})
+
+test('native dialog cancel is consumed while the menu is open', async () => {
+  const { Dialog } = await import('../../src/ui/Dialog.js')
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  const close = vi.fn()
+  render(<Dialog open title="Configure" onClose={close}><Example /></Dialog>)
+  fireEvent.click(screen.getByRole('combobox'))
+  const cancel = new Event('cancel', { cancelable: true })
+  fireEvent(screen.getByRole('dialog'), cancel)
+  expect(cancel.defaultPrevented).toBe(true)
+  expect(screen.queryByRole('listbox')).toBeNull(); expect(close).not.toHaveBeenCalled()
+})
+
+test('intrinsic popup width includes its borders so the longest option need not wrap', () => {
+  render(<Example />)
+  const combo = screen.getByRole('combobox')
+  vi.spyOn(combo, 'getBoundingClientRect').mockReturnValue({ x: 20, y: 200, left: 20, right: 80, top: 200, bottom: 240, width: 60, height: 40, toJSON() {} })
+  const computed = window.getComputedStyle.bind(window)
+  vi.spyOn(window, 'getComputedStyle').mockImplementation(node => node.getAttribute('role') === 'listbox'
+    ? { borderLeftWidth: '1px', borderRightWidth: '1px' } as CSSStyleDeclaration : computed(node))
+  vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(240)
+  try { fireEvent.click(combo); expect(screen.getByRole('listbox').style.width).toBe('242px') }
+  finally { vi.restoreAllMocks() }
+})
+
+test('fallback portal keeps the selected option in view after the listbox remounts', () => {
+  const original = HTMLElement.prototype.showPopover
+  delete (HTMLElement.prototype as Partial<HTMLElement>).showPopover
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+  vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function (this: HTMLElement) { return this.textContent === 'Last' ? 200 : 0 })
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(40)
+  try {
+    render(<Select id="fallback-scroll" label="Choice" value="last" options={[{ value: 'first', label: 'First' }, { value: 'last', label: 'Last' }]} />)
+    fireEvent.click(screen.getByRole('combobox'))
+    expect(screen.getByRole('listbox').parentElement).toBe(document.body)
+    expect(screen.getByRole('listbox').scrollTop).toBe(140)
+  } finally { vi.restoreAllMocks(); HTMLElement.prototype.showPopover = original }
+})

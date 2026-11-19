@@ -96,7 +96,7 @@ test.each(['draft', 'running'] as const)('unbound %s binding shows one prompt an
   const { props, api, doc } = setup(status)
   api.doc = { ...doc, flagPoint: null }
   const view = render(<Binding {...props} />)
-  expect(screen.getAllByText(/Choose the setting first\./)).toHaveLength(1)
+  expect(screen.getAllByText(/Choose the setting first\./).filter(node => !node.closest('[hidden]'))).toHaveLength(1)
   expect(view.container.querySelector('[id$="-description"]')).toBeNull()
   if (status === 'draft') {
     const picker = screen.getByRole('combobox', { name: 'Setting' })

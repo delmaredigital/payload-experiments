@@ -29,7 +29,7 @@ test('button links, disabled and busy prevent actions', () => {
 })
 test.each([TextInput, NumberInput, SearchInput, Select, Toggle])('%s associates label, help and announced error', Component => {
   render(<Component id="field" label="Name" help="Helpful sentence." error="Please check this." aria-describedby="external" />)
-  const control = screen.getByLabelText('Name')
+  const control = screen.getByLabelText('Name', { selector: 'input, button' })
   expect(control.getAttribute('aria-invalid')).toBe('true')
   expect(control.getAttribute('aria-describedby')).toBe('external field-help field-error')
   expect(screen.getByRole('alert').id).toBe('field-error')

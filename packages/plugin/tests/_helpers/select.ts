@@ -13,7 +13,7 @@ export function openSelect(control: HTMLElement) {
 }
 export function changeField(control: HTMLElement, event: { target: { value: unknown } }, { allowMissing = false } = {}) {
   if (control.tagName !== 'BUTTON' || control.getAttribute('role') !== 'combobox') return fireEvent.change(control, event)
-  if ((control as HTMLButtonElement).disabled) return
+  if ((control as HTMLButtonElement).disabled) throw new Error('Cannot change a disabled combobox')
   openSelect(control)
   const popup = control.ownerDocument.getElementById(control.getAttribute('aria-controls')!)!
   const option = [...popup.querySelectorAll<HTMLElement>('[role="option"]')].find(node => node.dataset.value === String(event.target.value))
