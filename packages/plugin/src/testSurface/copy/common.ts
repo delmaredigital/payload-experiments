@@ -39,3 +39,5 @@ export function refusalMessage(code: string | undefined, status: number, message
   if (code === 'placement-unpublished') return unpublishedPlacementsCopy(detail)
   return options?.fallback ?? (message || API_MESSAGES.failed)
 }
+
+export const INPUT_COPY = { selectRequired: 'Choose an option.' } as const

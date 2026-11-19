@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../_helpers/popover.js'
+import { changeField, openSelect } from '../../_helpers/select.js'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath, URL as NodeURL } from 'node:url'
@@ -29,8 +31,8 @@ function shellHeader() {
   return header!
 }
 function fill(name = 'Completed registrations') {
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: name } })
-  fireEvent.change(screen.getByLabelText('Measured by'), { target: { value: 'signup' } })
+  changeField(screen.getByLabelText('Name'), { target: { value: name } })
+  changeField(screen.getByRole('combobox', { name: 'Measured by' }), { target: { value: 'signup' } })
 }
 async function loadForm(tests: unknown[] = [], loaded = goal) {
   const fetch = vi.fn(async (url: string) => response(url.includes('/xp-experiments?') ? { docs: tests } : loaded))
@@ -92,10 +94,10 @@ test('new goal derives an editable short name and posts only collection fields, 
   await screen.findByLabelText('Name')
   fill()
   expect((screen.getByLabelText('Short name') as HTMLInputElement).value).toBe('completed-registrations')
-  fireEvent.change(screen.getByLabelText('Short name'), { target: { value: 'my-goal' } })
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New title' } })
+  changeField(screen.getByLabelText('Short name'), { target: { value: 'my-goal' } })
+  changeField(screen.getByLabelText('Name'), { target: { value: 'New title' } })
   expect((screen.getByLabelText('Short name') as HTMLInputElement).value).toBe('my-goal')
-  fireEvent.change(screen.getByLabelText('Warn when it gets worse by (%)'), { target: { value: '8' } })
+  changeField(screen.getByLabelText('Warn when it gets worse by (%)'), { target: { value: '8' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(push).toHaveBeenCalledWith('/control/experiments/test%2F1?goal=goal-uuid'))
   expect(fetch).toHaveBeenCalledWith('/data/xp-metrics', expect.objectContaining({ method: 'POST', credentials: 'include' }))
@@ -109,16 +111,16 @@ test('revenue defaults and shared capping validation match the collection', asyn
   render(<GoalForm surface={surface} />)
   await screen.findByLabelText('Name')
   fill('Gifts')
-  fireEvent.change(screen.getByLabelText('Measured by'), { target: { value: 'gift' } })
+  changeField(screen.getByRole('combobox', { name: 'Measured by' }), { target: { value: 'gift' } })
   expect(screen.queryByRole('option', { name: 'No limit' })).toBeNull()
-  expect((screen.getByLabelText('Limit by') as HTMLSelectElement).value).toBe('percentile')
+  expect((screen.getByRole('combobox', { name: 'Limit by' }) as HTMLButtonElement).value).toBe('percentile')
   expect((screen.getByLabelText('Limit value') as HTMLInputElement).value).toBe('0.99')
-  fireEvent.change(screen.getByLabelText('Limit value'), { target: { value: '2' } })
+  changeField(screen.getByLabelText('Limit value'), { target: { value: '2' } })
   fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form')!)
   expect(screen.getByRole('alert').textContent).toBe('Enter a valid limit (for past amounts, use a number greater than 0 and at most 1).')
   expect(screen.getByLabelText('Limit value').getAttribute('aria-invalid')).toBe('true')
   expect(fetch).not.toHaveBeenCalled()
-  fireEvent.change(screen.getByLabelText('Limit by'), { target: { value: 'absolute' } })
+  changeField(screen.getByRole('combobox', { name: 'Limit by' }), { target: { value: 'absolute' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(push).toHaveBeenCalledWith('/control/collections/xp-metrics'))
   const request = fetch.mock.calls[0] as unknown as [string, RequestInit]
@@ -126,7 +128,7 @@ test('revenue defaults and shared capping validation match the collection', asyn
 })
 test('existing revenue goals without a cap show the same default the server applies on save', async () => {
   await loadForm([], { ...goal, source: 'gift' })
-  expect((screen.getByLabelText('Limit by') as HTMLSelectElement).value).toBe('percentile')
+  expect((screen.getByRole('combobox', { name: 'Limit by' }) as HTMLButtonElement).value).toBe('percentile')
   expect((screen.getByLabelText('Limit value') as HTMLInputElement).value).toBe('0.99')
   expect(screen.queryByRole('option', { name: 'No limit' })).toBeNull()
 })
@@ -137,7 +139,7 @@ test.each([[0.07, '7'], [0.29, '29']] as const)('threshold %s displays as %s wit
 test('threshold can be cleared and saves the default', async () => {
   const fetch = await loadForm([], { ...goal, guardrailThreshold: 0.29 })
   const input = screen.getByLabelText('Warn when it gets worse by (%)') as HTMLInputElement
-  fireEvent.change(input, { target: { value: '' } })
+  changeField(input, { target: { value: '' } })
   expect(input.value).toBe('')
   fetch.mockResolvedValueOnce(response({ doc: goal }))
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -149,7 +151,7 @@ test('invalid threshold opens Advanced and shows an associated field error witho
   const input = screen.getByLabelText('Warn when it gets worse by (%)')
   const advanced = input.closest('details')!
   expect(advanced.open).toBe(false)
-  fireEvent.change(input, { target: { value: '-1' } })
+  changeField(input, { target: { value: '-1' } })
   fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form')!)
   const error = screen.getByRole('alert')
   expect(error.textContent).toBe('Enter a percentage of zero or more, or leave blank for 5%.')
@@ -176,7 +178,7 @@ test('a used goal locks its short name and disables Delete with its usage count'
   const fetch = await loadForm([{ id: 1, name: 'First', metrics: { secondary: [7], primary: 7 } }, { id: 2, name: 'Second', metrics: { guardrails: [7] } }])
   expect((screen.getByLabelText('Short name') as HTMLInputElement).readOnly).toBe(true)
   // The server refuses a source change on a used goal (CORE-29), so the form never offers one.
-  expect((screen.getByLabelText('Measured by') as HTMLSelectElement).disabled).toBe(true)
+  expect((screen.getByRole('combobox', { name: 'Measured by' }) as HTMLButtonElement).disabled).toBe(true)
   expect(screen.getByText('What this goal measures stays the same once a test uses it.')).toBeTruthy()
   expect((screen.getByRole('button', { name: 'Delete goal' }) as HTMLButtonElement).disabled).toBe(true)
   expect(document.getElementById('xp-goal-used')!.textContent).toBe('Used by 2 tests. Remove it from those tests first.')
@@ -197,7 +199,7 @@ test('an unused goal can be edited and deleted through REST', async () => {
   const fetch = await loadForm()
   expect((screen.getByLabelText('Short name') as HTMLInputElement).readOnly).toBe(false)
   fetch.mockResolvedValueOnce(response({ doc: goal }))
-  fireEvent.change(screen.getByLabelText('Short name'), { target: { value: 'updated' } })
+  changeField(screen.getByLabelText('Short name'), { target: { value: 'updated' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(push).toHaveBeenCalledWith('/control/collections/xp-metrics'))
   expect(fetch).toHaveBeenLastCalledWith('/data/xp-metrics/7', expect.objectContaining({ method: 'PATCH', credentials: 'include', body: expect.stringContaining('"slug":"updated"') }))
@@ -277,6 +279,7 @@ test('surface dispatches goals and form routes with sources and the shared shell
   await screen.findByLabelText('Name')
   const crumbs = expectShell(['Tests', 'Goals', 'New goal'])
   expect(within(crumbs).getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/collections/xp-metrics?return=abc')
+  openSelect(screen.getByRole('combobox', { name: 'Measured by' }))
   expect(screen.getByRole('option', { name: 'Registrations · yes/no' })).toBeTruthy()
   expect(screen.getByRole('link', { name: 'Cancel' }).getAttribute('href')).toBe('/control/collections/xp-metrics?return=abc')
   view.rerender(<TestsSurface {...surface} route="goal" id="7" />)
@@ -284,7 +287,7 @@ test('surface dispatches goals and form routes with sources and the shared shell
   await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Register'))
   const editCrumbs = expectShell(['Tests', 'Goals', 'Register'])
   expect(within(editCrumbs).getByRole('link', { name: 'Goals' }).getAttribute('href')).toBe('/control/collections/xp-metrics')
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Unsaved edit' } })
+  changeField(screen.getByLabelText('Name'), { target: { value: 'Unsaved edit' } })
   view.rerender(<TestsSurface {...surface} route="goalNew" />)
   await screen.findByLabelText('Name')
   expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('')
@@ -314,10 +317,10 @@ test.each([8, 9])('search is present only above eight goals (%s), filters by nam
   await screen.findByRole('link', { name: 'Goal 0' })
   if (count === 8) { expect(screen.queryByRole('searchbox')).toBeNull(); return }
   const search = screen.getByRole('searchbox', { name: 'Search goals' })
-  fireEvent.change(search, { target: { value: '  GOAL 1 ' } })
+  changeField(search, { target: { value: '  GOAL 1 ' } })
   expect(screen.getByRole('link', { name: 'Goal 1' })).toBeTruthy()
   expect(screen.queryByRole('link', { name: 'Goal 0' })).toBeNull()
-  fireEvent.change(search, { target: { value: 'newsletter' } })
+  changeField(search, { target: { value: 'newsletter' } })
   expect(screen.getByText('No goals match “newsletter”.')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
   expect(screen.getByRole('link', { name: 'Goal 0' })).toBeTruthy()
@@ -397,8 +400,8 @@ const duplicateSlug = 'Another goal already uses this short name. Change it unde
 async function newClick(name: string) {
   render(<GoalForm surface={clickSurface} />)
   await screen.findByLabelText('Name')
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: name } })
-  fireEvent.change(screen.getByLabelText('Measured by'), { target: { value: 'click:' } })
+  changeField(screen.getByLabelText('Name'), { target: { value: name } })
+  changeField(screen.getByRole('combobox', { name: 'Measured by' }), { target: { value: 'click:' } })
 }
 test('click goals post their derived source and fixed analysis settings, with Short name under Advanced', async () => {
   const fetch = vi.fn(async () => response({ doc: goal }))
@@ -408,7 +411,7 @@ test('click goals post their derived source and fixed analysis settings, with Sh
   expect(screen.getByLabelText('Short name').closest('details')).toBeTruthy()
   expect(screen.queryByLabelText('Better when it goes')).toBeNull()
   expect(screen.queryByText('Limit very large values')).toBeNull()
-  expect((screen.getByLabelText('Measured by') as HTMLSelectElement).selectedOptions[0]!.textContent).toBe('A click on the page')
+  expect(screen.getByRole('combobox', { name: 'Measured by' }).textContent).toBe('A click on the page')
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
   const body = JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
@@ -418,15 +421,15 @@ test('click short-name prefill caps at 64 and trims the trailing separator', asy
   vi.stubGlobal('fetch', vi.fn())
   await newClick(`${'a'.repeat(63)} bbbb`)
   expect((screen.getByLabelText('Short name') as HTMLInputElement).value).toBe('a'.repeat(63))
-  fireEvent.change(screen.getByLabelText('Short name'), { target: { value: 'custom' } })
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Changed' } })
+  changeField(screen.getByLabelText('Short name'), { target: { value: 'custom' } })
+  changeField(screen.getByLabelText('Name'), { target: { value: 'Changed' } })
   expect((screen.getByLabelText('Short name') as HTMLInputElement).value).toBe('custom')
 })
 test.each(['🚀', 'Hero'])('invalid click slug (%s) opens Advanced with the grammar sentence and sends nothing', async name => {
   const fetch = vi.fn()
   vi.stubGlobal('fetch', fetch)
   await newClick(name)
-  if (name === 'Hero') fireEvent.change(screen.getByLabelText('Short name'), { target: { value: 'BAD KEY' } })
+  if (name === 'Hero') changeField(screen.getByLabelText('Short name'), { target: { value: 'BAD KEY' } })
   fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form')!)
   expect(screen.getByText(slugRule)).toBeTruthy()
   expect(screen.getByLabelText('Short name').closest('details')!.open).toBe(true)
@@ -437,13 +440,13 @@ test('server slug errors for click: use authored duplicate copy and open Advance
   vi.stubGlobal('fetch', fetch)
   render(<GoalForm surface={clickSurface} />)
   await screen.findByLabelText('Name')
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Hero' } })
-  fireEvent.change(screen.getByLabelText('Measured by'), { target: { value: 'click:' } })
+  changeField(screen.getByLabelText('Name'), { target: { value: 'Hero' } })
+  changeField(screen.getByRole('combobox', { name: 'Measured by' }), { target: { value: 'click:' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(await screen.findByText(duplicateSlug)).toBeTruthy()
   expect(document.querySelector('details')!.open).toBe(true)
   expect(screen.queryByText('Value must be unique')).toBeNull()
-  fireEvent.change(screen.getByLabelText('Measured by'), { target: { value: 'signup' } })
+  changeField(screen.getByRole('combobox', { name: 'Measured by' }), { target: { value: 'signup' } })
   expect(screen.queryByText(duplicateSlug)).toBeNull()
   expect(screen.getByLabelText('Short name').getAttribute('aria-invalid')).not.toBe('true')
 })
@@ -483,7 +486,7 @@ test('a saved click source selects the shared click option and list uses its kin
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url.includes('/xp-experiments?') ? { docs: [] } : { ...goal, source: 'click:hero-cta' })))
   const view = render(<GoalForm surface={clickSurface} id="7" />)
   await screen.findByLabelText('Name')
-  expect((screen.getByLabelText('Measured by') as HTMLSelectElement).value).toBe('click:')
+  expect((screen.getByRole('combobox', { name: 'Measured by' }) as HTMLButtonElement).value).toBe('click:')
   expect(screen.queryByRole('option', { name: 'click:hero-cta' })).toBeNull()
   view.unmount()
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response({ docs: url.includes('/xp-experiments?') ? [] : [{ ...goal, source: 'click:hero-cta' }] })))

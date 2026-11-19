@@ -22,10 +22,18 @@
 .xp-ui-input:hover { border-color: var(--xp-text-3); }
 .xp-ui-input[aria-invalid='true'] { border-color: var(--xp-error); }
 .xp-ui-input--number { text-align: end; font-variant-numeric: tabular-nums; }
-/* The same token-based dropdown chrome in the admin and isolated editor. */
-.xp-ui-select-wrap { display: block; position: relative; min-width: 0; }
-.xp-ui-select-wrap::after { content: ''; position: absolute; inset-inline-end: 14px; top: 50%; width: 7px; height: 7px; border-right: 2px solid var(--xp-text-2); border-bottom: 2px solid var(--xp-text-2); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
-.xp-ui-select { cursor: pointer; appearance: none; padding-inline-end: 36px; }
+/* The open menu inherits the control's tokens, even in a dialog or canvas iframe. */
+.xp-ui-combobox-wrap { display: block; position: relative; min-width: 0; max-width: 100%; }
+.xp-ui-combobox { display: flex; align-items: center; justify-content: space-between; gap: var(--xp-space-2); cursor: pointer; text-align: start; }
+.xp-ui-combobox > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xp-ui-combobox-chevron { flex: 0 0 auto; width: 7px; height: 7px; margin-inline-end: 4px; border-right: 2px solid var(--xp-text-2); border-bottom: 2px solid var(--xp-text-2); transform: translateY(-2px) rotate(45deg); }
+.xp-ui-combobox-popup { box-sizing: border-box; position: fixed; inset: auto; margin: 0; padding: var(--xp-space-1); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--xp-border-strong); border-radius: var(--xp-radius-control); background: var(--xp-surface); color: var(--xp-text); font: var(--xp-text-body); z-index: 1000; }
+.xp-ui-combobox-popup:popover-open { display: block; }
+.xp-ui-combobox-option { padding: var(--xp-space-2); border-radius: var(--xp-space-1); cursor: pointer; overflow-wrap: anywhere; }
+.xp-ui-combobox-option[aria-selected='true'] { background: var(--xp-surface-3); outline: 1px solid var(--xp-border-strong); outline-offset: -1px; }
+.xp-ui-combobox-option[aria-disabled='true'] { color: var(--xp-text-3); cursor: not-allowed; }
+.xp-ui-combobox-group { padding: var(--xp-space-2); color: var(--xp-text-2); font: var(--xp-text-small); }
+.xp-ui-combobox-validation { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .xp-ui-help { margin: 0; color: var(--xp-text-2); font: var(--xp-text-small); }
 .xp-ui-error { margin: 0; color: var(--xp-error); font: var(--xp-text-small); }
 .xp-ui-toggle { appearance: none; display: inline-block; width: 32px; height: 20px; margin: 0; padding: 2px; border-radius: 20px; border: 1px solid var(--xp-border-strong); background: var(--xp-surface-3); cursor: pointer; transition: background-color var(--xp-motion); }

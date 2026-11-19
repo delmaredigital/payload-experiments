@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
+import '../_helpers/popover.js'
 import React, { createElement, useMemo, useState } from 'react'
+import { changeField, openSelect } from '../_helpers/select.js'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from 'vitest'
 import { payloadUiMock, resetPayloadUiMock, setAuth, setConfig, setField } from '../admin/_helpers/payloadUiMock.js'
@@ -39,6 +41,7 @@ function Puck({ readOnly = false, initialValue = 'missing' }: { readOnly?: boole
 
 test('Payload picker passes a unique path, matched value, options and single-option changes to SelectInput', async () => {
   const { rerender } = render(<Payload />)
+  await openReadySelects()
   await screen.findByRole('option', { name: 'Join us' })
   const props = () => pickerSelect.mock.lastCall![0]
   expect(props()).toMatchObject({ path: 'buttons.0.xpGoal', value: 'missing',
@@ -80,6 +83,17 @@ test.each([{ host: 'Payload', Host: Payload, row: 'xp-goal-field__row', panel: '
   else expect(create.classList.contains('xp-ui-button--primary')).toBe(true)
 })
 
+async function openReadySelects() {
+  await waitFor(() => {
+    const controls = screen.queryAllByRole('combobox').filter(control => control.tagName === 'BUTTON')
+    for (const control of controls) {
+      expect((control as HTMLButtonElement).disabled).toBe(false)
+      openSelect(control)
+    }
+  })
+}
+function isSelected(option: HTMLElement) { return option.getAttribute('aria-selected') === 'true' || (option as HTMLOptionElement).selected === true }
+
 describe.each([{ host: 'Payload', Host: Payload }, { host: 'Puck', Host: Puck }])('$host drives the shared headless picker', ({ Host }) => {
   test('warning only after ready, source contains matches filtered, picking selects slug', async () => {
     let resolve!: (value: Response) => void
@@ -90,10 +104,11 @@ describe.each([{ host: 'Payload', Host: Payload }, { host: 'Puck', Host: Puck }]
     expect(screen.getByRole('combobox')).toHaveProperty('value', 'missing')
     await act(async () => resolve(json({ docs: [...rows, { id: 2, name: 'Fake', slug: 'fake', source: 'events:click:fake' }], hasNextPage: false })))
     expect(await screen.findByText(C.undefinedKey)).toBeTruthy()
-    expect(screen.getByRole('option', { name: 'missing (missing)' })).toHaveProperty('selected', true)
+    await openReadySelects()
+    expect(isSelected(screen.getByRole('option', { name: 'missing (missing)' }))).toBe(true)
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByRole('option', { name: 'Fake' })).toBeNull()
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'join' } })
+    changeField(screen.getByRole('combobox'), { target: { value: 'join' } })
     expect(select).toHaveBeenCalledWith('join')
     expect(String(fetcher.mock.calls[0]![0])).toContain('where%5Bsource%5D%5Blike%5D=click%3A')
     expect(fetcher.mock.calls[0]![1]).toMatchObject({ credentials: 'include' })
@@ -114,8 +129,9 @@ describe.each([{ host: 'Payload', Host: Payload }, { host: 'Puck', Host: Puck }]
   })
   test('No click goal clears the stored value', async () => {
     render(<Host />)
+    await openReadySelects()
     await screen.findByRole('option', { name: 'Join us' })
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } })
+    changeField(screen.getByRole('combobox'), { target: { value: '' } })
     expect(select).toHaveBeenCalledWith('')
   })
   test('read errors keep the value and allow retry', async () => {
@@ -125,6 +141,7 @@ describe.each([{ host: 'Payload', Host: Payload }, { host: 'Puck', Host: Puck }]
     expect(screen.getByRole('combobox')).toHaveProperty('value', 'missing')
     expect(select).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: C.retry }))
+    await openReadySelects()
     expect(await screen.findByRole('option', { name: 'Join us' })).toBeTruthy()
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
@@ -141,7 +158,7 @@ describe.each([{ host: 'Payload', Host: Payload }, { host: 'Puck', Host: Puck }]
     const submit = vi.fn(event => event.preventDefault())
     render(<form onSubmit={submit}><Host /></form>)
     fireEvent.click(await screen.findByText(C.newGoal))
-    fireEvent.change(screen.getByLabelText(C.name), { target: { value: 'Join now' } })
+    changeField(screen.getByLabelText(C.name), { target: { value: 'Join now' } })
     const name = screen.getByLabelText(C.name), slug = screen.getByLabelText(C.slug)
     expect(name.hasAttribute('name')).toBe(false); expect(slug.hasAttribute('name')).toBe(false)
     for (const input of [name, slug]) expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(false)
@@ -153,11 +170,12 @@ describe.each([{ host: 'Payload', Host: Payload }, { host: 'Puck', Host: Puck }]
   })
   test('success creates the fixed body, selects the new slug and closes the panel', async () => {
     render(<Host />); fireEvent.click(await screen.findByText(C.newGoal))
-    fireEvent.change(screen.getByLabelText(C.name), { target: { value: 'New goal' } })
+    changeField(screen.getByLabelText(C.name), { target: { value: 'New goal' } })
     fetcher.mockResolvedValueOnce(json({ doc: { id: 2, name: 'New goal', slug: 'new-goal', source: 'click:new-goal' } }))
     fireEvent.click(screen.getByText(C.createGoal))
     await waitFor(() => expect(select).toHaveBeenCalledWith('new-goal'))
     expect(screen.queryByLabelText(C.name)).toBeNull()
+    await openReadySelects()
     expect(screen.getByRole('option', { name: 'New goal' })).toBeTruthy()
     const init = fetcher.mock.calls[1]![1]
     expect(init.method).toBe('POST')
@@ -165,11 +183,11 @@ describe.each([{ host: 'Payload', Host: Payload }, { host: 'Puck', Host: Puck }]
   })
   test('empty prefill and edited invalid slug open Advanced and never request', async () => {
     render(<Host />); fireEvent.click(await screen.findByText(C.newGoal))
-    fireEvent.change(screen.getByLabelText(C.name), { target: { value: '🤍' } })
+    changeField(screen.getByLabelText(C.name), { target: { value: '🤍' } })
     expect(screen.getByText(C.slugRule)).toBeTruthy()
     expect(screen.getByText(C.advanced).closest('details')?.open).toBe(true)
     fireEvent.click(screen.getByText(C.createGoal)); expect(fetcher).toHaveBeenCalledTimes(1)
-    fireEvent.change(screen.getByLabelText(C.slug), { target: { value: 'BAD' } })
+    changeField(screen.getByLabelText(C.slug), { target: { value: 'BAD' } })
     fireEvent.click(screen.getByText(C.createGoal)); expect(fetcher).toHaveBeenCalledTimes(1)
     expect(screen.getByText(C.slugRule)).toBeTruthy()
   })
@@ -179,7 +197,7 @@ describe.each([{ host: 'Payload', Host: Payload }, { host: 'Puck', Host: Puck }]
     [{ errors: [{ message: 'database internals' }] }, C.saveError],
   ])('create failure maps to authored copy: %j', async (body, message) => {
     render(<Host />); fireEvent.click(await screen.findByText(C.newGoal))
-    fireEvent.change(screen.getByLabelText(C.name), { target: { value: 'Join now' } })
+    changeField(screen.getByLabelText(C.name), { target: { value: 'Join now' } })
     fetcher.mockResolvedValueOnce(json(body, 400))
     fireEvent.click(screen.getByText(C.createGoal))
     expect(await screen.findByText(message)).toBeTruthy()
@@ -205,7 +223,7 @@ test('a deferred create uses the current array-row setter after a reorder', asyn
   let complete!: (value: Response) => void
   const { rerender } = render(<Payload />)
   fireEvent.click(await screen.findByText(C.newGoal))
-  fireEvent.change(screen.getByLabelText(C.name), { target: { value: 'New goal' } })
+  changeField(screen.getByLabelText(C.name), { target: { value: 'New goal' } })
   fetcher.mockImplementationOnce(() => new Promise<Response>(resolve => { complete = resolve }))
   fireEvent.click(screen.getByText(C.createGoal))
   const movedSelect = vi.fn()
@@ -222,28 +240,33 @@ test('three array rows share an in-flight read and a created goal, then refresh 
   const rowsView = render(<><Payload /><Payload path="buttons.1.xpGoal" /><Payload path="buttons.2.xpGoal" /></>)
   expect(fetcher).toHaveBeenCalledTimes(1)
   await act(async () => { finish(json({ docs: rows, hasNextPage: false })) })
+  await openReadySelects()
   expect(await screen.findAllByRole('option', { name: 'Join us' })).toHaveLength(3)
   fireEvent.click(screen.getAllByText(C.newGoal)[0]!)
-  fireEvent.change(screen.getByLabelText(C.name), { target: { value: 'Shared goal' } })
+  changeField(screen.getByLabelText(C.name), { target: { value: 'Shared goal' } })
   fetcher.mockResolvedValueOnce(json({ doc: { id: 2, name: 'Shared goal', slug: 'shared-goal', source: 'click:shared-goal' } }))
   fireEvent.click(screen.getByText(C.createGoal))
+  await openReadySelects()
   await waitFor(() => expect(screen.getAllByRole('option', { name: 'Shared goal' })).toHaveLength(3))
   expect(select).toHaveBeenCalledWith('shared-goal')
   expect(fetcher).toHaveBeenCalledTimes(2)
   rowsView.unmount()
   fetcher.mockResolvedValueOnce(json({ docs: [...rows, { id: 2, name: 'Shared goal', slug: 'shared-goal', source: 'click:shared-goal' }], hasNextPage: false }))
   render(<Payload />)
+  await openReadySelects()
   expect(await screen.findByRole('option', { name: 'Shared goal' })).toBeTruthy()
   expect(fetcher).toHaveBeenCalledTimes(3)
 })
 
 test('three rows share one read and remount fetches a goal created elsewhere', async () => {
   const rowsView = render(<><Payload /><Payload path="buttons.1.xpGoal" /><Puck /></>)
+  await openReadySelects()
   expect(await screen.findAllByRole('option', { name: 'Join us' })).toHaveLength(3)
   expect(fetcher).toHaveBeenCalledTimes(1)
   rowsView.unmount()
   fetcher.mockResolvedValueOnce(json({ docs: [{ id: 2, name: 'New goal', slug: 'missing', source: 'click:missing' }], hasNextPage: false }))
   render(<Puck />)
+  await openReadySelects()
   expect(await screen.findByRole('option', { name: 'New goal' })).toBeTruthy()
   expect(screen.queryByRole('option', { name: 'Join us' })).toBeNull()
   expect(screen.queryByText(C.undefinedKey)).toBeNull()
@@ -258,9 +281,11 @@ test('an abandoned in-flight read cannot overwrite a remounted list', async () =
   view.unmount()
   fetcher.mockResolvedValueOnce(json({ docs: [{ id: 2, name: 'New goal', slug: 'missing', source: 'click:missing' }], hasNextPage: false }))
   render(<Payload />)
+  await openReadySelects()
   expect(await screen.findByRole('option', { name: 'New goal' })).toBeTruthy()
   await act(async () => { finish(json({ docs: rows, hasNextPage: false })) })
   render(<Payload path="buttons.1.xpGoal" />)
+  await openReadySelects()
   expect(await screen.findAllByRole('option', { name: 'New goal' })).toHaveLength(2)
   expect(screen.queryByRole('option', { name: 'Join us' })).toBeNull()
   expect(fetcher).toHaveBeenCalledTimes(2)
@@ -274,12 +299,14 @@ test.each([403, 500, 'offline'] as const)('a failed shared load is retried by th
   if (failure === 403) expect(screen.queryByRole('combobox')).toBeNull()
   else expect(screen.getByRole('combobox')).toHaveProperty('disabled', true)
   render(<Payload path="buttons.1.xpGoal" />)
+  await openReadySelects()
   await waitFor(() => expect(screen.getAllByRole('option', { name: 'Join us' })).toHaveLength(2))
   expect(fetcher).toHaveBeenCalledTimes(2)
 })
 
 test('different API bases have separate shared lists', async () => {
   render(<><Payload />{createElement(xpGoalPuckEditorField({ routes: { api: '/other-api' } }).render, { value: '', onChange: select } as any)}</>)
+  await openReadySelects()
   await waitFor(() => expect(screen.getAllByRole('option', { name: 'Join us' })).toHaveLength(2))
   expect(fetcher).toHaveBeenCalledTimes(2)
   expect(fetcher.mock.calls.map(([url]) => new URL(url, 'https://host').pathname)).toEqual([`${apiRoute}/xp-metrics`, '/other-api/xp-metrics'])
@@ -288,7 +315,8 @@ test('different API bases have separate shared lists', async () => {
 test.each(['Payload', 'Puck'])('%s keeps malformed stored text selected as missing', async host => {
   setField({ value: 'BAD ? goal', setValue: select }, 'buttons.0.xpGoal')
   render(host === 'Payload' ? <Payload /> : <Puck initialValue="BAD ? goal" />)
-  expect(await screen.findByRole('option', { name: 'BAD ? goal (missing)' })).toHaveProperty('selected', true)
+  await openReadySelects()
+  expect(isSelected(await screen.findByRole('option', { name: 'BAD ? goal (missing)' }))).toBe(true)
   expect(select).not.toHaveBeenCalled()
 })
 test('a non-manager with an empty Payload value sees No click goal as text', () => {

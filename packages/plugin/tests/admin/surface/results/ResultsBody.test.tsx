@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../../_helpers/popover.js'
+import { changeField, openSelect } from '../../../_helpers/select.js'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, afterEach, expect, test, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -43,7 +45,7 @@ test('a missing selected round shows round-picker copy and keeps the picker avai
     : original(url, init))
   render(<ResultsBody id={1} surface={surface} />)
   await screen.findByText('Shorter form is most likely to be best.')
-  fireEvent.change(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '1' } })
+  changeField(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '1' } })
   expect((await screen.findByRole('alert')).textContent).toBe('That round no longer exists. Choose another round.')
   expect(fetcher.mock.calls.some(([url]) => url === '/api/xp/experiments/1/results?phase=1&series=1')).toBe(true)
   expect(screen.getByRole('combobox', { name: 'Round' })).toBeTruthy()
@@ -114,7 +116,8 @@ test('Decide opens the shared dialog with newest round labels, posts once, and r
   render(<ResultsBody id={1} surface={surface} />)
   fireEvent.click(await screen.findByRole('button', { name: 'Decide' }))
   const dialog = screen.getByRole('dialog')
-  await waitFor(() => expect((within(dialog).getByRole('combobox', { name: 'Group' }) as HTMLSelectElement).value).toBe('variantA'))
+  await waitFor(() => expect((within(dialog).getByRole('combobox', { name: 'Group' }) as HTMLButtonElement).value).toBe('variantA'))
+  openSelect(within(dialog).getByRole('combobox', { name: 'Group' }))
   expect(within(dialog).getByRole('option', { name: 'Newest shorter form' })).toBeTruthy()
   expect(within(dialog).queryByRole('option', { name: 'Shorter form' })).toBeNull()
   expect(within(dialog).queryByRole('option', { name: 'Unchanged form' })).toBeNull()
@@ -140,10 +143,10 @@ test('the shared Decide dialog keeps its selection and note while the body refre
   render(<ResultsBody id={1} surface={surface} />)
   fireEvent.click(await screen.findByRole('button', { name: 'Decide' }))
   const dialog = screen.getByRole('dialog')
-  const group = within(dialog).getByRole('combobox', { name: 'Group' }) as HTMLSelectElement
+  const group = within(dialog).getByRole('combobox', { name: 'Group' }) as HTMLButtonElement
   await waitFor(() => expect(group.value).toBe('variantA'))
-  fireEvent.change(group, { target: { value: 'control' } })
-  fireEvent.change(within(dialog).getByLabelText('Decision note'), { target: { value: 'Keep this note' } })
+  changeField(group, { target: { value: 'control' } })
+  changeField(within(dialog).getByLabelText('Decision note'), { target: { value: 'Keep this note' } })
   let finish!: (response: Response) => void
   const original = fetcher.getMockImplementation()!
   fetcher.mockImplementation((url, init) => url.includes('phase=1') ? new Promise(resolve => { finish = resolve }) : original(url, init))
@@ -164,11 +167,11 @@ test('guarded decisions require a note and typed confirmation', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Decide' }))
   const dialog = screen.getByRole('dialog')
   await waitFor(() => expect(within(dialog).queryByRole('status')).toBeNull())
-  fireEvent.change(within(dialog).getByRole('combobox', { name: 'Group' }), { target: { value: 'variantA' } })
+  changeField(within(dialog).getByRole('combobox', { name: 'Group' }), { target: { value: 'variantA' } })
   const submit = within(dialog).getByRole('button', { name: 'Decide' }) as HTMLButtonElement
   expect(submit.disabled).toBe(true)
-  fireEvent.change(within(dialog).getByLabelText('Decision note'), { target: { value: 'Owner decision' } })
-  fireEvent.change(within(dialog).getByLabelText('Confirmation'), { target: { value: 'Shorter form' } })
+  changeField(within(dialog).getByLabelText('Decision note'), { target: { value: 'Owner decision' } })
+  changeField(within(dialog).getByLabelText('Confirmation'), { target: { value: 'Shorter form' } })
   expect(submit.disabled).toBe(false)
 })
 test.each(['running', 'stopped'] as const)('older rounds never inherit running context or current-round Decide (%s)', async status => {
@@ -183,7 +186,7 @@ test.each(['running', 'stopped'] as const)('older rounds never inherit running c
   const { container } = render(<ResultsBody id={1} surface={surface} />)
   await screen.findByRole('button', { name: 'Decide' })
   if (status === 'running') expect(container.querySelector('.xp-power')).toBeTruthy()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '1' } })
+  changeField(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '1' } })
   await screen.findByRole('table', { name: 'Registrations' })
   expect(container.querySelector('.xp-power')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Decide' })).toBeNull()
@@ -342,7 +345,7 @@ test('shipping round keeps the newest snapshot even when a decision snapshot is 
     decision: { phase: 1, winnerArm: 'variantA' } }, { ...doc, status: 'decided' })
   const { container } = render(<ResultsBody id={1} surface={surface} />)
   await screen.findByRole('table', { name: 'Registrations' })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Round' }), { target: { value: String(rollout.phase) } })
+  changeField(screen.getByRole('combobox', { name: 'Round' }), { target: { value: String(rollout.phase) } })
   await screen.findByRole('heading', { name: rollout.verdict.headline })
   expect(container.querySelector('.xp-stat-tile-value')?.textContent).toBe(rollout.exposures.total.toLocaleString('en-US'))
   expect(screen.getByRole('heading', { name: rollout.verdict.headline })).toBeTruthy()
@@ -362,7 +365,7 @@ test('archived test initially requests the decision round rather than a newer ro
     : url.endsWith('/preflight') ? json({ placements: [] })
       : json({ phases, snapshot: url.includes('phase=1') ? snapshot : rollout }))
   render(<ResultsBody id={1} surface={surface} />)
-  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Round' }) as HTMLSelectElement).value).toBe('1'))
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Round' }) as HTMLButtonElement).value).toBe('1'))
   await screen.findByRole('heading', { name: snapshot.verdict.headline })
   expect(fetcher.mock.calls.some(([url]) => url.includes('phase=1'))).toBe(true)
 })
@@ -468,9 +471,9 @@ test('rounds with different primary sources show the click explanation only for 
   render(<ResultsBody id={1} surface={surface} />)
   await screen.findByRole('table', { name: 'Registrations' })
   expect(screen.queryByText(RESULTS_COPY.clickPrimary)).toBeNull()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '1' } })
+  changeField(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '1' } })
   expect(await screen.findByText(RESULTS_COPY.clickPrimary)).toBeTruthy()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '2' } })
+  changeField(screen.getByRole('combobox', { name: 'Round' }), { target: { value: '2' } })
   await waitFor(() => expect(screen.queryByText(RESULTS_COPY.clickPrimary)).toBeNull())
 })
 

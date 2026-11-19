@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../../_helpers/popover.js'
+import { changeField, openSelect } from '../../../_helpers/select.js'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { GoalSection } from '../../../../src/testSurface/surface/test/GoalSection.js'
@@ -14,25 +16,26 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 test.each([false, true])('one collapsed optional list has one role per remaining goal (embedded: %s)', async embedded => {
   const p = props({ metrics: { primary: 1, guardrails: [], secondary: [] } })
   const view = render(<GoalSection {...p} embedded={embedded} />)
-  await screen.findByRole('option', { name: 'Completion · signup' })
+  await screen.findByRole('combobox', { name: 'Completion · signup' })
   const other = screen.getByText('Other goals (optional)').closest('details')!
   expect(other.open).toBe(false)
   fireEvent.click(within(other).getByText('Other goals (optional)'))
   expect(within(other).getAllByRole('combobox')).toHaveLength(2)
   expect(within(other).queryByLabelText('Registration · signup')).toBeNull()
   for (const name of ['Completion · signup', 'Donation · signup']) {
-    expect(within(other).getAllByLabelText(name)).toHaveLength(1)
-    expect(within(within(other).getByLabelText(name)).getAllByRole('option').map(node => node.textContent)).toEqual(["Don't track", 'Watch', 'Must not get worse'])
+    expect(within(other).getAllByRole('combobox', { name })).toHaveLength(1)
+    expect(openSelect(within(other).getByRole('combobox', { name })).getAllByRole('option').map(node => node.textContent)).toEqual(["Don't track", 'Watch', 'Must not get worse'])
+    fireEvent.keyDown(within(other).getByRole('combobox', { name }), { key: 'Escape' })
   }
   expect(screen.queryByRole('checkbox')).toBeNull()
   expect(screen.getByText("Watch: shown in results. Must not get worse: you're warned if a version makes it worse.")).toBeTruthy()
   expect(screen.getByText('The one thing you want more of. It decides the winner.')).toBeTruthy()
-  expect(screen.getByLabelText('Goal').closest('.xp-ui-select-wrap')).toBeTruthy()
+  expect(screen.getByRole('combobox', { name: 'Goal' }).closest('.xp-ui-combobox-wrap')).toBeTruthy()
   p.test.doc!.metrics = { primary: 1, guardrails: [3], secondary: ['two'] }
   view.rerender(<GoalSection {...p} embedded={embedded} />)
   expect(screen.getByText('Other goals · 2').closest('details')!.open).toBe(true)
-  expect((screen.getByLabelText('Completion · signup') as HTMLSelectElement).value).toBe('secondary')
-  expect((screen.getByLabelText('Donation · signup') as HTMLSelectElement).value).toBe('guardrails')
+  expect((screen.getByRole('combobox', { name: 'Completion · signup' }) as HTMLButtonElement).value).toBe('secondary')
+  expect((screen.getByRole('combobox', { name: 'Donation · signup' }) as HTMLButtonElement).value).toBe('guardrails')
   expect(p.test.stage).not.toHaveBeenCalled()
   p.test.doc!.metrics = { primary: 1, guardrails: [], secondary: [] }
   view.rerender(<GoalSection {...p} embedded={embedded} />)
@@ -42,14 +45,14 @@ test.each([false, true])('one collapsed optional list has one role per remaining
 test('a role changes exclusively, and promoting a watched goal clears its other role in the same payload', async () => {
   const p = props({ metrics: { primary: 1, guardrails: [3], secondary: ['two'] } })
   const view = render(<GoalSection {...p} />)
-  const role = await screen.findByLabelText('Completion · signup')
-  fireEvent.change(role, { target: { value: 'guardrails' } })
+  const role = await screen.findByRole('combobox', { name: 'Completion · signup' })
+  changeField(role, { target: { value: 'guardrails' } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [3, 'two'], secondary: [] } })
   p.test.doc!.metrics = { primary: 1, guardrails: [3, 'two'], secondary: [] }
   view.rerender(<GoalSection {...p} />)
-  fireEvent.change(screen.getByLabelText('Completion · signup'), { target: { value: '' } })
+  changeField(screen.getByRole('combobox', { name: 'Completion · signup' }), { target: { value: '' } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 1, guardrails: [3], secondary: [] } })
-  fireEvent.change(screen.getByLabelText('Goal'), { target: { value: 'two' } })
+  changeField(screen.getByRole('combobox', { name: 'Goal' }), { target: { value: 'two' } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: 'two', guardrails: [3], secondary: [] } })
   p.test.doc!.metrics = { primary: 'two', guardrails: [3], secondary: [] }
   view.rerender(<GoalSection {...p} />)
@@ -60,7 +63,7 @@ test('a role changes exclusively, and promoting a watched goal clears its other 
 test('no other goals means no optional section', async () => {
   vi.mocked(fetch).mockImplementation(async () => Response.json({ docs: goals.slice(0, 1) }))
   render(<GoalSection {...props({ metrics: { primary: 1 } })} />)
-  await screen.findByRole('option', { name: 'Registration · signup' })
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Goal' }).textContent).toBe('Registration · signup'))
   expect(screen.queryByText(/Other goals/)).toBeNull()
 })
 
@@ -79,13 +82,13 @@ test('existing primary, guardrail and secondary ids round-trip through the real 
     return test.doc ? <><GoalSection test={test} surface={props().surface} /><output>{test.saving}</output></> : null
   }
   render(<Harness />)
-  const role = await screen.findByLabelText('Completion · signup')
+  const role = await screen.findByRole('combobox', { name: 'Completion · signup' })
   expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(0)
-  fireEvent.change(role, { target: { value: 'guardrails' } })
+  changeField(role, { target: { value: 'guardrails' } })
   await waitFor(() => expect(screen.getByText('saved', { selector: 'output' })).toBeTruthy())
   const patches = () => vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')
   expect(JSON.parse(String(patches()[0]![1]!.body))).toEqual({ metrics: { primary: 1, guardrails: [3, 'two'], secondary: [] } })
-  fireEvent.change(screen.getByLabelText('Completion · signup'), { target: { value: 'secondary' } })
+  changeField(screen.getByRole('combobox', { name: 'Completion · signup' }), { target: { value: 'secondary' } })
   await waitFor(() => expect(patches()).toHaveLength(2))
   const request = patches()[1]![1]!
   expect(JSON.parse(String(request.body))).toEqual({ metrics: initial.metrics })
@@ -96,7 +99,7 @@ test('existing primary, guardrail and secondary ids round-trip through the real 
 test('optional goals open initially and on zero-to-positive, but never auto-close or reopen for positive-to-positive', async () => {
   const p = props({ metrics: { primary: 1, secondary: ['two'] } })
   const view = render(<GoalSection {...p} />)
-  await screen.findByLabelText('Completion · signup')
+  await screen.findByRole('combobox', { name: 'Completion · signup' })
   const details = screen.getByText('Other goals · 1').closest('details')!
   expect(details.open).toBe(true)
   details.open = false

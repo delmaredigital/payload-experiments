@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import '../_helpers/popover.js'
 import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'

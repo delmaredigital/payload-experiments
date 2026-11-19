@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../_helpers/popover.js'
+import { openSelect } from '../../_helpers/select.js'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
@@ -75,7 +77,7 @@ test('mount and insertion never create, and the sidebar offers existing-test sel
   const fields = within(screen.getByTestId('fields'))
   fireEvent.click(await fields.findByRole('button', { name: 'Use an existing test' }))
   const dialog = await screen.findByRole('dialog')
-  await within(dialog).findByRole('combobox')
+  openSelect(await within(dialog).findByRole('combobox'))
   expect(within(dialog).queryByRole('option', { name: 'No test' })).toBeNull()
   expect(posts()).toHaveLength(0)
 })

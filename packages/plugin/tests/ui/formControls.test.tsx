@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import '../_helpers/popover.js'
 import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -55,7 +56,9 @@ test('range preserves native bounds, step and controlled values', () => {
 test('shared select renders explicit dropdown chrome before opening', () => {
   render(<Select id="goal-style" label="Goal" value="" onChange={() => {}}><option value="">Choose a goal</option></Select>)
   const select = screen.getByRole('combobox', { name: 'Goal' })
-  expect(select.closest('.xp-ui-select-wrap')).toBeTruthy()
-  expect(select.classList.contains('xp-ui-select')).toBe(true)
-  expect(within(select).getByRole('option', { name: 'Choose a goal' })).toBeTruthy()
+  expect(select.closest('.xp-ui-combobox-wrap')).toBeTruthy()
+  expect(select.classList.contains('xp-ui-combobox')).toBe(true)
+  expect(select.textContent).toContain('Choose a goal')
+  fireEvent.click(select)
+  expect(screen.getByRole('option', { name: 'Choose a goal' })).toBeTruthy()
 })

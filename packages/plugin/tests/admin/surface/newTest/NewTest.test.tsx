@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../../_helpers/popover.js'
+import { changeField, openSelect } from '../../../_helpers/select.js'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { SurfaceProps } from '../../../../src/testSurface/surface/contracts.js'
@@ -68,8 +70,8 @@ test('setting defaults to visitors, names from the setting, preserves answers on
   fireEvent.click(screen.getByRole('button', { name: 'Next' }))
   expect(screen.queryByText('Advanced')).toBeNull()
   expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Welcome message')
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'A warmer welcome' } })
-  fireEvent.change(screen.getByLabelText('Why are you testing this? (optional)'), { target: { value: 'More people will respond.' } })
+  changeField(screen.getByLabelText('Name'), { target: { value: 'A warmer welcome' } })
+  changeField(screen.getByLabelText('Why are you testing this? (optional)'), { target: { value: 'More people will respond.' } })
   fireEvent.click(screen.getByRole('button', { name: 'Back' }))
   expect((screen.getByRole('radio', { name: /Welcome message/ }) as HTMLInputElement).checked).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: 'Next' }))
@@ -90,9 +92,11 @@ test.each([8, 'group-uuid'])('Advanced preserves the API layer id %s and signed-
   fireEvent.click(screen.getByRole('radio', { name: 'Signed-in users' }))
   const details = screen.getByText('Advanced').closest('details')!
   details.open = true; fireEvent(details, new Event('toggle'))
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Put this test in a group (optional)' }) as HTMLButtonElement).disabled).toBe(false))
+  openSelect(screen.getByRole('combobox', { name: 'Put this test in a group (optional)' }))
   await screen.findByRole('option', { name: 'Homepage tests' })
   expect(fetch.mock.calls[0]![0]).toBe('/data/xp-layers?depth=0&limit=100&page=1')
-  fireEvent.change(screen.getByLabelText('Put this test in a group (optional)'), { target: { value: '0' } })
+  changeField(screen.getByRole('combobox', { name: 'Put this test in a group (optional)' }), { target: { value: '0' } })
   fireEvent.click(screen.getByRole('button', { name: 'Next' }))
   fireEvent.click(screen.getByRole('button', { name: 'Create' }))
   await waitFor(() => expect(push).toHaveBeenCalledWith('/experiments/uuid'))
@@ -105,9 +109,11 @@ test('a selected group can be cleared and is then omitted', async () => {
   render(<NewTest surface={surface} />); settingStep()
   const details = screen.getByText('Advanced').closest('details')!
   details.open = true; fireEvent(details, new Event('toggle'))
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Put this test in a group (optional)' }) as HTMLButtonElement).disabled).toBe(false))
+  openSelect(screen.getByRole('combobox', { name: 'Put this test in a group (optional)' }))
   await screen.findByRole('option', { name: 'Group' })
-  const picker = screen.getByLabelText('Put this test in a group (optional)')
-  fireEvent.change(picker, { target: { value: '0' } }); fireEvent.change(picker, { target: { value: '' } })
+  const picker = screen.getByRole('combobox', { name: 'Put this test in a group (optional)' })
+  changeField(picker, { target: { value: '0' } }); changeField(picker, { target: { value: '' } })
   fireEvent.click(screen.getByRole('button', { name: 'Next' })); fireEvent.click(screen.getByRole('button', { name: 'Create' }))
   await waitFor(() => expect(push).toHaveBeenCalled())
   expect(JSON.parse(fetch.mock.calls[2]![1].body)).not.toHaveProperty('layer')
@@ -171,6 +177,8 @@ test('Advanced lists all 150 layers across two pages', async () => {
   settingStep()
   const details = screen.getByText('Advanced').closest('details')!
   details.open = true; fireEvent(details, new Event('toggle'))
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Put this test in a group (optional)' }) as HTMLButtonElement).disabled).toBe(false))
+  openSelect(screen.getByRole('combobox', { name: 'Put this test in a group (optional)' }))
   await screen.findByRole('option', { name: 'Group 149' })
   expect(screen.getAllByRole('option')).toHaveLength(151)
   expect(fetch).toHaveBeenCalledTimes(2)
@@ -198,8 +206,10 @@ test('returning from Setting never carries a hidden layer into page creation', a
   settingStep()
   const details = screen.getByText('Advanced').closest('details')!
   details.open = true; fireEvent(details, new Event('toggle'))
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Put this test in a group (optional)' }) as HTMLButtonElement).disabled).toBe(false))
+  openSelect(screen.getByRole('combobox', { name: 'Put this test in a group (optional)' }))
   await screen.findByRole('option', { name: 'Signed-in group' })
-  fireEvent.change(screen.getByLabelText('Put this test in a group (optional)'), { target: { value: '0' } })
+  changeField(screen.getByRole('combobox', { name: 'Put this test in a group (optional)' }), { target: { value: '0' } })
   fireEvent.click(screen.getByRole('button', { name: 'Back' }))
   fireEvent.click(screen.getByRole('button', { name: /A whole page/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Create' }))

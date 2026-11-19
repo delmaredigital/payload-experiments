@@ -108,41 +108,24 @@ test.each(['light', 'dark'] as const)('%s page options have readable text and a 
   }
 })
 
-test('dropdowns draw their chevron and spacing independently of native browser appearance', () => {
-  expect(rule('.xp-ui-select')).toContain('appearance: none')
-  expect(rule('.xp-ui-select')).toContain('padding-inline-end: 36px')
-  expect(rule('.xp-ui-select-wrap::after')).toContain('rotate(45deg)')
-  expect(rule('.xp-ui-select-wrap::after')).toContain('pointer-events: none')
+test('dropdown chrome and open menus use shared theme tokens without native select styles', () => {
+  expect(rule('.xp-ui-combobox-chevron')).toContain('rotate(45deg)')
+  for (const declaration of ['position: fixed', 'background: var(--xp-surface)', 'color: var(--xp-text)', 'font: var(--xp-text-body)']) expect(rule('.xp-ui-combobox-popup')).toContain(declaration)
+  expect(rule(".xp-ui-combobox-option[aria-selected='true']")).toContain('background: var(--xp-surface-3)')
+  expect(css).not.toContain('.xp-ui-select')
 })
-
-
-test('every native select uses the shared component or wrapped public picker', () => {
+test('the plugin renders no native select menus', () => {
   const root = new URL('../../src/', import.meta.url)
-  function className(element: ts.JsxOpeningElement | ts.JsxSelfClosingElement): string {
-    const attribute = element.attributes.properties.find(attr => ts.isJsxAttribute(attr) && attr.name.getText() === 'className')
-    return attribute && ts.isJsxAttribute(attribute) ? attribute.initializer?.getText() ?? '' : ''
-  }
   const found: string[] = []
   function scan(directory: URL): void {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory)
       if (entry.isDirectory()) scan(path)
       else if (/\.tsx$/.test(entry.name)) {
-        const source = readFileSync(path, 'utf8')
-        const tree = ts.createSourceFile(path.pathname, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+        const tree = ts.createSourceFile(path.pathname, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
         function visit(node: ts.Node): void {
           const element = ts.isJsxElement(node) ? node.openingElement : ts.isJsxSelfClosingElement(node) ? node : undefined
-          if (element && element.tagName.getText() === 'select') {
-            found.push(path.pathname)
-            expect(path.pathname).toMatch(/\/(ui\/Inputs|puck\/ExperimentPicker)\.tsx$/)
-            expect(className(element), path.pathname).toContain('xp-ui-select')
-            expect(element.tagName.getText(), path.pathname).toBe('select')
-            expect(ts.isJsxElement(node.parent), path.pathname).toBe(true)
-            if (ts.isJsxElement(node.parent)) {
-              expect(node.parent.openingElement.tagName.getText(), path.pathname).toBe('span')
-              expect(className(node.parent.openingElement), path.pathname).toContain('xp-ui-select-wrap')
-            }
-          }
+          if (element?.tagName.getText() === 'select') found.push(path.pathname)
           ts.forEachChild(node, visit)
         }
         visit(tree)
@@ -150,7 +133,7 @@ test('every native select uses the shared component or wrapped public picker', (
     }
   }
   scan(root)
-  expect(found.map(path => path.slice(root.pathname.length)).sort()).toEqual(['puck/ExperimentPicker.tsx', 'ui/Inputs.tsx'])
+  expect(found).toEqual([])
 })
 
 test('aria-disabled controls have the native disabled styling', () => {

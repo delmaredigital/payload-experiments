@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../_helpers/popover.js'
+import { changeField, openSelect } from '../../_helpers/select.js'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
@@ -187,8 +189,8 @@ test('the public experimentSlotField No test option unbinds through real Puck wi
   render(<Puck config={publicConfig} data={{ root: { props: {} }, content: [block] }} iframe={{ enabled: false }}
     ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}><Puck.Preview /><Puck.Fields /><Probe /></Puck>)
   const picker = await screen.findByRole('combobox', { name: 'Test' })
-  expect(picker.closest('.xp-ui-select-wrap')).toBeTruthy()
-  fireEvent.change(picker, { target: { value: '' } })
+  expect(picker.closest('.xp-ui-combobox-wrap')).toBeTruthy()
+  changeField(picker, { target: { value: '' } })
   await waitFor(() => expect(read().getItemById('test-block')?.props.experiment).toBeNull())
   for (const slot of ['control', 'variantA', 'variantB', 'variantC']) expect(read().getItemById('test-block')?.props[slot]).toEqual([])
   expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)

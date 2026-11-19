@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../../_helpers/popover.js'
+import { changeField, openSelect } from '../../../_helpers/select.js'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/testSurface/surface/contracts.js'
@@ -52,6 +54,7 @@ function setup(status: Status = 'draft') {
 test('picker shows setting labels, the description and defaults fallback without displaying ids', () => {
   const { props, api, doc } = setup()
   const view = render(<Binding {...props} />)
+  openSelect(screen.getByRole('combobox'))
   expect(screen.getByRole('option', { name: 'Welcome message' })).toBeTruthy()
   expect(screen.getByRole('option', { name: 'Footer message' })).toBeTruthy()
   expect(screen.getByText('The message above the signup form.')).toBeTruthy()
@@ -67,7 +70,7 @@ test('choosing a setting commits its id and the entire current versions array on
   render(<Binding {...props} />)
   // A just-refused sibling edit must never reappear in a whole-group commit.
   api.doc = { ...doc, arms: doc.arms.map(arm => ({ ...arm, label: `${arm.label} saved` })) }
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: points[1]!.id } })
+  changeField(screen.getByRole('combobox'), { target: { value: points[1]!.id } })
   expect(api.stage).toHaveBeenCalledExactlyOnceWith({ flagPoint: points[1]!.id, arms: [
     { ...api.doc.arms[0], params: { title: 'Footer title' } },
     { ...api.doc.arms[1], params: {} }, api.doc.arms[2],
@@ -80,10 +83,10 @@ test('a bound setting offers no blank option and never stages an unbind', () => 
   const { props, api } = setup()
   render(<Binding {...props} />)
   expect(screen.queryByRole('option', { name: 'Choose the setting first.' })).toBeNull()
-  expect(Array.from(screen.getByRole('combobox').querySelectorAll('option')).map(option => option.value)).not.toContain('')
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: points[0]!.id } })
+  expect(openSelect(screen.getByRole('combobox')).getAllByRole('option').map(option => option.dataset.value)).not.toContain('')
+  changeField(screen.getByRole('combobox'), { target: { value: points[0]!.id } })
   expect(api.stage).not.toHaveBeenCalled()
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } })
+  changeField(screen.getByRole('combobox'), { target: { value: '' } }, { allowMissing: true })
   expect(api.stage).not.toHaveBeenCalledWith(expect.objectContaining({ flagPoint: '' }))
   expect(api.stage).not.toHaveBeenCalled()
   expect(api.commit).not.toHaveBeenCalled()
@@ -98,7 +101,7 @@ test.each(['draft', 'running'] as const)('unbound %s binding shows one prompt an
   if (status === 'draft') {
     const picker = screen.getByRole('combobox', { name: 'Setting' })
     expect(picker.getAttribute('aria-describedby')).toBeNull()
-    fireEvent.change(picker, { target: { value: points[0]!.id } })
+    changeField(picker, { target: { value: points[0]!.id } })
     expect(api.stage).toHaveBeenCalledWith(expect.objectContaining({ flagPoint: points[0]!.id }))
     expect(api.commit).toHaveBeenCalledTimes(1)
   }
@@ -133,7 +136,7 @@ test.each([
   render(<VersionContent {...props} armIndex={1} />)
   if (type === 'checkbox') fireEvent.click(screen.getByRole('checkbox', { name: 'Show message' }))
   else if (type === 'segmented') fireEvent.click(screen.getByRole('radio', { name: 'Narrow' }))
-  else fireEvent.change(screen.getByRole('combobox', { name: 'Colour' }), { target: { value } })
+  else changeField(screen.getByRole('combobox', { name: 'Colour' }), { target: { value } })
   expect(api.stage).toHaveBeenCalledExactlyOnceWith({ arms: api.doc!.arms.map((arm, index) => index === 1 ? { ...arm, params: { ...arm.params, [key]: value } } : arm) })
   expect(api.commit).toHaveBeenCalledTimes(1)
 })
@@ -146,7 +149,7 @@ test.each([
   const { props, api, doc } = setup()
   const view = render(<VersionContent {...props} armIndex={1} />)
   const control = screen.getByRole(role, { name: label })
-  fireEvent.change(control, { target: { value: input } })
+  changeField(control, { target: { value: input } })
   expect(api.stage).not.toHaveBeenCalled()
   expect(api.commit).not.toHaveBeenCalled()
   api.doc = { ...doc, arms: doc.arms.map((arm, index) => index === 1 ? { ...arm, params: { ...arm.params, enabled: true } } : { ...arm, label: 'Saved label' }) }
@@ -235,7 +238,7 @@ test('parameter validation appears after editing, while preflight and refused-sa
   expect(screen.getByText('Set a value for Layout.')).toBeTruthy()
   expect(screen.getByText('Use a shorter heading.')).toBeTruthy()
   expect(screen.queryByText('flag-params-invalid')).toBeNull()
-  fireEvent.change(screen.getByRole('spinbutton', { name: 'Amount' }), { target: { value: '11' } })
+  changeField(screen.getByRole('spinbutton', { name: 'Amount' }), { target: { value: '11' } })
   expect(screen.getByText('Amount must be at most 10.')).toBeTruthy()
   expect(api.stage).not.toHaveBeenCalled()
   fireEvent.blur(screen.getByRole('spinbutton', { name: 'Amount' }))
@@ -248,9 +251,9 @@ test('newly bound required values stay quiet until that value is edited', () => 
   render(<VersionContent {...props} armIndex={1} />)
   expect(screen.queryByRole('alert')).toBeNull()
   const heading = screen.getByRole('textbox', { name: 'Heading' })
-  fireEvent.change(heading, { target: { value: ' ' } })
+  changeField(heading, { target: { value: ' ' } })
   expect(screen.getAllByRole('alert').map(node => node.textContent)).toEqual(['Enter a value for Heading.'])
-  fireEvent.change(heading, { target: { value: 'A heading' } })
+  changeField(heading, { target: { value: 'A heading' } })
   expect(screen.queryByRole('alert')).toBeNull()
 })
 
@@ -287,7 +290,7 @@ test('preflight flags an unset required checkbox, while an explicit false is val
 test('a status lock discards local typing and shows the saved document value', () => {
   const { props, api, doc } = setup()
   const view = render(<VersionContent {...props} armIndex={1} />)
-  fireEvent.change(screen.getByRole('textbox', { name: 'Heading' }), { target: { value: 'Uncommitted heading' } })
+  changeField(screen.getByRole('textbox', { name: 'Heading' }), { target: { value: 'Uncommitted heading' } })
   api.doc = { ...doc, status: 'running' }
   view.rerender(<VersionContent {...props} armIndex={1} />)
   expect(screen.getByText('Variant title')).toBeTruthy()

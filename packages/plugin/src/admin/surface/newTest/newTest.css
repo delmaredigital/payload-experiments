@@ -8,4 +8,4 @@
 .xp-new-test-choice span { display: block; margin-left: 1.5rem; }
 .xp-new-test-actions { display: flex; gap: 1rem; margin-top: var(--xp-space-4); }
 
-.xp-new-test .xp-ui-select-wrap { max-width: 36rem; }
+.xp-new-test .xp-ui-combobox-wrap { max-width: 36rem; }

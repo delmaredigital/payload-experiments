@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../../_helpers/popover.js'
+import { changeField, openSelect } from '../../../_helpers/select.js'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { SectionProps, SurfaceProps, TestDocApi } from '../../../../src/testSurface/surface/contracts.js'
@@ -35,7 +37,7 @@ function props(partial: Partial<TestDocument> = {}): SectionProps {
 }
 function blurChange(label: string, value: string) {
   const input = screen.getByLabelText(label)
-  fireEvent.change(input, { target: { value } }); fireEvent.blur(input)
+  changeField(input, { target: { value } }); fireEvent.blur(input)
 }
 const metricsFetch = () => vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: [{ id: 1, name: 'Registered', source: 'signup' }, { id: 2, name: 'Completed', source: 'signup' }], hasNextPage: false }) })))
 
@@ -95,12 +97,12 @@ test('header and hypothesis save on blur or Enter, never on typing', () => {
   const p = props()
   render(<><TestName {...p} /><Hypothesis {...p} /></>)
   const name = screen.getByLabelText('Test name')
-  name.focus(); fireEvent.change(name, { target: { value: 'New title' } })
+  name.focus(); changeField(name, { target: { value: 'New title' } })
   expect(p.test.stage).not.toHaveBeenCalled()
   fireEvent.keyDown(name, { key: 'Enter' })
   expect(p.test.stage).toHaveBeenLastCalledWith({ name: 'New title' })
   const hypothesis = screen.getByLabelText('Why are you testing this? (optional)')
-  fireEvent.change(hypothesis, { target: { value: 'We believe' } })
+  changeField(hypothesis, { target: { value: 'We believe' } })
   expect(p.test.commit).toHaveBeenCalledOnce()
   fireEvent.blur(hypothesis)
   expect(p.test.stage).toHaveBeenLastCalledWith({ hypothesis: 'We believe' })
@@ -109,7 +111,7 @@ test('versions keep keys fixed, preview shares locally, and commit current whole
   const p = props()
   const view = render(<VersionsSection {...p} parts={pageBlockParts} />)
   const weight = screen.getByLabelText('Original: Share (%)')
-  fireEvent.change(weight, { target: { value: '40' } })
+  changeField(weight, { target: { value: '40' } })
   expect(screen.getByRole('img').getAttribute('aria-label')).toContain('Original 40%')
   expect(p.test.stage).not.toHaveBeenCalled()
   // A server refusal changed another value before this blur. Rebuild from that current doc.
@@ -130,13 +132,13 @@ test('allocation saves on release and keyboard release, not change', () => {
   const p = props()
   render(<VersionsSection {...p} parts={pageBlockParts} />)
   const slider = screen.getByRole('slider')
-  fireEvent.change(slider, { target: { value: '60' } })
+  changeField(slider, { target: { value: '60' } })
   expect(p.test.stage).not.toHaveBeenCalled()
   fireEvent.pointerUp(slider)
   expect(p.test.stage).toHaveBeenLastCalledWith({ allocation: 60 })
   fireEvent.blur(slider)
   expect(p.test.stage).toHaveBeenCalledTimes(1)
-  fireEvent.change(slider, { target: { value: '61' } }); fireEvent.keyUp(slider, { key: 'ArrowRight' })
+  changeField(slider, { target: { value: '61' } }); fireEvent.keyUp(slider, { key: 'ArrowRight' })
   expect(p.test.stage).toHaveBeenLastCalledWith({ allocation: 61 })
 })
 test('running sections show read-only values and the exact lock reason', async () => {
@@ -170,7 +172,7 @@ test('whole-page versions edit addresses without overwriting the current other r
   const view = render(<><pageParts.Binding {...p} /><pageParts.VersionContent {...p} armIndex={1} /><pageParts.VersionContent {...p} armIndex={2} /></>)
   expect(screen.getByText('Each version is a whole page at its own address.')).toBeTruthy()
   const input = screen.getByLabelText('Variant A: Page address')
-  fireEvent.change(input, { target: { value: '/new' } })
+  changeField(input, { target: { value: '/new' } })
   expect(p.test.stage).not.toHaveBeenCalled()
   p.test.doc = { ...p.test.doc!, arms: p.test.doc!.arms.map(a => ({ ...a, weight: a.key === 'control' ? 60 : a.key === 'variantA' ? 40 : 0 })) }
   view.rerender(<><pageParts.Binding {...p} /><pageParts.VersionContent {...p} armIndex={1} /><pageParts.VersionContent {...p} armIndex={2} /></>)
@@ -192,7 +194,7 @@ test('suggestion Apply and reach blur preserve current analysis and write both s
   const view = render(<LengthSection {...p} />)
   expect((screen.getByLabelText('About how many people will see this per day? (required)') as HTMLInputElement).required).toBe(true)
   const reach = screen.getByLabelText('About how many people will see this per day? (required)')
-  fireEvent.change(reach, { target: { value: '100' } })
+  changeField(reach, { target: { value: '100' } })
   expect(p.test.stage).not.toHaveBeenCalled()
   p.test.doc = { ...p.test.doc!, analysis: { ...p.test.doc!.analysis, cuped: 'off' } }
   view.rerender(<LengthSection {...p} />); fireEvent.blur(reach)
@@ -205,7 +207,7 @@ test('suggestion Apply and reach blur preserve current analysis and write both s
 test('Advanced select and number commits preserve current analysis and immutable values stay text', () => {
   const p = props()
   const view = render(<AdvancedSection {...p} />)
-  fireEvent.change(screen.getByLabelText('CUPED'), { target: { value: 'off' } })
+  changeField(screen.getByRole('combobox', { name: 'CUPED' }), { target: { value: 'off' } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ analysis: { ...p.test.doc!.analysis, cuped: 'off' } })
   p.test.doc = { ...p.test.doc!, analysis: { ...p.test.doc!.analysis, cuped: 'off', reachPerDay: 90 } }
   view.rerender(<AdvancedSection {...p} />)
@@ -221,7 +223,7 @@ test('audience controls use typed values, word comparisons and current whole rul
   const view = render(<TargetingSection {...p} />)
   expect((screen.getByLabelText('Value') as HTMLInputElement).type).toBe('number')
   expect(screen.getByText('is at least')).toBeTruthy()
-  fireEvent.change(screen.getByLabelText('Value'), { target: { value: '21' } })
+  changeField(screen.getByLabelText('Value'), { target: { value: '21' } })
   expect(p.test.stage).not.toHaveBeenCalled()
   p.test.doc = { ...p.test.doc!, targeting: [...p.test.doc!.targeting!, { attribute: 'member', op: 'eq', value: true }] }
   view.rerender(<TargetingSection {...p} />)
@@ -246,7 +248,7 @@ test('goals load via the host API and preserve the current metrics group on sele
   expect(screen.getByText('Other goals (optional)').closest('details')?.querySelector('label')?.textContent).toBe('Completed · yes/no')
   p.test.doc = { ...p.test.doc!, metrics: { primary: 1, guardrails: [], secondary: [2] } }
   view.rerender(<GoalSection {...p} />)
-  fireEvent.change(screen.getByLabelText('Goal'), { target: { value: '' } })
+  changeField(screen.getByRole('combobox', { name: 'Goal' }), { target: { value: '' } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: null, guardrails: [], secondary: [2] } })
   expect(screen.getByText('Manage goals').getAttribute('href')).toBe('/cms/collections/xp-metrics?return=1')
 })
@@ -263,11 +265,11 @@ test.each([1, 'uuid-goal'])('goal choices preserve original ids (%s), and resele
   const p = props({ metrics: { primary: null, guardrails: [], secondary: [] } })
   const view = render(<GoalSection {...p} />)
   await waitFor(() => expect(screen.getAllByText('Selected goal · yes/no').length).toBeGreaterThan(0))
-  fireEvent.change(screen.getByLabelText('Goal'), { target: { value: String(id) } })
+  changeField(screen.getByRole('combobox', { name: 'Goal' }), { target: { value: String(id) } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ metrics: { primary: id, guardrails: [], secondary: [] } })
   p.test.doc!.metrics!.primary = id
   view.rerender(<GoalSection {...p} />)
-  fireEvent.change(screen.getByLabelText('Goal'), { target: { value: String(id) } })
+  changeField(screen.getByRole('combobox', { name: 'Goal' }), { target: { value: String(id) } })
   expect(p.test.stage).toHaveBeenCalledTimes(1)
   expect(p.test.commit).toHaveBeenCalledTimes(1)
 })
@@ -294,13 +296,13 @@ test.each(['in', 'nin'] as const)('fixed-list %s targeting checkboxes keep curre
 test('free-text in targeting renders chips, keeps current rules and saves arrays', () => {
   const p = props({ kind: 'flag', targeting: [{ attribute: 'path', op: 'in', value: [] }] })
   const view = render(<TargetingSection {...p} />)
-  fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'US' } })
+  changeField(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'US' } })
   fireEvent.keyDown(screen.getByRole('textbox', { name: 'Value' }), { key: 'Enter' })
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'path', op: 'in', value: ['US'] }] })
   p.test.doc!.targeting![0]!.value = ['US']
   view.rerender(<TargetingSection {...p} />)
   p.test.doc!.targeting!.push({ attribute: 'age', op: 'gte', value: 18 })
-  fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'CA' } })
+  changeField(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'CA' } })
   fireEvent.keyDown(screen.getByRole('textbox', { name: 'Value' }), { key: 'Enter' })
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'path', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 18 }] })
 })
@@ -355,7 +357,7 @@ test.each(['150', '-1', '33.5', ''])('invalid share %j reverts without saving an
 test('admins see the method control on editable tests and non-admins do not', () => {
   const p = props()
   const view = render(<AdvancedSection {...p} />)
-  expect(screen.getByLabelText('Analysis method')).toBeInstanceOf(HTMLSelectElement)
+  expect(screen.getByRole('combobox', { name: 'Analysis method' })).toBeInstanceOf(HTMLButtonElement)
   p.surface = { ...surface, isAdmin: false }
   view.rerender(<AdvancedSection {...p} />)
   expect(screen.queryByLabelText('Analysis method')).toBeNull()
@@ -374,7 +376,7 @@ test.each([
   const p = props({ kind, exposurePolicy: kind === 'block' ? 'render' : kind === 'page' ? 'pageview' : 'manual' })
   render(<AdvancedSection {...p} />)
   fireEvent.click(screen.getByText('Advanced settings · for developers'))
-  expect(within(screen.getByLabelText('Exposure policy')).getAllByRole('option').map(option => option.textContent)).toEqual(labels)
+  expect(openSelect(screen.getByRole('combobox', { name: 'Exposure policy' })).getAllByRole('option').map(option => option.textContent)).toEqual(labels)
 })
 test('a goal missing from a successful load reads as no longer existing', async () => {
   metricsFetch()
@@ -398,9 +400,9 @@ test.each(['in', 'nin'] as const)('legacy %s lists load as chips and save arrays
 test('switching a legacy list operator and editing another row normalize whole-group writes', () => {
   const p = props({ targeting: [{ attribute: 'country', op: 'in', value: 'US, CA' }, { attribute: 'age', op: 'gte', value: 18 }] })
   render(<TargetingSection {...p} />)
-  fireEvent.change(screen.getAllByLabelText('Comparison')[0]!, { target: { value: 'nin' } })
+  changeField(screen.getAllByLabelText('Comparison')[0]!, { target: { value: 'nin' } })
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'nin', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 18 }] })
-  fireEvent.change(screen.getByRole('spinbutton', { name: 'Value' }), { target: { value: '21' } })
+  changeField(screen.getByRole('spinbutton', { name: 'Value' }), { target: { value: '21' } })
   fireEvent.blur(screen.getByRole('spinbutton', { name: 'Value' }))
   expect(p.test.stage).toHaveBeenLastCalledWith({ targeting: [{ attribute: 'country', op: 'in', value: ['US', 'CA'] }, { attribute: 'age', op: 'gte', value: 21 }] })
 })
@@ -408,7 +410,7 @@ test('deleting a list rule cannot transfer its unfinished chip draft to the next
   const p = props({ kind: 'flag', targeting: [{ attribute: 'path', op: 'in', value: ['US'] }, { attribute: 'path', op: 'in', value: ['CA'] }] })
   vi.mocked(p.test.stage).mockImplementation(patch => { p.test.doc = { ...p.test.doc!, ...patch } })
   const view = render(<TargetingSection {...p} />)
-  fireEvent.change(screen.getAllByRole('textbox', { name: 'Value' })[0]!, { target: { value: 'draft' } })
+  changeField(screen.getAllByRole('textbox', { name: 'Value' })[0]!, { target: { value: 'draft' } })
   fireEvent.click(screen.getAllByRole('button', { name: 'Remove rule' })[0]!)
   view.rerender(<TargetingSection {...p} />)
   const remaining = screen.getByRole('textbox', { name: 'Value' }) as HTMLInputElement
@@ -471,7 +473,7 @@ test('versions use one visible header, accessible inputs, exact split widths and
   expect(segments.map(node => node.style.width)).toEqual(['40%', '20%', '15%', '15%', '10%'])
   expect(segments.map(node => node.style.background)).toEqual(['var(--xp-series-muted)', 'var(--xp-series-a)', 'var(--xp-series-b)', 'var(--xp-series-c)', 'var(--xp-series-muted)'])
   expect(screen.getByText('Short ask 20%')).toBeTruthy()
-  fireEvent.change(screen.getByLabelText('Original: Share (%)'), { target: { value: '20' } })
+  changeField(screen.getByLabelText('Original: Share (%)'), { target: { value: '20' } })
   expect(segments[0]!.style.width).toBe('20%')
   expect(screen.getAllByRole('button', { name: 'Remove version' })).toHaveLength(4)
   expect(screen.getAllByRole('button').every(button => button.closest('.xp-ui-button-group'))).toBe(true)
@@ -559,7 +561,7 @@ test('a deleted primary goal displays Choose a goal with a matching old baseline
   p.test.preflight!.baseline = { metricId: 99, value: .03, days: 28 }
   render(<GoalSection {...p} />)
   await waitFor(() => expect(screen.getAllByText('Registered · yes/no').length).toBeGreaterThan(0))
-  expect((screen.getByRole('combobox', { name: 'Goal' }) as HTMLSelectElement).selectedOptions[0]!.textContent).toBe('Choose a goal')
+  expect(screen.getByRole('combobox', { name: 'Goal' }).textContent).toBe('Choose a goal')
   expect(p.test.stage).not.toHaveBeenCalled()
 })
 
@@ -583,7 +585,7 @@ test('holdout explanation appears only when there is a holdout arm', () => {
 test.each([2, 8])('there is no goal search with %s goals', async count => {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ docs: Array.from({ length: count }, (_, i) => ({ id: i + 1, name: `Goal ${i + 1}`, source: 'signup' })) }) })))
   render(<GoalSection {...props()} />)
-  await waitFor(() => expect(screen.getAllByText('Goal 1 · yes/no')).toHaveLength(2))
+  await screen.findByRole('combobox', { name: 'Goal 1 · yes/no' })
   expect(screen.queryByRole('searchbox')).toBeNull()
   expect(screen.queryByRole('textbox', { name: 'Search goals' })).toBeNull()
 })
@@ -591,11 +593,11 @@ test.each([2, 8])('there is no goal search with %s goals', async count => {
 test('page block tests never offer the Path attribute; setting tests still do', () => {
   const block = props({ targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
   const view = render(<TargetingSection {...block} />)
-  expect(within(screen.getByLabelText('Attribute')).queryByRole('option', { name: 'Path' })).toBeNull()
+  expect(openSelect(screen.getByRole('combobox', { name: 'Attribute' })).queryByRole('option', { name: 'Path' })).toBeNull()
   view.unmount()
   const flag = props({ kind: 'flag', targeting: [{ attribute: 'age', op: 'gte', value: 18 }] })
   render(<TargetingSection {...flag} />)
-  expect(within(screen.getByLabelText('Attribute')).getByRole('option', { name: 'Path' })).toBeTruthy()
+  expect(openSelect(screen.getByRole('combobox', { name: 'Attribute' })).getByRole('option', { name: 'Path' })).toBeTruthy()
 })
 test('an existing path rule on a page block test is read-only with a removal note', () => {
   const p = props({ targeting: [{ attribute: 'path', op: 'in', value: ['/a'] }, { attribute: 'age', op: 'gte', value: 18 }] })
@@ -635,10 +637,11 @@ function clickProps(primary?: number) {
 test('click goals found on the page lead every role picker, with block labels and the linked-document note', async () => {
   clickGoalsFetch()
   render(<GoalSection {...clickProps()} />)
-  await screen.findAllByText('Hero interest · Hero')
+  await screen.findByLabelText('Hero interest · Hero')
   const select = screen.getByRole('combobox', { name: 'Goal' })
-  expect(within(select).getByRole('group', { name: "On this test's page" }).textContent).toBe('Hero interest · Hero')
-  expect(within(select).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose a goal', 'Hero interest · Hero', 'Registration · yes/no', 'Other clicks · yes/no'])
+  const menu = openSelect(select)
+  expect(menu.getByRole('group', { name: "On this test's page" }).textContent).toContain('Hero interest · Hero')
+  expect(menu.getAllByRole('option').map(option => option.textContent)).toEqual(['Choose a goal', 'Hero interest · Hero', 'Registration · yes/no', 'Other clicks · yes/no'])
   expect(screen.queryByText(/Goals inside linked documents/)).toBeNull()
   expect(screen.queryByRole('checkbox')).toBeNull()
   expect(screen.queryByText('A click shows interest, not the result you want.')).toBeNull()
@@ -647,7 +650,8 @@ test('click goals found on the page lead every role picker, with block labels an
 test.each([403, 500])('a failed click-key read (%s) silently keeps the flat goal list', async status => {
   clickGoalsFetch(status)
   render(<GoalSection {...clickProps(3)} />)
-  await screen.findAllByText('Hero interest · yes/no')
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Goal' }).textContent).toBe('Hero interest · yes/no'))
+  openSelect(screen.getByRole('combobox', { name: 'Goal' }))
   expect(screen.queryByRole('group', { name: "On this test's page" })).toBeNull()
   expect(screen.queryByRole('alert')).toBeNull()
   expect(screen.getByText('A click shows interest, not the result you want.')).toBeTruthy()
@@ -669,7 +673,7 @@ test('click-key reads refetch once on a visible tab return and are manager only'
 test('no click goals means no linked-document note and no click-primary help', async () => {
   metricsFetch()
   render(<GoalSection {...props({ metrics: { primary: 1 } })} />)
-  await screen.findAllByText('Registered · yes/no')
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Goal' }).textContent).toBe('Registered · yes/no'))
   expect(screen.queryByText(/Goals inside linked documents/)).toBeNull()
   expect(screen.queryByText('A click shows interest, not the result you want.')).toBeNull()
 })
@@ -679,10 +683,11 @@ test('grouped and plain SelectEdit and the targeting CheckboxList retain values 
   const groups = [{ label: 'First group', options: options.slice(0, 1) }, { options: options.slice(1) }]
   const view = render(<><SelectEdit label="Select" value="a" options={options} groups={groups} onCommit={commit} />
     <CheckboxList label="Checks" value={['a']} options={options} onToggle={toggle} /></>)
+  openSelect(screen.getByRole('combobox'))
   expect(screen.getByRole('group', { name: 'First group' })).toBeTruthy()
   expect(screen.queryByRole('heading')).toBeNull()
   expect(screen.queryByRole('list')).toBeNull()
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'b' } })
+  changeField(screen.getByRole('combobox'), { target: { value: 'b' } })
   fireEvent.click(screen.getByRole('checkbox', { name: 'Beta' }))
   expect(commit).toHaveBeenCalledWith('b'); expect(toggle).toHaveBeenCalledWith('b', true)
   view.rerender(<><SelectEdit label="Select" value="a" options={options} onCommit={commit} />
@@ -697,12 +702,12 @@ test('an older click-key response arriving last cannot replace the latest page g
     ? new Promise<Response>(resolve => { pending.push(resolve) })
     : Promise.resolve(new Response(JSON.stringify({ docs: [clickMetric] })))))
   render(<GoalSection {...clickProps()} />)
-  await screen.findAllByText('Hero interest · yes/no')
+  await screen.findByLabelText('Hero interest · yes/no')
   expect(pending).toHaveLength(1)
   fireEvent.focus(window)
   expect(pending).toHaveLength(2)
   await act(async () => { pending[1]!(new Response(JSON.stringify({ keys: [{ key: 'hero-cta', arms: ['control'], label: 'Latest Hero' }] }))) })
-  const group = () => within(screen.getByRole('combobox', { name: 'Goal' })).getByRole('group', { name: "On this test's page" })
+  const group = () => openSelect(screen.getByRole('combobox', { name: 'Goal' })).getByRole('group', { name: "On this test's page" }).querySelector('[role="option"]')!
   expect(group().textContent).toBe('Hero interest · Latest Hero')
   await act(async () => { pending[0]!(new Response(JSON.stringify({ keys: [{ key: 'hero-cta', arms: ['control'], label: 'Old Hero' }] }))) })
   expect(group().textContent).toBe('Hero interest · Latest Hero')
@@ -717,6 +722,6 @@ test.each([false, true])('versions mount keeps share edits; canvas summary canno
   expect(Boolean(screen.queryByRole('button', { name: 'Remove version' }))).toBe(!contentOnCanvas)
   if (contentOnCanvas) expect(screen.getByText('Edit version content on the canvas.')).toBeTruthy()
   const share = screen.getByLabelText('Original: Share (%)')
-  fireEvent.change(share, { target: { value: '40' } }); fireEvent.blur(share)
+  changeField(share, { target: { value: '40' } }); fireEvent.blur(share)
   expect(p.test.stage).toHaveBeenCalledWith({ arms: [{ ...p.test.doc!.arms[0], weight: 40 }, { ...p.test.doc!.arms[1], weight: 60 }] })
 })

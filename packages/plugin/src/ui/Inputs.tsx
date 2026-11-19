@@ -1,12 +1,14 @@
 'use client'
-import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react'
+import type { InputHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react'
+import { SelectControl } from './SelectControl.js'
+import type { SelectControlProps } from './SelectControl.js'
 import './ui.css'
 export interface FieldProps { id: string; label: string; help?: string; error?: string }
 function described(props: FieldProps, extra?: string) {
   return [extra, props.help ? `${props.id}-help` : '', props.error ? `${props.id}-error` : ''].filter(Boolean).join(' ') || undefined
 }
 function Field({ id, label, labelAction, help, error, children }: FieldProps & { children: ReactNode; labelAction?: ReactNode }) {
-  return <div className="xp-ui-field">{labelAction ? <div className="xp-ui-field-label"><label htmlFor={id}>{label}</label>{labelAction}</div> : <label htmlFor={id}>{label}</label>}{children}
+  return <div className="xp-ui-field">{labelAction ? <div className="xp-ui-field-label"><label id={`${id}-label`} htmlFor={id}>{label}</label>{labelAction}</div> : <label id={`${id}-label`} htmlFor={id}>{label}</label>}{children}
     {help ? <p className="xp-ui-help" id={`${id}-help`}>{help}</p> : null}
     {error ? <p className="xp-ui-error" id={`${id}-error`} role="alert">{error}</p> : null}</div>
 }
@@ -18,11 +20,11 @@ export function TextInput({ label, help, error, className = '', ...props }: Text
 }
 export function NumberInput(props: TextInputProps) { return <TextInput {...props} type="number" className={`xp-ui-input--number ${props.className ?? ''}`} /> }
 export function SearchInput(props: TextInputProps) { return <TextInput {...props} type="search" /> }
-export type SelectProps = FieldProps & { labelAction?: ReactNode } & Omit<SelectHTMLAttributes<HTMLSelectElement>, 'id'>
-export function Select({ label, labelAction, help, error, className = '', ...props }: SelectProps) {
+export type SelectProps = FieldProps & { labelAction?: ReactNode } & Omit<SelectControlProps, 'id'>
+export function Select({ label, labelAction, help, error, ...props }: SelectProps) {
   const field = { id: props.id, label, help, error }
-  return <Field {...field} labelAction={labelAction}><span className="xp-ui-select-wrap"><select {...props} className={`xp-ui-input xp-ui-select ${className}`} aria-invalid={Boolean(error) || undefined}
-    aria-describedby={described(field, props['aria-describedby'])} /></span></Field>
+  return <Field {...field} labelAction={labelAction}><SelectControl {...props} aria-labelledby={props['aria-labelledby'] ?? (props['aria-label'] ? undefined : `${props.id}-label`)}
+    aria-invalid={Boolean(error) || props['aria-invalid'] || undefined} aria-describedby={described(field, props['aria-describedby'])} /></Field>
 }
 export function Toggle({ label, help, error, className = '', ...props }: Omit<TextInputProps, 'type'>) {
   const field = { id: props.id, label, help, error }

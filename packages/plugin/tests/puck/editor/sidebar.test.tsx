@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../_helpers/popover.js'
+import { changeField, openSelect } from '../../_helpers/select.js'
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
@@ -152,10 +154,10 @@ test('sidebar edits and transitions update chrome without reload or Puck selecti
   expect(fields().getAllByRole('spinbutton')).toHaveLength(3)
   const input = fields().getByLabelText(C.weight('Original'))
   await waitFor(() => expect((input as HTMLInputElement).disabled).toBe(false))
-  fireEvent.change(input, { target: { value: '60' } }); fireEvent.blur(input)
+  changeField(input, { target: { value: '60' } }); fireEvent.blur(input)
   await waitFor(() => expect(doc.arms[0]!.weight).toBe(60))
   const name = fields().getByRole('textbox', { name: 'Variant A Name' })
-  fireEvent.change(name, { target: { value: 'New headline' } }); fireEvent.keyDown(name, { key: 'Enter' })
+  changeField(name, { target: { value: 'New headline' } }); fireEvent.keyDown(name, { key: 'Enter' })
   await screen.findByRole('tab', { name: 'New headline' })
   await waitFor(() => expect((fields().getAllByRole('button', { name: C.removeVersion })[0] as HTMLButtonElement).disabled).toBe(false))
   fireEvent.click(fields().getAllByRole('button', { name: C.removeVersion })[0]!)
@@ -223,7 +225,7 @@ test('sidebar uses the drawer blocker sentence and transition refusal', async ()
 test('Split evenly discards invalid traffic edits in the sidebar', async () => {
   await mount()
   const chromeInput = fields().getByLabelText(C.weight('Original'))
-  fireEvent.change(chromeInput, { target: { value: '101' } })
+  changeField(chromeInput, { target: { value: '101' } })
   expect((fields().getByLabelText(C.weight('Original')) as HTMLInputElement).value).toBe('101')
   expect(fields().queryByRole('button', { name: 'Start' })).toBeNull()
   fireEvent.click(fields().getByRole('button', { name: C.split }))
@@ -289,7 +291,7 @@ test('sidebar removal mounts its shared modal in the sidebar document and Cancel
 
 test('a drawer status transition clears staged draft shares so Stop stays available', async () => {
   await mount()
-  fireEvent.change(fields().getByLabelText(C.weight('Original')), { target: { value: '101' } })
+  changeField(fields().getByLabelText(C.weight('Original')), { target: { value: '101' } })
   doc = { ...doc, status: 'running', updatedAt: 'newer' }
   act(() => publishExperiment(doc.id, doc))
   const stop = await fields().findByRole('button', { name: 'Stop' })
@@ -493,10 +495,10 @@ test('visible name inputs save on blur and Enter, Escape restores, errors stay n
   let name = group().getByRole<HTMLInputElement>('textbox')
   const feedback = group().getByText(C.saved)
   expect(feedback.getAttribute('aria-hidden')).toBe('true')
-  fireEvent.change(name, { target: { value: 'Cancelled' } }); fireEvent.keyDown(name, { key: 'Escape' }); fireEvent.blur(name)
+  changeField(name, { target: { value: 'Cancelled' } }); fireEvent.keyDown(name, { key: 'Escape' }); fireEvent.blur(name)
   expect(name.value).toBe('Variant A')
   expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(0)
-  fireEvent.change(name, { target: { value: 'Shorter' } }); fireEvent.blur(name)
+  changeField(name, { target: { value: 'Shorter' } }); fireEvent.blur(name)
   await screen.findByRole('tab', { name: 'Shorter' })
   expect(await group().findByRole('status')).toBe(feedback)
   expect(feedback.getAttribute('aria-hidden')).toBe('false')
@@ -505,7 +507,7 @@ test('visible name inputs save on blur and Enter, Escape restores, errors stay n
   name = group().getByRole<HTMLInputElement>('textbox')
   const original = vi.mocked(fetch).getMockImplementation()!
   vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({ errors: [{ code: 'forbidden' }] }, 403)) : original(url, init))
-  fireEvent.change(name, { target: { value: 'Refused' } }); fireEvent.keyDown(name, { key: 'Enter' }); fireEvent.blur(name)
+  changeField(name, { target: { value: 'Refused' } }); fireEvent.keyDown(name, { key: 'Enter' }); fireEvent.blur(name)
   expect((await group().findByRole('alert')).textContent).toBe("You don't have permission to do this.")
   expect(name.getAttribute('aria-describedby')).toBe(group().getByRole('alert').id)
   expect(name.getAttribute('aria-errormessage')).toBe(group().getByRole('alert').id)
@@ -537,7 +539,7 @@ test('version group headers and canvas tabs stay in step without changing real P
   fireEvent.click(fields().getByRole('button', { name: 'More' }))
   fireEvent.click(fields().getByRole('button', { name: 'Use a different test' }))
   const chooser = await screen.findByRole('dialog')
-  await within(chooser).findByRole('combobox')
+  openSelect(await within(chooser).findByRole('combobox'))
   expect(within(chooser).queryByRole('option', { name: 'No test' })).toBeNull()
   expect(within(chooser).getByRole('button', { name: 'Create a test' })).toBeTruthy()
   expect(actions).toEqual([])
@@ -546,7 +548,7 @@ test('version group headers and canvas tabs stay in step without changing real P
 test('a later operation failure does not become a successful name field’s error', async () => {
   await mount()
   const name = fields().getByRole('textbox', { name: 'Variant A Name' })
-  fireEvent.change(name, { target: { value: 'Short ask' } }); fireEvent.blur(name)
+  changeField(name, { target: { value: 'Short ask' } }); fireEvent.blur(name)
   await screen.findByRole('tab', { name: 'Short ask' })
   const group = within(fields().getByRole('group', { name: 'Short ask' }))
   expect(await group.findByText('Saved')).toBeTruthy()
@@ -606,7 +608,7 @@ test.each([403, 404])('a manager can replace an unavailable binding (%s) through
   const dialog = await screen.findByRole('dialog')
   const picker = await within(dialog).findByRole('combobox')
   expect((within(dialog).getByRole('button', { name: 'Create a test' }) as HTMLButtonElement).disabled).toBe(false)
-  fireEvent.change(picker, { target: { value: 'replacement' } })
+  changeField(picker, { target: { value: 'replacement' } })
   await waitFor(() => expect(read().getItemById('sidebar-block')?.props.experiment).toEqual({ id: 'replacement', slug: 'replacement' }))
   expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
 })
@@ -680,7 +682,7 @@ test('Traffic keeps focus while saving and the next Name control stays in the si
     ? new Promise(resolve => { finish = () => { void original(url, init).then(resolve) } }) : original(url, init))
   const input = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') })
   input.focus()
-  fireEvent.change(input, { target: { value: '60' } })
+  changeField(input, { target: { value: '60' } })
   fireEvent.keyDown(input, { key: 'Enter' })
   await waitFor(() => expect(finish).toBeTypeOf('function'))
   expect(document.activeElement).toBe(input)
@@ -699,14 +701,14 @@ test('Traffic keeps focus while saving and the next Name control stays in the si
 test('a Name commit made during a Traffic save queues and preserves both intents', async () => {
   await mount()
   const name = fields().getByRole<HTMLInputElement>('textbox', { name: 'Variant A Name' })
-  fireEvent.change(name, { target: { value: 'Queued name' } })
+  changeField(name, { target: { value: 'Queued name' } })
   const original = vi.mocked(fetch).getMockImplementation()!
   let finish!: () => void
   let patches = 0
   vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' && ++patches === 1
     ? new Promise(resolve => { finish = () => { void original(url, init).then(resolve) } }) : original(url, init))
   const input = fields().getByLabelText(C.weight('Original'))
-  fireEvent.change(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
+  changeField(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
   await waitFor(() => expect(finish).toBeTypeOf('function'))
   fireEvent.blur(name)
   expect(patches).toBe(1)
@@ -746,7 +748,7 @@ test.each([false, true])('creating through Use a different test preserves gapped
   fireEvent.click(fields().getByRole('button', { name: C.differentTest }))
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: C.createAnother }))
   const dialog = await screen.findByRole('dialog')
-  fireEvent.change(within(dialog).getByRole('textbox', { name: C.name }), { target: { value: 'Replacement' } })
+  changeField(within(dialog).getByRole('textbox', { name: C.name }), { target: { value: 'Replacement' } })
   fireEvent.click(within(dialog).getByRole('button', { name: C.createAnother }))
   await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))
   const post = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST')!
@@ -772,7 +774,7 @@ test.each([403, 404])('Create a test from an unavailable binding %s uses page co
   fireEvent.click(fields().getByRole('button', { name: C.differentTest }))
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: C.createAnother }))
   const dialog = await screen.findByRole('dialog')
-  fireEvent.change(within(dialog).getByRole('textbox', { name: C.name }), { target: { value: 'Replacement' } })
+  changeField(within(dialog).getByRole('textbox', { name: C.name }), { target: { value: 'Replacement' } })
   fireEvent.click(within(dialog).getByRole('button', { name: C.createAnother }))
   await waitFor(() => expect(read().getItemById('sidebar-block')?.props.experiment?.id).toBe('created'))
   const post = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST')!
@@ -784,14 +786,14 @@ test.each([403, 404])('Create a test from an unavailable binding %s uses page co
 test('a refused Traffic save retains its draft and error after the queued Name succeeds', async () => {
   await mount()
   const name = fields().getByRole<HTMLInputElement>('textbox', { name: 'Variant A Name' })
-  fireEvent.change(name, { target: { value: 'Queued name' } })
+  changeField(name, { target: { value: 'Queued name' } })
   const original = vi.mocked(fetch).getMockImplementation()!
   let finish!: () => void
   let patches = 0
   vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' && ++patches === 1
     ? new Promise(resolve => { finish = () => resolve(reply({}, 403)) }) : original(url, init))
   const input = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') })
-  fireEvent.change(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
+  changeField(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
   await waitFor(() => expect(finish).toBeTypeOf('function'))
   fireEvent.blur(name)
   await act(async () => finish())
@@ -800,14 +802,14 @@ test('a refused Traffic save retains its draft and error after the queued Name s
   expect(input.value).toBe('60')
   expect(doc.arms.map(arm => arm.weight)).toEqual([50, 50])
   expect(patches).toBe(2)
-  fireEvent.change(input, { target: { value: '70' } })
+  changeField(input, { target: { value: '70' } })
   expect(fields().queryByRole('alert')).toBeNull()
 })
 
 test.each([false, true])('Escape cancels only a Name save that has not started (started: %s)', async started => {
   await mount()
   const name = fields().getByRole<HTMLInputElement>('textbox', { name: 'Variant A Name' })
-  fireEvent.change(name, { target: { value: 'Escaped name' } })
+  changeField(name, { target: { value: 'Escaped name' } })
   const original = vi.mocked(fetch).getMockImplementation()!
   let finish!: () => void
   let patches = 0
@@ -815,7 +817,7 @@ test.each([false, true])('Escape cancels only a Name save that has not started (
     ? new Promise(resolve => { finish = () => { void original(url, init).then(resolve) } }) : original(url, init))
   if (!started) {
     const input = fields().getByLabelText(C.weight('Original'))
-    fireEvent.change(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
+    changeField(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => expect(finish).toBeTypeOf('function'))
   }
   fireEvent.keyDown(name, { key: 'Enter' })
@@ -834,7 +836,7 @@ test('a refused Split never replaces another Traffic control’s refusal', async
   const original = vi.mocked(fetch).getMockImplementation()!
   vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
   const input = fields().getByLabelText(C.weight('Original'))
-  fireEvent.change(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
+  changeField(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
   await fields().findByRole('alert')
   await waitFor(() => expect((input as HTMLInputElement).readOnly).toBe(false))
   fireEvent.click(fields().getByRole('button', { name: C.split }))
@@ -849,17 +851,17 @@ test('saving and escaping another Traffic control preserve the first refused dra
   vi.mocked(fetch).mockImplementation((url, init) => refuse && init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
   const control = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') })
   const variant = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Variant A') })
-  fireEvent.change(control, { target: { value: '60' } }); fireEvent.keyDown(control, { key: 'Enter' })
+  changeField(control, { target: { value: '60' } }); fireEvent.keyDown(control, { key: 'Enter' })
   await fields().findByRole('alert')
   await waitFor(() => expect(control.readOnly).toBe(false))
   refuse = false
-  fireEvent.change(variant, { target: { value: '45' } }); fireEvent.keyDown(variant, { key: 'Enter' })
+  changeField(variant, { target: { value: '45' } }); fireEvent.keyDown(variant, { key: 'Enter' })
   await waitFor(() => expect(doc.arms.map(arm => arm.weight)).toEqual([55, 45]))
   expect(control.value).toBe('60')
   expect(variant.value).toBe('45')
   expect(fields().getByRole('alert').textContent).toBe("You don't have permission to do this.")
   await waitFor(() => expect(variant.readOnly).toBe(false))
-  fireEvent.change(variant, { target: { value: '40' } }); fireEvent.keyDown(variant, { key: 'Escape' })
+  changeField(variant, { target: { value: '40' } }); fireEvent.keyDown(variant, { key: 'Escape' })
   expect(control.value).toBe('60')
   expect(fields().getByRole('alert')).toBeTruthy()
 })
@@ -870,7 +872,7 @@ test('removing a version clears its Traffic draft without retaining a missing co
   let refuse = true
   vi.mocked(fetch).mockImplementation((url, init) => refuse && init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
   const variant = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Variant A') })
-  fireEvent.change(variant, { target: { value: '40' } }); fireEvent.keyDown(variant, { key: 'Enter' })
+  changeField(variant, { target: { value: '40' } }); fireEvent.keyDown(variant, { key: 'Enter' })
   await fields().findByRole('alert')
   await waitFor(() => expect(variant.readOnly).toBe(false))
   refuse = false
@@ -887,9 +889,9 @@ test('a Traffic completion cannot restore a draft pruned by an in-flight externa
   const original = vi.mocked(fetch).getMockImplementation()!
   const control = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Original') })
   const variant = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight('Variant A') })
-  fireEvent.change(variant, { target: { value: '40' } })
+  changeField(variant, { target: { value: '40' } })
   // The balanced preview is already 60; use a distinct value to create a second draft.
-  fireEvent.change(control, { target: { value: '70' } })
+  changeField(control, { target: { value: '70' } })
   let finish!: () => void
   vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH'
     ? new Promise(resolve => { finish = () => resolve(reply({ doc })) }) : original(url, init))
@@ -939,8 +941,9 @@ test('Use a different test clears a prior write refusal from the old binding', a
   fireEvent.click(fields().getByRole('button', { name: C.moreGroup }))
   fireEvent.click(fields().getByRole('button', { name: C.differentTest }))
   const dialog = await screen.findByRole('dialog')
+  openSelect(await within(dialog).findByRole('combobox'))
   await within(dialog).findByRole('option', { name: /Replacement/ })
-  fireEvent.change(within(dialog).getByRole('combobox'), { target: { value: 'replacement-test' } })
+  changeField(within(dialog).getByRole('combobox'), { target: { value: 'replacement-test' } })
   await waitFor(() => expect(read().getItemById('sidebar-block')?.props.experiment?.id).toBe('replacement-test'))
   await fields().findByText('Replacement')
   expect(fields().queryByRole('alert')).toBeNull()
@@ -977,7 +980,7 @@ test('a successful Split clears every Traffic refusal and restores Start', async
   vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'PATCH' ? Promise.resolve(reply({}, 403)) : original(url, init))
   for (const label of ['Original', 'Variant A']) {
     const input = fields().getByRole<HTMLInputElement>('spinbutton', { name: C.weight(label) })
-    fireEvent.change(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
+    changeField(input, { target: { value: '60' } }); fireEvent.keyDown(input, { key: 'Enter' })
     await within(fields().getByRole('group', { name: label })).findByRole('alert')
     await waitFor(() => expect(input.readOnly).toBe(false))
   }
@@ -1118,7 +1121,7 @@ test.each(['Split', 'Traffic', 'Name'] as const)('%s refuses an older read with 
     if (control === 'Split') fireEvent.click(fields().getByRole('button', { name: C.split }))
     else {
       const input = control === 'Traffic' ? fields().getByLabelText(C.weight('Original')) : fields().getByRole('textbox', { name: 'Variant A Name' })
-      fireEvent.change(input, { target: { value: control === 'Traffic' ? '60' : 'New headline' } })
+      changeField(input, { target: { value: control === 'Traffic' ? '60' : 'New headline' } })
       fireEvent.keyDown(input, { key: 'Enter' })
     }
   }

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../_helpers/popover.js'
+import { changeField, openSelect } from '../_helpers/select.js'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { createExperimentSlotField } from '../../src/puck/experimentSlotField.js'
@@ -25,6 +27,7 @@ test('loads block experiments with editor credentials and shows names, status la
   render(<ExperimentPicker value={null} onChange={vi.fn()} />)
   expect(screen.getByRole('status').textContent).toBe('Loading tests…')
   expect(screen.queryByRole('combobox')).toBeNull()
+  openSelect(await screen.findByRole('combobox'))
   await screen.findByRole('option', { name: 'First example · Draft' })
   expect(fetch).toHaveBeenCalledWith('/api/xp-experiments?where%5Bkind%5D%5Bequals%5D=block&depth=0&sort=id&limit=100&page=1', {
     credentials: 'include', signal: expect.any(AbortSignal),
@@ -40,14 +43,15 @@ test('selection stores only id and slug, preserves id types, and clears to null'
   mockFetch()
   const onChange = vi.fn()
   const view = render(<ExperimentPicker value={null} onChange={onChange} />)
+  openSelect(await screen.findByRole('combobox'))
   await screen.findByRole('option', { name: 'First example · Draft' })
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: '42' } })
+  changeField(screen.getByRole('combobox'), { target: { value: '42' } })
   expect(onChange).toHaveBeenLastCalledWith({ id: 42, slug: 'draft-example' })
   view.rerender(<ExperimentPicker value={{ id: 42, slug: 'draft-example' }} onChange={onChange} />)
-  expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('42')
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'uuid-running' } })
+  expect((screen.getByRole('combobox') as HTMLButtonElement).value).toBe('42')
+  changeField(screen.getByRole('combobox'), { target: { value: 'uuid-running' } })
   expect(onChange).toHaveBeenLastCalledWith({ id: 'uuid-running', slug: 'running-example' })
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } })
+  changeField(screen.getByRole('combobox'), { target: { value: '' } })
   expect(onChange).toHaveBeenLastCalledWith(null)
 })
 
@@ -58,7 +62,7 @@ test.each([
   render(<ExperimentPicker value={null} onChange={vi.fn()} />)
   expect((await screen.findByRole('alert')).textContent).toBe(message)
   // Enabled on error so an editor can still choose "No test" to unbind.
-  expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(false)
+  expect((screen.getByRole('combobox') as HTMLButtonElement).disabled).toBe(false)
 })
 
 test.each([401, 403])('HTTP %s shows a calm read-only line instead of an empty picker', async status => {
@@ -82,6 +86,7 @@ test('malformed responses show the load error; invalid documents never crash ren
   view.unmount()
   fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ docs: [null, {}, ...docs] }) })
   render(<ExperimentPicker value={null} onChange={vi.fn()} />)
+  openSelect(await screen.findByRole('combobox'))
   await screen.findByRole('option', { name: 'First example · Draft' })
   expect(screen.getAllByRole('option')).toHaveLength(6)
 })
@@ -89,8 +94,9 @@ test('malformed responses show the load error; invalid documents never crash ren
 test('keeps a saved reference visible when absent from the latest list', async () => {
   mockFetch({ docs: [] })
   render(<ExperimentPicker value={{ id: 'saved-id', slug: 'saved-example' }} onChange={vi.fn()} />)
-  await waitFor(() => expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(false))
-  expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('saved-id')
+  await waitFor(() => expect((screen.getByRole('combobox') as HTMLButtonElement).disabled).toBe(false))
+  expect((screen.getByRole('combobox') as HTMLButtonElement).value).toBe('saved-id')
+  openSelect(screen.getByRole('combobox'))
   expect(screen.getByRole('option', { name: 'saved-example' })).toBeTruthy()
 })
 
@@ -125,10 +131,11 @@ test.each(['render', 'editor'] as const)('%s factory supplies custom sidebar rou
       ui={{ itemSelector: { index: 0, zone: 'root:default-zone' } }}><Puck.Preview /><Puck.Fields /></Puck>)
     fireEvent.click(await screen.findByRole('button', { name: 'Use an existing test' }))
   } else render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'test' }))
+  openSelect(await screen.findByRole('combobox'))
   await screen.findByRole('option', { name: 'First example · Draft' })
   expect(fetch).toHaveBeenCalledWith('/content-api/xp-experiments?where%5Bkind%5D%5Bequals%5D=block&depth=0&sort=id&limit=100&page=1', expect.objectContaining({ credentials: 'include' }))
   expect(screen.getByRole('combobox').closest('.xp-puck-field')).toBeTruthy()
-  expect(screen.getByRole('combobox', { name: 'Test' }).classList.contains('xp-ui-select')).toBe(true)
+  expect(screen.getByRole('combobox', { name: 'Test' }).classList.contains('xp-ui-combobox')).toBe(true)
 })
 
 test('all 150 tests load; search above eight filters name and slug but keeps the bound test', async () => {
@@ -139,33 +146,35 @@ test('all 150 tests load; search above eight filters name and slug but keeps the
   })
   vi.stubGlobal('fetch', fetch)
   render(<ExperimentPicker value={{ id: 149, slug: 'block-149' }} onChange={vi.fn()} />)
+  openSelect(await screen.findByRole('combobox'))
   await screen.findByRole('option', { name: 'Test 149 · Draft' })
   expect(screen.getAllByRole('option')).toHaveLength(151)
   expect(fetch).toHaveBeenCalledTimes(2)
   const search = screen.getByRole('searchbox', { name: 'Search tests' })
   const select = screen.getByRole('combobox')
-  expect(select.parentElement!.className).toBe('xp-ui-select-wrap')
+  expect(select.parentElement!.className).toBe('xp-ui-combobox-wrap')
   const label = select.parentElement!.previousElementSibling!
   expect(label.tagName).toBe('LABEL')
   expect(label.textContent).toBe('Test')
   expect(label.getAttribute('for')).toBe(select.id)
   expect(search.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(search.hasAttribute('placeholder')).toBe(false)
-  fireEvent.change(search, { target: { value: '  TEST 12  ' } })
+  changeField(search, { target: { value: '  TEST 12  ' } })
   expect(screen.getAllByRole('option')).toHaveLength(13) // none, 12/120–129, bound
   expect(screen.queryByRole('option', { name: 'Test 1 · Draft' })).toBeNull()
-  fireEvent.change(search, { target: { value: ' BLOCK-2 ' } })
+  changeField(search, { target: { value: ' BLOCK-2 ' } })
   expect(screen.getByRole('option', { name: 'Test 2 · Draft' })).toBeTruthy()
   expect(screen.getAllByRole('option')).toHaveLength(13)
-  fireEvent.change(search, { target: { value: 'absent' } })
+  changeField(search, { target: { value: 'absent' } })
   expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['No test', 'Test 149 · Draft'])
-  expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('149')
-  fireEvent.change(search, { target: { value: '' } })
+  expect((screen.getByRole('combobox') as HTMLButtonElement).value).toBe('149')
+  changeField(search, { target: { value: '' } })
   expect(screen.getAllByRole('option')).toHaveLength(151)
 })
 test('exactly eight tests do not show search', async () => {
   mockFetch({ docs: Array.from({ length: 8 }, (_, id) => ({ ...docs[0], id })) })
   render(<ExperimentPicker value={null} onChange={vi.fn()} />)
+  openSelect(await screen.findByRole('combobox'))
   await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(9))
   expect(screen.queryByRole('searchbox')).toBeNull()
 })
@@ -181,6 +190,7 @@ test('stable paging keeps newest activity order and renders a repeated document 
   })
   vi.stubGlobal('fetch', fetch)
   render(<ExperimentPicker value={null} onChange={vi.fn()} />)
+  openSelect(await screen.findByRole('combobox'))
   await screen.findByRole('option', { name: 'Second example · Running' })
   expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['No test', 'Second example · Running', 'First example · Draft'])
 })
@@ -189,10 +199,11 @@ test('sidebar field wraps the picker in its own root', async () => {
   mockFetch()
   const field = createExperimentSlotField()
   const view = render(field.render({ field, value: null, onChange: vi.fn(), name: 'experiment', id: 'field' }))
+  openSelect(await screen.findByRole('combobox'))
   await screen.findByRole('option', { name: 'First example · Draft' })
   const root = view.container.querySelector('.xp-puck-field > .xp-ui-field')
   expect(root).toBeTruthy()
-  expect(screen.getByRole('combobox').closest('.xp-ui-field')).toBe(root)
+  expect(root!.contains(screen.getByRole('combobox'))).toBe(true)
 })
 
 

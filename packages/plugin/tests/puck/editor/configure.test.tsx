@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '../../_helpers/popover.js'
+import { changeField, openSelect } from '../../_helpers/select.js'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
@@ -146,7 +148,7 @@ test('a saved name updates the chrome; versions summarize canvas labels and edit
   setup()
   const { drawer } = await open()
   const name = await within(drawer).findByLabelText('Test name')
-  fireEvent.change(name, { target: { value: 'New test title' } }); fireEvent.blur(name)
+  changeField(name, { target: { value: 'New test title' } }); fireEvent.blur(name)
   await waitFor(() => expect(document.querySelector('.xp-slot-title')?.textContent).toBe('New test title'))
   expect(within(drawer).queryByLabelText('Variant A: Version label')).toBeNull()
   expect(within(drawer).queryByRole('button', { name: 'Add version' })).toBeNull()
@@ -266,7 +268,7 @@ test('panel leaves the editor goal query untouched', async () => {
   window.history.replaceState({}, '', '/editor?goal=2')
   const fetcher = setup()
   const { drawer } = await open()
-  await within(drawer).findByLabelText('Goal')
+  await within(drawer).findByRole('combobox', { name: 'Goal' })
   await waitFor(() => expect(fetcher.mock.calls.some(([url]) => url.includes('/xp-metrics'))).toBe(true))
   await act(async () => {})
   expect(window.location.search).toBe('?goal=2')
@@ -280,7 +282,7 @@ test('a name save preserves loaded results, while a phase or status transition r
   await within(drawer).findByRole('table', { name: 'Registrations' })
   const before = fetcher.mock.calls.filter(([url]) => url.includes('/results')).length
   const name = within(drawer).getByLabelText('Test name')
-  fireEvent.change(name, { target: { value: 'Renamed' } }); fireEvent.blur(name)
+  changeField(name, { target: { value: 'Renamed' } }); fireEvent.blur(name)
   await waitFor(() => expect(document.querySelector('.xp-slot-title')?.textContent).toBe('Renamed'))
   expect(fetcher.mock.calls.filter(([url]) => url.includes('/results'))).toHaveLength(before)
   fireEvent.click(within(drawer).getByRole('button', { name: 'Stop' }))
@@ -437,8 +439,8 @@ test('the real editor drawer uses one other-goal list and moves a role exclusive
   expect(other.open).toBe(true)
   expect(within(other).getAllByRole('combobox')).toHaveLength(2)
   expect(win.queryByRole('checkbox')).toBeNull()
-  expect(win.getByRole('combobox', { name: 'Goal' }).closest('.xp-ui-select-wrap')).toBeTruthy()
-  fireEvent.change(await within(other).findByLabelText('Lessons · lessons'), { target: { value: 'guardrails' } })
+  expect(win.getByRole('combobox', { name: 'Goal' }).closest('.xp-ui-combobox-wrap')).toBeTruthy()
+  changeField(await within(other).findByRole('combobox', { name: 'Lessons · lessons' }), { target: { value: 'guardrails' } })
   await waitFor(() => expect(saved.metrics).toEqual({ primary: 1, guardrails: [3, 2], secondary: [] }))
   const patch = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')![1]!
   expect(JSON.parse(String(patch.body))).toEqual({ metrics: { primary: 1, guardrails: [3, 2], secondary: [] } })
