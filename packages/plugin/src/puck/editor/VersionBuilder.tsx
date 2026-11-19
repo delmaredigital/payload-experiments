@@ -15,15 +15,15 @@ import { editorCopy as C } from './copy.js'
 const VersionLockContext = createContext<string | undefined>(undefined)
 
 /** A pointer shortcut supplements the explicit, keyboard-accessible open marker. */
-export function VersionCard({ label, openLabel = label, active, dragging, onSelect, children }: {
-  label: string; openLabel?: string; active: boolean; dragging: boolean; onSelect: () => void; children: ReactNode
+export function VersionCard({ label, openLabel = label, active, dragging, interactive = true, onSelect, children }: {
+  label: string; openLabel?: string; active: boolean; dragging: boolean; interactive?: boolean; onSelect: () => void; children: ReactNode
 }) {
   return <div className="xp-slot-version-group" data-active={active} role="group" aria-label={label} aria-current={active ? 'true' : undefined}
     onClick={event => {
-      if (!dragging && !(event.target as Element).closest('button, input, label, select, textarea, a, [role="button"], [contenteditable="true"]')) onSelect()
+      if (interactive && !dragging && event.currentTarget.ownerDocument.getSelection()?.isCollapsed !== false && !(event.target as Element).closest('button, input, label, select, textarea, a, [role="button"], [contenteditable="true"]')) onSelect()
     }}>
     <div className="xp-slot-version-row">
-      <button type="button" className="xp-slot-version-open" aria-label={C.showVersion(openLabel)} aria-pressed={active} disabled={dragging} onClick={onSelect} />
+      {interactive ? <button type="button" className="xp-slot-version-open" aria-label={C.showVersion(openLabel)} aria-pressed={active} disabled={dragging} onClick={onSelect} /> : <span className="xp-slot-version-open" aria-hidden="true" style={{ cursor: 'default' }} />}
       {children}
     </div>
   </div>
@@ -32,6 +32,7 @@ export function VersionCard({ label, openLabel = label, active, dragging, onSele
 /** Keep unavailable controls reachable, and explain an attempted edit in place. */
 export function VersionLock({ message, children }: { message?: string; children: (noticeId?: string) => ReactNode }) {
   const id = useId()
+  const controls = useRef<HTMLDivElement>(null)
   const notice = useRef<HTMLDivElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [attention, setAttention] = useState(false)
@@ -45,17 +46,41 @@ export function VersionLock({ message, children }: { message?: string; children:
     notice.current?.scrollIntoView?.({ block: 'nearest' })
     timer.current = setTimeout(() => { timer.current = undefined; setAttention(false) }, 2000)
   }
+  useEffect(() => {
+    const node = controls.current
+    if (!message || !node) return
+    const edit = (event: Event) => {
+      if ((event.target as Element).closest('input[aria-disabled="true"], textarea[aria-disabled="true"]')) {
+        event.preventDefault(); event.stopPropagation(); explain()
+      }
+    }
+    node.addEventListener('beforeinput', edit, true)
+    return () => node.removeEventListener('beforeinput', edit, true)
+  }, [message])
   return <VersionLockContext.Provider value={message ? id : undefined}>
-    <div className="xp-slot-version-controls" onClickCapture={event => {
-      if (message && (event.target as Element).closest('[aria-disabled="true"]')) {
+    <div ref={controls} className="xp-slot-version-controls" onPasteCapture={event => {
+      if (message && (event.target as Element).closest('input[aria-disabled="true"], textarea[aria-disabled="true"]')) {
+        event.preventDefault(); event.stopPropagation(); explain()
+      }
+    }} onCutCapture={event => {
+      if (message && (event.target as Element).closest('input[aria-disabled="true"], textarea[aria-disabled="true"]')) {
+        event.preventDefault(); event.stopPropagation(); explain()
+      }
+    }} onClickCapture={event => {
+      if (message && (event.target as Element).closest('button[aria-disabled="true"], [role="button"][aria-disabled="true"]')) {
         event.preventDefault(); event.stopPropagation(); explain()
       }
     }} onKeyDownCapture={event => {
       // Leave Tab, caret navigation and copying available on read-only values.
       const control = (event.target as Element).closest('[aria-disabled="true"]')
       const stepping = control?.matches('input[type="number"]') && ['ArrowUp', 'ArrowDown'].includes(event.key)
-      if (message && control && !event.ctrlKey && !event.metaKey && !event.altKey &&
-        (event.key.length === 1 || ['Enter', 'Backspace', 'Delete'].includes(event.key) || stepping)) {
+      const shortcut = (event.ctrlKey || event.metaKey) && ['v', 'x'].includes(event.key.toLowerCase())
+        || event.shiftKey && ['Insert', 'Delete'].includes(event.key)
+      const typing = !event.ctrlKey && !event.metaKey && !event.altKey &&
+        (event.key.length === 1 || ['Backspace', 'Delete'].includes(event.key) || stepping)
+      const activation = control?.matches('button, [role="button"]') && ['Enter', ' '].includes(event.key)
+      const input = control?.matches('input, textarea')
+      if (message && control && (input && (shortcut || typing) || activation)) {
         event.preventDefault(); event.stopPropagation(); explain()
       }
     }}>
@@ -170,7 +195,7 @@ export function VersionName({ arm, writes, editable }: { arm: EditorExperiment['
     onBlur={() => void commit()} onKeyDown={event => {
       if (event.key === 'Enter') { event.preventDefault(); void commit() }
       if (event.key === 'Escape') { event.preventDefault(); if (pending.current?.started) return; if (pending.current) pending.current.cancelled = true; draft.current = arm.label; setName(arm.label); setInvalid(false); setError(undefined); setSaved(false) }
-    }} /><span id={`${id}-saved`} role={saved ? 'status' : undefined} aria-hidden={!saved} className="xp-ui-help xp-slot-version-saved">{C.saved}</span></div>
+    }} /><span id={`${id}-saved`} role="status" className="xp-ui-help xp-slot-version-saved">{saved ? C.saved : ''}</span></div>
 }
 
 export function RemoveVersion({ arm, writes, count, shared, onRemove, onClose }: {

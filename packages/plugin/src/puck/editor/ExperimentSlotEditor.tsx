@@ -414,7 +414,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           <VersionWeights key={bindingKey} edits={weightEdits} setEdits={setWeightEdits} groupId={props.id} splitIntent={splitIntent} experiment={experiment} writes={writes} editable={editable} showSplit={canManage}
             beforeActions={leftoverControls}
             beforeSplit={editable ? <AddVariant experiment={experiment} writes={writes} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null}
-            renderRow={(arm, input) => <VersionCard label={arm.label} active={slot === (arm.kind === 'holdout' ? 'control' : arm.key)} dragging={dragging}
+            renderRow={(arm, input) => <VersionCard label={arm.label} active={arm.kind !== 'holdout' && slot === arm.key} dragging={dragging} interactive={arm.kind !== 'holdout'}
               onSelect={() => setActive({ id: experimentId, slot: arm.kind === 'holdout' ? 'control' : arm.key as ArmSlot })}>
                 <VersionName key={`${experimentId}-${arm.key}`} arm={arm} writes={writes} editable={editable} />
                 {input}
@@ -422,6 +422,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
                 {arm.kind === 'variant' ? <Button size="sm" disabled={originalEmpty} aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) requestCopy(arm.key as ArmSlot) }}>{editorCopy.copy(originalLabel)}</Button> : null}
                 {editable ? <Button size="sm" aria-describedby={lockId} aria-disabled={writes.busy || undefined} onClick={() => { if (!writes.busy) setRemoving({ key: bindingKey, arm }) }}>{editorCopy.removeVersion}</Button> : null}
               </div> : null}
+              {arm.kind === 'holdout' ? <p className="xp-ui-help xp-slot-version-help">{editorCopy.holdoutContent}</p> : null}
               {arm.kind === 'variant' && originalEmpty ? <p className="xp-ui-help xp-slot-version-help">{editorCopy.copyEmpty(originalLabel)}</p> : null}
             </VersionCard>} />
           </>}</VersionLock>

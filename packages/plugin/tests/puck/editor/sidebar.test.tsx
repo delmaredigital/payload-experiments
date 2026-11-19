@@ -493,15 +493,17 @@ test('visible name inputs save on blur and Enter, Escape restores, errors stay n
   await mount()
   const group = () => within(fields().getByRole('group', { name: doc.arms[1]!.label }))
   let name = group().getByRole<HTMLInputElement>('textbox')
-  const feedback = group().getByText(C.saved)
-  expect(feedback.getAttribute('aria-hidden')).toBe('true')
+  const feedback = group().getByRole('status')
+  expect(feedback.textContent).toBe('')
+  expect(feedback.hasAttribute('aria-hidden')).toBe(false)
   changeField(name, { target: { value: 'Cancelled' } }); fireEvent.keyDown(name, { key: 'Escape' }); fireEvent.blur(name)
   expect(name.value).toBe('Variant A')
   expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(0)
   changeField(name, { target: { value: 'Shorter' } }); fireEvent.blur(name)
   await screen.findByRole('tab', { name: 'Shorter' })
   expect(await group().findByRole('status')).toBe(feedback)
-  expect(feedback.getAttribute('aria-hidden')).toBe('false')
+  expect(feedback.textContent).toBe(C.saved)
+
   expect(name.getAttribute('aria-describedby')).toBe(feedback.id)
   await waitFor(() => expect(group().getByRole<HTMLInputElement>('textbox').disabled).toBe(false))
   name = group().getByRole<HTMLInputElement>('textbox')
@@ -1208,4 +1210,38 @@ test('locked holdout cards have no empty actions row', async () => {
   doc.arms.push({ key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 0 } as typeof doc.arms[number])
   await mount()
   expect(fields().getByRole('group', { name: 'Holdout' }).querySelector('.xp-slot-version-actions')).toBeNull()
+})
+
+
+test.each([false, true])('selecting text in a version card does not open it (leftover: %s)', async leftover => {
+  await mount(false, leftover)
+  const label = leftover ? C.outsideTest('Variant C') : 'Variant A'
+  const card = fields().getByRole('group', { name: label })
+  const text = card.querySelector(leftover ? '.xp-slot-version-help' : '.xp-slot-percent')!
+  const range = document.createRange(); range.selectNodeContents(text)
+  const selection = document.getSelection()!; selection.removeAllRanges(); selection.addRange(range)
+  try {
+    expect(selection.isCollapsed).toBe(false)
+    fireEvent.click(text)
+    expect(screen.getByRole('tab', { name: 'Original' }).getAttribute('aria-selected')).toBe('true')
+    selection.removeAllRanges()
+    fireEvent.click(card)
+    expect(screen.getByRole('tab', { name: label }).getAttribute('aria-selected')).toBe('true')
+  } finally { selection.removeAllRanges() }
+})
+
+test.each(['draft', 'running'] as const)('holdout has a plain marker and only the open content card is current (%s)', async status => {
+  doc.status = status
+  doc.arms.push({ key: 'holdout', kind: 'holdout', label: 'Holdout', weight: 0 })
+  await mount()
+  const holdout = fields().getByRole('group', { name: 'Holdout' })
+  expect(within(holdout).queryByRole('button', { name: 'Show Holdout on the page' })).toBeNull()
+  expect(holdout.querySelector('[aria-pressed]')).toBeNull()
+  expect(holdout.hasAttribute('aria-current')).toBe(false)
+  expect(within(holdout).getByText('Holdout visitors see the Original.')).toBeTruthy()
+  const current = () => fields().getAllByRole('group').filter(card => card.getAttribute('aria-current') === 'true')
+  expect(current()).toEqual([fields().getByRole('group', { name: 'Original' })])
+  fireEvent.click(fields().getByRole('button', { name: 'Show Variant A on the page' }))
+  fireEvent.click(holdout)
+  expect(current()).toEqual([fields().getByRole('group', { name: 'Variant A' })])
 })

@@ -60,6 +60,7 @@ export const editorCopy = {
   removed: "Save the page to finish removing this version's content.",
   removeUncleared: "The version was removed from the test, but its content couldn't be cleared here. Delete it from the outline, then save the page.",
   lockedGeneric: "This test's versions can't change. View the test page for details.",
+  holdoutContent: 'Holdout visitors see the Original.',
   holdoutPeople: (label: string, count: string) => `${label}: ${count} people (not compared)`,
   weight: (label: string) => `${label} traffic (%)`,
   invalidShare: 'Use a whole number from 0 to 100.',
