@@ -20,3 +20,15 @@ test('all UI modules, including type imports, stay Payload/admin/stats/server fr
     } else if (path.endsWith('.tsx')) expect(text, path).toContain("import './ui.css'")
   }
 })
+
+
+test('SelectControl importers supply ui.css except the server-safe Puck picker and Inputs', () => {
+  const src = fileURLToPath(new URL('../../src/', import.meta.url))
+  const serverSafe = new Set(collectImports(join(src, 'exports/puck.ts')).files)
+  const importers = files(src).filter(path => /['"][^'"]*\/SelectControl\.js['"]/.test(readFileSync(path, 'utf8')))
+  expect(importers.length).toBeGreaterThan(0)
+  for (const path of importers) {
+    if (path === join(root, 'Inputs.tsx') || serverSafe.has(path)) continue
+    expect(readFileSync(path, 'utf8'), path).toMatch(/import ['"][^'"]*ui\.css['"]/)
+  }
+})

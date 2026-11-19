@@ -92,7 +92,7 @@ test.each<[string, Record<string, string>]>([
   ['.xp-ui-combobox-chevron', { 'border-right-color': 'var(--xp-text-2)', 'border-bottom-color': 'var(--xp-text-2)' }],
   ['.xp-ui-combobox-popup', { color: 'var(--xp-text)', background: 'var(--xp-surface)', 'border-color': 'var(--xp-border-strong)' }],
   ['.xp-ui-combobox-option', { color: 'var(--xp-text)' }],
-  ['.xp-ui-combobox-option[aria-selected="true"]', { color: 'var(--xp-text)', background: 'var(--xp-surface-3)', outline: '1px solid var(--xp-border-strong)' }],
+  ['.xp-ui-combobox-option[data-active="true"]', { color: 'var(--xp-text)', background: 'var(--xp-surface-3)', outline: '1px solid var(--xp-border-strong)' }],
   ['.xp-ui-combobox-option[aria-disabled="true"]', { color: 'var(--xp-text-3)' }],
   ['.xp-ui-combobox-group', { color: 'var(--xp-text-2)' }],
 ])('sidebar %s restores dropdown colors above the host dark-mode override', (target, expected) => {
@@ -108,14 +108,14 @@ test('dropdown values inherit disabled colors and disabled options override the 
   const rules = generatedRules()
   const prefix = '[class*="_PuckFields"] .xp-slot-root '
   const selectors = [...rules.keys()]
-  // SelectControl uses aria-selected for the current keyboard/pointer option.
-  const selected = `${prefix}.xp-ui-combobox-option[aria-selected="true"]`
+  // SelectControl keeps the keyboard/pointer option distinct from the saved selection.
+  const selected = `${prefix}.xp-ui-combobox-option[data-active="true"]`
   const disabled = `${prefix}.xp-ui-combobox-option[aria-disabled="true"]`
   expect(selectors.indexOf(disabled)).toBeGreaterThan(selectors.indexOf(selected))
   const css = readFileSync(new URL('puck/editor/editor.css', source), 'utf8')
   const tokens = declarations(css.match(/\[class\*="_PuckFields"\] \.xp-slot-root\s*\{([^}]+)\}/)![1]!)
   const resolve = (value: string): string => value.replace(/var\((--[\w-]+)\)/g, (_, name: string) => tokens[name]!)
-  for (const target of ['.xp-ui-combobox', '.xp-ui-combobox:disabled', '.xp-ui-combobox-popup', '.xp-ui-combobox-option[aria-selected="true"]']) {
+  for (const target of ['.xp-ui-combobox', '.xp-ui-combobox:disabled', '.xp-ui-combobox-popup', '.xp-ui-combobox-option[data-active="true"]']) {
     const style = properties(rules.get(prefix + target)!)
     expect(contrast(resolve(style.color!), resolve(style.background!)), target).toBeGreaterThanOrEqual(4.5)
   }

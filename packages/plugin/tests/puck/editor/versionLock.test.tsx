@@ -41,13 +41,13 @@ test.each([C.lockedGeneric, C.readOnlyVersions, ...Object.values(C.locked)])('lo
 
 test('read-only values still permit navigation, selection and copying', () => {
   render(<VersionLock message={C.locked.running}>{id => <input aria-label={C.name} aria-disabled="true" aria-describedby={id} value="Original" readOnly />}</VersionLock>)
-  const input = screen.getByRole('textbox')
+  const input = screen.getByRole<HTMLInputElement>('textbox')
   act(() => input.focus())
   expect(fireEvent.click(input)).toBe(true)
   input.setSelectionRange(0, 4)
   fireEvent.select(input)
   fireEvent.copy(input)
-  for (const key of ['Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Escape']) expect(fireEvent.keyDown(input, { key })).toBe(true)
+  for (const key of ['Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Escape', 'Enter']) expect(fireEvent.keyDown(input, { key })).toBe(true)
   for (const key of ['a', 'c']) expect(fireEvent.keyDown(input, { key, ctrlKey: true })).toBe(true)
   expect(fireEvent.keyDown(input, { key: 'c', metaKey: true })).toBe(true)
   expect(screen.queryByRole('alert')).toBeNull()
@@ -119,5 +119,25 @@ test('save feedback has a stable live region, announces after saving, then clear
 test('non-activation keys on locked buttons do not explain an edit', () => {
   render(<VersionLock message={C.locked.running}>{() => <button aria-disabled="true">Split</button>}</VersionLock>)
   for (const key of ['a', 'Backspace', 'Delete', 'ArrowUp']) fireEvent.keyDown(screen.getByRole('button'), { key })
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
+
+test.each([
+  { key: 'Backspace', ctrlKey: true }, { key: 'Delete', metaKey: true }, { key: 'Backspace', altKey: true },
+  { key: 'v', metaKey: true }, { key: 'x', metaKey: true }, { key: 'Insert', shiftKey: true },
+])('modified value edits explain the lock: %j', keys => {
+  render(<VersionLock message={C.locked.running}>{() => <input aria-disabled="true" value="Original" readOnly />}</VersionLock>)
+  expect(fireEvent.keyDown(screen.getByRole('textbox'), keys)).toBe(false)
+  expect(screen.getByRole('alert').textContent).toBe(C.locked.running)
+})
+
+test('clicking, focusing and copying locked Traffic does not announce an edit', () => {
+  render(<VersionLock message={C.locked.running}>{() => <input type="number" aria-disabled="true" value="50" readOnly />}</VersionLock>)
+  const input = screen.getByRole('spinbutton')
+  act(() => input.focus())
+  expect(fireEvent.click(input)).toBe(true)
+  fireEvent.copy(input)
+  for (const keys of [{ key: 'ArrowLeft' }, { key: 'ArrowRight', shiftKey: true }, { key: 'c', ctrlKey: true }, { key: 'Insert', ctrlKey: true }]) expect(fireEvent.keyDown(input, keys)).toBe(true)
   expect(screen.queryByRole('alert')).toBeNull()
 })

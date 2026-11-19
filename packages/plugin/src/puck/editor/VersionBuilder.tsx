@@ -76,11 +76,11 @@ export function VersionLock({ message, children }: { message?: string; children:
       const stepping = control?.matches('input[type="number"]') && ['ArrowUp', 'ArrowDown'].includes(event.key)
       const shortcut = (event.ctrlKey || event.metaKey) && ['v', 'x'].includes(event.key.toLowerCase())
         || event.shiftKey && ['Insert', 'Delete'].includes(event.key)
-      const typing = !event.ctrlKey && !event.metaKey && !event.altKey &&
-        (event.key.length === 1 || ['Backspace', 'Delete'].includes(event.key) || stepping)
+      const typing = !event.ctrlKey && !event.metaKey && !event.altKey && event.key.length === 1
+      const deletion = ['Backspace', 'Delete'].includes(event.key)
       const activation = control?.matches('button, [role="button"]') && ['Enter', ' '].includes(event.key)
       const input = control?.matches('input, textarea')
-      if (message && control && (input && (shortcut || typing) || activation)) {
+      if (message && control && (input && (shortcut || typing || deletion || stepping) || activation)) {
         event.preventDefault(); event.stopPropagation(); explain()
       }
     }}>

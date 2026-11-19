@@ -86,14 +86,24 @@ export function SelectControl({ id, value, defaultValue, options: supplied, chil
     // painted below that modal. Our Dialog/Drawer root has no transform.
     const host = topLayer ? null : node.closest<HTMLDialogElement>('dialog[open]') ?? node.ownerDocument.body
     if (host !== portalHost) { setPortalHost(host); return }
-    const style = win.getComputedStyle(node)
-    if (host) {
-      // Portals lose inherited theme tokens. Snapshot the trigger's computed
-      // tokens rather than inheriting the outer document's potentially light theme.
-      for (const property of Array.from(style)) if (property.startsWith('--xp-')) menu.style.setProperty(property, style.getPropertyValue(property))
-      menu.style.direction = style.direction
-      menu.style.display = 'block'
+    let style = win.getComputedStyle(node)
+    const copied = new Set<string>()
+    const clearTheme = () => {
+      for (const property of copied) menu.style.removeProperty(property)
+      copied.clear()
+      menu.style.removeProperty('direction')
     }
+    const copyTheme = () => {
+      style = win.getComputedStyle(node)
+      clearTheme()
+      // Portals lose inherited tokens. Refresh from the control whenever an
+      // ancestor changes theme; remove tokens absent from the new theme too.
+      for (const property of Array.from(style)) if (property.startsWith('--xp-')) {
+        menu.style.setProperty(property, style.getPropertyValue(property)); copied.add(property)
+      }
+      menu.style.direction = style.direction
+    }
+    if (host) { copyTheme(); menu.style.display = 'block' }
     const position = () => {
       const rect = node.getBoundingClientRect()
       const viewport = win.visualViewport
@@ -139,11 +149,20 @@ export function SelectControl({ id, value, defaultValue, options: supplied, chil
     const Resize = (win as Window & { ResizeObserver?: typeof ResizeObserver }).ResizeObserver
     const observer = Resize ? new Resize(position) : undefined
     observer?.observe(node)
-    win.addEventListener('resize', position); win.addEventListener('scroll', position, true)
+    const scroll = (event: Event) => {
+      const target = event.target
+      if (target && 'nodeType' in target && menu.contains(target as Node)) return
+      position()
+    }
+    const theme = host ? new win.MutationObserver(() => { copyTheme(); position() }) : undefined
+    for (let ancestor: HTMLElement | null = node; theme && ancestor; ancestor = ancestor.parentElement) {
+      theme.observe(ancestor, { attributes: true, attributeFilter: ['data-theme', 'class', 'style', 'dir'] })
+    }
+    win.addEventListener('resize', position); win.addEventListener('scroll', scroll, true)
     win.visualViewport?.addEventListener('resize', position); win.visualViewport?.addEventListener('scroll', position)
     return () => {
-      if (topLayer) menu.hidePopover?.(); observer?.disconnect()
-      win.removeEventListener('resize', position); win.removeEventListener('scroll', position, true)
+      if (topLayer) menu.hidePopover?.(); observer?.disconnect(); theme?.disconnect(); clearTheme()
+      win.removeEventListener('resize', position); win.removeEventListener('scroll', scroll, true)
       win.visualViewport?.removeEventListener('resize', position); win.visualViewport?.removeEventListener('scroll', position)
     }
   }, [open, disabled, options, portalHost])
@@ -200,14 +219,18 @@ export function SelectControl({ id, value, defaultValue, options: supplied, chil
     const match = order.find(index => options[index]!.label.toLocaleLowerCase('en-US').startsWith(search))
     setOpen(true); if (match !== undefined) setActive(match)
   }
-  const menu = <div ref={popup} hidden={!open || disabled} style={!open || disabled ? { display: 'none' } : undefined} id={listId} role="listbox" aria-label={props['aria-label']} aria-labelledby={props['aria-labelledby'] ?? (props['aria-label'] ? undefined : `${id}-label`)}
+  const menu = <div ref={popup} hidden={!open || disabled} style={{ position: 'fixed', inset: 'auto', right: 'auto', bottom: 'auto', margin: 0, background: 'var(--xp-surface, Canvas)', color: 'var(--xp-text, CanvasText)', overflow: 'auto', boxSizing: 'border-box', zIndex: 2147483647, ...(!open || disabled ? { display: 'none' } : {}) }} id={listId} role="listbox" aria-label={props['aria-label']} aria-labelledby={props['aria-labelledby'] ?? (props['aria-label'] ? undefined : `${id}-label`)}
     popover={portalHost ? undefined : 'manual'} className="xp-ui-combobox-popup" onPointerDown={event => { event.preventDefault(); event.stopPropagation() }}>
     {groups.map(group => <div key={group.start} role={group.label ? 'group' : undefined} aria-labelledby={group.label ? `${id}-group-${group.start}` : undefined}>
       {group.label ? <div id={`${id}-group-${group.start}`} className="xp-ui-combobox-group">{group.label}</div> : null}
       {group.options.map((option, offset) => {
         const index = group.start + offset
         return <div key={option.value} role="option" id={optionId(index)} data-index={index} data-value={option.value}
-          aria-selected={current === index} aria-disabled={option.disabled || undefined} className="xp-ui-combobox-option"
+          aria-selected={selectedIndex === index} data-active={current === index} style={{
+            backgroundColor: current === index ? 'var(--xp-surface-3, Highlight)' : undefined,
+            color: option.disabled ? 'var(--xp-text-3, GrayText)' : current === index ? 'var(--xp-text, HighlightText)' : undefined,
+            fontWeight: selectedIndex === index ? 600 : undefined,
+          }} aria-disabled={option.disabled || undefined} className="xp-ui-combobox-option"
           onPointerMove={() => { if (!option.disabled) { keyboardActive.current = false; setActive(index) } }}
           onClick={() => { if (!option.disabled) { commit(index); trigger.current?.focus() } }}>{option.label}</div>
       })}

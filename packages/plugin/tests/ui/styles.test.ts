@@ -111,7 +111,7 @@ test.each(['light', 'dark'] as const)('%s page options have readable text and a 
 test('dropdown chrome and open menus use shared theme tokens without native select styles', () => {
   expect(rule('.xp-ui-combobox-chevron')).toContain('rotate(45deg)')
   for (const declaration of ['position: fixed', 'z-index: 2147483647', 'background: var(--xp-surface)', 'color: var(--xp-text)', 'font: var(--xp-text-body)']) expect(rule('.xp-ui-combobox-popup')).toContain(declaration)
-  expect(rule(".xp-ui-combobox-option[aria-selected='true']")).toContain('background: var(--xp-surface-3)')
+  expect(rule(".xp-ui-combobox-option[data-active='true']")).toContain('background: var(--xp-surface-3)')
   expect(css).not.toContain('.xp-ui-select')
 })
 test('the plugin renders no native select menus', () => {

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import type { ExperimentKind } from '../../../../src/types/contracts.js'
 import { DeleteTest } from '../../../../src/testSurface/surface/test/DeleteTest.js'
 import { DELETE_TEST } from '../../../../src/testSurface/copy/testPage.js'
 import { API_MESSAGES } from '../../../../src/testSurface/copy/common.js'
@@ -54,7 +55,7 @@ test('server refusal stays visible in the confirmation', async () => {
 const done = { collection: 'pages', id: 1, ok: true }
 const dismissed = { collection: 'pages', id: 2, ok: false, dismissedAt: 'date', title: 'Welcome', path: '/welcome' }
 const failed = { collection: 'pages', id: 3, ok: false }
-test.each([
+test.each<[ExperimentKind, string, NonNullable<Parameters<typeof DeleteTest>[0]['test']['decision']>, 'blockWinner' | 'pageWinner' | undefined]>([
   ['block', 'archived', { winnerArm: 'control', contentReport: { docs: [dismissed] } }, undefined],
   ['block', 'archived', { winnerArm: 'variantA', contentReport: { docs: [done] } }, undefined],
   ['block', 'archived', { winnerArm: 'variantA', contentReport: { docs: [] } }, undefined],
@@ -73,7 +74,7 @@ test.each([
   ['page', 'draft', { winnerArm: 'variantA' }, undefined],
   ['flag', 'archived', { winnerArm: 'variantA' }, undefined],
   ['code', 'archived', { winnerArm: 'variantA' }, undefined],
-] as const)('delete consequences for %s / %s / %j', (kind, status, decision, warning) => {
+])('delete consequences for %s / %s / %j', (kind, status, decision, warning) => {
   render(<DeleteTest {...base} test={{ ...base.test, kind, status, decision }} />)
   fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
   const dialog = screen.getByRole('dialog')
