@@ -358,3 +358,37 @@ test('where-used and readiness exclude hidden placements and retain partial visi
   expect(hiddenOnly.placements).toEqual([])
   expect(hiddenOnly.checks).toContainEqual({ code: 'no-placements', ok: false })
 })
+
+
+test.each(['fr', 'xx', 'all', '', undefined])('preflight validates metadata locale %j without changing the all-language scan or checks', async requested => {
+  const { options, payload, req } = setup()
+  const experiment = payload.documents['xp-experiments']![0]!
+  Object.assign(experiment, { kind: 'block', arms: defaultArms('block'), exposurePolicy: 'render' })
+  options.puck = { enabled: true, collections: ['pages'] }
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en', label: 'English' }, { code: 'fr', label: 'French' }] },
+    collections: [{ slug: 'pages', fields: [{ name: 'puckData', type: 'json', localized: true }, { name: 'title', type: 'text', localized: true }] }] })
+  const content = { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{}], variantA: [] } }] }
+  payload.documents.pages = [{ id: 10, _status: 'published', title: { en: 'Home', fr: 'Accueil' }, puckData: { en: content, fr: content } }]
+  Object.assign(req, { url: `https://example.test/api/xp/experiments/one/preflight${requested === undefined ? '' : `?locale=${requested}`}` })
+  const body = await (await handlePreflight(req, { options })).json() as PreflightResult
+  expect(body.checks.find(check => check.code === 'empty-slot')?.detail).toEqual([expect.objectContaining({ title: `${requested === 'fr' ? 'Accueil' : 'Home'} · All languages` })])
+  const { preflightData } = await import('../../src/transitions/preflightData.js')
+  Object.assign(req, { locale: requested === 'fr' ? 'fr' : 'en' })
+  expect(body).toEqual(await preflightData(req, { experimentId: 'one', options }))
+  expect(payload.calls.filter(call => call.args.collection === 'pages').every(call => call.args.locale === 'all' && call.args.fallbackLocale === false)).toBe(true)
+  expect(payload.calls.every(call => call.method === 'find')).toBe(true)
+  expect(payload.dbCalls).toEqual([])
+})
+
+
+test('a metadata locale does not change the request given to host placement adapters', async () => {
+  const { req, payload, options } = setup('flag')
+  Object.assign(req, { locale: 'en', url: 'https://example.test/api/xp/experiments/one/preflight?locale=fr' })
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] } })
+  const placements = vi.fn(async (_input: { req: import('payload').PayloadRequest }) => [{ arm: 'control', ok: true }, { arm: 'variantA', ok: true }])
+  options.flagPoints![0]!.placements = placements
+  expect((await handlePreflight(req, { options })).status).toBe(200)
+  expect(placements).toHaveBeenCalledOnce()
+  expect(placements.mock.calls[0]![0].req).toBe(req)
+  expect(req.locale).toBe('en')
+})

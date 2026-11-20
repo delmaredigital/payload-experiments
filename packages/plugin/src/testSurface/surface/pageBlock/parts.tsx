@@ -5,35 +5,35 @@ import { Button } from '../../../ui/Button.js'
 import { placementPages } from '../../../lib/placementPages.js'
 import { TEST_PAGE as C, placementCount } from '../../copy/testPage.js'
 import { placementLine, slotReady } from './pageBlock.model.js'
-import { placementLabel } from '../../placementLabel.js'
+import { placementLabel, placementGroupLabel } from '../../placementLabel.js'
 
 function Binding({ test, surface }: SectionProps) {
   const placements = test.preflight?.placements ?? []
+  const pages = placementPages(placements)
   return <div className="xp-page-binding">{surface.editorPlacementMessage ? test.doc?.status === 'running' ? <Banner tone="warning"><span aria-hidden="true">⚠ </span>{surface.editorPlacementMessage}</Banner> : null : placements.length ? <>
-    {placementPages(placements).map(placement => <p className="xp-ui-button-group" key={placement.key}>{placementLine(placement)}{placement.slotCount > 1 ? placementCount(placement.slotCount) : null}{' '}
-      {placement.editorUrl ? <Button variant="link" size="sm" href={placement.editorUrl}>{C.openPage}</Button> : null}</p>)}<p>{C.editedOnPage}</p>
+    {pages.map(placement => <p className="xp-ui-button-group" key={placement.key}>{placementLine(placement)}{placement.slotCount > 1 ? placementCount(placement.slotCount) : null}{' '}
+      {placement.editorUrl ? <Button variant="link" size="sm" href={placement.editorUrl} aria-label={pages.length > 1 ? `${C.openPage}: ${placementLabel(placement, true)}` : undefined}>{C.openPage}</Button> : null}</p>)}<p>{C.editedOnPage}</p>
   </> : test.preflight?.checks.some(check => !check.ok && check.code === 'no-placements') ? null : <p>{C.notPlaced}</p>}</div>
 }
-function VersionContent({ test, armIndex, summary }: SectionProps & { armIndex: number; summary?: boolean }) {
+function VersionContent({ test, surface, armIndex, summary }: SectionProps & { armIndex: number; summary?: boolean }) {
   const arm = test.doc?.arms[armIndex]
   if (!arm) return null
   if (arm.kind === 'holdout') return <span className="xp-content-chip">{C.holdoutContent}</span>
   const placements = test.preflight?.placements ?? []
   const pages = placementPages(placements)
   const localized = pages.some(page => page.allLocales || page.locales?.length)
-  const editorUrls = new Set<string>()
-  const editPages = pages.filter(page => {
-    if (!page.editorUrl) return false
-    if (localized) {
-      if (editorUrls.has(page.editorUrl)) return false
-      editorUrls.add(page.editorUrl)
-    }
-    return true
-  })
+  const editPages = new Map<string, typeof pages>()
+  for (const page of pages) {
+    if (!page.editorUrl) continue
+    const key = localized ? page.editorUrl : page.key
+    const group = editPages.get(key) ?? []
+    group.push(page); editPages.set(key, group)
+  }
   const ready = placements.length > 0 && placements.every(placement => slotReady(placement, arm))
   return <div className="xp-version-content"><span className={`xp-content-chip ${ready ? 'xp-content-ready' : 'xp-content-empty'}`}>{ready ? C.ready : C.empty}</span>
-    <div className="xp-ui-button-group">{!summary ? editPages.map(page => {
-      const label = localized ? `${C.editOnPage}: ${placementLabel(page, true)}` : C.editOnPage
+    <div className="xp-ui-button-group">{!summary ? [...editPages.values()].map(group => {
+      const page = group[0]!
+      const label = localized ? `${C.editOnPage}: ${placementGroupLabel(group, surface.contentLanguageLabels)}` : C.editOnPage
       return <Button key={page.key} variant="link" size="sm" href={page.editorUrl!}
         aria-label={localized ? label : pages.length > 1 ? `${C.editOnPage}: ${page.title}` : undefined}>{label}</Button>
     }) : null}</div></div>

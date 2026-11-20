@@ -6,9 +6,15 @@ export function placementLanguages(req: PayloadRequest, codes: readonly string[]
   const localization = req.payload.config.localization
   const unique = [...new Set(codes.filter(Boolean))]
   if (localization && unique.length === localization.localeCodes.length) return { allLocales: true }
-  const locales = unique.map(code => {
+  const locales = placementLanguageNames(req, unique)
+  return locales.length ? { locales } : {}
+}
+
+export function placementLanguageNames(req: PayloadRequest, codes: readonly string[]): string[] {
+  const localization = req.payload.config.localization
+  const unique = [...new Set(codes.filter(Boolean))]
+  return unique.map(code => {
     const label = localization && localization.locales.find(entry => entry.code === code)?.label
     return label ? getTranslation(label, req.i18n ?? { language: 'en', fallbackLanguage: 'en' } as PayloadRequest['i18n']) || code : code
   })
-  return locales.length ? { locales } : {}
 }

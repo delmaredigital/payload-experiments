@@ -1,4 +1,5 @@
 'use client'
+import { contentLocaleURL } from '../contentLocaleURL.js'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Arm, DocId } from '../../types/contracts.js'
@@ -72,9 +73,9 @@ function stage(session: Session, partial: TestDocumentPatch) {
 }
 
 /** Section data only: staging never saves. Call commit on blur or a section action. */
-export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus = false, enabled = true, onDocument, onPreflight, requestPreflight }: { apiRoute: string; refetchPreflightOnFocus?: boolean; enabled?: boolean; onDocument?: (doc: TestDocument) => void; onPreflight?: (preflight: PreflightResult) => void; requestPreflight?: (signal: AbortSignal, supersede?: boolean) => Promise<Response> }) {
-  const observers = useRef({ onDocument, onPreflight, requestPreflight })
-  observers.current = { onDocument, onPreflight, requestPreflight }
+export function useTestDocument(id: DocId, { apiRoute, contentLocale, refetchPreflightOnFocus = false, enabled = true, onDocument, onPreflight, requestPreflight }: { apiRoute: string; contentLocale?: string; refetchPreflightOnFocus?: boolean; enabled?: boolean; onDocument?: (doc: TestDocument) => void; onPreflight?: (preflight: PreflightResult) => void; requestPreflight?: (signal: AbortSignal, supersede?: boolean) => Promise<Response> }) {
+  const observers = useRef({ onDocument, onPreflight, requestPreflight, contentLocale })
+  observers.current = { onDocument, onPreflight, requestPreflight, contentLocale }
   const base = apiRoute.replace(/\/$/, '')
   const documentId = String(id)
   const key = JSON.stringify([base, documentId])
@@ -102,16 +103,17 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
     const url = `${base}/xp-experiments/${encodeURIComponent(documentId)}?depth=0`
 
     let preflightRevision = 0
-    async function refreshPreflight(initial = false, supersede = false) {
+    async function refreshPreflight(initial = false, supersede = false): Promise<void> {
       if (controller.signal.aborted) return
       const revision = ++preflightRevision
+      const requestedLocale = observers.current.contentLocale
       session.preflightLoading = true
       session.publish()
       // createApi has no signal option; this read must abort without cancelling submitted PATCHes.
       let body: unknown
       let status = 0
       try {
-        const { response, body: answerBody } = await readPreflight(signal => observers.current.requestPreflight?.(signal, supersede || initial && reloadCount > 0) ?? fetch(`${base}/xp/experiments/${encodeURIComponent(documentId)}/preflight`, {
+        const { response, body: answerBody } = await readPreflight(signal => observers.current.requestPreflight?.(signal, supersede || initial && reloadCount > 0) ?? fetch(contentLocaleURL(`${base}/xp/experiments/${encodeURIComponent(documentId)}/preflight`, requestedLocale), {
           method: 'GET', credentials: 'include', cache: 'no-store', signal,
         }), controller.signal)
         status = response.status
@@ -119,6 +121,7 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
       } catch { /* Network, abort and timeout share the failed-read classification. */ }
       if (controller.signal.aborted) return
       if (revision !== preflightRevision) return
+      if (requestedLocale !== observers.current.contentLocale) return refreshPreflight(initial, supersede)
       session.preflightLoading = false
       session.view.preflightRead = classifyReadinessRead(status, body, session.preflightFailures + 1)
       session.preflightFailures = session.view.preflightRead.failed ? session.preflightFailures + 1 : 0
@@ -281,6 +284,14 @@ export function useTestDocument(id: DocId, { apiRoute, refetchPreflightOnFocus =
       })
     }
   }, [key, base, documentId, reloadCount, enabled])
+
+  const previousLocale = useRef(contentLocale)
+  useEffect(() => {
+    if (previousLocale.current === contentLocale) return
+    previousLocale.current = contentLocale
+    const entry = commitRef.current
+    if (enabled && entry?.session.key === key && entry.session.view.loadState === 'ready') void entry.refreshPreflight()
+  }, [contentLocale, enabled, key])
 
   const stagePartial = useCallback((partial: TestDocumentPatch) => {
     const session = current.current

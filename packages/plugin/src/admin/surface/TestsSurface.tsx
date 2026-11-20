@@ -23,7 +23,7 @@ function SurfacePage(props: TestsSurfaceProps) {
   const title = props.route === 'home' ? SURFACE_COPY.title
     : props.route === 'new' ? SURFACE_COPY.newTest : loadedTitle ?? SURFACE_COPY.test
   const surface: SurfaceProps = {
-    adminRoute: props.adminRoute, apiRoute: props.apiRoute, contentLocale: props.contentLocale, canManage: props.canManage,
+    adminRoute: props.adminRoute, apiRoute: props.apiRoute, contentLocale: props.contentLocale, contentLanguageLabels: props.contentLanguageLabels, canManage: props.canManage,
     canReadResults: props.canReadResults, isAdmin: props.isAdmin, flagPoints: props.flagPoints,
     attributeKeys: props.attributeKeys, metricSources: props.metricSources,
     admin: props.admin, pageCollections: props.pageCollections,

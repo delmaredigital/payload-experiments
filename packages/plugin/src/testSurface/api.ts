@@ -1,3 +1,4 @@
+import { contentLocaleURL } from './contentLocaleURL.js'
 import type { DocId } from '../types/contracts.js'
 import type {
   DeleteImpactResult, WrapBlockBody, PagesResult, PlacementStatusBody, PlacementStatusResult, RestoreContentEntryBody, RestoreContentEntryResult, DismissContentEntryBody, DismissContentEntryResult, AddMetricBody, AllocateBody, ArchiveBody, DecideBody, ErrorEnvelope, MakeContentResult,
@@ -72,8 +73,8 @@ export function createApi(apiBase: string, contentLocale?: string) {
     restoreContentEntry: (id: DocId, body: RestoreContentEntryBody) => post<RestoreContentEntryResult>(id, 'content-report/restore', body, CONTENT_ENTRY_REFUSALS),
     archive: (id: DocId, body: ArchiveBody) => post<TransitionSuccess>(id, 'archive', body),
     clickKeys: (id: DocId) => request<ClickKeysResult>(() => route(id, 'click-keys'), 'GET'),
-    deleteImpact: (id: DocId, signal?: AbortSignal) => request<DeleteImpactResult>(() => `${route(id, 'delete-impact')}${contentLocale ? `?${new URLSearchParams({ locale: contentLocale })}` : ''}`, 'GET', undefined, undefined, signal),
-    preflight: (id: DocId) => request<PreflightResult>(() => route(id, 'preflight'), 'GET'),
+    deleteImpact: (id: DocId, signal?: AbortSignal) => request<DeleteImpactResult>(() => contentLocaleURL(route(id, 'delete-impact'), contentLocale), 'GET', undefined, undefined, signal),
+    preflight: (id: DocId) => request<PreflightResult>(() => contentLocaleURL(route(id, 'preflight'), contentLocale), 'GET'),
     previewToken: (id: DocId, arm: string) => request<PreviewTokenResult>(() => `${route(id, 'preview-token')}?arm=${encodeURIComponent(arm)}`, 'GET'),
     results: (id: DocId, options: { phase?: number; series?: boolean } & RequestOptions = {}) => request<ResultsResponse>(() => {
       const query = new URLSearchParams()

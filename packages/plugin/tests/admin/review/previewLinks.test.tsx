@@ -152,8 +152,8 @@ test('no preview URL offers Edit on page only and hides rows without either link
 })
 test('one control/variant preview per page; no holdout even without kind', () => {
   render(<PreviewLinks apiRoute="/api" experimentId={1} placements={[...placements, { ...placements[0]!, id: 2, title: 'About', url: '/about' }]} arms={[{ key: 'control' }, { key: 'variantA' }, { key: 'holdout' }]} />)
-  expect(screen.getAllByRole('button', { name: 'Preview Original' })).toHaveLength(2)
-  expect(screen.getAllByRole('button', { name: 'Preview Variant A' })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: /^Preview Original:/ })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: /^Preview Variant A:/ })).toHaveLength(2)
   expect(screen.getAllByRole('button')).toHaveLength(4)
 })
 test('published and draft placements on the same page render one row and one set of previews without duplicate keys', () => {
@@ -235,4 +235,25 @@ test('localized previews distinguish publication states with the same title and 
   expect(Array.from(container.querySelectorAll('.xp-preview-row > p')).map(row => row.textContent)).toEqual([
     'Home (Published) · All languages', 'Home (Draft) · All languages',
   ])
+})
+
+
+test.each([true, false])('multi-row controls include the row label (localized: %s)', localized => {
+  const rows = ['Published', 'Draft'].map((detail, index) => ({ collection: 'pages', id: index, title: `Home ${index}`, detail, ok: true, url: `/preview/${index}`, editorUrl: `/edit/${index}`, ...(localized ? { locales: [index ? 'French' : 'English'] } : {}) }))
+  render(<PreviewLinks apiRoute="/api" experimentId={1} placements={rows} arms={[arms[0]!]} />)
+  for (const [index, row] of rows.entries()) {
+    const label = `${row.title}${localized ? ` (${row.detail}) · Languages: ${index ? 'French' : 'English'}` : ''}`
+    expect(screen.getByRole('link', { name: `Edit on page: ${label}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `Preview Original: ${label}` })).toBeTruthy()
+  }
+})
+
+
+test('a single localized preview row keeps generic control names', () => {
+  const { container } = render(<PreviewLinks apiRoute="/api" experimentId={1} arms={[arms[0]!]} placements={[
+    { collection: 'pages', id: 1, title: 'Home', detail: 'Published', allLocales: true, ok: true, url: '/home', editorUrl: '/edit/home' },
+  ]} />)
+  expect(screen.getByRole('button', { name: 'Preview Original' }).getAttribute('aria-label')).toBeNull()
+  expect(screen.getByRole('link', { name: 'Edit on page' }).getAttribute('aria-label')).toBeNull()
+  expect(container.querySelector('.xp-preview-row > p')?.textContent).toBe('Home (Published) · All languages')
 })

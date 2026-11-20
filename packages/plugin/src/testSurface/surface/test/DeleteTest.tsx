@@ -1,4 +1,5 @@
 'use client'
+import { placementLanguageSuffix } from '../../copy/languages.js'
 import { useEffect, useRef, useState } from 'react'
 import type { DeleteImpactResult } from '../../../types/endpoints.js'
 import type { DocId } from '../../../types/contracts.js'
@@ -71,7 +72,7 @@ function impactSummary(impact: DeleteImpactResult): string {
 function ImpactDetails({ impact }: { impact: DeleteImpactResult }) {
   if (impact.effect === 'none') return null
   const places = impact.effect === 'block' ? impact.placements.map(place =>
-    `${place.title}${place.path ? ` (${place.path})` : ''}${place.allLocales ? ` · ${C.allLocales}` : place.locales?.length ? ` · ${C.locales(place.locales.join(', '))}` : ''}: ${C.versionChange(place.before.label, place.after.label)}`)
+    `${place.title}${place.path ? ` (${place.path})` : ''}${placementLanguageSuffix(place)}: ${C.versionChange(place.before.label, place.after.label)}`)
     : impact.addresses.map(path => `${path}: ${C.versionChange(impact.winnerPath, impact.afterPaths?.[path] ?? path)}`)
   return <>
     {places.length ? <><p>{impact.effect === 'block' ? C.blockWinner(impact.controlLabel) : C.pageWinner}</p><p>{C.currentSite}</p></> : null}

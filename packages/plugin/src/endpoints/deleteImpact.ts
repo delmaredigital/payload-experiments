@@ -1,6 +1,7 @@
+import { contentLocale } from './contentLocale.js'
 import { placementLanguages } from '../blocks/placementLanguages.js'
 import { localeRequest, placementReader } from '../blocks/placementLocale.js'
-import { Forbidden, sanitizeFallbackLocale, type PayloadRequest } from 'payload'
+import { Forbidden, type PayloadRequest } from 'payload'
 import { XpRefusal } from '../errors.js'
 import { compileManifest, loadManifestInputs, type ManifestInputExperiment } from '../manifest/compile.js'
 import { publishedBlockPlacementPages } from '../transitions/placements.js'
@@ -12,10 +13,7 @@ import { routeId } from './routeId.js'
 export async function handleDeleteImpact<TUser extends { id: string | number }>(req: PayloadRequest, { options }: EndpointContext<TUser>): Promise<Response> {
   const headers = { 'Cache-Control': 'no-store' }
   const reply = (result: DeleteImpactResult) => Response.json(result, { headers })
-  const localization = req.payload.config.localization
-  const requestedLocale = new URL(req.url ?? 'http://xp.invalid').searchParams.get('locale') ?? req.locale
-  const locale = localization ? localization.localeCodes.includes(requestedLocale ?? '') ? requestedLocale : localization.defaultLocale : undefined
-  const fallbackLocale = localization ? sanitizeFallbackLocale({ fallbackLocale: req.fallbackLocale ?? null, locale: locale!, localization }) : req.fallbackLocale
+  const { locale, fallbackLocale } = contentLocale(req)
   const metadataReq = localeRequest(req, { locale: locale ?? '', fallbackLocale: fallbackLocale ?? false })
   // Payload Local API setup mutates locale/fallback on its request. Keep those reads scoped.
   req = localeRequest(req, { locale: req.locale ?? '', fallbackLocale: req.fallbackLocale ?? false })

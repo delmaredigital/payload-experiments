@@ -245,11 +245,13 @@ async function primaryHistory(source: MetricSource | undefined, now: Date) {
   } catch { return null }
 }
 
-export async function preflightData<TUser extends { id: DocId }>(req: PayloadRequest, { experimentId, options }: {
-  experimentId: DocId; options: ResolvedOptions<TUser>
+export async function preflightData<TUser extends { id: DocId }>(req: PayloadRequest, { experimentId, options, placementLocale }: {
+  experimentId: DocId; options: ResolvedOptions<TUser>; placementLocale?: string
 }, { now = new Date(), estimate = powerMetricWeeks }: PreflightDependencies = {}): Promise<PreflightResult | null> {
   const input = await loadStartInputs(req, options, experimentId)
   if (!input) return null
+  // Advisory title selection never changes the request used by scans or host adapters.
+  if (placementLocale !== undefined) input.placementLocale = placementLocale
   const { experiment: e } = input
   const primaryId = relationshipId(e.metrics?.primary)
   const metric = input.metrics.find(metric => String(metric.id) === String(primaryId))

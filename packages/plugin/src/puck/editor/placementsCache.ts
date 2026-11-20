@@ -1,3 +1,4 @@
+import { contentLocaleURL } from '../../testSurface/contentLocaleURL.js'
 import type { DocId } from '../../types/contracts.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import { isPreflightResult, readPreflight } from '../../testSurface/readPreflight.js'
@@ -10,10 +11,10 @@ const latest = new Map<string, Entry>()
 type Consumer = (placements: Placements | undefined) => void
 type Consumers = { listeners: Set<Consumer>; removeListener: (notify: Consumer) => void }
 const consumers = new Map<string, Consumers>()
-const keyFor = (api: string, id: DocId) => JSON.stringify([api, String(id)])
+const keyFor = (api: string, id: DocId, contentLocale?: string) => JSON.stringify([api, String(id), ...(contentLocale ? [contentLocale] : [])])
 
-function read(api: string, id: DocId, fresh: boolean, blocking = false): Entry {
-  const key = keyFor(api, id)
+function read(api: string, id: DocId, fresh: boolean, blocking = false, contentLocale?: string): Entry {
+  const key = keyFor(api, id, contentLocale)
   const cached = cache.get(key)
   if (cached && (!fresh || cached.pending)) return cached
   const controller = new AbortController()
@@ -24,7 +25,7 @@ function read(api: string, id: DocId, fresh: boolean, blocking = false): Entry {
   for (const notify of consumers.get(key)?.listeners ?? []) notify(entry.value)
   entry.promise = (async () => {
     try {
-      const { response, body: data } = await readPreflight(signal => fetch(`${api}/xp/experiments/${encodeURIComponent(id)}/preflight`, {
+      const { response, body: data } = await readPreflight(signal => fetch(contentLocaleURL(`${api}/xp/experiments/${encodeURIComponent(id)}/preflight`, contentLocale), {
         credentials: 'include', cache: 'no-store', signal,
       }), controller.signal)
       entry.read = classifyReadinessRead(response.status, data, entry.failures + 1, { kind: 'where-used' })
@@ -49,26 +50,26 @@ function read(api: string, id: DocId, fresh: boolean, blocking = false): Entry {
 }
 
 /** Share mounted reads, but destructive actions always bypass settled cached knowledge. */
-export function refreshPlacements(api: string, id: DocId) { return read(api, id, true).promise }
+export function refreshPlacements(api: string, id: DocId, contentLocale?: string) { return read(api, id, true, false, contentLocale).promise }
 
 /** Focus storms share the last attempt (including polling), at most once per ten seconds. */
-export function focusPlacements(api: string, id: DocId) {
-  const previous = latest.get(keyFor(api, id))
+export function focusPlacements(api: string, id: DocId, contentLocale?: string) {
+  const previous = latest.get(keyFor(api, id, contentLocale))
   if (previous && Date.now() - previous.startedAt < 10_000) return previous.promise
-  return read(api, id, true).promise
+  return read(api, id, true, false, contentLocale).promise
 }
 
-export function invalidatePlacements(api: string, id: DocId) {
-  const key = keyFor(api, id)
+export function invalidatePlacements(api: string, id: DocId, contentLocale?: string) {
+  const key = keyFor(api, id, contentLocale)
   cache.get(key)?.controller.abort()
   cache.delete(key)
-  if (consumers.get(key)?.listeners.size) void read(api, id, true, true).promise
+  if (consumers.get(key)?.listeners.size) void read(api, id, true, true, contentLocale).promise
   else latest.delete(key)
 }
 
 /** Listen without starting a request; the drawer already owns its initial preflight. */
-export function subscribePlacements(api: string, id: DocId, notify: (placements: Placements | undefined) => void): () => void {
-  const key = keyFor(api, id)
+export function subscribePlacements(api: string, id: DocId, notify: (placements: Placements | undefined) => void, contentLocale?: string): () => void {
+  const key = keyFor(api, id, contentLocale)
   let group = consumers.get(key)
   if (!group) {
     const listeners = new Set<Consumer>()
@@ -90,10 +91,10 @@ export function subscribePlacements(api: string, id: DocId, notify: (placements:
     }
   }
 }
-export function acquirePlacements(api: string, id: DocId, notify: (placements: Placements | undefined) => void, fresh = false): () => void {
-  const release = subscribePlacements(api, id, notify)
-  const key = keyFor(api, id)
-  const entry = read(api, id, fresh)
+export function acquirePlacements(api: string, id: DocId, notify: (placements: Placements | undefined) => void, fresh = false, contentLocale?: string): () => void {
+  const release = subscribePlacements(api, id, notify, contentLocale)
+  const key = keyFor(api, id, contentLocale)
+  const entry = read(api, id, fresh, false, contentLocale)
   if (entry.value !== undefined) notify(entry.value)
   let active = true
   void entry.promise.then(() => { if (active && cache.get(key) === entry) notify(entry.value) })
@@ -101,18 +102,18 @@ export function acquirePlacements(api: string, id: DocId, notify: (placements: P
 }
 
 /** Drawer preflight uses this same producer and follows a superseding post-write read. */
-export async function readEditorPreflight(api: string, id: DocId, signal: AbortSignal, supersede = false): Promise<Response> {
+export async function readEditorPreflight(api: string, id: DocId, signal: AbortSignal, supersede = false, contentLocale?: string): Promise<Response> {
   if (signal.aborted) return new Response(null, { status: 503 })
-  const release = subscribePlacements(api, id, () => {})
+  const release = subscribePlacements(api, id, () => {}, contentLocale)
   signal.addEventListener('abort', release, { once: true })
   try {
-    if (supersede) invalidatePlacements(api, id)
-    const previous = latest.get(keyFor(api, id))
-    let entry = previous && Date.now() - previous.startedAt < 10_000 ? previous : read(api, id, true)
+    if (supersede) invalidatePlacements(api, id, contentLocale)
+    const previous = latest.get(keyFor(api, id, contentLocale))
+    let entry = previous && Date.now() - previous.startedAt < 10_000 ? previous : read(api, id, true, false, contentLocale)
     while (!signal.aborted) {
       await entry.promise
       if (signal.aborted) return new Response(null, { status: 503 })
-      const current = latest.get(keyFor(api, id))
+      const current = latest.get(keyFor(api, id, contentLocale))
       if (current && current !== entry) { entry = current; continue }
       return entry.preflight ? Response.json(entry.preflight) : entry.response?.clone() ?? new Response(null, { status: 503 })
     }
@@ -121,31 +122,31 @@ export async function readEditorPreflight(api: string, id: DocId, signal: AbortS
 }
 
 /** Current readiness shares the same request and lifetime as placements. */
-export function cachedPreflight(api: string, id: DocId) {
-  const entry = latest.get(keyFor(api, id))
+export function cachedPreflight(api: string, id: DocId, contentLocale?: string) {
+  const entry = latest.get(keyFor(api, id, contentLocale))
   return entry?.preflight ?? (entry?.pending ? entry.previousPreflight : undefined)
 }
 
 /** Mandatory post-write/refusal reads guard Start in every shared consumer. */
-export function placementsBlocking(api: string, id: DocId) {
-  const entry = cache.get(keyFor(api, id))
+export function placementsBlocking(api: string, id: DocId, contentLocale?: string) {
+  const entry = cache.get(keyFor(api, id, contentLocale))
   return entry?.pending === true && entry.blocking
 }
 
-export function placementsPending(api: string, id: DocId) { return cache.get(keyFor(api, id))?.pending === true }
+export function placementsPending(api: string, id: DocId, contentLocale?: string) { return cache.get(keyFor(api, id, contentLocale))?.pending === true }
 
 /** Pending reads retain the complete settled classification, including terminal outcomes. */
-export function cachedReadinessRead(api: string, id: DocId) {
-  const entry = latest.get(keyFor(api, id))
+export function cachedReadinessRead(api: string, id: DocId, contentLocale?: string) {
+  const entry = latest.get(keyFor(api, id, contentLocale))
   return entry?.pending ? entry.previousRead : entry?.read
 }
-export function placementReadError(api: string, id: DocId): string | undefined {
-  return cachedReadinessRead(api, id)?.message
+export function placementReadError(api: string, id: DocId, contentLocale?: string): string | undefined {
+  return cachedReadinessRead(api, id, contentLocale)?.message
 }
 
 // One timer per editor document, shared by chrome, sidebar and detached drawers.
 // Save/publish notices poll every four seconds; failures back off until recovery.
-type NoticeRequest = { api: string; id: DocId; subscribers: number; nextAt: number; pending: boolean; release: () => void }
+type NoticeRequest = { api: string; contentLocale?: string; id: DocId; subscribers: number; nextAt: number; pending: boolean; release: () => void }
 type NoticeSession = {
   requests: Map<string, NoticeRequest>
   removeRequest: (key: string) => void
@@ -154,25 +155,25 @@ type NoticeSession = {
   schedule: () => void
 }
 const notices = new WeakMap<Document, NoticeSession>()
-const noticeDelay = (api: string, id: DocId) => cachedReadinessRead(api, id)?.pollDelay ?? null
-export function watchPlacementNotice(api: string, id: DocId, doc: Document): () => void {
+const noticeDelay = (api: string, id: DocId, contentLocale?: string) => cachedReadinessRead(api, id, contentLocale)?.pollDelay ?? null
+export function watchPlacementNotice(api: string, id: DocId, doc: Document, contentLocale?: string): () => void {
   let session = notices.get(doc)
   if (!session) {
     const requests = new Map<string, NoticeRequest>()
     const created: NoticeSession = { requests, removeRequest: key => { requests.delete(key) }, visibility: () => {}, schedule: () => {} }
     created.schedule = () => {
       if (created.timer !== undefined) { clearTimeout(created.timer); created.timer = undefined }
-      const eligible = [...created.requests.values()].filter(request => !request.pending && noticeDelay(request.api, request.id) !== null)
+      const eligible = [...created.requests.values()].filter(request => !request.pending && noticeDelay(request.api, request.id, request.contentLocale) !== null)
       if (doc.visibilityState !== 'visible' || !eligible.length) return
       created.timer = setTimeout(() => {
         created.timer = undefined
         if (doc.visibilityState !== 'visible') return
-        const due = eligible.filter(request => created.requests.get(keyFor(request.api, request.id)) === request && request.nextAt <= Date.now())
+        const due = eligible.filter(request => created.requests.get(keyFor(request.api, request.id, request.contentLocale)) === request && request.nextAt <= Date.now())
         for (const request of due) {
           request.pending = true
-          void refreshPlacements(request.api, request.id).then(() => {
+          void refreshPlacements(request.api, request.id, request.contentLocale).then(() => {
             request.pending = false
-            request.nextAt = Date.now() + (noticeDelay(request.api, request.id) ?? 0)
+            request.nextAt = Date.now() + (noticeDelay(request.api, request.id, request.contentLocale) ?? 0)
             if (notices.get(doc) === created) created.schedule()
           })
         }
@@ -180,7 +181,7 @@ export function watchPlacementNotice(api: string, id: DocId, doc: Document): () 
       }, Math.max(0, Math.min(...eligible.map(request => request.nextAt)) - Date.now()))
     }
     created.visibility = () => {
-      for (const request of created.requests.values()) request.nextAt = Date.now() + (noticeDelay(request.api, request.id) ?? 0)
+      for (const request of created.requests.values()) request.nextAt = Date.now() + (noticeDelay(request.api, request.id, request.contentLocale) ?? 0)
       created.schedule()
     }
     session = created
@@ -188,17 +189,17 @@ export function watchPlacementNotice(api: string, id: DocId, doc: Document): () 
     doc.addEventListener('visibilitychange', created.visibility)
   }
   const current = session
-  const key = keyFor(api, id)
+  const key = keyFor(api, id, contentLocale)
   const existing = current.requests.get(key)
-  const request = existing ?? { api, id, subscribers: 0, nextAt: Date.now() + (noticeDelay(api, id) ?? 0), pending: false, release: () => {} }
+  const request = existing ?? { api, id, contentLocale, subscribers: 0, nextAt: Date.now() + (noticeDelay(api, id, contentLocale) ?? 0), pending: false, release: () => {} }
   request.subscribers++
   current.requests.set(key, request)
   if (!existing) request.release = subscribePlacements(api, id, () => {
-    if (placementsPending(api, id)) return
+    if (placementsPending(api, id, contentLocale)) return
     // Manual/focus retries also reset the backoff after recovery.
-    request.nextAt = Date.now() + (noticeDelay(api, id) ?? 0)
+    request.nextAt = Date.now() + (noticeDelay(api, id, contentLocale) ?? 0)
     current.schedule()
-  })
+  }, contentLocale)
   if (!existing || current.timer === undefined) current.schedule()
   let active = true
   return () => {

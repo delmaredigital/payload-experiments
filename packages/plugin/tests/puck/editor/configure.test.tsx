@@ -445,3 +445,11 @@ test('the real editor drawer uses one other-goal list and moves a role exclusive
   const patch = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')![1]!
   expect(JSON.parse(String(patch.body))).toEqual({ metrics: { primary: 1, guardrails: [3, 2], secondary: [] } })
 })
+
+
+test('a detached drawer preserves the localized editor preflight scope', async () => {
+  const fetcher = vi.fn(async (url: string) => response(url.endsWith('/xp/editor-surface') ? surface : url.includes('/preflight') ? preflight() : base))
+  vi.stubGlobal('fetch', fetcher)
+  render(<ConfigureTestDrawer id={base.id} routes={{ api: '/api', admin: '/manage', contentLocale: 'fr' }} onClose={() => {}} />)
+  await waitFor(() => expect(fetcher).toHaveBeenCalledWith(`/api/xp/experiments/${base.id}/preflight?locale=fr`, expect.objectContaining({ cache: 'no-store' })))
+})

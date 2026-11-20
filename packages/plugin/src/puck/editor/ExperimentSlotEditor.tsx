@@ -68,6 +68,9 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const sidebar = useSidebarTargets(props.id)
   const { admin, api } = usePuckRoutes()
   const access = useEditorSurface(api)
+  // The neutral Puck surface can read an explicit editing locale from the admin URL.
+  // Without localization or a known locale, omit it and use the server default.
+  const contentLocale = access.surface?.contentLanguageLabels?.length ? new URLSearchParams(window.location.search).get('locale') || undefined : undefined
   const root = useRef<HTMLElement>(null)
   const [readAttempt, setReadAttempt] = useState(0)
   const [mode, setMode] = useState<'light' | 'dark'>('light')
@@ -175,15 +178,15 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     if (experimentId === undefined || !status || !access.surface?.canManage) return
     const release = acquirePlacements(api, experimentId, placements => {
       // Retain guidance only while revalidating; failures must show their own message.
-      setPlacements(current => placements === undefined && placementsPending(api, experimentId) && current?.id === experimentId ? current : { id: experimentId, value: placements })
-      setPreflight({ id: experimentId, value: cachedPreflight(api, experimentId), pending: placementsPending(api, experimentId), blocking: placementsBlocking(api, experimentId) })
+      setPlacements(current => placements === undefined && placementsPending(api, experimentId, contentLocale) && current?.id === experimentId ? current : { id: experimentId, value: placements })
+      setPreflight({ id: experimentId, value: cachedPreflight(api, experimentId, contentLocale), pending: placementsPending(api, experimentId, contentLocale), blocking: placementsBlocking(api, experimentId, contentLocale) })
       const shared = placements === undefined ? undefined : isSharedTest(placements, currentPuckDocument(window.location.pathname, admin, placements))
       setLoaded(value => ({ ...(value?.id === experimentId ? value : {}), id: experimentId, shared: shared ?? (value?.id === experimentId ? value.shared : undefined) }))
-    })
-    const focus = () => { void focusPlacements(api, experimentId) }
+    }, false, contentLocale)
+    const focus = () => { void focusPlacements(api, experimentId, contentLocale) }
     window.addEventListener('focus', focus)
     return () => { release(); window.removeEventListener('focus', focus) }
-  }, [api, admin, experimentId, status, access.surface?.canManage])
+  }, [api, admin, experimentId, status, access.surface?.canManage, contentLocale])
 
   const blockVisibility = usePuckSelector(state => {
     const visibility = localBlockVisibility(state.appState.data, props.id)
@@ -230,7 +233,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
       const accepted = publishExperiment(experimentId!, doc)
       if (isCurrentBinding()) setLoaded(value => ({ id: experimentId, doc: accepted, shared: value?.id === experimentId ? value?.shared : undefined }))
       return accepted
-    }, isCurrent: isCurrentBinding, onWrite: () => setClearError(null), onSaved: () => { invalidatePlacements(api, experimentId!) } })
+    }, isCurrent: isCurrentBinding, onWrite: () => setClearError(null), onSaved: () => { invalidatePlacements(api, experimentId!, contentLocale) } })
   // The slot arrays belong to the page; reading the test is unnecessary to edit them.
   const pageSlots = usePuckSelector(state => (['control', 'variantA', 'variantB', 'variantC'] as const).filter(slot => {
     const content: unknown = state.getItemById(props.id)?.props[slot]
@@ -304,8 +307,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     const { getItemById, dispatch, getSelectorForId } = getPuck()
     const item = getItemById(props.id), selector = getSelectorForId(props.id)
     if (!item || !selector || String(item.props.experiment?.id) !== String(experimentId)) return false
-    if (experimentId !== undefined) invalidatePlacements(api, experimentId)
-    if (experiment) invalidatePlacements(api, experiment.id)
+    if (experimentId !== undefined) invalidatePlacements(api, experimentId, contentLocale)
+    if (experiment) invalidatePlacements(api, experiment.id, contentLocale)
     dispatch({ type: 'replace', destinationIndex: selector.index, destinationZone: selector.zone,
       data: { ...item, props: { ...item.props, experiment } },
     })
@@ -341,7 +344,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     setupBusy.current = true; setSettingUp(true); setSetupError('')
     try {
       const created = await createBlockTest(api, pageTitle, await newTestArms())
-      if (bind(created)) configuration.current = openConfigureTestDrawer(source, { admin, api }, created.id)
+      if (bind(created)) configuration.current = openConfigureTestDrawer(source, { admin, api, contentLocale }, created.id)
       else creation.current = openCreateExperimentDrawer(source, { admin, api }, { created, onCreate: () => false })
     } catch (cause) {
       if (isCurrentBinding()) setSetupError(cause instanceof CreateRefused ? cause.message : editorCopy.createError)
@@ -351,19 +354,19 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
 
   const currentPreflight = preflight && preflight.id === experimentId && Array.isArray(preflight.value?.checks) ? preflight.value : null
   const editorPage = currentPuckDocument(window.location.pathname, admin, placements?.value)
-  const surface = access.surface ? { ...access.surface, editorPage, apiRoute: api, adminRoute: admin, editorPlacementMessage: placementMessage } : undefined
+  const surface = access.surface ? { ...access.surface, editorPage, apiRoute: api, adminRoute: admin, editorPlacementMessage: placementMessage, contentLocale } : undefined
   const quickTest: TestDocApi = {
     doc: experiment ? { ...experiment, id: experimentId!, kind: 'block' } as TestDocument : null,
-    preflight: currentPreflight, preflightRead: experimentId === undefined ? undefined : cachedReadinessRead(api, experimentId), preflightError: !currentPreflight ? placementReadError(api, experimentId!) ?? null : null, preflightPending: documentPending || !preflight || preflight.id !== experimentId || preflight.pending,
+    preflight: currentPreflight, preflightRead: experimentId === undefined ? undefined : cachedReadinessRead(api, experimentId, contentLocale), preflightError: !currentPreflight ? placementReadError(api, experimentId!, contentLocale) ?? null : null, preflightPending: documentPending || !preflight || preflight.id !== experimentId || preflight.pending,
     hasUnsaved: writes.busy || Object.keys(weightEdits).length > 0, saving: writes.busy ? 'saving' : 'idle', stale: false, errors: {},
     chosenPages: {}, loadState: 'ready', stage: () => {}, commit: async () => {}, choosePage: async () => {},
-    refreshPreflight: async supersede => { if (experimentId !== undefined) { if (supersede) invalidatePlacements(api, experimentId); await refreshPlacements(api, experimentId) } },
+    refreshPreflight: async supersede => { if (experimentId !== undefined) { if (supersede) invalidatePlacements(api, experimentId, contentLocale); await refreshPlacements(api, experimentId, contentLocale) } },
     reload: async () => {
       if (experimentId === undefined) return
       // A transition may succeed without a readable response body; recover its document too.
       publishExperiment(experimentId, await readExperiment(`${api}/xp-experiments/${encodeURIComponent(experimentId)}?depth=0`))
-      invalidatePlacements(api, experimentId)
-      await refreshPlacements(api, experimentId)
+      invalidatePlacements(api, experimentId, contentLocale)
+      await refreshPlacements(api, experimentId, contentLocale)
     },
     acceptTransition: result => {
       const doc = (result as { doc?: EditorExperiment } | undefined)?.doc
@@ -371,8 +374,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     },
   }
   const placementNotice = quickTest.preflightRead?.message ?? placementMessage
-  usePlacementNotice(api, experimentId, canManage ? placementNotice : undefined)
-  const placementNoticeView = <>{visibilityNotice ? <Banner tone="info">{visibilityNotice}</Banner> : null}{canManage ? <PlacementNotice read={quickTest.preflightRead} message={placementMessage} running={experiment?.status === 'running'} onRetry={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId) }} /> : null}</>
+  usePlacementNotice(api, experimentId, canManage ? placementNotice : undefined, contentLocale)
+  const placementNoticeView = <>{visibilityNotice ? <Banner tone="info">{visibilityNotice}</Banner> : null}{canManage ? <PlacementNotice read={quickTest.preflightRead} message={placementMessage} running={experiment?.status === 'running'} onRetry={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId, contentLocale) }} /> : null}</>
   const sidebarBlockers = surface ? sidebarReadinessBlockers(quickTest, surface) : []
 
   const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} active={slot} dragging={dragging} experiment={experiment} writes={writes} canManage={canManage}
@@ -401,7 +404,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
           {accessNotice}
           {shared ? <Banner tone="info">{editorCopy.sharedTest}</Banner> : null}
           {placementNoticeView}{canManage ? <>{experiment?.status === 'draft' || experiment?.status === 'stopped' ? <BlockerList steps={sidebarBlockers} /> : null}</> : null}
-          {experimentId !== undefined && access.surface && !result?.missing && !result?.error && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api }} /> : null}
+          {experimentId !== undefined && access.surface && !result?.missing && !result?.error && !noAccess && (!unavailable || resultsOnly) ? <ConfigureTestControl id={experimentId} routes={{ admin, api, contentLocale }} /> : null}
           {canManage && experiment && surface ? <QuickTestActions key={`${experimentId}/${experiment.status}`} test={quickTest} surface={surface} /> : null}
           {canSetUp ? <Button variant="primary" busy={settingUp} disabled={settingUp} onClick={() => void setUpTest()}>{editorCopy.createLabel}</Button> : null}
           {experimentId === undefined && canManage ? <Button disabled={settingUp} onClick={() => setChoosing(true)}>{editorCopy.existingTest}</Button> : null}

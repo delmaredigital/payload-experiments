@@ -152,3 +152,16 @@ test.each([401, 403, 'forbidden', 'not-found'] as const)('pending focus and post
   expect(vi.getTimerCount()).toBe(0)
   vi.useRealTimers()
 })
+
+
+test('editor preflight scopes requests and cached readiness by content locale', async () => {
+  const fetcher = vi.fn(async (_url: string) => Response.json({ placements: [], checks: [] }))
+  vi.stubGlobal('fetch', fetcher)
+  const en = acquirePlacements('/api', 'locale-test', () => {}, false, 'en')
+  const fr = acquirePlacements('/api', 'locale-test', () => {}, false, 'fr')
+  await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+  expect(fetcher.mock.calls.map(call => call[0])).toEqual(['/api/xp/experiments/locale-test/preflight?locale=en', '/api/xp/experiments/locale-test/preflight?locale=fr'])
+  await readEditorPreflight('/api', 'locale-test', new AbortController().signal, false, 'fr')
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  en(); fr()
+})

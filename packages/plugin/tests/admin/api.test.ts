@@ -281,3 +281,13 @@ test('delete impact encodes the selected content locale as a query parameter', a
   await createApi('/custom/api/', 'fr-CA').deleteImpact('id/42')
   expect(fetchMock).toHaveBeenCalledWith('/custom/api/xp/experiments/id%2F42/delete-impact?locale=fr-CA', expect.objectContaining({ method: 'GET' }))
 })
+
+
+test('preflight sends only the optional metadata locale and leaves transition URLs unchanged', async () => {
+  respond({ checks: [], placements: [] })
+  await createApi('/custom/api/', 'fr-CA').preflight('id/42')
+  expect(fetchMock).toHaveBeenLastCalledWith('/custom/api/xp/experiments/id%2F42/preflight?locale=fr-CA', expect.objectContaining({ method: 'GET' }))
+  respond({ doc: { id: 'id/42' }, revision: 1 })
+  await createApi('/custom/api/', 'fr-CA').start('id/42')
+  expect(fetchMock).toHaveBeenLastCalledWith('/custom/api/xp/experiments/id%2F42/start', expect.objectContaining({ method: 'POST' }))
+})

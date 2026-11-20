@@ -1,4 +1,4 @@
-import { PLACEMENT_LANGUAGES } from '../testSurface/copy/languages.js'
+import { placementLanguageSuffix } from '../testSurface/copy/languages.js'
 import { asymmetricGoal, type GoalContent } from '../goals/fairness.js'
 import { checkArms } from '../collections/experiments/armInvariants.js'
 import { normalisePath } from '../runtime/normalisePath.js'
@@ -79,7 +79,7 @@ export const pageTargetPaths = (arms: readonly Arm[]): string[] => [...new Set(a
   .filter(arm => typeof arm.pageTarget === 'string')
   .map(arm => normalisePath(arm.pageTarget!)))].sort()
 const placementDetail = ({ collection, id, title, locales, allLocales, locale, localeLabel }: BlockPlacement) => ({ collection, id,
-  title: `${title}${allLocales ? ` · ${PLACEMENT_LANGUAGES.allLocales}` : locales?.length ? ` · ${PLACEMENT_LANGUAGES.locales(locales.join(', '))}` : locale ? ` · ${PLACEMENT_LANGUAGES.locales(localeLabel ?? locale)}` : ''}` })
+  title: `${title}${placementLanguageSuffix({ allLocales, locales: locales?.length ? locales : locale ? [localeLabel ?? locale] : undefined })}` })
 
 /** Group only the languages with this finding, independently for each page and
  * finding payload. Single-language occurrence details keep their original shape. */

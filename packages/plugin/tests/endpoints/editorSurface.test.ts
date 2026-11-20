@@ -80,3 +80,10 @@ test.each([false, true])('a throwing results check denies that permission (manag
   expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   if (manage) expect(await response.json()).toMatchObject({ canManage: true, canReadResults: false })
 })
+
+
+test('localized surfaces supply configured language labels for combined editor links', async () => {
+  const { req, endpoint } = setup(true, true)
+  Object.assign(req.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en', label: 'English' }, { code: 'fr', label: 'French' }] } })
+  expect(await (await endpoint.handler(req)).json()).toMatchObject({ contentLanguageLabels: ['English', 'French'] })
+})

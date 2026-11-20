@@ -4,9 +4,10 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ExperimentSlotEditor, createExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
 // These rendering/selection scenarios use a known manager. Access loading and
 // denial use the real hook in permissions.test.tsx.
+const contentLanguages = vi.hoisted(() => ({ labels: undefined as string[] | undefined }))
 vi.mock('../../../src/puck/editor/editorSurface.js', async importOriginal => ({
   ...await importOriginal<typeof import('../../../src/puck/editor/editorSurface.js')>(),
-  useEditorSurface: () => ({ surface: { canManage: true, canReadResults: true } }),
+  useEditorSurface: () => ({ surface: { canManage: true, canReadResults: true, contentLanguageLabels: contentLanguages.labels } }),
 }))
 import type { EditorExperiment } from '../../../src/puck/editor/editor.model.js'
 
@@ -60,6 +61,8 @@ function props(overrides: Partial<RenderProps> = {}): RenderProps {
 }
 
 beforeEach(() => {
+  contentLanguages.labels = undefined
+  window.history.replaceState(null, '', '/')
   targets = undefined
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
@@ -377,4 +380,23 @@ test('bound header contains name, status, notices and plain tabs without action 
   expect(chrome.queryByRole('textbox')).toBeNull()
   expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Original', 'New headline'])
   expect(document.querySelector('.xp-ui-tab-actions')).toBeNull()
+})
+
+
+test('canvas preflight uses the known content locale in the localized editor URL', async () => {
+  contentLanguages.labels = ['English', 'French']
+  window.history.replaceState(null, '', '/admin/collections/pages/1?locale=fr')
+  vi.mocked(fetch).mockImplementation(async url => Response.json(String(url).includes('/preflight') ? { placements: [], checks: [] } : doc))
+  const Editor = ExperimentSlotEditor.render
+  render(<Editor {...props()} />)
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/xp/experiments/1/preflight?locale=fr', expect.objectContaining({ credentials: 'include', cache: 'no-store' })))
+})
+
+
+test('a single-language editor omits even an unrelated locale query parameter', async () => {
+  window.history.replaceState(null, '', '/admin/collections/pages/1?locale=fr')
+  const Editor = ExperimentSlotEditor.render
+  render(<Editor {...props()} />)
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/xp/experiments/1/preflight', expect.anything()))
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/preflight?'))).toBe(false)
 })

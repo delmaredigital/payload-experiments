@@ -25,7 +25,7 @@ export function PageWizard({ id, surface }: { id: DocId; surface: SurfaceProps }
   const router = useRouter()
   const collections = surface.pageCollections ?? []
   const [step, setStep] = useState(collections.length > 1 ? 'collection' : 'control')
-  const test = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: step === 'review' })
+  const test = useTestDocument(id, { apiRoute: surface.apiRoute, contentLocale: surface.contentLocale, refetchPreflightOnFocus: step === 'review' })
   const testUrl = formatAdminURL({ adminRoute: surface.adminRoute, path: `/experiments/${encodeURIComponent(String(id))}` })
   const transition = useTransition(test, () => router.push(testUrl), surface)
   useEffect(() => { if (step === 'review') void test.refreshPreflight() }, [step, test.refreshPreflight])

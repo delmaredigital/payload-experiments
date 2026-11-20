@@ -1,3 +1,4 @@
+import { placementLanguageNames } from '../../blocks/placementLanguages.js'
 import { placementReader } from '../../blocks/placementLocale.js'
 import type { AdminViewServerProps, PayloadRequest } from 'payload'
 import { flattenTopLevelFields, formatAdminURL } from 'payload/shared'
@@ -64,6 +65,7 @@ export async function buildSurfaceProps({ req, route, id, searchParams }: {
   return {
     ...(typeof returnToTest === 'string' && /^[\w-]+$/.test(returnToTest) ? { returnToTest } : {}),
     route, ...(id === undefined ? {} : { id }), adminRoute, apiRoute: req.payload.config.routes.api,
+    ...(req.payload.config.localization ? { contentLanguageLabels: placementLanguageNames(req, req.payload.config.localization.localeCodes) } : {}),
     canManage, canReadResults, isAdmin, flagPoints, ...(pages === undefined ? {} : { pages }),
     pageCollections: serializePageCollections(options.pages?.collections ?? [], req),
     collectionTitles: Object.fromEntries(req.payload.config.collections.flatMap(collection => {

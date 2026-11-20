@@ -37,15 +37,15 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   onDocument?: (doc: TestDocument) => void; onPreflight?: (preflight: PreflightResult) => void; requestPreflight?: (signal: AbortSignal, supersede?: boolean) => Promise<Response>
 }) {
   const [barHeight, setBarHeight] = useState<number>()
-  const documentState = useTestDocument(id, { apiRoute: surface.apiRoute, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}), ...(requestPreflight ? { requestPreflight } : {}) })
+  const documentState = useTestDocument(id, { apiRoute: surface.apiRoute, contentLocale: surface.contentLocale, refetchPreflightOnFocus: true, ...(!surface.canManage ? { enabled: false } : {}), ...(onDocument ? { onDocument } : {}), ...(onPreflight ? { onPreflight } : {}), ...(requestPreflight ? { requestPreflight } : {}) })
   const [placementRead, setPlacementRead] = useState<{ key: string; preflight?: PreflightResult; pending: boolean; blocking: boolean; error?: string; read?: ReadinessRead }>()
-  const placementKey = JSON.stringify([surface.apiRoute, String(id)])
+  const placementKey = JSON.stringify([surface.apiRoute, String(id), ...(surface.contentLocale ? [surface.contentLocale] : [])])
   const watching = embedded && surface.canManage && documentState.loadState === 'ready'
   useEffect(() => {
     if (!embedded || !surface.canManage) return
     return subscribePlacements(surface.apiRoute, id, () => setPlacementRead({ key: placementKey,
-      preflight: cachedPreflight(surface.apiRoute, id), read: cachedReadinessRead(surface.apiRoute, id), pending: placementsPending(surface.apiRoute, id), blocking: placementsBlocking(surface.apiRoute, id), error: placementReadError(surface.apiRoute, id) }))
-  }, [surface.apiRoute, id, embedded, surface.canManage, placementKey])
+      preflight: cachedPreflight(surface.apiRoute, id, surface.contentLocale), read: cachedReadinessRead(surface.apiRoute, id, surface.contentLocale), pending: placementsPending(surface.apiRoute, id, surface.contentLocale), blocking: placementsBlocking(surface.apiRoute, id, surface.contentLocale), error: placementReadError(surface.apiRoute, id, surface.contentLocale) }), surface.contentLocale)
+  }, [surface.apiRoute, id, embedded, surface.canManage, placementKey, surface.contentLocale])
   const currentRead = documentState.loadState === 'ready' && placementRead?.key === placementKey ? placementRead : undefined
   const preflight = currentRead ? currentRead.preflight ?? (currentRead.pending && !currentRead.error ? documentState.preflight : null) : documentState.preflight
   const sharedDocument = currentRead ? { ...documentState, preflight, preflightRead: currentRead.read,
@@ -58,7 +58,7 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
   const editorPage = embedded ? currentPuckDocument(window.location.pathname, surface.adminRoute, placements) ?? surface.editorPage : surface.editorPage
   const message = editorPlacementMessage(placements, editorPage, documentState.doc?.status)
   surface = { ...surface, editorPage, editorPlacementMessage: message }
-  usePlacementNotice(surface.apiRoute, id, watching ? sharedDocument.preflightError ?? (placementFailed ? placementReadError(surface.apiRoute, id) : message) : undefined)
+  usePlacementNotice(surface.apiRoute, id, watching ? sharedDocument.preflightError ?? (placementFailed ? placementReadError(surface.apiRoute, id, surface.contentLocale) : message) : undefined, surface.contentLocale)
   const setup = documentState.doc?.status === 'draft' || documentState.doc?.status === 'stopped'
   const test = setup ? { ...sharedDocument, preflight: editorPreflight(preflight, surface) } : sharedDocument
   useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])

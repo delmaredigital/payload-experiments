@@ -14,8 +14,10 @@ import { readEditorPreflight } from './placementsCache.js'
 import type { resolvePuckRoutes } from '../routes.js'
 import './editor.css'
 
+type ConfigureRoutes = ReturnType<typeof resolvePuckRoutes> & { contentLocale?: string }
+
 export function ConfigureTestDrawer({ id, routes, onClose }: {
-  id: DocId; routes: ReturnType<typeof resolvePuckRoutes>; onClose: () => void
+  id: DocId; routes: ConfigureRoutes; onClose: () => void
 }) {
   const [title, setTitle] = useState(C.configure as string)
   const [state, setState] = useState<SurfaceState>({})
@@ -24,10 +26,10 @@ export function ConfigureTestDrawer({ id, routes, onClose }: {
     let active = true
     setState({})
     void readSurface(routes.api).then(result => {
-      if (active) setState(result.surface ? { surface: { ...result.surface, adminRoute: routes.admin, apiRoute: routes.api } } : result)
+      if (active) setState(result.surface ? { surface: { ...result.surface, adminRoute: routes.admin, apiRoute: routes.api, contentLocale: routes.contentLocale } } : result)
     })
     return () => { active = false }
-  }, [routes.api, routes.admin, attempt])
+  }, [routes.api, routes.admin, routes.contentLocale, attempt])
   // Unknown permissions use the test page's authoritative admin access check.
   const testUrl = `${routes.admin}/experiments/${encodeURIComponent(id)}`
   const openUrl = state.surface && !state.surface.canManage && state.surface.canReadResults ? `${testUrl}/results` : testUrl
@@ -39,13 +41,13 @@ export function ConfigureTestDrawer({ id, routes, onClose }: {
       if (link && !link.getAttribute('href')?.startsWith('#')) { link.target = '_blank'; link.rel = 'noopener noreferrer' }
     }}>
       {state.surface ? <TestSurface id={id} surface={state.surface} embedded onTitleChange={setTitle}
-        onDocument={doc => publishExperiment(id, doc)} requestPreflight={(signal, supersede) => readEditorPreflight(routes.api, id, signal, supersede)} /> : <div role={state.error ? 'alert' : 'status'}><p>{state.error === 'forbidden' ? TEST_PAGE.forbidden : state.error ? C.setupUnavailable : TEST_PAGE.loading}</p>{state.error === 'unavailable' ? <Button onClick={() => setAttempt(value => value + 1)}>{C.retrySetup}</Button> : null}</div>}
+        onDocument={doc => publishExperiment(id, doc)} requestPreflight={(signal, supersede) => readEditorPreflight(routes.api, id, signal, supersede, routes.contentLocale)} /> : <div role={state.error ? 'alert' : 'status'}><p>{state.error === 'forbidden' ? TEST_PAGE.forbidden : state.error ? C.setupUnavailable : TEST_PAGE.loading}</p>{state.error === 'unavailable' ? <Button onClick={() => setAttempt(value => value + 1)}>{C.retrySetup}</Button> : null}</div>}
     </div>
   </Drawer>
 }
 
 /** Separate document root, like the creation dialog: Puck has no ancestor handlers here. */
-export function openConfigureTestDrawer(source: HTMLElement, routes: ReturnType<typeof resolvePuckRoutes>, id: DocId) {
+export function openConfigureTestDrawer(source: HTMLElement, routes: ConfigureRoutes, id: DocId) {
   // A canvas iframe's modal would cover only the canvas. Mount over the whole editor.
   const doc = source.ownerDocument.defaultView?.frameElement?.ownerDocument ?? source.ownerDocument
   const container = doc.createElement('div')
@@ -69,12 +71,12 @@ export function openConfigureTestDrawer(source: HTMLElement, routes: ReturnType<
 }
 
 /** The canvas already has current permissions; use them without a second read. */
-export function ConfigureTestControl({ id, routes }: { id: DocId; routes: ReturnType<typeof resolvePuckRoutes> }) {
+export function ConfigureTestControl({ id, routes }: { id: DocId; routes: ConfigureRoutes }) {
   const drawer = useRef<ReturnType<typeof openConfigureTestDrawer>>(undefined)
   useEffect(() => () => drawer.current?.close(), [id, routes.api])
   return <Button variant="primary" onClick={event => { drawer.current?.close(); drawer.current = openConfigureTestDrawer(event.currentTarget, routes, id) }}>{C.configure}</Button>
 }
-export function ConfigureTestButton({ id, routes }: { id: DocId; routes: ReturnType<typeof resolvePuckRoutes> }) {
+export function ConfigureTestButton({ id, routes }: { id: DocId; routes: ConfigureRoutes }) {
   const access = useEditorSurface(routes.api)
   if (!access.surface || !access.surface.canManage && !access.surface.canReadResults) return null
   return <ConfigureTestControl id={id} routes={routes} />

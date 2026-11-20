@@ -786,3 +786,31 @@ test('changing page collection invalidates remembered document identities', asyn
   await act(async () => { result.current.stage({ pageCollection: 'articles' }); await result.current.commit() })
   expect(result.current.chosenPages).toEqual({})
 })
+
+
+test('preflight sends the content locale, changes it on navigation, and omits it when unavailable', async () => {
+  const fetcher = stubFetch(async input => response(input.includes('/preflight') ? preflight : document()))
+  const { result, rerender } = renderHook(({ contentLocale }: { contentLocale?: string }) => useTestDocument('one/two', { apiRoute: '/cms-api', contentLocale }), { initialProps: { contentLocale: 'fr' } as { contentLocale?: string } })
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  expect(fetcher).toHaveBeenCalledWith(`${preflightUrl}?locale=fr`, expect.anything())
+  act(() => { result.current.stage({ name: 'Keep this edit' }) })
+  rerender({ contentLocale: 'en' })
+  await waitFor(() => expect(fetcher).toHaveBeenCalledWith(`${preflightUrl}?locale=en`, expect.anything()))
+  expect(result.current.doc?.name).toBe('Keep this edit')
+  expect(fetcher.mock.calls.filter(([input]) => input === url)).toHaveLength(1)
+  rerender({ contentLocale: undefined })
+  await waitFor(() => expect(fetcher).toHaveBeenCalledWith(preflightUrl, expect.anything()))
+})
+
+
+test('changing locale during the initial preflight replaces the old-language answer', async () => {
+  const first = deferred<Response>()
+  const fetcher = stubFetch(async input => input.endsWith('?locale=fr') ? first.promise : response(input.includes('/preflight') ? preflight : document()))
+  const { result, rerender } = renderHook(({ contentLocale }) => useTestDocument('one/two', { apiRoute: '/cms-api', contentLocale }), { initialProps: { contentLocale: 'fr' } })
+  await waitFor(() => expect(fetcher).toHaveBeenCalledWith(`${preflightUrl}?locale=fr`, expect.anything()))
+  rerender({ contentLocale: 'en' })
+  await act(async () => { first.resolve(response({ ...preflight, placements: [{ collection: 'pages', id: 1, title: 'Old-language answer', ok: true }] })) })
+  await waitFor(() => expect(result.current.loadState).toBe('ready'))
+  expect(fetcher).toHaveBeenCalledWith(`${preflightUrl}?locale=en`, expect.anything())
+  expect(result.current.preflight).toEqual(preflight)
+})

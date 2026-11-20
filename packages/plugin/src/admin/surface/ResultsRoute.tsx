@@ -16,7 +16,7 @@ export function ResultsRoute(props: { id: DocId; surface: SurfaceProps; onTitleC
 }
 
 function ManagedResults({ id, surface, onTitleChange }: { id: DocId; surface: SurfaceProps; onTitleChange?: (title: string) => void }) {
-  const test = useTestDocument(id, { apiRoute: surface.apiRoute })
+  const test = useTestDocument(id, { apiRoute: surface.apiRoute, contentLocale: surface.contentLocale })
   useEffect(() => { if (test.doc?.name) onTitleChange?.(test.doc.name) }, [test.doc?.name, onTitleChange])
   const [resultsVersion, setResultsVersion] = useState(0)
   // Add-goal changes metrics while status, phase and allocation stay the same.

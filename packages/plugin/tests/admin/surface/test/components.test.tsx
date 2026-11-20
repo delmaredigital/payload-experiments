@@ -487,7 +487,7 @@ test('block binding groups repeated placements per page using the maximum count 
   const view = render(<pageBlockParts.Binding {...p} />)
   expect(screen.getByText('On: Landing (Published) (placed 2 times)')).toBeTruthy()
   expect(screen.getByText('On: Thank you (Draft)')).toBeTruthy()
-  expect(screen.getAllByRole('link', { name: 'Open the page' })).toHaveLength(2)
+  expect(screen.getAllByRole('link', { name: /^Open the page:/ })).toHaveLength(2)
   expect(view.container.querySelectorAll('.xp-page-binding > p')).toHaveLength(3)
 })
 
@@ -738,7 +738,7 @@ test.each(['localizedPlacements', 'differingPlacements'] as const)('binding pres
     fixture === 'differingPlacements' ? 'On: Accueil (Published) · Languages: French (placed 3 times) Open the page' : 'On: Home (Published) · Languages: French Open the page',
     fixture === 'differingPlacements' ? 'On: Home draft (Draft) · All languages Open the page' : 'On: Home (Draft) · All languages Open the page',
   ])
-  expect(screen.getAllByRole('link', { name: 'Open the page' }).map(link => link.getAttribute('href'))).toEqual(['/edit/en', '/edit/fr', '/edit/draft'])
+  expect(screen.getAllByRole('link', { name: /^Open the page:/ }).map(link => link.getAttribute('href'))).toEqual(['/edit/en', '/edit/fr', '/edit/draft'])
   expect(screen.getAllByRole('link', { name: /Edit on page/ }).map(link => link.getAttribute('href'))).toEqual(['/edit/en', '/edit/fr', '/edit/draft'])
   expect(screen.getAllByRole('link', { name: /Edit on page/ }).map(link => [link.textContent, link.getAttribute('aria-label')])).toEqual([
     ['Edit on page: Home (Published) · Languages: English', 'Edit on page: Home (Published) · Languages: English'],
@@ -760,4 +760,27 @@ test('localized version content distinguishes published and draft rows and dedup
     ['Edit on page: Home (Published) · All languages', '/edit/published'],
     ['Edit on page: Home (Draft) · All languages', '/edit/draft'],
   ])
+})
+
+
+test.each([false, true])('same editor URL combines language and publication coverage (all languages: %s)', all => {
+  const p = props()
+  p.surface = { ...p.surface, contentLanguageLabels: all ? ['English', 'French'] : ['English', 'French', 'German'] }
+  p.test.preflight!.placements = [
+    { collection: 'pages', id: 10, title: 'Home', detail: 'Published', locales: ['English'], ok: true, editorUrl: '/edit/shared' },
+    { collection: 'pages', id: 10, title: 'Home', detail: 'Draft', locales: ['French'], ok: false, editorUrl: '/edit/shared' },
+  ]
+  render(<><pageBlockParts.Binding {...p} /><pageBlockParts.VersionContent {...p} armIndex={0} /></>)
+  const label = `Home (Published, Draft) · ${all ? 'All languages' : 'Languages: English, French'}`
+  expect(screen.getByRole('link', { name: `Edit on page: ${label}` }).textContent).toBe(`Edit on page: ${label}`)
+  expect(screen.getAllByRole('link', { name: /^Edit on page:/ })).toHaveLength(1)
+  expect(screen.getByRole('link', { name: 'Open the page: Home (Published) · Languages: English' })).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Open the page: Home (Draft) · Languages: French' })).toBeTruthy()
+})
+
+test('same editor URL combines two published language rows', () => {
+  const p = props()
+  p.test.preflight!.placements = ['English', 'French'].map(language => ({ collection: 'pages', id: 10, title: 'Home', detail: 'Published', locales: [language], ok: true, editorUrl: '/edit/shared' }))
+  render(<pageBlockParts.VersionContent {...p} armIndex={0} />)
+  expect(screen.getByRole('link', { name: 'Edit on page: Home (Published) · Languages: English, French' })).toBeTruthy()
 })

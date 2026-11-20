@@ -47,14 +47,15 @@ export function PreviewLinks({ experimentId, placements, arms, flagPoint, apiRou
     } catch { win?.close(); setError(API_MESSAGES.failed) }
     finally { inFlight.current = false; setBusy(false) }
   }
+  const pages = actionablePreviewPages(placements, flagPoint)
   return <div className="xp-preview-links">
-    {actionablePreviewPages(placements, flagPoint).map(placement => <div className="xp-preview-row" key={placement.key}>
+    {pages.map(placement => <div className="xp-preview-row" key={placement.key}>
       <p>{placementLabel(placement)}{placement.slotCount > 1 ? ` ${C.placedTimes(placement.slotCount)}` : null}</p>
       <div className="xp-ui-button-group">{placement.url ? arms.filter(arm => arm.kind !== 'holdout' && arm.key !== 'holdout').map(arm =>
-        <Button variant="secondary" size="sm" key={arm.key} disabled={busy} onClick={() => { void preview(placement.url!, arm.key) }}>
+        <Button variant="secondary" size="sm" key={arm.key} aria-label={pages.length > 1 ? `${C.preview} ${arm.label?.trim() || armLabel(arm.key)}: ${placementLabel(placement)}` : undefined} disabled={busy} onClick={() => { void preview(placement.url!, arm.key) }}>
           {C.preview} {arm.label?.trim() || armLabel(arm.key)}
         </Button>) : null}
-        {placement.editorUrl ? <Button variant="link" size="sm" href={placement.editorUrl}>{TEST_PAGE.editOnPage}</Button> : null}</div>
+        {placement.editorUrl ? <Button variant="link" size="sm" href={placement.editorUrl} aria-label={pages.length > 1 ? `${TEST_PAGE.editOnPage}: ${placementLabel(placement)}` : undefined}>{TEST_PAGE.editOnPage}</Button> : null}</div>
     </div>)}
     {error ? <p role="alert">{error}</p> : null}
   </div>

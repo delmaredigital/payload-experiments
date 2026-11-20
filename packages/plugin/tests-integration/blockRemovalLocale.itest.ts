@@ -159,6 +159,10 @@ test.each(['puck', 'blocks'] as const)('localized %s PublishMany checks the late
   const empty = editor === 'puck' ? { puckData: { content: [] } } : { layout: [] }
   const page = await payload.create({ collection, req: await request('en'), locale: 'en', overrideAccess: false,
     data: { title: 'Bulk page', ...content, _status: 'published' } })
+  // Match the former inline case: French is explicitly empty. Puck stores the
+  // empty JSON; native block arrays remain absent and fall back to English.
+  await payload.update({ collection, id: page.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
+    data: { title: 'Bulk page', ...empty, _status: 'published' } })
   await start(await request('en'), { experimentId: experiment.id, options: options() })
   await payload.update({ collection, id: page.id, req: await request('en'), locale: 'en', draft: true, overrideAccess: false,
     data: { ...empty, _status: 'draft' } })
@@ -171,8 +175,9 @@ test.each(['puck', 'blocks'] as const)('localized %s PublishMany checks the late
   expect(result.errors[0]).toMatchObject({ id: page.id, message: expect.stringContaining('only published place') })
   const published = await scanBlockPlacements(await request('en'), { slug: String(experiment.slug), publishedOnly: true,
     puckCollections: options().puck!.collections, blocksCollections: options().blocks!.collections })
-  expect(published.length).toBeGreaterThan(0)
-  expect(published.every(row => row.id === page.id && row.published)).toBe(true)
+  expect(published).toEqual(editor === 'blocks'
+    ? ['en', 'fr'].map(locale => expect.objectContaining({ id: page.id, published: true, locale, allLocales: true }))
+    : [expect.objectContaining({ id: page.id, published: true, locale: 'en' })])
   await stop(await request('en'), { experimentId: experiment.id })
 }, 30_000)
 
