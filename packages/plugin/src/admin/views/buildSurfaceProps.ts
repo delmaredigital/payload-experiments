@@ -1,9 +1,10 @@
+import { placementReader } from '../../blocks/placementLocale.js'
 import type { AdminViewServerProps, PayloadRequest } from 'payload'
 import { flattenTopLevelFields, formatAdminURL } from 'payload/shared'
 import { serializeAttributeKeys, serializeFlagPoints, serializeMetricSources } from '../../collections/serialize.js'
 import { serializePageCollections } from '../pageCollections.js'
 import { collectionLabel as resolveLabel } from '../../collections/labels.js'
-import { documentEditor, puckCollections } from '../../options.js'
+import { puckCollections } from '../../options.js'
 import { xpOptionsFromReq } from '../../options/fromReq.js'
 import type { ExperimentsAccess } from '../../types/contracts.js'
 import type { FlagDefault } from '../../types/manifest.js'
@@ -46,7 +47,7 @@ export async function buildSurfaceProps({ req, route, id, searchParams }: {
         limit: 50, sort: '-updatedAt', draft: true, select: { [useAsTitle]: true, ...predicateFields } })
       // The new-test list uses the latest draft's editing intent, as the "Test a block" field condition does (§4.1).
       return result.docs.map(doc => {
-        const editor = documentEditor(options, collection, doc)
+        const editor = placementReader(req, collection, options).read(doc, 'localized').editor
         if (editor !== 'puck' && editor !== 'blocks') return null
         const id = doc.id
         const customUrl = options.admin?.editorUrl?.({ collection, id, draft: true, editor, doc })

@@ -1,6 +1,6 @@
 import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { walkVisiblePuck } from '../puck/visibility.js'
-import { documentEditor, puckCollections } from '../options.js'
+import { puckCollections } from '../options.js'
 import type { PayloadRequest } from 'payload'
 import type { Executor } from '../db/executor.js'
 import { removableBlockTests, type PlacementTest } from '../db/placements.js'
@@ -8,8 +8,7 @@ import { XpNoTransactionError, XpRefusal } from '../errors.js'
 import { lastBlockPlacementCopy, hiddenBlockPlacementCopy, pendingBlockRemovalCopy, bulkBlockRemovalCopy } from '../testSurface/copy/readiness.js'
 import { hasOtherPublishedBlockPlacement } from '../transitions/placements.js'
 import { bulkRemoves, type BulkPlacementRemoval } from '../db/bulkPlacementRemoval.js'
-import { localeRequest, placementLocaleContent, removedPlacementViews, placementDocumentKey, placementLocaleViews, mergedPlacementLocales, type RemovedPlacementViews, type PlacementLocaleView } from '../blocks/placementLocale.js'
-import { placementSlugs } from '../blocks/bindings.js'
+import { placementReader, removedPlacementViews, placementDocumentKey, mergedPlacementLocales, type RemovedPlacementViews, type PlacementLocaleView } from '../blocks/placementLocale.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 
 // Mutable state survives createLocalReq's shallow context copy. Claims are scoped
@@ -50,8 +49,7 @@ export function releaseRestoredRemovalClaims(req: PayloadRequest, collection: st
     const [slug, id, view] = JSON.parse(key) as [string, string, PlacementLocaleView]
     if (slug !== collection || id !== String(doc.id)) continue
     const marker = `${test.id}:${key}`
-    if (!placementSlugs(req.payload.config.custom!.xp as ResolvedOptions, collection,
-      placementLocaleContent(localeRequest(req, view), collection, doc)).includes(test.slug)) claims.absent.add(marker)
+    if (!placementReader(req, collection).read(doc, 'all-locales', view).slugs.includes(test.slug)) claims.absent.add(marker)
     else if (claims.absent.has(marker) && (claims.counts?.get(String(test.id))?.get(key) ?? 1) === 1) {
       claims.tests.get(String(test.id))!.delete(`${key}`)
       claims.counts?.get(String(test.id))?.delete(`${key}`)
@@ -70,14 +68,17 @@ export const blockRemovalRule = {
     const options = req.payload.config.custom!.xp as ResolvedOptions
     const registration = puckCollections(options).find(entry => entry.slug === collection)
     const rawAfter = mergedPlacementLocales(req, collection, before, after)
-    if (views.size && !removingPage && registration && documentEditor(options, collection, after) === 'puck') {
-      for (const view of placementLocaleViews(req, collection)) {
-        const viewReq = localeRequest(req, view)
+    const reader = placementReader(req, collection)
+    if (views.size && !removingPage && registration) {
+      for (const view of reader.views) {
+        const previous = reader.read(before, 'all-locales', view)
+        const next = reader.read(rawAfter, 'all-locales', view)
+        if (next.editor !== 'puck') continue
         const visibleBefore = new Set<string>()
-        walkVisiblePuck(placementLocaleContent(viewReq, collection, before)?.[registration.field], (block, visibility) => {
+        walkVisiblePuck(previous.doc?.[registration.field], (block, visibility) => {
           if (!visibility.hidden && block.type === 'ExperimentSlot') visibleBefore.add(String(block.props.id))
         })
-        walkVisiblePuck(placementLocaleContent(viewReq, collection, rawAfter)?.[registration.field], (block, visibility) => {
+        walkVisiblePuck(next.doc?.[registration.field], (block, visibility) => {
           if (!visibility.hidden || block.type !== 'ExperimentSlot' || !visibleBefore.has(String(block.props.id))) return
           const slug = puckExperimentSlug(block.props.experiment)
           if (typeof slug === 'string') hidden.add(slug)

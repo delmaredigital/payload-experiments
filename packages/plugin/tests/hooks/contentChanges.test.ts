@@ -496,3 +496,33 @@ test('editing a plain-string Puck slot records no experimental content change', 
   await recordContentChange(args)
   expect(executor.calls.some(call => call.text.includes('pg_advisory_xact_lock') || call.text.startsWith('UPDATE'))).toBe(false)
 })
+
+test('raw localized audit baselines flatten predicates and detect a non-default language edit', async () => {
+  const { args, executor, payload } = setup()
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true } })
+  payload.config.collections = [{ slug: 'pages', fields: [{ name: 'editor', type: 'text', localized: true }, { name: 'puckData', type: 'json', localized: true }] }] as never
+  const options = payload.config.custom!.xp as ReturnType<typeof sampleOptions>
+  options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: doc => { expect(doc.editor).toBe('puck'); return false } }] }
+  const previous = { id: 1, editor: { en: 'puck', fr: 'puck' }, puckData: { en: { content: [] }, fr: { content: [slot('Old')] } } }
+  const current = { ...previous, puckData: { ...previous.puckData, fr: { content: [slot('New')] } } }
+  args.doc._status = 'published'
+  await publishedBaseline(args, previous)
+  vi.mocked(payload.db.findOne).mockResolvedValue(current as never)
+  await recordContentChange(args)
+  expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(1)
+})
+
+test('localized arm-select content outside registered editors still records non-default language changes', async () => {
+  const { args, executor, payload } = setup()
+  const options = payload.config.custom!.xp as ReturnType<typeof sampleOptions>
+  options.puck = { enabled: false, collections: [] }
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true },
+    collections: [{ slug: 'pages', fields: [{ name: 'content', type: 'json', localized: true }] }] })
+  const previous = { id: 1, content: { en: [], fr: [{ experimentArm: { experiment: 'exp', arm: 'control' }, text: 'Old' }] } }
+  const current = { ...previous, content: { ...previous.content, fr: [{ experimentArm: { experiment: 'exp', arm: 'control' }, text: 'New' }] } }
+  args.doc._status = 'published'
+  await publishedBaseline(args, previous)
+  vi.mocked(payload.db.findOne).mockResolvedValue(current as never)
+  await recordContentChange(args)
+  expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(1)
+})

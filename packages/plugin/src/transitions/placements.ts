@@ -9,9 +9,8 @@ import { hasLocalizedFields } from './contentFields.js'
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, FlagPoint, PreviewPlacement, ResolvedOptions } from '../types/contracts.js'
 import type { ArmSlot } from '../types/puck.js'
-import { localeRequest, placementLocaleContent, placementLocaleViews, type PlacementLocaleView } from '../blocks/placementLocale.js'
-import { placementSlugs } from '../blocks/bindings.js'
-import { documentEditor, puckCollections as normalisePuckCollections } from '../options.js'
+import { localeRequest, placementReader, type PlacementLocaleView } from '../blocks/placementLocale.js'
+import { puckCollections as normalisePuckCollections } from '../options.js'
 
 export interface BlockPlacement extends PreviewPlacement {
   editor?: 'puck' | 'blocks' | 'page'; doc?: Record<string, unknown>
@@ -29,7 +28,6 @@ export interface PlacementChange {
 interface ScanOptions {
   puckCollections: NonNullable<ResolvedOptions['puck']>['collections']
   blocksCollections: NonNullable<ResolvedOptions['blocks']>['collections']
-  localeView?: PlacementLocaleView
   compareVersions?: boolean
   /** Read the current visitor surface without fetching newer unpublished drafts. */
   publishedOnly?: boolean
@@ -63,6 +61,7 @@ export async function hasOtherPublishedBlockPlacement(req: PayloadRequest, optio
     ...(options.blocks?.collections ?? []).map(entry => entry.slug)])
   for (const collection of collections) {
     const drafts = req.payload.config.collections?.some(c => c.slug === collection && c.versions && c.versions.drafts)
+    const reader = placementReader(req, collection, options)
     let page = 1
     while (true) {
       req.signal?.throwIfAborted()
@@ -71,7 +70,7 @@ export async function hasOtherPublishedBlockPlacement(req: PayloadRequest, optio
         ...(drafts ? { where: { _status: { equals: 'published' } } } : {}),
       }, true)
       req.signal?.throwIfAborted()
-      if (result.docs.some(doc => doc._status !== 'draft' && doc.deletedAt == null && placementLocaleViews(req, collection).some(view => placementSlugs(options, collection, placementLocaleContent(localeRequest(req, view), collection, doc)).includes(slug)
+      if (result.docs.some(doc => doc._status !== 'draft' && doc.deletedAt == null && reader.views.some(view => reader.read(doc, 'all-locales', view).slugs.includes(slug)
           && !excluded(collection, doc.id, view, doc)))) return true
       if (!result.hasNextPage) break
       page++
@@ -92,6 +91,7 @@ export async function* publishedBlockPlacementPages(req: PayloadRequest, options
   const puck = options.puck?.enabled ? normalisePuckCollections(options) : [], blocks = options.blocks?.collections ?? []
   for (const collection of new Set([...puck, ...blocks].map(entry => entry.slug))) {
     const drafts = req.payload.config.collections?.some(c => c.slug === collection && c.versions && c.versions.drafts)
+    const reader = placementReader(req, collection, options)
     let page = 1
     while (true) {
       req.signal?.throwIfAborted()
@@ -103,10 +103,11 @@ export async function* publishedBlockPlacementPages(req: PayloadRequest, options
       const placements: PublishedBlockPlacement[] = []
       for (const raw of result.docs) {
         if (raw._status === 'draft' || raw.deletedAt != null) continue
-        for (const view of placementLocaleViews(req, collection)) {
-          const doc = placementLocaleContent(localeRequest(req, view), collection, raw)!
+        for (const view of reader.views) {
+          const placement = reader.read(raw, 'all-locales', view)
+          const doc = placement.doc!
           const add = (contents: Record<ArmSlot, number>, editor: 'puck' | 'blocks') => placements.push({ id: raw.id, editor, slots: contents, ...(view.locale ? { locale: view.locale } : {}) })
-          if (documentEditor(options, collection, doc) === 'puck') {
+          if (placement.editor === 'puck') {
             const registration = puck.find(entry => entry.slug === collection)
             if (registration) walkVisiblePuck(doc[registration.field], (node, visibility) => {
               if (!visibility.hidden && node.type === 'ExperimentSlot' && puckExperimentSlug(node.props.experiment) === slug) {
@@ -137,10 +138,11 @@ export function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { s
 export function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { slugs: ReadonlySet<string> }): Promise<Map<string, BlockPlacement[]>>
 export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { slug?: string; slugs?: ReadonlySet<string> }): Promise<BlockPlacement[] | Map<string, BlockPlacement[]>> {
   const { puckCollections } = args
-  const scanReq = args.localeView ? localeRequest(req, args.localeView) : req
+  const scanReq = localeRequest(req, { locale: req.locale === 'all' ? req.payload.config.localization ? req.payload.config.localization.defaultLocale : '' : req.locale ?? '', fallbackLocale: req.fallbackLocale ?? false })
   const slugs = args.slugs ?? new Set([args.slug!])
   const placements = new Map([...slugs].map(slug => [slug, [] as BlockPlacement[]]))
   for (const { slug: collection, field } of normalisePuckCollections({ puck: { enabled: true, collections: puckCollections } })) {
+    const reader = placementReader(req, collection, { puck: { enabled: true, collections: puckCollections }, blocks: { collections: args.blocksCollections } })
     const editors = new Map<string, string>()
     const publishedIds = new Set<string>()
     const publishedSlugs = new Map<string, string>()
@@ -150,18 +152,18 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
       while (true) {
         const result = await placementDocuments(scanReq, {
           collection, req, overrideAccess: false, limit: 100, page, depth: 0, draft, includeLockStatus: true,
-          ...(args.localeView?.locale ? { locale: args.localeView.locale, fallbackLocale: args.localeView.fallbackLocale } : {}),
           ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}),
         }, args.pageGuard)
-        for (const doc of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {
+        for (const localized of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {
+          const doc = reader.read(localized, 'localized').doc as typeof localized
           if (!draft && doc._status === 'draft') continue
           if (draft && doc._status !== 'draft' && publishedIds.has(String(doc.id))) continue
           if (!draft) {
-            editors.set(String(doc.id), documentEditor({ puck: { enabled: true, collections: puckCollections }, blocks: { collections: args.blocksCollections } }, collection, doc))
+            editors.set(String(doc.id), reader.read(doc, 'localized').editor)
             publishedIds.add(String(doc.id))
             if (typeof doc.slug === 'string') publishedSlugs.set(String(doc.id), doc.slug)
           }
-          const editor = editors.get(String(doc.id)) ?? documentEditor({ puck: { enabled: true, collections: puckCollections }, blocks: { collections: args.blocksCollections } }, collection, doc)
+          const editor = editors.get(String(doc.id)) ?? reader.read(doc, 'localized').editor
           if (editor !== 'puck') continue
           const offsets = new Map([...placements].map(([slug, list]) => [slug, list.length]))
           walkVisiblePuck(doc[field], (node, visibility) => {
@@ -179,7 +181,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
             }
           })
           if (args.compareVersions && !draft && [...placements].some(([slug, list]) => list.length > offsets.get(slug)!)) {
-            const raw = await comparisonContent(req, collection, doc.id)
+            const raw = reader.read(await comparisonContent(req, collection, doc.id), 'all-locales').doc
             const rawSlots = new Map<string, Array<Record<string, unknown>>>()
             const collect = (value: unknown): void => walkVisiblePuck(value, (node, visibility) => {
               if (visibility.hidden) return
@@ -203,21 +205,22 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
   }
   for (const registration of args.blocksCollections) {
     const { slug: collection, field } = registration
+    const reader = placementReader(req, collection, { puck: { enabled: true, collections: puckCollections }, blocks: { collections: args.blocksCollections } })
     const published = new Map<string, Record<string, unknown>>()
     const draftsEnabled = req.payload.config.collections?.some(c => c.slug === collection && c.versions && c.versions.drafts)
     for (const draft of args.publishedOnly ? [false] : [false, true]) {
       let page = 1
       while (true) {
         const result = await placementDocuments(scanReq, { collection, req, overrideAccess: false, depth: 0, limit: 100, page, draft, includeLockStatus: true,
-          ...(args.localeView?.locale ? { locale: args.localeView.locale, fallbackLocale: args.localeView.fallbackLocale } : {}),
           ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}) }, args.pageGuard)
-        for (const doc of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {
+        for (const localized of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {
+          const doc = reader.read(localized, 'localized').doc as typeof localized
           if (!draft && doc._status === 'draft') continue
           if (!draft) published.set(String(doc.id), doc)
           else if (doc._status !== 'draft' && published.has(String(doc.id))) continue
           const baseline = published.get(String(doc.id)) ?? doc
-          if (documentEditor({ blocks: { collections: args.blocksCollections }, puck: { enabled: true, collections: puckCollections } }, collection, baseline) !== 'blocks') continue
-          const raw = args.compareVersions && !draft && hostBlocks(doc[field]).some(block => block.blockType === (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) && typeof block.experiment === 'string' && slugs.has(block.experiment)) ? await comparisonContent(req, collection, doc.id) : undefined
+          if (reader.read(baseline, 'localized').editor !== 'blocks') continue
+          const raw = args.compareVersions && !draft && hostBlocks(doc[field]).some(block => block.blockType === (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) && typeof block.experiment === 'string' && slugs.has(block.experiment)) ? reader.read(await comparisonContent(req, collection, doc.id), 'all-locales').doc : undefined
           for (const [index, block] of hostBlocks(doc[field]).entries()) {
             if (block.blockType !== (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) || typeof block.experiment !== 'string' || !slugs.has(block.experiment)) continue
             const stored = raw ? hostBlocks(raw[field]).find(row => row.id === block.id) ?? hostBlocks(raw[field])[index] ?? block : block

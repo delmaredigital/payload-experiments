@@ -125,8 +125,21 @@ test.each(['other', 'impact', 'start'] as const)('%s scan isolates locale mutati
   else if (mode === 'impact') {
     const pages = []; for await (const page of publishedBlockPlacementPages(req, options, 'hero')) pages.push(page)
     expect(pages[0]!.placements).toHaveLength(2)
-  } else await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: options.blocks.collections, localeView: { locale: 'en', fallbackLocale: 'en' } })
+  } else await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: options.blocks.collections })
   expect(req.locale).toBe('fr'); expect(req.fallbackLocale).toBe(false)
   controller.abort()
   if (mode === 'other') await expect(hasOtherPublishedBlockPlacement(req, options, 'hero', () => false)).rejects.toMatchObject({ name: 'AbortError' })
+})
+
+test('single-language Start reads normalize locale all to the default instead of trusting raw locale maps', async () => {
+  const options = sampleOptions(); options.puck = { enabled: true, collections: ['pages'] }
+  options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: doc => { expect(doc.editor).toBe('puck'); return false } }] }
+  const payload = fakePayload({ config: { custom: { xp: options }, localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] },
+    collections: [{ slug: 'pages', fields: [{ name: 'editor', type: 'text', localized: true }] }] }, overrides: { find: vi.fn(async args => {
+      expect(args.req?.locale).toBe('en')
+      return { docs: [{ id: 1, editor: 'puck', puckData: { content: [slot('hero')] } }], hasNextPage: false }
+    }) } })
+  const req = fakeReq({ payload }); req.locale = 'all'
+  expect(await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: options.blocks.collections })).toHaveLength(1)
+  expect(req.locale).toBe('all')
 })

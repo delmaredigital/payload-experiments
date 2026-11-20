@@ -1,3 +1,4 @@
+import { placementReader } from '../blocks/placementLocale.js'
 import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { puckVisibility, type BlockVisibility } from '../puck/visibility.js'
 import type { PayloadRequest } from 'payload'
@@ -5,7 +6,7 @@ import type { Arm, DocId, ResolvedOptions } from '../types/contracts.js'
 import type { PlacementDoc } from '../db/placements.js'
 import { clickGoalContent } from '../db/clickGoals.js'
 import { safeError } from '../log.js'
-import { documentEditor, puckCollections } from '../options.js'
+import { puckCollections } from '../options.js'
 import { EXPERIMENT_BLOCK_SLUG, hostBlocks, isObject, slotBlocks } from '../blocks/model.js'
 import { resolvePageCollection } from '../transitions/pageCollection.js'
 import { scanPlacements, uniquePlacementDocs } from '../transitions/placementInteractions.js'
@@ -84,9 +85,10 @@ export async function goalContent<TUser extends { id: DocId }>(req: PayloadReque
     }
     for (const placement of docs) {
       try {
-        const doc = await clickGoalContent(req, placement.collection, placement.id)
+        const raw = await clickGoalContent(req, placement.collection, placement.id)
+        const doc = placementReader(req, placement.collection, options).read(raw, 'all-locales').doc
         if (!doc) continue
-        const editor = documentEditor(options, placement.collection, doc)
+        const editor = placementReader(req, placement.collection, options).read(doc, 'localized').editor
         if (editor === 'blocks') {
           const registration = options.blocks?.collections.find(c => c.slug === placement.collection)
           if (!registration) continue

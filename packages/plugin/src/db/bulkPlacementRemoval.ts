@@ -1,5 +1,5 @@
 import type { PayloadRequest, Where } from 'payload'
-import { removedPlacementViews, placementDocumentKey, type PlacementLocaleView } from '../blocks/placementLocale.js'
+import { placementLocaleContent, removedPlacementViews, placementDocumentKey, type PlacementLocaleView } from '../blocks/placementLocale.js'
 import type { DocId } from '../types/contracts.js'
 
 export interface BulkPlacementRemoval {
@@ -93,7 +93,7 @@ export function bulkRemoves(bulk: BulkPlacementRemoval | undefined, req: Payload
   doc: Record<string, unknown> & { id: DocId }, slug: string, view: PlacementLocaleView): boolean {
   const change = bulk?.change
   if (!change || change.draft || change.collection !== collection || !bulk!.documents.has(JSON.stringify([collection, String(doc.id)]))) return false
-  const after = { ...doc, ...change.data }
+  const after = { ...placementLocaleContent(req, collection, doc, 'all-locales'), ...change.data }
   const views = removedPlacementViews(req, collection, doc, after, change.deleting || after.deletedAt != null || after._status === 'draft')
   return (views.get(slug) ?? []).some(removed => placementDocumentKey(collection, doc.id, removed) === placementDocumentKey(collection, doc.id, view))
 }

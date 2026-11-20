@@ -8,7 +8,7 @@ import { XpNoTransactionError, XpRefusal } from '../errors.js'
 import { placementGuardCopy, pageGuardCopy, READINESS_COPY } from '../testSurface/copy/readiness.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 
-import { placementSlugs } from '../blocks/bindings.js'
+import { allPlacementSlugs, mergedPlacementLocales } from '../blocks/placementLocale.js'
 import { isObject } from '../blocks/model.js'
 import { placementTests, removableBlockTests, appendPlacementDoc, type PlacementTest } from '../db/placements.js'
 import { isPageBusy } from '../db/pageBusy.js'
@@ -209,7 +209,7 @@ export const pageGuardBeforeDelete: CollectionBeforeDeleteHook = async ({ req, i
         tests = (await removableBlockTests(exec, affected.map(test => test.slug))).map(test => ({ ...test, kind: 'block' } as PlacementTest))
       } else tests = affected
     } else if (await req.transactionID != null) {
-      await lockPlacementScope(exec, guardExperimentIds(tests!, placementSlugs(optionsOf(req), collection.slug, published), collection.slug, paths, req.context.xpHeldExperiments, taggedIds(published), affected.map(test => test.id)), paths)
+      await lockPlacementScope(exec, guardExperimentIds(tests!, allPlacementSlugs(req, collection.slug, published, 'all-locales'), collection.slug, paths, req.context.xpHeldExperiments, taggedIds(published), affected.map(test => test.id)), paths)
       tests = await placementTests(exec)
     }
     for (const path of paths) protect(tests!.filter(t => !t.pageCollection || t.pageCollection === collection.slug), path)
@@ -229,8 +229,8 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
   try {
     const published = operation === 'create' ? undefined : await previousPublishedContent(req, collection.slug, originalDoc.id as DocId)
     const before = published?._status === 'draft' ? undefined : published
-    const beforeSlugs = placementSlugs(options, collection.slug, before)
-    const afterSlugs = placementSlugs(options, collection.slug, after)
+    const beforeSlugs = allPlacementSlugs(req, collection.slug, before, 'all-locales')
+    const afterSlugs = allPlacementSlugs(req, collection.slug, mergedPlacementLocales(req, collection.slug, before, after), 'all-locales')
     const beforePaths = pathsOf(req, collection.slug, [before]), afterPaths = pathsOf(req, collection.slug, [after])
     const paths = sortLockKeys([...beforePaths, ...afterPaths])
     const exec = await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
@@ -277,7 +277,7 @@ export const pageGuardAfterChange: CollectionAfterChangeHook = async ({ req, col
   try {
     const stored = await storedContent(req, collection.slug, doc.id)
     if (!stored) throw new Error('The saved placement row was not found.')
-    const slugs = placementSlugs(optionsOf(req), collection.slug, stored)
+    const slugs = allPlacementSlugs(req, collection.slug, stored, 'all-locales')
     // A later publish in this transaction can restore an earlier removal. Only
     // clear its claim once the stored published row actually contains the block.
     const claims = req.context.xpPlacementRemovals as RemovalClaims | undefined

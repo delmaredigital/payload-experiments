@@ -1157,3 +1157,18 @@ test.each(['decided', 'archived'])('un-hiding a retained %s block permits draft 
   Object.assign(f.published, shown)
   await expect(pageGuardAfterChange({ req: f.req, collection: f.collection, doc: f.published } as never)).resolves.toBe(f.published)
 })
+
+test.each(['puck', 'blocks'] as const)('localized %s publish records a French-only placement and locks it using flattened predicates', async editor => {
+  const f = blockSetup('running', true, editor)
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true } })
+  f.payload.config.collections[0]!.fields = [{ name: f.field, type: 'json', localized: true }, { name: 'editor', type: 'text', localized: true }]
+  f.options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: doc => {
+    expect(typeof doc.editor).toBe('string'); return doc.editor === 'blocks'
+  } }] }
+  f.req.locale = 'en'; f.req.fallbackLocale = 'null'
+  Object.assign(f.published, { editor: { en: editor, fr: editor }, [f.field]: { en: f.content([]), fr: f.content([f.block]) } })
+  await f.save({ editor, ...f.empty, _status: 'published' })
+  expect(experimentLocks(f).map(c => c.params)).toContainEqual(['2'])
+  await pageGuardAfterChange({ req: f.req, collection: f.collection, doc: { ...f.published, editor } } as never)
+  expect(f.executor.calls.filter(call => call.text.includes('jsonb_array_elements') && call.text.startsWith('UPDATE')).map(call => call.params?.slice(1, 3))).toContainEqual([2, 1])
+})

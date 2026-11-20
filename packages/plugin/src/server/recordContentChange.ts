@@ -1,3 +1,4 @@
+import { placementReader, type PlacementInput } from '../blocks/placementLocale.js'
 import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { puckVisibility } from '../puck/visibility.js'
 import { EXPERIMENT_BLOCK_SLUG, hostBlocks } from '../blocks/model.js'
@@ -10,7 +11,7 @@ import { pageContentBindings } from '../db/pageBindings.js'
 import { sortLockKeys } from '../db/locks.js'
 import { normalisePath } from '../runtime/normalisePath.js'
 import { comparableContent } from '../transitions/pageVersions.js'
-import { documentEditor, puckCollections } from '../options.js'
+import { puckCollections } from '../options.js'
 import { withTransition } from '../transitions/kernel.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 import { normaliseContentRelationships } from './normaliseContentRelationships.js'
@@ -100,12 +101,13 @@ async function auditContentChange({ doc, previousDoc, req, collection }: Content
   }
   const options = req.payload.config.custom?.xp as ResolvedOptions | undefined
   const registration = puckCollections(options ?? {}).find(entry => entry.slug === collection.slug)
-  const changes = (previous: unknown, current: unknown) => {
-    const after = bindings(registration && object(current) ? current[registration.field] : current, Boolean(registration) && documentEditor(options ?? {}, collection.slug, object(current) ? current : {}) === 'puck')
-    const before = bindings(registration && object(previous) ? previous[registration.field] : previous, Boolean(registration) && documentEditor(options ?? {}, collection.slug, object(previous) ? previous : {}) === 'puck')
+  const reader = placementReader(req, collection.slug, options ?? {})
+  const changesOne = (previous: unknown, current: unknown) => {
+    const after = bindings(registration && object(current) ? current[registration.field] : current, Boolean(registration) && reader.read(object(current) ? current : undefined, 'localized').editor === 'puck')
+    const before = bindings(registration && object(previous) ? previous[registration.field] : previous, Boolean(registration) && reader.read(object(previous) ? previous : undefined, 'localized').editor === 'puck')
     const blockRegistration = options?.blocks?.collections.find(entry => entry.slug === collection.slug)
     for (const [row, found] of [[previous, before], [current, after]] as const) {
-      if (!blockRegistration || !object(row) || documentEditor(options ?? {}, collection.slug, row) !== 'blocks') continue
+      if (!blockRegistration || !object(row) || reader.read(row, 'localized').editor !== 'blocks') continue
       for (const block of hostBlocks(row[blockRegistration.field])) {
         if (block.blockType !== (blockRegistration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) || typeof block.experiment !== 'string') continue
         const key = 'slug:' + block.experiment
@@ -118,6 +120,8 @@ async function auditContentChange({ doc, previousDoc, req, collection }: Content
       .filter(key => !isDeepStrictEqual(before.get(key)?.contents, after.get(key)?.contents))
       .map(key => after.get(key) ?? before.get(key)!)
   }
+  const changes = (previous: unknown, current: unknown, input: PlacementInput) => (input === 'all-locales' ? reader.documentViews : [undefined]).flatMap(view => changesOne(
+    reader.read(object(previous) ? previous : undefined, input, view).doc, reader.read(object(current) ? current : undefined, input, view).doc))
   // Include discovery reads in the savepoint: a SQL read error also aborts Postgres.
   // An explicit host call must supply its afterChange request's transaction.
   const executor = txExecutor(req)
@@ -134,8 +138,8 @@ async function auditContentChange({ doc, previousDoc, req, collection }: Content
       if (!current) throw new Error('The saved content row was not found.')
       beforeRow = baseline.doc
       afterRow = current
-      changed = changes(beforeRow, afterRow)
-    } else { beforeRow = normalise(previousDoc); afterRow = normalise(doc); changed = changes(beforeRow, afterRow) }
+      changed = changes(beforeRow, afterRow, 'all-locales')
+    } else { beforeRow = normalise(previousDoc); afterRow = normalise(doc); changed = changes(beforeRow, afterRow, 'localized') }
     const experiments = new Map<string, DocId>()
     for (const binding of changed) {
       const experiment = await runningContentExperiment(executor, binding)

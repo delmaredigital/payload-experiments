@@ -12,10 +12,10 @@ let sequence = 0
 beforeAll(async () => {
   harness = await createIntegrationHarness({
     localization: { locales: ['en', 'fr'], defaultLocale: 'en', fallback: true },
-    puckCollections: ['locale-puck'], blocks: { collections: [{ slug: 'locale-blocks', field: 'layout' }] },
+    puckCollections: ['locale-puck'], blocks: { collections: [{ slug: 'locale-blocks', field: 'layout', appliesTo: doc => { expect(typeof doc.title).toBe('string'); return true } }] },
     collections: ([
       { slug: 'locale-puck', trash: true, versions: { drafts: true }, fields: [{ name: 'puckData', type: 'json', localized: true }] },
-      { slug: 'locale-blocks', trash: true, versions: { drafts: true }, fields: [{ name: 'layout', type: 'blocks', localized: true,
+      { slug: 'locale-blocks', trash: true, versions: { drafts: true }, fields: [{ name: 'title', type: 'text', localized: true }, { name: 'layout', type: 'blocks', localized: true,
         blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] },
           createExperimentBlock({ blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] }] })] }] },
     ] satisfies CollectionConfig[]).map(collection => ({ ...collection, access: { create: () => true, read: () => true, update: () => true, delete: () => true, readVersions: () => true, unlock: () => true } })),
@@ -43,8 +43,9 @@ test.each(['puck', 'blocks'] as const)('localized %s removal requires a publishe
       { slot: 'variantA', blocks: [{ blockType: 'text', text: 'Variant' }] },
     ] }] }
   const empty = editor === 'puck' ? { puckData: { content: [] } } : { layout: [] }
-  const page = await payload.create({ collection, req, locale: 'fr', overrideAccess: false, data: { ...content, _status: 'published' } })
-  await payload.update({ collection, id: page.id, req: await request('en'), locale: 'en', overrideAccess: false, data: { ...empty, _status: 'published' } })
+  const page = await payload.create({ collection, req: await request('en'), locale: 'en', overrideAccess: false, data: { title: 'Localized page', ...empty, _status: 'published' } })
+  await payload.update({ collection, id: page.id, req, locale: 'fr', overrideAccess: false, data: { title: 'Localized page', ...content, _status: 'published' } })
+  await payload.update({ collection, id: page.id, req: await request('en'), locale: 'en', overrideAccess: false, data: { title: 'Localized page', ...empty, _status: 'published' } })
   const scan = (locale: string) => request(locale).then(req => scanBlockPlacements(req, { slug: String(experiment.slug),
     puckCollections: options().puck!.collections, blocksCollections: options().blocks!.collections }))
   expect(await scan('en')).toEqual([])
@@ -56,24 +57,26 @@ test.each(['puck', 'blocks'] as const)('localized %s removal requires a publishe
     await expect(work).rejects.toMatchObject({ code: 'locked-placement', message: '“Localized placement” is running and this page is the only published place it appears. Stop the test first.' })
   }
   await expect(payload.update({ collection, id: page.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
-    data: { ...empty, _status: 'published' } })).rejects.toMatchObject({ code: 'locked-placement', message: expect.stringContaining('only published place') })
+    data: { title: 'Localized page', ...empty, _status: 'published' } })).rejects.toMatchObject({ code: 'locked-placement', message: expect.stringContaining('only published place') })
   // X is French-only; Y is English-only. Removing X is allowed even though
   // the remaining stored copy is in a different language.
   const other = await payload.create({ collection, req: await request('en'), locale: 'en', overrideAccess: false,
-    data: { ...content, _status: 'published' } })
+    data: { title: 'Localized page', ...content, _status: 'published' } })
+  const phase = await payload.find({ collection: 'xp-phases', req: await request('fr'), overrideAccess: true, depth: 0, where: { experiment: { equals: experiment.id } } })
+  expect(phase.docs[0]!.placementDocs).toEqual(expect.arrayContaining([{ collection, id: other.id }]))
   await payload.update({ collection, id: other.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
-    data: { ...empty, _status: 'published' } })
+    data: { title: 'Localized page', ...empty, _status: 'published' } })
   await payload.delete({ collection, id: page.id, req: await request('en'), overrideAccess: false })
   expect((await scan('fr')).every(placement => placement.id !== page.id)).toBe(true)
   expect(await scan('en')).toEqual([expect.objectContaining({ id: other.id, published: true })])
   await payload.update({ collection, id: other.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
-    data: { ...content, _status: 'published' } })
+    data: { title: 'Localized page', ...content, _status: 'published' } })
   // Removing only French from a bilingual page keeps the English copy.
   await payload.update({ collection, id: other.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
-    data: { ...empty, _status: 'published' } })
+    data: { title: 'Localized page', ...empty, _status: 'published' } })
   expect(await scan('en')).toEqual([expect.objectContaining({ id: other.id, published: true })])
   await expect(payload.update({ collection, id: other.id, req: await request('en'), locale: 'en', overrideAccess: false,
-    data: { ...empty, _status: 'published' } })).rejects.toMatchObject({ code: 'locked-placement',
+    data: { title: 'Localized page', ...empty, _status: 'published' } })).rejects.toMatchObject({ code: 'locked-placement',
     message: '“Localized placement” is running and this is the only published place it appears. Stop the test, or keep its block on this page.' })
 
 }, 30_000) // Estimate <1.5 s each; no measured claim until coordinator runs it.

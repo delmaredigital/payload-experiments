@@ -159,3 +159,13 @@ test('plain-string Puck slots add no click goals or asymmetry', async () => {
   expect(content.keys).toEqual([])
   expect(asymmetricGoal(content, 'click:join', arms)).toBe(false)
 })
+
+test('localized raw fairness rows flatten host editor predicates and content once', async () => {
+  const options = sampleOptions()
+  options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: doc => { expect(doc.editor).toBe('blocks'); return true } }] }
+  const payload = fakePayload({ config: { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true },
+    collections: [{ slug: 'pages', fields: [{ name: 'editor', type: 'text', localized: true }, { name: 'layout', type: 'json', localized: true }] }] },
+    collections: { pages: [{ id: 7, editor: { en: 'blocks', fr: 'blocks' }, layout: { fr: [{ blockType: 'xpExperiment', experiment: 'fair', slots: [{ slot: 'control', blocks: [{ blockType: 'cta', xpGoal: 'join' }] }] }] } }] } })
+  const req = fakeReq({ payload }); req.locale = 'fr'
+  expect(await goalContent(req, options, experiment, [{ collection: 'pages', id: 7 }])).toMatchObject({ keys: [{ key: 'join', arms: ['control'] }], unchecked: [] })
+})

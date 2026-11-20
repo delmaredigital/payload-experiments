@@ -1,3 +1,4 @@
+import { placementReader } from '../blocks/placementLocale.js'
 import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { puckVisibility, hiddenOnSizes, visibilitySizes } from '../puck/visibility.js'
 import { Forbidden, NotFound, ValidationError, Locked, commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field, type Block } from 'payload'
@@ -12,7 +13,7 @@ import { lockContentDefaults } from '../db/appends.js'
 import { pooledExecutor, txExecutor } from '../db/executor.js'
 import { currentTxid, txidStatus } from '../db/txid.js'
 import { buildAndStoreManifest } from '../manifest/compile.js'
-import { documentEditor, puckCollections } from '../options.js'
+import { puckCollections } from '../options.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 import { contentDone } from '../contentDone.js'
 import { archive } from './archive.js'
@@ -303,7 +304,7 @@ export async function makeContent<TUser extends { id: DocId }>(req: PayloadReque
           const drafts = Boolean(config?.versions && config.versions.drafts)
           const published = await readPublishedContent(req, collection, id)
           if (!published) throw new NotFound()
-          const editor = documentEditor(options, collection, published)
+          const editor = placementReader(req, collection, options).read(published, 'all-locales').editor
           const blockRegistration = options.blocks?.collections.find(r => r.slug === collection)
           const contentField = editor === 'blocks' ? blockRegistration?.field : field
           if (!contentField) throw new Error('This content field is no longer configured.')
