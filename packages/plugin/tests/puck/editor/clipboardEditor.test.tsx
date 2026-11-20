@@ -1,10 +1,23 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
 import { Puck, useGetPuck, type ComponentData, type Config, type Data } from '@puckeditor/core'
 import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
 import { editorCopy } from '../../../src/puck/editor/copy.js'
+
+import { defaultArms } from '../../../src/arms/model.js'
+import { localPlacements } from '../../../src/puck/editor/localPlacements.js'
+import { walkVisiblePuck } from '../../../src/puck/visibility.js'
+import { preflightData } from '../../../src/transitions/preflightData.js'
+import { placementPages } from '../../../src/lib/placementPages.js'
+import { PreviewLinks } from '../../../src/testSurface/PreviewLinks.js'
+import { resolveExperimentData } from '../../../src/server/resolveExperimentData.js'
+import { blockRemovalRule } from '../../../src/hooks/blockRemovalRule.js'
+import { fakePayload } from '../../_fakes/payload.js'
+import { fakeReq } from '../../_fakes/req.js'
+import { sampleOptions } from '../../collections/fixtures.js'
+import { assignments } from '../../rsc/helpers.js'
 
 // The public /editor entry exports hook types, not clipboard operations. Exercise
 // the installed operation used by its action bar and keyboard, with a real Puck API.
@@ -66,4 +79,110 @@ test('real paste path permits ordinary content inside an Experiment version', as
   const pasted = getPuck().getItemById('outer')!.props.control[0]
   expect(pasted.type).toBe('Container')
   expect(pasted.props.children[0].props.text).toBe('Content')
+})
+
+const bound = (id: string): ComponentData => ({ ...experiment(id), props: { ...experiment(id).props,
+  experiment: { id: 7, slug: 'hero' }, control: [{ type: 'Text', props: { id: `${id}-original`, text: 'Original' } }],
+  variantA: [{ type: 'Text', props: { id: `${id}-variant`, text: 'Variant' } }], _visibility: { hideOn: ['phone'] },
+} })
+const sharedNotice = 'This test is also used in another place. Changes here affect that test.'
+const savedSource = { collection: 'pages', id: 'source-page', title: 'Source', ok: true, detail: 'Published' }
+function readsForBoundTest(placements = [savedSource], status = 'draft') {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.endsWith('/editor-surface') ? { canManage: true, canReadResults: true }
+    : url.endsWith('/preflight') ? { checks: [], placements } : url.endsWith('/results') || url.includes('/summary?') ? {} : {
+      name: 'Shared clipboard test', status, arms: defaultArms('block'),
+    })))
+}
+async function readiness(pages: Array<{ id: string; puckData: Data }>) {
+  const options = { ...sampleOptions(), puck: { enabled: true, collections: ['pages'] }, admin: { editorUrl: ({ collection, id }: { collection: string; id: string | number }) => `/admin/puck-editor/${collection}/${id}` } }
+  const payload = fakePayload({ config: { custom: { xp: options }, collections: [{ slug: 'pages', versions: false }] }, collections: {
+    pages: pages.map(page => ({ ...page, title: page.id, _status: 'published' })),
+    'xp-experiments': [{ id: 7, slug: 'hero', name: 'Shared clipboard test', kind: 'block', status: 'draft', unitType: 'visitor',
+      allocation: 100, exposurePolicy: 'render', arms: defaultArms('block'), metrics: { primary: 1 }, analysis: { plannedDurationDays: 14 } }],
+    'xp-metrics': [{ id: 1, name: 'Signup', source: 'events:signup' }],
+  } })
+  const req = fakeReq({ payload })
+  const answer = await preflightData(req, { experimentId: 7, options })
+  expect(answer).not.toBeNull()
+  expect(answer!.checks.filter(check => !check.ok)).toEqual([])
+  return { answer: answer!, payload, req, options }
+}
+
+test('paste and Puck Duplicate keep the same binding, refresh all block ids and count every visible copy', async () => {
+  window.history.replaceState({}, '', '/admin/puck-editor/pages/source-page')
+  readsForBoundTest()
+  mount({ root: { props: {} }, content: [bound('original')] })
+  await screen.findByRole('heading', { name: 'Shared clipboard test' })
+  const clipboard = await copied(getPuck().getItemById('original')!)
+  act(() => getPuck().dispatch({ type: 'duplicate', sourceIndex: 0, sourceZone: 'root:default-zone' }))
+  act(() => { expect(pasteBlock(getPuck(), 'root:default-zone', 2, clipboard)).toBe(true) })
+  await waitFor(() => expect(screen.getAllByText(sharedNotice)).toHaveLength(3))
+  const data = getPuck().appState.data
+  expect(data.content).toHaveLength(3)
+  const ids: string[] = []
+  walkVisiblePuck(data, block => ids.push(String(block.props.id)))
+  expect(new Set(ids).size).toBe(9)
+  for (const block of data.content) {
+    expect(block.props.experiment).toEqual({ id: 7, slug: 'hero' })
+    expect(block.props._visibility).toEqual({ hideOn: ['phone'] })
+  }
+  expect(localPlacements(data).get('7')?.size).toBe(3)
+  expect(fetch).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'POST' }))
+  const { answer } = await readiness([{ id: 'source-page', puckData: data }])
+  expect(answer.placements).toHaveLength(3)
+  expect(placementPages(answer.placements).map(page => page.slotCount)).toEqual([3])
+  const view = render(<PreviewLinks experimentId={7} apiRoute="/api" arms={defaultArms('block')} placements={answer.placements} />)
+  expect(within(view.container).getByText(/placed 3 times on this page/)).toBeTruthy()
+  expect(resolveExperimentData(data, assignments()).rendered).toEqual([{ slug: 'hero', phase: 1, arm: 'variantA' }])
+})
+
+test.each(['draft', 'running'])('cross-page paste of a %s test keeps its binding and shows sharing plus unsaved-page guidance', async status => {
+  readsForBoundTest([savedSource], status)
+  const source = { root: { props: {} }, content: [bound('original')] }
+  mount(source)
+  const clipboard = await copied(getPuck().getItemById('original')!)
+  cleanup()
+  await act(async () => {})
+  window.history.replaceState({}, '', '/admin/puck-editor/pages/destination-page')
+  mount({ root: { props: {} }, content: [] })
+  act(() => { expect(pasteBlock(getPuck(), 'root:default-zone', 0, clipboard)).toBe(true) })
+  await screen.findByText(sharedNotice)
+  await screen.findByText(status === 'running' ? "This test is running, but visitors won't see it here until this page is saved and published." : 'Save this page to put the test on it.')
+  const destination = getPuck().appState.data
+  expect(destination.content[0]!.props.experiment).toEqual({ id: 7, slug: 'hero' })
+  const { answer, req } = await readiness([{ id: 'source-page', puckData: source }, { id: 'destination-page', puckData: destination }])
+  expect(answer.placements.map(page => page.id)).toEqual(['source-page', 'destination-page'])
+  expect(placementPages(answer.placements).map(page => page.slotCount)).toEqual([1, 1])
+  const runningTest = { id: 7, slug: 'hero', name: 'Shared clipboard test', kind: 'block', status: 'running', phase: 1, arms: [], pageCollection: null, placementDocs: null }
+  const removed = await blockRemovalRule.prepare(req, 'pages', { puckData: source }, { puckData: { root: { props: {} }, content: [] } }, false, undefined, [runningTest])
+  await expect(blockRemovalRule.check(req, [runningTest], removed.affected, 'pages', 'source-page', false, removed.views)).resolves.toBeUndefined()
+})
+
+test('a cross-page paste inside a hidden container is hidden to readiness and cannot replace the last running placement', async () => {
+  readsForBoundTest()
+  const source = { root: { props: {} }, content: [bound('original')] }
+  mount(source)
+  const clipboard = await copied(getPuck().getItemById('original')!)
+  cleanup()
+  await act(async () => {})
+  window.history.replaceState({}, '', '/admin/puck-editor/pages/destination-page')
+  const hidden = container('hidden-parent', [])
+  hidden.props._visibility = { hidden: true }
+  mount({ root: { props: {} }, content: [hidden] })
+  act(() => { expect(pasteBlock(getPuck(), 'hidden-parent:children', 0, clipboard)).toBe(true) })
+  await screen.findByText(editorCopy.hidden)
+  expect(screen.queryByText('Save this page to put the test on it.')).toBeNull()
+  const destination = getPuck().appState.data
+  expect(localPlacements(destination).size).toBe(0)
+  expect(resolveExperimentData(destination, assignments()).rendered).toEqual([])
+  const { answer, req, payload, options } = await readiness([{ id: 'source-page', puckData: source }, { id: 'destination-page', puckData: destination }])
+  expect(answer.placements.map(page => page.id)).toEqual(['source-page'])
+  const test = { id: 7, slug: 'hero', name: 'Shared clipboard test', kind: 'block', status: 'running', phase: 1, arms: [], pageCollection: null, placementDocs: null }
+  req.transactionID = 'clipboard-test'
+  const removed = await blockRemovalRule.prepare(req, 'pages', { puckData: source }, { puckData: { root: { props: {} }, content: [] } }, false, undefined, [test])
+  await expect(blockRemovalRule.check(req, [test], removed.affected, 'pages', 'source-page', false, removed.views)).rejects.toMatchObject({ code: 'locked-placement' })
+  payload.documents.pages = payload.documents.pages!.filter(page => page.id !== 'source-page')
+  const hiddenOnly = await preflightData(fakeReq({ payload }), { experimentId: 7, options })
+  expect(hiddenOnly!.placements).toEqual([])
+  expect(hiddenOnly!.checks).toContainEqual({ code: 'no-placements', ok: false })
 })
