@@ -1,4 +1,4 @@
-import { sanitizeFallbackLocale, type Field, type PayloadRequest } from 'payload'
+import { sanitizeFallbackLocale, type Field, type PayloadRequest, type SanitizedConfig, type SanitizedCollectionConfig } from 'payload'
 import { fieldShouldBeLocalized, flattenTopLevelFields } from 'payload/shared'
 import { documentEditor, puckCollections } from '../options.js'
 import { placementSlugs } from './bindings.js'
@@ -8,13 +8,26 @@ import type { DocId, ResolvedOptions } from '../types/contracts.js'
 
 export type PlacementInput = 'all-locales' | 'localized'
 
+type Transform = (data: Record<string, unknown>, write?: boolean, previous?: Record<string, unknown>) => Record<string, unknown>
+const identity: Transform = data => data
+// Sanitized schemas are immutable. Weak ownership keeps separate Payload configs
+// (and test harnesses) isolated; locale transforms survive individual readers/saves.
+const localeTransforms = new WeakMap<SanitizedConfig, WeakMap<SanitizedCollectionConfig, { fields: Field[]; transforms: Map<string, Transform> }>>()
+
 /** Compile only schema-marked localized branches. Opaque field values are never traversed.
  * Copy ancestors only when a localized descendant changes; ordinary branches retain identity.
  */
-function localeTransform(req: PayloadRequest, collection: string, locale: string, fallback: import('payload').TypedFallbackLocale) {
-  const config = req.payload.config.collections?.find(entry => entry.slug === collection)
-  const blocks = req.payload.config.blocks ?? []
-  type Transform = (data: Record<string, unknown>, write?: boolean, previous?: Record<string, unknown>) => Record<string, unknown>
+function localeTransform(payloadConfig: SanitizedConfig, collection: string, locale: string, fallback: import('payload').TypedFallbackLocale) {
+  const config = payloadConfig.collections?.find(entry => entry.slug === collection)
+  if (!payloadConfig.localization || !config) return identity
+  let collections = localeTransforms.get(payloadConfig)
+  if (!collections) localeTransforms.set(payloadConfig, collections = new WeakMap())
+  let cached = collections.get(config)
+  if (!cached || cached.fields !== config.fields) collections.set(config, cached = { fields: config.fields, transforms: new Map() })
+  const key = JSON.stringify([locale, fallback])
+  const existing = cached.transforms.get(key)
+  if (existing) return existing
+  const blocks = payloadConfig.blocks ?? []
   const compiled = new Map<Field[], Transform>()
   function compile(fields: Field[], parentIsLocalized = false): Transform {
     if (parentIsLocalized) return data => data
@@ -28,10 +41,10 @@ function localeTransform(req: PayloadRequest, collection: string, locale: string
       const name = field.name
       const localized = fieldShouldBeLocalized({ field, parentIsLocalized })
       const parent = parentIsLocalized || localized
-      const children = 'fields' in field && hasLocalizedFields(field.fields, req.payload.config) && ['group', 'array', 'tab'].includes(field.type) ? compile(field.fields, parent) : undefined
+      const children = 'fields' in field && hasLocalizedFields(field.fields, payloadConfig) && ['group', 'array', 'tab'].includes(field.type) ? compile(field.fields, parent) : undefined
       const variants = field.type === 'blocks' ? new Map([...(field.blocks ?? []), ...(field.blockReferences ?? [])].flatMap(ref => {
         const block = typeof ref === 'string' ? blocks.find(block => block.slug === ref) : ref
-        return block && hasLocalizedFields(block.fields, req.payload.config) ? [[block.slug, compile(block.fields, parent)] as const] : []
+        return block && hasLocalizedFields(block.fields, payloadConfig) ? [[block.slug, compile(block.fields, parent)] as const] : []
       })) : undefined
       if (!localized && !children && !variants) return []
       return [(data: Record<string, unknown>, write: boolean, previous?: Record<string, unknown>) => {
@@ -57,7 +70,7 @@ function localeTransform(req: PayloadRequest, collection: string, locale: string
           }
           if (children || variants) {
             if (Array.isArray(value)) {
-              const rows = value.map((row, index) => visit(row, Array.isArray(prior) ? prior.find(old => isObject(row) && isObject(old) && row.id != null && old.id === row.id) ?? prior[index] : undefined))
+              const rows = value.map((row, index) => visit(row, Array.isArray(prior) ? isObject(row) && row.id != null ? prior.find(old => isObject(old) && old.id === row.id) : prior[index] : undefined))
               if (rows.some((row, index) => row !== (value as unknown[])[index])) value = rows
             } else value = visit(value, prior)
           }
@@ -68,18 +81,20 @@ function localeTransform(req: PayloadRequest, collection: string, locale: string
     project = (data, write = false, previous) => steps.reduce((result, step) => step(result, write, previous), data)
     return transform
   }
-  return config && hasLocalizedFields(config.fields ?? [], req.payload.config) ? compile(config.fields ?? []) : (data: Record<string, unknown>) => data
+  const transform = hasLocalizedFields(config.fields ?? [], payloadConfig) ? compile(config.fields ?? []) : identity
+  cached.transforms.set(key, transform)
+  return transform
 }
 
 export function placementLocaleContent(req: PayloadRequest, collection: string, doc: Record<string, unknown> | undefined, input: PlacementInput): Record<string, unknown> | undefined {
   return placementReader(req, collection).read(doc, input).doc
 }
 
-/** The single document → locale view → editor/placements boundary. Compile once per collection scan.
+/** The single document → locale view → editor/placements boundary. Compiled schemas are shared per sanitized config.
  * Local API and form documents explicitly bypass all-locale projection.
  */
 export function placementReader(req: PayloadRequest, collection: string, options = req.payload.config.custom?.xp as Pick<ResolvedOptions, 'puck' | 'blocks'>) {
-  const views = placementLocaleViews(req, collection)
+  const views = placementLocaleViews(req, collection, options)
   const transforms = new Map<string, ReturnType<typeof localeTransform>>()
   return { views, documentViews: schemaLocaleViews(req, collection), read(doc: Record<string, unknown> | null | undefined, input: PlacementInput, view?: PlacementLocaleView) {
     const requested = view ?? { locale: req.locale ?? '', fallbackLocale: req.fallbackLocale ?? false }
@@ -94,7 +109,7 @@ export function placementReader(req: PayloadRequest, collection: string, options
         const key = JSON.stringify([locale, selected.fallbackLocale])
         let transform = transforms.get(key)
         if (!transform) {
-          transform = localeTransform(req, collection, locale, sanitizeFallbackLocale({ fallbackLocale: selected.fallbackLocale, locale, localization: req.payload.config.localization }))
+          transform = localeTransform(req.payload.config, collection, locale, sanitizeFallbackLocale({ fallbackLocale: selected.fallbackLocale, locale, localization: req.payload.config.localization }))
           transforms.set(key, transform)
         }
         content = transform(doc)
@@ -131,10 +146,9 @@ function schemaLocaleViews(req: PayloadRequest, collection: string): PlacementLo
     : [{ locale: '', fallbackLocale: false }]
 }
 /** Canonical views of registered content, without multiplying nonlocalized rows. */
-export function placementLocaleViews(req: PayloadRequest, collection: string): PlacementLocaleView[] {
+export function placementLocaleViews(req: PayloadRequest, collection: string, options = (req.payload.config.custom?.xp ?? {}) as Pick<ResolvedOptions, 'puck' | 'blocks'>): PlacementLocaleView[] {
   const localization = req.payload.config.localization
   const config = req.payload.config.collections?.find(entry => entry.slug === collection)
-  const options = (req.payload.config.custom?.xp ?? {}) as ResolvedOptions
   const names = new Set([...puckCollections(options).filter(entry => entry.slug === collection).map(entry => entry.field),
     ...(options.blocks?.collections ?? []).filter(entry => entry.slug === collection).map(entry => entry.field)])
   const localized = config && hasLocalizedFields(config.fields ?? [], req.payload.config) && (Boolean(options.blocks?.collections.some(entry => entry.slug === collection && entry.appliesTo)) || flattenTopLevelFields(config.fields ?? []).some(field => 'name' in field && names.has(field.name!) && ('localized' in field && field.localized || 'fields' in field && hasLocalizedFields(field.fields, req.payload.config) || field.type === 'blocks' && hasLocalizedFields(contentBlocks(field, req.payload.config.blocks).flatMap(block => block.fields), req.payload.config))))
@@ -148,11 +162,11 @@ export function placementLocaleViews(req: PayloadRequest, collection: string): P
  * The incoming hook document is already flattened to the writing locale.
  */
 export function removedPlacementViews(req: PayloadRequest, collection: string, before: Record<string, unknown> | undefined,
-  after: Record<string, unknown>, removingPage: boolean): RemovedPlacementViews {
+  after: Record<string, unknown>, removingPage: boolean, input: PlacementInput = 'localized'): RemovedPlacementViews {
   const result: RemovedPlacementViews = new Map()
   if (!before) return result
   const reader = placementReader(req, collection)
-  const rawAfter = mergedPlacementLocales(req, collection, before, after)
+  const rawAfter = input === 'all-locales' ? after : mergedPlacementLocales(req, collection, before, after)
   for (const view of reader.views) {
     const previous = reader.read(before, 'all-locales', view).slugs
     const next = removingPage ? [] : reader.read(rawAfter, 'all-locales', view).slugs
@@ -166,5 +180,17 @@ export function mergedPlacementLocales(req: PayloadRequest, collection: string, 
   after: Record<string, unknown>): Record<string, unknown> {
   const localization = req.payload.config.localization
   if (!localization || req.locale === 'all') return after
-  return localeTransform(req, collection, req.locale || localization.defaultLocale, false)(after, true, before)
+  return localeTransform(req.payload.config, collection, req.locale || localization.defaultLocale, false)(after, true, before)
+}
+
+/** Project host document adapters before they run. Callers own path normalization
+ * and use sortLockKeys for the existing experiment → page-path lock ordering. */
+export function placementDocumentPaths(req: PayloadRequest, collection: string, docs: Array<Record<string, unknown> | undefined>,
+  input: PlacementInput, pathOf: (doc: Record<string, unknown>) => string | null): string[] {
+  const reader = placementReader(req, collection)
+  return docs.flatMap(raw => reader.documentViews.flatMap(view => {
+    const doc = reader.read(raw, input, view).doc
+    const path = doc ? pathOf(doc) : null
+    return path === null ? [] : [path]
+  }))
 }

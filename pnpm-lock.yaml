@@ -32,9 +32,6 @@ importers:
       '@delmaredigital/experiments-stats':
         specifier: workspace:*
         version: link:../stats
-      '@payloadcms/translations':
-        specifier: ^3.90.2
-        version: 3.90.2
     devDependencies:
       '@delmaredigital/payload-puck':
         specifier: 0.10.3
@@ -48,6 +45,9 @@ importers:
       '@payloadcms/next':
         specifier: ^3.90.2
         version: 3.90.2(@types/react@19.3.0)(graphql@16.14.2)(monaco-editor@0.57.0)(next@16.4.3(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.77.4))(payload@3.90.2(graphql@16.14.2)(typescript@5.9.3))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@5.9.3)
+      '@payloadcms/translations':
+        specifier: ^3.90.2
+        version: 3.90.2
       '@payloadcms/ui':
         specifier: ^3.90.2
         version: 3.90.2(@types/react@19.3.0)(monaco-editor@0.57.0)(next@16.4.3(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.77.4))(payload@3.90.2(graphql@16.14.2)(typescript@5.9.3))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@5.9.3)

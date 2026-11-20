@@ -72,7 +72,8 @@ export async function goalContent<TUser extends { id: DocId }>(req: PayloadReque
         if (!page?.published) continue
         const doc = await clickGoalContent(req, collection.slug, page.id)
         if (!doc) { unchecked.push(placement); continue }
-        collect(collection.contentOf(doc), byArm.get(arm.key)!, '', labels)
+        const reader = placementReader(req, collection.slug, options)
+        for (const view of reader.documentViews) collect(collection.contentOf(reader.read(doc, 'all-locales', view).doc!), byArm.get(arm.key)!, '', labels)
         readArms.add(arm.key)
       } catch (error) { failed(error, placement) }
     }
@@ -86,33 +87,37 @@ export async function goalContent<TUser extends { id: DocId }>(req: PayloadReque
     for (const placement of docs) {
       try {
         const raw = await clickGoalContent(req, placement.collection, placement.id)
-        const doc = placementReader(req, placement.collection, options).read(raw, 'all-locales').doc
-        if (!doc) continue
-        const editor = placementReader(req, placement.collection, options).read(doc, 'localized').editor
-        if (editor === 'blocks') {
-          const registration = options.blocks?.collections.find(c => c.slug === placement.collection)
-          if (!registration) continue
-          for (const block of hostBlocks(doc[registration.field])) {
-            if (block.blockType !== (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) || block.experiment !== experiment.slug) continue
-            for (const arm of experiment.arms.filter(a => a.kind !== 'holdout')) collect(slotBlocks(block, arm.slot ?? arm.key), byArm.get(arm.key)!, '', labels)
-          }
-        } else {
-          const registration = puckCollections(options).find(c => c.slug === placement.collection)
-          if (!registration) continue
-          const visibility = puckVisibility(doc[registration.field])
-          const walk = (value: unknown): void => {
-            if (Array.isArray(value)) { value.forEach(walk); return }
-            if (!isObject(value) || visibility.get(value)?.hidden) return
-            const props = isObject(value.props) ? value.props : undefined
-            if (value.type === 'ExperimentSlot' && props && puckExperimentSlug(props.experiment) === experiment.slug) {
-              for (const arm of experiment.arms.filter(a => a.kind !== 'holdout')) collect(props[arm.slot ?? arm.key], byArm.get(arm.key)!, '', labels, visibility)
-              return
+        const reader = placementReader(req, placement.collection, options)
+        for (const view of reader.views) {
+          const localized = reader.read(raw, 'all-locales', view)
+          const doc = localized.doc
+          if (!doc) continue
+          const editor = localized.editor
+          if (editor === 'blocks') {
+            const registration = options.blocks?.collections.find(c => c.slug === placement.collection)
+            if (!registration) continue
+            for (const block of hostBlocks(doc[registration.field])) {
+              if (block.blockType !== (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) || block.experiment !== experiment.slug) continue
+              for (const arm of experiment.arms.filter(a => a.kind !== 'holdout')) collect(slotBlocks(block, arm.slot ?? arm.key), byArm.get(arm.key)!, '', labels)
             }
-            Object.values(value).forEach(walk)
+          } else {
+            const registration = puckCollections(options).find(c => c.slug === placement.collection)
+            if (!registration) continue
+            const visibility = puckVisibility(doc[registration.field])
+            const walk = (value: unknown): void => {
+              if (Array.isArray(value)) { value.forEach(walk); return }
+              if (!isObject(value) || visibility.get(value)?.hidden) return
+              const props = isObject(value.props) ? value.props : undefined
+              if (value.type === 'ExperimentSlot' && props && puckExperimentSlug(props.experiment) === experiment.slug) {
+                for (const arm of experiment.arms.filter(a => a.kind !== 'holdout')) collect(props[arm.slot ?? arm.key], byArm.get(arm.key)!, '', labels, visibility)
+                return
+              }
+              Object.values(value).forEach(walk)
+            }
+            walk(doc[registration.field])
           }
-          walk(doc[registration.field])
+          for (const arm of byArm.keys()) readArms.add(arm)
         }
-        for (const arm of byArm.keys()) readArms.add(arm)
       } catch (error) { failed(error, placement) }
     }
   }

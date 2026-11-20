@@ -82,6 +82,7 @@ function readinessSetup() {
 
 test('two block drafts share one scan; a flag draft shares metrics and state and all three are ready', async () => {
   const { options, req, payload, placements, findGlobal } = readinessSetup()
+  req.transactionID = 'summary-transaction'
   const response = await handleSummary(req, { options })
   expect(response.status).toBe(200)
   const body = await response.json()
@@ -95,7 +96,7 @@ test('two block drafts share one scan; a flag draft shares metrics and state and
   expect(placements).toHaveBeenCalledTimes(1)
   expect(payload.calls).toHaveLength(5)
   for (const call of payload.calls) {
-    expect(call.args).toMatchObject({ overrideAccess: false, depth: 0, req: { payload: req.payload, context: req.context, headers: req.headers, url: req.url } })
+    expect(call.args).toMatchObject({ overrideAccess: false, depth: 0, req: { payload: req.payload, context: req.context, headers: req.headers, url: req.url, transactionID: req.transactionID, user: req.user } })
     if (call.args.collection !== 'pages') expect(call.args.req).toBe(req)
   }
   expect(findGlobal).toHaveBeenCalledWith({ slug: 'xp-state', req, overrideAccess: false, depth: 0 })
@@ -168,6 +169,7 @@ test('placement and per-experiment read failures return false without failing he
     if (args.collection === 'xp-layers') throw new Error('layer unavailable')
     return original(args)
   })
+  req.transactionID = 'summary-transaction'
   const response = await handleSummary(req, { options })
   expect(response.status).toBe(200)
   const body = await response.json()

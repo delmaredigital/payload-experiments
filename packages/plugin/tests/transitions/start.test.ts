@@ -702,3 +702,35 @@ test('Start rescans after a removal that wins E, so its pre-lock placement canno
   expect(f.experiment.status).toBe('draft')
   expect(f.payload.documents['xp-phases']).toEqual([])
 })
+
+
+test.each([false, true])('Start and its locked rescan record published placements (localization=%s)', async localized => {
+  const f = fixture()
+  Object.assign(f.experiment, { kind: 'block', arms: defaultArms('block'), exposurePolicy: 'render' })
+  f.options.puck = { enabled: true, collections: ['pages'] }
+  const content = { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{}], variantA: [{ different: true }] } }] }
+  f.payload.documents.pages = [{ id: 10, _status: 'published', puckData: localized ? { en: { content: [] }, fr: content } : content }]
+  f.payload.config.collections = [{ slug: 'pages', fields: [{ name: 'puckData', type: 'json', localized }], versions: { drafts: true } }] as never
+  if (localized) Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en', label: 'English' }, { code: 'fr', label: { en: 'French', fr: 'Français' } }] } })
+  const find = vi.mocked(f.payload.find).getMockImplementation()!
+  vi.spyOn(f.payload, 'find').mockImplementation(async args => {
+    const result = await find(args)
+    if (args.collection === 'pages' && (args.req as import('payload').PayloadRequest | undefined)?.locale !== 'all' && f.payload.config.localization) result.docs = result.docs.map(doc => ({ ...doc, puckData: (doc.puckData as Record<string, unknown>)[(args.req as import('payload').PayloadRequest | undefined)?.locale || 'en'] }))
+    return result
+  })
+  f.req.locale = 'en'; f.req.fallbackLocale = false
+  const preflight = await preflightData(f.req, { experimentId: 1, options: f.options })
+  expect(preflight!.checks.find(check => check.code === 'no-placements')).toEqual({ code: 'no-placements', ok: true })
+  expect(preflight!.placements).toHaveLength(1)
+  if (localized) expect(preflight!.placements[0]).toMatchObject({ locales: ['French'] })
+  if (localized) {
+    const raw = f.payload.documents.pages![0]!.puckData as Record<string, unknown>
+    raw.en = content
+    const bilingual = await preflightData(f.req, { experimentId: 1, options: f.options })
+    expect(bilingual!.placements).toHaveLength(1)
+    expect(bilingual!.placements[0]).toMatchObject({ allLocales: true, slotCount: 1 })
+    raw.en = { content: [] }
+  }
+  await start(f.req, { experimentId: 1, options: f.options })
+  expect(f.payload.documents['xp-phases']![0]!.placementDocs).toEqual([{ collection: 'pages', id: 10 }])
+})

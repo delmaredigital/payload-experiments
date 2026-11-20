@@ -230,7 +230,11 @@ test.each(([
 ] satisfies Field[][]).flatMap(fields => [false, true].map(localization => ({ fields, localization }))))('localized flags only refuse and warn when localization is enabled: %j', async ({ fields, localization }) => {
   const f = fixture()
   f.payload.config.collections[0]!.fields = fields
-  if (localization) Object.assign(f.payload.config, { localization: { locales: ['en', 'de'], defaultLocale: 'en' } })
+  if (localization) {
+    Object.assign(f.payload.config, { localization: { locales: [{ code: 'en' }, { code: 'de' }], localeCodes: ['en', 'de'], defaultLocale: 'en' } })
+    // The Local API scan now requests all locales; its JSON field stays a locale map.
+    if (fields.some(field => 'name' in field && field.name === 'puckData')) for (const page of f.payload.documents.pages!) page.puckData = { en: page.puckData }
+  }
   f.payload.documents.pages![0]!.title = 'Landing page'
   const original = structuredClone(f.payload.documents.pages)
   const preflight = await preflightData(f.req, { experimentId: 1, options: f.options })

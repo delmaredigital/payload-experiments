@@ -79,3 +79,53 @@ test('single-view consumers normalize locale all to the configured default', () 
   const req = request([{ name: 'title', type: 'text', localized: true }]); req.locale = 'all'
   expect(placementLocaleContent(req, 'pages', { title: { en: 'English', fr: 'French' } }, 'all-locales')).toEqual({ title: 'English' })
 })
+
+
+test('new nested rows with ids never inherit another row’s translations by position', () => {
+  const req = request([{ name: 'layout', type: 'array', fields: [{ name: 'title', type: 'text', localized: true }] }])
+  const before = { layout: [{ id: 'old', title: { en: 'Old English', fr: 'Old French' } }] }
+  const after = { layout: [{ id: 'new', title: 'New French' }, { id: 'old', title: 'Updated French' }] }
+  expect(mergedPlacementLocales(req, 'pages', before, after)).toEqual({ layout: [
+    { id: 'new', title: { fr: 'New French' } }, { id: 'old', title: { en: 'Old English', fr: 'Updated French' } },
+  ] })
+  expect(mergedPlacementLocales(req, 'pages', before, { layout: [{ title: 'No id' }] })).toEqual({ layout: [{ title: { en: 'Old English', fr: 'No id' } }] })
+})
+
+test('locale all bulk changes keep already projected sibling views intact', async () => {
+  const { bulkRemoves } = await import('../../src/db/bulkPlacementRemoval.js')
+  const req = request([{ name: 'layout', type: 'json', localized: true }]); req.locale = 'all'
+  req.payload.config.custom!.xp = { blocks: { collections: [{ slug: 'pages', field: 'layout' }] } }
+  const block = { blockType: 'xpExperiment', experiment: 'hero' }
+  const doc = { id: 1, layout: { en: [block], fr: [block] }, _status: 'published' }
+  const bulk = { documents: new Set([JSON.stringify(['pages', '1'])]), refusals: new Map(), change: { collection: 'pages', data: { title: 'Changed' }, draft: false, deleting: false } }
+  for (const view of placementReader(req, 'pages').views) expect(bulkRemoves(bulk, req, 'pages', doc, 'hero', view)).toBe(false)
+})
+
+test('compiled locale transforms are reused across readers and pending merges, but isolated per config', () => {
+  let nameReads = 0
+  const field = { type: 'json', localized: true, get name() { nameReads++; return 'layout' } } as Field
+  const make = () => {
+    const req = request([field])
+    req.payload.config.custom!.xp = { blocks: { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => true }] } }
+    return req
+  }
+  const req = make(), raw = { layout: { en: [], fr: [] } }, after = { layout: [] }
+  mergedPlacementLocales(req, 'pages', raw, after)
+  const compiledReads = nameReads
+  expect(compiledReads).toBeGreaterThan(0)
+  mergedPlacementLocales(req, 'pages', raw, after)
+  placementReader(req, 'pages').read(raw, 'all-locales').doc
+  expect(nameReads).toBe(compiledReads)
+  mergedPlacementLocales(make(), 'pages', raw, after)
+  expect(nameReads).toBeGreaterThan(compiledReads)
+})
+
+
+test('a fresh block id at index zero does not borrow the previous block’s English field', () => {
+  const req = request([{ name: 'layout', type: 'blocks', blocks: [{ slug: 'copy', fields: [{ name: 'title', type: 'text', localized: true }] }] }])
+  const before = { layout: [{ id: 'old', blockType: 'copy', title: { en: 'Old English', fr: 'Old French' } }] }
+  const after = { layout: [{ id: 'new', blockType: 'copy', title: 'New French' }, { id: 'old', blockType: 'copy', title: 'Updated French' }] }
+  expect(mergedPlacementLocales(req, 'pages', before, after)).toEqual({ layout: [
+    { id: 'new', blockType: 'copy', title: { fr: 'New French' } }, { id: 'old', blockType: 'copy', title: { en: 'Old English', fr: 'Updated French' } },
+  ] })
+})

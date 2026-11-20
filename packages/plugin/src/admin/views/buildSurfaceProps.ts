@@ -46,8 +46,10 @@ export async function buildSurfaceProps({ req, route, id, searchParams }: {
       const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0,
         limit: 50, sort: '-updatedAt', draft: true, select: { [useAsTitle]: true, ...predicateFields } })
       // The new-test list uses the latest draft's editing intent, as the "Test a block" field condition does (§4.1).
-      return result.docs.map(doc => {
-        const editor = placementReader(req, collection, options).read(doc, 'localized').editor
+      return result.docs.map(row => {
+        const placement = placementReader(req, collection, options).read(row, req.locale === 'all' ? 'all-locales' : 'localized')
+        const doc = placement.doc as typeof row
+        const editor = placement.editor
         if (editor !== 'puck' && editor !== 'blocks') return null
         const id = doc.id
         const customUrl = options.admin?.editorUrl?.({ collection, id, draft: true, editor, doc })

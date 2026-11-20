@@ -229,7 +229,7 @@ test.each(['missing-rollout-test', 'missing-current', 'incomplete-layer'] as con
   expect(body).toMatchObject({ errors: [{ code: 'placement-unchecked' }] })
   expect(JSON.stringify(body)).not.toContain('private-name')
 })
-test.each([undefined, null, 123, {}, '/site/undefined', '/site/null', '/site/%75ndefined', '/site/[object Object]', '/site/%5Bobject%20Object%5D', '/site/..', '/site/hello world'])('unusable access-filtered public path %s is omitted', async path => {
+test.each([undefined, null, 123, {}, '/site/undefined', '/site/null', '/site/%75ndefined', '/site/[object Object]', '/site/%5Bobject%20Object%5D', '/site/..', '/site/hello world', '/site/%0A', '/site/%00', '/site/%5C', '/site/%7F', '/site/%zz', '/site/search?q=%0A'])('unusable access-filtered public path %s is omitted', async path => {
   const { read, options } = setup()
   options.pages!.collections[0]!.pathOf = () => path as never
   expect((await (await read()).json()).placements).toMatchObject([{ path: null }])
@@ -337,7 +337,7 @@ test.each(['fr', 'xx', 'all', ''])('validates requested metadata locale %j and d
   await read()
   expect(payload.calls.find(call => call.args.collection === 'pages' && call.args.overrideAccess === false)?.args.locale).toBe(requested === 'fr' ? 'fr' : 'en')
 })
-test.each(['/site/search?next=%2Fwelcome', '/site/%2Fwelcome', '/site/caf%C3%A9'])('encoded public path %s is retained', async path => {
+test.each(['/site/search?next=%2Fwelcome', '/site/%2Fwelcome', '/site/caf%C3%A9', '/site/search?q=hello%20world&next=%2Fwelcome'])('encoded public path %s is retained', async path => {
   const { read, options } = setup()
   options.pages!.collections[0]!.pathOf = () => path
   expect((await (await read()).json()).placements).toMatchObject([{ path }])

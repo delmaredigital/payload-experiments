@@ -146,12 +146,19 @@ async function auditContentChange({ doc, previousDoc, req, collection }: Content
       if (experiment) experiments.set(String(experiment.id), experiment.id)
     }
     const page = options?.pages?.collections.find(entry => entry.slug === collection.slug)
-    if (page?.contentOf && !isDeepStrictEqual(comparableContent(object(beforeRow) ? page.contentOf(beforeRow) : undefined), comparableContent(object(afterRow) ? page.contentOf(afterRow) : undefined))) {
-      const paths = [beforeRow, afterRow].flatMap(row => {
-        const path = object(row) ? page.pathOf(row) : null
-        return path === null ? [] : [normalisePath(path)]
-      })
-      for (const id of await pageContentBindings(executor, collection.slug, paths)) experiments.set(String(id), id)
+    if (page?.contentOf) {
+      const input: PlacementInput = baseline || req.locale === 'all' ? 'all-locales' : 'localized'
+      const paths = new Set<string>()
+      for (const view of input === 'all-locales' ? reader.documentViews : [undefined]) {
+        const before = reader.read(object(beforeRow) ? beforeRow : undefined, input, view).doc
+        const after = reader.read(object(afterRow) ? afterRow : undefined, input, view).doc
+        if (isDeepStrictEqual(comparableContent(before ? page.contentOf(before) : undefined), comparableContent(after ? page.contentOf(after) : undefined))) continue
+        for (const doc of [before, after]) {
+          const path = doc ? page.pathOf(doc) : null
+          if (path !== null) paths.add(normalisePath(path))
+        }
+      }
+      if (paths.size) for (const id of await pageContentBindings(executor, collection.slug, sortLockKeys([...paths]))) experiments.set(String(id), id)
     }
     // Successful audit locks persist until commit; acquire multiple E locks in order.
     for (const key of sortLockKeys([...experiments.keys()])) {

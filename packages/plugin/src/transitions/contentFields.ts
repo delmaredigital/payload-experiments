@@ -12,11 +12,13 @@ export function hasLocalizedFields(fields: Field[], config: Pick<SanitizedConfig
   const blocks: Block[] = config.blocks ?? []
   return fields.some(field => {
     if (seen.has(field)) return false
-    const branch = new Set(seen).add(field)
-    if ('localized' in field && field.localized) return true
-    if ('tabs' in field && field.tabs.some(tab => tab.localized || hasLocalizedFields(tab.fields, config, branch))) return true
-    if ('fields' in field && hasLocalizedFields(field.fields, config, branch)) return true
-    return field.type === 'blocks' && contentBlocks(field, blocks)
-      .some(block => hasLocalizedFields(block.fields, config, branch))
+    seen.add(field)
+    try {
+      if ('localized' in field && field.localized) return true
+      if ('tabs' in field && field.tabs.some(tab => tab.localized || hasLocalizedFields(tab.fields, config, seen))) return true
+      if ('fields' in field && hasLocalizedFields(field.fields, config, seen)) return true
+      return field.type === 'blocks' && contentBlocks(field, blocks)
+        .some(block => hasLocalizedFields(block.fields, config, seen))
+    } finally { seen.delete(field) }
   })
 }

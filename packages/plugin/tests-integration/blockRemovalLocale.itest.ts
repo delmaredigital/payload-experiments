@@ -3,6 +3,8 @@ import { afterAll, beforeAll, expect, test } from 'vitest'
 import { createIntegrationHarness } from './harness.js'
 import { scanBlockPlacements } from '../src/transitions/placements.js'
 import { createExperimentBlock } from '../src/blocks/createExperimentBlock.js'
+import { stop } from '../src/transitions/stop.js'
+import { decide } from '../src/transitions/decide.js'
 import { start } from '../src/transitions/start.js'
 import type { ResolvedOptions } from '../src/types/contracts.js'
 
@@ -12,8 +14,19 @@ let sequence = 0
 beforeAll(async () => {
   harness = await createIntegrationHarness({
     localization: { locales: ['en', 'fr'], defaultLocale: 'en', fallback: true },
+    pages: { collections: [{ slug: 'locale-pages', pathOf: doc => {
+      if (doc.slug == null) return null
+      expect(typeof doc.slug).toBe('string')
+      return `/${doc.slug}`
+    }, findByPath: async (path, req) => {
+      const result = await req.payload.find({ collection: 'locale-pages', req: { ...req }, overrideAccess: false, locale: 'fr', fallbackLocale: false,
+        depth: 0, limit: 1, draft: false, where: { slug: { equals: path.slice(1) } } })
+      const page = result.docs[0]
+      return page ? { id: page.id, published: page._status === 'published' } : null
+    } }] },
     puckCollections: ['locale-puck'], blocks: { collections: [{ slug: 'locale-blocks', field: 'layout', appliesTo: doc => { expect(typeof doc.title).toBe('string'); return true } }] },
     collections: ([
+      { slug: 'locale-pages', trash: true, versions: { drafts: true }, fields: [{ name: 'slug', type: 'text', localized: true }] },
       { slug: 'locale-puck', trash: true, versions: { drafts: true }, fields: [{ name: 'puckData', type: 'json', localized: true }] },
       { slug: 'locale-blocks', trash: true, versions: { drafts: true }, fields: [{ name: 'title', type: 'text', localized: true }, { name: 'layout', type: 'blocks', localized: true,
         blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] },
@@ -25,7 +38,7 @@ afterAll(async () => { await harness?.teardown() }, 60_000)
 const request = (locale: string) => createLocalReq({ locale, fallbackLocale: 'null' }, harness.payload)
 const options = () => harness.payload.config.custom!.xp as ResolvedOptions
 
-test.each(['puck', 'blocks'] as const)('localized %s removal requires a published copy somewhere, while Start checks its own language', async editor => {
+test.each(['puck', 'blocks'] as const)('localized %s Start, Decide and guards share placements across every language', async editor => {
   const suffix = ++sequence, { payload } = harness, collection = `locale-${editor}`
   const req = await request('fr')
   const metric = await payload.create({ collection: 'xp-metrics', req, overrideAccess: true,
@@ -48,9 +61,10 @@ test.each(['puck', 'blocks'] as const)('localized %s removal requires a publishe
   await payload.update({ collection, id: page.id, req: await request('en'), locale: 'en', overrideAccess: false, data: { title: 'Localized page', ...empty, _status: 'published' } })
   const scan = (locale: string) => request(locale).then(req => scanBlockPlacements(req, { slug: String(experiment.slug),
     puckCollections: options().puck!.collections, blocksCollections: options().blocks!.collections }))
-  expect(await scan('en')).toEqual([])
-  expect(await scan('fr')).toEqual([expect.objectContaining({ id: page.id, published: true, localized: true })])
-  await start(await request('fr'), { experimentId: experiment.id, options: options() })
+  for (const locale of ['en', 'fr']) expect(await scan(locale)).toEqual([expect.objectContaining({ id: page.id, published: true, localized: true, locale: 'fr' })])
+  await start(await request('en'), { experimentId: experiment.id, options: options() })
+  const started = await payload.find({ collection: 'xp-phases', req: await request('en'), overrideAccess: true, depth: 0, where: { experiment: { equals: experiment.id } } })
+  expect(started.docs[0]!.placementDocs).toEqual([{ collection, id: page.id }])
   for (const operation of ['delete', 'unpublish', 'trash']) {
     const work = operation === 'delete' ? payload.delete({ collection, id: page.id, req: await request('en'), overrideAccess: false })
       : payload.update({ collection, id: page.id, req: await request('en'), overrideAccess: false, data: operation === 'unpublish' ? { _status: 'draft' } : { deletedAt: new Date().toISOString() } })
@@ -58,6 +72,14 @@ test.each(['puck', 'blocks'] as const)('localized %s removal requires a publishe
   }
   await expect(payload.update({ collection, id: page.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
     data: { title: 'Localized page', ...empty, _status: 'published' } })).rejects.toMatchObject({ code: 'locked-placement', message: expect.stringContaining('only published place') })
+  // Publishing a new French-only placement while running appends it to the round.
+  const french = await payload.create({ collection, req: await request('en'), locale: 'en', overrideAccess: false,
+    data: { title: 'New French-only placement', ...empty, _status: 'draft' } })
+  await payload.update({ collection, id: french.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
+    data: { title: 'New French-only placement', ...content, _status: 'published' } })
+  const recorded = await payload.find({ collection: 'xp-phases', req: await request('en'), overrideAccess: true, depth: 0, where: { experiment: { equals: experiment.id } } })
+  expect(recorded.docs[0]!.placementDocs).toEqual(expect.arrayContaining([{ collection, id: french.id }]))
+  await payload.delete({ collection, id: french.id, req: await request('en'), overrideAccess: false })
   // X is French-only; Y is English-only. Removing X is allowed even though
   // the remaining stored copy is in a different language.
   const other = await payload.create({ collection, req: await request('en'), locale: 'en', overrideAccess: false,
@@ -79,4 +101,41 @@ test.each(['puck', 'blocks'] as const)('localized %s removal requires a publishe
     data: { title: 'Localized page', ...empty, _status: 'published' } })).rejects.toMatchObject({ code: 'locked-placement',
     message: '“Localized placement” is running and this is the only published place it appears. Stop the test, or keep its block on this page.' })
 
+  // Leave only French before deciding, so the default-language rescan cannot
+  // accidentally pass by finding the sibling's former English placement.
+  await payload.update({ collection, id: other.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
+    data: { title: 'Localized page', ...content, _status: 'published' } })
+  await payload.update({ collection, id: other.id, req: await request('en'), locale: 'en', overrideAccess: false,
+    data: { title: 'Localized page', ...empty, _status: 'published' } })
+  expect(await scan('en')).toEqual([expect.objectContaining({ id: other.id, published: true, locale: 'fr' })])
+  await stop(await request('en'), { experimentId: experiment.id })
+  await expect(decide(await request('en'), { experimentId: experiment.id, winnerArm: 'variantA',
+    note: 'Choose the variant', confirmation: 'Variant A' })).resolves.toMatchObject({ doc: { status: 'decided' } })
 }, 30_000) // Estimate <1.5 s each; no measured claim until coordinator runs it.
+
+
+test('a page test protects a localized French slug during rename and unpublish', async () => {
+  const { payload } = harness, suffix = ++sequence
+  const pages = []
+  for (const role of ['original', 'variant']) {
+    const page = await payload.create({ collection: 'locale-pages', req: await request('en'), locale: 'en', overrideAccess: false,
+      data: { slug: `english-${role}-${suffix}`, _status: 'published' } })
+    await payload.update({ collection: 'locale-pages', id: page.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
+      data: { slug: `french-${role}-${suffix}`, _status: 'published' } })
+    pages.push(page)
+  }
+  const metric = await payload.create({ collection: 'xp-metrics', req: await request('en'), overrideAccess: true,
+    data: { name: 'Page goal', slug: `locale-page-goal-${suffix}`, source: 'binomial', direction: 'increase' } })
+  const experiment = await payload.create({ collection: 'xp-experiments', req: await request('en'), overrideAccess: true, data: {
+    name: 'Localized addresses', slug: `locale-page-test-${suffix}`, kind: 'page', pageCollection: 'locale-pages', unitType: 'visitor', allocation: 100, exposurePolicy: 'pageview',
+    arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 50, pageTarget: `/french-original-${suffix}` },
+      { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 50, pageTarget: `/french-variant-${suffix}` }],
+    metrics: { primary: metric.id }, analysis: { plannedDurationDays: 14, reachPerDay: 100 },
+  } })
+  await start(await request('en'), { experimentId: experiment.id, options: options() })
+  for (const page of pages) for (const data of [{ slug: `renamed-${page.id}`, _status: 'published' }, { _status: 'draft' }]) {
+    await expect(payload.update({ collection: 'locale-pages', id: page.id, req: await request('fr'), locale: 'fr', overrideAccess: false, data }))
+      .rejects.toMatchObject({ code: 'locked-placement' })
+  }
+  await stop(await request('en'), { experimentId: experiment.id })
+}, 30_000) // Train-only; estimated under 1 s, unmeasured until the coordinator runs it.

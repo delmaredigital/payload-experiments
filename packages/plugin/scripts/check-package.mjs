@@ -14,6 +14,7 @@ const peerRanges = Object.freeze({
   payload: '>=3.90.0 <4',
   '@payloadcms/next': '>=3.90.0 <4',
   '@payloadcms/ui': '>=3.90.0 <4',
+  '@payloadcms/translations': '>=3.90.0 <4',
   '@payloadcms/db-postgres': '>=3.90.0 <4',
   next: '>=16.4.1 <17',
   react: '>=19.2.1 <20',

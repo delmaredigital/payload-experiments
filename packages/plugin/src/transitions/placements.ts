@@ -1,3 +1,4 @@
+import { placementLanguages } from '../blocks/placementLanguages.js'
 import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { walkVisiblePuck } from '../puck/visibility.js'
 import { BLOCK_SLOTS, EXPERIMENT_BLOCK_SLUG, hostBlocks, slotBlocks } from '../blocks/model.js'
@@ -14,7 +15,7 @@ import { puckCollections as normalisePuckCollections } from '../options.js'
 
 export interface BlockPlacement extends PreviewPlacement {
   editor?: 'puck' | 'blocks' | 'page'; doc?: Record<string, unknown>
-  slots: Record<ArmSlot, number>; duplicateRows?: boolean; identicalSlots?: string[]; locked?: boolean; localized?: boolean
+  locales?: string[]; allLocales?: true; locale?: string; slots: Record<ArmSlot, number>; duplicateRows?: boolean; identicalSlots?: string[]; locked?: boolean; localized?: boolean
 }
 export type FlagPlacement = Awaited<ReturnType<NonNullable<FlagPoint['placements']>>>[number]
 const slots = ['control', 'variantA', 'variantB', 'variantC'] as const
@@ -136,7 +137,7 @@ export function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { s
 export function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { slugs: ReadonlySet<string> }): Promise<Map<string, BlockPlacement[]>>
 export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { slug?: string; slugs?: ReadonlySet<string> }): Promise<BlockPlacement[] | Map<string, BlockPlacement[]>> {
   const { puckCollections } = args
-  const scanReq = localeRequest(req, { locale: req.locale === 'all' ? req.payload.config.localization ? req.payload.config.localization.defaultLocale : '' : req.locale ?? '', fallbackLocale: req.fallbackLocale ?? false })
+  const scanReq = localeRequest(req, { locale: req.payload.config.localization ? 'all' : req.locale ?? '', fallbackLocale: req.payload.config.localization ? false : req.fallbackLocale ?? false })
   const slugs = args.slugs ?? new Set([args.slug!])
   const placements = new Map([...slugs].map(slug => [slug, [] as BlockPlacement[]]))
   for (const { slug: collection, field } of normalisePuckCollections({ puck: { enabled: true, collections: puckCollections } })) {
@@ -150,18 +151,20 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
       while (true) {
         const result = await placementDocuments(scanReq, {
           collection, req, overrideAccess: false, limit: 100, page, depth: 0, draft, includeLockStatus: true,
+          ...(req.payload.config.localization ? { locale: 'all' as const, fallbackLocale: false as const } : {}),
           ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}),
         }, args.pageGuard)
-        for (const localized of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {
-          const doc = reader.read(localized, 'localized').doc as typeof localized
+        for (const localized of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) for (const view of reader.views) {
+          const doc = reader.read(localized, 'all-locales', view).doc as typeof localized
+          const documentKey = JSON.stringify([String(doc.id), view.locale])
           if (!draft && doc._status === 'draft') continue
-          if (draft && doc._status !== 'draft' && publishedIds.has(String(doc.id))) continue
+          if (draft && doc._status !== 'draft' && publishedIds.has(documentKey)) continue
           if (!draft) {
-            editors.set(String(doc.id), reader.read(doc, 'localized').editor)
-            publishedIds.add(String(doc.id))
-            if (typeof doc.slug === 'string') publishedSlugs.set(String(doc.id), doc.slug)
+            editors.set(documentKey, reader.read(doc, 'localized').editor)
+            publishedIds.add(documentKey)
+            if (typeof doc.slug === 'string') publishedSlugs.set(documentKey, doc.slug)
           }
-          const editor = editors.get(String(doc.id)) ?? reader.read(doc, 'localized').editor
+          const editor = editors.get(documentKey) ?? reader.read(doc, 'localized').editor
           if (editor !== 'puck') continue
           const offsets = new Map([...placements].map(([slug, list]) => [slug, list.length]))
           walkVisiblePuck(doc[field], (node, visibility) => {
@@ -169,9 +172,9 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
             const props = node.props
             const experiment = puckExperimentSlug(props.experiment)
             if (node.type === 'ExperimentSlot' && typeof experiment === 'string' && slugs.has(experiment)) {
-              placements.get(experiment)!.push({ collection, id: doc.id, editor: 'puck', doc, title: String(doc.title ?? doc.name ?? doc.id),
+              placements.get(experiment)!.push({ collection, id: doc.id, editor: 'puck', doc, ...(view.locale ? { locale: view.locale } : {}), title: String(doc.title ?? doc.name ?? doc.id),
                 published: !draft || doc._status === 'published',
-                ...(publishedSlugs.has(String(doc.id)) ? { slug: publishedSlugs.get(String(doc.id))! } : {}),
+                ...(publishedSlugs.has(documentKey) ? { slug: publishedSlugs.get(documentKey)! } : {}),
                 slots: Object.fromEntries(slots.map(slot => [slot, Array.isArray(props[slot]) ? props[slot].length : 0])) as Record<ArmSlot, number>,
                 ...(hasLocalizedFields(req.payload.config.collections?.find(config => config.slug === collection)?.fields ?? [], req.payload.config) ? { localized: true } : {}),
                 locked: doc._isLocked === true || doc.locked === true,
@@ -179,7 +182,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
             }
           })
           if (args.compareVersions && !draft && [...placements].some(([slug, list]) => list.length > offsets.get(slug)!)) {
-            const raw = reader.read(await comparisonContent(req, collection, doc.id), 'all-locales').doc
+            const raw = reader.read(await comparisonContent(req, collection, doc.id), 'all-locales', view).doc
             const rawSlots = new Map<string, Array<Record<string, unknown>>>()
             const collect = (value: unknown): void => walkVisiblePuck(value, (node, visibility) => {
               if (visibility.hidden) return
@@ -210,21 +213,23 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
       let page = 1
       while (true) {
         const result = await placementDocuments(scanReq, { collection, req, overrideAccess: false, depth: 0, limit: 100, page, draft, includeLockStatus: true,
+          ...(req.payload.config.localization ? { locale: 'all' as const, fallbackLocale: false as const } : {}),
           ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}) }, args.pageGuard)
-        for (const localized of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {
-          const doc = reader.read(localized, 'localized').doc as typeof localized
+        for (const localized of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) for (const view of reader.views) {
+          const doc = reader.read(localized, 'all-locales', view).doc as typeof localized
+          const documentKey = JSON.stringify([String(doc.id), view.locale])
           if (!draft && doc._status === 'draft') continue
-          if (!draft) published.set(String(doc.id), doc)
-          else if (doc._status !== 'draft' && published.has(String(doc.id))) continue
-          const baseline = published.get(String(doc.id)) ?? doc
+          if (!draft) published.set(documentKey, doc)
+          else if (doc._status !== 'draft' && published.has(documentKey)) continue
+          const baseline = published.get(documentKey) ?? doc
           if (reader.read(baseline, 'localized').editor !== 'blocks') continue
-          const raw = args.compareVersions && !draft && hostBlocks(doc[field]).some(block => block.blockType === (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) && typeof block.experiment === 'string' && slugs.has(block.experiment)) ? reader.read(await comparisonContent(req, collection, doc.id), 'all-locales').doc : undefined
+          const raw = args.compareVersions && !draft && hostBlocks(doc[field]).some(block => block.blockType === (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) && typeof block.experiment === 'string' && slugs.has(block.experiment)) ? reader.read(await comparisonContent(req, collection, doc.id), 'all-locales', view).doc : undefined
           for (const [index, block] of hostBlocks(doc[field]).entries()) {
             if (block.blockType !== (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) || typeof block.experiment !== 'string' || !slugs.has(block.experiment)) continue
             const stored = raw ? hostBlocks(raw[field]).find(row => row.id === block.id) ?? hostBlocks(raw[field])[index] ?? block : block
             const rows = Array.isArray(stored.slots) ? stored.slots : []
             const keys = rows.map(row => row?.slot)
-            placements.get(block.experiment)!.push({ collection, id: doc.id, editor: 'blocks', doc, title: String(doc.title ?? doc.name ?? doc.id),
+            placements.get(block.experiment)!.push({ collection, id: doc.id, editor: 'blocks', doc, ...(view.locale ? { locale: view.locale } : {}), title: String(doc.title ?? doc.name ?? doc.id),
               published: !draft || doc._status === 'published', ...(typeof baseline.slug === 'string' ? { slug: baseline.slug } : {}),
               slots: Object.fromEntries(BLOCK_SLOTS.map(slot => [slot, slotBlocks(block, slot).length])) as Record<ArmSlot, number>,
               duplicateRows: new Set(keys).size !== keys.length,
@@ -237,6 +242,17 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
         if (!result.hasNextPage) break
         page++
       }
+    }
+  }
+  for (const list of placements.values()) {
+    const groups = new Map<string, BlockPlacement[]>()
+    for (const placement of list) if (placement.locale) {
+      const key = JSON.stringify([placement.collection, String(placement.id)])
+      const group = groups.get(key) ?? []; group.push(placement); groups.set(key, group)
+    }
+    for (const group of groups.values()) {
+      const languages = placementLanguages(req, group.map(placement => placement.locale!))
+      for (const placement of group) Object.assign(placement, languages)
     }
   }
   return args.slugs ? placements : placements.get(args.slug!)!

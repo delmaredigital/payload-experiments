@@ -29,12 +29,13 @@ function fixture() {
 }
 test('scan reads published then latest drafts, applies editor rule and ignores nested wrappers', async () => {
   const f = fixture()
+  f.req.transactionID = 'scan-transaction'
   const result = await scanBlockPlacments(f)
   expect(result.map(p => [p.id, p.published])).toEqual([[1, true], [3, false]])
   expect(result[0]?.identicalSlots).toEqual(['variantA'])
   for (const call of f.payload.calls) {
     expect(call.args.overrideAccess).toBe(false)
-    expect(call.args.req).toMatchObject({ payload: f.payload, context: f.req.context, headers: f.req.headers, url: f.req.url })
+    expect(call.args.req).toMatchObject({ payload: f.payload, context: f.req.context, headers: f.req.headers, url: f.req.url, transactionID: f.req.transactionID, user: f.req.user })
   }
   expect(f.payload.calls.map(c => c.args.draft)).toEqual([false, true, false, true])
 })

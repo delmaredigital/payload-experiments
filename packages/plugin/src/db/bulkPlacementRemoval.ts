@@ -1,5 +1,5 @@
 import type { PayloadRequest, Where } from 'payload'
-import { placementLocaleContent, removedPlacementViews, placementDocumentKey, type PlacementLocaleView } from '../blocks/placementLocale.js'
+import { placementLocaleContent, mergedPlacementLocales, removedPlacementViews, placementDocumentKey, type PlacementLocaleView } from '../blocks/placementLocale.js'
 import type { DocId } from '../types/contracts.js'
 
 export interface BulkPlacementRemoval {
@@ -93,7 +93,11 @@ export function bulkRemoves(bulk: BulkPlacementRemoval | undefined, req: Payload
   doc: Record<string, unknown> & { id: DocId }, slug: string, view: PlacementLocaleView): boolean {
   const change = bulk?.change
   if (!change || change.draft || change.collection !== collection || !bulk!.documents.has(JSON.stringify([collection, String(doc.id)]))) return false
-  const after = { ...placementLocaleContent(req, collection, doc, 'all-locales'), ...change.data }
-  const views = removedPlacementViews(req, collection, doc, after, change.deleting || after.deletedAt != null || after._status === 'draft')
+  // locale=all data and the adapter row share the same all-language shape.
+  // A single-locale write instead merges its flattened values once.
+  const input = req.locale === 'all' ? 'all-locales' : 'localized'
+  const pending = { ...(input === 'all-locales' ? doc : placementLocaleContent(req, collection, doc, 'all-locales')), ...change.data }
+  const after = input === 'all-locales' ? pending : mergedPlacementLocales(req, collection, doc, pending)
+  const views = removedPlacementViews(req, collection, doc, after, change.deleting || after.deletedAt != null || after._status === 'draft', 'all-locales')
   return (views.get(slug) ?? []).some(removed => placementDocumentKey(collection, doc.id, removed) === placementDocumentKey(collection, doc.id, view))
 }

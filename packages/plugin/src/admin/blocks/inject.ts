@@ -7,6 +7,7 @@ export function injectTestBlock(fields: Field[], registration: { field: string; 
   const found = findRegisteredBlocksField(fields, registration.field)
   if (!found) return fields
   const ui: Field = { name: 'xpTestBlock', type: 'ui', admin: {
+    // Payload supplies the active locale's form data here; there is no raw adapter row.
     condition: data => { try { return registration.appliesTo ? registration.appliesTo(data) === true : true } catch { return false } },
     components: { Field: { path: XP_TEST_BLOCK, clientProps: { blocksField: registration.field, blockSlug: registration.blockSlug } } },
   } }

@@ -1,3 +1,4 @@
+import { placementReader } from '../blocks/placementLocale.js'
 import { safeError } from '../log.js'
 import { isDeepStrictEqual } from 'node:util'
 import type { PayloadRequest } from 'payload'
@@ -20,7 +21,8 @@ export async function identicalPageVersions(req: PayloadRequest, collection: Exp
       if (!page?.published) return null
       const raw = await pageVersionContent(req, collection.slug, page.id)
       if (!raw || raw._status === 'draft') return null
-      return { arm, id: page.id, value: comparableContent(collection.contentOf!(raw)) }
+      const reader = placementReader(req, collection.slug)
+      return { arm, id: page.id, value: reader.documentViews.map(view => comparableContent(collection.contentOf!(reader.read(raw, 'all-locales', view).doc!))) }
     } catch (cause) {
       req.payload.logger.error({ err: safeError(cause), collection: collection.slug, id: arm.pageTarget }, 'Experiment version comparison failed')
       return null

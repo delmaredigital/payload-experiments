@@ -118,7 +118,6 @@ test.each(['other', 'impact', 'start'] as const)('%s scan isolates locale mutati
     expect(scanReq?.url).toBe(req.url)
     expect(scanReq?.transactionID).toBe('outer-tx')
     const result = await find(args)
-    if (mode === 'start') result.docs = result.docs.map(doc => ({ ...doc, editor: 'puck', puckData: { content: [slot('hero')] } }))
     return result
   })
   if (mode === 'other') expect(await hasOtherPublishedBlockPlacement(req, options, 'hero', () => false)).toBe(true)
@@ -131,15 +130,15 @@ test.each(['other', 'impact', 'start'] as const)('%s scan isolates locale mutati
   if (mode === 'other') await expect(hasOtherPublishedBlockPlacement(req, options, 'hero', () => false)).resolves.toBe(true)
 })
 
-test('single-language Start reads normalize locale all to the default instead of trusting raw locale maps', async () => {
+test('localized Start reads every locale when the incoming request says all', async () => {
   const options = sampleOptions(); options.puck = { enabled: true, collections: ['pages'] }
   options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: doc => { expect(doc.editor).toBe('puck'); return false } }] }
   const payload = fakePayload({ config: { custom: { xp: options }, localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] },
-    collections: [{ slug: 'pages', fields: [{ name: 'editor', type: 'text', localized: true }] }] }, overrides: { find: vi.fn(async args => {
-      expect(args.req?.locale).toBe('en')
-      return { docs: [{ id: 1, editor: 'puck', puckData: { content: [slot('hero')] } }], hasNextPage: false }
+    collections: [{ slug: 'pages', fields: [{ name: 'editor', type: 'text', localized: true }, { name: 'puckData', type: 'json', localized: true }] }] }, overrides: { find: vi.fn(async args => {
+      expect(args.req?.locale).toBe('all')
+      return { docs: [{ id: 1, editor: { en: 'puck', fr: 'puck' }, puckData: { en: { content: [] }, fr: { content: [slot('hero')] } } }], hasNextPage: false }
     }) } })
   const req = fakeReq({ payload }); req.locale = 'all'
-  expect(await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: options.blocks.collections })).toHaveLength(1)
+  expect(await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: options.blocks.collections })).toMatchObject([{ locale: 'fr', published: true }])
   expect(req.locale).toBe('all')
 })

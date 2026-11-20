@@ -8,7 +8,7 @@ import { XpNoTransactionError, XpRefusal } from '../errors.js'
 import { lastBlockPlacementCopy, hiddenBlockPlacementCopy, pendingBlockRemovalCopy, bulkBlockRemovalCopy } from '../testSurface/copy/readiness.js'
 import { hasOtherPublishedBlockPlacement } from '../transitions/placements.js'
 import { bulkRemoves, type BulkPlacementRemoval } from '../db/bulkPlacementRemoval.js'
-import { placementReader, removedPlacementViews, placementDocumentKey, mergedPlacementLocales, type RemovedPlacementViews, type PlacementLocaleView } from '../blocks/placementLocale.js'
+import { placementReader, removedPlacementViews, placementDocumentKey, mergedPlacementLocales, type RemovedPlacementViews, type PlacementLocaleView, type PlacementInput } from '../blocks/placementLocale.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 
 // Mutable state survives createLocalReq's shallow context copy. Claims are scoped
@@ -61,13 +61,13 @@ export function releaseRestoredRemovalClaims(req: PayloadRequest, collection: st
 // Separate removal-rule entry points let tests observe its IO independently
 // of the earlier page-path and publish guards.
 export const blockRemovalRule = {
-  async prepare(req: PayloadRequest, collection: string, before: Record<string, unknown> | undefined, after: Record<string, unknown>, removingPage: boolean, exec?: Executor, tests?: readonly PlacementTest[]) {
-    const views = removedPlacementViews(req, collection, before, after, removingPage)
+  async prepare(req: PayloadRequest, collection: string, before: Record<string, unknown> | undefined, after: Record<string, unknown>, removingPage: boolean, exec?: Executor, tests?: readonly PlacementTest[], input: PlacementInput = 'localized') {
+    const views = removedPlacementViews(req, collection, before, after, removingPage, input)
     const affected = views.size ? await blockRemovalRule.discover(exec!, [...views.keys()], tests) : []
     const hidden = new Set<string>()
     const options = req.payload.config.custom!.xp as ResolvedOptions
     const registration = puckCollections(options).find(entry => entry.slug === collection)
-    const rawAfter = mergedPlacementLocales(req, collection, before, after)
+    const rawAfter = input === 'all-locales' ? after : mergedPlacementLocales(req, collection, before, after)
     const reader = placementReader(req, collection)
     if (views.size && !removingPage && registration) {
       for (const view of reader.views) {

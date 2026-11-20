@@ -1,3 +1,4 @@
+import { placementLocaleContent } from '../../src/blocks/placementLocale.js'
 import { readFileSync } from 'node:fs'
 import { commitTransaction, initTransaction, isolateObjectProperty, killTransaction } from 'payload'
 import type { CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook } from 'payload'
@@ -50,7 +51,7 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
   }
   const published = { id: 1, slug: path.slice(1), ...(drafts ? { _status: 'published' } : {}) }
   const read = vi.fn(async (args?: unknown) => { trace.push({ read: (args as { where: unknown }).where }); return published })
-  Object.assign(payload.db, { findOne: read })
+  Object.assign(payload.db, { findOne: read, findVersions: vi.fn(async () => ({ docs: [] })) })
   const req = fakeReq({ payload })
   const collection = { trash: true, slug: 'pages', versions: drafts ? { drafts: {} } : false }
   const remove = () => pageGuardBeforeDelete({ req, collection, id: 1 } as Parameters<CollectionBeforeDeleteHook>[0])
@@ -60,7 +61,7 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
     return pageGuardBeforeOperation({ args, operation } as Parameters<CollectionBeforeOperationHook>[0])
   }
   const end = async (operation: 'update' | 'updateByID' | 'restoreVersion' = 'updateByID') => pageGuardAfterOperation({ req, collection, operation, result: {} } as Parameters<CollectionAfterOperationHook>[0])
-  const change = (data: Record<string, unknown>, originalDoc: Record<string, unknown> = published) => pageGuardBeforeChange({ req, collection, originalDoc, operation: 'update', data } as unknown as Parameters<CollectionBeforeChangeHook>[0])
+  const change = (data: Record<string, unknown>, originalDoc: Record<string, unknown> = placementLocaleContent(req, collection.slug, published, 'all-locales')!) => pageGuardBeforeChange({ req, collection, originalDoc, operation: 'update', data } as unknown as Parameters<CollectionBeforeChangeHook>[0])
   const save = async (data: Record<string, unknown>, draft = false) => {
     await begin(draft)
     try { return await change(data) } finally { await end() }
@@ -1186,4 +1187,43 @@ test.each(['remove-block', 'unpublish', 'trash', 'delete'] as const)('an aborted
   expect(f.req.signal).toBe(controller.signal)
   f.payload.documents.pages!.pop()
   await expect(work()).rejects.toMatchObject({ code: 'locked-placement' })
+})
+
+
+test.each(['rename', 'unpublish', 'delete'] as const)('localized page paths protect the non-default language on %s and use real sorted lock keys', async action => {
+  const f = setup()
+  f.payload.config.collections = [{ ...f.collection, fields: [{ name: 'slug', type: 'text', localized: true }] }] as never
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] } })
+  Object.assign(f.published, { slug: { en: 'unrelated', fr: 'original' } })
+  Object.assign(f.payload.db, { findVersions: vi.fn(async () => ({ docs: [] })) })
+  f.req.locale = 'fr'; f.req.fallbackLocale = false
+  f.req.transactionID = f.executor.withSession({ payload: f.payload }).transactionID
+  const work = action === 'delete' ? f.remove() : f.save(action === 'rename' ? { slug: 'renamed', _status: 'published' } : { _status: 'draft' }, false)
+  await expect(work).rejects.toMatchObject({ code: 'locked-placement' })
+  const paths = f.executor.calls.filter(call => call.text.includes("hashtext('xp:pagepath')")).flatMap(call => call.params)
+  expect(paths).toEqual(action === 'rename' ? ['/original', '/renamed', '/unrelated'] : ['/original', '/unrelated'])
+})
+
+test.each(['puck', 'blocks'] as const)('first French %s publish locks the English placement stored only in the draft', async editor => {
+  const f = blockSetup('running', true, editor)
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] } })
+  f.payload.config.collections[0]!.fields = [{ name: f.field, type: 'json', localized: true }]
+  Object.assign(f.published, { _status: 'draft', [f.field]: { en: f.content([f.block]), fr: f.content([]) } })
+  Object.assign(f.payload.db, { findVersions: vi.fn(async () => ({ docs: [] })) })
+  f.req.locale = 'fr'; f.req.fallbackLocale = false
+  await f.save({ ...f.empty, _status: 'published' }, false)
+  expect(experimentLocks(f).map(call => call.params)).toContainEqual(['2'])
+})
+
+
+test('a first localized publish uses other-language content from the latest draft version', async () => {
+  const f = blockSetup()
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] } })
+  f.payload.config.collections[0]!.fields = [{ name: f.field, type: 'json', localized: true }]
+  Object.assign(f.published, { _status: 'draft', [f.field]: { en: f.content([]), fr: f.content([]) } })
+  Object.assign(f.payload.db, { findVersions: vi.fn(async ({ where }) => ({ docs: JSON.stringify(where).includes('latest')
+    ? [{ version: { ...f.published, [f.field]: { en: f.content([f.block]), fr: f.content([]) } } }] : [] })) })
+  f.req.locale = 'fr'; f.req.fallbackLocale = false
+  await f.save({ ...f.empty, _status: 'published' }, false)
+  expect(experimentLocks(f).map(call => call.params)).toContainEqual(['2'])
 })

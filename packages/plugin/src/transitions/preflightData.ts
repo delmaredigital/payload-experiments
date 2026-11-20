@@ -1,3 +1,5 @@
+import { placementReader } from '../blocks/placementLocale.js'
+import { placementLanguages } from '../blocks/placementLanguages.js'
 import { goalContent, OUTSIDE_GOAL } from '../goals/fairness.js'
 import { placementInteractions, placementPaths, uniquePlacementDocs } from './placementInteractions.js'
 import { Forbidden, NotFound, type PayloadRequest } from 'payload'
@@ -186,7 +188,7 @@ async function placementUrls<TUser extends { id: DocId }>(options: ResolvedOptio
   const result: Pick<PreflightResult['placements'][number], 'url' | 'editorUrl'> = {}
   const { collection, id, published } = placement
   // One host lookup per page version: several slots on a page share it.
-  const key = JSON.stringify([collection, String(id), published])
+  const key = JSON.stringify([collection, String(id), published, ...(placement.locale ? [placement.locale] : [])])
   let preview = previews.get(key)
   if (!preview) previews.set(key, preview = previewLookup(options, placement, pendingPreviews, onFailure))
   const url = await preview
@@ -298,7 +300,7 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
   }
   const requiredSlots = e.arms.filter(arm => arm.kind !== 'holdout').map(arm => arm.slot)
   const blocks = input.placements ?? []
-  const placements: PreflightResult['placements'] = new Array(blocks.length)
+  let placements: PreflightResult['placements'] = new Array(blocks.length)
   let nextPlacement = 0
   const pendingPreviews = { count: 0 }
   const previews = new Map<string, Promise<string | undefined>>()
@@ -320,6 +322,25 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
       }
     }
   }))
+  if (blocks.some(placement => placement.locale)) {
+    const groups = new Map<string, number[]>()
+    blocks.forEach((placement, index) => {
+      const key = JSON.stringify([placement.collection, String(placement.id)])
+      const group = groups.get(key) ?? []; group.push(index); groups.set(key, group)
+    })
+    placements = [...groups.values()].map(indices => {
+      const rows = indices.map(index => placements[index]!)
+      const codes = indices.flatMap(index => blocks[index]!.locale ? [blocks[index]!.locale!] : [])
+      const first = rows[0]!
+      const counts = new Map<string, number>()
+      for (const index of indices) {
+        const key = JSON.stringify([blocks[index]!.locale, blocks[index]!.published])
+        counts.set(key, (counts.get(key) ?? 0) + 1)
+      }
+      return { ...first, ...placementLanguages(req, codes), slotCount: Math.max(...counts.values()),
+        ok: rows.every(row => row.ok), slots: Object.fromEntries(Object.keys(first.slots!).map(slot => [slot, Math.min(...rows.map(row => row.slots![slot as keyof typeof row.slots]))])) as typeof first.slots }
+    })
+  }
   for (const placement of input.flagPlacements ?? []) placements.push({ collection: e.flagPoint ?? '', id: placement.arm, title: placement.arm, ok: placement.ok, ...(placement.detail ? { detail: placement.detail } : {}) })
   const pagePlacements: NonNullable<PreflightResult['pagePlacements']> = []
   if (e.kind === 'page') {
@@ -337,6 +358,7 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
         pagePlacements.push({ arm: arm.key, path, collection: collection.slug, published: false, id: null })
         continue
       }
+      doc = placementReader(req, collection.slug, options).read(doc, req.locale === 'all' ? 'all-locales' : 'localized').doc!
       const titleField = req.payload.config.collections?.find(entry => entry.slug === collection.slug)?.admin.useAsTitle ?? 'title'
       const placement: BlockPlacement = { collection: collection.slug, id: page.id, title: String(doc[titleField] ?? doc.id), published: page.published,
         ...(page.published && typeof doc.slug === 'string' ? { slug: doc.slug } : {}), slots: { control: 0, variantA: 0, variantB: 0, variantC: 0 }, editor: 'page', doc }

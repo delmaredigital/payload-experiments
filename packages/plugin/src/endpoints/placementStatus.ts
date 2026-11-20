@@ -1,3 +1,4 @@
+import { placementReader } from '../blocks/placementLocale.js'
 import { readBody } from './readBody.js'
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, ExperimentKind, Status } from '../types/contracts.js'
@@ -65,7 +66,8 @@ export async function handlePlacementStatus<TUser extends { id: DocId }>(req: Pa
     await req.payload.findByID({ collection, id, req, overrideAccess: false, depth: 0, draft: false })
     const registration = options.pages?.collections.find(entry => entry.slug === collection)
     const raw = registration ? await statusPageContent(req, collection, id) : null
-    const rawPath = raw && registration ? registration.pathOf(raw) : null
+    const doc = placementReader(req, collection, options).read(raw, 'all-locales').doc
+    const rawPath = doc && registration ? registration.pathOf(doc) : null
     const path = rawPath
     const pathKey = path === null ? null : normalisePath(path)
     const status: PlacementStatusResult['docs'][string] = { path, tests: [] }

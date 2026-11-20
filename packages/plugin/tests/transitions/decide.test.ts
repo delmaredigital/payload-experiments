@@ -286,3 +286,22 @@ test.each([
   expect(f.executor.calls.some(call => /\b(UPDATE|INSERT|DELETE)\b/.test(call.text))).toBe(false)
   expect(f.payload.dbCalls.some(call => call.method === 'rollbackTransaction')).toBe(true)
 }, 5_000) // Measured max 4.149 ms locally; cap exceeds 3×.
+
+
+test('Decide rescan accepts a placement that exists only in French from a default-language request', async () => {
+  const f = fixture('stopped', false)
+  f.experiment.kind = 'block'; f.phase.placementDocs = [{ collection: 'pages', id: 10 }]
+  const options = f.payload.config.custom!.xp as ReturnType<typeof sampleOptions>
+  options.puck = { enabled: true, collections: ['pages'] }
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] },
+    collections: [{ slug: 'pages', fields: [{ name: 'puckData', type: 'json', localized: true }], versions: { drafts: true } }] })
+  f.payload.documents.pages = [{ id: 10, _status: 'published', puckData: { en: { content: [] }, fr: { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{}], variantA: [{}] } }] } } }]
+  const find = vi.mocked(f.payload.find).getMockImplementation()!
+  vi.spyOn(f.payload, 'find').mockImplementation(async args => {
+    const result = await find(args)
+    if (args.collection === 'pages' && (args.req as import('payload').PayloadRequest | undefined)?.locale !== 'all' && f.payload.config.localization) result.docs = result.docs.map(doc => ({ ...doc, puckData: (doc.puckData as Record<string, unknown>)[(args.req as import('payload').PayloadRequest | undefined)?.locale || 'en'] }))
+    return result
+  })
+  f.req.locale = 'en'; f.req.fallbackLocale = false
+  await expect(decide(f.req, { experimentId: 1, winnerArm: 'variantA' })).resolves.toMatchObject({ doc: { status: 'decided' } })
+})

@@ -1,3 +1,4 @@
+import { placementReader } from '../blocks/placementLocale.js'
 import type { PayloadRequest } from 'payload'
 import { normalisePath } from '../runtime/normalisePath.js'
 import type { EndpointContext, PagesResult } from '../types/endpoints.js'
@@ -7,6 +8,7 @@ export async function handlePages<TUser extends { id: string | number }>(req: Pa
   const query = new URL(req.url ?? 'http://xp.invalid').searchParams
   const collection = options.pages?.collections.find(entry => entry.slug === query.get('collection'))
   if (!collection) throw new XpRefusal('unknown-collection', "That page type isn't set up for tests.", undefined, 422)
+  const reader = placementReader(req, collection.slug, options)
   const path = query.get('path')
   if (path !== null && (!path.length || path.length > 2048 || query.has('q'))) throw new XpRefusal('invalid-body', 'Enter a valid request body.', undefined, 422)
   const page = Number(query.get('page') ?? 1)
@@ -21,8 +23,9 @@ export async function handlePages<TUser extends { id: string | number }>(req: Pa
     const main = await req.payload.findByID({ collection: collection.slug, id: found.id, req, overrideAccess: false, depth: 0, draft: false, disableErrors: true })
     if (!main) return Response.json({ docs: [], hasNextPage: false } satisfies PagesResult, { headers: { 'Cache-Control': 'no-store' } })
     const published = !drafts || main._status === 'published'
-    const doc = published ? main : await req.payload.findByID({ collection: collection.slug, id: main.id, req, overrideAccess: false, depth: 0, draft: true, disableErrors: true })
-    if (!doc) return Response.json({ docs: [], hasNextPage: false } satisfies PagesResult, { headers: { 'Cache-Control': 'no-store' } })
+    const row = published ? main : await req.payload.findByID({ collection: collection.slug, id: main.id, req, overrideAccess: false, depth: 0, draft: true, disableErrors: true })
+    if (!row) return Response.json({ docs: [], hasNextPage: false } satisfies PagesResult, { headers: { 'Cache-Control': 'no-store' } })
+    const doc = reader.read(row, req.locale === 'all' ? 'all-locales' : 'localized').doc!
     const rawPath = collection.pathOf(doc)
     return Response.json({ docs: [{ id: main.id, title: titleField !== 'id' && typeof doc[titleField] === 'string' && String(doc[titleField]).trim() ? String(doc[titleField]) : '', path: rawPath, pathKey: rawPath === null ? null : normalisePath(rawPath), published }], hasNextPage: false } satisfies PagesResult, { headers: { 'Cache-Control': 'no-store' } })
   }
@@ -30,7 +33,8 @@ export async function handlePages<TUser extends { id: string | number }>(req: Pa
     sort: '-createdAt', limit: 20, page, where: q && titleField !== 'id' ? { [titleField]: { like: q } } : undefined })
   const docs = await Promise.all(result.docs.map(async main => {
     const published = !drafts || main._status === 'published'
-    const doc = published ? main : await req.payload.findByID({ collection: collection.slug, id: main.id, req, overrideAccess: false, depth: 0, draft: true })
+    const row = published ? main : await req.payload.findByID({ collection: collection.slug, id: main.id, req, overrideAccess: false, depth: 0, draft: true })
+    const doc = reader.read(row, req.locale === 'all' ? 'all-locales' : 'localized').doc!
     const path = collection.pathOf(doc)
     return { id: main.id, title: String(doc[titleField] ?? main.id), path, pathKey: path === null ? null : normalisePath(path), published }
   }))

@@ -18,7 +18,7 @@ export function placementPages(placements: readonly Placement[], flagPoint?: str
       if (!page.url && placement.url) page.url = placement.url
     } else {
       pages.set(key, {
-        page: { ...placement, key, slotCount: 1 },
+        page: { ...placement, key, slotCount: placement.slotCount ?? 1 },
         versions: new Map([[placement.detail, 1]]),
       })
     }

@@ -1,3 +1,5 @@
+import { placementDocumentPaths } from '../blocks/placementLocale.js'
+import { sortLockKeys } from '../db/locks.js'
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, ResolvedOptions } from '../types/contracts.js'
 import type { Executor } from '../db/executor.js'
@@ -27,10 +29,9 @@ export async function placementPaths<TUser extends { id: DocId }>(req: PayloadRe
     if (!registration) continue
     const row = await placementPathContent(req, doc.collection, doc.id)
     if (!row || row._status === 'draft') continue
-    const path = registration.pathOf(row)
-    if (path !== null) paths.add(normalisePath(path))
+    for (const path of placementDocumentPaths(req, doc.collection, [row], 'all-locales', doc => registration.pathOf(doc))) paths.add(normalisePath(path))
   }
-  return [...paths].sort()
+  return sortLockKeys([...paths])
 }
 export interface InteractionDetail { experimentId: DocId; slug: string; name: string; status: string; path: string; version: boolean }
 const active = (test: PlacementTest) => test.status === 'running' || test.status === 'decided'

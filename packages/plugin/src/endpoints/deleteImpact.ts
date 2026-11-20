@@ -1,4 +1,4 @@
-import { getTranslation } from '@payloadcms/translations'
+import { placementLanguages } from '../blocks/placementLanguages.js'
 import { localeRequest, placementReader } from '../blocks/placementLocale.js'
 import { Forbidden, sanitizeFallbackLocale, type PayloadRequest } from 'payload'
 import { XpRefusal } from '../errors.js'
@@ -86,18 +86,13 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
       let path: string | null = null
       try {
         const value = registration?.pathOf(doc)
-        if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !/[\s\x00-\x1f\x7f\\]/.test(value) && !value.split(/[/?#]/).some(segment => {
+        if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !/[\s\x00-\x1f\x7f\\]/.test(value) && !/[\x00-\x1f\x7f\\]/.test(decodeURIComponent(value)) && !value.split(/[/?#]/).some(segment => {
           const decoded = decodeURIComponent(segment)
           return /^(undefined|null|\[object Object\]|\.\.?)$/i.test(decoded)
         })) path = value
       } catch { /* An optional public path cannot fail the impact check. */ }
       const titleField = req.payload.config.collections?.find(entry => entry.slug === collection)?.admin?.useAsTitle
-      const codes = [...new Set(places.flatMap(place => place.locale ? [place.locale] : []))]
-      const allLocales = Boolean(localization && codes.length === localization.localeCodes.length)
-      const locales = allLocales ? [] : codes.map(code => {
-        const label = localization && localization.locales.find(entry => entry.code === code)?.label
-        return label ? getTranslation(label, req.i18n ?? { language: 'en', fallbackLanguage: 'en' } as PayloadRequest['i18n']) || code : code
-      })
+      const languages = placementLanguages(req, places.flatMap(place => place.locale ? [place.locale] : []))
       const title = (titleField ? doc[titleField] : undefined) ?? doc.title ?? doc.name
       const version = (slot: ArmSlot, arm: { key: string; label: string }) => {
         const values = new Map(places.map(place => place.slots[slot] ? [arm.key, arm.label] : ['empty', 'Nothing']))
@@ -106,7 +101,7 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
       // Page access controls metadata disclosure; a hidden layout field does not hide a readable page's visitor effect.
       affected.push({ collection, id: doc.id,
         title: typeof title === 'string' && title.trim() ? title : typeof title === 'number' && Number.isFinite(title) ? String(title) : title instanceof Date && Number.isFinite(title.getTime()) ? title.toISOString() : String(doc.id), path,
-        ...(allLocales ? { allLocales: true } : locales.length ? { locales } : {}), before: version(winnerSlot, winner), after: version('control', control) })
+        ...languages, before: version(winnerSlot, winner), after: version('control', control) })
     }
   }
   return reply(changedPages.size ? { effect: 'block', controlLabel: control.label, pageCount: changedPages.size,

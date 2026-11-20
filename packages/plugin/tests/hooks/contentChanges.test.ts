@@ -526,3 +526,27 @@ test('localized arm-select content outside registered editors still records non-
   await recordContentChange(args)
   expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(1)
 })
+
+test('page audit adapters receive locale views and bind a changed non-default path', async () => {
+  const { args, executor, payload } = setup({ bound: false })
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] },
+    collections: [{ slug: 'pages', fields: [{ name: 'slug', type: 'text', localized: true }, { name: 'content', type: 'text', localized: true }] }] })
+  const options = payload.config.custom!.xp as ReturnType<typeof sampleOptions>
+  const contentOf = vi.fn((doc: Record<string, unknown>) => { expect(typeof doc.content).toBe('string'); return doc.content })
+  const pathOf = vi.fn((doc: Record<string, unknown>) => { expect(typeof doc.slug).toBe('string'); return `/${doc.slug}` })
+  options.pages = { collections: [{ slug: 'pages', contentOf, pathOf, findByPath: async () => null }] }
+  const previous = { id: 1, _status: 'published', slug: { en: 'english', fr: 'francais' }, content: { en: 'Same', fr: 'Old' } }
+  const current = { ...previous, content: { en: 'Same', fr: 'New' } }
+  args.doc._status = 'published'
+  await publishedBaseline(args, previous)
+  vi.mocked(payload.db.findOne).mockResolvedValue(current as never)
+  const query = vi.mocked(executor.query).getMockImplementation()! as typeof executor.query
+  vi.mocked(executor.query).mockImplementation(async <R>(text: string, params?: unknown[]) => {
+    if (text.includes(' AS arms')) return { rows: [{ id: 'exp', arms: [{ pageTarget: '/francais' }] }] as R[], rowCount: 1 }
+    return query<R>(text, params)
+  })
+  await recordContentChange(args)
+  expect(contentOf.mock.calls.map(([doc]) => doc.content)).toEqual(['Same', 'Same', 'Old', 'New'])
+  expect(pathOf.mock.calls.map(([doc]) => doc.slug)).toEqual(['francais', 'francais'])
+  expect(executor.calls.filter(call => call.text.startsWith('UPDATE'))).toHaveLength(1)
+})

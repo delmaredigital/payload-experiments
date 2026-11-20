@@ -1,6 +1,7 @@
+import { hasLocalizedFields } from '../transitions/contentFields.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { CollectionAfterChangeHook, CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook, PayloadRequest } from 'payload'
-import { previousPublishedContent, storedContent } from '../db/appends.js'
+import { previousPublishedContent, storedContent, placementWriteContent } from '../db/appends.js'
 import { lockPlacementScope, sortLockKeys } from '../db/locks.js'
 import { txExecutor, pooledExecutor } from '../db/executor.js'
 import { normalisePath } from '../runtime/normalisePath.js'
@@ -8,7 +9,7 @@ import { XpNoTransactionError, XpRefusal } from '../errors.js'
 import { placementGuardCopy, pageGuardCopy, READINESS_COPY } from '../testSurface/copy/readiness.js'
 import type { DocId, ResolvedOptions } from '../types/contracts.js'
 
-import { allPlacementSlugs, mergedPlacementLocales } from '../blocks/placementLocale.js'
+import { allPlacementSlugs, mergedPlacementLocales, placementDocumentPaths } from '../blocks/placementLocale.js'
 import { isObject } from '../blocks/model.js'
 import { placementTests, removableBlockTests, appendPlacementDoc, type PlacementTest } from '../db/placements.js'
 import { isPageBusy } from '../db/pageBusy.js'
@@ -17,7 +18,7 @@ import { bulkPlacementRequest, placementOperationRequest, usesBulkDocumentTransa
 
 // beforeChange has no draft argument. Each operation owns a frame, including
 // nested same-collection updates and restores on a reused Local API request.
-type OperationFrame = { collection: string; request?: PayloadRequest; draft: boolean; restore: boolean; pending?: boolean; scoped?: boolean; complete?: boolean; detached?: boolean; parent?: OperationFrame; bulk?: BulkPlacementRemoval }
+type OperationFrame = { collection: string; request?: PayloadRequest; draft: boolean; restore: boolean; versionId?: DocId; pending?: boolean; scoped?: boolean; complete?: boolean; detached?: boolean; parent?: OperationFrame; bulk?: BulkPlacementRemoval }
 type Operations = Map<string, OperationFrame[]>
 const operationIdentity = Symbol('xpPlacementOperation')
 // Execution-local identity survives both concurrent bulk siblings and Payload's
@@ -65,7 +66,7 @@ export const pageGuardBeforeOperation: CollectionBeforeOperationHook = ({ args, 
   const req = args.req as PayloadRequest
   req.context.xpPlacementRemovals ??= { transaction: undefined, tests: new Map() }
   if (operation !== 'create' && operation !== 'update' && operation !== 'restoreVersion' && operation !== 'delete') return
-  const call = args as { req: PayloadRequest; draft?: boolean; where?: import('payload').Where; data?: Record<string, unknown>; collection: { config: { slug: string; hooks?: { beforeOperation?: CollectionBeforeOperationHook[] } } } }
+  const call = args as { id?: DocId; req: PayloadRequest; draft?: boolean; where?: import('payload').Where; data?: Record<string, unknown>; collection: { config: { slug: string; hooks?: { beforeOperation?: CollectionBeforeOperationHook[] } } } }
   let collections = operations(call.req)
   if (!collections) call.req.context.xpPageGuardOperations = collections = new Map()
   const slug = call.collection.config.slug
@@ -74,7 +75,7 @@ export const pageGuardBeforeOperation: CollectionBeforeOperationHook = ({ args, 
   const frame: OperationFrame = entryIsFirst(call.collection.config) && entered?.pending && entered.collection === slug ? entered : { collection: slug, request: req, draft: false, restore: false }
   const isBulk = Boolean(call.where) && (operation === 'update' || operation === 'delete')
   const bulk: BulkPlacementRemoval | undefined = frame.scoped && isBulk ? { documents: new Set(), refusals: new Map() } : undefined
-  Object.assign(frame, { request: req, draft: call.draft === true, restore: operation === 'restoreVersion', bulk, pending: false })
+  Object.assign(frame, { request: req, draft: call.draft === true, restore: operation === 'restoreVersion', versionId: operation === 'restoreVersion' ? call.id : undefined, bulk, pending: false })
   stack.push(frame)
   collections.set(slug, stack)
   const scoped: PayloadRequest = placementOperationRequest(req, new Map([[operationIdentity, frame]]), () => {
@@ -141,12 +142,9 @@ function registration(req: PayloadRequest, slug: string) {
   return optionsOf(req).pages?.collections.find(entry => entry.slug === slug)
 }
 const active = (test: PlacementTest) => test.status === 'running' || test.status === 'decided'
-const pathsOf = (req: PayloadRequest, collection: string, rows: Array<Record<string, unknown> | undefined>): string[] => {
+const documentPathsOf = (req: PayloadRequest, collection: string, rows: Array<Record<string, unknown> | undefined>): string[] => {
   const page = registration(req, collection)
-  return page ? sortLockKeys(rows.flatMap(row => {
-    const path = row ? page.pathOf(row) : null
-    return path === null ? [] : [normalisePath(path)]
-  })) : []
+  return page ? placementDocumentPaths(req, collection, rows, 'all-locales', doc => page.pathOf(doc)) : []
 }
 /** The later audit also recognises arm-select tags; include those ids in its lock superset. */
 function taggedIds(value: unknown, ids = new Set<string>()): Set<string> {
@@ -198,7 +196,7 @@ export const pageGuardBeforeDelete: CollectionBeforeDeleteHook = async ({ req, i
     // Keep the earlier page guard's baseline read and every refusal intact.
     const published = page ? await previousPublishedContent(req, collection.slug, id) : await storedContent(req, collection.slug, id)
     if (!published || published._status === 'draft') return
-    const paths = pathsOf(req, collection.slug, [published])
+    const paths = sortLockKeys(documentPathsOf(req, collection.slug, [published]).map(normalisePath))
     const exec = await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
     let tests = page ? await placementTests(exec) : undefined
     const { views, affected } = await blockRemovalRule.prepare(req, collection.slug, collection.trash && published.deletedAt != null ? undefined : published, {}, true, exec, tests)
@@ -228,15 +226,21 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
   const options = optionsOf(req)
   try {
     const published = operation === 'create' ? undefined : await previousPublishedContent(req, collection.slug, originalDoc.id as DocId)
+    // Preserve the localization-off path exactly. Localized pending writes use
+    // Payload's latest-version merge base, even before the first publication.
+    const stored = operation === 'create' || !hasLocalizedFields(req.payload.config.collections?.find(entry => entry.slug === collection.slug)?.fields ?? [], req.payload.config) ? published
+      : await placementWriteContent(req, collection.slug, originalDoc.id as DocId, published ?? await storedContent(req, collection.slug, originalDoc.id as DocId), call?.versionId)
     const before = published?._status === 'draft' ? undefined : published
     const beforeSlugs = allPlacementSlugs(req, collection.slug, before, 'all-locales')
-    const afterSlugs = allPlacementSlugs(req, collection.slug, mergedPlacementLocales(req, collection.slug, before, after), 'all-locales')
-    const beforePaths = pathsOf(req, collection.slug, [before]), afterPaths = pathsOf(req, collection.slug, [after])
+    const rawAfter = mergedPlacementLocales(req, collection.slug, stored, after)
+    const afterSlugs = allPlacementSlugs(req, collection.slug, rawAfter, 'all-locales')
+    const oldPaths = documentPathsOf(req, collection.slug, [before]), newPaths = documentPathsOf(req, collection.slug, [rawAfter])
+    const beforePaths = sortLockKeys(oldPaths.map(normalisePath)), afterPaths = sortLockKeys(newPaths.map(normalisePath))
     const paths = sortLockKeys([...beforePaths, ...afterPaths])
     const exec = await req.transactionID != null ? txExecutor(req) : pooledExecutor(req.payload)
     let tests = await placementTests(exec)
     const trashing = Boolean(collection.trash && after.deletedAt != null)
-    const { views, affected, hidden } = await blockRemovalRule.prepare(req, collection.slug, collection.trash && before?.deletedAt != null ? undefined : before, after, trashing || drafts && after._status !== 'published', exec, tests)
+    const { views, affected, hidden } = await blockRemovalRule.prepare(req, collection.slug, collection.trash && before?.deletedAt != null ? undefined : before, rawAfter, trashing || drafts && after._status !== 'published', exec, tests, 'all-locales')
     const publishes = !drafts || after._status === 'published'
     const noTransaction = () => {
       if (publishes && tests.some(t => t.kind === 'block' && active(t) && afterSlugs.includes(t.slug))) throw new XpNoTransactionError('Save this page with transactions on.')
@@ -244,7 +248,7 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
     if (await req.transactionID == null) noTransaction()
     else {
       try {
-        await lockPlacementScope(exec, guardExperimentIds(tests, [...beforeSlugs, ...afterSlugs], collection.slug, paths, req.context.xpHeldExperiments, taggedIds([before, after]), affected.map(test => test.id)), paths)
+        await lockPlacementScope(exec, guardExperimentIds(tests, [...beforeSlugs, ...afterSlugs], collection.slug, paths, req.context.xpHeldExperiments, taggedIds([before, rawAfter]), affected.map(test => test.id)), paths)
         tests = await placementTests(exec)
       } catch (error) {
         if (!(error instanceof XpNoTransactionError)) throw error
@@ -255,11 +259,9 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
       }
     }
     if (operation === 'update' && before) {
-      const page = registration(req, collection.slug)
-      const old = page?.pathOf(before)
       const unpublishing = drafts && data._status === 'draft'
       const trashing = collection.trash && data.deletedAt != null && !originalDoc.deletedAt
-      if (old != null && (unpublishing || trashing || page!.pathOf(after) !== old)) protect(tests.filter(t => !t.pageCollection || t.pageCollection === collection.slug), normalisePath(old))
+      for (const old of oldPaths) if (unpublishing || trashing || !newPaths.includes(old)) protect(tests.filter(t => !t.pageCollection || t.pageCollection === collection.slug), normalisePath(old))
     }
     if (publishes) refuseInteraction(tests, beforeSlugs, afterSlugs, beforePaths, afterPaths, collection.slug)
     if (affected.length) await blockRemovalRule.check(req, tests, affected, collection.slug, originalDoc.id as DocId, trashing || drafts && after._status !== 'published', views, call?.bulk, hidden)

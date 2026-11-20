@@ -26,7 +26,7 @@ export type PreflightResult = {
   goalNotes?: Array<{ metricId: DocId; message: string }>
   checks: Array<{ code: ReadinessCode; ok: boolean; detail?: unknown; warning?: boolean }>
   pagePlacements?: Array<{ arm: string; path: string; collection?: string; id?: DocId | null; title?: string; published: boolean; slug?: string; url?: string; editorUrl?: string }>
-  placements: Array<{ collection: string; id: DocId; title: string; url?: string; editorUrl?: string; slots?: Record<ArmSlot, number>; ok: boolean; detail?: string }>
+  placements: Array<{ collection: string; id: DocId; title: string; locales?: string[]; allLocales?: true; slotCount?: number; url?: string; editorUrl?: string; slots?: Record<ArmSlot, number>; ok: boolean; detail?: string }>
   baseline: { metricId: DocId; value: number; days: 28 } | null
   trafficPerDay: number | null
   estimate: { weeks: number; plannedDurationDays: number; sequentialTuningParameter: number; feasible: boolean } | null
