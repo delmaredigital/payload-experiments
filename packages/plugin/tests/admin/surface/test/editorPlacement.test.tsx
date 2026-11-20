@@ -1,8 +1,9 @@
+import { nestedTestCopy } from '../../../../src/puck/nestedTestCopy.js'
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test } from 'vitest'
 import { pageBlockParts } from '../../../../src/testSurface/surface/pageBlock/parts.js'
-import { editorPlacementChecks, editorPlacementMessage, SAVE_PAGE, PUBLISH_PAGE } from '../../../../src/testSurface/surface/editorPlacement.js'
+import { editorPlacementChecks, editorPlacementMessage, editorNestedChecks, SAVE_PAGE, PUBLISH_PAGE } from '../../../../src/testSurface/surface/editorPlacement.js'
 import { props } from '../readiness/fixtures.js'
 afterEach(cleanup)
 test('admin binding keeps its original instructions; editor context names saving and publishing only for this page', () => {
@@ -36,4 +37,14 @@ test('local placement guidance preserves other pages and the removed-block check
     { code: 'placement-removed', ok: false },
     { code: 'placement-unpublished', ok: false, detail: [other] },
   ])
+})
+
+
+test('the local nested notice collapses only its own pair and page, preserving other pages and pairs', () => {
+  const page = { collection: 'pages', id: '7' }
+  const here = { ...page, outer: 'Outer', inner: 'Inner', title: 'Home · All languages', allLocales: true }
+  const otherPage = { ...here, id: 8, title: 'About · Languages: French', allLocales: undefined, locales: ['French'] }
+  const otherPair = { ...here, inner: 'Another inner' }
+  expect(editorNestedChecks([{ code: 'nested-tests', ok: false, detail: [here, otherPage, otherPair] }], page, nestedTestCopy.start('Outer', 'Inner')))
+    .toEqual([{ code: 'nested-tests', ok: false, detail: [otherPage, otherPair] }])
 })

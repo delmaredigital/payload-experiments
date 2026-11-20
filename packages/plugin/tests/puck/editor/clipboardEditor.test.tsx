@@ -202,21 +202,21 @@ test('an inner test shows one plain notice in the real editor', async () => {
   const outer = experiment('outer-notice')
   outer.props.control = [experiment('inner-notice')]
   mount({ root: { props: {} }, content: [outer] })
-  expect(await screen.findByText(editorCopy.nested('Unconfigured test', 'Unconfigured test'))).toBeTruthy()
+  expect(await screen.findByText(editorCopy.nested())).toBeTruthy()
 })
 
 test('Puck public reducer insertion bypasses slot disallow, leaving the server as the final guard', async () => {
   mount({ root: { props: {} }, content: [experiment('outer-dispatch')] })
   act(() => { getPuck().dispatch({ type: 'insert', componentType: 'ExperimentSlot', destinationZone: 'outer-dispatch:control', destinationIndex: 0, id: 'inner-dispatch' }) })
   expect(getPuck().getItemById('inner-dispatch')?.type).toBe('ExperimentSlot')
-  expect(await screen.findByText(editorCopy.nested('Unconfigured test', 'Unconfigured test'))).toBeTruthy()
+  expect(await screen.findByText(editorCopy.nested())).toBeTruthy()
 })
 
 
 test('a selected bound inner test keeps one sidebar notice while Start remains blocked', async () => {
   const message = editorCopy.nested('Outer test', 'Inner test')
   vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.endsWith('/editor-surface') ? { canManage: true, canReadResults: true }
-    : url.endsWith('/preflight') ? { checks: [{ code: 'nested-tests', ok: false, detail: [{ outer: 'Outer test', inner: 'Inner test' }] }], placements: [savedSource] }
+    : url.endsWith('/preflight') ? { checks: [{ code: 'nested-tests', ok: false, detail: [{ collection: 'pages', id: 'source-page', title: 'Source · All languages', allLocales: true, outer: 'Outer test', inner: 'Inner test' }] }], placements: [savedSource] }
     : { name: url.includes('/810?') ? 'Outer test' : 'Inner test', status: 'draft', arms: defaultArms('block') })))
   const inner = { ...bound('inner-sidebar'), props: { ...bound('inner-sidebar').props, experiment: { id: 811, slug: 'inner-sidebar' } } }
   const outer = { ...bound('outer-sidebar'), props: { ...bound('outer-sidebar').props, experiment: { id: 810, slug: 'outer-sidebar' }, control: [inner] } }
@@ -231,4 +231,25 @@ test('a selected bound inner test keeps one sidebar notice while Start remains b
   })
   expect(within(sidebar).queryByRole('button', { name: 'Start' })).toBeNull()
   expect(within(sidebar).getByRole('button', { name: 'Configure test' })).toBeTruthy()
+})
+
+
+test('three levels name the nearest test in the inner notice', async () => {
+  const a: ComponentData = { ...experiment('a'), props: { ...experiment('a').props, experiment: { slug: 'A' } } }
+  const b: ComponentData = { ...experiment('b'), props: { ...experiment('b').props, experiment: { slug: 'B' } } }
+  const c: ComponentData = { ...experiment('c'), props: { ...experiment('c').props, experiment: { slug: 'C' } } }
+  a.props.control = [b]; b.props.control = [c]
+  mount({ root: { props: {} }, content: [a] })
+  expect(await screen.findByText(editorCopy.nested('B', 'C'))).toBeTruthy()
+  expect(screen.queryByText(editorCopy.nested('A', 'C'))).toBeNull()
+})
+test.each(['self', 'ancestor'] as const)('a fully hidden inner test has its own accurate notice (%s)', async mode => {
+  const inner = experiment('inner-hidden')
+  const parent = container('hidden-parent', [inner])
+  if (mode === 'self') inner.props._visibility = { hidden: true }
+  else parent.props._visibility = { hidden: true }
+  const outer = { ...experiment('outer-hidden'), props: { ...experiment('outer-hidden').props, experiment: { slug: 'Outer' }, control: [parent] } }
+  mount({ root: { props: {} }, content: [outer] })
+  expect(await screen.findByText(editorCopy.nestedHidden('Outer'))).toBeTruthy()
+  expect(screen.queryByText(editorCopy.nested('Outer'))).toBeNull()
 })

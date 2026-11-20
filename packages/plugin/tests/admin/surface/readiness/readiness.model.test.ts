@@ -17,7 +17,7 @@ const fixtures = {
   'no-placements': ['what', undefined, 'Not on a page yet. Open a page, add an Experiment block and choose this test.'],
   'placement-unpublished': ['versions', [{ title: 'Landing' }], "The block you're testing is only on a draft of Landing. Publish the page before you start."],
   'duplicate-version-row': ['versions', [{ title: 'Landing' }], 'The Experiment block on Landing has the same version twice. Remove one of them, then save.'],
-  'nested-tests': ['versions', [{ outer: 'Outer', inner: 'Inner' }], 'The test “Inner” is inside a version of “Outer”. Move “Inner” out of that version before starting either test or publishing this new nesting.'],
+  'nested-tests': ['versions', [{ outer: 'Outer', inner: 'Inner' }], "“Inner” is inside a version of “Outer”. A test can't go inside another test's version. Move “Inner” out of that version before you start either test."],
   'interacting-tests': ['versions', [{ path: '/landing', name: 'Other', status: 'decided' }], 'This test uses /landing, which the decided test Other also changes. Finish one of them first.'],
   'empty-slot': ['versions', [{ slots: { control: 1, variantA: 0 } }], 'Add content for Short headline on the page.'],
   'flag-no-point': ['what', undefined, 'Choose the setting to test.'],

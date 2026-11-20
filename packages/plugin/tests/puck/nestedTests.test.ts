@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { nestedTests, nestedTestKey } from '../../src/puck/nestedTests.js'
+import { nestedTests, nestedTestKey, nearestOuterTest } from '../../src/puck/nestedTests.js'
 import { walkVisiblePuck } from '../../src/puck/visibility.js'
 import { refuseNewNestedTests } from '../../src/hooks/puckNestedTests.js'
 import { fakePayload } from '../_fakes/payload.js'
@@ -57,4 +57,22 @@ test('publish compares canonical locale views, retaining old nesting and allowin
   expect(() => refuseNewNestedTests(req, 'pages', before, { ...before, title: 'edit' }, [])).not.toThrow()
   expect(() => refuseNewNestedTests(req, 'pages', before, { puckData: { en: flat, es: flat } }, [])).not.toThrow()
   expect(() => refuseNewNestedTests(req, 'pages', before, { puckData: { en: nested, es: nested } }, [])).toThrow('Move “inner”')
+})
+
+
+test('nearest ancestor wins for the newly added third level on publish', () => {
+  const options = sampleOptions(); options.puck = { enabled: true, collections: ['pages'] }
+  const req = fakeReq({ payload: fakePayload({ config: { custom: { xp: options } } }) })
+  const before = { puckData: page([testBlock('A', [testBlock('B')])]) }
+  const after = { puckData: page([testBlock('A', [testBlock('B', [testBlock('C')])])]) }
+  expect(nearestOuterTest(nestedTests(after.puckData), 'C')?.props.id).toBe('B')
+  expect(() => refuseNewNestedTests(req, 'pages', before, after, [])).toThrow('“C” is inside a version of “B”.')
+})
+test.each([true, false])('publish refusal handles an unconfigured inner and outer (outer named=%s)', named => {
+  const options = sampleOptions(); options.puck = { enabled: true, collections: ['pages'] }
+  const req = fakeReq({ payload: fakePayload({ config: { custom: { xp: options } } }) })
+  const inner = { ...testBlock('inner'), props: { id: 'inner', experiment: null } }
+  const outer = { ...testBlock('outer'), props: { id: 'outer', experiment: named ? { slug: 'Outer' } : null, control: [inner] } }
+  expect(() => refuseNewNestedTests(req, 'pages', undefined, { puckData: page([outer]) }, []))
+    .toThrow(named ? 'This test is inside a version of “Outer”.' : 'This test is inside a version of another test.')
 })

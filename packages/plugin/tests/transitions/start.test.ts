@@ -758,6 +758,6 @@ test('Start names both tests when nesting appears only in the locked rescan', as
     return query(text, params)
   }
   await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'nested-tests',
-    message: 'The test “Headline test” is inside a version of “Layout test”. Move “Headline test” out of that version before starting either test or publishing this new nesting.' })
+    message: "On Landing: “Headline test” is inside a version of “Layout test”. A test can't go inside another test's version. Move “Headline test” out of that version before you start either test." })
   expect(f.payload.documents['xp-phases']).toEqual([])
 }, 5000)

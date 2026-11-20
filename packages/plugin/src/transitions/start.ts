@@ -33,7 +33,7 @@ export async function readExperiment(req: PayloadRequest, id: DocId): Promise<Tr
 }
 export function refuse(code: RefusalCode, detail?: unknown): never {
   const messages: Partial<Record<RefusalCode, string>> = {
-    'nested-tests': (() => { const pair = (detail as Array<{ outer: string; inner: string }> | undefined)?.[0]; return nestedTestCopy(pair?.outer ?? 'another test', pair?.inner ?? 'this test') })(),
+    'nested-tests': nestedTestCopy.readiness(detail),
     'goal-in-some-versions': asymmetricGoalsCopy(detail),
     'placements-changed': "This test's pages changed while it was starting. Try again.",
     'page-busy': "One of this test's pages is being saved right now. Try again in a moment.",

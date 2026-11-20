@@ -182,8 +182,15 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('placement-removed', !placementRemoved)
   const unpublished = placements.filter(p => !p.published && !placements.some(other => other.published && other.collection === p.collection && String(other.id) === String(p.id)))
   add('placement-unpublished', unpublished.length === 0, placementDetails(unpublished.map(placement => ({ placement, detail: {} })), placements, input))
-  const nested = placements.filter(p => p.published).flatMap(p => p.nestedTests ?? [])
-  add('nested-tests', nested.length === 0, nested)
+  const nested = placements.filter(p => p.published).flatMap(placement => (placement.nestedTests ?? []).map(detail => ({ placement, detail })))
+  const seenPairs = new Set<string>()
+  const uniqueNested = nested.filter(({ placement, detail }) => {
+    const key = JSON.stringify([placement.collection, String(placement.id), placement.locale, detail.outer, detail.inner])
+    if (seenPairs.has(key)) return false
+    seenPairs.add(key)
+    return true
+  })
+  add('nested-tests', nested.length === 0, placementDetails(uniqueNested, placements, input))
   const duplicates = placements.filter(p => p.published && p.duplicateRows)
   add('duplicate-version-row', duplicates.length === 0, placementDetails(duplicates.map(placement => ({ placement, detail: {} })), placements, input))
   const identical = placements.filter(p => p.published).flatMap(placement => (placement.identicalSlots ?? [])

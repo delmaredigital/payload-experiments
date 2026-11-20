@@ -298,6 +298,10 @@ test('the changelog records the user-visible sidebar and shared-control fixes', 
 
 test('nested test guidance participates in the copy audit', async () => {
   const { editorCopy } = await import('../../src/puck/editor/copy.js')
-  expect(editorCopy.nested('Outer', 'Inner')).toBe('The test “Inner” is inside a version of “Outer”. Move “Inner” out of that version before starting either test or publishing this new nesting.')
-  expect(hits([editorCopy.nested('Outer', 'Inner'), editorCopy.nestedPaste])).toEqual([])
+  expect(editorCopy.nested('Outer', 'Inner')).toBe("“Inner” is inside a version of “Outer”. A test can't go inside another test's version. Move “Inner” out of that version before you start either test.")
+  const { nestedTestCopy } = await import('../../src/puck/nestedTestCopy.js')
+  for (const outer of ['Outer', undefined]) for (const inner of ['Inner', undefined]) {
+    expect(hits([editorCopy.nested(outer, inner), nestedTestCopy.publish(outer, inner),
+      editorCopy.nestedHidden(outer), nestedTestCopy.readiness([{ outer, inner, title: 'Home · All languages' }]), editorCopy.nestedPaste])).toEqual([])
+  }
 })

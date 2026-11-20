@@ -162,3 +162,19 @@ test.each(['puck', 'blocks'] as const)('localized %s comparisons read the raw do
   expect(result.map(p => p.locale)).toEqual(['en', 'fr'])
   expect(read).toHaveBeenCalledTimes(1)
 })
+
+
+test('two copies and fallback language views produce one readiness pair on the page', async () => {
+  const inner = { ...slot('inner'), props: { ...slot('inner').props, id: 'inner-block' } }
+  const outer = { ...slot('hero', [inner]), props: { ...slot('hero', [inner]).props, id: 'outer-block' } }
+  const payload = fakePayload({ config: {
+    localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en', label: 'English' }, { code: 'fr', label: 'French' }], fallback: true },
+    collections: [{ slug: 'pages', fields: [{ name: 'puckData', type: 'json', localized: true }] }],
+  }, collections: { pages: [{ id: 1, title: 'Home', _status: 'published', puckData: { en: { content: [outer, { ...outer, props: { ...outer.props, id: 'outer-copy', control: [{ ...inner, props: { ...inner.props, id: 'inner-copy' } }] } }] } } }] } })
+  const placements = await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', puckCollections: ['pages'], blocksCollections: [] })
+  expect(placements).toHaveLength(4)
+  const checks = checkStart({ experiment: { id: 1, slug: 'hero', status: 'draft', kind: 'block', unitType: 'visitor', allocation: 100, exposurePolicy: 'render', arms: defaultArms('block') }, metrics: [], placements, placementLocaleCodes: ['en', 'fr'] })
+  expect(checks.find(check => check.code === 'nested-tests')?.detail).toEqual([
+    { collection: 'pages', id: 1, title: 'Home · All languages', allLocales: true, outer: 'hero', inner: 'inner' },
+  ])
+})

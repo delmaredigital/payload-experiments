@@ -21,7 +21,11 @@ export function nestedTests(data: unknown, { includeHidden = false, ancestors = 
 }
 
 export const nestedTestSlug = (block: PuckBlock) => puckExperimentSlug(block.props.experiment)
-export const nestedTestLabel = (block: PuckBlock) => nestedTestSlug(block) || 'Unconfigured test'
+export const nestedTestLabel = (block: PuckBlock) => nestedTestSlug(block) ?? ''
 export const nestedTestKey = ({ outer, inner }: NestedTest) => JSON.stringify([
   outer.props.id, nestedTestSlug(outer), inner.props.id, nestedTestSlug(inner),
 ])
+
+/** Traversal records all ancestors, from furthest to nearest for each inner block. */
+export const nearestOuterTest = (pairs: readonly NestedTest[], innerId: unknown): PuckBlock | undefined =>
+  pairs.filter(pair => pair.inner.props.id === innerId).at(-1)?.outer

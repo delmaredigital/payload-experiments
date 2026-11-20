@@ -70,7 +70,7 @@ test.each(['outer', 'inner', 'both'])('an already published nested page can be u
 test('new published nesting is refused with both test names', async () => {
   const f = await fixture()
   await expect(f.payload.update({ collection: 'nested-pages', id: f.page.id, req: await request(), overrideAccess: false,
-    data: { puckData: f.nested, _status: 'published' } })).rejects.toThrow(`The test “${f.tests[1]!.name}” is inside a version of “${f.tests[0]!.name}”`)
+    data: { puckData: f.nested, _status: 'published' } })).rejects.toThrow(`“${f.tests[1]!.name}” is inside a version of “${f.tests[0]!.name}”`)
 })
 test('already published nesting permits unrelated edits and republishing', async () => {
   const f = await fixture()
@@ -94,7 +94,7 @@ test('Start readiness and Start itself refuse both tests in existing nesting', a
   for (const experiment of f.tests) {
     const preflight = await preflightData(await request(), { experimentId: experiment.id, options: options() })
     expect(preflight?.checks.find(check => check.code === 'nested-tests')).toEqual({ code: 'nested-tests', ok: false,
-      detail: [{ outer: f.tests[0]!.name, inner: f.tests[1]!.name }] })
+      detail: [{ collection: 'nested-pages', id: f.page.id, title: 'Nested page', outer: f.tests[0]!.name, inner: f.tests[1]!.name }] })
     await expect(start(await request(), { experimentId: experiment.id, options: options() })).rejects.toMatchObject({ code: 'nested-tests' })
   }
 })
@@ -123,6 +123,25 @@ test('publishing and Start check nesting in a nondefault content language', asyn
   await f.payload.db.updateOne({ collection: 'nested-localized', id: page.id, req: await request(), data: { puckData: { en: f.flat, es: f.nested } } })
   for (const experiment of f.tests) {
     const answer = await preflightData(await request(), { experimentId: experiment.id, options: options() })
-    expect(answer?.checks).toContainEqual({ code: 'nested-tests', ok: false, detail: [{ outer: f.tests[0]!.name, inner: f.tests[1]!.name }] })
+    expect(answer?.checks).toContainEqual({ code: 'nested-tests', ok: false, detail: [{ collection: 'nested-localized', id: page.id, title: 'Localized page · Languages: es', locales: ['es'], outer: f.tests[0]!.name, inner: f.tests[1]!.name }] })
   }
+})
+
+
+test('the first publish of a new page refuses nesting on create', async () => {
+  const f = await fixture()
+  await expect(f.payload.create({ collection: 'nested-pages', req: await request(), overrideAccess: false,
+    data: { title: 'New nested page', puckData: f.nested, _status: 'published' } })).rejects.toThrow("so this page can't be published")
+})
+test('old nesting must be moved out before republishing an unpublished page', async () => {
+  const f = await fixture()
+  await seed(f)
+  const unpublished = await f.payload.update({ collection: 'nested-pages', id: f.page.id, req: await request(), overrideAccess: false,
+    data: { _status: 'draft' } })
+  expect(unpublished._status).toBe('draft')
+  await expect(f.payload.update({ collection: 'nested-pages', id: f.page.id, req: await request(), overrideAccess: false,
+    data: { _status: 'published' } })).rejects.toThrow("so this page can't be published")
+  const published = await f.payload.update({ collection: 'nested-pages', id: f.page.id, req: await request(), overrideAccess: false,
+    data: { puckData: f.flat, _status: 'published' } })
+  expect(published._status).toBe('published')
 })

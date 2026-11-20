@@ -1272,3 +1272,23 @@ test.each(['publishSpecificLocale', 'bulk', 'updateByID', 'restore'] as const)('
   if (path === 'updateByID' || path === 'restore') await expect(work).rejects.toMatchObject({ code: 'locked-placement' })
   else await expect(work).resolves.toBeDefined()
 })
+
+
+test.each(['restore-version', 'duplicate'] as const)('new nesting cannot be published through %s', async mode => {
+  const f = setup('draft')
+  Object.assign(f.payload.config.custom!.xp, { puck: { enabled: true, collections: ['pages'] } })
+  const inner = { type: 'ExperimentSlot', props: { id: 'inner', experiment: { slug: 'inner' }, control: [] } }
+  const data = { _status: 'published', puckData: { content: [{ type: 'ExperimentSlot', props: { id: 'outer', experiment: { slug: 'outer' }, control: [inner] } }] } }
+  if (mode === 'restore-version') {
+    await f.begin(false, 'restoreVersion')
+    await expect(f.change(data)).rejects.toThrow("so this page can't be published")
+    await f.end('restoreVersion')
+    await f.begin(true, 'restoreVersion')
+    await expect(f.change(data)).resolves.toEqual(data)
+    await f.end('restoreVersion')
+  } else {
+    // Duplicate publishes the copied document through collection create hooks.
+    await expect(pageGuardBeforeChange({ req: f.req, collection: f.collection, operation: 'create', originalDoc: {}, data } as never))
+      .rejects.toThrow("so this page can't be published")
+  }
+})

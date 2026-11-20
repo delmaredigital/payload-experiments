@@ -1,7 +1,7 @@
 import { ValidationError, type PayloadRequest } from 'payload'
 import { placementReader } from '../blocks/placementLocale.js'
 import { puckCollections } from '../options.js'
-import { nestedTests, nestedTestKey, nestedTestLabel, nestedTestSlug } from '../puck/nestedTests.js'
+import { nestedTests, nestedTestKey, nestedTestLabel, nestedTestSlug, nearestOuterTest } from '../puck/nestedTests.js'
 import { nestedTestCopy } from '../puck/nestedTestCopy.js'
 import type { ResolvedOptions } from '../types/contracts.js'
 
@@ -20,10 +20,11 @@ export function refuseNewNestedTests(req: PayloadRequest, collection: string, be
       return content.editor === 'puck' ? nestedTests(content.doc?.[registration.field]) : []
     }
     const existing = new Set(read(before).map(nestedTestKey))
-    const added = read(after).find(pair => !existing.has(nestedTestKey(pair)))
+    const additions = read(after).filter(pair => !existing.has(nestedTestKey(pair)))
+    const added = additions[0]
     if (!added) continue
     const name = (block: typeof added.inner) => tests.find(test => test.slug === nestedTestSlug(block))?.name ?? nestedTestLabel(block)
-    const message = nestedTestCopy(name(added.outer), name(added.inner))
+    const message = nestedTestCopy.publish(name(nearestOuterTest(additions, added.inner.props.id)!), name(added.inner))
     const error = new ValidationError({ collection, errors: [{ path: registration.field, message }] })
     error.message = message
     throw error

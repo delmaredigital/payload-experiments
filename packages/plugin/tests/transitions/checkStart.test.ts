@@ -269,3 +269,21 @@ test('identical warnings keep different affected versions in separate language g
     expect.objectContaining({ arm: 'variantB', title: 'Home · Languages: German' }),
   ])
 })
+
+
+test('nested pairs dedupe per page and combine only their affected languages', () => {
+  const input = ready(), base = input.placements![0]!
+  input.placementLocaleCodes = ['en', 'fr']; input.placementLocale = 'fr'
+  const pair = { outer: 'Outer', inner: 'Inner' }
+  input.placements = [
+    ...['en', 'fr'].flatMap(locale => [0, 1].map(() => ({ ...base, locale, localeLabel: locale === 'en' ? 'English' : 'French',
+      title: locale === 'fr' ? 'Accueil' : 'Home', nestedTests: [pair, pair] }))),
+    { ...base, id: 2, title: 'About', locale: 'fr', localeLabel: 'French', nestedTests: [pair] },
+  ]
+  expect(checkStart(input).find(check => check.code === 'nested-tests')).toEqual({ code: 'nested-tests', ok: false, detail: [
+    { collection: 'pages', id: 1, title: 'Accueil · All languages', allLocales: true, ...pair },
+    { collection: 'pages', id: 2, title: 'About · Languages: French', locales: ['French'], ...pair },
+  ] })
+  input.placements = [base, base].map(placement => ({ ...placement, nestedTests: [pair, pair] }))
+  expect(checkStart(input).find(check => check.code === 'nested-tests')?.detail).toEqual([{ collection: 'pages', id: 1, title: 'Home', ...pair }])
+})
