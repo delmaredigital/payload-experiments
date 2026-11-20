@@ -12,6 +12,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### plugin
 
 - Changed: the plugin is tested against payload-puck 0.12.1. Migration impact: none; this updates the development dependency only and adds no host peer requirement.
+- Added: with payload-puck 0.12.1, pasting an Experiment block or a container holding one inside another Experiment block's version is refused with a plain explanation, even through intervening containers. Ordinary version content can still be pasted. Migration impact: none; payload-puck 0.12.0 ignores the hook.
 - Fixed: first publishing a localized page from another language checks and records its stored test blocks; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.
 - Fixed: Start and Decide find test blocks in every content language; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.
 - Fixed: page guards protect localized published block placements across languages; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.

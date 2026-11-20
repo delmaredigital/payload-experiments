@@ -33,6 +33,7 @@ import { armsFromBlock, bannerFor, currentPuckDocument, isSharedTest, tabsFor, t
 import { cloneSlot, countSlotBlocks } from './cloneSlot.js'
 import { openCreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
+import { experimentClipboard } from './blockClipboard.js'
 import { acquireArms, loadArms, publishExperiment, useArms } from './armsCache.js'
 import { AddVariant, RemoveVersion, VersionCard, VersionName, VersionWeights, VersionLock, useArmWrites, type WeightEdits } from './VersionBuilder.js'
 import { ResultsReadout } from './ResultsReadout.js'
@@ -486,6 +487,7 @@ export function createExperimentSlotEditor({ routes: inputRoutes, accent }: { ro
       render: () => <PuckHostProvider routes={routes}><TestSidebarField /></PuckHostProvider>,
     } },
     defaultProps: experimentSlotDefaultProps,
+    ...experimentClipboard,
     render: props => <PuckHostProvider routes={routes}><EditorRender {...props} accent={sets} /></PuckHostProvider>,
   }
 }
