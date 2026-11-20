@@ -11,6 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: disconnecting a client no longer cancels placement checks during page saves or transitions. Read-only delete-impact scans still stop when their request is canceled. Migration impact: none.
 - Fixed: host editor rules now receive ordinary single-language field values when publishing localized pages. Single-language sites were unaffected. Migration impact: none.
 - Fixed: publishing a localized page records its test placement even when the block exists only in another language; running tests keep their last published placement protected. Single-language sites were unaffected. Migration impact: none.
 - Fixed: localized placement scans now give host editor predicates complete per-language documents, including in the published block-removal check shipped in rc.6. The delete dialog forwards the selected admin content language for titles and paths; absent or invalid language codes use the configured default, with normal content fallbacks. It names affected visitor languages using Payload’s translated labels and shows All languages when every language is affected. Empty titles use the page id, number/date titles stay readable, and encoded paths are preserved. Archived blocks with an empty winner explain why Unwrap preserves the Original. Migration impact: none.

@@ -1172,3 +1172,18 @@ test.each(['puck', 'blocks'] as const)('localized %s publish records a French-on
   await pageGuardAfterChange({ req: f.req, collection: f.collection, doc: { ...f.published, editor } } as never)
   expect(f.executor.calls.filter(call => call.text.includes('jsonb_array_elements') && call.text.startsWith('UPDATE')).map(call => call.params?.slice(1, 3))).toContainEqual([2, 1])
 })
+
+
+test.each(['remove-block', 'unpublish', 'trash', 'delete'] as const)('an aborted request retains the normal %s hook outcome', async operation => {
+  const f = blockSetup()
+  const controller = new AbortController(); controller.abort()
+  Object.assign(f.req, { signal: controller.signal })
+  f.payload.documents.pages!.push({ ...f.published, id: 9 })
+  const work = () => operation === 'delete' ? f.remove() : f.save(operation === 'remove-block' ? { ...f.empty, _status: 'published' }
+    : operation === 'unpublish' ? { _status: 'draft' } : { deletedAt: '2026-11-19' })
+  if (operation === 'delete') await expect(work()).resolves.toBeUndefined()
+  else await expect(work()).resolves.toBeDefined()
+  expect(f.req.signal).toBe(controller.signal)
+  f.payload.documents.pages!.pop()
+  await expect(work()).rejects.toMatchObject({ code: 'locked-placement' })
+})

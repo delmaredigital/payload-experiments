@@ -128,7 +128,7 @@ test.each(['other', 'impact', 'start'] as const)('%s scan isolates locale mutati
   } else await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: options.blocks.collections })
   expect(req.locale).toBe('fr'); expect(req.fallbackLocale).toBe(false)
   controller.abort()
-  if (mode === 'other') await expect(hasOtherPublishedBlockPlacement(req, options, 'hero', () => false)).rejects.toMatchObject({ name: 'AbortError' })
+  if (mode === 'other') await expect(hasOtherPublishedBlockPlacement(req, options, 'hero', () => false)).resolves.toBe(true)
 })
 
 test('single-language Start reads normalize locale all to the default instead of trusting raw locale maps', async () => {

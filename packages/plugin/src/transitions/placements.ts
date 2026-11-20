@@ -64,12 +64,10 @@ export async function hasOtherPublishedBlockPlacement(req: PayloadRequest, optio
     const reader = placementReader(req, collection, options)
     let page = 1
     while (true) {
-      req.signal?.throwIfAborted()
       const result = await placementDocuments(scanReq, { collection, overrideAccess: false, limit: 100, page, depth: 0, draft: false,
         ...(req.payload.config.localization ? { locale: 'all' as const, fallbackLocale: false as const } : {}),
         ...(drafts ? { where: { _status: { equals: 'published' } } } : {}),
       }, true)
-      req.signal?.throwIfAborted()
       if (result.docs.some(doc => doc._status !== 'draft' && doc.deletedAt == null && reader.views.some(view => reader.read(doc, 'all-locales', view).slugs.includes(slug)
           && !excluded(collection, doc.id, view, doc)))) return true
       if (!result.hasNextPage) break
