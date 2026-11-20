@@ -11,6 +11,8 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Fixed: delete checks count each published page once across its own locales, stop scanning when the request is aborted, and explain unreadable pages after the list; archived blocks offer Unwrap when Original is already served; editor-side checks now treat a slot as bound to a test exactly when visitors are served it. Migration impact: none.
+
 - Fixed: sidebar dropdown values, menus and unavailable options stay readable under Payload dark mode. The Puck configuration entry works without stylesheet imports: menus anchor to their controls; `aria-selected` marks the saved value, the keyboard-active option has a separate state, and the selected option is bold. Fallback menus follow theme changes while open and ignore their own scrolling. Migration impact: none.
 - Fixed: version cards open through an accessible marker button or a click on the card background. Focusing or editing fields keeps the current canvas and Outline version open. Leftover content uses the same compact cards and keeps its content actions together. Migration impact: none.
 - Fixed: version field errors use the full card width and identify the affected input. Saved feedback has reserved space so saving does not change the card height. Numeric inputs align with the writing direction. Migration impact: none.

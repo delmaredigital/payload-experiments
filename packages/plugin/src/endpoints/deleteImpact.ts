@@ -1,9 +1,7 @@
 import { Forbidden, type PayloadRequest } from 'payload'
-import { localeRequest, placementLocaleViews } from '../blocks/placementLocale.js'
 import { XpRefusal } from '../errors.js'
 import { compileManifest, loadManifestInputs, type ManifestInputExperiment } from '../manifest/compile.js'
-import { puckCollections } from '../options.js'
-import { scanBlockPlacements } from '../transitions/placements.js'
+import { publishedBlockPlacementPages } from '../transitions/placements.js'
 import type { DeleteImpactResult, EndpointContext } from '../types/endpoints.js'
 import type { ArmSlot } from '../types/puck.js'
 import { routeId } from './routeId.js'
@@ -24,10 +22,17 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
     || kind === 'page' && decision.pagesReleasedAt || kind === 'block' && decision.winnerArm === 'control') return reply({ effect: 'none' })
 
   // Use the live builder's complete inputs and ordering, including archived address collisions.
-  const inputs = await loadManifestInputs(req)
+  req.signal?.throwIfAborted()
+  let inputs: Awaited<ReturnType<typeof loadManifestInputs>>
   let manifest: ReturnType<typeof compileManifest>
-  try { manifest = compileManifest(inputs, 0, { attributeKeys: options.attributeKeys }) }
-  catch (cause) { throw new XpRefusal('placement-unchecked', 'The effect of deleting this test could not be determined.', undefined, 422, { cause }) }
+  try {
+    inputs = await loadManifestInputs(req, { signal: req.signal })
+    manifest = compileManifest(inputs, 0, { attributeKeys: options.attributeKeys })
+  } catch (cause) {
+    req.signal?.throwIfAborted()
+    throw new XpRefusal('placement-unchecked', 'The effect of deleting this test could not be determined.', undefined, 422, { cause })
+  }
+  req.signal?.throwIfAborted()
   if (kind === 'page') {
     const after = compileManifest({ ...inputs, excludeIds: [id] }, 0, { attributeKeys: options.attributeKeys })
     const routes = Object.entries(manifest.archivedPages).filter(([path, route]) => route.slug === experiment.slug && (after.archivedPages[path]?.winnerPath ?? path) !== route.winnerPath)
@@ -43,38 +48,45 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
   if (!winner || !control) throw new XpRefusal('placement-unchecked', 'The effect of deleting this test could not be determined.', undefined, 422)
   const affected: Extract<DeleteImpactResult, { effect: 'block' }>['placements'] = []
   const changedPages = new Set<string>(), readablePages = new Set<string>()
-  const puck = options.puck?.enabled ? puckCollections(options) : []
-  const blocks = options.blocks?.collections ?? []
-  for (const collection of new Set([...puck, ...blocks].map(entry => entry.slug))) {
-    for (const view of placementLocaleViews(req, collection)) {
-      const viewReq = view.locale ? localeRequest(req, view) : req
-      // The route is manager-gated. Count the entire visitor surface, then disclose only access-checked page details.
-      const placements = await scanBlockPlacements(viewReq, { slug: experiment.slug, puckCollections: puck.filter(entry => entry.slug === collection),
-        blocksCollections: blocks.filter(entry => entry.slug === collection), publishedOnly: true, pageGuard: true, localeView: view })
-      const changed = placements.filter(place => place.published && (place.editor !== 'blocks' || place.slots[winnerSlot]) && (place.slots[winnerSlot] || place.slots.control))
-      if (!changed.length) continue
-      for (const place of changed) changedPages.add(JSON.stringify([collection, String(place.id)]))
-      // find applies Where-scoped read access as well as a boolean refusal. Never disclose the privileged document.
-      let readable: Array<Record<string, unknown> & { id: string | number }> = []
+  for await (const { collection, placements } of publishedBlockPlacementPages(req, options, experiment.slug)) {
+    const changed = placements.filter(place => (place.editor !== 'blocks' || place.slots[winnerSlot]) && (place.slots[winnerSlot] || place.slots.control))
+    if (!changed.length) continue
+    const byPage = new Map<string, typeof changed>()
+    for (const place of changed) {
+      const key = String(place.id)
+      changedPages.add(JSON.stringify([collection, key]))
+      const page = byPage.get(key) ?? []
+      page.push(place); byPage.set(key, page)
+    }
+    req.signal?.throwIfAborted()
+    // find applies Where-scoped read access as well as a boolean refusal. Never disclose the privileged document.
+    let readable: Array<Record<string, unknown> & { id: string | number }> = []
+    try {
+      const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0, draft: false, pagination: false, limit: 0,
+        where: { id: { in: [...byPage.values()].map(places => places[0]!.id) } } })
+      readable = result.docs
+    } catch (cause) { if (!(cause instanceof Forbidden) && (cause as { status?: number })?.status !== 403) throw cause }
+    req.signal?.throwIfAborted()
+    for (const doc of readable) {
+      const places = byPage.get(String(doc.id))
+      if (!places?.length) continue
+      readablePages.add(JSON.stringify([collection, String(doc.id)]))
+      const registration = options.pages?.collections.find(entry => entry.slug === collection)
+      let path: string | null = null
       try {
-        const result = await req.payload.find({ collection, req: viewReq, overrideAccess: false, depth: 0, draft: false, pagination: false, limit: 0,
-          locale: view.locale || undefined, fallbackLocale: view.locale ? view.fallbackLocale : undefined,
-          where: { id: { in: [...new Set(changed.map(place => place.id))] } } })
-        readable = result.docs
-      } catch (cause) { if (!(cause instanceof Forbidden) && (cause as { status?: number })?.status !== 403) throw cause }
-      for (const place of changed) {
-        const doc = readable.find(doc => String(doc.id) === String(place.id))
-        if (!doc) continue
-        readablePages.add(JSON.stringify([collection, String(place.id)]))
-        const registration = options.pages?.collections.find(entry => entry.slug === collection)
-        let path: string | null = null
-        try { const value = registration?.pathOf(doc); if (typeof value === 'string') path = value } catch { /* An optional public path cannot fail the impact check. */ }
-        const titleField = req.payload.config.collections?.find(entry => entry.slug === collection)?.admin?.useAsTitle
-        affected.push({ collection, id: place.id,
-          title: String((titleField ? doc[titleField] : undefined) ?? doc.title ?? doc.name ?? doc.id), path,
-          before: place.slots[winnerSlot] ? { key: winner.key, label: winner.label } : { key: 'empty', label: 'Nothing' },
-          after: place.slots.control ? { key: control.key, label: control.label } : { key: 'empty', label: 'Nothing' } })
+        const value = registration?.pathOf(doc)
+        if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.split(/[/?#]/).some(segment => /^(undefined|null)$/i.test(decodeURIComponent(segment)))) path = value
+      } catch { /* An optional public path cannot fail the impact check. */ }
+      const titleField = req.payload.config.collections?.find(entry => entry.slug === collection)?.admin?.useAsTitle
+      const locales = [...new Set(places.flatMap(place => place.locale ? [place.locale] : []))]
+      const version = (slot: ArmSlot, arm: { key: string; label: string }) => {
+        const values = new Map(places.map(place => place.slots[slot] ? [arm.key, arm.label] : ['empty', 'Nothing']))
+        return { key: [...values.keys()].join(','), label: [...values.values()].join(' / ') }
       }
+      // Page access controls metadata disclosure; a hidden layout field does not hide a readable page's visitor effect.
+      affected.push({ collection, id: doc.id,
+        title: String((titleField ? doc[titleField] : undefined) ?? doc.title ?? doc.name ?? doc.id), path,
+        ...(locales.length ? { locales } : {}), before: version(winnerSlot, winner), after: version('control', control) })
     }
   }
   return reply(changedPages.size ? { effect: 'block', controlLabel: control.label, pageCount: changedPages.size,

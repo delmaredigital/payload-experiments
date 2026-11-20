@@ -38,8 +38,8 @@ export const blockDecidedStatus = (winner: string, rollout: boolean) => `Decided
 export type BlockLinkedCopy = { before: string; link: string; after: string }
 export const blockRunningUnwrap: BlockLinkedCopy = { before: 'Stop ', link: 'the test', after: ' to unwrap.' }
 export const blockDecidedUnwrap: BlockLinkedCopy = { before: 'To put the winner into this page, use "Make it the content" on ', link: 'the test', after: '.' }
-export const blockFinishedCopy = (winner: string): BlockLinkedCopy => ({ before: `Archived: this block keeps serving ${winner}, with the Original as a fallback if it is empty. To replace it, copy the content into ordinary page blocks, then remove this Experiment block. View the results on `, link: 'the test', after: '.' })
-export const blockFinishedStatus = (winner: string) => { const copy = blockFinishedCopy(winner); return copy.before + copy.link + copy.after }
+export const blockFinishedCopy = (winner: string, originalWon = false): BlockLinkedCopy => ({ before: originalWon ? `Archived: the Original won. This block shows ${winner}. Use Unwrap to keep its content without the Experiment block. View the results on ` : `Archived: this block keeps serving ${winner}, with the Original as a fallback if it is empty. To replace it, copy the content into ordinary page blocks, then remove this Experiment block. View the results on `, link: 'the test', after: '.' })
+export const blockFinishedStatus = (winner: string, originalWon = false) => { const copy = blockFinishedCopy(winner, originalWon); return copy.before + copy.link + copy.after }
 export const blockDeleteConfirmation = (name: string) => `Delete the draft test ${name} and put the Original back in its place? Deleting the test can't be undone.`
 export const blockUnwrapConfirmation = (name: string) => `Put the Original back in this block's place? The test ${name} and its results are kept; it can't be started again.`
 export const blockUnwrapNotice = (drafts: boolean, deleted: boolean) => `${deleted ? 'The draft test was deleted and the block unwrapped.' : 'The block was unwrapped.'} ${drafts ? 'Save draft' : 'Save'} to keep it.`

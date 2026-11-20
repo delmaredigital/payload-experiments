@@ -1,3 +1,4 @@
+import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { puckVisibility, hiddenOnSizes, visibilitySizes } from '../puck/visibility.js'
 import { Forbidden, NotFound, ValidationError, Locked, commitTransaction, initTransaction, killTransaction, type PayloadRequest, type Field, type Block } from 'payload'
 import { latestDraftContent, publishedContent as readPublishedContent } from '../db/publishedContent.js'
@@ -46,8 +47,7 @@ function unwrap(value: unknown, slug: string, slot: string, visibility = puckVis
   if (Array.isArray(value)) return value.flatMap(node => {
     if (object(node) && visibility.get(node)?.hidden) return [node]
     if (object(node) && node.type === 'ExperimentSlot' && object(node.props)) {
-      const ref = node.props.experiment
-      if ((typeof ref === 'string' ? ref : object(ref) ? ref.slug : undefined) === slug) {
+      if (puckExperimentSlug(node.props.experiment) === slug) {
         const content = node.props[slot]
         if (!Array.isArray(content)) throw new Error('The winning content slot is missing.')
         const selected = unwrap(content, slug, slot, visibility) as unknown[]

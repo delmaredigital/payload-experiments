@@ -1,6 +1,9 @@
+import { resolveExperimentBlocks } from '../../../src/server/resolveExperimentBlocks.js'
+import type { Assignments } from '../../../src/types/assignments.js'
+import { comparableContent } from '../../../src/transitions/pageVersions.js'
 import type { ClientConfig } from 'payload'
 import { expect, test } from 'vitest'
-import { blockChoices, statusSentence, slotLabel } from '../../../src/admin/blocks/model.js'
+import { blockChoices, statusSentence, slotLabel, canUnwrapOriginal } from '../../../src/admin/blocks/model.js'
 import { BLOCK_COPY, blockTestName } from '../../../src/admin/copy/blocks.js'
 import { adaptClientBlocksField } from '../../../src/admin/blocks/formApi.js'
 import { copyOriginalIntoVersion, unwrapExperimentBlock, wrapExperimentBlock } from '../../../src/blocks/formState.js'
@@ -19,6 +22,7 @@ test.each([
   [{ ...live, status: 'stopped' }, 'Stopped: visitors see the Original.'],
   [{ ...live, status: 'decided', winnerArm: 'variantA' }, 'Decided: visitors see New hero.'],
   [{ ...live, status: 'decided', winnerArm: 'variantA', rollout: true }, 'Decided: visitors see New hero; a holdout still sees the Original.'],
+  [{ ...live, status: 'archived', winnerArm: 'control' }, 'Archived: the Original won. This block shows Original. Use Unwrap to keep its content without the Experiment block. View the results on the test.'],
   [{ ...live, status: 'archived', winnerArm: 'variantA' }, 'Archived: this block keeps serving New hero, with the Original as a fallback if it is empty. To replace it, copy the content into ordinary page blocks, then remove this Experiment block. View the results on the test.'],
   [{ ...live, status: 'archived', winnerArm: 'variantA', discarded: true }, 'Winner discarded: this block shows the Original. Use Unwrap to replace it with the Original content.'],
   [{ ...live, status: 'archived' }, 'Archived without a winner: this block shows the Original. Use Unwrap to replace it with the Original content.'],
@@ -41,4 +45,19 @@ test('client adapter traverses nested arrays/blocks and resolves global referenc
     expect((row.children as any)[0].id).not.toBe('nested-block')
   }
   expect(original.id).toBe('hero-id')
+})
+
+test.each([
+  ['control', false, false, true], ['variantA', false, false, false], ['variantA', false, true, true],
+  ['variantA', true, false, true], [undefined, false, false, true],
+] as const)('archived Original unwrap matches visitor content: winner=%s discarded=%s empty=%s', (winnerArm, discarded, empty, offered) => {
+  const status: LiveBlockStatus = { ...live, status: 'archived', winnerArm, discarded }
+  const wrapped = wrapExperimentBlock(original, 'hero', field)
+  wrapped.slots[1]!.blocks = empty ? [] : [{ ...original, items: [{ text: 'Different winner' }] }]
+  const a = { bySlug: {}, archivedWinners: winnerArm && !discarded ? { hero: winnerArm } : {}, method: 'GET' } as Assignments
+  const served = resolveExperimentBlocks([wrapped], a).blocks.map(({ xpGroup, ...block }) => block)
+  const unwrapped = unwrapExperimentBlock(wrapped, field)
+  expect(canUnwrapOriginal(status, wrapped)).toBe(offered)
+  if (offered) expect(comparableContent(unwrapped)).toEqual(comparableContent(served))
+  else expect(comparableContent(unwrapped)).not.toEqual(comparableContent(served))
 })

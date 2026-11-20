@@ -1,3 +1,4 @@
+import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { walkVisiblePuck } from '../puck/visibility.js'
 import { documentEditor, puckCollections } from '../options.js'
 import type { PayloadRequest } from 'payload'
@@ -78,8 +79,7 @@ export const blockRemovalRule = {
         })
         walkVisiblePuck(placementLocaleContent(viewReq, collection, rawAfter)?.[registration.field], (block, visibility) => {
           if (!visibility.hidden || block.type !== 'ExperimentSlot' || !visibleBefore.has(String(block.props.id))) return
-          const ref = block.props.experiment
-          const slug = typeof ref === 'string' ? ref : ref && typeof ref === 'object' && 'slug' in ref ? ref.slug : undefined
+          const slug = puckExperimentSlug(block.props.experiment)
           if (typeof slug === 'string') hidden.add(slug)
         })
       }

@@ -36,7 +36,7 @@ test.each(['puck', 'blocks'] as const)('localized %s removal requires a publishe
       { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 50, slot: 'variantA' }],
     metrics: { primary: metric.id }, analysis: { plannedDurationDays: 14, reachPerDay: 100 },
   } })
-  const content = editor === 'puck' ? { puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: experiment.slug,
+  const content = editor === 'puck' ? { puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: { id: experiment.id, slug: experiment.slug },
     control: [{ type: 'Text', props: { text: 'Original' } }], variantA: [{ type: 'Text', props: { text: 'Variant' } }] } }] } }
     : { layout: [{ blockType: 'xpExperiment', experiment: experiment.slug, slots: [
       { slot: 'control', blocks: [{ blockType: 'text', text: 'Original' }] },

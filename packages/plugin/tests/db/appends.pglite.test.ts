@@ -110,7 +110,7 @@ test.each(['discovery read', 'locked read', 'append'])('a real SQL failure in th
         },
       }, resolve: async () => {}, reject: async () => {} }
       const req = fakeReq({ payload, transactionID: 'host' })
-      const data = (text: string) => ({ content: [{ type: 'ExperimentSlot', props: { experiment: experiment!.slug, control: [{ text }] } }] })
+      const data = (text: string) => ({ content: [{ type: 'ExperimentSlot', props: { experiment: { slug: experiment!.slug }, control: [{ text }] } }] })
       const saved = { ...doc!, puckData: data('New') }
       Object.assign(payload.db, { findOne: vi.fn(async () => structuredClone(saved)) })
       const args = { req, doc: saved, previousDoc: { ...doc!, puckData: data('Old') }, collection: { slug: 'users', fields: [] } } as unknown as Parameters<CollectionAfterChangeHook>[0]

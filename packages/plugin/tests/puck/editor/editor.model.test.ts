@@ -151,6 +151,6 @@ test('saved first-version names drive tabs and notices, while the default stays 
 })
 
 test('archived Puck guidance distinguishes a discarded winner from no decision', () => {
-  expect(bannerFor('archived', 'New headline', 'Current hero', { winnerArm: 'variantA', discardedAt: 'date' })).toBe('Winner discarded: this block shows Current hero. To keep it without the test, move its content out on the canvas, then remove this Experiment block.')
-  expect(bannerFor('archived', undefined, 'Current hero', null)).toBe('Archived without a winner: this block shows Current hero. To keep it without the test, move its content out on the canvas, then remove this Experiment block.')
+  expect(bannerFor('archived', 'New headline', 'Current hero', { winnerArm: 'variantA', discardedAt: 'date' })).toBe('Winner discarded: this block shows Current hero, or nothing if it is empty. To keep it without the test, move its content out on the canvas, then remove this Experiment block.')
+  expect(bannerFor('archived', undefined, 'Current hero', null)).toBe('Archived without a winner: this block shows Current hero, or nothing if it is empty. To keep it without the test, move its content out on the canvas, then remove this Experiment block.')
 })

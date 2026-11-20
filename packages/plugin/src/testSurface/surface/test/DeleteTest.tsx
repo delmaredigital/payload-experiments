@@ -9,7 +9,7 @@ import { Dialog } from '../../../ui/Dialog.js'
 
 export type DeleteOutcome = 'done' | 'already'
 type Impact = { state: 'loading' | 'failed' } | { state: 'ready'; data: DeleteImpactResult }
-const VISIBLE_PLACES = 5
+const VISIBLE_PAGES = 5
 export const DELETE_IMPACT_TIMEOUT_MS = 15_000
 
 /** Matches deleteExperiment's status guard; the server rechecks under its lock. */
@@ -71,13 +71,12 @@ function impactSummary(impact: DeleteImpactResult): string {
 function ImpactDetails({ impact }: { impact: DeleteImpactResult }) {
   if (impact.effect === 'none') return null
   const places = impact.effect === 'block' ? impact.placements.map(place =>
-    `${place.title}${place.path ? ` (${place.path})` : ''}: ${C.versionChange(place.before.label, place.after.label)}`)
+    `${place.title}${place.path ? ` (${place.path})` : ''}${place.locales?.length ? ` · ${C.locales(place.locales.join(', '))}` : ''}: ${C.versionChange(place.before.label, place.after.label)}`)
     : impact.addresses.map(path => `${path}: ${C.versionChange(impact.winnerPath, impact.afterPaths?.[path] ?? path)}`)
   return <>
-    <p>{impact.effect === 'block' ? C.blockWinner(impact.controlLabel) : C.pageWinner}</p>
-    <p>{C.currentSite}</p>
-    {places.length ? <ul>{places.slice(0, VISIBLE_PLACES).map((place, index) => <li key={index}>{place}</li>)}</ul> : null}
+    {places.length ? <><p>{impact.effect === 'block' ? C.blockWinner(impact.controlLabel) : C.pageWinner}</p><p>{C.currentSite}</p></> : null}
+    {places.length ? <ul>{places.slice(0, VISIBLE_PAGES).map((place, index) => <li key={index}>{place}</li>)}</ul> : null}
+    {places.length > VISIBLE_PAGES ? <p>{C.morePages(places.length - VISIBLE_PAGES)}</p> : null}
     {impact.effect === 'block' && impact.unreadablePages > 0 ? <p>{C.unreadablePages(impact.unreadablePages)}</p> : null}
-    {places.length > VISIBLE_PLACES ? <p>{C.morePlaces(places.length - VISIBLE_PLACES)}</p> : null}
   </>
 }

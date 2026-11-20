@@ -63,6 +63,6 @@ export type WrapBlockBody = { collection: string; id: DocId; field: string; bloc
 export type DeleteImpactResult = { effect: 'none' } | {
   effect: 'block'
   controlLabel: string; unreadablePages: number; pageCount: number
-  placements: Array<{ collection: string; id: DocId; title: string; path: string | null;
+  placements: Array<{ collection: string; id: DocId; title: string; path: string | null; locales?: string[];
     before: { key: string; label: string }; after: { key: string; label: string } }>
 } | { effect: 'page'; winnerPath: string; addresses: string[]; afterPaths?: Record<string, string> }

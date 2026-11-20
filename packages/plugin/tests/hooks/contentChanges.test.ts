@@ -30,8 +30,8 @@ function setup({ status = 'running', field = 'puckData', bound = true } = {}) {
   } })
   const req = executor.withSession({ payload })
   req.user = { id: 5 } as typeof req.user
-  const previousDoc = { id: 1, [field]: { content: [slot('Old', bound ? 'hero' : null)] } }
-  const doc = { id: 1, [field]: { content: [slot('New', bound ? 'hero' : null)] } }
+  const previousDoc = { id: 1, [field]: { content: [slot('Old', bound ? { slug: 'hero' } : null)] } }
+  const doc = { id: 1, [field]: { content: [slot('New', bound ? { slug: 'hero' } : null)] } }
   const args = { req, doc, previousDoc, collection: { slug: 'pages', fields: [] } } as unknown as Parameters<CollectionAfterChangeHook>[0]
   Object.assign(payload.db, { findOne: vi.fn(async () => structuredClone(args.doc)) })
   return { executor, payload, args, state }
@@ -62,7 +62,7 @@ test.each(['draft', 'stopped', 'decided', 'archived'])('%s experiments get no ma
 test('unchanged content, property reordering, and edits outside slots do nothing', async () => {
   const { args, executor, payload } = setup()
   args.doc = { ...structuredClone(args.previousDoc), title: 'New title', updatedAt: 'now' }
-  args.doc.puckData.content[0].props = { variantA: [], control: [{ props: { text: 'Old' }, type: 'Text' }], experiment: 'hero', id: 'slot' }
+  args.doc.puckData.content[0].props = { variantA: [], control: [{ props: { text: 'Old' }, type: 'Text' }], experiment: { slug: 'hero' }, id: 'slot' }
   await recordContentChange(args)
   expect(executor.calls.some(call => call.text.includes('FROM') || call.text.startsWith('UPDATE'))).toBe(false)
   expect(payload.calls).toEqual([])
@@ -487,4 +487,12 @@ test('changes inside a fully hidden Puck ancestor are not changes to a place the
   } }] }
   await recordContentChange(args)
   expect(executor.calls.some(call => call.text.startsWith('UPDATE'))).toBe(false)
+})
+
+test('editing a plain-string Puck slot records no experimental content change', async () => {
+  const { args, executor } = setup()
+  args.previousDoc.puckData.content = [slot('Old', 'hero')]
+  args.doc.puckData.content = [slot('New', 'hero')]
+  await recordContentChange(args)
+  expect(executor.calls.some(call => call.text.includes('pg_advisory_xact_lock') || call.text.startsWith('UPDATE'))).toBe(false)
 })

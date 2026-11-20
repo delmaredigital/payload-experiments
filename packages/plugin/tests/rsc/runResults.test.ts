@@ -1220,7 +1220,7 @@ test.each([
     const control = stage < 2 && id === 8 ? [{ blockType: 'cta', xpGoal: 'join' }] : []
     return { id, layout: kind === 'page' ? control : [{ blockType: 'xpExperiment', experiment: `frozen-${serial}`,
       slots: [{ slot: 'control', blocks: control }, { slot: 'variantA', blocks: [] }],
-    }], puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: `frozen-${serial}`, control, variantA: [] } }] } }
+    }], puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: `frozen-${serial}` }, control, variantA: [] } }] } }
   }) })
   const amber = [{ code: 'goal-in-some-versions', metricId: 'click', name: 'Join clicks' }]
   expect(await runResults(context.payload, { sweep: false })).toMatchObject({ ran: 1, failed: 0 })

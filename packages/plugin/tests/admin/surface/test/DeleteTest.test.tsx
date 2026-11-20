@@ -70,7 +70,7 @@ test('lists live pages and the version before and after delete, capped at five w
   expect(rows).toHaveLength(5)
   expect(rows[0]!.textContent).toContain('Page 0 (/page-0)')
   expect(rows[0]!.textContent).toContain('New welcome → Original')
-  expect(screen.getByRole('dialog').textContent).toContain('3 more places')
+  expect(screen.getByRole('dialog').textContent).toContain('3 more pages')
   expect(screen.queryByText('Page 5 (/page-5)')).toBeNull()
 })
 test('page consequences list the current redirected addresses and winner', async () => {
@@ -84,7 +84,7 @@ test('page address lists are capped too', async () => {
   openWithImpact({ effect: 'page', winnerPath: '/new', addresses: Array.from({ length: 12 }, (_, i) => `/page-${i}`) })
   await screen.findByText(DELETE_TEST.pageWinner)
   expect(within(screen.getByRole('dialog')).getAllByRole('listitem')).toHaveLength(5)
-  expect(screen.getByRole('dialog').textContent).toContain('7 more places')
+  expect(screen.getByRole('dialog').textContent).toContain('7 more pages')
 })
 test('explicit no effect comes from the read even for an archived test', async () => {
   openWithImpact({ effect: 'none' })
@@ -109,12 +109,14 @@ test.each(['network', 'server', 'empty'] as const)('failed impact read (%s) is p
   const fetch = vi.fn(async (_url: string, init?: RequestInit) => {
     if (init?.method === 'DELETE') return Response.json({})
     if (failure === 'network') throw new Error('offline')
-    return failure === 'empty' ? new Response(null, { status: 200 }) : Response.json({}, { status: 500 })
+    return failure === 'empty' ? new Response(null, { status: 200 }) : Response.json({ errors: [{ message: 'SECRET readability failure' }] }, { status: 500 })
   }); vi.stubGlobal('fetch', fetch)
   const onDeleted = vi.fn()
   render(<DeleteTest {...base} onDeleted={onDeleted} />)
   fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
   await screen.findByText(DELETE_TEST.checkFailed)
+  expect(screen.getByRole('dialog').textContent).not.toContain('SECRET')
+  expect(screen.queryByRole('list')).toBeNull()
   const button = within(screen.getByRole('dialog')).getByRole<HTMLButtonElement>('button', { name: 'Delete test' })
   expect(button.disabled).toBe(false)
   fireEvent.click(button)
@@ -173,7 +175,7 @@ test.each([
   expect(screen.getByRole('status')).toBe(status)
   expect(status.textContent).toBe(summary)
   if (impact.effect === 'block') {
-    expect(screen.getByRole('dialog').textContent).toContain("and 2 pages you can't open")
+    expect(screen.getByRole('dialog').textContent).toContain("2 of these pages are ones you can't open.")
     expect(screen.getByRole('dialog').textContent).toContain('Current hero')
     expect(screen.getByRole('dialog').textContent).toContain('site right now')
     expect(screen.getByRole('dialog').textContent).not.toContain('see the Original again')
@@ -193,4 +195,24 @@ test('the same live region announces a failed check', async () => {
 test('page rows show another archived route when deleting reveals it', async () => {
   openWithImpact({ effect: 'page', winnerPath: '/new', addresses: ['/original'], afterPaths: { '/original': '/older' } })
   await screen.findByText('/original: /new → /older')
+})
+
+test.each([[0, 2], [2, 1], [8, 2]])('details order with %s readable and %s unreadable pages', async (readable, unreadable) => {
+  openWithImpact({ effect: 'block', controlLabel: 'Original', pageCount: readable + unreadable, unreadablePages: unreadable,
+    placements: Array.from({ length: readable }, (_, i) => ({ ...place(i), locales: ['en', 'fr'] })) })
+  await screen.findByText(DELETE_TEST.unreadablePages(unreadable))
+  const dialog = screen.getByRole('dialog')
+  const text = dialog.textContent!
+  expect(text).toContain(`${readable + unreadable} pages will change`)
+  expect(Boolean(within(dialog).queryByRole('list'))).toBe(readable > 0)
+  expect(text.includes('site right now')).toBe(readable > 0)
+  if (!readable) expect(screen.queryByText(DELETE_TEST.blockWinner('Original'))).toBeNull()
+  if (readable) {
+    expect(text).toContain('Languages: en, fr')
+    expect(text.indexOf('Page 0')).toBeLessThan(text.indexOf(`${unreadable} of these pages`))
+  }
+  if (readable > 5) {
+    expect(text.indexOf('Page 4')).toBeLessThan(text.indexOf('3 more pages.'))
+    expect(text.indexOf('3 more pages.')).toBeLessThan(text.indexOf(`${unreadable} of these pages`))
+  }
 })

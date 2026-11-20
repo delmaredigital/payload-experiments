@@ -1,3 +1,4 @@
+import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { puckVisibility, type BlockVisibility } from '../puck/visibility.js'
 import type { PayloadRequest } from 'payload'
 import type { Arm, DocId, ResolvedOptions } from '../types/contracts.js'
@@ -101,8 +102,7 @@ export async function goalContent<TUser extends { id: DocId }>(req: PayloadReque
             if (Array.isArray(value)) { value.forEach(walk); return }
             if (!isObject(value) || visibility.get(value)?.hidden) return
             const props = isObject(value.props) ? value.props : undefined
-            const ref = props?.experiment
-            if (value.type === 'ExperimentSlot' && props && (typeof ref === 'string' ? ref : isObject(ref) ? ref.slug : undefined) === experiment.slug) {
+            if (value.type === 'ExperimentSlot' && props && puckExperimentSlug(props.experiment) === experiment.slug) {
               for (const arm of experiment.arms.filter(a => a.kind !== 'holdout')) collect(props[arm.slot ?? arm.key], byArm.get(arm.key)!, '', labels, visibility)
               return
             }

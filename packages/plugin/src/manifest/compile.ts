@@ -32,12 +32,14 @@ export interface ManifestInputs {
   pruneFlagDefaultIds?: DocId[]
 }
 
-export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [], pruneFlagDefaultIds = [] }: { excludeIds?: DocId[]; pruneFlagDefaultIds?: DocId[] } = {}): Promise<ManifestInputs> {
+export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [], pruneFlagDefaultIds = [], signal }: { excludeIds?: DocId[]; pruneFlagDefaultIds?: DocId[]; signal?: AbortSignal } = {}): Promise<ManifestInputs> {
+  signal?.throwIfAborted()
   // §7.8 manifest reads: transitions compile all live/archived routing state.
   const result = await req.payload.find({
     collection: 'xp-experiments', req, overrideAccess: true, depth: 1, limit: 0,
     where: { status: { in: ['running', 'decided', 'archived'] } },
   })
+  signal?.throwIfAborted()
   const excluded = new Set(excludeIds.map(String))
   const experiments: ManifestInputExperiment[] = []
   for (const doc of result.docs) {
@@ -48,6 +50,7 @@ export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [],
       collection: 'xp-phases', req, overrideAccess: true, depth: 0, limit: 1,
       where: { experiment: { equals: doc.id }, ...(doc.status === 'archived' ? { phaseKind: { equals: 'test' } } : {}) }, sort: '-phase',
     })
+    signal?.throwIfAborted()
     const rollout = phases.docs[0]?.phaseKind === 'rollout'
     // §7.8 manifest reads: runtime rollout ranges use the test's full weights (including their exact
     // floating-point sum) and its control content. The rollout record has only
@@ -56,6 +59,7 @@ export async function loadManifestInputs(req: PayloadRequest, { excludeIds = [],
       collection: 'xp-phases', req, overrideAccess: true, depth: 0, limit: 1,
       where: { experiment: { equals: doc.id }, phaseKind: { equals: 'test' } }, sort: '-phase',
     }) : null
+    signal?.throwIfAborted()
     if (rollout && !test?.docs[0]) throw new Error('Missing test phase for rollout ' + doc.id)
     experiments.push({ ...doc, currentPhase: doc.status === 'archived' ? null : phases.docs[0] ?? null,
       ...(doc.status === 'archived' ? { lastTestPhase: phases.docs[0] ?? null } : {}),

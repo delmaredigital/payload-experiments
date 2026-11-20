@@ -1,3 +1,4 @@
+import { puckExperimentSlug } from '../puck/experimentSlug.js'
 import { puckVisibility } from '../puck/visibility.js'
 import { EXPERIMENT_BLOCK_SLUG, hostBlocks } from '../blocks/model.js'
 import { safeError } from '../log.js'
@@ -32,7 +33,7 @@ function bindings(data: unknown, puck: boolean): Map<string, Binding> {
     if (!object(value) || visibility?.get(value)?.hidden) return
     if (puck && value.type === 'ExperimentSlot' && object(value.props)) {
       const props = value.props
-      const slug = typeof props.experiment === 'string' ? props.experiment : object(props.experiment) ? props.experiment.slug : undefined
+      const slug = puckExperimentSlug(props.experiment)
       if (typeof slug === 'string' && slug) add('slug', slug, {
         id: props.id, ...Object.fromEntries(slots.map(slot => [slot, props[slot] ?? []])),
       })

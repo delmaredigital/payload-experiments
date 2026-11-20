@@ -24,8 +24,8 @@ test('page and Puck keys use published inline content; multi-placement union and
   options.pages = { collections: [{ slug: 'pages', pathOf: doc => String(doc.path), findByPath: async path => ({ id: path === '/a' ? 1 : 2, published: true }), contentOf: doc => doc.layout }] }
   const payload = fakePayload({ config: { collections: [{ slug: 'pages', versions: { drafts: true } }] }, collections: { pages: [
     { id: 1, _status: 'published', layout: [{ xpGoal: 'join', blockType: 'cta' }] }, { id: 2, _status: 'published', layout: [] },
-    { id: 3, _status: 'published', puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: 'fair', control: [{ type: 'CTA', props: { xpGoal: 'join' } }], variantA: [] } }] } },
-    { id: 4, _status: 'published', puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: 'fair', control: [], variantA: [{ type: 'CTA', props: { xpGoal: 'join' } }] } }] } },
+    { id: 3, _status: 'published', puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'fair' }, control: [{ type: 'CTA', props: { xpGoal: 'join' } }], variantA: [] } }] } },
+    { id: 4, _status: 'published', puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'fair' }, control: [], variantA: [{ type: 'CTA', props: { xpGoal: 'join' } }] } }] } },
   ] } })
   const req = fakeReq({ payload })
   const page = await goalContent(req, options, { ...experiment, kind: 'page', pageCollection: 'pages', arms: arms.map((a, i) => ({ ...a, pageTarget: i ? '/b' : '/a' })) })
@@ -70,7 +70,7 @@ test.each(['page', 'block', 'puck'] as const)('missing and unpublished %s conten
   const payload = fakePayload({ config: { collections: [{ slug: 'pages', versions: { drafts: true } }] }, collections: { pages: [
     { id: 1, _status: 'published', layout: kind === 'page' ? [{ xpGoal: 'join' }] : [{ blockType: 'xpExperiment', experiment: 'fair', slots: [
       { slot: 'control', blocks: [{ blockType: 'cta', xpGoal: 'join' }] }, { slot: 'variantA', blocks: [] },
-    ] }], puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: 'fair', control: [{ props: { xpGoal: 'join' } }], variantA: [] } }] } },
+    ] }], puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'fair' }, control: [{ props: { xpGoal: 'join' } }], variantA: [] } }] } },
     { id: 3, _status: 'draft', layout: [{ xpGoal: 'join' }] },
     { id: 4, _status: 'published', layout: [{ xpGoal: 'join' }] },
     { id: 5, _status: 'published', layout: [] },
@@ -124,7 +124,7 @@ test('hidden Puck occurrences and hidden goal children cannot add an asymmetric 
   const options = sampleOptions()
   options.puck = { enabled: true, collections: ['pages'] }
   const slot = (id: string, hidden: boolean) => ({ type: 'ExperimentSlot', props: {
-    id, experiment: 'fair', _visibility: hidden ? { hidden: true } : undefined,
+    id, experiment: { slug: 'fair' }, _visibility: hidden ? { hidden: true } : undefined,
     control: [{ type: 'CTA', props: { id: `cta-${id}`, xpGoal: hidden ? 'hidden-goal' : 'join' } },
       { type: 'CTA', props: { id: `hidden-child-${id}`, _visibility: { hidden: true }, xpGoal: 'hidden-child' } }],
     variantA: hidden ? [] : [{ type: 'CTA', props: { id: `variant-${id}`, xpGoal: 'join' } }],
@@ -142,10 +142,20 @@ test('a nested occurrence does not turn an asymmetric outer goal into a symmetri
   const options = sampleOptions()
   options.puck = { enabled: true, collections: ['pages'] }
   const cta = { type: 'CTA', props: { xpGoal: 'join' } }
-  const nested = { type: 'ExperimentSlot', props: { id: 'nested', experiment: 'fair', control: [cta], variantA: [cta] } }
-  const outer = { type: 'ExperimentSlot', props: { id: 'outer', experiment: 'fair', control: [nested], variantA: [] } }
+  const nested = { type: 'ExperimentSlot', props: { id: 'nested', experiment: { slug: 'fair' }, control: [cta], variantA: [cta] } }
+  const outer = { type: 'ExperimentSlot', props: { id: 'outer', experiment: { slug: 'fair' }, control: [nested], variantA: [] } }
   const payload = fakePayload({ config: { collections: [{ slug: 'pages', fields: [] }] }, collections: { pages: [{ id: 1, _status: 'published', puckData: { content: [outer] } }] } })
   const content = await goalContent(fakeReq({ payload }), options, experiment, [{ collection: 'pages', id: 1 }])
   expect(content.keys).toEqual([{ key: 'join', arms: ['control'], label: 'CTA' }])
   expect(asymmetricGoal(content, 'click:join', arms)).toBe(true)
+})
+
+test('plain-string Puck slots add no click goals or asymmetry', async () => {
+  const options = sampleOptions(); options.puck = { enabled: true, collections: ['pages'] }
+  const payload = fakePayload({ config: { collections: [{ slug: 'pages', fields: [] }] }, collections: { pages: [{ id: 1, puckData: {
+    content: [{ type: 'ExperimentSlot', props: { experiment: 'fair', control: [{ type: 'CTA', props: { xpGoal: 'join' } }], variantA: [] } }],
+  } }] } })
+  const content = await goalContent(fakeReq({ payload }), options, experiment, [{ collection: 'pages', id: 1 }])
+  expect(content.keys).toEqual([])
+  expect(asymmetricGoal(content, 'click:join', arms)).toBe(false)
 })

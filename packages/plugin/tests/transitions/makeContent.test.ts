@@ -75,7 +75,7 @@ test.each(['puckData', 'content'])('nested slots unwrap in %s; published and lat
   const read = async (args: { id?: string | number; collection: string; draft?: boolean }) => {
     const doc = await findByID(args)
     return { ...doc, title: args.draft ? 'Draft outer title' : 'Published outer title', [field]: { root: { props: { title: args.draft ? 'Draft title' : 'Published title' } }, content: [
-      { type: 'Section', props: { children: [slot([text('Before'), slot([text(args.draft ? 'Draft winner' : 'Published winner')], 'hero'), text('After')])] } },
+      { type: 'Section', props: { children: [slot([text('Before'), slot([text(args.draft ? 'Draft winner' : 'Published winner')], { slug: 'hero' }), text('After')])] } },
       slot([text('Untouched')], 'another'),
     ] } }
   }
@@ -1078,4 +1078,17 @@ test('Make permanent preserves size-specific visibility when unwrapping the winn
   f.payload.documents.pages = [{ id: 3, _status: 'published', puckData: { content: [{ ...partial, props: { ...partial.props, _visibility: { hideOn: ['phone'] } } }] } }]
   await makeContent(f.req, { experimentId: 1, options: f.options })
   expect(hostUpdates(f)[0]!.args.data).toEqual(expect.objectContaining({ puckData: { content: [{ type: 'Text', props: { text: 'Winner', _visibility: { hideOn: ['phone'] } } }] } }))
+})
+
+test('make-content preserves a plain-string slot beside a real binding it reports', async () => {
+  const f = fixture('block', false)
+  const unbound = slot([text('Unserved variant')], 'hero')
+  f.payload.documents.pages![0]!.puckData = { content: [slot(), unbound] }
+  f.payload.documents.pages![1]!.puckData = { content: [unbound] }
+  const preflight = await preflightData(f.req, { experimentId: 1, options: f.options })
+  expect(preflight?.placements.map(place => place.id)).toEqual([3])
+  const result = await makeContent(f.req, { experimentId: 1, options: f.options })
+  expect(result.docs).toEqual([{ collection: 'pages', id: 3, ok: true }])
+  expect(hostUpdates(f)).toHaveLength(1)
+  expect(hostUpdates(f)[0]!.args.data).toMatchObject({ puckData: { content: [text('Winner'), unbound] } })
 })

@@ -78,6 +78,55 @@ export async function hasOtherPublishedBlockPlacement(req: PayloadRequest, optio
   return false
 }
 
+interface PublishedBlockPlacement { id: DocId; editor: 'puck' | 'blocks'; slots: BlockPlacement['slots']; locale?: string }
+
+/** Visitor-impact scan: one published read per collection page, retaining only
+ * each locale's own content. Fallbacks do not create another placement.
+ */
+export async function* publishedBlockPlacementPages(req: PayloadRequest, options: Pick<ResolvedOptions, 'puck' | 'blocks'>, slug: string): AsyncGenerator<{
+  collection: string; placements: PublishedBlockPlacement[]
+}> {
+  const puck = options.puck?.enabled ? normalisePuckCollections(options) : [], blocks = options.blocks?.collections ?? []
+  for (const collection of new Set([...puck, ...blocks].map(entry => entry.slug))) {
+    const drafts = req.payload.config.collections?.some(c => c.slug === collection && c.versions && c.versions.drafts)
+    let page = 1
+    while (true) {
+      req.signal?.throwIfAborted()
+      const result = await placementDocuments(req, { collection, overrideAccess: false, limit: 100, page, depth: 0, draft: false,
+        ...(req.payload.config.localization ? { locale: 'all' as const, fallbackLocale: false as const } : {}),
+        ...(drafts ? { where: { _status: { equals: 'published' } } } : {}),
+      }, true)
+      req.signal?.throwIfAborted()
+      const placements: PublishedBlockPlacement[] = []
+      for (const raw of result.docs) {
+        if (raw._status === 'draft' || raw.deletedAt != null) continue
+        for (const view of placementLocaleViews(req, collection)) {
+          const doc = placementLocaleContent(localeRequest(req, { ...view, fallbackLocale: false }), collection, raw)!
+          const add = (contents: Record<ArmSlot, number>, editor: 'puck' | 'blocks') => placements.push({ id: raw.id, editor, slots: contents, ...(view.locale ? { locale: view.locale } : {}) })
+          if (documentEditor(options, collection, doc) === 'puck') {
+            const registration = puck.find(entry => entry.slug === collection)
+            if (registration) walkVisiblePuck(doc[registration.field], (node, visibility) => {
+              if (!visibility.hidden && node.type === 'ExperimentSlot' && puckExperimentSlug(node.props.experiment) === slug) {
+                add(Object.fromEntries(slots.map(slot => [slot, Array.isArray(node.props[slot]) ? node.props[slot].length : 0])) as Record<ArmSlot, number>, 'puck')
+              }
+            })
+          } else {
+            const registration = blocks.find(entry => entry.slug === collection)
+            if (registration) for (const block of hostBlocks(doc[registration.field])) {
+              if (block.blockType === (registration.blockSlug ?? EXPERIMENT_BLOCK_SLUG) && block.experiment === slug) {
+                add(Object.fromEntries(BLOCK_SLOTS.map(slot => [slot, slotBlocks(block, slot).length])) as Record<ArmSlot, number>, 'blocks')
+              }
+            }
+          }
+        }
+      }
+      yield { collection, placements }
+      if (!result.hasNextPage) break
+      page++
+    }
+  }
+}
+
 /** Each matching ExperimentSlot is checked separately, including multiple slots
  * in one document: content elsewhere in the document cannot hide an empty slot.
  */

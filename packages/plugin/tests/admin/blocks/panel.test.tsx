@@ -357,3 +357,22 @@ test.each([false, true])('archived with no live winner offers the truthful Unwra
   expect(screen.getByText(discarded ? BLOCK_COPY.discarded : BLOCK_COPY.neverDecided)).toBeTruthy()
   expect(screen.queryByText(/Make it the content/)).toBeNull()
 })
+
+test.each([
+  ['control', false, false, true], ['variantA', false, false, false], ['variantA', false, true, true],
+  ['variantA', true, false, true], [undefined, false, false, true],
+] as const)('archived winner %s discarded=%s empty=%s: Original unwrap offered=%s', async (winnerArm, discarded, empty, offered) => {
+  const wrapped = prepare({ ...live, status: 'archived', winnerArm, discarded }, { empty })
+  render(<BlockStatusField {...props} />)
+  await screen.findByText(winnerArm && !discarded ? /Archived: / : discarded ? /Winner discarded:/ : /Archived without a winner:/)
+  await waitFor(() => expect(Boolean(screen.queryByRole('button', { name: BLOCK_COPY.unwrap }))).toBe(offered))
+  if (offered) {
+    fireEvent.click(screen.getByRole('button', { name: BLOCK_COPY.unwrap }))
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledOnce())
+    expect(mocks.replace.mock.calls[0]![0].rows[0].blockType).toBe(wrapped.slots[0]!.blocks[0]!.blockType)
+  }
+  if (winnerArm === 'control') {
+    expect(screen.getByText(/Archived: the Original won/)).toBeTruthy()
+    expect(screen.queryByText(/fallback/)).toBeNull()
+  }
+})

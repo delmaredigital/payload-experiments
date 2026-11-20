@@ -147,7 +147,7 @@ test.each([true, false])('content audit respects appliesTo=%s for a document wit
     blocks: { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => appliesTo }] } }
   const payload = fakePayload({ executor, config: { custom: { xp: options } } })
   const req = executor.withSession({ payload })
-  const slot = (text: string) => ({ content: [{ type: 'ExperimentSlot', props: { experiment: 'hero', control: [{ text }], variantA: [] } }] })
+  const slot = (text: string) => ({ content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{ text }], variantA: [] } }] })
   const previous = { id: 1, puckData: slot('Before') }, current = { id: 1, puckData: slot('After') }
   await contentChangesHook({ req, collection: { slug: 'pages', fields: [] }, previousDoc: previous, doc: current } as never)
   expect(executor.calls.some(call => call.text.includes('current_setting'))).toBe(true)

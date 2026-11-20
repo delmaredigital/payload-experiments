@@ -38,13 +38,13 @@ test.each([[true, true, 200], [false, true, 403], [true, false, 401]] as const)(
   expect((await read()).status).toBe(status)
   if (status !== 200) expect(payload.calls).toEqual([])
 })
-test('uses current published placements, not the decision report, and retains each occurrence', async () => {
+test('uses current published placements, not the decision report, and lists each page once', async () => {
   const { read, payload, req } = setup()
   payload.documents['xp-experiments']![0]!.decision = { winnerArm: 'variantA', contentReport: { docs: [{ collection: 'pages', id: 1, ok: true }] } }
   const response = await read()
   expect(response.headers.get('Cache-Control')).toContain('no-store')
-  expect(await response.json()).toEqual({ effect: 'block', controlLabel: 'Current hero', unreadablePages: 0, pageCount: 1, placements: [1, 2].map(() => ({ collection: 'pages', id: 1,
-    title: 'Added after the decision', path: '/site/welcome', before: { key: 'variantA', label: 'New welcome' }, after: { key: 'control', label: 'Current hero' } })) })
+  expect(await response.json()).toEqual({ effect: 'block', controlLabel: 'Current hero', unreadablePages: 0, pageCount: 1, placements: [{ collection: 'pages', id: 1,
+    title: 'Added after the decision', path: '/site/welcome', before: { key: 'variantA', label: 'New welcome' }, after: { key: 'control', label: 'Current hero' } }] })
   expect(payload.calls[0]!.args).toMatchObject({ req, overrideAccess: false })
   expect(payload.calls.some(call => call.args.collection === 'pages' && call.args.overrideAccess === true)).toBe(true)
   expect(payload.dbCalls).toEqual([])
@@ -153,21 +153,21 @@ test.each(['hidden', 'locale', 'mixed'] as const)('visitor scan includes inacces
   const localization = { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: false }
   Object.assign(payload.config, { localization, collections: [{ slug: 'pages', fields: [{ name: 'puckData', type: 'json', localized: true }] }, { slug: 'articles', fields: [] }] })
   payload.documents.pages = [
-    { id: 1, title: 'Readable', slug: 'public', tenant: 'mine', puckData: { en: mode === 'hidden' ? { content: [] } : { content: [] }, fr: { content: [slot()] } } },
+    { id: 1, title: 'Readable', slug: 'public', tenant: 'mine', puckData: { en: { content: [] }, fr: { content: [slot()] } } },
     ...(mode === 'locale' ? [] : [{ id: 2, title: 'SECRET', slug: 'SECRET', tenant: 'other', puckData: { en: { content: [slot(), slot()] }, fr: { content: [slot()] } } }]),
   ]
   const find = payload.find.bind(payload)
   vi.spyOn(payload, 'find').mockImplementation(async args => {
     // Emulate Payload combining a tenant-scoped read Where with the caller's query.
     const result = await find(args.collection === 'pages' && args.overrideAccess === false ? { ...args, where: { and: [args.where ?? {}, { tenant: { equals: mode === 'hidden' ? 'none' : 'mine' } }] } } : args)
-    if (args.collection === 'pages') result.docs = result.docs.map(doc => ({ ...doc, puckData: (doc.puckData as Record<string, unknown>)[String(args.locale ?? 'en')] }))
+    if (args.collection === 'pages' && args.locale !== 'all') result.docs = result.docs.map(doc => ({ ...doc, puckData: (doc.puckData as Record<string, unknown>)[String(args.locale ?? 'en')] }))
     return result
   })
   const result = await (await read()).json()
   expect(result).toMatchObject({ effect: 'block', unreadablePages: mode === 'locale' ? 0 : mode === 'hidden' ? 2 : 1, pageCount: mode === 'locale' ? 1 : 2 })
   expect(result.placements).toHaveLength(mode === 'hidden' ? 0 : 1)
   expect(JSON.stringify(result)).not.toContain('SECRET')
-  expect(payload.calls.some(call => call.args.collection === 'pages' && call.args.overrideAccess === true && call.args.locale === 'fr')).toBe(true)
+  expect(payload.calls.some(call => call.args.collection === 'pages' && call.args.overrideAccess === true && call.args.locale === 'all')).toBe(true)
 })
 
 test('deleting a colliding page route reveals the other compiled route rather than its own page', async () => {
@@ -175,4 +175,114 @@ test('deleting a colliding page route reveals the other compiled route rather th
   payload.documents['xp-experiments']!.unshift({ ...experiment, id: 'older', slug: 'older', kind: 'page' })
   payload.documents['xp-phases']!.push({ ...phase, id: 'older-phase', experiment: 'older', arms: phase.arms.map(arm => arm.key === 'variantA' ? { ...arm, pageTarget: '/older-winner' } : arm) })
   expect(await (await read()).json()).toEqual({ effect: 'page', winnerPath: '/new', addresses: ['/original'], afterPaths: { '/original': '/older-winner' } })
+})
+
+// Payload's locale:'all' result preserves the stored locale maps even with fallback enabled.
+test.each(['puck', 'blocks'] as const)('fallback locales do not duplicate %s pages; own locales share one row', async editor => {
+  const { read, payload, options } = setup()
+  options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: () => editor === 'blocks' }] }
+  const field = editor === 'puck' ? 'puckData' : 'layout'
+  const content = editor === 'puck' ? { content: [slot(), slot()] } : [{ blockType: 'xpExperiment', experiment: 'welcome', slots: [
+    { slot: 'control', blocks: [{ blockType: 'text' }] }, { slot: 'variantA', blocks: [{ blockType: 'text' }] },
+  ] }]
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr', 'de'], locales: [{ code: 'en' }, { code: 'fr' }, { code: 'de' }], fallback: true },
+    collections: [{ slug: 'pages', fields: [{ name: field, type: 'json', localized: true }] }] })
+  payload.documents.pages = [{ id: 1, title: 'English only', slug: 'one', [field]: { en: content } },
+    { id: 2, title: 'Two languages', slug: 'two', [field]: { en: content, fr: content } }]
+  const find = payload.find.bind(payload)
+  vi.spyOn(payload, 'find').mockImplementation(async args => {
+    const result = await find(args)
+    if (args.collection === 'pages' && args.locale !== 'all') result.docs = result.docs.map(doc => {
+      const values = doc[field] as Record<string, unknown>
+      return { ...doc, [field]: values[String(args.locale ?? 'en')] ?? (args.fallbackLocale === false ? undefined : values.en) }
+    })
+    return result
+  })
+  const result = await (await read()).json()
+  expect(result).toMatchObject({ effect: 'block', pageCount: 2, unreadablePages: 0, placements: [
+    { id: 1, locales: ['en'] }, { id: 2, locales: ['en', 'fr'] },
+  ] })
+  expect(result.placements).toHaveLength(2)
+  const scans = payload.calls.filter(call => call.args.collection === 'pages' && call.args.overrideAccess === true)
+  expect(scans).toHaveLength(1)
+  expect(scans[0]!.args).toMatchObject({ locale: 'all', fallbackLocale: false, limit: 100 })
+})
+test('abort after a scan page stops before readability, the next page or collection', async () => {
+  const { read, req, payload } = setup()
+  const controller = new AbortController(); Object.assign(req, { signal: controller.signal })
+  const find = payload.find.bind(payload)
+  vi.spyOn(payload, 'find').mockImplementation(async args => {
+    const result = await find(args)
+    if (args.collection === 'pages' && args.overrideAccess === true) { controller.abort(); result.hasNextPage = args.page === 1 }
+    return result
+  })
+  await expect(read()).rejects.toMatchObject({ name: 'AbortError' })
+  expect(payload.calls.filter(call => ['pages', 'articles'].includes(String(call.args.collection)))).toHaveLength(1)
+})
+test.each(['missing-rollout-test', 'missing-current', 'incomplete-layer'] as const)('unrelated routing failure is an unchecked impact: %s', async mode => {
+  const { read, payload } = setup()
+  payload.documents['xp-experiments']!.push({ ...experiment, id: 'other', slug: 'private-name', status: 'running', ...(mode === 'incomplete-layer' ? { layer: 'layer' } : {}) })
+  if (mode !== 'missing-current') payload.documents['xp-phases']!.push({ ...phase, id: 'other-phase', experiment: 'other', phaseKind: mode === 'missing-rollout-test' ? 'rollout' : 'test' })
+  const response = await read()
+  expect(response.status).toBe(422)
+  const body = await response.json()
+  expect(body).toMatchObject({ errors: [{ code: 'placement-unchecked' }] })
+  expect(JSON.stringify(body)).not.toContain('private-name')
+})
+test.each([undefined, null, 123, '/site/undefined', '/site/null', '/site/%75ndefined'])('unusable access-filtered public path %s is omitted', async path => {
+  const { read, options } = setup()
+  options.pages!.collections[0]!.pathOf = () => path as never
+  expect((await (await read()).json()).placements).toMatchObject([{ path: null }])
+})
+test('readable page with an inaccessible layout still uses only readable metadata', async () => {
+  const { read, payload } = setup()
+  const find = payload.find.bind(payload)
+  vi.spyOn(payload, 'find').mockImplementation(async args => {
+    const result = await find(args)
+    if (args.collection === 'pages' && args.overrideAccess === false) result.docs = result.docs.map(({ puckData, slug, ...doc }) => doc)
+    return result
+  })
+  expect(await (await read()).json()).toMatchObject({ pageCount: 1, unreadablePages: 0, placements: [{ title: 'Added after the decision', path: null }] })
+})
+test('a non-403 readability failure rejects the whole check without disclosing a partial result', async () => {
+  const { read, payload } = setup()
+  const find = payload.find.bind(payload)
+  vi.spyOn(payload, 'find').mockImplementation(args => args.collection === 'pages' && args.overrideAccess === false ? Promise.reject(new Error('Read failed')) : find(args))
+  await expect(read()).rejects.toThrow('Read failed')
+})
+
+test('201 published pages take three scan pages and no locale-multiplied reads', async () => {
+  const { read, payload } = setup()
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr', 'de'], locales: [{ code: 'en' }, { code: 'fr' }, { code: 'de' }], fallback: true },
+    collections: [{ slug: 'pages', fields: [{ name: 'puckData', type: 'json', localized: true }] }, { slug: 'articles', fields: [] }] })
+  payload.documents.pages = Array.from({ length: 201 }, (_, i) => ({ id: i, puckData: { en: { content: [slot()] } } }))
+  expect(await (await read()).json()).toMatchObject({ effect: 'block', pageCount: 201, unreadablePages: 0 })
+  expect(payload.calls.filter(call => call.args.collection === 'pages' && call.args.overrideAccess === true).map(call => call.args.page)).toEqual([1, 2, 3])
+  expect(payload.calls.filter(call => call.args.collection === 'pages' && call.args.overrideAccess === false)).toHaveLength(3)
+})
+test('a page without affected placements needs no readability read', async () => {
+  const { read, payload } = setup()
+  payload.documents.pages = [{ id: 1, puckData: { content: [] } }]
+  expect(await (await read()).json()).toEqual({ effect: 'none' })
+  expect(payload.calls.filter(call => call.args.collection === 'pages' && call.args.overrideAccess === false)).toHaveLength(0)
+})
+test('disabled Puck registration is not scanned', async () => {
+  const { read, options, payload } = setup()
+  options.puck!.enabled = false
+  expect(await (await read()).json()).toEqual({ effect: 'none' })
+  expect(payload.calls.some(call => call.args.collection === 'pages')).toBe(false)
+})
+
+test('abort during manifest phase loading stops before more manifest reads', async () => {
+  const { read, payload, req } = setup()
+  const controller = new AbortController(); Object.assign(req, { signal: controller.signal })
+  const find = payload.find.bind(payload)
+  vi.spyOn(payload, 'find').mockImplementation(async args => {
+    const result = await find(args)
+    if (args.collection === 'xp-phases') controller.abort()
+    return result
+  })
+  await expect(read()).rejects.toMatchObject({ name: 'AbortError' })
+  expect(payload.findGlobal).not.toHaveBeenCalled()
+  expect(payload.calls.some(call => call.args.collection === 'pages')).toBe(false)
 })

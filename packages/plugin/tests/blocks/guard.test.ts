@@ -1,3 +1,4 @@
+import { blockRemovalRule } from '../../src/hooks/blockRemovalRule.js'
 import { expect, test, vi } from 'vitest'
 import { guardExperimentIds, pageGuardBeforeChange, pageGuardAfterChange } from '../../src/hooks/pageGuard.js'
 import { isPageBusy } from '../../src/db/pageBusy.js'
@@ -78,4 +79,15 @@ test('afterChange appends published stored placements and propagates SQL failure
   expect(append?.params).toEqual([JSON.stringify([{ collection: 'pages', id: 1 }]), 2, 1, 'pages', '1'])
   const error = new Error('SQL failed'); f.fail(error)
   await expect(pageGuardAfterChange({ req: f.req, collection: f.collection, doc: f.original } as never)).rejects.toBe(error)
+})
+
+test('hiding a plain-string Puck slot does not report hiding a bound test', async () => {
+  const options = sampleOptions(); options.puck = { enabled: true, collections: ['pages'] }
+  const payload = fakePayload({ config: { custom: { xp: options }, collections: [{ slug: 'pages', fields: [] }] } })
+  const node = (experiment: unknown, id: string, hidden = false) => ({ type: 'ExperimentSlot', props: { id, experiment, _visibility: { hidden }, control: [{}] } })
+  const before = { puckData: { content: [node({ slug: 'block' }, 'real'), node('block', 'unbound')] } }
+  const after = { puckData: { content: [node('block', 'unbound', true)] } }
+  const prepared = await blockRemovalRule.prepare(fakeReq({ payload }), 'pages', before, after, false, undefined, tests)
+  expect([...prepared.views.keys()]).toEqual(['block'])
+  expect([...prepared.hidden]).toEqual([])
 })

@@ -6,7 +6,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { copyOriginalIntoVersion, syncExperimentSlots, unwrapExperimentBlock } from '../../blocks/formState.js'
 import { BLOCK_COPY, blockSyncNotice, blockUnwrapNotice, blockDeleteConfirmation, blockUnwrapConfirmation, blockRunningUnwrap, blockDecidedUnwrap, blockFinishedCopy } from '../../admin/copy/blocks.js'
 import { API_MESSAGES } from '../../testSurface/copy/common.js'
-import { isOrphan, liveStatus, slotLabel, statusSentence } from './model.js'
+import { canUnwrapOriginal, liveStatus, slotLabel, statusSentence } from './model.js'
 import { createApi } from '../../testSurface/api.js'
 import { useBlockStatus, setBlockStatus } from './statusCache.js'
 import { useBlockForm } from './useBlockForm.js'
@@ -67,13 +67,13 @@ export function BlockStatusField({ path }: UIFieldClientProps) {
   const sentence = statusSentence(status)
   const linkedCopy = liveStatus(status) ? status.status === 'running' ? blockRunningUnwrap
     : status.status === 'decided' ? blockDecidedUnwrap
-      : status.status === 'archived' && status.winnerArm && !status.discarded ? blockFinishedCopy(slotLabel(status.winnerArm, status)) : undefined : undefined
+      : status.status === 'archived' && status.winnerArm && !status.discarded ? blockFinishedCopy(slotLabel(status.winnerArm, status), status.winnerArm === 'control') : undefined : undefined
   const href = formatAdminURL({ adminRoute: config.routes.admin, path: `/experiments/by-slug/${encodeURIComponent(block?.experiment ?? '')}` })
   return <div>
     {liveStatus(status) && status.status === 'running' ? <Banner>{sentence}</Banner> : linkedCopy && liveStatus(status) && status.status === 'archived' ? null : <p>{sentence}</p>}
     {linkedCopy ? <p>{linkedCopy.before}<a href={href}>{linkedCopy.link}</a>{linkedCopy.after}</p> : null}
     {notice ? <p role="status">{blockSyncNotice(Boolean(collection?.versions?.drafts))}</p> : null}
-    {isOrphan(status) || draft || stopped ? <Button disabled={busy} onClick={() => draft || stopped ? openModal(modalSlug) : void unwrap()}>{draft ? BLOCK_COPY.removeAndUnwrap : BLOCK_COPY.unwrap}</Button> : null}
+    {canUnwrapOriginal(status, block) || draft || stopped ? <Button disabled={busy} onClick={() => draft || stopped ? openModal(modalSlug) : void unwrap()}>{draft ? BLOCK_COPY.removeAndUnwrap : BLOCK_COPY.unwrap}</Button> : null}
     {draft || stopped ? <ConfirmationModal modalSlug={modalSlug} heading={draft ? BLOCK_COPY.removeAndUnwrap : BLOCK_COPY.unwrap}
       body={draft ? blockDeleteConfirmation(status.name) : blockUnwrapConfirmation(status.name)}
       confirmLabel={draft ? BLOCK_COPY.deleteAndUnwrap : BLOCK_COPY.unwrap} cancelLabel={BLOCK_COPY.cancel} onConfirm={unwrap} /> : null}

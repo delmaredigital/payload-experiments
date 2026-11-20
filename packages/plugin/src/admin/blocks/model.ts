@@ -1,5 +1,5 @@
 import type { PlacementStatusResult } from '../../types/endpoints.js'
-import { hostBlocks } from '../../blocks/model.js'
+import { hostBlocks, slotBlocks, type HostBlock } from '../../blocks/model.js'
 import { BLOCK_COPY, blockDecidedStatus, blockDraftStatus, blockFinishedStatus, blockPosition } from '../../admin/copy/blocks.js'
 import type { RowsField } from './formApi.js'
 export type BlockStatus = PlacementStatusResult['slugs'][string]
@@ -17,10 +17,16 @@ export function statusSentence(status: BlockStatus): string {
     case 'running': return BLOCK_COPY.running
     case 'stopped': return BLOCK_COPY.stopped
     case 'decided': return blockDecidedStatus(winnerLabel, status.rollout)
-    case 'archived': return status.discarded ? BLOCK_COPY.discarded : status.winnerArm ? blockFinishedStatus(winnerLabel) : BLOCK_COPY.neverDecided
+    case 'archived': return status.discarded ? BLOCK_COPY.discarded : status.winnerArm ? blockFinishedStatus(winnerLabel, status.winnerArm === 'control') : BLOCK_COPY.neverDecided
   }
 }
-export function isOrphan(status: BlockStatus): boolean { return !liveStatus(status) || status.status === 'archived' && (status.discarded || !status.winnerArm) }
+export function canUnwrapOriginal(status: BlockStatus, block?: HostBlock): boolean {
+  if (!liveStatus(status)) return true
+  if (status.status !== 'archived') return false
+  if (status.discarded || !status.winnerArm || status.winnerArm === 'control') return true
+  const slot = status.arms.find(arm => arm.key === status.winnerArm)?.slot ?? status.winnerArm
+  return !!block && slotBlocks(block, slot).length === 0
+}
 export function labelText(value: unknown): string | undefined {
   return typeof value === 'string' ? value : value && typeof value === 'object' ? Object.values(value).find((item): item is string => typeof item === 'string') : undefined
 }
