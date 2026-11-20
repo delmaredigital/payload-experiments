@@ -1,4 +1,3 @@
-import { nestedTestCopy } from '../../../../src/puck/nestedTestCopy.js'
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test } from 'vitest'
@@ -42,9 +41,9 @@ test('local placement guidance preserves other pages and the removed-block check
 
 test('the local nested notice collapses only its own pair and page, preserving other pages and pairs', () => {
   const page = { collection: 'pages', id: '7' }
-  const here = { ...page, outer: 'Outer', inner: 'Inner', title: 'Home · All languages', allLocales: true }
+  const here = { ...page, outer: 'Outer', inner: 'Inner', outerSlug: 'outer', innerSlug: 'inner', title: 'Home · All languages', allLocales: true }
   const otherPage = { ...here, id: 8, title: 'About · Languages: French', allLocales: undefined, locales: ['French'] }
-  const otherPair = { ...here, inner: 'Another inner' }
-  expect(editorNestedChecks([{ code: 'nested-tests', ok: false, detail: [here, otherPage, otherPair] }], page, nestedTestCopy.start('Outer', 'Inner')))
+  const otherPair = { ...here, inner: 'Another inner', innerSlug: 'another-inner' }
+  expect(editorNestedChecks([{ code: 'nested-tests', ok: false, detail: [here, otherPage, otherPair] }], page, { outerSlug: 'outer', innerSlug: 'inner' }))
     .toEqual([{ code: 'nested-tests', ok: false, detail: [otherPage, otherPair] }])
 })

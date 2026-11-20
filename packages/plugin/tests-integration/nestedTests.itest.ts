@@ -23,11 +23,11 @@ beforeAll(async () => {
 afterAll(async () => { await harness?.teardown() }, 60_000)
 const request = () => createLocalReq({}, harness.payload)
 
-async function fixture() {
+async function fixture(names = ['outer', 'inner']) {
   const { payload } = harness, suffix = ++sequence
   const metric = await payload.create({ collection: 'xp-metrics', req: await request(), overrideAccess: true,
     data: { name: 'Goal', slug: `nested-goal-${suffix}`, source: 'binomial', direction: 'increase' } })
-  const tests = await Promise.all(['outer', 'inner'].map(async name => payload.create({ collection: 'xp-experiments', req: await request(), overrideAccess: true, data: {
+  const tests = await Promise.all(names.map(async name => payload.create({ collection: 'xp-experiments', req: await request(), overrideAccess: true, data: {
     name: `${name} test ${suffix}`, slug: `${name}-test-${suffix}`, kind: 'block', unitType: 'visitor', allocation: 100, exposurePolicy: 'render',
     arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 50, slot: 'control' },
       { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 50, slot: 'variantA' }],
@@ -94,7 +94,7 @@ test('Start readiness and Start itself refuse both tests in existing nesting', a
   for (const experiment of f.tests) {
     const preflight = await preflightData(await request(), { experimentId: experiment.id, options: options() })
     expect(preflight?.checks.find(check => check.code === 'nested-tests')).toEqual({ code: 'nested-tests', ok: false,
-      detail: [{ collection: 'nested-pages', id: f.page.id, title: 'Nested page', outer: f.tests[0]!.name, inner: f.tests[1]!.name }] })
+      detail: [{ collection: 'nested-pages', id: f.page.id, title: 'Nested page', outer: f.tests[0]!.name, inner: f.tests[1]!.name, outerSlug: f.tests[0]!.slug, innerSlug: f.tests[1]!.slug }] })
     await expect(start(await request(), { experimentId: experiment.id, options: options() })).rejects.toMatchObject({ code: 'nested-tests' })
   }
 })
@@ -123,7 +123,7 @@ test('publishing and Start check nesting in a nondefault content language', asyn
   await f.payload.db.updateOne({ collection: 'nested-localized', id: page.id, req: await request(), data: { puckData: { en: f.flat, es: f.nested } } })
   for (const experiment of f.tests) {
     const answer = await preflightData(await request(), { experimentId: experiment.id, options: options() })
-    expect(answer?.checks).toContainEqual({ code: 'nested-tests', ok: false, detail: [{ collection: 'nested-localized', id: page.id, title: 'Localized page · Languages: es', locales: ['es'], outer: f.tests[0]!.name, inner: f.tests[1]!.name }] })
+    expect(answer?.checks).toContainEqual({ code: 'nested-tests', ok: false, detail: [{ collection: 'nested-localized', id: page.id, title: 'Localized page · Languages: es', locales: ['es'], outer: f.tests[0]!.name, inner: f.tests[1]!.name, outerSlug: f.tests[0]!.slug, innerSlug: f.tests[1]!.slug }] })
   }
 })
 
@@ -145,3 +145,25 @@ test('old nesting must be moved out before republishing an unpublished page', as
     data: { puckData: f.flat, _status: 'published' } })
   expect(published._status).toBe('published')
 })
+
+
+test('three levels block every test using only adjacent pairs in readiness and Start', async () => {
+  const f = await fixture(['outer', 'inner', 'third'])
+  const third = f.tests[2]!
+  const middle = f.nested.content[0]!.props.control[1]! as { props: { control: unknown[] } }
+  middle.props.control.push({ type: 'ExperimentSlot', props: { id: `third-block-${sequence}`, experiment: { id: third.id, slug: third.slug },
+    control: [{ type: 'Text', props: { id: 'third-original', text: 'Third original' } }],
+    variantA: [{ type: 'Text', props: { id: 'third-variant', text: 'Third variant' } }] } })
+  await seed(f)
+  const tests = f.tests
+  for (const [index, experiment] of tests.entries()) {
+    const pairs = index === 0 ? [[tests[0]!, tests[1]!]] : index === 1 ? [[tests[0]!, tests[1]!], [tests[1]!, third]] : [[tests[1]!, third]]
+    const detail = pairs.map(([outer, inner]) => ({ collection: 'nested-pages', id: f.page.id, title: 'Nested page',
+      outer: outer!.name, inner: inner!.name, outerSlug: outer!.slug, innerSlug: inner!.slug }))
+    const answer = await preflightData(await request(), { experimentId: experiment.id, options: options() })
+    expect(answer?.checks.find(check => check.code === 'nested-tests')).toEqual({ code: 'nested-tests', ok: false, detail })
+    const refusal = start(await request(), { experimentId: experiment.id, options: options() })
+    await expect(refusal).rejects.toMatchObject({ code: 'nested-tests' })
+    await expect(refusal).rejects.toHaveProperty('message', detail.map(pair => `On Nested page: “${pair.inner}” is inside a version of “${pair.outer}”. A test can't go inside another test's version. Move “${pair.inner}” out of that version before you start either test.`).join('\n'))
+  }
+}, 30_000)

@@ -300,6 +300,7 @@ test('nested test guidance participates in the copy audit', async () => {
   const { editorCopy } = await import('../../src/puck/editor/copy.js')
   expect(editorCopy.nested('Outer', 'Inner')).toBe("“Inner” is inside a version of “Outer”. A test can't go inside another test's version. Move “Inner” out of that version before you start either test.")
   const { nestedTestCopy } = await import('../../src/puck/nestedTestCopy.js')
+  expect(nestedTestCopy.start('Outer')).toBe("An Experiment block with no test chosen is inside a version of “Outer”. A test can't go inside another test's version. Move that block out of that version before you start either test.")
   for (const outer of ['Outer', undefined]) for (const inner of ['Inner', undefined]) {
     expect(hits([editorCopy.nested(outer, inner), nestedTestCopy.publish(outer, inner),
       editorCopy.nestedHidden(outer), nestedTestCopy.readiness([{ outer, inner, title: 'Home · All languages' }]), editorCopy.nestedPaste])).toEqual([])

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 vi.hoisted(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
 import { Puck, useGetPuck, type ComponentData, type Config, type Data } from '@puckeditor/core'
 import { ExperimentSlotEditor } from '../../../src/puck/editor/ExperimentSlotEditor.js'
+import { currentPuckDocument } from '../../../src/puck/editor/editor.model.js'
 import { editorCopy } from '../../../src/puck/editor/copy.js'
 
 import { defaultArms } from '../../../src/arms/model.js'
@@ -213,22 +214,29 @@ test('Puck public reducer insertion bypasses slot disallow, leaving the server a
 })
 
 
-test('a selected bound inner test keeps one sidebar notice while Start remains blocked', async () => {
+test.each([false, true])('a selected bound inner test keeps one sidebar notice while Start remains blocked (outer loading=%s)', async loading => {
+  let resolveOuter!: (response: Response) => void
+  const pendingOuter = new Promise<Response>(resolve => { resolveOuter = resolve })
   const message = editorCopy.nested('Outer test', 'Inner test')
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.endsWith('/editor-surface') ? { canManage: true, canReadResults: true }
-    : url.endsWith('/preflight') ? { checks: [{ code: 'nested-tests', ok: false, detail: [{ collection: 'pages', id: 'source-page', title: 'Source · All languages', allLocales: true, outer: 'Outer test', inner: 'Inner test' }] }], placements: [savedSource] }
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => loading && url.includes('/810?') ? pendingOuter : Response.json(url.endsWith('/editor-surface') ? { canManage: true, canReadResults: true }
+    : url.endsWith('/preflight') ? { checks: [{ code: 'nested-tests', ok: false, detail: [{ collection: 'pages', id: 'source-page', title: 'Source · All languages', allLocales: true, outer: 'Outer test', inner: 'Inner test', outerSlug: 'outer-sidebar', innerSlug: 'inner-sidebar' }] }], placements: [savedSource] }
     : { name: url.includes('/810?') ? 'Outer test' : 'Inner test', status: 'draft', arms: defaultArms('block') })))
   const inner = { ...bound('inner-sidebar'), props: { ...bound('inner-sidebar').props, experiment: { id: 811, slug: 'inner-sidebar' } } }
   const outer = { ...bound('outer-sidebar'), props: { ...bound('outer-sidebar').props, experiment: { id: 810, slug: 'outer-sidebar' }, control: [inner] } }
   mount({ root: { props: {} }, content: [outer] }, true)
-  await screen.findByText(message)
+  const shownMessage = loading ? editorCopy.nested('outer-sidebar', 'Inner test') : message
+  await screen.findByText(shownMessage)
+  expect(currentPuckDocument(window.location.pathname, '/admin', [savedSource])).toEqual({ collection: 'pages', id: 'source-page' })
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/811/preflight'), expect.anything()))
   act(() => getPuck().dispatch({ type: 'setUi', ui: { itemSelector: getPuck().getSelectorForId('inner-sidebar')! } }))
   const sidebar = await waitFor(() => {
     const element = document.querySelector('.xp-slot-sidebar')
     expect(element).not.toBeNull()
-    expect(within(element as HTMLElement).getAllByText(message)).toHaveLength(1)
+    expect(within(element as HTMLElement).getAllByText((text, element) => text.includes(shownMessage) && !Array.from(element?.children ?? []).some(child => child.textContent?.includes(shownMessage)))).toHaveLength(1)
     return element as HTMLElement
   })
+  expect(within(sidebar).queryByText((text) => text.startsWith('On Source') && text.includes(message))).toBeNull()
+  if (loading) await act(async () => { resolveOuter(Response.json({ name: 'Outer test', status: 'draft', arms: defaultArms('block') })) })
   expect(within(sidebar).queryByRole('button', { name: 'Start' })).toBeNull()
   expect(within(sidebar).getByRole('button', { name: 'Configure test' })).toBeTruthy()
 })

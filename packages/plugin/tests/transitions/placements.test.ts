@@ -175,6 +175,6 @@ test('two copies and fallback language views produce one readiness pair on the p
   expect(placements).toHaveLength(4)
   const checks = checkStart({ experiment: { id: 1, slug: 'hero', status: 'draft', kind: 'block', unitType: 'visitor', allocation: 100, exposurePolicy: 'render', arms: defaultArms('block') }, metrics: [], placements, placementLocaleCodes: ['en', 'fr'] })
   expect(checks.find(check => check.code === 'nested-tests')?.detail).toEqual([
-    { collection: 'pages', id: 1, title: 'Home · All languages', allLocales: true, outer: 'hero', inner: 'inner' },
+    { collection: 'pages', id: 1, title: 'Home · All languages', allLocales: true, outer: 'hero', inner: 'inner', outerSlug: 'hero', innerSlug: 'inner' },
   ])
 })

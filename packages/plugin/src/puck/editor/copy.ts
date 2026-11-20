@@ -2,7 +2,7 @@ import { nestedTestCopy } from '../nestedTestCopy.js'
 import { ARM_LABELS } from '../../labels/arms.js'
 
 export const editorCopy = {
-  nested: nestedTestCopy.start,
+  nested: nestedTestCopy.editor,
   nestedHidden: nestedTestCopy.hidden,
   nestedPaste: "A test can't go inside another test's version.",
   hidden: "This block is hidden, so visitors won't see this test here.",

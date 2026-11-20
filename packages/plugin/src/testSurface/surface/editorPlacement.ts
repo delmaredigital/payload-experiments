@@ -1,4 +1,3 @@
-import { nestedTestCopy } from '../../puck/nestedTestCopy.js'
 import type { PreflightResult } from '../../types/endpoints.js'
 import type { Status } from '../../types/contracts.js'
 import { SAVE_PAGE, PUBLISH_PAGE, RUNNING_PUBLISH_PAGE, RUNNING_SAVE_PAGE } from '../copy/readiness.js'
@@ -47,13 +46,13 @@ export function sidebarReadinessBlockers(test: TestDocApi, surface: SurfaceProps
 }
 
 /** The local notice already names this pair. Keep other pairs and other pages. */
-export function editorNestedChecks(checks: PreflightResult['checks'], page: NonNullable<SurfaceProps['editorPage']>, notice: string): PreflightResult['checks'] {
+export function editorNestedChecks(checks: PreflightResult['checks'], page: NonNullable<SurfaceProps['editorPage']>, identity: { outerSlug: string; innerSlug: string }): PreflightResult['checks'] {
   return checks.flatMap(check => {
     if (check.code !== 'nested-tests' || check.ok || !Array.isArray(check.detail)) return [check]
     const detail = check.detail.filter(value => {
       if (!value || typeof value !== 'object') return true
-      const pair = value as { collection?: string; id?: string | number; outer?: string; inner?: string }
-      return pair.collection !== page.collection || String(pair.id) !== String(page.id) || nestedTestCopy.start(pair.outer, pair.inner) !== notice
+      const pair = value as { collection?: string; id?: string | number; outerSlug?: string; innerSlug?: string }
+      return pair.collection !== page.collection || String(pair.id) !== String(page.id) || pair.outerSlug !== identity.outerSlug || pair.innerSlug !== identity.innerSlug
     })
     return detail.length ? [{ ...check, detail }] : []
   })

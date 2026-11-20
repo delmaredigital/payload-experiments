@@ -185,7 +185,7 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   const nested = placements.filter(p => p.published).flatMap(placement => (placement.nestedTests ?? []).map(detail => ({ placement, detail })))
   const seenPairs = new Set<string>()
   const uniqueNested = nested.filter(({ placement, detail }) => {
-    const key = JSON.stringify([placement.collection, String(placement.id), placement.locale, detail.outer, detail.inner])
+    const key = JSON.stringify([placement.collection, String(placement.id), placement.locale, detail.outerSlug ?? detail.outer, detail.innerSlug ?? detail.inner])
     if (seenPairs.has(key)) return false
     seenPairs.add(key)
     return true

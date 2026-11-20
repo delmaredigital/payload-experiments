@@ -391,7 +391,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   usePlacementNotice(api, experimentId, canManage ? placementNotice : undefined, contentLocale)
   const placementNoticeView = <>{nestedNotice ? <Banner tone="info">{nestedNotice}</Banner> : null}{visibilityNotice ? <Banner tone="info">{visibilityNotice}</Banner> : null}{canManage ? <PlacementNotice read={quickTest.preflightRead} message={placementMessage} running={experiment?.status === 'running'} onRetry={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId, contentLocale) }} /> : null}</>
   const sidebarTest = currentPreflight && editorPage && nestedNotice && !hidden ? { ...quickTest, preflight: { ...currentPreflight,
-    checks: editorNestedChecks(currentPreflight.checks, editorPage, nestedNotice),
+    checks: editorNestedChecks(currentPreflight.checks, editorPage, { outerSlug: outerLabel || '', innerSlug: props.experiment?.slug ?? '' }),
   } } : quickTest
   const sidebarBlockers = surface ? sidebarReadinessBlockers(sidebarTest, surface) : []
 

@@ -1,12 +1,14 @@
-const innerLabel = (inner?: string) => inner ? `“${inner}”` : 'This test'
+const innerLabel = (inner?: string) => inner ? `“${inner}”` : 'An Experiment block with no test chosen'
 const outerLabel = (outer?: string) => outer ? `“${outer}”` : 'another test'
-const moveLabel = (inner?: string) => inner ? `“${inner}”` : 'this test'
+const moveLabel = (inner?: string) => inner ? `“${inner}”` : 'that block'
 const location = (outer?: string, inner?: string) => `${innerLabel(inner)} is inside a version of ${outerLabel(outer)}.`
 const start = (outer?: string, inner?: string) =>
   `${location(outer, inner)} A test can't go inside another test's version. Move ${moveLabel(inner)} out of that version before you start either test.`
 
 export const nestedTestCopy = {
   start,
+  editor: (outer?: string, inner?: string) => inner ? start(outer, inner)
+    : `This test is inside a version of ${outerLabel(outer)}. A test can't go inside another test's version. Move this test out of that version before you start either test.`,
   publish: (outer?: string, inner?: string) =>
     `${location(outer, inner)} A test can't go inside another test's version, so this page can't be published. Move ${moveLabel(inner)} out of that version, then publish.`,
   hidden: (outer?: string) =>

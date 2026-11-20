@@ -287,3 +287,10 @@ test('nested pairs dedupe per page and combine only their affected languages', (
   input.placements = [base, base].map(placement => ({ ...placement, nestedTests: [pair, pair] }))
   expect(checkStart(input).find(check => check.code === 'nested-tests')?.detail).toEqual([{ collection: 'pages', id: 1, title: 'Home', ...pair }])
 })
+
+test('nested pairs with equal names retain distinct slug identities', () => {
+  const input = ready(), base = input.placements![0]!
+  const pairs = ['one', 'two'].map(slug => ({ outer: 'Same outer name', inner: 'Same inner name', outerSlug: `outer-${slug}`, innerSlug: `inner-${slug}` }))
+  input.placements = [{ ...base, nestedTests: pairs }]
+  expect(checkStart(input).find(check => check.code === 'nested-tests')?.detail).toEqual(pairs.map(pair => ({ collection: 'pages', id: 1, title: 'Home', ...pair })))
+})

@@ -4,6 +4,9 @@ import { walkVisiblePuck } from '../../src/puck/visibility.js'
 import { refuseNewNestedTests } from '../../src/hooks/puckNestedTests.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { fakeReq } from '../_fakes/req.js'
+import { preflightData } from '../../src/transitions/preflightData.js'
+import { refuse } from '../../src/transitions/start.js'
+import { defaultArms } from '../../src/arms/model.js'
 import { sampleOptions } from '../collections/fixtures.js'
 
 const testBlock = (id: string, content: unknown[] = [], visibility = {}) => ({ type: 'ExperimentSlot', props: {
@@ -74,5 +77,25 @@ test.each([true, false])('publish refusal handles an unconfigured inner and oute
   const inner = { ...testBlock('inner'), props: { id: 'inner', experiment: null } }
   const outer = { ...testBlock('outer'), props: { id: 'outer', experiment: named ? { slug: 'Outer' } : null, control: [inner] } }
   expect(() => refuseNewNestedTests(req, 'pages', undefined, { puckData: page([outer]) }, []))
-    .toThrow(named ? 'This test is inside a version of “Outer”.' : 'This test is inside a version of another test.')
+    .toThrow(named ? 'An Experiment block with no test chosen is inside a version of “Outer”.' : 'An Experiment block with no test chosen is inside a version of another test.')
+})
+
+
+test('readiness and Start guidance name only adjacent pairs at three levels', async () => {
+  const options = sampleOptions(); options.puck = { enabled: true, collections: ['pages'] }
+  const tests = ['A', 'B', 'C'].map((slug, id) => ({ id: id + 1, slug, name: slug, status: 'draft', kind: 'block', unitType: 'visitor',
+    allocation: 100, exposurePolicy: 'render', arms: defaultArms('block'), metrics: { primary: 1 }, analysis: { plannedDurationDays: 14, reachPerDay: 100 } }))
+  const payload = fakePayload({ config: { custom: { xp: options }, collections: [{ slug: 'pages', versions: false }] }, collections: {
+    'xp-experiments': tests, 'xp-metrics': [{ id: 1, name: 'Goal', source: 'events:signup' }],
+    pages: [{ id: 1, title: 'Home', _status: 'published', puckData: page([testBlock('A', [testBlock('B', [testBlock('C')])])]) }],
+  } })
+  for (const [index, experiment] of tests.entries()) {
+    const answer = await preflightData(fakeReq({ payload }), { experimentId: experiment.id, options })
+    const check = answer!.checks.find(check => check.code === 'nested-tests')!
+    const expected = index === 0 ? [['A', 'B']] : index === 1 ? [['A', 'B'], ['B', 'C']] : [['B', 'C']]
+    expect(check).toEqual({ code: 'nested-tests', ok: false, detail: expected.map(([outer, inner]) => ({
+      collection: 'pages', id: 1, title: 'Home', outer, inner, outerSlug: outer, innerSlug: inner,
+    })) })
+    expect(() => refuse('nested-tests', check.detail)).toThrow(expected.map(([outer, inner]) => `On Home: “${inner}” is inside a version of “${outer}”. A test can't go inside another test's version. Move “${inner}” out of that version before you start either test.`).join('\n'))
+  }
 })

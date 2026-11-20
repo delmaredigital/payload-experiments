@@ -9,4 +9,4 @@ export async function nestedPlacementNames(req: PayloadRequest, placements: read
   return new Map(found.docs.map(doc => [String(doc.slug), String(doc.name)]))
 }
 export const nameNestedPlacements = (placements: readonly BlockPlacement[], names: ReadonlyMap<string, string>): BlockPlacement[] =>
-  placements.map(p => ({ ...p, nestedTests: p.nestedTests?.map(pair => ({ outer: names.get(pair.outer) ?? pair.outer, inner: names.get(pair.inner) ?? pair.inner })) }))
+  placements.map(p => ({ ...p, nestedTests: p.nestedTests?.map(pair => ({ ...pair, outer: names.get(pair.outer) ?? pair.outer, inner: names.get(pair.inner) ?? pair.inner })) }))
