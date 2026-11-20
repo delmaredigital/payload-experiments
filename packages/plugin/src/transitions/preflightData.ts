@@ -88,7 +88,10 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
   for (const experiment of experiments) {
     try {
       const ownIds = new Set(metricIds(experiment).map(String))
-      const input: CheckStartInput = { placementLocaleCodes: req.payload.config.localization ? req.payload.config.localization.localeCodes : undefined, experiment, metrics: (await metrics).filter(metric => ownIds.has(String(metric.id))), metricSources: options.metricSources, flagPoints: options.flagPoints, attributeKeys: options.attributeKeys }
+      const localization = req.payload.config.localization
+      const input: CheckStartInput = { placementLocaleCodes: localization ? localization.localeCodes : undefined,
+        placementLocale: req.locale ?? undefined, placementDefaultLocale: localization ? localization.defaultLocale : undefined,
+        experiment, metrics: (await metrics).filter(metric => ownIds.has(String(metric.id))), metricSources: options.metricSources, flagPoints: options.flagPoints, attributeKeys: options.attributeKeys }
       const placementFailure = (cause: unknown): PlacementFailure => {
         const collection = experiment.flagPoint ?? 'xp-experiments'
         req.payload.logger.error({ err: safeError(cause), experimentId: experiment.id, collection, id: experiment.id }, 'Experiment placement lookup failed')

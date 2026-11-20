@@ -293,3 +293,18 @@ test.each(['title', 'url', 'editorUrl'] as const)('equally ready language rows k
   expect(result!.placements.map(row => row[field])).toEqual(field === 'title' ? ['English home', 'French home'] : field === 'url' ? ['/english', '/french'] : ['/edit/english', '/edit/french'])
   expect(result!.placements.map(row => [row.ok, row.locales])).toEqual([[true, ['English']], [true, ['French']]])
 })
+
+test.each(['fr', 'all', 'de'])('grouped readiness uses the requested content language or default title (%s)', async locale => {
+  const { options, req, payload } = setup()
+  Object.assign(payload.documents['xp-experiments']![0]!, { kind: 'block', arms: defaultArms('block'), exposurePolicy: 'render' })
+  options.puck = { enabled: true, collections: ['pages'] }
+  Object.assign(req, { locale })
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en', label: 'English' }, { code: 'fr', label: 'French' }] },
+    collections: [{ slug: 'pages', fields: [{ name: 'puckData', type: 'json', localized: true }, { name: 'title', type: 'text', localized: true }] }] })
+  const content = { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{}], variantA: [] } }] }
+  payload.documents.pages = [{ id: 10, _status: 'published', title: { en: 'Home', fr: 'Accueil' }, puckData: { en: content, fr: content } }]
+  const result = await preflightData(req, { experimentId: 1, options })
+  expect(result!.checks.find(check => check.code === 'empty-slot')?.detail).toEqual([
+    expect.objectContaining({ title: `${locale === 'fr' ? 'Accueil' : 'Home'} · All languages` }),
+  ])
+})

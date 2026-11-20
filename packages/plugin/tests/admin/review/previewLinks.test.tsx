@@ -214,9 +214,9 @@ test.each(['localizedPlacements', 'differingPlacements'] as const)('previews pre
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ token: 'temporary' }))))
   const view = render(<PreviewLinks apiRoute="/api" experimentId={1} placements={localizedPlacements} arms={[arms[0]!]} />)
   expect(Array.from(view.container.querySelectorAll('.xp-preview-row > p')).map(row => row.textContent)).toEqual([
-    'Home · Languages: English',
-    fixture === 'differingPlacements' ? 'Accueil · Languages: French (placed 3 times on this page)' : 'Home · Languages: French',
-    fixture === 'differingPlacements' ? 'Home draft · All languages' : 'Home · All languages',
+    'Home (Published) · Languages: English',
+    fixture === 'differingPlacements' ? 'Accueil (Published) · Languages: French (placed 3 times on this page)' : 'Home (Published) · Languages: French',
+    fixture === 'differingPlacements' ? 'Home draft (Draft) · All languages' : 'Home (Draft) · All languages',
   ])
   expect(screen.getAllByRole('link').map(link => link.getAttribute('href'))).toEqual(['/edit/en', '/edit/fr', '/edit/draft'])
   for (const [index, button] of screen.getAllByRole('button').entries()) {
@@ -225,4 +225,14 @@ test.each(['localizedPlacements', 'differingPlacements'] as const)('previews pre
     expect(win.location.replace).toHaveBeenLastCalledWith(`${window.location.origin}${localizedPlacements[index]!.url}?xp_preview=temporary`)
     await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false))
   }
+})
+
+test('localized previews distinguish publication states with the same title and languages', () => {
+  const { container } = render(<PreviewLinks apiRoute="/api" experimentId={1} arms={arms} placements={[
+    { collection: 'pages', id: 1, title: 'Home', detail: 'Published', allLocales: true, url: '/home', ok: true },
+    { collection: 'pages', id: 1, title: 'Home', detail: 'Draft', allLocales: true, url: '/draft/home', ok: false },
+  ]} />)
+  expect(Array.from(container.querySelectorAll('.xp-preview-row > p')).map(row => row.textContent)).toEqual([
+    'Home (Published) · All languages', 'Home (Draft) · All languages',
+  ])
 })

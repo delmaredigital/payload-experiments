@@ -24,10 +24,14 @@ beforeAll(async () => {
       const page = result.docs[0]
       return page ? { id: page.id, published: page._status === 'published' } : null
     } }] },
-    puckCollections: ['locale-puck'], blocks: { collections: [{ slug: 'locale-blocks', field: 'layout', appliesTo: doc => { expect(typeof doc.title).toBe('string'); return true } }] },
+    puckCollections: ['locale-puck', 'locale-bulk-puck'], blocks: { collections: ['locale-blocks', 'locale-bulk-blocks'].map(slug => ({ slug, field: 'layout', appliesTo: doc => { expect(typeof doc.title).toBe('string'); return true } })) },
     collections: ([
       { slug: 'locale-pages', trash: true, versions: { drafts: true }, fields: [{ name: 'slug', type: 'text', localized: true }] },
       { slug: 'locale-puck', trash: true, versions: { drafts: true }, fields: [{ name: 'puckData', type: 'json', localized: true }] },
+      { slug: 'locale-bulk-puck', versions: { drafts: true }, fields: [{ name: 'puckData', type: 'json', localized: true }] },
+      { slug: 'locale-bulk-blocks', versions: { drafts: true }, fields: [{ name: 'title', type: 'text', localized: true }, { name: 'layout', type: 'blocks', localized: true,
+        blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] },
+          createExperimentBlock({ blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] }] })] }] },
       { slug: 'locale-blocks', trash: true, versions: { drafts: true }, fields: [{ name: 'title', type: 'text', localized: true }, { name: 'layout', type: 'blocks', localized: true,
         blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] },
           createExperimentBlock({ blocks: [{ slug: 'text', fields: [{ name: 'text', type: 'text' }] }] })] }] },
@@ -111,18 +115,7 @@ test.each(['puck', 'blocks'] as const)('localized %s Start, Decide and guards sh
   expect(bulk.docs.map(doc => doc.id)).toEqual([other.id])
   expect(await scanBlockPlacements(await request('en'), { slug: String(experiment.slug), publishedOnly: true,
     puckCollections: options().puck!.collections, blocksCollections: options().blocks!.collections })).toEqual(englishViews())
-  // PublishMany sends draft:true: Payload uses latest, whose English copy is
-  // now removed. Publishing French must refuse removal of the last live block.
-  await payload.update({ collection, id: other.id, req: await request('en'), locale: 'en', draft: true, overrideAccess: false,
-    data: { ...empty, _status: 'draft' } })
-  const adminBulk = await payload.update({ collection, where: { id: { equals: other.id } }, req: await request('fr'), locale: 'fr', draft: true, overrideAccess: false,
-    data: { ...empty, _status: 'published' } })
-  expect(adminBulk.docs).toEqual([])
-  expect(adminBulk.errors).toHaveLength(1)
-  expect(adminBulk.errors[0]).toMatchObject({ id: other.id, message: expect.stringContaining('only published place') })
-  expect(await scanBlockPlacements(await request('en'), { slug: String(experiment.slug), publishedOnly: true,
-    puckCollections: options().puck!.collections, blocksCollections: options().blocks!.collections })).toEqual(englishViews())
-  // Keep the remaining bilingual-removal scenario independent of that draft.
+  // Restore English content in the draft before the bilingual-removal scenario.
   await payload.update({ collection, id: other.id, req: await request('en'), locale: 'en', draft: true, overrideAccess: false,
     data: { ...content, _status: 'draft' } })
   await payload.update({ collection, id: other.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
@@ -146,6 +139,42 @@ test.each(['puck', 'blocks'] as const)('localized %s Start, Decide and guards sh
   await expect(decide(await request('en'), { experimentId: experiment.id, winnerArm: 'variantA',
     note: 'Choose the variant', confirmation: 'Variant A' })).resolves.toMatchObject({ doc: { status: 'decided' } })
 }, 30_000) // Includes save-path regressions; run for both id types in the lane.
+
+test.each(['puck', 'blocks'] as const)('localized %s PublishMany checks the latest draft with only a status payload', async editor => {
+  const { payload } = harness, suffix = ++sequence, collection = `locale-bulk-${editor}`
+  const metric = await payload.create({ collection: 'xp-metrics', req: await request('en'), overrideAccess: true,
+    data: { name: 'Bulk goal', slug: `bulk-goal-${suffix}`, source: 'binomial', direction: 'increase' } })
+  const experiment = await payload.create({ collection: 'xp-experiments', req: await request('en'), overrideAccess: true, data: {
+    name: 'Bulk localized placement', slug: `bulk-test-${suffix}`, kind: 'block', unitType: 'visitor', allocation: 100, exposurePolicy: 'render',
+    arms: [{ key: 'control', label: 'Original', kind: 'control', weight: 50, slot: 'control' },
+      { key: 'variantA', label: 'Variant A', kind: 'variant', weight: 50, slot: 'variantA' }],
+    metrics: { primary: metric.id }, analysis: { plannedDurationDays: 14, reachPerDay: 100 },
+  } })
+  const content = editor === 'puck' ? { puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: { id: experiment.id, slug: experiment.slug },
+    control: [{ type: 'Text', props: { text: 'Original' } }], variantA: [{ type: 'Text', props: { text: 'Variant' } }] } }] } }
+    : { layout: [{ blockType: 'xpExperiment', experiment: experiment.slug, slots: [
+      { slot: 'control', blocks: [{ blockType: 'text', text: 'Original' }] },
+      { slot: 'variantA', blocks: [{ blockType: 'text', text: 'Variant' }] },
+    ] }] }
+  const empty = editor === 'puck' ? { puckData: { content: [] } } : { layout: [] }
+  const page = await payload.create({ collection, req: await request('en'), locale: 'en', overrideAccess: false,
+    data: { title: 'Bulk page', ...content, _status: 'published' } })
+  await start(await request('en'), { experimentId: experiment.id, options: options() })
+  await payload.update({ collection, id: page.id, req: await request('en'), locale: 'en', draft: true, overrideAccess: false,
+    data: { ...empty, _status: 'draft' } })
+  // The admin's PublishMany sends no content fields. draft:true publishes the
+  // latest draft, so this would remove the last live block across all languages.
+  const result = await payload.update({ collection, where: { id: { equals: page.id } }, req: await request('fr'), locale: 'fr', draft: true, overrideAccess: false,
+    data: { _status: 'published' } })
+  expect(result.docs).toEqual([])
+  expect(result.errors).toHaveLength(1)
+  expect(result.errors[0]).toMatchObject({ id: page.id, message: expect.stringContaining('only published place') })
+  const published = await scanBlockPlacements(await request('en'), { slug: String(experiment.slug), publishedOnly: true,
+    puckCollections: options().puck!.collections, blocksCollections: options().blocks!.collections })
+  expect(published.length).toBeGreaterThan(0)
+  expect(published.every(row => row.id === page.id && row.published)).toBe(true)
+  await stop(await request('en'), { experimentId: experiment.id })
+}, 30_000)
 
 
 test('a page test protects a localized French slug during rename and unpublish', async () => {

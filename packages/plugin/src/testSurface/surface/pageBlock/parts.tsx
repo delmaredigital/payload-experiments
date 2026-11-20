@@ -5,6 +5,7 @@ import { Button } from '../../../ui/Button.js'
 import { placementPages } from '../../../lib/placementPages.js'
 import { TEST_PAGE as C, placementCount } from '../../copy/testPage.js'
 import { placementLine, slotReady } from './pageBlock.model.js'
+import { placementLabel } from '../../placementLabel.js'
 
 function Binding({ test, surface }: SectionProps) {
   const placements = test.preflight?.placements ?? []
@@ -19,9 +20,22 @@ function VersionContent({ test, armIndex, summary }: SectionProps & { armIndex: 
   if (arm.kind === 'holdout') return <span className="xp-content-chip">{C.holdoutContent}</span>
   const placements = test.preflight?.placements ?? []
   const pages = placementPages(placements)
+  const localized = pages.some(page => page.allLocales || page.locales?.length)
+  const editorUrls = new Set<string>()
+  const editPages = pages.filter(page => {
+    if (!page.editorUrl) return false
+    if (localized) {
+      if (editorUrls.has(page.editorUrl)) return false
+      editorUrls.add(page.editorUrl)
+    }
+    return true
+  })
   const ready = placements.length > 0 && placements.every(placement => slotReady(placement, arm))
   return <div className="xp-version-content"><span className={`xp-content-chip ${ready ? 'xp-content-ready' : 'xp-content-empty'}`}>{ready ? C.ready : C.empty}</span>
-    <div className="xp-ui-button-group">{!summary ? pages.filter(page => page.editorUrl).map(page => <Button key={page.key} variant="link" size="sm" href={page.editorUrl!}
-      aria-label={pages.length > 1 ? `${C.editOnPage}: ${page.title}` : undefined}>{C.editOnPage}</Button>) : null}</div></div>
+    <div className="xp-ui-button-group">{!summary ? editPages.map(page => {
+      const label = localized ? `${C.editOnPage}: ${placementLabel(page, true)}` : C.editOnPage
+      return <Button key={page.key} variant="link" size="sm" href={page.editorUrl!}
+        aria-label={localized ? label : pages.length > 1 ? `${C.editOnPage}: ${page.title}` : undefined}>{label}</Button>
+    }) : null}</div></div>
 }
 export const pageBlockParts: KindParts = { Binding, VersionContent }

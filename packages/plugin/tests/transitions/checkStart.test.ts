@@ -219,6 +219,28 @@ test.each(['version-identical', 'duplicate-version-row', 'placement-unpublished'
   expect(details()).toEqual([expect.objectContaining({ title: 'Home · Languages: English, French' })])
   input.placements[1]!.title = 'Accueil'
   expect(details()).toEqual([expect.objectContaining({ title: 'Home · Languages: English, French' })]) // Translated titles do not split an identical finding.
+  Object.assign(input, { placementLocale: 'fr', placementDefaultLocale: 'en' })
+  expect(details()).toEqual([expect.objectContaining({ title: 'Accueil · Languages: English, French' })])
+  Object.assign(input, { placementLocale: 'de' })
+  expect(details()).toEqual([expect.objectContaining({ title: 'Home · Languages: English, French' })])
+  input.placements.reverse()
+  expect(details()).toEqual([expect.objectContaining({ title: 'Home · Languages: French, English' })])
+})
+
+test('readiness groups localized findings at their first scan occurrence among plain collections', () => {
+  const input = ready(), base = input.placements![0]!
+  input.placementLocaleCodes = ['en', 'fr']
+  input.placements = [
+    { ...base, locale: 'en', localeLabel: 'English', duplicateRows: true },
+    { ...base, collection: 'plain', id: 2, title: 'Plain', duplicateRows: true },
+    { ...base, locale: 'fr', localeLabel: 'French', title: 'Accueil', duplicateRows: true },
+    { ...base, collection: 'plain', id: 3, title: 'Last', duplicateRows: true },
+  ]
+  expect(checkStart(input).find(check => check.code === 'duplicate-version-row')?.detail).toEqual([
+    { collection: 'pages', id: 1, title: 'Home · All languages', allLocales: true },
+    { collection: 'plain', id: 2, title: 'Plain' },
+    { collection: 'plain', id: 3, title: 'Last' },
+  ])
 })
 
 test('empty content groups the same missing version despite differing nonempty content counts', () => {

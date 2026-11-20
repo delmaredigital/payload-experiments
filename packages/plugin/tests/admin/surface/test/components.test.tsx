@@ -740,4 +740,24 @@ test.each(['localizedPlacements', 'differingPlacements'] as const)('binding pres
   ])
   expect(screen.getAllByRole('link', { name: 'Open the page' }).map(link => link.getAttribute('href'))).toEqual(['/edit/en', '/edit/fr', '/edit/draft'])
   expect(screen.getAllByRole('link', { name: /Edit on page/ }).map(link => link.getAttribute('href'))).toEqual(['/edit/en', '/edit/fr', '/edit/draft'])
+  expect(screen.getAllByRole('link', { name: /Edit on page/ }).map(link => [link.textContent, link.getAttribute('aria-label')])).toEqual([
+    ['Edit on page: Home (Published) · Languages: English', 'Edit on page: Home (Published) · Languages: English'],
+    [`Edit on page: ${fixture === 'differingPlacements' ? 'Accueil' : 'Home'} (Published) · Languages: French`, `Edit on page: ${fixture === 'differingPlacements' ? 'Accueil' : 'Home'} (Published) · Languages: French`],
+    [`Edit on page: ${fixture === 'differingPlacements' ? 'Home draft' : 'Home'} (Draft) · All languages`, `Edit on page: ${fixture === 'differingPlacements' ? 'Home draft' : 'Home'} (Draft) · All languages`],
+  ])
+})
+
+test('localized version content distinguishes published and draft rows and deduplicates editor URLs', () => {
+  const p = props()
+  p.test.preflight!.placements = [
+    { collection: 'pages', id: 10, title: 'Home', detail: 'Published', allLocales: true, ok: true, editorUrl: '/edit/published' },
+    { collection: 'pages', id: 10, title: 'Home', detail: 'Draft', allLocales: true, ok: false, editorUrl: '/edit/draft' },
+    { collection: 'pages', id: 10, title: 'Accueil', detail: 'Draft', locales: ['French'], ok: false, editorUrl: '/edit/draft' },
+    { collection: 'plain', id: 20, title: 'Plain', detail: 'Draft', ok: false, editorUrl: '/edit/draft' },
+  ]
+  render(<pageBlockParts.VersionContent {...p} armIndex={0} />)
+  expect(screen.getAllByRole('link').map(link => [link.textContent, link.getAttribute('href')])).toEqual([
+    ['Edit on page: Home (Published) · All languages', '/edit/published'],
+    ['Edit on page: Home (Draft) · All languages', '/edit/draft'],
+  ])
 })

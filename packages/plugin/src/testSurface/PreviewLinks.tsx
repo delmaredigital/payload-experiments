@@ -7,7 +7,7 @@ import type { PreflightResult } from '../types/endpoints.js'
 import { armLabel } from './labels.js'
 import { useApi } from './useApi.js'
 import { REVIEW_COPY as C } from './copy/review.js'
-import { PLACEMENT_LANGUAGES } from './copy/languages.js'
+import { placementLabel } from './placementLabel.js'
 import { TEST_PAGE } from './copy/testPage.js'
 import { API_MESSAGES, refusalMessage } from './copy/common.js'
 import { actionablePreviewPages } from './previewLinks.model.js'
@@ -49,7 +49,7 @@ export function PreviewLinks({ experimentId, placements, arms, flagPoint, apiRou
   }
   return <div className="xp-preview-links">
     {actionablePreviewPages(placements, flagPoint).map(placement => <div className="xp-preview-row" key={placement.key}>
-      <p>{placement.title}{placement.allLocales ? ` · ${PLACEMENT_LANGUAGES.allLocales}` : placement.locales?.length ? ` · ${PLACEMENT_LANGUAGES.locales(placement.locales.join(', '))}` : ''}{placement.slotCount > 1 ? ` ${C.placedTimes(placement.slotCount)}` : null}</p>
+      <p>{placementLabel(placement)}{placement.slotCount > 1 ? ` ${C.placedTimes(placement.slotCount)}` : null}</p>
       <div className="xp-ui-button-group">{placement.url ? arms.filter(arm => arm.kind !== 'holdout' && arm.key !== 'holdout').map(arm =>
         <Button variant="secondary" size="sm" key={arm.key} disabled={busy} onClick={() => { void preview(placement.url!, arm.key) }}>
           {C.preview} {arm.label?.trim() || armLabel(arm.key)}
