@@ -229,7 +229,7 @@ test.each(['missing-rollout-test', 'missing-current', 'incomplete-layer'] as con
   expect(body).toMatchObject({ errors: [{ code: 'placement-unchecked' }] })
   expect(JSON.stringify(body)).not.toContain('private-name')
 })
-test.each([undefined, null, 123, {}, '/site/undefined', '/site/null', '/site/%75ndefined', '/site/[object Object]', '/site/%5Bobject%20Object%5D', '/site/..', '/site/hello world', '/site/%0A', '/site/%00', '/site/%5C', '/site/%7F', '/site/%zz', '/site/search?q=%0A'])('unusable access-filtered public path %s is omitted', async path => {
+test.each([undefined, null, 123, {}, '/site/undefined', '/site/null', '/site/%75ndefined', '/site/[object Object]', '/site/%5Bobject%20Object%5D', '/site/..', '/site/hello world', '/site/%0A', '/site/%00', '/site/%5C', '/site/%7F', '/site/%C2%80', '/site/%C2%9F', '/site/search?q=%C2%85', '/site/\u0080', '/site/%zz', '/site/search?q=%0A'])('unusable access-filtered public path %s is omitted', async path => {
   const { read, options } = setup()
   options.pages!.collections[0]!.pathOf = () => path as never
   expect((await (await read()).json()).placements).toMatchObject([{ path: null }])

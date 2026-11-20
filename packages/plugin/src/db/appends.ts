@@ -21,18 +21,33 @@ export async function storedContent(req: PayloadRequest, collection: string, id:
   return doc ?? undefined
 }
 
-/** Match updateByID/getLatestCollectionVersion: pending localized fields merge
- * into the latest raw version, or the main row when no version exists. Restore
- * uses its selected raw version as the field merge base instead. */
+export interface PlacementSavePath {
+  versionId?: DocId; bulk?: boolean; draft?: boolean; trashing?: boolean
+  publishSpecificLocale?: string; localizeStatus?: boolean; allLocales?: boolean; status?: unknown
+}
+/** Payload 3.90.2: updateByID starts from the latest version; update (bulk)
+ * starts from main rows except draft/trash saves. utilities/update then replaces
+ * unselected locales with main (localizeStatus) or the latest published version
+ * (publishSpecificLocale). Restore uses the selected version. */
+export function placementMergeBase(path: PlacementSavePath): 'restore' | 'main' | 'published' | 'latest' {
+  if (path.versionId != null) return 'restore'
+  if (path.localizeStatus) {
+    if (!(path.draft && path.status !== 'published') && !path.allLocales) return 'main'
+  } else if (path.publishSpecificLocale) return 'published'
+  return path.bulk && !path.draft && !path.trashing ? 'main' : 'latest'
+}
 export async function placementWriteContent(req: PayloadRequest, collection: string, id: DocId,
-  main: Record<string, unknown> | undefined, versionId?: DocId): Promise<Record<string, unknown> | undefined> {
+  main: Record<string, unknown> | undefined, path: PlacementSavePath = {}): Promise<Record<string, unknown> | undefined> {
   const config = req.payload.config.collections?.find(entry => entry.slug === collection)
   if (!config?.versions || !config.versions.drafts) return main
+  const base = placementMergeBase(path)
+  if (base === 'main') return main
   // Adapter read on the guarded write's transaction; no Local API hook recursion.
   const latest = await req.payload.db.findVersions<Record<string, unknown>>({ collection, req, limit: 1, pagination: false,
-    sort: '-updatedAt', where: versionId == null ? { and: [{ parent: { equals: id } }, { latest: { equals: true } }] } : { id: { equals: versionId } }, overrideAccess: false,
+    sort: '-updatedAt', where: base === 'restore' ? { id: { equals: path.versionId } }
+      : { and: [{ parent: { equals: id } }, base === 'published' ? { 'version._status': { equals: 'published' } } : { latest: { equals: true } }] }, overrideAccess: false,
   } as Parameters<PayloadRequest['payload']['db']['findVersions']>[0])
-  return latest.docs[0] ? { ...latest.docs[0].version, id } : main
+  return latest.docs[0] ? { ...latest.docs[0].version, id } : base === 'published' ? undefined : main
 }
 
 /** Read the main collection row BEFORE the host write. Draft version retention

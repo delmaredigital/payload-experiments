@@ -86,7 +86,7 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
       let path: string | null = null
       try {
         const value = registration?.pathOf(doc)
-        if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !/[\s\x00-\x1f\x7f\\]/.test(value) && !/[\x00-\x1f\x7f\\]/.test(decodeURIComponent(value)) && !value.split(/[/?#]/).some(segment => {
+        if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !/[\s\x00-\x1f\x7f-\x9f\\]/.test(value) && !/[\x00-\x1f\x7f-\x9f\\]/.test(decodeURIComponent(value)) && !value.split(/[/?#]/).some(segment => {
           const decoded = decodeURIComponent(segment)
           return /^(undefined|null|\[object Object\]|\.\.?)$/i.test(decoded)
         })) path = value

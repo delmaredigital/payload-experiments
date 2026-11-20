@@ -124,7 +124,10 @@ test.each(['other', 'impact', 'start'] as const)('%s scan isolates locale mutati
   else if (mode === 'impact') {
     const pages = []; for await (const page of publishedBlockPlacementPages(req, options, 'hero')) pages.push(page)
     expect(pages[0]!.placements).toHaveLength(2)
-  } else await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: options.blocks.collections })
+  } else expect(await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: options.blocks.collections })).toMatchObject([
+    { id: 1, published: true, locale: 'en', allLocales: true, slots: { control: 1, variantA: 2 } },
+    { id: 1, published: true, locale: 'fr', allLocales: true, slots: { control: 1, variantA: 2 } },
+  ])
   expect(req.locale).toBe('fr'); expect(req.fallbackLocale).toBe(false)
   controller.abort()
   if (mode === 'other') await expect(hasOtherPublishedBlockPlacement(req, options, 'hero', () => false)).resolves.toBe(true)
@@ -141,4 +144,21 @@ test('localized Start reads every locale when the incoming request says all', as
   const req = fakeReq({ payload }); req.locale = 'all'
   expect(await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: options.blocks.collections })).toMatchObject([{ locale: 'fr', published: true }])
   expect(req.locale).toBe('all')
+})
+
+test.each(['puck', 'blocks'] as const)('localized %s comparisons read the raw document once across languages', async editor => {
+  const field = editor === 'puck' ? 'puckData' : 'layout'
+  const content = editor === 'puck' ? { content: [slot('hero')] } : [{ blockType: 'xpExperiment', experiment: 'hero', slots: [
+    { slot: 'control', blocks: [{ blockType: 'text', text: 'same' }] }, { slot: 'variantA', blocks: [{ blockType: 'text', text: 'same' }] },
+  ] }]
+  const doc = { id: 1, _status: 'published', [field]: { en: content, fr: content } }
+  const payload = fakePayload({ collections: { pages: [doc] }, config: {
+    localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] },
+    collections: [{ slug: 'pages', fields: [{ name: field, type: 'json', localized: true }] }],
+  } })
+  const read = vi.fn(async () => doc); Object.assign(payload.db, { findOne: read })
+  const result = await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', compareVersions: true,
+    puckCollections: editor === 'puck' ? ['pages'] : [], blocksCollections: editor === 'blocks' ? [{ slug: 'pages', field }] : [] })
+  expect(result.map(p => p.locale)).toEqual(['en', 'fr'])
+  expect(read).toHaveBeenCalledTimes(1)
 })

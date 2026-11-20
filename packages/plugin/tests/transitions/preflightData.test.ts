@@ -1,3 +1,4 @@
+import { scanBlockPlacements } from '../../src/transitions/placements.js'
 import { expect, test, vi } from 'vitest'
 import type { PowerWeeksInput } from '@delmaredigital/experiments-stats'
 import { preflightData, loadStartInputs, loadStartInputsBatch, loadPageTestsInUse } from '../../src/transitions/preflightData.js'
@@ -247,3 +248,48 @@ test('preflight excludes missing or unpublished version pages without an uncheck
     expect(f.payload.logs.filter(log => log.level === 'error')).toEqual([])
   }
 }, 5_000) // Measured 1 ms locally; cap exceeds 3×.
+
+test('localized preflight separates publication states and languages with different readiness', async () => {
+  const { options, req, payload } = setup()
+  Object.assign(payload.documents['xp-experiments']![0]!, { kind: 'block', arms: defaultArms('block'), exposurePolicy: 'render' })
+  options.puck = { enabled: true, collections: ['pages'] }
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en', label: 'English' }, { code: 'fr', label: 'French' }] },
+    collections: [{ slug: 'pages', fields: [{ name: 'puckData', type: 'json', localized: true }], versions: { drafts: true } }] })
+  const content = (count: number) => ({ content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{}], variantA: Array(count).fill({}) } }] })
+  const find = payload.find.bind(payload)
+  vi.spyOn(payload, 'find').mockImplementation(async args => args.collection === 'pages' ? { docs: [{ id: 10, title: 'Home', _status: args.draft ? 'draft' : 'published',
+    puckData: args.draft ? { en: content(0), fr: content(0) } : { en: content(1), fr: content(0) } }], hasNextPage: false } as never : find(args))
+  let result = await preflightData(req, { experimentId: 1, options })
+  expect(result!.placements).toMatchObject([
+    { id: 10, detail: 'Published', locales: ['English'], ok: true, slots: { variantA: 1 } },
+    { id: 10, detail: 'Published', locales: ['French'], ok: false, slots: { variantA: 0 } },
+    { id: 10, detail: 'Draft', allLocales: true, ok: false, slots: { variantA: 0 } },
+  ])
+  vi.mocked(payload.find).mockImplementation(async args => args.collection === 'pages' ? { docs: [{ id: 10, title: 'Home', _status: args.draft ? 'draft' : 'published',
+    puckData: args.draft ? { fr: content(0) } : { en: content(1) } }], hasNextPage: false } as never : find(args))
+  const scanned = await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: [] })
+  expect(scanned).toMatchObject([{ published: true, locales: ['English'] }, { published: false, locales: ['French'] }])
+  expect(scanned.every(row => !row.allLocales)).toBe(true)
+  result = await preflightData(req, { experimentId: 1, options })
+  expect(result!.placements).toMatchObject([
+    { detail: 'Published', locales: ['English'], ok: true }, { detail: 'Draft', locales: ['French'], ok: false },
+  ])
+})
+
+test.each(['title', 'url', 'editorUrl'] as const)('equally ready language rows keep differing %s values', async field => {
+  const { options, req, payload } = setup()
+  Object.assign(payload.documents['xp-experiments']![0]!, { kind: 'block', arms: defaultArms('block'), exposurePolicy: 'render' })
+  options.puck = { enabled: true, collections: ['pages'] }
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en', label: 'English' }, { code: 'fr', label: 'French' }] },
+    collections: [{ slug: 'pages', fields: [{ name: 'puckData', type: 'json', localized: true }, { name: 'title', type: 'text', localized: true },
+      { name: 'slug', type: 'text', localized: true }], versions: { drafts: true } }] })
+  const content = { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{}], variantA: [{}] } }] }
+  payload.documents.pages = [{ id: 10, _status: 'published', title: field === 'title' ? { en: 'English home', fr: 'French home' } : { en: 'Home', fr: 'Home' },
+    slug: { en: 'english', fr: 'french' }, puckData: { en: content, fr: content } }]
+  if (field === 'url') options.admin = { ...options.admin, previewUrl: ({ slug }) => `/${slug}` }
+  if (field === 'editorUrl') options.admin = { ...options.admin, editorUrl: ({ doc }) => `/edit/${doc?.slug}` }
+  const result = await preflightData(req, { experimentId: 1, options })
+  expect(result!.placements).toHaveLength(2)
+  expect(result!.placements.map(row => row[field])).toEqual(field === 'title' ? ['English home', 'French home'] : field === 'url' ? ['/english', '/french'] : ['/edit/english', '/edit/french'])
+  expect(result!.placements.map(row => [row.ok, row.locales])).toEqual([[true, ['English']], [true, ['French']]])
+})

@@ -91,7 +91,6 @@
   "peerDependencies": {
     "@payloadcms/next": ">=3.90.0 <4",
     "@payloadcms/ui": ">=3.90.0 <4",
-    "@payloadcms/translations": ">=3.90.0 <4",
     "@puckeditor/core": ">=0.24.0",
     "next": ">=16.4.1 <17",
     "payload": ">=3.90.0 <4",
@@ -104,7 +103,8 @@
     "@puckeditor/core": { "optional": true }
   },
   "dependencies": {
-    "@delmaredigital/experiments-stats": "workspace:*"
+    "@delmaredigital/experiments-stats": "workspace:*",
+    "@payloadcms/translations": ">=3.90.0 <4"
   },
   "keywords": ["payload", "payloadcms", "payload-plugin", "ab-testing", "experimentation", "feature-flags", "puck", "nextjs"],
   "engines": { "node": ">=22.23.4" },
@@ -121,7 +121,6 @@
     "payload": "^3.90.2",
     "@payloadcms/db-postgres": "^3.90.2",
     "@payloadcms/ui": "^3.90.2",
-    "@payloadcms/translations": "^3.90.2",
     "@payloadcms/next": "^3.90.2",
     "next": "^16.4.2",
     "react": "^19.2.8",

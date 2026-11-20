@@ -188,3 +188,20 @@ test('pageTargetPaths covers every path the runtime matches, holdout and empty t
     { key: 'variantB', kind: 'variant', weight: 0 },
   ] as never)).toEqual(['/', '/a', '/h'])
 })
+
+test('readiness and identical warnings identify each language independently', () => {
+  const input = ready(), base = input.placements![0]!
+  input.placements = [
+    { ...base, locale: 'en', allLocales: true, identicalSlots: ['variantA'], slots: { ...base.slots, control: 0 } },
+    { ...base, locale: 'fr', allLocales: true, identicalSlots: ['variantA'], slots: { ...base.slots, variantA: 0 } },
+  ]
+  const checks = checkStart(input)
+  expect(checks.find(c => c.code === 'empty-slot')?.detail).toEqual([
+    { collection: 'pages', id: 1, title: 'Home · Languages: en', slots: input.placements[0]!.slots },
+    { collection: 'pages', id: 1, title: 'Home · Languages: fr', slots: input.placements[1]!.slots },
+  ])
+  expect(checks.filter(c => c.code === 'version-identical').map(c => c.detail)).toEqual([
+    { collection: 'pages', id: 1, title: 'Home · Languages: en', arm: 'variantA' },
+    { collection: 'pages', id: 1, title: 'Home · Languages: fr', arm: 'variantA' },
+  ])
+})

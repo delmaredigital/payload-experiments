@@ -323,23 +323,25 @@ export async function preflightData<TUser extends { id: DocId }>(req: PayloadReq
     }
   }))
   if (blocks.some(placement => placement.locale)) {
-    const groups = new Map<string, number[]>()
+    // Summarize occurrences within one language and publication state first.
+    // Combine languages only when the complete displayed row agrees.
+    const languageRows = new Map<string, number[]>()
     blocks.forEach((placement, index) => {
-      const key = JSON.stringify([placement.collection, String(placement.id)])
-      const group = groups.get(key) ?? []; group.push(index); groups.set(key, group)
+      const key = JSON.stringify([placement.collection, String(placement.id), placement.published, placement.locale])
+      const group = languageRows.get(key) ?? []; group.push(index); languageRows.set(key, group)
     })
-    placements = [...groups.values()].map(indices => {
-      const rows = indices.map(index => placements[index]!)
-      const codes = indices.flatMap(index => blocks[index]!.locale ? [blocks[index]!.locale!] : [])
-      const first = rows[0]!
-      const counts = new Map<string, number>()
-      for (const index of indices) {
-        const key = JSON.stringify([blocks[index]!.locale, blocks[index]!.published])
-        counts.set(key, (counts.get(key) ?? 0) + 1)
-      }
-      return { ...first, ...placementLanguages(req, codes), slotCount: Math.max(...counts.values()),
-        ok: rows.every(row => row.ok), slots: Object.fromEntries(Object.keys(first.slots!).map(slot => [slot, Math.min(...rows.map(row => row.slots![slot as keyof typeof row.slots]))])) as typeof first.slots }
-    })
+    const groups = new Map<string, { row: PreflightResult['placements'][number]; codes: string[] }>()
+    for (const indices of languageRows.values()) {
+      const rows = indices.map(index => placements[index]!), first = rows[0]!
+      const row = { ...first, slotCount: rows.length, ok: rows.every(row => row.ok),
+        slots: Object.fromEntries(Object.keys(first.slots!).map(slot => [slot, Math.min(...rows.map(row => row.slots![slot as keyof typeof row.slots]))])) as typeof first.slots }
+      const key = JSON.stringify(row)
+      const group = groups.get(key) ?? { row, codes: [] }
+      const locale = blocks[indices[0]!]!.locale
+      if (locale) group.codes.push(locale)
+      groups.set(key, group)
+    }
+    placements = [...groups.values()].map(({ row, codes }) => ({ ...row, ...placementLanguages(req, codes) }))
   }
   for (const placement of input.flagPlacements ?? []) placements.push({ collection: e.flagPoint ?? '', id: placement.arm, title: placement.arm, ok: placement.ok, ...(placement.detail ? { detail: placement.detail } : {}) })
   const pagePlacements: NonNullable<PreflightResult['pagePlacements']> = []

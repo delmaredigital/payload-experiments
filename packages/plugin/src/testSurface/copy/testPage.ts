@@ -1,3 +1,5 @@
+import { PLACEMENT_LANGUAGES } from './languages.js'
+
 const guardrailsShort = 'Must not get worse'
 const secondaryShort = 'Also keep an eye on'
 
@@ -56,8 +58,7 @@ export const DELETE_TEST = {
   noEffect: 'Deleting this test will not change what visitors see.',
   versionChange: (before: string, after: string) => `${before} → ${after}`,
   morePages: (count: number) => `${count} more ${count === 1 ? 'page' : 'pages'}.`,
-  allLocales: 'All languages',
-  locales: (names: string) => `Languages: ${names}`,
+  ...PLACEMENT_LANGUAGES,
   blockWinner: (label: string) => `On these pages, visitors will see ${label} again, or nothing where it is empty:`,
   currentSite: 'This list reflects the site right now.',
   changedPages: (count: number) => `${count} ${count === 1 ? 'page' : 'pages'} will change`,

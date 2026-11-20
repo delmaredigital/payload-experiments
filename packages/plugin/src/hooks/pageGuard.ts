@@ -18,7 +18,11 @@ import { bulkPlacementRequest, placementOperationRequest, usesBulkDocumentTransa
 
 // beforeChange has no draft argument. Each operation owns a frame, including
 // nested same-collection updates and restores on a reused Local API request.
-type OperationFrame = { collection: string; request?: PayloadRequest; draft: boolean; restore: boolean; versionId?: DocId; pending?: boolean; scoped?: boolean; complete?: boolean; detached?: boolean; parent?: OperationFrame; bulk?: BulkPlacementRemoval }
+type OperationFrame = {
+  collection: string; request?: PayloadRequest; draft: boolean; restore: boolean; versionId?: DocId
+  isBulk?: boolean; publishSpecificLocale?: string; publishAllLocales?: boolean; unpublishAllLocales?: boolean
+  pending?: boolean; scoped?: boolean; complete?: boolean; detached?: boolean; parent?: OperationFrame; bulk?: BulkPlacementRemoval
+}
 type Operations = Map<string, OperationFrame[]>
 const operationIdentity = Symbol('xpPlacementOperation')
 // Execution-local identity survives both concurrent bulk siblings and Payload's
@@ -66,7 +70,7 @@ export const pageGuardBeforeOperation: CollectionBeforeOperationHook = ({ args, 
   const req = args.req as PayloadRequest
   req.context.xpPlacementRemovals ??= { transaction: undefined, tests: new Map() }
   if (operation !== 'create' && operation !== 'update' && operation !== 'restoreVersion' && operation !== 'delete') return
-  const call = args as { id?: DocId; req: PayloadRequest; draft?: boolean; where?: import('payload').Where; data?: Record<string, unknown>; collection: { config: { slug: string; hooks?: { beforeOperation?: CollectionBeforeOperationHook[] } } } }
+  const call = args as { id?: DocId; req: PayloadRequest; draft?: boolean; publishSpecificLocale?: string; publishAllLocales?: boolean; unpublishAllLocales?: boolean; where?: import('payload').Where; data?: Record<string, unknown>; collection: { config: { slug: string; hooks?: { beforeOperation?: CollectionBeforeOperationHook[] } } } }
   let collections = operations(call.req)
   if (!collections) call.req.context.xpPageGuardOperations = collections = new Map()
   const slug = call.collection.config.slug
@@ -75,7 +79,9 @@ export const pageGuardBeforeOperation: CollectionBeforeOperationHook = ({ args, 
   const frame: OperationFrame = entryIsFirst(call.collection.config) && entered?.pending && entered.collection === slug ? entered : { collection: slug, request: req, draft: false, restore: false }
   const isBulk = Boolean(call.where) && (operation === 'update' || operation === 'delete')
   const bulk: BulkPlacementRemoval | undefined = frame.scoped && isBulk ? { documents: new Set(), refusals: new Map() } : undefined
-  Object.assign(frame, { request: req, draft: call.draft === true, restore: operation === 'restoreVersion', versionId: operation === 'restoreVersion' ? call.id : undefined, bulk, pending: false })
+  Object.assign(frame, { request: req, draft: call.draft === true, restore: operation === 'restoreVersion',
+    versionId: operation === 'restoreVersion' ? call.id : undefined, isBulk, publishSpecificLocale: call.publishSpecificLocale,
+    publishAllLocales: call.publishAllLocales, unpublishAllLocales: call.unpublishAllLocales, bulk, pending: false })
   stack.push(frame)
   collections.set(slug, stack)
   const scoped: PayloadRequest = placementOperationRequest(req, new Map([[operationIdentity, frame]]), () => {
@@ -226,10 +232,13 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
   const options = optionsOf(req)
   try {
     const published = operation === 'create' ? undefined : await previousPublishedContent(req, collection.slug, originalDoc.id as DocId)
-    // Preserve the localization-off path exactly. Localized pending writes use
-    // Payload's latest-version merge base, even before the first publication.
+    // Preserve the localization-off path and its IO. Localized writes mirror
+    // the base Payload uses for this operation's unselected languages.
+    const localizeStatus = Boolean(collection.versions && typeof collection.versions.drafts === 'object' && collection.versions.drafts.localizeStatus)
+    const allLocales = Boolean(!call?.draft && call?.publishAllLocales && data._status === 'published' || call?.unpublishAllLocales && data._status === 'draft')
     const stored = operation === 'create' || !hasLocalizedFields(req.payload.config.collections?.find(entry => entry.slug === collection.slug)?.fields ?? [], req.payload.config) ? published
-      : await placementWriteContent(req, collection.slug, originalDoc.id as DocId, published ?? await storedContent(req, collection.slug, originalDoc.id as DocId), call?.versionId)
+      : await placementWriteContent(req, collection.slug, originalDoc.id as DocId, published ?? await storedContent(req, collection.slug, originalDoc.id as DocId), { versionId: call?.versionId,
+        bulk: call?.isBulk, draft: call?.draft, publishSpecificLocale: call?.publishSpecificLocale, localizeStatus, allLocales, status: data._status, trashing: Boolean(collection.trash && data.deletedAt != null) })
     const before = published?._status === 'draft' ? undefined : published
     const beforeSlugs = allPlacementSlugs(req, collection.slug, before, 'all-locales')
     const rawAfter = mergedPlacementLocales(req, collection.slug, stored, after)

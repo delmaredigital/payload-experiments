@@ -731,6 +731,12 @@ test.each([false, true])('Start and its locked rescan record published placement
     expect(bilingual!.placements[0]).toMatchObject({ allLocales: true, slotCount: 1 })
     raw.en = { content: [] }
   }
+  const scanOffset = vi.mocked(f.payload.find).mock.calls.length
   await start(f.req, { experimentId: 1, options: f.options })
+  const scans = vi.mocked(f.payload.find).mock.calls.slice(scanOffset).map(([args]) => args).filter(args => args.collection === 'pages')
+  if (!localized) {
+    for (const args of scans) { expect(args).not.toHaveProperty('locale'); expect(args).not.toHaveProperty('fallbackLocale') }
+    expect(scans.map(args => [args.collection, args.draft, args.page])).toEqual([['pages', false, 1], ['pages', true, 1], ['pages', false, 1], ['pages', true, 1]])
+  }
   expect(f.payload.documents['xp-phases']![0]!.placementDocs).toEqual([{ collection: 'pages', id: 10 }])
 })

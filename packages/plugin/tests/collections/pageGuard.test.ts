@@ -1227,3 +1227,32 @@ test('a first localized publish uses other-language content from the latest draf
   await f.save({ ...f.empty, _status: 'published' }, false)
   expect(experimentLocks(f).map(call => call.params)).toContainEqual(['2'])
 })
+
+test.each([false, true])('nonlocalized save preserves baseline IO (site localization=%s)', async localized => {
+  const f = setup()
+  if (localized) Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] } })
+  f.payload.config.collections = [{ ...f.collection, fields: [{ name: 'slug', type: 'text' }] }] as never
+  await expect(f.save({ title: 'Updated', _status: 'published' })).resolves.toBeDefined()
+  expect(f.payload.db.findVersions).not.toHaveBeenCalled()
+  expect(f.read).toHaveBeenCalledTimes(1)
+})
+
+test.each(['publishSpecificLocale', 'bulk', 'localizeStatus', 'updateByID', 'restore'] as const)('localized page guard mirrors the %s merge base', async path => {
+  const f = setup()
+  Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] } })
+  if (path === 'localizeStatus') f.collection.versions = { drafts: { localizeStatus: true } } as never
+  f.payload.config.collections = [{ ...f.collection, fields: [{ name: 'slug', type: 'text', localized: true }] }] as never
+  Object.assign(f.published, { slug: { en: 'original', fr: 'french' } })
+  const latest = { ...f.published, slug: { en: 'draft-rename', fr: 'french' } }
+  Object.assign(f.payload.db, { findVersions: vi.fn(async ({ where }) => ({ docs: [{ version: JSON.stringify(where).includes('published') ? f.published : latest }] })) })
+  f.req.locale = 'fr'
+  const operation = path === 'restore' ? 'restoreVersion' : 'update'
+  const args = { req: f.req, draft: false, collection: { config: f.collection },
+    ...(path === 'bulk' ? { where: { id: { equals: 1 } } } : { id: path === 'restore' ? 9 : 1 }), ...(path === 'publishSpecificLocale' ? { publishSpecificLocale: 'fr' } : {}) }
+  pageGuardEnterOperation({ args, operation } as never)
+  const returned = pageGuardBeforeOperation({ args, operation } as never) as typeof args
+  const work = pageGuardBeforeChange({ req: returned.req, collection: f.collection, originalDoc: { id: 1, slug: 'french', _status: 'published' }, operation: 'update',
+    data: { slug: 'french', _status: 'published' } } as never)
+  if (path === 'updateByID' || path === 'restore') await expect(work).rejects.toMatchObject({ code: 'locked-placement' })
+  else await expect(work).resolves.toBeDefined()
+})

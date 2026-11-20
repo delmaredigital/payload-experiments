@@ -90,13 +90,36 @@ test.each(['puck', 'blocks'] as const)('localized %s Start, Decide and guards sh
     data: { title: 'Localized page', ...empty, _status: 'published' } })
   await payload.delete({ collection, id: page.id, req: await request('en'), overrideAccess: false })
   expect((await scan('fr')).every(placement => placement.id !== page.id)).toBe(true)
-  expect(await scan('en')).toEqual([expect.objectContaining({ id: other.id, published: true })])
+  // Empty localized native-block arrays are stored as absent, so French
+  // falls back to English. Both scan rows refer to this same page.
+  const englishViews = () => editor === 'blocks'
+    ? ['en', 'fr'].map(locale => expect.objectContaining({ id: other.id, published: true, locale, allLocales: true }))
+    : [expect.objectContaining({ id: other.id, published: true, locale: 'en' })]
+  expect(await scan('en')).toEqual(englishViews())
+  // Publishing French must preserve the published English block, even when
+  // the latest English draft has removed it (Payload's published-version base).
+  await payload.update({ collection, id: other.id, req: await request('en'), locale: 'en', draft: true, overrideAccess: false,
+    data: { ...empty, _status: 'draft' } })
+  await payload.update({ collection, id: other.id, req: await request('fr'), publishSpecificLocale: 'fr', overrideAccess: false,
+    data: { ...empty, _status: 'published' } })
+  expect(await scanBlockPlacements(await request('en'), { slug: String(experiment.slug), publishedOnly: true,
+    puckCollections: options().puck!.collections, blocksCollections: options().blocks!.collections })).toEqual(englishViews())
+  // Bulk publishing uses the main rows rather than that latest draft too.
+  const bulk = await payload.update({ collection, where: { id: { equals: other.id } }, req: await request('fr'), locale: 'fr', overrideAccess: false,
+    data: { _status: 'published' } })
+  expect(bulk.errors).toEqual([])
+  expect(bulk.docs.map(doc => doc.id)).toEqual([other.id])
+  expect(await scanBlockPlacements(await request('en'), { slug: String(experiment.slug), publishedOnly: true,
+    puckCollections: options().puck!.collections, blocksCollections: options().blocks!.collections })).toEqual(englishViews())
+  // Keep the remaining bilingual-removal scenario independent of that draft.
+  await payload.update({ collection, id: other.id, req: await request('en'), locale: 'en', draft: true, overrideAccess: false,
+    data: { ...content, _status: 'draft' } })
   await payload.update({ collection, id: other.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
     data: { title: 'Localized page', ...content, _status: 'published' } })
   // Removing only French from a bilingual page keeps the English copy.
   await payload.update({ collection, id: other.id, req: await request('fr'), locale: 'fr', overrideAccess: false,
     data: { title: 'Localized page', ...empty, _status: 'published' } })
-  expect(await scan('en')).toEqual([expect.objectContaining({ id: other.id, published: true })])
+  expect(await scan('en')).toEqual(englishViews())
   await expect(payload.update({ collection, id: other.id, req: await request('en'), locale: 'en', overrideAccess: false,
     data: { title: 'Localized page', ...empty, _status: 'published' } })).rejects.toMatchObject({ code: 'locked-placement',
     message: '“Localized placement” is running and this is the only published place it appears. Stop the test, or keep its block on this page.' })
@@ -111,7 +134,7 @@ test.each(['puck', 'blocks'] as const)('localized %s Start, Decide and guards sh
   await stop(await request('en'), { experimentId: experiment.id })
   await expect(decide(await request('en'), { experimentId: experiment.id, winnerArm: 'variantA',
     note: 'Choose the variant', confirmation: 'Variant A' })).resolves.toMatchObject({ doc: { status: 'decided' } })
-}, 30_000) // Estimate <1.5 s each; no measured claim until coordinator runs it.
+}, 30_000) // Includes save-path regressions; run for both id types in the lane.
 
 
 test('a page test protects a localized French slug during rename and unpublish', async () => {
