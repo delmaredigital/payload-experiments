@@ -11,6 +11,7 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
+- Changed: the plugin is tested against payload-puck 0.12.1. Migration impact: none; this updates the development dependency only and adds no host peer requirement.
 - Fixed: first publishing a localized page from another language checks and records its stored test blocks; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.
 - Fixed: Start and Decide find test blocks in every content language; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.
 - Fixed: page guards protect localized published block placements across languages; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.

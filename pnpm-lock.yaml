@@ -37,8 +37,8 @@ importers:
         version: 3.90.2
     devDependencies:
       '@delmaredigital/payload-puck':
-        specifier: 0.10.3
-        version: 0.10.3(15ba11eed20db23aa71cfcdce4a179fc)
+        specifier: 0.12.1
+        version: 0.12.1(15ba11eed20db23aa71cfcdce4a179fc)
       '@electric-sql/pglite':
         specifier: ^0.5.13
         version: 0.5.13
@@ -220,8 +220,8 @@ packages:
   '@date-fns/tz@1.2.0':
     resolution: {integrity: sha512-LBrd7MiJZ9McsOgxqWX7AaxrDjcFVjWH/tIKJd7pnR7McaslGYOP1QmmiBXdJH/H/yLCT+rcQ7FaPBUxRGUtrg==}
 
-  '@delmaredigital/payload-puck@0.10.3':
-    resolution: {integrity: sha512-Fesr5Kn4X+rPcBuuCnn3JA1UsQ2F/04KnjABtaqg8XrU6JEphCekJxPtV0FaoDDIptnUuFA35+/WAZJ6JEpSew==}
+  '@delmaredigital/payload-puck@0.12.1':
+    resolution: {integrity: sha512-TXKu+nNNzrC8/zZVHook6SYmrZUxGOsicP1+bmGGLkWMWojdI7ZwTeFl2CwkMYswX9iqIZNCRgIkI1Zgq5d1Dw==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
       '@payloadcms/next': '>=3.69.0'
@@ -4532,7 +4532,7 @@ snapshots:
 
   '@date-fns/tz@1.2.0': {}
 
-  '@delmaredigital/payload-puck@0.10.3(15ba11eed20db23aa71cfcdce4a179fc)':
+  '@delmaredigital/payload-puck@0.12.1(15ba11eed20db23aa71cfcdce4a179fc)':
     dependencies:
       '@puckeditor/cloud-client': 0.8.3
       '@puckeditor/core': 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
