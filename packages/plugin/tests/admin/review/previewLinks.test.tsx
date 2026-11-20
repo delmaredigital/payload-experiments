@@ -152,8 +152,10 @@ test('no preview URL offers Edit on page only and hides rows without either link
 })
 test('one control/variant preview per page; no holdout even without kind', () => {
   render(<PreviewLinks apiRoute="/api" experimentId={1} placements={[...placements, { ...placements[0]!, id: 2, title: 'About', url: '/about' }]} arms={[{ key: 'control' }, { key: 'variantA' }, { key: 'holdout' }]} />)
-  expect(screen.getAllByRole('button', { name: /^Preview Original:/ })).toHaveLength(2)
-  expect(screen.getAllByRole('button', { name: /^Preview Variant A:/ })).toHaveLength(2)
+  for (const title of ['Home', 'About']) {
+    expect(screen.getByRole('button', { name: `Preview Original: ${title}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `Preview Variant A: ${title}` })).toBeTruthy()
+  }
   expect(screen.getAllByRole('button')).toHaveLength(4)
 })
 test('published and draft placements on the same page render one row and one set of previews without duplicate keys', () => {

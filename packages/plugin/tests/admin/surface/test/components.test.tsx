@@ -487,7 +487,8 @@ test('block binding groups repeated placements per page using the maximum count 
   const view = render(<pageBlockParts.Binding {...p} />)
   expect(screen.getByText('On: Landing (Published) (placed 2 times)')).toBeTruthy()
   expect(screen.getByText('On: Thank you (Draft)')).toBeTruthy()
-  expect(screen.getAllByRole('link', { name: /^Open the page:/ })).toHaveLength(2)
+  expect(screen.getByRole('link', { name: 'Open the page: Landing (Published)' })).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Open the page: Thank you (Draft)' })).toBeTruthy()
   expect(view.container.querySelectorAll('.xp-page-binding > p')).toHaveLength(3)
 })
 

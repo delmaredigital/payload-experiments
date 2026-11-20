@@ -1,3 +1,4 @@
+import { sanitizeLocales, type PayloadRequest } from 'payload'
 import { afterEach, expect, test, vi } from 'vitest'
 import { handlePreflight } from '../../src/endpoints/preflight.js'
 import { buildEndpoints } from '../../src/endpoints/index.js'
@@ -323,12 +324,17 @@ test('timed-out host callbacks retain their permits and remaining placements kee
   expect(vi.getTimerCount()).toBe(0)
 })
 
-test('page preflight uses its registered collection and passes the manager-read document to editorUrl', async () => {
-  const { options, req, payload } = setup()
-  const findByPath = vi.fn(async (path: string) => ({ id: path === '/original' ? 1 : 2, published: true }))
+test.each([false, true])('page preflight uses default-locale host adapters and metadata (localized: %s)', async localized => {
+  const { options, req: originalReq, payload } = setup()
+  if (localized) Object.assign(payload.config, { localization: { defaultLocale: 'en', fallback: true, localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr', fallbackLocale: ['en'] }] } })
+  const req = localized ? localizedPreflightRequest(originalReq, 'fr') : originalReq
+  const findByPath = vi.fn(async (path: string, hostReq: PayloadRequest) => {
+    if (localized) expect(hostReq).toMatchObject({ locale: 'en', fallbackLocale: 'en', user: req.user })
+    return { id: path === '/original' ? 1 : 2, published: true }
+  })
   const other = vi.fn(async () => null)
   options.pages = { collections: [{ slug: 'other', pathOf: () => null, findByPath: other }, { slug: 'pages', pathOf: doc => String(doc.path), findByPath }] }
-  options.admin = { editorUrl: vi.fn(({ doc, editor }) => `/edit/${editor}/${doc?.id}`) }
+  options.admin = { previewUrl: vi.fn(({ title, slug }) => `/preview/${slug}?title=${title}`), editorUrl: vi.fn(({ doc, editor }) => `/edit/${editor}/${doc?.id}`) }
   Object.assign(payload.config, { collections: [{ slug: 'pages', admin: { useAsTitle: 'title' } }] })
   payload.documents.pages = [{ id: 1, title: 'Original', path: '/original', slug: 'original', _status: 'published' }, { id: 2, title: 'Version', path: '/version', slug: 'version', _status: 'published' }]
   Object.assign(payload.documents['xp-experiments']![0]!, { kind: 'page', pageCollection: 'pages', exposurePolicy: 'pageview', arms: defaultArms('page').map((arm, index) => ({ ...arm, pageTarget: index ? '/version' : '/original' })) })
@@ -336,12 +342,16 @@ test('page preflight uses its registered collection and passes the manager-read 
   const result = await response.json() as PreflightResult
   expect(result.placements).toEqual([])
   expect(result.pagePlacements).toEqual([
-    { arm: 'control', path: '/original', collection: 'pages', id: 1, title: 'Original', published: true, slug: 'original', editorUrl: '/edit/page/1' },
-    { arm: 'variantA', path: '/version', collection: 'pages', id: 2, title: 'Version', published: true, slug: 'version', editorUrl: '/edit/page/2' },
+    { arm: 'control', path: '/original', collection: 'pages', id: 1, title: 'Original', published: true, slug: 'original', url: '/preview/original?title=Original', editorUrl: '/edit/page/1' },
+    { arm: 'variantA', path: '/version', collection: 'pages', id: 2, title: 'Version', published: true, slug: 'version', url: '/preview/version?title=Version', editorUrl: '/edit/page/2' },
   ])
   expect(options.admin.editorUrl).toHaveBeenCalledWith({ collection: 'pages', id: 1, draft: false, editor: 'page', doc: payload.documents.pages[0] })
+  expect(options.admin.previewUrl).toHaveBeenCalledWith({ collection: 'pages', id: 1, title: 'Original', published: true, slug: 'original' })
   expect(other).not.toHaveBeenCalled()
-  expect(payload.calls.filter(call => call.method === 'findByID').every(call => call.args.req === req && call.args.overrideAccess === false)).toBe(true)
+  expect(payload.calls.filter(call => call.method === 'findByID').every(call => call.args.overrideAccess === false && (localized
+    ? (call.args.req as PayloadRequest).locale === 'en' && (call.args.req as PayloadRequest).fallbackLocale === 'en'
+    : call.args.req === req))).toBe(true)
+  if (localized) expect(req.locale).toBe('fr')
 })
 
 test('where-used and readiness exclude hidden placements and retain partial visibility', async () => {
@@ -369,26 +379,46 @@ test.each(['fr', 'xx', 'all', '', undefined])('preflight validates metadata loca
     collections: [{ slug: 'pages', fields: [{ name: 'puckData', type: 'json', localized: true }, { name: 'title', type: 'text', localized: true }] }] })
   const content = { content: [{ type: 'ExperimentSlot', props: { experiment: { slug: 'hero' }, control: [{}], variantA: [] } }] }
   payload.documents.pages = [{ id: 10, _status: 'published', title: { en: 'Home', fr: 'Accueil' }, puckData: { en: content, fr: content } }]
-  Object.assign(req, { url: `https://example.test/api/xp/experiments/one/preflight${requested === undefined ? '' : `?locale=${requested}`}` })
-  const body = await (await handlePreflight(req, { options })).json() as PreflightResult
+  const localizedReq = localizedPreflightRequest(req, requested)
+  const originalLocale = localizedReq.locale
+  const body = await (await handlePreflight(localizedReq, { options })).json() as PreflightResult
   expect(body.checks.find(check => check.code === 'empty-slot')?.detail).toEqual([expect.objectContaining({ title: `${requested === 'fr' ? 'Accueil' : 'Home'} · All languages` })])
   const { preflightData } = await import('../../src/transitions/preflightData.js')
-  Object.assign(req, { locale: requested === 'fr' ? 'fr' : 'en' })
-  expect(body).toEqual(await preflightData(req, { experimentId: 'one', options }))
+  Object.assign(req, { locale: 'en', fallbackLocale: 'en' })
+  expect(body).toEqual(await preflightData(req, { experimentId: 'one', options, placementLocale: requested === 'fr' ? 'fr' : 'en' }))
+  expect(localizedReq.locale).toBe(originalLocale)
   expect(payload.calls.filter(call => call.args.collection === 'pages').every(call => call.args.locale === 'all' && call.args.fallbackLocale === false)).toBe(true)
   expect(payload.calls.every(call => call.method === 'find')).toBe(true)
   expect(payload.dbCalls).toEqual([])
 })
 
 
+// Match createPayloadRequest: sanitize URL locale/fallback, then extend a native Request.
+function localizedPreflightRequest(req: PayloadRequest, locale?: string): PayloadRequest {
+  const url = `https://example.test/api/xp/experiments/one/preflight${locale === undefined ? '' : `?locale=${locale}`}`
+  return Object.assign(new Request(url, { headers: { 'x-lane': 'rc7-fix13' } }), {
+    payload: req.payload, user: req.user, context: req.context, routeParams: req.routeParams, transactionID: req.transactionID,
+    ...sanitizeLocales({ locale: new URL(url).searchParams.get('locale')!, fallbackLocale: null, localization: req.payload.config.localization }),
+  }) as PayloadRequest
+}
+
 test('a metadata locale does not change the request given to host placement adapters', async () => {
-  const { req, payload, options } = setup('flag')
-  Object.assign(req, { locale: 'en', url: 'https://example.test/api/xp/experiments/one/preflight?locale=fr' })
-  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] } })
-  const placements = vi.fn(async (_input: { req: import('payload').PayloadRequest }) => [{ arm: 'control', ok: true }, { arm: 'variantA', ok: true }])
+  const { req: originalReq, payload, options } = setup('flag')
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', fallback: true, localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr', fallbackLocale: ['en'] }] } })
+  originalReq.transactionID = 'metadata-transaction'
+  const req = localizedPreflightRequest(originalReq, 'fr')
+  expect(req).toMatchObject({ locale: 'fr', fallbackLocale: ['en'] })
+  const placements = vi.fn(async ({ req: hostReq }: { req: PayloadRequest }) => {
+    expect(hostReq).toMatchObject({ locale: 'en', fallbackLocale: 'en', user: req.user, transactionID: req.transactionID })
+    expect(hostReq.headers.get('x-lane')).toBe('rc7-fix13')
+    expect(hostReq.url).toBe(req.url)
+    expect(hostReq.method).toBe('GET')
+    expect(hostReq.signal).toBe(req.signal)
+    return [{ arm: 'control', ok: true }, { arm: 'variantA', ok: true }]
+  })
   options.flagPoints![0]!.placements = placements
-  expect((await handlePreflight(req, { options })).status).toBe(200)
+  const body = await (await handlePreflight(req, { options })).json() as PreflightResult
+  expect(body.checks.every(check => check.ok)).toBe(true)
   expect(placements).toHaveBeenCalledOnce()
-  expect(placements.mock.calls[0]![0].req).toBe(req)
-  expect(req.locale).toBe('en')
+  expect(req).toMatchObject({ locale: 'fr', fallbackLocale: ['en'] })
 })
