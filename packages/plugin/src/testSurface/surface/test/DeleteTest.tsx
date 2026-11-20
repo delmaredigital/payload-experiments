@@ -1,4 +1,5 @@
 'use client'
+import { useLocale } from '@payloadcms/ui'
 import { useEffect, useRef, useState } from 'react'
 import type { DeleteImpactResult } from '../../../types/endpoints.js'
 import type { DocId } from '../../../types/contracts.js'
@@ -17,6 +18,8 @@ export function DeleteTest({ test, canManage, apiRoute, onDeleted }: {
   test: { id: DocId; name: string; status: string }; canManage: boolean; apiRoute: string
   onDeleted: (outcome: DeleteOutcome) => void
 }) {
+  const locale = useLocale()
+  const contentLocale = locale?.code
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
@@ -31,14 +34,14 @@ export function DeleteTest({ test, canManage, apiRoute, onDeleted }: {
       current = false; controller.abort(); setImpact({ state: 'failed' })
     }, DELETE_IMPACT_TIMEOUT_MS)
     setImpact({ state: 'loading' })
-    void createApi(apiRoute).deleteImpact(test.id, controller.signal).then(result => {
+    void createApi(apiRoute, contentLocale).deleteImpact(test.id, controller.signal).then(result => {
       if (!current) return
       clearTimeout(timer)
       setImpact(result.ok && result.data && ['none', 'block', 'page'].includes(result.data.effect)
         ? { state: 'ready', data: result.data } : { state: 'failed' })
     })
     return () => { current = false; clearTimeout(timer); controller.abort() }
-  }, [open, test.id, apiRoute])
+  }, [open, test.id, apiRoute, contentLocale])
   if (!canManage || !['draft', 'archived'].includes(test.status)) return null
   const checking = impact.state === 'loading'
   async function remove() {
@@ -71,7 +74,7 @@ function impactSummary(impact: DeleteImpactResult): string {
 function ImpactDetails({ impact }: { impact: DeleteImpactResult }) {
   if (impact.effect === 'none') return null
   const places = impact.effect === 'block' ? impact.placements.map(place =>
-    `${place.title}${place.path ? ` (${place.path})` : ''}${place.locales?.length ? ` · ${C.locales(place.locales.join(', '))}` : ''}: ${C.versionChange(place.before.label, place.after.label)}`)
+    `${place.title}${place.path ? ` (${place.path})` : ''}${place.allLocales ? ` · ${C.allLocales}` : place.locales?.length ? ` · ${C.locales(place.locales.join(', '))}` : ''}: ${C.versionChange(place.before.label, place.after.label)}`)
     : impact.addresses.map(path => `${path}: ${C.versionChange(impact.winnerPath, impact.afterPaths?.[path] ?? path)}`)
   return <>
     {places.length ? <><p>{impact.effect === 'block' ? C.blockWinner(impact.controlLabel) : C.pageWinner}</p><p>{C.currentSite}</p></> : null}

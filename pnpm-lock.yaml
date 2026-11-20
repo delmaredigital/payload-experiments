@@ -32,6 +32,9 @@ importers:
       '@delmaredigital/experiments-stats':
         specifier: workspace:*
         version: link:../stats
+      '@payloadcms/translations':
+        specifier: ^3.90.2
+        version: 3.90.2
     devDependencies:
       '@delmaredigital/payload-puck':
         specifier: 0.10.3

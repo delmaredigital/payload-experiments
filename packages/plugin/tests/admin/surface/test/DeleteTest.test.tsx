@@ -6,7 +6,11 @@ import { DeleteTest, DELETE_IMPACT_TIMEOUT_MS } from '../../../../src/testSurfac
 import { DELETE_TEST } from '../../../../src/testSurface/copy/testPage.js'
 import { API_MESSAGES } from '../../../../src/testSurface/copy/common.js'
 
+const locale = vi.hoisted(() => ({ code: undefined as string | undefined }))
+vi.mock('@payloadcms/ui', () => ({ useLocale: () => locale }))
+
 beforeEach(() => {
+  locale.code = undefined
   vi.stubGlobal('fetch', vi.fn(async () => Response.json({ effect: 'none' })))
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
@@ -227,4 +231,22 @@ test.each([
   openWithImpact({ effect: 'block', controlLabel: 'Original', pageCount, unreadablePages, placements: [] })
   await screen.findByText(sentence)
   expect(screen.getByRole('status').textContent).toBe(`${pageCount} ${pageCount === 1 ? 'page' : 'pages'} will change`)
+})
+
+test('delete check forwards selected content locale and refreshes when it changes', async () => {
+  locale.code = 'fr'
+  const { rerender } = render(<DeleteTest {...base} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/data/xp/experiments/42/delete-impact?locale=fr', expect.objectContaining({ method: 'GET' })))
+  locale.code = 'en'
+  rerender(<DeleteTest {...base} />)
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/data/xp/experiments/42/delete-impact?locale=en', expect.objectContaining({ method: 'GET' })))
+})
+
+test('all affected languages use dialog copy rather than a server-supplied language name', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ effect: 'block', controlLabel: 'Original', pageCount: 1, unreadablePages: 0, placements: [{ collection: 'pages', id: 1, title: 'Home', path: '/', allLocales: true, before: { key: 'variantA', label: 'Winner' }, after: { key: 'control', label: 'Original' } }] })))
+  render(<DeleteTest {...base} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  expect((await screen.findByText(/Home \(\/\)/)).textContent).toContain('All languages')
+  expect(screen.queryByText(/Languages: all languages/)).toBeNull()
 })

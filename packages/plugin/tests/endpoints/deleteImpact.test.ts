@@ -200,7 +200,7 @@ test.each(['puck', 'blocks'] as const)('fallback locales do not duplicate %s pag
   })
   const result = await (await read()).json()
   expect(result).toMatchObject({ effect: 'block', pageCount: 2, unreadablePages: 0, placements: [
-    { id: 1, locales: ['all languages'] }, { id: 2, locales: ['all languages'] },
+    { id: 1, allLocales: true }, { id: 2, allLocales: true },
   ] })
   expect(result.placements).toHaveLength(2)
   const scans = payload.calls.filter(call => call.args.collection === 'pages' && call.args.overrideAccess === true)
@@ -229,7 +229,7 @@ test.each(['missing-rollout-test', 'missing-current', 'incomplete-layer'] as con
   expect(body).toMatchObject({ errors: [{ code: 'placement-unchecked' }] })
   expect(JSON.stringify(body)).not.toContain('private-name')
 })
-test.each([undefined, null, 123, {}, '/site/undefined', '/site/null', '/site/%75ndefined', '/site/[object Object]', '/site/%5Bobject%20Object%5D', '/site/..', '/site/hello world', '/site/%2Fbad'])('unusable access-filtered public path %s is omitted', async path => {
+test.each([undefined, null, 123, {}, '/site/undefined', '/site/null', '/site/%75ndefined', '/site/[object Object]', '/site/%5Bobject%20Object%5D', '/site/..', '/site/hello world'])('unusable access-filtered public path %s is omitted', async path => {
   const { read, options } = setup()
   options.pages!.collections[0]!.pathOf = () => path as never
   expect((await (await read()).json()).placements).toMatchObject([{ path: null }])
@@ -324,8 +324,26 @@ test.each(['puck', 'blocks'] as const)('localized %s callbacks get complete flat
   expect(req.locale).toBe('fr')
   expect(req.fallbackLocale).toEqual(['en'])
 })
-test.each([{}, { en: 'Map' }, 12, null])('non-string page title %j uses the neutral page id label', async title => {
+test.each([{}, { en: 'Map' }, null])('non-string page title %j uses the neutral page id label', async title => {
   const { read, payload } = setup()
   Object.assign(payload.documents.pages![0]!, { headline: title, title, name: title })
   expect(await (await read()).json()).toMatchObject({ placements: [{ title: '1' }] })
+})
+
+test.each(['fr', 'xx', 'all', ''])('validates requested metadata locale %j and defaults absent/invalid codes', async requested => {
+  const { read, req, payload } = setup()
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true } })
+  Object.assign(req, { url: `https://example.test/api/xp/experiments/test/delete-impact${requested ? `?locale=${requested}` : ''}` })
+  await read()
+  expect(payload.calls.find(call => call.args.collection === 'pages' && call.args.overrideAccess === false)?.args.locale).toBe(requested === 'fr' ? 'fr' : 'en')
+})
+test.each(['/site/search?next=%2Fwelcome', '/site/%2Fwelcome', '/site/caf%C3%A9'])('encoded public path %s is retained', async path => {
+  const { read, options } = setup()
+  options.pages!.collections[0]!.pathOf = () => path
+  expect((await (await read()).json()).placements).toMatchObject([{ path }])
+})
+test.each([['', '1'], ['   ', '1'], [0, '0'], [12, '12'], [new Date('2026-11-01T00:00:00.000Z'), '2026-11-01T00:00:00.000Z']] as const)('title %j resolves to %s', async (title, expected) => {
+  const { read, payload } = setup()
+  Object.assign(payload.documents.pages![0]!, { headline: title })
+  expect(await (await read()).json()).toMatchObject({ placements: [{ title: expected }] })
 })

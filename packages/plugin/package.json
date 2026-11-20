@@ -103,7 +103,8 @@
     "@puckeditor/core": { "optional": true }
   },
   "dependencies": {
-    "@delmaredigital/experiments-stats": "workspace:*"
+    "@delmaredigital/experiments-stats": "workspace:*",
+    "@payloadcms/translations": "^3.90.2"
   },
   "keywords": ["payload", "payloadcms", "payload-plugin", "ab-testing", "experimentation", "feature-flags", "puck", "nextjs"],
   "engines": { "node": ">=22.23.4" },

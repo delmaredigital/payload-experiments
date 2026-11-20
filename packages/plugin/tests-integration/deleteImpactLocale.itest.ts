@@ -91,7 +91,7 @@ test.each(['puck', 'blocks'] as const)('delete impact for localized %s uses mana
     const result = await response.json()
     expect(result).toMatchObject({ effect: 'block', pageCount: 3, unreadablePages: 1, placements: expect.arrayContaining(pages.slice(0, 2).map((page, index) => expect.objectContaining({
       id: page.id, title: `${locale === 'fr' && index !== 1 ? 'Français' : 'English'} ${suffix}-${index}`,
-      path: `/site/${locale === 'fr' && index !== 1 ? 'francais' : 'english'}-${suffix}-${index}`, locales: ['all languages'],
+      path: `/site/${locale === 'fr' && index !== 1 ? 'francais' : 'english'}-${suffix}-${index}`, allLocales: true,
     }))) })
     expect(result.placements).toHaveLength(2)
     expect(result.placements.map((page: { id: string | number }) => page.id)).not.toContain(pages[2]!.id)

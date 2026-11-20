@@ -96,6 +96,7 @@ export const toast = Object.assign(vi.fn(), {
 })
 export function payloadUiMock() {
   return {
+    useLocale: () => ({}),
     useConfig: () => {
       const snapshot = useStateSnapshot()
       return { ...snapshot.config, getEntityConfig: () => snapshot.entityConfig }

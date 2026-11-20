@@ -274,3 +274,10 @@ test('delete impact is a typed manager GET with the encoded id and configured AP
   expectTypeOf(result.data).toEqualTypeOf<DeleteImpactResult | undefined>()
   expect(fetchMock).toHaveBeenCalledWith('/custom/api/xp/experiments/test%2Fid/delete-impact', expect.objectContaining({ method: 'GET', credentials: 'include' }))
 })
+
+
+test('delete impact encodes the selected content locale as a query parameter', async () => {
+  respond({ effect: 'none' })
+  await createApi('/custom/api/', 'fr-CA').deleteImpact('id/42')
+  expect(fetchMock).toHaveBeenCalledWith('/custom/api/xp/experiments/id%2F42/delete-impact?locale=fr-CA', expect.objectContaining({ method: 'GET' }))
+})

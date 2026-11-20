@@ -9,7 +9,7 @@ import { useTestDocument } from '../../../../src/testSurface/surface/useTestDocu
 import type { TestDocument } from '../../../../src/testSurface/surface/testDocument.model.js'
 import { doc, preflight, props } from '../readiness/fixtures.js'
 
-vi.mock('@payloadcms/ui', () => ({ Link: (props: ComponentProps<'a'>) => <a {...props} /> }))
+vi.mock('@payloadcms/ui', () => ({ useLocale: () => ({}), Link: (props: ComponentProps<'a'>) => <a {...props} /> }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
 const surface = props().surface
 function TestGoal() {

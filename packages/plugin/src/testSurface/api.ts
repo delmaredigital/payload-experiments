@@ -12,7 +12,7 @@ export type ApiResult<T> = { ok: true; data: T | undefined } | {
 }
 type RequestOptions = NonNullable<Parameters<typeof refusalMessage>[3]>
 
-export function createApi(apiBase: string) {
+export function createApi(apiBase: string, contentLocale?: string) {
   const collectionBase = `${apiBase.replace(/\/$/, '')}/xp-experiments`
   const base = `${apiBase.replace(/\/$/, '')}/xp/experiments`
   const route = (id: DocId, action: string) => `${base}/${encodeURIComponent(id)}/${action}`
@@ -72,7 +72,7 @@ export function createApi(apiBase: string) {
     restoreContentEntry: (id: DocId, body: RestoreContentEntryBody) => post<RestoreContentEntryResult>(id, 'content-report/restore', body, CONTENT_ENTRY_REFUSALS),
     archive: (id: DocId, body: ArchiveBody) => post<TransitionSuccess>(id, 'archive', body),
     clickKeys: (id: DocId) => request<ClickKeysResult>(() => route(id, 'click-keys'), 'GET'),
-    deleteImpact: (id: DocId, signal?: AbortSignal) => request<DeleteImpactResult>(() => route(id, 'delete-impact'), 'GET', undefined, undefined, signal),
+    deleteImpact: (id: DocId, signal?: AbortSignal) => request<DeleteImpactResult>(() => `${route(id, 'delete-impact')}${contentLocale ? `?${new URLSearchParams({ locale: contentLocale })}` : ''}`, 'GET', undefined, undefined, signal),
     preflight: (id: DocId) => request<PreflightResult>(() => route(id, 'preflight'), 'GET'),
     previewToken: (id: DocId, arm: string) => request<PreviewTokenResult>(() => `${route(id, 'preview-token')}?arm=${encodeURIComponent(arm)}`, 'GET'),
     results: (id: DocId, options: { phase?: number; series?: boolean } & RequestOptions = {}) => request<ResultsResponse>(() => {
