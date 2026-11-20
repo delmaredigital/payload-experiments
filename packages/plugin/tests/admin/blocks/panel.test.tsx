@@ -376,3 +376,13 @@ test.each([
     expect(screen.queryByText(/fallback/)).toBeNull()
   }
 })
+
+
+test('archived empty variant winner explains Original fallback and Unwrap', async () => {
+  prepare({ ...live, status: 'archived', winnerArm: 'variantA' }, { empty: true })
+  render(all())
+  await screen.findByRole('button', { name: BLOCK_COPY.unwrap })
+  expect(screen.getByText(/winner has no content here, so visitors see the Original/)).toBeTruthy()
+  expect(screen.getByText(/Unwrap leaves the page as visitors see it now/)).toBeTruthy()
+  expect(screen.queryByText(/copy the content into ordinary page blocks/)).toBeNull()
+})

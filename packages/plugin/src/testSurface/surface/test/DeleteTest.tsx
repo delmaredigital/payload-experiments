@@ -77,6 +77,6 @@ function ImpactDetails({ impact }: { impact: DeleteImpactResult }) {
     {places.length ? <><p>{impact.effect === 'block' ? C.blockWinner(impact.controlLabel) : C.pageWinner}</p><p>{C.currentSite}</p></> : null}
     {places.length ? <ul>{places.slice(0, VISIBLE_PAGES).map((place, index) => <li key={index}>{place}</li>)}</ul> : null}
     {places.length > VISIBLE_PAGES ? <p>{C.morePages(places.length - VISIBLE_PAGES)}</p> : null}
-    {impact.effect === 'block' && impact.unreadablePages > 0 ? <p>{C.unreadablePages(impact.unreadablePages)}</p> : null}
+    {impact.effect === 'block' && impact.unreadablePages > 0 ? <p>{C.unreadablePages(impact.unreadablePages, impact.pageCount)}</p> : null}
   </>
 }

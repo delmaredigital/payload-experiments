@@ -230,3 +230,15 @@ test('fake request supports text and byte-stream bodies plus supplied Headers an
   expect((await reader.read()).done).toBe(true)
   expect(fakeReq().body).toBeNull()
 })
+
+
+test('Local API mutates the supplied locale and resets fallback exactly as createLocalReq does', async () => {
+  const payload = fakePayload({ config: { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true } }, collections: { pages: [{ id: 1 }] } })
+  const req = fakeReq({ payload }); req.locale = 'fr'; req.fallbackLocale = false
+  await payload.find({ collection: 'pages', req, locale: 'all', fallbackLocale: false })
+  expect(req.locale).toBe('all'); expect(req.fallbackLocale).toBe(false)
+  await payload.findByID({ collection: 'pages', id: 1, req, locale: 'fr' })
+  expect(req.locale).toBe('fr'); expect(req.fallbackLocale).toBe('en')
+  await payload.update({ collection: 'pages', id: 1, req, locale: 'en', fallbackLocale: 'null', data: {} })
+  expect(req.locale).toBe('en'); expect(req.fallbackLocale).toBe(false)
+})

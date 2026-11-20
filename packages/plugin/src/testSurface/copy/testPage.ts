@@ -60,7 +60,7 @@ export const DELETE_TEST = {
   blockWinner: (label: string) => `On these pages, visitors will see ${label} again, or nothing where it is empty:`,
   currentSite: 'This list reflects the site right now.',
   changedPages: (count: number) => `${count} ${count === 1 ? 'page' : 'pages'} will change`,
-  unreadablePages: (count: number) => `${count} of these pages ${count === 1 ? "is one you can't open" : "are ones you can't open"}.`,
+  unreadablePages: (count: number, total: number) => total === 1 ? "You can't open this page." : count === total ? "You can't open any of these pages." : `You can't open ${count} of these pages.`,
   pageWinner: 'These addresses will change where they send visitors:',
   content: 'Deleting the test does not delete your page content. An Experiment block that used this test stays on its page and says the test was deleted.',
 } as const

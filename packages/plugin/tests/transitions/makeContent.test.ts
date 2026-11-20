@@ -76,7 +76,7 @@ test.each(['puckData', 'content'])('nested slots unwrap in %s; published and lat
     const doc = await findByID(args)
     return { ...doc, title: args.draft ? 'Draft outer title' : 'Published outer title', [field]: { root: { props: { title: args.draft ? 'Draft title' : 'Published title' } }, content: [
       { type: 'Section', props: { children: [slot([text('Before'), slot([text(args.draft ? 'Draft winner' : 'Published winner')], { slug: 'hero' }), text('After')])] } },
-      slot([text('Untouched')], 'another'),
+      slot([text('Untouched')], { id: 'another-id', slug: 'another' }), slot([text('Unbound')], 'hero'),
     ] } }
   }
   vi.spyOn(f.payload, 'findByID').mockImplementation(read)
@@ -94,7 +94,7 @@ test.each(['puckData', 'content'])('nested slots unwrap in %s; published and lat
     expect(call.args.req).toBe(f.req)
     expect(call.args.data).toEqual({ title: draft ? 'Draft outer title' : 'Published outer title', _status: draft ? 'draft' : 'published', [field]: {
       root: { props: { title: draft ? 'Draft title' : 'Published title' } }, content: [
-        { type: 'Section', props: { children: [text('Before'), text(draft ? 'Draft winner' : 'Published winner'), text('After')] } }, slot([text('Untouched')], 'another'),
+        { type: 'Section', props: { children: [text('Before'), text(draft ? 'Draft winner' : 'Published winner'), text('After')] } }, slot([text('Untouched')], { id: 'another-id', slug: 'another' }), slot([text('Unbound')], 'hero'),
       ],
     } })
   }

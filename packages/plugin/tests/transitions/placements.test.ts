@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { scanBlockPlacements, flagPlacements } from '../../src/transitions/placements.js'
+import { scanBlockPlacements, flagPlacements, hasOtherPublishedBlockPlacement, publishedBlockPlacementPages } from '../../src/transitions/placements.js'
 import { fakeReq } from '../_fakes/req.js'
 import { fakePayload } from '../_fakes/payload.js'
 import { sampleOptions } from '../collections/fixtures.js'
@@ -95,4 +95,38 @@ test('a partially hidden Puck block remains a published place', async () => {
 test('the scan rejects plain-string bindings just as the Puck resolver does', async () => {
   const payload = fakePayload({ collections: { pages: [{ id: 1, puckData: { content: [{ type: 'ExperimentSlot', props: { experiment: 'hero', control: [{}], variantA: [{}] } }] } }] } })
   expect(await scanBlockPlacements(fakeReq({ payload }), { slug: 'hero', blocksCollections: [], puckCollections: ['pages'] })).toEqual([])
+})
+
+
+test.each(['other', 'impact', 'start'] as const)('%s scan isolates locale mutation and preserves native Request headers and cancellation', async mode => {
+  const options = sampleOptions(); options.puck = { enabled: true, collections: ['pages'] }
+  options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: doc => {
+    expect(doc.editor).toBe('puck'); return false
+  } }] }
+  const payload = fakePayload({ config: { custom: { xp: options }, localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }], fallback: true },
+    collections: [{ slug: 'pages', fields: [{ name: 'editor', type: 'text', localized: true }, { name: 'puckData', type: 'json', localized: true }] }] },
+    collections: { pages: [{ id: 1, editor: { en: 'puck', fr: 'puck' }, puckData: { en: { content: [slot('hero')] } } }] } })
+  const controller = new AbortController()
+  const req = Object.assign(new Request('https://example.test/api', { headers: { 'x-manager': 'yes' }, signal: controller.signal }), {
+    payload, locale: 'fr', fallbackLocale: false, context: {}, user: null, transactionID: 'outer-tx',
+  }) as unknown as import('payload').PayloadRequest
+  const find = payload.find.bind(payload)
+  vi.spyOn(payload, 'find').mockImplementation(async args => {
+    const scanReq = args.req as import('payload').PayloadRequest
+    expect(scanReq?.headers.get('x-manager')).toBe('yes')
+    expect(scanReq?.signal).toBe(req.signal)
+    expect(scanReq?.url).toBe(req.url)
+    expect(scanReq?.transactionID).toBe('outer-tx')
+    const result = await find(args)
+    if (mode === 'start') result.docs = result.docs.map(doc => ({ ...doc, editor: 'puck', puckData: { content: [slot('hero')] } }))
+    return result
+  })
+  if (mode === 'other') expect(await hasOtherPublishedBlockPlacement(req, options, 'hero', () => false)).toBe(true)
+  else if (mode === 'impact') {
+    const pages = []; for await (const page of publishedBlockPlacementPages(req, options, 'hero')) pages.push(page)
+    expect(pages[0]!.placements).toHaveLength(2)
+  } else await scanBlockPlacements(req, { slug: 'hero', puckCollections: ['pages'], blocksCollections: options.blocks.collections, localeView: { locale: 'en', fallbackLocale: 'en' } })
+  expect(req.locale).toBe('fr'); expect(req.fallbackLocale).toBe(false)
+  controller.abort()
+  if (mode === 'other') await expect(hasOtherPublishedBlockPlacement(req, options, 'hero', () => false)).rejects.toMatchObject({ name: 'AbortError' })
 })

@@ -200,7 +200,7 @@ test.each(['puck', 'blocks'] as const)('fallback locales do not duplicate %s pag
   })
   const result = await (await read()).json()
   expect(result).toMatchObject({ effect: 'block', pageCount: 2, unreadablePages: 0, placements: [
-    { id: 1, locales: ['en'] }, { id: 2, locales: ['en', 'fr'] },
+    { id: 1, locales: ['all languages'] }, { id: 2, locales: ['all languages'] },
   ] })
   expect(result.placements).toHaveLength(2)
   const scans = payload.calls.filter(call => call.args.collection === 'pages' && call.args.overrideAccess === true)
@@ -229,7 +229,7 @@ test.each(['missing-rollout-test', 'missing-current', 'incomplete-layer'] as con
   expect(body).toMatchObject({ errors: [{ code: 'placement-unchecked' }] })
   expect(JSON.stringify(body)).not.toContain('private-name')
 })
-test.each([undefined, null, 123, '/site/undefined', '/site/null', '/site/%75ndefined'])('unusable access-filtered public path %s is omitted', async path => {
+test.each([undefined, null, 123, {}, '/site/undefined', '/site/null', '/site/%75ndefined', '/site/[object Object]', '/site/%5Bobject%20Object%5D', '/site/..', '/site/hello world', '/site/%2Fbad'])('unusable access-filtered public path %s is omitted', async path => {
   const { read, options } = setup()
   options.pages!.collections[0]!.pathOf = () => path as never
   expect((await (await read()).json()).placements).toMatchObject([{ path: null }])
@@ -285,4 +285,47 @@ test('abort during manifest phase loading stops before more manifest reads', asy
   await expect(read()).rejects.toMatchObject({ name: 'AbortError' })
   expect(payload.findGlobal).not.toHaveBeenCalled()
   expect(payload.calls.some(call => call.args.collection === 'pages')).toBe(false)
+})
+
+
+test.each(['puck', 'blocks'] as const)('localized %s callbacks get complete flattened documents; readability retains the manager locale and fallback', async editor => {
+  const { read, payload, options, req } = setup()
+  req.locale = 'fr'; req.fallbackLocale = ['en']
+  Object.assign(req, { i18n: { language: 'fr' } })
+  options.blocks = { collections: [{ slug: 'pages', field: 'layout', appliesTo: doc => {
+    expect(typeof doc.headline).toBe('string')
+    expect(typeof (doc.settings as { editor: unknown }).editor).toBe('string')
+    return (doc.settings as { editor: string }).editor === 'blocks'
+  } }] }
+  Object.assign(payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr', 'de'], fallback: true,
+    locales: [{ code: 'en', label: { en: 'English', fr: 'Anglais' } }, { code: 'fr', label: { en: 'French', fr: 'Français' }, fallbackLocale: ['de', 'en'] }, { code: 'de', label: 'Deutsch', fallbackLocale: 'fr' }] },
+    collections: [{ slug: 'pages', admin: { useAsTitle: 'headline' }, fields: [
+      { name: 'headline', type: 'text', localized: true }, { name: 'slug', type: 'text', localized: true },
+      { name: 'settings', type: 'group', fields: [{ name: 'editor', type: 'text', localized: true }] },
+      { name: 'puckData', type: 'json', localized: true }, { name: 'layout', type: 'json', localized: true },
+    ] }] })
+  const content = editor === 'puck' ? { content: [slot(), slot()] } : [{ blockType: 'xpExperiment', experiment: 'welcome', slots: [
+    { slot: 'control', blocks: [{ blockType: 'text' }] }, { slot: 'variantA', blocks: [{ blockType: 'text' }] },
+  ] }]
+  payload.documents.pages = [{ id: 1, headline: { en: 'English', fr: 'Français' }, slug: { en: 'english', fr: 'francais' },
+    settings: { editor: { en: editor, fr: editor, de: editor } }, [editor === 'puck' ? 'puckData' : 'layout']: { en: content, de: editor === 'puck' ? { content: [] } : [] } }]
+  const find = payload.find.bind(payload)
+  vi.spyOn(payload, 'find').mockImplementation(async args => {
+    const result = await find(args)
+    if (args.collection === 'pages' && args.overrideAccess === false) {
+      expect(args).toMatchObject({ locale: 'fr', fallbackLocale: ['en'] })
+      result.docs = result.docs.map(doc => ({ ...doc, headline: (doc.headline as Record<string, string>)[String(req.locale)], slug: (doc.slug as Record<string, string>)[String(req.locale)] }))
+    }
+    return result
+  })
+  expect(await (await read()).json()).toMatchObject({ pageCount: 1, unreadablePages: 0, placements: [
+    { title: 'Français', path: '/site/francais', locales: ['Anglais'] },
+  ] })
+  expect(req.locale).toBe('fr')
+  expect(req.fallbackLocale).toEqual(['en'])
+})
+test.each([{}, { en: 'Map' }, 12, null])('non-string page title %j uses the neutral page id label', async title => {
+  const { read, payload } = setup()
+  Object.assign(payload.documents.pages![0]!, { headline: title, title, name: title })
+  expect(await (await read()).json()).toMatchObject({ placements: [{ title: '1' }] })
 })

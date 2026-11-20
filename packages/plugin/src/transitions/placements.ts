@@ -58,17 +58,19 @@ function changedDocuments(docs: Array<Record<string, unknown> & { id: DocId }>, 
  */
 export async function hasOtherPublishedBlockPlacement(req: PayloadRequest, options: ResolvedOptions, slug: string,
   excluded: (collection: string, id: DocId, view: PlacementLocaleView, doc: Record<string, unknown> & { id: DocId }) => boolean): Promise<boolean> {
-  const scanReq = req.payload.config.localization ? { ...req, locale: 'all' } : req
+  const scanReq = localeRequest(req, { locale: req.payload.config.localization ? 'all' : req.locale ?? '', fallbackLocale: false })
   const collections = new Set([...normalisePuckCollections(options).map(entry => entry.slug),
     ...(options.blocks?.collections ?? []).map(entry => entry.slug)])
   for (const collection of collections) {
     const drafts = req.payload.config.collections?.some(c => c.slug === collection && c.versions && c.versions.drafts)
     let page = 1
     while (true) {
+      req.signal?.throwIfAborted()
       const result = await placementDocuments(scanReq, { collection, overrideAccess: false, limit: 100, page, depth: 0, draft: false,
         ...(req.payload.config.localization ? { locale: 'all' as const, fallbackLocale: false as const } : {}),
         ...(drafts ? { where: { _status: { equals: 'published' } } } : {}),
       }, true)
+      req.signal?.throwIfAborted()
       if (result.docs.some(doc => doc._status !== 'draft' && doc.deletedAt == null && placementLocaleViews(req, collection).some(view => placementSlugs(options, collection, placementLocaleContent(localeRequest(req, view), collection, doc)).includes(slug)
           && !excluded(collection, doc.id, view, doc)))) return true
       if (!result.hasNextPage) break
@@ -80,19 +82,20 @@ export async function hasOtherPublishedBlockPlacement(req: PayloadRequest, optio
 
 interface PublishedBlockPlacement { id: DocId; editor: 'puck' | 'blocks'; slots: BlockPlacement['slots']; locale?: string }
 
-/** Visitor-impact scan: one published read per collection page, retaining only
- * each locale's own content. Fallbacks do not create another placement.
+/** Visitor-impact scan: one published read per collection page. Resolve every
+ * visitor locale, including configured fallbacks; the endpoint groups by page.
  */
 export async function* publishedBlockPlacementPages(req: PayloadRequest, options: Pick<ResolvedOptions, 'puck' | 'blocks'>, slug: string): AsyncGenerator<{
   collection: string; placements: PublishedBlockPlacement[]
 }> {
+  const scanReq = localeRequest(req, { locale: req.payload.config.localization ? 'all' : req.locale ?? '', fallbackLocale: false })
   const puck = options.puck?.enabled ? normalisePuckCollections(options) : [], blocks = options.blocks?.collections ?? []
   for (const collection of new Set([...puck, ...blocks].map(entry => entry.slug))) {
     const drafts = req.payload.config.collections?.some(c => c.slug === collection && c.versions && c.versions.drafts)
     let page = 1
     while (true) {
       req.signal?.throwIfAborted()
-      const result = await placementDocuments(req, { collection, overrideAccess: false, limit: 100, page, depth: 0, draft: false,
+      const result = await placementDocuments(scanReq, { collection, overrideAccess: false, limit: 100, page, depth: 0, draft: false,
         ...(req.payload.config.localization ? { locale: 'all' as const, fallbackLocale: false as const } : {}),
         ...(drafts ? { where: { _status: { equals: 'published' } } } : {}),
       }, true)
@@ -101,7 +104,7 @@ export async function* publishedBlockPlacementPages(req: PayloadRequest, options
       for (const raw of result.docs) {
         if (raw._status === 'draft' || raw.deletedAt != null) continue
         for (const view of placementLocaleViews(req, collection)) {
-          const doc = placementLocaleContent(localeRequest(req, { ...view, fallbackLocale: false }), collection, raw)!
+          const doc = placementLocaleContent(localeRequest(req, view), collection, raw)!
           const add = (contents: Record<ArmSlot, number>, editor: 'puck' | 'blocks') => placements.push({ id: raw.id, editor, slots: contents, ...(view.locale ? { locale: view.locale } : {}) })
           if (documentEditor(options, collection, doc) === 'puck') {
             const registration = puck.find(entry => entry.slug === collection)
@@ -134,6 +137,7 @@ export function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { s
 export function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { slugs: ReadonlySet<string> }): Promise<Map<string, BlockPlacement[]>>
 export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions & { slug?: string; slugs?: ReadonlySet<string> }): Promise<BlockPlacement[] | Map<string, BlockPlacement[]>> {
   const { puckCollections } = args
+  const scanReq = args.localeView ? localeRequest(req, args.localeView) : req
   const slugs = args.slugs ?? new Set([args.slug!])
   const placements = new Map([...slugs].map(slug => [slug, [] as BlockPlacement[]]))
   for (const { slug: collection, field } of normalisePuckCollections({ puck: { enabled: true, collections: puckCollections } })) {
@@ -144,7 +148,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
     for (const draft of args.publishedOnly ? [false] : [false, true]) {
       let page = 1
       while (true) {
-        const result = await placementDocuments(req, {
+        const result = await placementDocuments(scanReq, {
           collection, req, overrideAccess: false, limit: 100, page, depth: 0, draft, includeLockStatus: true,
           ...(args.localeView?.locale ? { locale: args.localeView.locale, fallbackLocale: args.localeView.fallbackLocale } : {}),
           ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}),
@@ -204,7 +208,7 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
     for (const draft of args.publishedOnly ? [false] : [false, true]) {
       let page = 1
       while (true) {
-        const result = await placementDocuments(req, { collection, req, overrideAccess: false, depth: 0, limit: 100, page, draft, includeLockStatus: true,
+        const result = await placementDocuments(scanReq, { collection, req, overrideAccess: false, depth: 0, limit: 100, page, draft, includeLockStatus: true,
           ...(args.localeView?.locale ? { locale: args.localeView.locale, fallbackLocale: args.localeView.fallbackLocale } : {}),
           ...(!draft && draftsEnabled ? { where: { _status: { equals: 'published' } } } : {}) }, args.pageGuard)
         for (const doc of changedDocuments(result.docs, args.change, collection, draft, page, Boolean(draftsEnabled))) {

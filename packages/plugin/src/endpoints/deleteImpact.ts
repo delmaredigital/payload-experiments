@@ -10,6 +10,8 @@ import { routeId } from './routeId.js'
 export async function handleDeleteImpact<TUser extends { id: string | number }>(req: PayloadRequest, { options }: EndpointContext<TUser>): Promise<Response> {
   const headers = { 'Cache-Control': 'no-store' }
   const reply = (result: DeleteImpactResult) => Response.json(result, { headers })
+  const locale = req.locale, fallbackLocale = req.fallbackLocale
+  const adminLanguage = req.i18n?.language
   const id = routeId(req)
   if (id === undefined) throw new XpRefusal('not-found', 'Experiment not found', undefined, 404)
   const { docs } = await req.payload.find({ collection: 'xp-experiments', req, overrideAccess: false, depth: 0, limit: 1,
@@ -62,7 +64,7 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
     // find applies Where-scoped read access as well as a boolean refusal. Never disclose the privileged document.
     let readable: Array<Record<string, unknown> & { id: string | number }> = []
     try {
-      const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0, draft: false, pagination: false, limit: 0,
+      const result = await req.payload.find({ collection, req, overrideAccess: false, depth: 0, draft: false, pagination: false, limit: 0, locale, fallbackLocale,
         where: { id: { in: [...byPage.values()].map(places => places[0]!.id) } } })
       readable = result.docs
     } catch (cause) { if (!(cause instanceof Forbidden) && (cause as { status?: number })?.status !== 403) throw cause }
@@ -75,17 +77,33 @@ export async function handleDeleteImpact<TUser extends { id: string | number }>(
       let path: string | null = null
       try {
         const value = registration?.pathOf(doc)
-        if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.split(/[/?#]/).some(segment => /^(undefined|null)$/i.test(decodeURIComponent(segment)))) path = value
+        if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.split(/[/?#]/).some(segment => {
+          const decoded = decodeURIComponent(segment)
+          return /^(undefined|null|\[object Object\]|\.\.?)$/i.test(decoded) || /[\s\x00-\x1f\x7f\\]/.test(segment) || /[\/\\\x00-\x1f\x7f]/.test(decoded)
+        })) path = value
       } catch { /* An optional public path cannot fail the impact check. */ }
       const titleField = req.payload.config.collections?.find(entry => entry.slug === collection)?.admin?.useAsTitle
-      const locales = [...new Set(places.flatMap(place => place.locale ? [place.locale] : []))]
+      const codes = [...new Set(places.flatMap(place => place.locale ? [place.locale] : []))]
+      const localization = req.payload.config.localization
+      const locales = localization && codes.length === localization.localeCodes.length ? ['all languages'] : codes.map(code => {
+        const label = localization && localization.locales.find(entry => entry.code === code)?.label
+        if (typeof label === 'string' && label) return label
+        if (label && typeof label === 'object') {
+          const fallbacks = req.i18n?.fallbackLanguage
+          const languages = [adminLanguage, ...(Array.isArray(fallbacks) ? fallbacks : [fallbacks])].filter((language): language is keyof typeof label => typeof language === 'string')
+          return languages.map(language => label[language]).find(value => typeof value === 'string' && value)
+            || Object.values(label).find(value => typeof value === 'string' && value) || code
+        }
+        return code
+      })
+      const title = (titleField ? doc[titleField] : undefined) ?? doc.title ?? doc.name
       const version = (slot: ArmSlot, arm: { key: string; label: string }) => {
         const values = new Map(places.map(place => place.slots[slot] ? [arm.key, arm.label] : ['empty', 'Nothing']))
         return { key: [...values.keys()].join(','), label: [...values.values()].join(' / ') }
       }
       // Page access controls metadata disclosure; a hidden layout field does not hide a readable page's visitor effect.
       affected.push({ collection, id: doc.id,
-        title: String((titleField ? doc[titleField] : undefined) ?? doc.title ?? doc.name ?? doc.id), path,
+        title: typeof title === 'string' ? title : String(doc.id), path,
         ...(locales.length ? { locales } : {}), before: version(winnerSlot, winner), after: version('control', control) })
     }
   }

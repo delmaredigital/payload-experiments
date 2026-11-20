@@ -175,7 +175,7 @@ test.each([
   expect(screen.getByRole('status')).toBe(status)
   expect(status.textContent).toBe(summary)
   if (impact.effect === 'block') {
-    expect(screen.getByRole('dialog').textContent).toContain("2 of these pages are ones you can't open.")
+    expect(screen.getByRole('dialog').textContent).toContain("You can't open 2 of these pages.")
     expect(screen.getByRole('dialog').textContent).toContain('Current hero')
     expect(screen.getByRole('dialog').textContent).toContain('site right now')
     expect(screen.getByRole('dialog').textContent).not.toContain('see the Original again')
@@ -200,7 +200,7 @@ test('page rows show another archived route when deleting reveals it', async () 
 test.each([[0, 2], [2, 1], [8, 2]])('details order with %s readable and %s unreadable pages', async (readable, unreadable) => {
   openWithImpact({ effect: 'block', controlLabel: 'Original', pageCount: readable + unreadable, unreadablePages: unreadable,
     placements: Array.from({ length: readable }, (_, i) => ({ ...place(i), locales: ['en', 'fr'] })) })
-  await screen.findByText(DELETE_TEST.unreadablePages(unreadable))
+  await screen.findByText(DELETE_TEST.unreadablePages(unreadable, readable + unreadable))
   const dialog = screen.getByRole('dialog')
   const text = dialog.textContent!
   expect(text).toContain(`${readable + unreadable} pages will change`)
@@ -209,10 +209,22 @@ test.each([[0, 2], [2, 1], [8, 2]])('details order with %s readable and %s unrea
   if (!readable) expect(screen.queryByText(DELETE_TEST.blockWinner('Original'))).toBeNull()
   if (readable) {
     expect(text).toContain('Languages: en, fr')
-    expect(text.indexOf('Page 0')).toBeLessThan(text.indexOf(`${unreadable} of these pages`))
+    expect(text.indexOf('Page 0')).toBeLessThan(text.indexOf(DELETE_TEST.unreadablePages(unreadable, readable + unreadable)))
   }
   if (readable > 5) {
     expect(text.indexOf('Page 4')).toBeLessThan(text.indexOf('3 more pages.'))
-    expect(text.indexOf('3 more pages.')).toBeLessThan(text.indexOf(`${unreadable} of these pages`))
+    expect(text.indexOf('3 more pages.')).toBeLessThan(text.indexOf(DELETE_TEST.unreadablePages(unreadable, readable + unreadable)))
   }
+})
+
+
+test.each([
+  [1, 1, "You can't open this page."],
+  [3, 3, "You can't open any of these pages."],
+  [3, 1, "You can't open 1 of these pages."],
+  [4, 2, "You can't open 2 of these pages."],
+])('natural unreadable-page copy for %s total / %s unreadable', async (pageCount, unreadablePages, sentence) => {
+  openWithImpact({ effect: 'block', controlLabel: 'Original', pageCount, unreadablePages, placements: [] })
+  await screen.findByText(sentence)
+  expect(screen.getByRole('status').textContent).toBe(`${pageCount} ${pageCount === 1 ? 'page' : 'pages'} will change`)
 })

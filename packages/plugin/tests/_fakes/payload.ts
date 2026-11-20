@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import { sanitizeFallbackLocale, type Payload, type PayloadRequest } from 'payload'
 import type { DocId } from '../../src/types/contracts.js'
 import { createFakeExecutor } from './executor.js'
 import type { FakeExecutor } from './executor.js'
@@ -62,6 +62,16 @@ export function fakePayload<TOverrides extends Record<string, unknown> = Record<
     rollbackTransaction: (id: TransactionID) => finish('rollbackTransaction', id),
   }
   function record(method: FakePayloadCall['method'], args: Args) {
+    // Payload 3.90.2 createLocalReq mutates caller-owned requests on every operation;
+    // omitted fallbackLocale resets to the configured fallback, not req.fallbackLocale.
+    const localization = (api.config as Record<string, unknown>).localization as Payload['config']['localization']
+    const req = args.req as PayloadRequest | undefined
+    if (localization && req) {
+      const locale = args.locale === '*' ? 'all' : args.locale
+      const candidate = locale || req.locale || req.query?.locale
+      req.locale = typeof candidate === 'string' && candidate ? candidate : localization.defaultLocale
+      req.fallbackLocale = sanitizeFallbackLocale({ fallbackLocale: args.fallbackLocale as Parameters<typeof sanitizeFallbackLocale>[0]['fallbackLocale'], locale: req.locale, localization })
+    }
     calls.push({ method, args: { ...args } })
     return documents[args.collection] ??= []
   }
