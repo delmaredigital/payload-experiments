@@ -122,7 +122,7 @@
     "@payloadcms/db-postgres": "^3.90.2",
     "@payloadcms/ui": "^3.90.2",
     "@payloadcms/next": "^3.90.2",
-    "next": "^16.4.2",
+    "next": "^16.4.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "@types/react": "^19.3.0",
