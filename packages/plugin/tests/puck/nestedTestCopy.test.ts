@@ -15,8 +15,9 @@ for (const [outer, inner, location, move] of cases) {
   test(`context copy for outer=${outer} inner=${inner}`, () => {
     const start = `${location} A test can't go inside another test's version. Move ${move} out of that version before you start either test.`
     expect(editorCopy.nested(outer, inner)).toBe(inner ? start : start.replace('An Experiment block with no test chosen', 'This test').replace('Move that block', 'Move this test'))
-    expect(READINESS['nested-tests'].next([{ outer, inner }], context)).toBe(start)
-    expect(() => refuse('nested-tests', [{ outer, inner }])).toThrow(start)
+    const detail = [{ outer: outer ?? '', inner: inner ?? '' }]
+    expect(READINESS['nested-tests'].next(detail, context)).toBe(start)
+    expect(() => refuse('nested-tests', detail)).toThrow(start)
     expect(nestedTestCopy.publish(outer, inner)).toBe(`${location} A test can't go inside another test's version, so this page can't be published. Move ${move} out of that version, then publish.`)
     expect(editorCopy.nestedHidden(outer)).toBe(`This test is inside a version of ${outer ? `“${outer}”` : 'another test'}. It is hidden, so nothing is blocked now. If you show it again, the page can't be published until you move it out of that version.`)
   })
@@ -32,6 +33,14 @@ test('readiness and Start refusal name every page and affected languages', () =>
 })
 
 
-test.each([undefined, null, [], [null], [{ outer: 1, inner: ' ' }]].map(detail => ({ detail })))('missing or malformed readiness detail keeps natural fallback copy ($detail)', ({ detail }) => {
-  expect(READINESS['nested-tests'].next(detail, context)).toBe(nestedTestCopy.start())
+test.each([undefined, null, {}, 'invalid', [], [null], [42], ['invalid'], [[]], [{}], [{ outer: 'Outer' }], [{ inner: 'Inner' }], [{ outer: 1, inner: ' ' }], [{ outer: 'Outer', inner: false }]].map(detail => ({ detail })))('missing or malformed readiness detail keeps neutral fallback copy ($detail)', ({ detail }) => {
+  const expected = "A test is inside another test's version on this page. A test can't go inside another test's version. Move the inner test out of that version before you start either test."
+  expect(nestedTestCopy.readinessFallback).toBe(expected)
+  expect(READINESS['nested-tests'].next(detail, context)).toBe(expected)
+  expect(() => refuse('nested-tests', detail)).toThrow(expected)
+})
+
+test('malformed readiness detail keeps its page title without claiming an unbound block', () => {
+  expect(nestedTestCopy.readiness([{ title: 'Home', outer: 1, inner: null }]))
+    .toBe(`On Home: ${nestedTestCopy.readinessFallback}`)
 })

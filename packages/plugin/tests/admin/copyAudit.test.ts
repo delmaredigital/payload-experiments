@@ -10,14 +10,33 @@ import { layersCollection } from '../../src/collections/layers.js'
 import { sampleOptions } from '../collections/fixtures.js'
 import { copyPaths, editorFiles, helperPaths, helperStrings } from './copySources.js'
 
-// Audit the package's current released notes even after Unreleased is emptied.
-function releasedPluginNotes(changelog: string): string {
+// Keep auditing the release after Unreleased is emptied, and any new plugin notes.
+function auditedPluginNotes(changelog: string): string {
   const { version } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }
   const heading = `## [${version}]`
   const start = changelog.indexOf(heading)
   expect(start, `CHANGELOG.md is missing the ${heading} heading`).toBeGreaterThanOrEqual(0)
-  return changelog.slice(start).split(/\n## \[/)[0]!
+  const released = changelog.slice(start).split(/\n## \[/)[0]!
+  const unreleased = changelog.split('## [Unreleased]')[1]?.split(/\n## \[/)[0] ?? ''
+  const unreleasedPlugin = unreleased.split(/\n### plugin\s*\n/)[1]?.split(/\n### /)[0] ?? ''
+  return `${released}\n${unreleasedPlugin}`
 }
+
+test('the changelog audit includes Unreleased plugin notes and the current release', () => {
+  const { version } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }
+  const changelog = `## [Unreleased]\n\n### stats\n\nStats note\n\n### plugin\n\nNew plugin note\n\n## [${version}] - 2026-11-20\n\n### plugin\n\nReleased plugin note\n\n## [0.0.0]\n\n### plugin\n\nOlder plugin note\n`
+  const audited = auditedPluginNotes(changelog)
+  expect(audited).toContain('New plugin note')
+  expect(audited).toContain('Released plugin note')
+  expect(audited).not.toContain('Stats note')
+  expect(audited).not.toContain('Older plugin note')
+})
+
+test('the changelog audit clearly refuses a missing released heading', () => {
+  const { version } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }
+  expect(() => auditedPluginNotes('## [Unreleased]\n\n### plugin\n'))
+    .toThrow(`CHANGELOG.md is missing the ## [${version}] heading`)
+})
 
 const forbidden = /\b(?:arms?|phases?|flag ?points?|unit ?types?|unitType|CUPED|exposure ?polic(?:y|ies)|percentiles?)\b|\bin (?:Metrics|Who(?! takes part\b)|Groups|Review)\b|\b(?:Metrics|Who|Review) tab\b/i
 const hits = (strings: string[]) => strings.filter(value => forbidden.test(value))
@@ -279,7 +298,7 @@ test('smoke editor copy names setup, version fields and goal roles, and removes 
   const removed = ['Test this block', 'Choose or create a test to show different versions.', 'Start a new test from this block', 'Remove the test from this block']
   for (const path of files) {
     const source = readFileSync(path, 'utf8')
-    const audited = path.endsWith('/CHANGELOG.md') ? releasedPluginNotes(source) : source
+    const audited = path.endsWith('/CHANGELOG.md') ? auditedPluginNotes(source) : source
     for (const text of removed) expect(audited, path).not.toContain(text)
   }
   expect(Object.hasOwn(TEST_PAGE, 'clickGoalsNote')).toBe(false)
