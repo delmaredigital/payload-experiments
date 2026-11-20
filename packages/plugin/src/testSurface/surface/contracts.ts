@@ -17,6 +17,7 @@ export interface SurfaceProps {
   editorPlacementMessage?: string
   adminRoute: string
   apiRoute: string
+  contentLocale?: string
   collectionTitles?: Record<string, string>
   userId?: string | number
   userCollection?: string

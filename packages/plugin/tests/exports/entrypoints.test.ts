@@ -20,7 +20,8 @@ const required = {
   adminClient: {
     XpGoalField: '../admin/goals/XpGoalField.js',
     XP_IF_UPDATED_AT_HEADER: '../constants.js',
-    TestsSurface: '../admin/surface/TestsSurface.js',
+    // The public admin component owns Payload context; its inner surface stays mountable.
+    TestsSurface: '../admin/views/TestsSurfaceClient.js',
     TestsDashboardCards: '../admin/TestsDashboardCards.js',
     TestsNavLink: '../admin/TestsNavLink.js',
     MetricSourceSelect: '../admin/MetricSourceSelect.js',

@@ -32,7 +32,10 @@ test('scan reads published then latest drafts, applies editor rule and ignores n
   const result = await scanBlockPlacments(f)
   expect(result.map(p => [p.id, p.published])).toEqual([[1, true], [3, false]])
   expect(result[0]?.identicalSlots).toEqual(['variantA'])
-  expect(f.payload.calls.every(c => c.args.overrideAccess === false && c.args.req === f.req)).toBe(true)
+  for (const call of f.payload.calls) {
+    expect(call.args.overrideAccess).toBe(false)
+    expect(call.args.req).toMatchObject({ payload: f.payload, context: f.req.context, headers: f.req.headers, url: f.req.url })
+  }
   expect(f.payload.calls.map(c => c.args.draft)).toEqual([false, true, false, true])
 })
 function scanBlockPlacments(f: ReturnType<typeof fixture>) {

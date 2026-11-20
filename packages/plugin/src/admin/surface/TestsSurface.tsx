@@ -23,7 +23,7 @@ function SurfacePage(props: TestsSurfaceProps) {
   const title = props.route === 'home' ? SURFACE_COPY.title
     : props.route === 'new' ? SURFACE_COPY.newTest : loadedTitle ?? SURFACE_COPY.test
   const surface: SurfaceProps = {
-    adminRoute: props.adminRoute, apiRoute: props.apiRoute, canManage: props.canManage,
+    adminRoute: props.adminRoute, apiRoute: props.apiRoute, contentLocale: props.contentLocale, canManage: props.canManage,
     canReadResults: props.canReadResults, isAdmin: props.isAdmin, flagPoints: props.flagPoints,
     attributeKeys: props.attributeKeys, metricSources: props.metricSources,
     admin: props.admin, pageCollections: props.pageCollections,
@@ -34,7 +34,7 @@ function SurfacePage(props: TestsSurfaceProps) {
     crumbs[0]!.href = props.canManage ? surfaceUrls.home(props.adminRoute) : undefined
     crumbs.push({ label: props.route === 'new' ? SURFACE_COPY.newTest : props.route === 'results' ? SURFACE_COPY.resultsTitle : SURFACE_COPY.test })
   }
-  if (props.route === 'home') return <TestsHome adminRoute={props.adminRoute} apiRoute={props.apiRoute} canManage={props.canManage} flagPoints={props.flagPoints} crumbs={crumbs} />
+  if (props.route === 'home') return <TestsHome adminRoute={props.adminRoute} apiRoute={props.apiRoute} contentLocale={props.contentLocale} canManage={props.canManage} flagPoints={props.flagPoints} crumbs={crumbs} />
   if (props.route === 'test' && props.id !== undefined) return <TestPage key={props.id} id={props.id} surface={surface} />
   if (props.route === 'goals') return <GoalsList surface={surface} returnToTest={props.returnToTest} />
   if (props.route === 'goalNew' || props.route === 'goal') return <GoalForm key={props.route === 'goalNew' ? 'new' : props.id} surface={surface} id={props.route === 'goal' ? props.id : undefined} returnToTest={props.returnToTest} />

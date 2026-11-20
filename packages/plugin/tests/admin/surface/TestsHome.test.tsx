@@ -311,3 +311,16 @@ test('list loads current delete impact before warning about an archived page win
   await screen.findByText(/These addresses will change where they send visitors/)
   expect(fetch).toHaveBeenCalledWith('/api/xp/experiments/1/delete-impact', expect.objectContaining({ method: 'GET' }))
 })
+
+test('home route passes the selected content language through list rows to the delete check', async () => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  const fetch = fetchData([{ id: 'draft', name: 'Localized draft', kind: 'block', status: 'draft' }])
+  const props: TestsSurfaceProps = { route: 'home', adminRoute: '/admin', apiRoute: '/api', canManage: true, canReadResults: true, isAdmin: false, flagPoints: [], attributeKeys: {}, metricSources: [] }
+  const { rerender } = render(<TestsSurface {...props} contentLocale="fr" />)
+  await screen.findByText('Localized draft')
+  fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/xp/experiments/draft/delete-impact?locale=fr', expect.objectContaining({ method: 'GET' })))
+  rerender(<TestsSurface {...props} contentLocale="en" />)
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/xp/experiments/draft/delete-impact?locale=en', expect.objectContaining({ method: 'GET' })))
+})

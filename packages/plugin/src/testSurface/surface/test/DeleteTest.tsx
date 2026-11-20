@@ -1,5 +1,4 @@
 'use client'
-import { useLocale } from '@payloadcms/ui'
 import { useEffect, useRef, useState } from 'react'
 import type { DeleteImpactResult } from '../../../types/endpoints.js'
 import type { DocId } from '../../../types/contracts.js'
@@ -14,12 +13,10 @@ const VISIBLE_PAGES = 5
 export const DELETE_IMPACT_TIMEOUT_MS = 15_000
 
 /** Matches deleteExperiment's status guard; the server rechecks under its lock. */
-export function DeleteTest({ test, canManage, apiRoute, onDeleted }: {
-  test: { id: DocId; name: string; status: string }; canManage: boolean; apiRoute: string
+export function DeleteTest({ test, canManage, apiRoute, contentLocale, onDeleted }: {
+  test: { id: DocId; name: string; status: string }; canManage: boolean; apiRoute: string; contentLocale?: string
   onDeleted: (outcome: DeleteOutcome) => void
 }) {
-  const locale = useLocale()
-  const contentLocale = locale?.code
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)

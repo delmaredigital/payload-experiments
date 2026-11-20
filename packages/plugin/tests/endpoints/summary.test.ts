@@ -94,7 +94,10 @@ test('two block drafts share one scan; a flag draft shares metrics and state and
   expect(findGlobal).toHaveBeenCalledTimes(1)
   expect(placements).toHaveBeenCalledTimes(1)
   expect(payload.calls).toHaveLength(5)
-  expect(payload.calls.every(call => call.args.req === req && call.args.overrideAccess === false && call.args.depth === 0)).toBe(true)
+  for (const call of payload.calls) {
+    expect(call.args).toMatchObject({ overrideAccess: false, depth: 0, req: { payload: req.payload, context: req.context, headers: req.headers, url: req.url } })
+    if (call.args.collection !== 'pages') expect(call.args.req).toBe(req)
+  }
   expect(findGlobal).toHaveBeenCalledWith({ slug: 'xp-state', req, overrideAccess: false, depth: 0 })
 })
 

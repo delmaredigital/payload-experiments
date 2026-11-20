@@ -83,7 +83,7 @@ export function TestSurface({ id, surface, onTitleChange, renderFrame, embedded 
     </Section>
     <VersionsSection {...props} parts={parts} contentOnCanvas={embedded} /><GoalSection {...props} embedded={embedded} /><TargetingSection {...props} />
     <LengthSection {...props} /><AdvancedSection {...props} />
-    {!embedded ? <div><DeleteTest test={test.doc} canManage={surface.canManage} apiRoute={surface.apiRoute} onDeleted={outcome => {
+    {!embedded ? <div><DeleteTest test={test.doc} canManage={surface.canManage} apiRoute={surface.apiRoute} contentLocale={surface.contentLocale} onDeleted={outcome => {
       window.location.assign(surfaceUrls.home(surface.adminRoute, { deleted: outcome }))
     }} /></div> : null}
     {embedded && surface.canReadResults && test.doc.status !== 'draft' ? <ResultsBody key={`${test.doc.id}/${test.doc.phase}/${test.doc.status}`} id={id} surface={surface} onChanged={doc => { test.acceptTransition?.({ doc }); void test.reload() }} /> : null}

@@ -33,3 +33,13 @@ test.each([200, 404])('test-page delete returns to the list with its confirmatio
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete test' }))
   await waitFor(() => expect(navigate).toHaveBeenCalledWith(`/admin/collections/xp-experiments?deleted=${status === 404 ? 'already' : 'done'}`))
 })
+
+test('test page passes the selected content language to the delete check', async () => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  const fetch = vi.fn(async () => Response.json({ effect: 'none' })); vi.stubGlobal('fetch', fetch)
+  const p = props(); hook.mockReturnValue({ ...p.test, loadState: 'ready', errors: {}, chosenPages: {} })
+  render(<TestPage id={p.test.doc!.id} surface={{ ...p.surface, contentLocale: 'fr' }} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith(`${p.surface.apiRoute}/xp/experiments/${p.test.doc!.id}/delete-impact?locale=fr`, expect.objectContaining({ method: 'GET' })))
+})

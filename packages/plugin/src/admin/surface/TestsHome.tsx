@@ -28,8 +28,8 @@ const HOME_SELECT = HOME_FIELDS.map(field => `select[${field}]=true`).join('&')
 type State = { loading: true } | { loading: false; error: true } | {
   loading: false; error: false; tests: HomeTest[]; summaries: SummaryResponse; summaryError: boolean; goalNames: Record<string, string>
 }
-export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, flagPoints }: {
-  adminRoute: string; apiRoute: string; canManage?: boolean; crumbs?: SurfaceShellProps['crumbs']; flagPoints?: ReadinessContext['flagPoints']
+export function TestsHome({ adminRoute, apiRoute, contentLocale, canManage = false, crumbs, flagPoints }: {
+  adminRoute: string; apiRoute: string; contentLocale?: string; canManage?: boolean; crumbs?: SurfaceShellProps['crumbs']; flagPoints?: ReadinessContext['flagPoints']
 }) {
   const api = useMemo(() => createApi(apiRoute), [apiRoute])
   const [state, setState] = useState<State>({ loading: true })
@@ -102,12 +102,12 @@ export function TestsHome({ adminRoute, apiRoute, canManage = false, crumbs, fla
         : <>
           {state.summaryError ? <Banner tone="error" action={retry}>{SURFACE_COPY.summaryError}</Banner> : null}
           {state.tests.length === 0 ? <EmptyState action={newTest}>{SURFACE_COPY.empty}</EmptyState>
-            : <TestGroups tests={state.tests} summaries={state.summaries} goalNames={state.goalNames} adminRoute={adminRoute} apiRoute={apiRoute} canManage={canManage} onDeleted={(id, outcome) => { setNotice({ outcome }); setState(current => !current.loading && !current.error ? { ...current, tests: current.tests.filter(test => String(test.id) !== String(id)) } : current) }} flagPoints={flagPoints} search={search} clear={() => setSearch('')} />}
+            : <TestGroups tests={state.tests} summaries={state.summaries} goalNames={state.goalNames} adminRoute={adminRoute} apiRoute={apiRoute} contentLocale={contentLocale} canManage={canManage} onDeleted={(id, outcome) => { setNotice({ outcome }); setState(current => !current.loading && !current.error ? { ...current, tests: current.tests.filter(test => String(test.id) !== String(id)) } : current) }} flagPoints={flagPoints} search={search} clear={() => setSearch('')} />}
         </>}
   </SurfaceShell>
 }
-function TestGroups({ tests, summaries, goalNames, adminRoute, apiRoute, canManage, onDeleted, flagPoints, search, clear }: {
-  apiRoute: string; canManage: boolean; onDeleted: (id: HomeTest['id'], outcome: DeleteOutcome) => void
+function TestGroups({ tests, summaries, goalNames, adminRoute, apiRoute, contentLocale, canManage, onDeleted, flagPoints, search, clear }: {
+  apiRoute: string; contentLocale?: string; canManage: boolean; onDeleted: (id: HomeTest['id'], outcome: DeleteOutcome) => void
   tests: HomeTest[]; summaries: SummaryResponse; goalNames: Record<string, string>; adminRoute: string; flagPoints?: ReadinessContext['flagPoints']; search: string; clear: () => void
 }) {
   const groups = groupTests(tests, summaries, search)
@@ -127,7 +127,7 @@ function TestGroups({ tests, summaries, goalNames, adminRoute, apiRoute, canMana
             <span>{card.line}</span>
           </div>
         </div>
-        <div className="xp-ui-button-group"><DeleteTest test={test} canManage={canManage} apiRoute={apiRoute} onDeleted={outcome => onDeleted(test.id, outcome)} /><Button className="xp-tests-row-action" size="sm" href={card.href}>{card.action}</Button></div>
+        <div className="xp-ui-button-group"><DeleteTest test={test} canManage={canManage} apiRoute={apiRoute} contentLocale={contentLocale} onDeleted={outcome => onDeleted(test.id, outcome)} /><Button className="xp-tests-row-action" size="sm" href={card.href}>{card.action}</Button></div>
       </article>
     })}</div>
     const heading = <div className="xp-tests-group-head"><h2 id={`xp-tests-group-${index}`}>{group.label}</h2><span>{group.tests.length}</span></div>

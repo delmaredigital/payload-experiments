@@ -6,11 +6,7 @@ import { DeleteTest, DELETE_IMPACT_TIMEOUT_MS } from '../../../../src/testSurfac
 import { DELETE_TEST } from '../../../../src/testSurface/copy/testPage.js'
 import { API_MESSAGES } from '../../../../src/testSurface/copy/common.js'
 
-const locale = vi.hoisted(() => ({ code: undefined as string | undefined }))
-vi.mock('@payloadcms/ui', () => ({ useLocale: () => locale }))
-
 beforeEach(() => {
-  locale.code = undefined
   vi.stubGlobal('fetch', vi.fn(async () => Response.json({ effect: 'none' })))
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
@@ -234,12 +230,10 @@ test.each([
 })
 
 test('delete check forwards selected content locale and refreshes when it changes', async () => {
-  locale.code = 'fr'
-  const { rerender } = render(<DeleteTest {...base} />)
+  const { rerender } = render(<DeleteTest {...base} contentLocale="fr" />)
   fireEvent.click(screen.getByRole('button', { name: 'Delete test' }))
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/data/xp/experiments/42/delete-impact?locale=fr', expect.objectContaining({ method: 'GET' })))
-  locale.code = 'en'
-  rerender(<DeleteTest {...base} />)
+  rerender(<DeleteTest {...base} contentLocale="en" />)
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/data/xp/experiments/42/delete-impact?locale=en', expect.objectContaining({ method: 'GET' })))
 })
 
