@@ -1,5 +1,6 @@
 import { placementLanguages } from '../blocks/placementLanguages.js'
 import { puckExperimentSlug } from '../puck/experimentSlug.js'
+import { nestedTests, nestedTestLabel, nestedTestSlug } from '../puck/nestedTests.js'
 import { walkVisiblePuck } from '../puck/visibility.js'
 import { BLOCK_SLOTS, EXPERIMENT_BLOCK_SLUG, hostBlocks, slotBlocks } from '../blocks/model.js'
 import { safeError } from '../log.js'
@@ -14,6 +15,7 @@ import { localeRequest, placementReader, type PlacementLocaleView } from '../blo
 import { puckCollections as normalisePuckCollections } from '../options.js'
 
 export interface BlockPlacement extends PreviewPlacement {
+  nestedTests?: Array<{ outer: string; inner: string }>
   editor?: 'puck' | 'blocks' | 'page'; doc?: Record<string, unknown>
   locales?: string[]; allLocales?: true; locale?: string; localeLabel?: string; slots: Record<ArmSlot, number>; duplicateRows?: boolean; identicalSlots?: string[]; locked?: boolean; localized?: boolean
 }
@@ -174,13 +176,14 @@ export async function scanBlockPlacements(req: PayloadRequest, args: ScanOptions
           }
           const editor = editors.get(documentKey) ?? reader.read(doc, 'localized').editor
           if (editor !== 'puck') continue
+          const nested = nestedTests(doc[field]).map(({ outer, inner }) => ({ outer: nestedTestLabel(outer), inner: nestedTestLabel(inner), outerSlug: nestedTestSlug(outer), innerSlug: nestedTestSlug(inner) }))
           const offsets = new Map([...placements].map(([slug, list]) => [slug, list.length]))
           walkVisiblePuck(doc[field], (node, visibility) => {
             if (visibility.hidden) return
             const props = node.props
             const experiment = puckExperimentSlug(props.experiment)
             if (node.type === 'ExperimentSlot' && typeof experiment === 'string' && slugs.has(experiment)) {
-              placements.get(experiment)!.push({ collection, id: doc.id, editor: 'puck', doc, ...(view.locale ? { locale: view.locale } : {}), title: String(doc.title ?? doc.name ?? doc.id),
+              placements.get(experiment)!.push({ collection, id: doc.id, editor: 'puck', doc, nestedTests: nested.filter(pair => pair.outerSlug === experiment || pair.innerSlug === experiment).map(({ outer, inner }) => ({ outer, inner })), ...(view.locale ? { locale: view.locale } : {}), title: String(doc.title ?? doc.name ?? doc.id),
                 published: !draft || doc._status === 'published',
                 ...(publishedSlugs.has(documentKey) ? { slug: publishedSlugs.get(documentKey)! } : {}),
                 slots: Object.fromEntries(slots.map(slot => [slot, Array.isArray(props[slot]) ? props[slot].length : 0])) as Record<ArmSlot, number>,

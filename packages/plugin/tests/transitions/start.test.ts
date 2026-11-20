@@ -740,3 +740,24 @@ test.each([false, true])('Start and its locked rescan record published placement
   }
   expect(f.payload.documents['xp-phases']![0]!.placementDocs).toEqual([{ collection: 'pages', id: 10 }])
 })
+
+
+test('Start names both tests when nesting appears only in the locked rescan', async () => {
+  const f = blockFixture(), query = f.executor.query
+  Object.assign(f.experiment, { name: 'Headline test' })
+  f.options.puck = { enabled: true, collections: ['pages'] }
+  f.options.blocks = undefined
+  const inner = { type: 'ExperimentSlot', props: { id: 'inner-late', experiment: { id: 1, slug: 'hero' },
+    control: [{ type: 'Text', props: { id: 'original-late' } }], variantA: [{ type: 'Text', props: { id: 'variant-late' } }] } }
+  f.payload.documents.pages![0]!.puckData = { root: { props: {} }, content: [inner] }
+  f.payload.documents['xp-experiments']!.push({ ...structuredClone(f.experiment), id: 2, slug: 'container-test', name: 'Layout test' })
+  f.executor.query = async (text, params) => {
+    if (text.includes("hashtext('xp:experiment')")) f.payload.documents.pages![0]!.puckData = { root: { props: {} }, content: [{
+      type: 'ExperimentSlot', props: { id: 'outer-late', experiment: { id: 2, slug: 'container-test' }, control: [inner] },
+    }] }
+    return query(text, params)
+  }
+  await expect(start(f.req, { experimentId: 1, options: f.options })).rejects.toMatchObject({ code: 'nested-tests',
+    message: 'The test “Headline test” is inside a version of “Layout test”. Move “Headline test” out of that version before starting either test or publishing this new nesting.' })
+  expect(f.payload.documents['xp-phases']).toEqual([])
+}, 5000)

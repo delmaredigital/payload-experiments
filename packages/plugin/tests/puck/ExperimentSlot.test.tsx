@@ -2,7 +2,7 @@ import type { ReactElement, ComponentProps } from 'react'
 import { PuckHostProvider } from '../../src/puck/hostContext.js'
 import { renderToString } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
-import type { ArmSlot } from '../../src/types/puck.js'
+import { EXPERIMENT_SLOT_TYPE, type ArmSlot } from '../../src/types/puck.js'
 import { ExperimentSlot } from '../../src/puck/ExperimentSlot.js'
 import { createExperimentSlotField } from '../../src/puck/experimentSlotField.js'
 import { ExperimentPicker } from '../../src/puck/ExperimentPicker.js'
@@ -61,8 +61,8 @@ test('config defines four slots, a custom experiment field, and empty serialized
   expect(Object.keys(ExperimentSlot.fields!)[0]).toBe('experiment')
   expect(ExperimentSlot.fields).toEqual({
     experiment: { type: 'custom', label: 'Test', render: expect.any(Function) },
-    variantC: { type: 'slot', label: 'Variant C' }, variantB: { type: 'slot', label: 'Variant B' },
-    variantA: { type: 'slot', label: 'Variant A' }, control: { type: 'slot', label: 'Original' },
+    variantC: { type: 'slot', label: 'Variant C', disallow: [EXPERIMENT_SLOT_TYPE] }, variantB: { type: 'slot', label: 'Variant B', disallow: [EXPERIMENT_SLOT_TYPE] },
+    variantA: { type: 'slot', label: 'Variant A', disallow: [EXPERIMENT_SLOT_TYPE] }, control: { type: 'slot', label: 'Original', disallow: [EXPERIMENT_SLOT_TYPE] },
   })
   expect(ExperimentSlot.defaultProps).toEqual({ experiment: null, control: [], variantA: [], variantB: [], variantC: [] })
 })

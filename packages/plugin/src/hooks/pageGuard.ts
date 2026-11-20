@@ -1,3 +1,4 @@
+import { refuseNewNestedTests } from './puckNestedTests.js'
 import { hasLocalizedFields } from '../transitions/contentFields.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { CollectionAfterChangeHook, CollectionAfterOperationHook, CollectionBeforeChangeHook, CollectionBeforeDeleteHook, CollectionBeforeOperationHook, PayloadRequest } from 'payload'
@@ -270,6 +271,7 @@ export const pageGuardBeforeChange: CollectionBeforeChangeHook = async ({ req, c
       const trashing = collection.trash && data.deletedAt != null && !originalDoc.deletedAt
       for (const old of oldPaths) if (unpublishing || trashing || !newPaths.includes(old)) protect(tests.filter(t => !t.pageCollection || t.pageCollection === collection.slug), normalisePath(old))
     }
+    if (publishes) refuseNewNestedTests(req, collection.slug, before, rawAfter, tests)
     if (publishes) refuseInteraction(tests, beforeSlugs, afterSlugs, beforePaths, afterPaths, collection.slug)
     if (affected.length) await blockRemovalRule.check(req, tests, affected, collection.slug, originalDoc.id as DocId, trashing || drafts && after._status !== 'published', views, call?.bulk, hidden)
     return data

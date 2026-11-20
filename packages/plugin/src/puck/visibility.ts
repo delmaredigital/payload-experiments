@@ -14,12 +14,12 @@ export function fullyHidden(value: unknown): boolean {
 }
 
 export type BlockVisibility = { hidden: boolean; hideOn: VisibilitySize[] }
-type PuckBlock = Record<string, unknown> & { type: string; props: Record<string, unknown> }
+export type PuckBlock = Record<string, unknown> & { type: string; props: Record<string, unknown> }
 
 /** Visit blocks with their ancestors' visibility, including legacy owner-id:zone edges.
  * Orphan zones retain their historical discovery behavior and count as shown.
  */
-export function walkVisiblePuck(data: unknown, visit: (block: PuckBlock, visibility: BlockVisibility) => void): void {
+export function walkVisiblePuck(data: unknown, visit: (block: PuckBlock, visibility: BlockVisibility, ancestors: readonly PuckBlock[]) => void): void {
   const owners = new Set<string>()
   const zones = new Map<string, unknown[]>()
   const roots: Array<{ owner: string; content: unknown }> = []
@@ -40,8 +40,8 @@ export function walkVisiblePuck(data: unknown, visit: (block: PuckBlock, visibil
   }
   index(data)
   const seen = new WeakSet<object>()
-  function walk(value: unknown, inherited: BlockVisibility) {
-    if (Array.isArray(value)) { value.forEach(child => walk(child, inherited)); return }
+  function walk(value: unknown, inherited: BlockVisibility, ancestors: readonly PuckBlock[]) {
+    if (Array.isArray(value)) { value.forEach(child => walk(child, inherited, ancestors)); return }
     if (!object(value) || seen.has(value)) return
     seen.add(value)
     let visibility = inherited
@@ -49,14 +49,15 @@ export function walkVisiblePuck(data: unknown, visit: (block: PuckBlock, visibil
     if (typeof value.type === 'string' && object(props)) {
       visibility = { hidden: inherited.hidden || fullyHidden(props._visibility),
         hideOn: visibilitySizes.filter(size => inherited.hideOn.includes(size) || hiddenOnSizes(props._visibility).includes(size)) }
-      visit(value as PuckBlock, visibility)
-      if (typeof props.id === 'string') for (const content of zones.get(props.id) ?? []) walk(content, visibility)
+      visit(value as PuckBlock, visibility, ancestors)
+      ancestors = [...ancestors, value as PuckBlock]
+      if (typeof props.id === 'string') for (const content of zones.get(props.id) ?? []) walk(content, visibility, ancestors)
     }
-    for (const [key, child] of Object.entries(value)) if (value !== data || key !== 'zones' || !object(child)) walk(child, visibility)
+    for (const [key, child] of Object.entries(value)) if (value !== data || key !== 'zones' || !object(child)) walk(child, visibility, ancestors)
   }
   const shown: BlockVisibility = { hidden: false, hideOn: [] }
-  walk(data, shown)
-  for (const root of roots) if (!owners.has(root.owner)) walk(root.content, shown)
+  walk(data, shown, [])
+  for (const root of roots) if (!owners.has(root.owner)) walk(root.content, shown, [])
 }
 
 /** Identity-keyed index shared by discovery and the public resolver. */

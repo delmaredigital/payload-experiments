@@ -1,3 +1,4 @@
+import { nestedPlacementNames, nameNestedPlacements } from './nestedPlacementNames.js'
 import { placementReader } from '../blocks/placementLocale.js'
 import { placementLanguages } from '../blocks/placementLanguages.js'
 import { goalContent, OUTSIDE_GOAL } from '../goals/fairness.js'
@@ -81,6 +82,7 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
   // Lazy promises prevent unhandled rejections and share failed reads as well as successful ones.
   let pageTestsInUse: ReturnType<typeof loadPageTestsInUse> | undefined
   let blocks: ReturnType<typeof scanBlockPlacements> | undefined
+  let nestedNames: Promise<Map<string, string>> | undefined
   let state: Promise<Record<string, { params: Record<string, unknown> }> | undefined> | undefined
   const busyPoints = new Map<string, Promise<Array<{ id: DocId }>>>()
   const layers = new Map<string, Promise<CheckStartInput['layer']>>()
@@ -111,6 +113,10 @@ export async function loadStartInputsBatch<TUser extends { id: DocId }>(req: Pay
         try {
           blocks ??= scanBlockPlacements(req, { slugs: blockSlugs, compareVersions: true, puckCollections: options.puck?.collections ?? [], blocksCollections: options.blocks?.collections ?? [] })
           input.placements = (await blocks).get(experiment.slug) ?? []
+          if (input.placements.some(p => p.nestedTests?.length)) {
+            nestedNames ??= nestedPlacementNames(req, [...(await blocks).values()].flat())
+            input.placements = nameNestedPlacements(input.placements, await nestedNames)
+          }
         } catch (cause) { input.placementError = placementFailure(cause) }
       }
       if (experiment.kind === 'flag') {

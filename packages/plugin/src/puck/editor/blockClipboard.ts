@@ -1,5 +1,5 @@
 import type { ComponentData } from '@puckeditor/core'
-import { EXPERIMENT_SLOT_TYPE } from '../../types/puck.js'
+import { nestedTests } from '../nestedTests.js'
 import { editorCopy } from './copy.js'
 
 // Structural subset of payload-puck's CanPasteArgs: keep the integration
@@ -10,19 +10,8 @@ type PasteArgs = {
 }
 
 export function canPasteExperiment({ block, destination }: PasteArgs): true | string {
-  if (!destination.ancestors.some(ancestor => ancestor.type === EXPERIMENT_SLOT_TYPE)) return true
-  const pending: unknown[] = [block]
-  const seen = new WeakSet<object>()
-  while (pending.length) {
-    const value = pending.pop()
-    if (!value || typeof value !== 'object' || seen.has(value)) continue
-    seen.add(value)
-    const node = value as Record<string, unknown>
-    if (node.type === EXPERIMENT_SLOT_TYPE && node.props && typeof node.props === 'object' && !Array.isArray(node.props)) {
-      return editorCopy.nestedPaste
-    }
-    for (const child of Object.values(value)) pending.push(child)
-  }
+  const ancestors = destination.ancestors.map(ancestor => ({ type: ancestor.type, props: {} }))
+  if (nestedTests(block, { includeHidden: true, ancestors }).length) return editorCopy.nestedPaste
   return true
 }
 

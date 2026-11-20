@@ -1,3 +1,4 @@
+import { nestedTests } from '../nestedTests.js'
 import { walkVisiblePuck, type BlockVisibility } from '../visibility.js'
 import type { Data } from '@puckeditor/core'
 
@@ -31,4 +32,11 @@ export function localBlockVisibility(data: Data, id: string): BlockVisibility | 
     visibilityPages.set(data, blocks)
   }
   return blocks.get(id)
+}
+
+const nestedPages = new WeakMap<Data, ReturnType<typeof nestedTests>>()
+export function localNestedTests(data: Data) {
+  let nested = nestedPages.get(data)
+  if (!nested) { nested = nestedTests(data, { includeHidden: true }); nestedPages.set(data, nested) }
+  return nested
 }

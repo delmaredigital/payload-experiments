@@ -17,6 +17,7 @@ const fixtures = {
   'no-placements': ['what', undefined, 'Not on a page yet. Open a page, add an Experiment block and choose this test.'],
   'placement-unpublished': ['versions', [{ title: 'Landing' }], "The block you're testing is only on a draft of Landing. Publish the page before you start."],
   'duplicate-version-row': ['versions', [{ title: 'Landing' }], 'The Experiment block on Landing has the same version twice. Remove one of them, then save.'],
+  'nested-tests': ['versions', [{ outer: 'Outer', inner: 'Inner' }], 'The test “Inner” is inside a version of “Outer”. Move “Inner” out of that version before starting either test or publishing this new nesting.'],
   'interacting-tests': ['versions', [{ path: '/landing', name: 'Other', status: 'decided' }], 'This test uses /landing, which the decided test Other also changes. Finish one of them first.'],
   'empty-slot': ['versions', [{ slots: { control: 1, variantA: 0 } }], 'Add content for Short headline on the page.'],
   'flag-no-point': ['what', undefined, 'Choose the setting to test.'],
@@ -65,16 +66,16 @@ test('removed placement has authored copy without detail or a link', () => {
   }
 }, 5_000) // Measured 1.876 ms locally; cap exceeds 3×.
 
-test('covers every literal start check and every member of both source unions (44 including health)', () => {
+test('covers every literal start check and every member of both source unions (45 including health)', () => {
   const source = readFileSync(new URL('../../../../src/transitions/checkStart.ts', import.meta.url), 'utf8')
   const endpoints = readFileSync(new URL('../../../../src/types/endpoints.ts', import.meta.url), 'utf8')
   const literals = [...source.matchAll(/add\('([^']+)'/g)].map(match => match[1])
   const readinessUnion = source.split('export type ReadinessCode = ArmIssueCode')[1]!.split('export interface')[0]!
   const armUnion = endpoints.split('export type ArmIssueCode =')[1]!.split('\n')[0]!
   const members = [...`${readinessUnion} ${armUnion}`.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(30)
+  expect(literals).toHaveLength(31)
   expect(ARM_CHECK_ORDER).toHaveLength(10)
-  expect(members).toHaveLength(44)
+  expect(members).toHaveLength(45)
   expect(Object.keys(READINESS).sort()).toEqual(members.sort())
   expect(Object.keys(READINESS).sort()).toEqual([...literals, ...ARM_CHECK_ORDER, 'placement-unchecked', 'version-identical', 'version-page-unavailable', 'version-page-unchecked'].sort())
   expect(Object.keys(fixtures).sort()).toEqual(Object.keys(READINESS).sort())

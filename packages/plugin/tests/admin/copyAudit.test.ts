@@ -294,3 +294,10 @@ test('the changelog records the user-visible sidebar and shared-control fixes', 
   const released = changelog.slice(sectionStart).split(/\n## \[/)[0]!
   for (const change of ['refused Traffic value', 'Escape cancels a pending name change', '200 characters', 'Use a different test', 'fails to load', 'New test and Add goal', 'disabled styling']) expect(released, change).toContain(change)
 })
+
+
+test('nested test guidance participates in the copy audit', async () => {
+  const { editorCopy } = await import('../../src/puck/editor/copy.js')
+  expect(editorCopy.nested('Outer', 'Inner')).toBe('The test “Inner” is inside a version of “Outer”. Move “Inner” out of that version before starting either test or publishing this new nesting.')
+  expect(hits([editorCopy.nested('Outer', 'Inner'), editorCopy.nestedPaste])).toEqual([])
+})

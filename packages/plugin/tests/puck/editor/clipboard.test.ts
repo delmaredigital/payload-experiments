@@ -42,8 +42,9 @@ test('does not change the copied tree or destination', () => {
 test.each([ExperimentSlotEditor, createExperimentSlotEditor({ routes: { admin: '/manage' } })])('component installs the predicate with the published hook contract', config => {
   const hook: NonNullable<BlockClipboardComponentOptions['canPaste']> = canPasteExperiment
   expect(config).toHaveProperty('blockClipboard.canPaste', hook)
-  // payload-puck asks nearest ancestors first, then the pasted block's own type.
-  for (const asAncestor of [ancestor, undefined]) {
-    expect(hook({ ...args(block('Container', { children: [experiment] })), ancestor: asAncestor })).toBe(editorCopy.nestedPaste)
-  }
+})
+
+
+test('refuses an already nested tree even when pasting onto the page', () => {
+  expect(canPasteExperiment(args(block('ExperimentSlot', { control: [block('ExperimentSlot')] }), []))).toBe(editorCopy.nestedPaste)
 })

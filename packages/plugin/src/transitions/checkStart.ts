@@ -8,6 +8,7 @@ import type { ArmIssueCode, PreflightResult } from '../types/endpoints.js'
 import type { BlockPlacement, FlagPlacement } from './placements.js'
 
 export type ReadinessCode = ArmIssueCode
+  | 'nested-tests'
   | 'goal-in-some-versions'
   | 'placement-unchecked'
   | 'invalid-status'
@@ -181,6 +182,8 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('placement-removed', !placementRemoved)
   const unpublished = placements.filter(p => !p.published && !placements.some(other => other.published && other.collection === p.collection && String(other.id) === String(p.id)))
   add('placement-unpublished', unpublished.length === 0, placementDetails(unpublished.map(placement => ({ placement, detail: {} })), placements, input))
+  const nested = placements.filter(p => p.published).flatMap(p => p.nestedTests ?? [])
+  add('nested-tests', nested.length === 0, nested)
   const duplicates = placements.filter(p => p.published && p.duplicateRows)
   add('duplicate-version-row', duplicates.length === 0, placementDetails(duplicates.map(placement => ({ placement, detail: {} })), placements, input))
   const identical = placements.filter(p => p.published).flatMap(placement => (placement.identicalSlots ?? [])

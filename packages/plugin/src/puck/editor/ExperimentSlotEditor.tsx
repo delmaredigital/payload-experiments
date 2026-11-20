@@ -33,6 +33,7 @@ import { armsFromBlock, bannerFor, currentPuckDocument, isSharedTest, tabsFor, t
 import { cloneSlot, countSlotBlocks } from './cloneSlot.js'
 import { openCreateExperimentDrawer } from './CreateExperimentDrawer.js'
 import { editorCopy } from './copy.js'
+import { nestedTestLabel } from '../nestedTests.js'
 import { experimentClipboard } from './blockClipboard.js'
 import { acquireArms, loadArms, publishExperiment, useArms } from './armsCache.js'
 import { AddVariant, RemoveVersion, VersionCard, VersionName, VersionWeights, VersionLock, useArmWrites, type WeightEdits } from './VersionBuilder.js'
@@ -41,7 +42,7 @@ import { EditorControls } from './EditorControls.js'
 import { acquirePlacements, cachedPreflight, cachedReadinessRead, placementsPending, placementsBlocking, placementReadError, invalidatePlacements, refreshPlacements, focusPlacements } from './placementsCache.js'
 import { sidebarReadinessBlockers, editorPlacementMessage } from '../../testSurface/surface/editorPlacement.js'
 import type { PreflightResult } from '../../types/endpoints.js'
-import { localPlacements, localBlockVisibility } from './localPlacements.js'
+import { localPlacements, localBlockVisibility, localNestedTests } from './localPlacements.js'
 import { usePlacementNotice } from './usePlacementNotice.js'
 import { useEditorSurface } from './editorSurface.js'
 import { createBlockTest, CreateRefused } from './createTest.js'
@@ -189,6 +190,16 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
     return () => { release(); window.removeEventListener('focus', focus) }
   }, [api, admin, experimentId, status, access.surface?.canManage, contentLocale])
 
+  const outerLabel = usePuckSelector(state => {
+    const outer = localNestedTests(state.appState.data).find(pair => pair.inner.props.id === props.id)?.outer
+    return outer ? nestedTestLabel(outer) : ''
+  })
+  const outerId = usePuckSelector(state => {
+    const outer = localNestedTests(state.appState.data).find(pair => pair.inner.props.id === props.id)?.outer
+    const ref = outer?.props.experiment as ExperimentRef | undefined
+    return ref?.id === undefined ? '' : String(ref.id)
+  })
+  const outerTest = useArms(outerId === '' ? undefined : outerId)
   const blockVisibility = usePuckSelector(state => {
     const visibility = localBlockVisibility(state.appState.data, props.id)
     return visibility?.hidden ? 'hidden' : visibility?.hideOn.join(' and ') ?? ''
@@ -201,6 +212,7 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   const result = experimentId === undefined || loaded?.id !== experimentId ? undefined : loaded
   const shared = locallyShared || result?.shared === true
   const experiment = cachedExperiment ?? result?.doc
+  const nestedNotice = outerLabel ? editorCopy.nested(outerTest?.doc?.name ?? outerLabel, experiment?.name ?? props.experiment?.slug ?? 'Unconfigured test') : undefined
   const noAccess = access.error === 'forbidden' || !!access.surface && !access.surface.canManage && !access.surface.canReadResults
   const resultsOnly = access.surface?.canReadResults === true && !access.surface.canManage
   const unavailable = result?.forbidden || result?.missing
@@ -376,8 +388,8 @@ function EditorRender(props: RenderProps & { accent?: ReturnType<typeof deriveAc
   }
   const placementNotice = quickTest.preflightRead?.message ?? placementMessage
   usePlacementNotice(api, experimentId, canManage ? placementNotice : undefined, contentLocale)
-  const placementNoticeView = <>{visibilityNotice ? <Banner tone="info">{visibilityNotice}</Banner> : null}{canManage ? <PlacementNotice read={quickTest.preflightRead} message={placementMessage} running={experiment?.status === 'running'} onRetry={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId, contentLocale) }} /> : null}</>
-  const sidebarBlockers = surface ? sidebarReadinessBlockers(quickTest, surface) : []
+  const placementNoticeView = <>{nestedNotice ? <Banner tone="info">{nestedNotice}</Banner> : null}{visibilityNotice ? <Banner tone="info">{visibilityNotice}</Banner> : null}{canManage ? <PlacementNotice read={quickTest.preflightRead} message={placementMessage} running={experiment?.status === 'running'} onRetry={() => { if (experimentId !== undefined) void refreshPlacements(api, experimentId, contentLocale) }} /> : null}</>
+  const sidebarBlockers = (surface ? sidebarReadinessBlockers(quickTest, surface) : []).filter(step => step.sentence !== nestedNotice)
 
   const leftoverControls = experiment && orphanSlots.length ? <LeftoverVersions slots={orphanSlots} active={slot} dragging={dragging} experiment={experiment} writes={writes} canManage={canManage}
     countBlocks={slot => countSlotBlocks(getPuck().getItemById(props.id)?.props[slot])} onDelete={removeContent} onSelect={slot => { if (isCurrentBinding()) setActive({ id: experimentId, slot }) }} /> : null

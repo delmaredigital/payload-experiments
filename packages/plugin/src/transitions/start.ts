@@ -1,3 +1,5 @@
+import { nestedPlacementNames, nameNestedPlacements } from './nestedPlacementNames.js'
+import { nestedTestCopy } from '../puck/nestedTestCopy.js'
 import { goalContent } from '../goals/fairness.js'
 import { detached } from './placementInteractions.js'
 import type { PayloadRequest } from 'payload'
@@ -31,6 +33,7 @@ export async function readExperiment(req: PayloadRequest, id: DocId): Promise<Tr
 }
 export function refuse(code: RefusalCode, detail?: unknown): never {
   const messages: Partial<Record<RefusalCode, string>> = {
+    'nested-tests': (() => { const pair = (detail as Array<{ outer: string; inner: string }> | undefined)?.[0]; return nestedTestCopy(pair?.outer ?? 'another test', pair?.inner ?? 'this test') })(),
     'goal-in-some-versions': asymmetricGoalsCopy(detail),
     'placements-changed': "This test's pages changed while it was starting. Try again.",
     'page-busy': "One of this test's pages is being saved right now. Try again in a moment.",
@@ -88,7 +91,7 @@ export async function start<TUser extends { id: DocId }>(req: PayloadRequest, { 
     if (current.kind === 'block') {
       const rescan = await lockAndRescanPlacements(req, exec, options, current, input.placements ?? [])
       placementDocs = rescan.docs
-      const failure = checkStart({ ...input, experiment: current, placements: rescan.placements }).find(check => !check.ok)
+      const failure = checkStart({ ...input, experiment: current, placements: nameNestedPlacements(rescan.placements, await nestedPlacementNames(req, rescan.placements)) }).find(check => !check.ok)
       if (failure && failure.code !== 'page-targets-unchecked' && failure.code !== 'make-content-unsupported') refuse(failure.code, failure.detail)
     }
     if (current.kind === 'page') {

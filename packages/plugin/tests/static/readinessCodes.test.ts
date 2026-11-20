@@ -6,7 +6,7 @@ const codes = [
   'weights-total', 'control-count', 'control-first', 'holdout-count', 'holdout-last', 'variant-count',
   'invalid-key', 'duplicate-key', 'slot-required', 'duplicate-slot',
   'invalid-status', 'no-planned-duration', 'no-primary-metric', 'no-reach-per-day', 'page-no-targets', 'page-in-use', 'page-target-unpublished', 'page-targets-unchecked', 'page-user-unit',
-  'goal-in-some-versions', 'placement-unchecked', 'placement-unpublished', 'duplicate-version-row', 'interacting-tests',
+  'nested-tests', 'goal-in-some-versions', 'placement-unchecked', 'placement-unpublished', 'duplicate-version-row', 'interacting-tests',
   'version-identical', 'version-same-address', 'unknown-collection',
   'version-page-unavailable', 'version-page-unchecked',
   'block-path-rule',
@@ -16,14 +16,14 @@ const codes = [
 // Also fail compilation if the public union grows beyond the hand-maintained list.
 const exhaustive: Record<Exclude<ReadinessCode, typeof codes[number]>, never> = {} satisfies Record<Exclude<ReadinessCode, typeof codes[number]>, never>
 
-test('ReadinessCode lists exactly the literal predicates and ARM_CHECK_ORDER (44 including health)', () => {
+test('ReadinessCode lists exactly the literal predicates and ARM_CHECK_ORDER (45 including health)', () => {
   const source = readFileSync(new URL('../../src/transitions/checkStart.ts', import.meta.url), 'utf8')
   const literals = [...source.matchAll(/\badd\('([^']+)'/g)].map(match => match[1])
   const order = source.match(/ARM_CHECK_ORDER[^=]*=\s*\[([\s\S]*?)\]/)![1]!
   const arms = [...order.matchAll(/'([^']+)'/g)].map(match => match[1])
-  expect(literals).toHaveLength(30)
+  expect(literals).toHaveLength(31)
   expect(arms).toHaveLength(10)
   expect(new Set([...literals, ...arms, 'placement-unchecked', 'version-identical', 'version-page-unavailable', 'version-page-unchecked'])).toEqual(new Set(codes))
-  expect(new Set(codes).size).toBe(44)
+  expect(new Set(codes).size).toBe(45)
   expect(exhaustive).toEqual({})
 }, 5_000) // Measured 1.663 ms locally; cap exceeds 3×.

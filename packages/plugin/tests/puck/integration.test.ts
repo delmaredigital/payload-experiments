@@ -32,6 +32,13 @@ test('editor integration adds only the outline plugin', () => {
   expect(integration.plugins?.[0]).toBe(vi.mocked(experimentOutlinePlugin).mock.results[0]?.value)
 })
 
+test.each([experimentsPuck, experimentsPuckEditor])('both integrations disallow direct tests in every version', integration => {
+  const component = integration().components[EXPERIMENT_SLOT_TYPE]!
+  for (const slot of ['control', 'variantA', 'variantB', 'variantC']) {
+    expect(component.fields?.[slot as keyof typeof component.fields]).toMatchObject({ type: 'slot', disallow: [EXPERIMENT_SLOT_TYPE] })
+  }
+})
+
 test.each([undefined, { admin: '/manage', api: '/content-api' }])('render passes routes %j to the existing factory', routes => {
   const integration = experimentsPuck({ routes })
   expect(createExperimentSlot).toHaveBeenCalledExactlyOnceWith({ routes })

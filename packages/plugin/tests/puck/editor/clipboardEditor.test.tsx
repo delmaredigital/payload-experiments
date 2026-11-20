@@ -19,8 +19,9 @@ import { fakeReq } from '../../_fakes/req.js'
 import { sampleOptions } from '../../collections/fixtures.js'
 import { assignments } from '../../rsc/helpers.js'
 
-// The public /editor entry exports hook types, not clipboard operations. Exercise
-// the installed operation used by its action bar and keyboard, with a real Puck API.
+// payload-puck 0.12.1's public /editor exports hook types, not clipboard operations.
+// Use its internal createEditorClipboard/copyBlock/pasteBlock and test reset to
+// exercise the action bar and keyboard operation with a real Puck API.
 const { createEditorClipboard, copyBlock, pasteBlock, resetClipboardStoresForTests } = await import(
   new URL('../clipboard/editor.js', import.meta.resolve('@delmaredigital/payload-puck/editor')).href
 )
@@ -49,9 +50,9 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async () => Response.json({ canManage: true, canReadResults: true })))
 })
 afterEach(async () => { cleanup(); await act(async () => {}); vi.unstubAllGlobals(); window.history.replaceState({}, '', '/') })
-function mount(data: Data) {
+function mount(data: Data, fields = false) {
   function Probe() { getPuck = useGetPuck(); return null }
-  render(<Puck config={config} data={data} iframe={{ enabled: false }}><Puck.Preview /><Probe /></Puck>)
+  render(<Puck config={config} data={data} iframe={{ enabled: false }}><Puck.Preview />{fields ? <Puck.Fields /> : null}<Probe /></Puck>)
 }
 async function copied(block: ComponentData) {
   const clipboard = createEditorClipboard()
@@ -70,6 +71,15 @@ test.each(['self', 'tree'] as const)('real paste path refuses a %s beneath an Ex
   expect(pasted).toBe(false)
   expect(clipboard.status.read().message).toBe(editorCopy.nestedPaste)
   expect(getPuck().appState.data).toEqual(before)
+})
+test('real paste path refuses an Experiment directly inside outer:control', async () => {
+  mount({ root: { props: {} }, content: [experiment('outer')] })
+  const clipboard = await copied(experiment('copied'))
+  const before = structuredClone(getPuck().appState.data)
+  act(() => { expect(pasteBlock(getPuck(), 'outer:control', 0, clipboard)).toBe(false) })
+  expect(getPuck().appState.data).toEqual(before)
+  // payload-puck checks the slot's disallow before asking component hooks.
+  expect(clipboard.status.read().message).toBe("Experiment block blocks aren't allowed in Original.")
 })
 test('real paste path permits ordinary content inside an Experiment version', async () => {
   mount({ root: { props: {} }, content: [experiment('outer')] })
@@ -185,4 +195,40 @@ test('a cross-page paste inside a hidden container is hidden to readiness and ca
   const hiddenOnly = await preflightData(fakeReq({ payload }), { experimentId: 7, options })
   expect(hiddenOnly!.placements).toEqual([])
   expect(hiddenOnly!.checks).toContainEqual({ code: 'no-placements', ok: false })
+})
+
+
+test('an inner test shows one plain notice in the real editor', async () => {
+  const outer = experiment('outer-notice')
+  outer.props.control = [experiment('inner-notice')]
+  mount({ root: { props: {} }, content: [outer] })
+  expect(await screen.findByText(editorCopy.nested('Unconfigured test', 'Unconfigured test'))).toBeTruthy()
+})
+
+test('Puck public reducer insertion bypasses slot disallow, leaving the server as the final guard', async () => {
+  mount({ root: { props: {} }, content: [experiment('outer-dispatch')] })
+  act(() => { getPuck().dispatch({ type: 'insert', componentType: 'ExperimentSlot', destinationZone: 'outer-dispatch:control', destinationIndex: 0, id: 'inner-dispatch' }) })
+  expect(getPuck().getItemById('inner-dispatch')?.type).toBe('ExperimentSlot')
+  expect(await screen.findByText(editorCopy.nested('Unconfigured test', 'Unconfigured test'))).toBeTruthy()
+})
+
+
+test('a selected bound inner test keeps one sidebar notice while Start remains blocked', async () => {
+  const message = editorCopy.nested('Outer test', 'Inner test')
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.endsWith('/editor-surface') ? { canManage: true, canReadResults: true }
+    : url.endsWith('/preflight') ? { checks: [{ code: 'nested-tests', ok: false, detail: [{ outer: 'Outer test', inner: 'Inner test' }] }], placements: [savedSource] }
+    : { name: url.includes('/810?') ? 'Outer test' : 'Inner test', status: 'draft', arms: defaultArms('block') })))
+  const inner = { ...bound('inner-sidebar'), props: { ...bound('inner-sidebar').props, experiment: { id: 811, slug: 'inner-sidebar' } } }
+  const outer = { ...bound('outer-sidebar'), props: { ...bound('outer-sidebar').props, experiment: { id: 810, slug: 'outer-sidebar' }, control: [inner] } }
+  mount({ root: { props: {} }, content: [outer] }, true)
+  await screen.findByText(message)
+  act(() => getPuck().dispatch({ type: 'setUi', ui: { itemSelector: getPuck().getSelectorForId('inner-sidebar')! } }))
+  const sidebar = await waitFor(() => {
+    const element = document.querySelector('.xp-slot-sidebar')
+    expect(element).not.toBeNull()
+    expect(within(element as HTMLElement).getAllByText(message)).toHaveLength(1)
+    return element as HTMLElement
+  })
+  expect(within(sidebar).queryByRole('button', { name: 'Start' })).toBeNull()
+  expect(within(sidebar).getByRole('button', { name: 'Configure test' })).toBeTruthy()
 })

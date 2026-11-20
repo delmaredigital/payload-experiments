@@ -70,6 +70,22 @@ function setup(status = 'running', path = '/original', discarded = false, drafts
 
 }
 
+test.each(['outer', 'inner', 'both'])('untangling preserves both placements when %s is running', async running => {
+  const f = setup()
+  const options = f.payload.config.custom!.xp
+  Object.assign(options, { puck: { enabled: true, collections: ['pages'] } })
+  const inner = { type: 'ExperimentSlot', props: { id: 'inner', experiment: { id: 4, slug: 'inner' }, control: [], variantA: [] } }
+  const outer = { type: 'ExperimentSlot', props: { id: 'outer', experiment: { id: 3, slug: 'outer' }, control: [inner], variantA: [] } }
+  Object.assign(f.published, { puckData: { root: { props: {} }, content: [outer] } })
+  f.payload.documents['xp-experiments'] = ['outer', 'inner'].map((slug, index) => ({
+    id: index + 3, slug, name: slug, kind: 'block', status: running === 'both' || running === slug ? 'running' : 'draft',
+  }))
+  f.payload.documents['xp-phases'] = []
+  f.req.transactionID = (await f.payload.db.beginTransaction())!
+  const data = { _status: 'published', puckData: { root: { props: {} }, content: [{ ...outer, props: { ...outer.props, control: [] } }, inner] } }
+  await expect(f.save(data)).resolves.toEqual(data)
+})
+
 for (const status of ['running', 'decided', 'archived']) {
   for (const path of ['/original', '/winner']) {
     describe(`${status} ${path}`, () => {

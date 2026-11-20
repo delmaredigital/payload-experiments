@@ -1,3 +1,4 @@
+import { nestedTestCopy } from '../../../puck/nestedTestCopy.js'
 import { SURFACE_COPY } from '../../copy/surface.js'
 import type { ReadinessCode, PreflightResult } from '../../../types/endpoints.js'
 import type { SerializedFlagPoint } from '../../../types/admin.js'
@@ -39,6 +40,7 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'placement-removed': row('what', () => C.placementRemoved),
   'placement-unpublished': { ...row('versions', unpublishedPlacementsCopy), nextStep: 'Publish the page' },
   'duplicate-version-row': { ...row('versions', detail => detailRows(detail).map(value => `The Experiment block on ${text(object(value).title, 'this page')} has the same version twice. Remove one of them, then save.`).join('\n')), nextStep: detail => detailRows(detail).map(value => `Edit ${text(object(value).title, 'this page')}`).join('\n') },
+  'nested-tests': row('versions', detail => (Array.isArray(detail) ? detail : []).map(pair => nestedTestCopy(text(object(pair).outer, 'another test'), text(object(pair).inner, 'this test'))).join('\n')),
   'interacting-tests': { ...row('versions', detail => interactingTestsCopy(text(first(detail).path, 'this page'), text(first(detail).status, 'running'), text(first(detail).name, 'another test'), first(detail).version === true)), nextStep: detail => `Open ${text(first(detail).name, 'the test')}${first(detail).version === true ? `\nEdit ${text(first(detail).path, 'this page')}` : ''}` },
   'empty-slot': row('versions', (detail, ctx) => {
     const placements = Array.isArray(detail) ? detail : []
