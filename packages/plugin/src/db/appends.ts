@@ -23,17 +23,15 @@ export async function storedContent(req: PayloadRequest, collection: string, id:
 
 export interface PlacementSavePath {
   versionId?: DocId; bulk?: boolean; draft?: boolean; trashing?: boolean
-  publishSpecificLocale?: string; localizeStatus?: boolean; allLocales?: boolean; status?: unknown
+  publishSpecificLocale?: string
 }
 /** Payload 3.90.2: updateByID starts from the latest version; update (bulk)
  * starts from main rows except draft/trash saves. utilities/update then replaces
- * unselected locales with main (localizeStatus) or the latest published version
- * (publishSpecificLocale). Restore uses the selected version. */
+ * unselected locales with the latest published version (publishSpecificLocale).
+ * Localized publication status is refused at init. Restore uses the selected version. */
 export function placementMergeBase(path: PlacementSavePath): 'restore' | 'main' | 'published' | 'latest' {
   if (path.versionId != null) return 'restore'
-  if (path.localizeStatus) {
-    if (!(path.draft && path.status !== 'published') && !path.allLocales) return 'main'
-  } else if (path.publishSpecificLocale) return 'published'
+  if (path.publishSpecificLocale) return 'published'
   return path.bulk && !path.draft && !path.trashing ? 'main' : 'latest'
 }
 export async function placementWriteContent(req: PayloadRequest, collection: string, id: DocId,

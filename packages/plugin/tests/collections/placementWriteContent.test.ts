@@ -7,15 +7,10 @@ test.each([
   [{}, 'latest'],
   [{ versionId: 7 }, 'restore'],
   [{ publishSpecificLocale: 'fr' }, 'published'],
-  [{ localizeStatus: true }, 'main'],
-  [{ localizeStatus: true, allLocales: true }, 'latest'],
-  [{ localizeStatus: true, draft: true }, 'latest'],
-  [{ localizeStatus: true, draft: true, status: 'published' }, 'main'],
   [{ bulk: true }, 'main'],
   [{ bulk: true, draft: true }, 'latest'],
   [{ bulk: true, trashing: true }, 'latest'],
   [{ bulk: true, publishSpecificLocale: 'fr' }, 'published'],
-  [{ localizeStatus: true, publishSpecificLocale: 'fr' }, 'main'],
 ] as const)('save path %j selects %s', (path, base) => {
   expect(placementMergeBase(path)).toBe(base)
 })

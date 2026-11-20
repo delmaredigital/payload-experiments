@@ -189,7 +189,7 @@ test('pageTargetPaths covers every path the runtime matches, holdout and empty t
   ] as never)).toEqual(['/', '/a', '/h'])
 })
 
-test('readiness and identical warnings identify each language independently', () => {
+test('readiness separates different findings and combines matching identical warnings', () => {
   const input = ready(), base = input.placements![0]!
   input.placements = [
     { ...base, locale: 'en', allLocales: true, identicalSlots: ['variantA'], slots: { ...base.slots, control: 0 } },
@@ -197,11 +197,53 @@ test('readiness and identical warnings identify each language independently', ()
   ]
   const checks = checkStart(input)
   expect(checks.find(c => c.code === 'empty-slot')?.detail).toEqual([
-    { collection: 'pages', id: 1, title: 'Home · Languages: en', slots: input.placements[0]!.slots },
-    { collection: 'pages', id: 1, title: 'Home · Languages: fr', slots: input.placements[1]!.slots },
+    { collection: 'pages', id: 1, title: 'Home · Languages: en', locales: ['en'], slots: input.placements[0]!.slots },
+    { collection: 'pages', id: 1, title: 'Home · Languages: fr', locales: ['fr'], slots: input.placements[1]!.slots },
   ])
   expect(checks.filter(c => c.code === 'version-identical').map(c => c.detail)).toEqual([
-    { collection: 'pages', id: 1, title: 'Home · Languages: en', arm: 'variantA' },
-    { collection: 'pages', id: 1, title: 'Home · Languages: fr', arm: 'variantA' },
+    { collection: 'pages', id: 1, title: 'Home · All languages', allLocales: true, arm: 'variantA' },
+  ])
+})
+
+test.each(['version-identical', 'duplicate-version-row', 'placement-unpublished', 'empty-slot'] as const)('%s groups the same finding across all or some languages', code => {
+  const input = ready(), base = input.placements![0]!
+  input.placementLocaleCodes = ['en', 'fr', 'de']
+  input.placements = ['English', 'French', 'German'].map((label, index) => ({ ...base, locale: ['en', 'fr', 'de'][index], localeLabel: label, allLocales: true,
+    published: code !== 'placement-unpublished', identicalSlots: code === 'version-identical' ? ['variantA'] : [], duplicateRows: code === 'duplicate-version-row',
+    slots: { ...base.slots, variantA: code === 'empty-slot' ? 0 : 1 } }))
+  const details = () => checkStart(input).filter(check => check.code === code && (!check.ok || check.warning)).flatMap(check => Array.isArray(check.detail) ? check.detail : [check.detail])
+  expect(details()).toEqual([expect.objectContaining({ title: 'Home · All languages' })])
+  const german = input.placements[2]!
+  german.identicalSlots = []; german.duplicateRows = false; german.published = true; german.slots = { ...base.slots }
+  if (code === 'placement-unpublished') input.placements.pop() // No published counterpart: metadata still names every configured language.
+  expect(details()).toEqual([expect.objectContaining({ title: 'Home · Languages: English, French' })])
+  input.placements[1]!.title = 'Accueil'
+  expect(details()).toEqual([expect.objectContaining({ title: 'Home · Languages: English, French' })]) // Translated titles do not split an identical finding.
+})
+
+test('empty content groups the same missing version despite differing nonempty content counts', () => {
+  const input = ready(), base = input.placements![0]!
+  input.placementLocaleCodes = ['en', 'fr', 'de']
+  input.placements = [
+    { ...base, locale: 'en', localeLabel: 'English', slots: { ...base.slots, control: 3, variantA: 0 } },
+    { ...base, locale: 'fr', localeLabel: 'French', slots: { ...base.slots, variantA: 0 } },
+    { ...base, locale: 'de', localeLabel: 'German', slots: { ...base.slots, control: 0 } },
+  ]
+  expect(checkStart(input).find(check => check.code === 'empty-slot')?.detail).toEqual([
+    expect.objectContaining({ title: 'Home · Languages: English, French', locales: ['English', 'French'] }),
+    expect.objectContaining({ title: 'Home · Languages: German', locales: ['German'] }),
+  ])
+})
+
+test('identical warnings keep different affected versions in separate language groups', () => {
+  const input = ready(), base = input.placements![0]!
+  input.experiment.arms.push({ key: 'variantB', label: 'Variant B', kind: 'variant', weight: 0, slot: 'variantB' })
+  input.placementLocaleCodes = ['en', 'fr', 'de']
+  input.placements = ['English', 'French', 'German'].map((label, index) => ({ ...base,
+    locale: ['en', 'fr', 'de'][index], localeLabel: label, identicalSlots: [index === 2 ? 'variantB' : 'variantA'],
+  }))
+  expect(checkStart(input).filter(check => check.code === 'version-identical').map(check => check.detail)).toEqual([
+    expect.objectContaining({ arm: 'variantA', title: 'Home · Languages: English, French' }),
+    expect.objectContaining({ arm: 'variantB', title: 'Home · Languages: German' }),
   ])
 })

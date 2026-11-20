@@ -66,3 +66,16 @@ test('flag-point placement rows are never grouped or counted as page slots', () 
   expect(rows.every(row => row.slotCount === 1)).toBe(true)
   expect(new Set(rows.map(row => row.key)).size).toBe(2)
 })
+
+test.each(['localizedPlacements', 'differingPlacements'] as const)('actionable %s rows preserve all server values', async fixture => {
+  const fixtures = await import('../_helpers/localizedPlacements.js')
+  const localizedPlacements = fixtures[fixture]
+  const { actionablePreviewPages } = await import('../../../src/testSurface/previewLinks.model.js')
+  const rows = actionablePreviewPages([...localizedPlacements, { collection: 'pages', id: 20, title: 'No links', ok: true }])
+  expect(rows.map(({ key, ...row }) => row)).toEqual(localizedPlacements)
+  expect(new Set(rows.map(row => row.key)).size).toBe(3)
+  const { placementLine } = await import('../../../src/testSurface/surface/pageBlock/pageBlock.model.js')
+  expect(rows.map(placementLine)).toEqual(fixture === 'localizedPlacements' ? [
+    'On: Home (Published) · Languages: English', 'On: Home (Published) · Languages: French', 'On: Home (Draft) · All languages',
+  ] : ['On: Home (Published) · Languages: English', 'On: Accueil (Published) · Languages: French', 'On: Home draft (Draft) · All languages'])
+})

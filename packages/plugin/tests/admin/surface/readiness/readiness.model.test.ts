@@ -193,3 +193,29 @@ test('unknown failing codes target What and keep that section incomplete', () =>
   expect(nextStep(value, ctx)).toEqual({ section: 'what', sentence: 'Review setup', code: 'future-code' })
   expect(sectionDone({ preflight: value }).what).toBe(false)
 })
+
+
+test.each(['duplicate-version-row', 'placement-unpublished'] as const)('%s renders every affected language detail', code => {
+  const detail = [{ title: 'Home · Languages: English, French', locales: ['English', 'French'] }, { title: 'Start · Languages: German', locales: ['German'] }]
+  const sentence = READINESS[code].next(detail, ctx)!
+  expect(sentence).toContain('Home · Languages: English, French')
+  expect(sentence).toContain('Start · Languages: German')
+  const action = READINESS[code].nextStep
+  if (typeof action === 'function') expect(action(detail, ctx)).toContain('Start · Languages: German')
+})
+
+
+test('single-language duplicate details keep their complete baseline text and action', () => {
+  const detail = [{ title: 'Home' }, { title: 'Start' }]
+  expect(READINESS['duplicate-version-row'].next(detail, ctx)).toBe('The Experiment block on Home has the same version twice. Remove one of them, then save.')
+  const action = READINESS['duplicate-version-row'].nextStep
+  expect(typeof action === 'function' && action(detail, ctx)).toBe('Edit Home')
+})
+
+test('localized empty content names every affected page and full language set', () => {
+  const detail = [
+    { title: 'Home · All languages', allLocales: true, slots: { control: 1, variantA: 0 } },
+    { title: 'Start · Languages: English, French', locales: ['English', 'French'], slots: { control: 0, variantA: 1 } },
+  ]
+  expect(READINESS['empty-slot'].next(detail, ctx)).toBe('Add content for Short headline on Home · All languages.\nAdd content for Original on Start · Languages: English, French.')
+})

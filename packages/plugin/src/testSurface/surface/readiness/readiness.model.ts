@@ -24,6 +24,8 @@ const group = (key: unknown, ctx: ReadinessContext): string => {
   const found = ctx.arms.find(item => item.key === key)
   return found ? actionGroupLabel(found.key, found.label) : C.groupFallback
 }
+const hasLanguages = (value: unknown) => object(value).allLocales === true || Array.isArray(object(value).locales)
+const detailRows = (detail: unknown) => Array.isArray(detail) && detail.length && detail.some(hasLanguages) ? detail : [first(detail)]
 const row = (section: SectionId | 'header', next: (detail: unknown, ctx: ReadinessContext) => string | null) => ({ section, next })
 const versions = row('versions', detail => versionsNext(detailText(detail, C.versionFallback)))
 
@@ -36,10 +38,13 @@ export const READINESS: Record<ReadinessCode, { section: SectionId | 'header'; n
   'no-placements': row('what', (detail, ctx) => ctx.editorPlacementMessage ?? (detail === undefined ? C.noPlacements : placementFailureCopy(detail))),
   'placement-removed': row('what', () => C.placementRemoved),
   'placement-unpublished': { ...row('versions', unpublishedPlacementsCopy), nextStep: 'Publish the page' },
-  'duplicate-version-row': { ...row('versions', detail => `The Experiment block on ${text(first(detail).title, 'this page')} has the same version twice. Remove one of them, then save.`), nextStep: detail => `Edit ${text(first(detail).title, 'this page')}` },
+  'duplicate-version-row': { ...row('versions', detail => detailRows(detail).map(value => `The Experiment block on ${text(object(value).title, 'this page')} has the same version twice. Remove one of them, then save.`).join('\n')), nextStep: detail => detailRows(detail).map(value => `Edit ${text(object(value).title, 'this page')}`).join('\n') },
   'interacting-tests': { ...row('versions', detail => interactingTestsCopy(text(first(detail).path, 'this page'), text(first(detail).status, 'running'), text(first(detail).name, 'another test'), first(detail).version === true)), nextStep: detail => `Open ${text(first(detail).name, 'the test')}${first(detail).version === true ? `\nEdit ${text(first(detail).path, 'this page')}` : ''}` },
   'empty-slot': row('versions', (detail, ctx) => {
     const placements = Array.isArray(detail) ? detail : []
+    if (placements.some(hasLanguages)) return placements.flatMap(placement => ctx.arms
+      .filter(arm => arm.kind !== 'holdout' && (!arm.slot || !(Number(object(object(placement).slots)[arm.slot]) > 0)))
+      .map(arm => contentNext(group(arm.key, ctx), text(object(placement).title, 'the page')))).join('\n')
     const missing = ctx.arms.find(item => item.kind !== 'holdout' && placements.some(placement => {
       const slots = object(object(placement).slots)
       return !item.slot || !(typeof slots[item.slot] === 'number' && Number(slots[item.slot]) > 0)

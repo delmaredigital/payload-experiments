@@ -1235,12 +1235,12 @@ test.each([false, true])('nonlocalized save preserves baseline IO (site localiza
   await expect(f.save({ title: 'Updated', _status: 'published' })).resolves.toBeDefined()
   expect(f.payload.db.findVersions).not.toHaveBeenCalled()
   expect(f.read).toHaveBeenCalledTimes(1)
+  expect(f.payload.calls.filter(call => call.method === 'find')).toEqual([])
 })
 
-test.each(['publishSpecificLocale', 'bulk', 'localizeStatus', 'updateByID', 'restore'] as const)('localized page guard mirrors the %s merge base', async path => {
+test.each(['publishSpecificLocale', 'bulk', 'updateByID', 'restore'] as const)('localized page guard mirrors the %s merge base', async path => {
   const f = setup()
   Object.assign(f.payload.config, { localization: { defaultLocale: 'en', localeCodes: ['en', 'fr'], locales: [{ code: 'en' }, { code: 'fr' }] } })
-  if (path === 'localizeStatus') f.collection.versions = { drafts: { localizeStatus: true } } as never
   f.payload.config.collections = [{ ...f.collection, fields: [{ name: 'slug', type: 'text', localized: true }] }] as never
   Object.assign(f.published, { slug: { en: 'original', fr: 'french' } })
   const latest = { ...f.published, slug: { en: 'draft-rename', fr: 'french' } }

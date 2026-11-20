@@ -56,6 +56,7 @@ export type PlacementFailure = 'placements-failed' | 'forbidden' | 'not-found'
 export interface CheckStartInput {
   experiment: StartExperiment; metrics: StartMetric[]; metricSources?: Pick<MetricSource, 'id' | 'keyedBy'>[]
   flagPoints?: FlagPoint[]; placements?: BlockPlacement[]; flagPlacements?: FlagPlacement[]
+  placementLocaleCodes?: readonly string[]
   placementError?: PlacementFailure; flagPlacementError?: PlacementFailure; flagPointBusy?: boolean
   goalContent?: GoalContent
   interactions?: import('./placementInteractions.js').InteractionDetail[]
@@ -76,11 +77,33 @@ export const pageTargetPaths = (arms: readonly Arm[]): string[] => [...new Set(a
   .filter(arm => typeof arm.pageTarget === 'string')
   .map(arm => normalisePath(arm.pageTarget!)))].sort()
 const placementDetail = ({ collection, id, title, locales, allLocales, locale, localeLabel }: BlockPlacement) => ({ collection, id,
-  title: `${title}${locale ? ` · ${PLACEMENT_LANGUAGES.locales(localeLabel ?? locale)}` : allLocales ? ` · ${PLACEMENT_LANGUAGES.allLocales}` : locales?.length ? ` · ${PLACEMENT_LANGUAGES.locales(locales.join(', '))}` : ''}` })
-// Page-level failures name each affected language; slot checks retain every occurrence.
-const placementDetails = (placements: BlockPlacement[]) => placements.some(place => place.locale)
-  ? [...new Map(placements.map(place => [JSON.stringify([place.collection, String(place.id), place.locale]), placementDetail(place)])).values()]
-  : placements.map(placementDetail)
+  title: `${title}${allLocales ? ` · ${PLACEMENT_LANGUAGES.allLocales}` : locales?.length ? ` · ${PLACEMENT_LANGUAGES.locales(locales.join(', '))}` : locale ? ` · ${PLACEMENT_LANGUAGES.locales(localeLabel ?? locale)}` : ''}` })
+
+/** Group only the languages with this finding, independently for each page and
+ * finding payload. Single-language occurrence details keep their original shape. */
+function placementDetails<T extends Record<string, unknown>>(findings: Array<{ placement: BlockPlacement; detail: T }>, all: BlockPlacement[], codes?: readonly string[], findingKey = (detail: T) => JSON.stringify(detail)) {
+  const groups = new Map<string, { placement: BlockPlacement; detail: T; languages: Map<string, string> }>()
+  const result: Array<T & ReturnType<typeof placementDetail> & { locales?: string[]; allLocales?: true }> = []
+  for (const { placement, detail } of findings) {
+    if (!placement.locale) { result.push({ ...placementDetail(placement), ...detail }); continue }
+    const key = JSON.stringify([placement.collection, String(placement.id), findingKey(detail)])
+    let group = groups.get(key)
+    if (!group) {
+      group = { placement, detail, languages: new Map() }
+      groups.set(key, group)
+    }
+    group.languages.set(placement.locale, placement.localeLabel ?? placement.locale)
+  }
+  for (const { placement, detail, languages } of groups.values()) {
+    const page = all.filter(other => other.collection === placement.collection && String(other.id) === String(placement.id))
+    const configured = codes ?? (page.some(other => other.allLocales) ? [...new Set(page.flatMap(other => other.locale ? [other.locale] : []))] : undefined)
+    const allLocales = configured?.length && configured.every(code => languages.has(code)) ? true : undefined
+    const names = [...languages.values()]
+    result.push({ ...placementDetail({ ...placement, locale: undefined, allLocales, locales: names }),
+      ...(allLocales ? { allLocales: true as const } : { locales: names }), ...detail })
+  }
+  return result
+}
 const positive = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value) && value > 0
 
 function invalidParams(arms: Arm[], point: FlagPoint): unknown[] {
@@ -150,18 +173,18 @@ export function checkStart(input: CheckStartInput): PreflightResult['checks'] {
   add('no-placements', placementRemoved || e.kind !== 'block' || !input.placementError && placements.length > 0, input.placementError)
   add('placement-removed', !placementRemoved)
   const unpublished = placements.filter(p => !p.published && !placements.some(other => other.published && other.collection === p.collection && String(other.id) === String(p.id)))
-  add('placement-unpublished', unpublished.length === 0, placementDetails(unpublished))
+  add('placement-unpublished', unpublished.length === 0, placementDetails(unpublished.map(placement => ({ placement, detail: {} })), placements, input.placementLocaleCodes))
   const duplicates = placements.filter(p => p.published && p.duplicateRows)
-  add('duplicate-version-row', duplicates.length === 0, placementDetails(duplicates))
-  const warned = new Set<string>()
-  for (const p of placements.filter(p => p.published)) for (const slot of p.identicalSlots ?? []) {
-    const key = JSON.stringify([p.collection, String(p.id), slot, p.locale])
-    if (p.locale && warned.has(key)) continue
-    warned.add(key)
-    if (e.arms.some(a => a.slot === slot && a.kind !== 'holdout')) checks.push({ code: 'version-identical', ok: true, warning: true, detail: { arm: slot, ...placementDetail(p) } })
+  add('duplicate-version-row', duplicates.length === 0, placementDetails(duplicates.map(placement => ({ placement, detail: {} })), placements, input.placementLocaleCodes))
+  const identical = placements.filter(p => p.published).flatMap(placement => (placement.identicalSlots ?? [])
+    .filter(slot => e.arms.some(arm => arm.slot === slot && arm.kind !== 'holdout'))
+    .map(arm => ({ placement, detail: { arm } })))
+  for (const detail of placementDetails(identical, placements, input.placementLocaleCodes)) {
+    const { arm, ...page } = detail
+    checks.push({ code: 'version-identical', ok: true, warning: true, detail: { arm, ...page } })
   }
   const empty = placements.filter(placement => placement.published && e.arms.some(arm => arm.kind !== 'holdout' && (!arm.slot || !(placement.slots[arm.slot] > 0))))
-  add('empty-slot', e.kind !== 'block' || empty.length === 0, empty.map(placement => ({ ...placementDetail(placement), slots: placement.slots })))
+  add('empty-slot', e.kind !== 'block' || empty.length === 0, placementDetails(empty.map(placement => ({ placement, detail: { slots: placement.slots } })), placements, input.placementLocaleCodes, detail => JSON.stringify(e.arms.filter(arm => arm.kind !== 'holdout' && (!arm.slot || !(detail.slots[arm.slot] > 0))).map(arm => arm.key))))
   add('make-content-unsupported', true)
   const localized = placements.find(placement => placement.localized)
   if (localized) Object.assign(checks[checks.length - 1]!, { warning: true, detail: localized.title })

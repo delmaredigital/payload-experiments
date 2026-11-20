@@ -11,15 +11,15 @@ and both packages adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### plugin
 
-- Fixed: first publishing a localized page from another language checks and records its stored test blocks; single-language sites were unaffected.
-- Fixed: Start and Decide find test blocks in every content language; single-language sites were unaffected.
-- Fixed: page guards protect localized published block placements across languages; single-language sites were unaffected.
-- Fixed: host editor callbacks receive per-language documents when checking localized placements; single-language sites were unaffected.
-- Fixed: whole-page tests protect localized slug paths against renaming and unpublishing; single-language sites were unaffected.
-- Changed: `PreflightResult.placements[]` gained optional `locales`, `allLocales` and `slotCount` fields; localized sites get rows grouped by page and publication state, with separate rows when languages differ in readiness or displayed details.
-- Changed: `@payloadcms/translations` is a regular dependency installed with the plugin. Hosts do not need to add a dependency, change configuration or run a migration.
-
-- Fixed: delete checks count each published page once across affected locales, stop scanning when the request is aborted, and explain unreadable pages after the list; archived blocks offer Unwrap when Original is already served; editor-side checks now treat a slot as bound to a test exactly when visitors are served it. Migration impact: none.
+- Fixed: first publishing a localized page from another language checks and records its stored test blocks; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.
+- Fixed: Start and Decide find test blocks in every content language; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.
+- Fixed: page guards protect localized published block placements across languages; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.
+- Fixed: host editor callbacks receive per-language documents when checking localized placements; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.
+- Fixed: whole-page tests protect localized slug paths against renaming and unpublishing; single-language sites were unaffected. Migration impact: none; localized sites need no schema or configuration changes.
+- Changed: `PreflightResult.placements[]` gained optional `locales`, `allLocales` and `slotCount` fields; localized sites get rows grouped by page and publication state, with separate rows when languages differ in readiness or displayed details. Migration impact: none; localized sites need no schema or configuration changes.
+- Changed: `@payloadcms/translations` is a regular dependency installed with the plugin. Hosts do not need to add a dependency, change configuration or run a migration. Migration impact: none.
+- Fixed: delete checks count each published page once across affected locales, stop scanning when the request is aborted, and explain unreadable pages after the list; archived blocks offer Unwrap when Original is already served, including an empty winning variant, and explain that Unwrap keeps the content visitors see; editor-side checks now treat a slot as bound to a test exactly when visitors are served it. Migration impact: none.
+- Fixed: localized Binding and preview lists preserve each server row’s publication state, language labels, title, links and placement count. Matching readiness findings are grouped by page and affected languages; different findings stay separate. Migration impact: none for single-language sites; localized sites use the corrected display without a schema or configuration change.
 - Fixed: sidebar dropdown values, menus and unavailable options stay readable under Payload dark mode. The Puck configuration entry works without stylesheet imports: menus anchor to their controls; `aria-selected` marks the saved value, the keyboard-active option has a separate state, and the selected option is bold. Fallback menus follow theme changes while open and ignore their own scrolling. Migration impact: none.
 - Fixed: version cards open through an accessible marker button or a click on the card background. Focusing or editing fields keeps the current canvas and Outline version open. Leftover content uses the same compact cards and keeps its content actions together. Migration impact: none.
 - Fixed: version field errors use the full card width and identify the affected input. Saved feedback has reserved space so saving does not change the card height. Numeric inputs align with the writing direction. Migration impact: none.

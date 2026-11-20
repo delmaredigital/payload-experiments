@@ -61,7 +61,7 @@ const withoutPeriod = (value: string) => value.trim().replace(/[.!?]+$/, '')
 export const fixFieldsNext = (name: string) => `Fix the highlighted fields in ${name}.`
 export const nextCopy = (sentence: string) => `Next: ${sentence}`
 export const versionsNext = (detail: string) => `Fix the versions: ${withoutPeriod(detail)}.`
-export const contentNext = (group: string) => `Add content for ${group} on the page.`
+export const contentNext = (group: string, page = 'the page') => `Add content for ${group} on ${page}.`
 export const parameterNext = (parameter: string, group: string) => `Set a value for ${parameter} on ${group}.`
 export const placementNext = (group: string, detail: string) => `Add content for ${group} wherever this setting is used${detail.trim() ? `: ${withoutPeriod(detail)}` : ''}.`
 export const goalPeopleNext = (people: string) => `This goal can't be measured for ${people}. Choose another goal.`

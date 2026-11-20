@@ -111,6 +111,17 @@ test.each(['puck', 'blocks'] as const)('localized %s Start, Decide and guards sh
   expect(bulk.docs.map(doc => doc.id)).toEqual([other.id])
   expect(await scanBlockPlacements(await request('en'), { slug: String(experiment.slug), publishedOnly: true,
     puckCollections: options().puck!.collections, blocksCollections: options().blocks!.collections })).toEqual(englishViews())
+  // PublishMany sends draft:true: Payload uses latest, whose English copy is
+  // now removed. Publishing French must refuse removal of the last live block.
+  await payload.update({ collection, id: other.id, req: await request('en'), locale: 'en', draft: true, overrideAccess: false,
+    data: { ...empty, _status: 'draft' } })
+  const adminBulk = await payload.update({ collection, where: { id: { equals: other.id } }, req: await request('fr'), locale: 'fr', draft: true, overrideAccess: false,
+    data: { ...empty, _status: 'published' } })
+  expect(adminBulk.docs).toEqual([])
+  expect(adminBulk.errors).toHaveLength(1)
+  expect(adminBulk.errors[0]).toMatchObject({ id: other.id, message: expect.stringContaining('only published place') })
+  expect(await scanBlockPlacements(await request('en'), { slug: String(experiment.slug), publishedOnly: true,
+    puckCollections: options().puck!.collections, blocksCollections: options().blocks!.collections })).toEqual(englishViews())
   // Keep the remaining bilingual-removal scenario independent of that draft.
   await payload.update({ collection, id: other.id, req: await request('en'), locale: 'en', draft: true, overrideAccess: false,
     data: { ...content, _status: 'draft' } })

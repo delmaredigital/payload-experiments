@@ -725,3 +725,19 @@ test.each([false, true])('versions mount keeps share edits; canvas summary canno
   changeField(share, { target: { value: '40' } }); fireEvent.blur(share)
   expect(p.test.stage).toHaveBeenCalledWith({ arms: [{ ...p.test.doc!.arms[0], weight: 40 }, { ...p.test.doc!.arms[1], weight: 60 }] })
 })
+
+
+test.each(['localizedPlacements', 'differingPlacements'] as const)('binding preserves %s server rows, counts, titles, editor links and languages', async fixture => {
+  const fixtures = await import('../../_helpers/localizedPlacements.js')
+  const localizedPlacements = fixtures[fixture]
+  const p = props()
+  p.test.preflight!.placements = localizedPlacements
+  const view = render(<><pageBlockParts.Binding {...p} /><pageBlockParts.VersionContent {...p} armIndex={0} /></>)
+  expect(Array.from(view.container.querySelectorAll('.xp-page-binding > p')).slice(0, 3).map(row => row.textContent)).toEqual([
+    'On: Home (Published) · Languages: English Open the page',
+    fixture === 'differingPlacements' ? 'On: Accueil (Published) · Languages: French (placed 3 times) Open the page' : 'On: Home (Published) · Languages: French Open the page',
+    fixture === 'differingPlacements' ? 'On: Home draft (Draft) · All languages Open the page' : 'On: Home (Draft) · All languages Open the page',
+  ])
+  expect(screen.getAllByRole('link', { name: 'Open the page' }).map(link => link.getAttribute('href'))).toEqual(['/edit/en', '/edit/fr', '/edit/draft'])
+  expect(screen.getAllByRole('link', { name: /Edit on page/ }).map(link => link.getAttribute('href'))).toEqual(['/edit/en', '/edit/fr', '/edit/draft'])
+})

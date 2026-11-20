@@ -205,3 +205,24 @@ test('rapid clicks share the in-flight guard and all controls disable until the 
   expect(open).toHaveBeenCalledTimes(1)
   expect(buttons.every(button => !button.disabled)).toBe(true)
 })
+
+
+test.each(['localizedPlacements', 'differingPlacements'] as const)('previews preserve %s server rows, counts, languages and each preview target', async fixture => {
+  const fixtures = await import('../_helpers/localizedPlacements.js')
+  const localizedPlacements = fixtures[fixture]
+  const { win } = previewWindow()
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ token: 'temporary' }))))
+  const view = render(<PreviewLinks apiRoute="/api" experimentId={1} placements={localizedPlacements} arms={[arms[0]!]} />)
+  expect(Array.from(view.container.querySelectorAll('.xp-preview-row > p')).map(row => row.textContent)).toEqual([
+    'Home · Languages: English',
+    fixture === 'differingPlacements' ? 'Accueil · Languages: French (placed 3 times on this page)' : 'Home · Languages: French',
+    fixture === 'differingPlacements' ? 'Home draft · All languages' : 'Home · All languages',
+  ])
+  expect(screen.getAllByRole('link').map(link => link.getAttribute('href'))).toEqual(['/edit/en', '/edit/fr', '/edit/draft'])
+  for (const [index, button] of screen.getAllByRole('button').entries()) {
+    fireEvent.click(button)
+    await waitFor(() => expect(win.location.replace).toHaveBeenCalledTimes(index + 1))
+    expect(win.location.replace).toHaveBeenLastCalledWith(`${window.location.origin}${localizedPlacements[index]!.url}?xp_preview=temporary`)
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false))
+  }
+})
